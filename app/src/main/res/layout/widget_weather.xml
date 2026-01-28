@@ -1,190 +1,206 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_container"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="horizontal"
-    android:gravity="center"
     android:padding="8dp"
     android:background="@drawable/widget_background">
 
-    <!-- Day 1 (Yesterday) -->
+    <!-- Text-only view (for 1-row height) -->
     <LinearLayout
-        android:id="@+id/day1_container"
-        android:layout_width="0dp"
+        android:id="@+id/text_container"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/day1_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Yesterday"
-            android:textSize="10sp"
-            android:textColor="@color/widget_text_secondary" />
-
-        <TextView
-            android:id="@+id/day1_high"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/day1_low"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="14sp"
-            android:textColor="@color/widget_text_secondary" />
-    </LinearLayout>
-
-    <!-- Day 2 (Today) - Always visible -->
-    <LinearLayout
-        android:id="@+id/day2_container"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:gravity="center">
 
-        <TextView
-            android:id="@+id/day2_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Today"
-            android:textSize="10sp"
-            android:textColor="@color/widget_text_secondary" />
+        <!-- Day 1 (Yesterday) -->
+        <LinearLayout
+            android:id="@+id/day1_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
 
-        <TextView
-            android:id="@+id/day2_high"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold" />
+            <TextView
+                android:id="@+id/day1_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Yest"
+                android:textSize="10sp"
+                android:textColor="@color/widget_text_secondary" />
 
-        <TextView
-            android:id="@+id/day2_low"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="14sp"
-            android:textColor="@color/widget_text_secondary" />
+            <TextView
+                android:id="@+id/day1_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day1_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary" />
+        </LinearLayout>
+
+        <!-- Day 2 (Today) - Always visible -->
+        <LinearLayout
+            android:id="@+id/day2_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/day2_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Today"
+                android:textSize="10sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day2_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day2_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary" />
+        </LinearLayout>
+
+        <!-- Day 3 (Tomorrow) -->
+        <LinearLayout
+            android:id="@+id/day3_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/day3_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Tmrw"
+                android:textSize="10sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day3_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day3_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary" />
+        </LinearLayout>
+
+        <!-- Day 4 -->
+        <LinearLayout
+            android:id="@+id/day4_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/day4_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Day"
+                android:textSize="10sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day4_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day4_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary" />
+        </LinearLayout>
+
+        <!-- Day 5 -->
+        <LinearLayout
+            android:id="@+id/day5_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/day5_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Day"
+                android:textSize="10sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day5_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day5_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary" />
+        </LinearLayout>
+
     </LinearLayout>
 
-    <!-- Day 3 (Tomorrow) -->
-    <LinearLayout
-        android:id="@+id/day3_container"
-        android:layout_width="0dp"
+    <!-- Graph view (for 2+ row height) -->
+    <ImageView
+        android:id="@+id/graph_view"
+        android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
+        android:scaleType="fitXY"
+        android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/day3_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Tomorrow"
-            android:textSize="10sp"
-            android:textColor="@color/widget_text_secondary" />
-
-        <TextView
-            android:id="@+id/day3_high"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/day3_low"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="14sp"
-            android:textColor="@color/widget_text_secondary" />
-    </LinearLayout>
-
-    <!-- Day 4 -->
-    <LinearLayout
-        android:id="@+id/day4_container"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/day4_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Day"
-            android:textSize="10sp"
-            android:textColor="@color/widget_text_secondary" />
-
-        <TextView
-            android:id="@+id/day4_high"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/day4_low"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="14sp"
-            android:textColor="@color/widget_text_secondary" />
-    </LinearLayout>
-
-    <!-- Day 5 -->
-    <LinearLayout
-        android:id="@+id/day5_container"
-        android:layout_width="0dp"
-        android:layout_height="match_parent"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:visibility="gone">
-
-        <TextView
-            android:id="@+id/day5_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Day"
-            android:textSize="10sp"
-            android:textColor="@color/widget_text_secondary" />
-
-        <TextView
-            android:id="@+id/day5_high"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/day5_low"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="--°"
-            android:textSize="14sp"
-            android:textColor="@color/widget_text_secondary" />
-    </LinearLayout>
-
-</LinearLayout>
+</FrameLayout>

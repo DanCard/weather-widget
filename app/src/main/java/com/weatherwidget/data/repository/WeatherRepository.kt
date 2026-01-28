@@ -22,6 +22,9 @@ class WeatherRepository @Inject constructor(
         private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
     }
 
+    // Toggle between APIs - start with Open-Meteo since it has historical data
+    private var useOpenMeteoFirst = true
+
     suspend fun getWeatherData(
         lat: Double,
         lon: Double,
@@ -61,12 +64,26 @@ class WeatherRepository @Inject constructor(
         lon: Double,
         locationName: String
     ): List<WeatherEntity> {
-        return try {
-            Log.d(TAG, "fetchFromApis: Trying NWS first")
-            fetchFromNws(lat, lon, locationName)
-        } catch (e: Exception) {
-            Log.d(TAG, "fetchFromApis: NWS failed, trying Open-Meteo", e)
-            fetchFromOpenMeteo(lat, lon, locationName)
+        // Toggle which API to try first
+        val tryOpenMeteoFirst = useOpenMeteoFirst
+        useOpenMeteoFirst = !useOpenMeteoFirst  // Toggle for next time
+
+        return if (tryOpenMeteoFirst) {
+            try {
+                Log.d(TAG, "fetchFromApis: Trying Open-Meteo first (has historical data)")
+                fetchFromOpenMeteo(lat, lon, locationName)
+            } catch (e: Exception) {
+                Log.d(TAG, "fetchFromApis: Open-Meteo failed, trying NWS", e)
+                fetchFromNws(lat, lon, locationName)
+            }
+        } else {
+            try {
+                Log.d(TAG, "fetchFromApis: Trying NWS first")
+                fetchFromNws(lat, lon, locationName)
+            } catch (e: Exception) {
+                Log.d(TAG, "fetchFromApis: NWS failed, trying Open-Meteo", e)
+                fetchFromOpenMeteo(lat, lon, locationName)
+            }
         }
     }
 
