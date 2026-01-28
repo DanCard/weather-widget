@@ -42,7 +42,8 @@ class WeatherRepository @Inject constructor(
             val weather = fetchFromApis(lat, lon, locationName)
             weatherDao.insertAll(weather)
             cleanOldData()
-            Result.success(weather)
+            // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
+            Result.success(getCachedData(lat, lon))
         } catch (e: Exception) {
             val cached = getCachedData(lat, lon)
             if (cached.isNotEmpty()) {
