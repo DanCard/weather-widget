@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Weather Widget</string>
+    <string name="widget_description">A resizable weather widget showing current conditions and forecast</string>
+    <string name="configure_widget">Configure Widget</string>
+    <string name="use_current_location">Use Current Location</string>
+    <string name="or_enter_zip">Or enter a ZIP code:</string>
+    <string name="zip_code_hint">ZIP Code</string>
+    <string name="use_zip_code">Use ZIP Code</string>
+    <string name="offline">Offline</string>
+    <string name="tap_to_configure">Tap to configure</string>
+</resources>
