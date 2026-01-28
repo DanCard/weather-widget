@@ -22,8 +22,8 @@ class WeatherRepository @Inject constructor(
         private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
     }
 
-    // Toggle between APIs - start with Open-Meteo since it has historical data
-    private var useOpenMeteoFirst = true
+    // Toggle between APIs - alternate fairly between both
+    private var useOpenMeteoFirst = false
 
     suspend fun getWeatherData(
         lat: Double,
@@ -70,7 +70,7 @@ class WeatherRepository @Inject constructor(
 
         return if (tryOpenMeteoFirst) {
             try {
-                Log.d(TAG, "fetchFromApis: Trying Open-Meteo first (has historical data)")
+                Log.d(TAG, "fetchFromApis: Trying Open-Meteo first")
                 fetchFromOpenMeteo(lat, lon, locationName)
             } catch (e: Exception) {
                 Log.d(TAG, "fetchFromApis: Open-Meteo failed, trying NWS", e)
