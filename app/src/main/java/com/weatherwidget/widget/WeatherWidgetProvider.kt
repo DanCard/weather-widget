@@ -321,7 +321,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val todayWeather = weatherByDate[todayStr]
             val apiSource = todayWeather?.source ?: displaySource
-            views.setTextViewText(R.id.api_source, apiSource)
+            // Use shorter display name for Open-Meteo to prevent wrapping
+            val displayName = if (apiSource == "Open-Meteo") "Meteo" else apiSource
+            Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
+            views.setTextViewText(R.id.api_source, displayName)
 
             // Set up API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)
@@ -417,9 +420,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             // Scale text size based on widget rows
             val textSizeSp = when {
-                numRows >= 3 -> 14f
-                numRows >= 2 -> 12f
-                else -> 10f
+                numRows >= 3 -> 18f
+                numRows >= 2 -> 16f
+                else -> 14f
             }
             views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
         }
