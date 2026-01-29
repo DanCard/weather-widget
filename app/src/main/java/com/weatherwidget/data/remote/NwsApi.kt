@@ -29,12 +29,60 @@ class NwsApi @Inject constructor(
         val properties = jsonObj["properties"]?.jsonObject
             ?: throw Exception("Invalid NWS response")
 
+        // Extract observation stations URL
+        val observationStationsUrl = properties["observationStations"]?.jsonPrimitive?.content
+
         return GridPointInfo(
             gridId = properties["gridId"]?.jsonPrimitive?.content ?: "",
             gridX = properties["gridX"]?.jsonPrimitive?.content?.toInt() ?: 0,
             gridY = properties["gridY"]?.jsonPrimitive?.content?.toInt() ?: 0,
-            forecastUrl = properties["forecast"]?.jsonPrimitive?.content ?: ""
+            forecastUrl = properties["forecast"]?.jsonPrimitive?.content ?: "",
+            observationStationsUrl = observationStationsUrl
         )
+    }
+
+    suspend fun getObservationStations(stationsUrl: String): List<String> {
+        val response: String = httpClient.get(stationsUrl) {
+            header("User-Agent", USER_AGENT)
+            header("Accept", "application/json")
+        }.body()
+
+        val jsonObj = json.parseToJsonElement(response).jsonObject
+        val features = jsonObj["features"]?.jsonArray ?: return emptyList()
+
+        return features.mapNotNull { feature ->
+            feature.jsonObject["properties"]?.jsonObject?.get("stationIdentifier")?.jsonPrimitive?.content
+        }
+    }
+
+    suspend fun getObservations(stationId: String, start: String, end: String): List<Observation> {
+        val response: String = httpClient.get("$BASE_URL/stations/$stationId/observations") {
+            header("User-Agent", USER_AGENT)
+            header("Accept", "application/json")
+            parameter("start", start)
+            parameter("end", end)
+        }.body()
+
+        val jsonObj = json.parseToJsonElement(response).jsonObject
+        val features = jsonObj["features"]?.jsonArray ?: return emptyList()
+
+        return features.mapNotNull { feature ->
+            val props = feature.jsonObject["properties"]?.jsonObject ?: return@mapNotNull null
+            val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return@mapNotNull null
+
+            // Temperature is in a value object with unitCode
+            val tempObj = props["temperature"]?.jsonObject
+            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
+
+            if (tempValue != null) {
+                Observation(
+                    timestamp = timestamp,
+                    temperatureCelsius = tempValue
+                )
+            } else {
+                null
+            }
+        }
     }
 
     suspend fun getForecast(gridPoint: GridPointInfo): List<ForecastPeriod> {
@@ -63,7 +111,8 @@ class NwsApi @Inject constructor(
         val gridId: String,
         val gridX: Int,
         val gridY: Int,
-        val forecastUrl: String
+        val forecastUrl: String,
+        val observationStationsUrl: String? = null
     )
 
     data class ForecastPeriod(
@@ -72,5 +121,10 @@ class NwsApi @Inject constructor(
         val temperatureUnit: String,
         val shortForecast: String,
         val isDaytime: Boolean
+    )
+
+    data class Observation(
+        val timestamp: String,
+        val temperatureCelsius: Double
     )
 }

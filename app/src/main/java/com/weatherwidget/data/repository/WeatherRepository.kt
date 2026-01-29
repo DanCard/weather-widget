@@ -239,6 +239,22 @@ class WeatherRepository @Inject constructor(
         val conditionByDate = mutableMapOf<String, String>()
         val today = LocalDate.now()
 
+        // Fetch yesterday's actual observations if observation stations are available
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        try {
+            if (gridPoint.observationStationsUrl != null) {
+                val yesterdayData = fetchYesterdayObservations(gridPoint.observationStationsUrl, yesterday)
+                if (yesterdayData != null) {
+                    weatherByDate[yesterdayStr] = yesterdayData.first to yesterdayData.second
+                    conditionByDate[yesterdayStr] = "Observed"
+                    Log.d(TAG, "fetchFromNws: Got yesterday observations H=${yesterdayData.first} L=${yesterdayData.second}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchFromNws: Failed to fetch yesterday observations: ${e.message}")
+        }
+
         // NWS returns periods in pairs: day/night for each day
         // Calculate date based on period index
         forecast.forEachIndexed { index, period ->
@@ -272,6 +288,47 @@ class WeatherRepository @Inject constructor(
                 isActual = LocalDate.parse(date).isBefore(LocalDate.now()),
                 source = "NWS"
             )
+        }
+    }
+
+    private suspend fun fetchYesterdayObservations(
+        stationsUrl: String,
+        yesterday: LocalDate
+    ): Pair<Int, Int>? {
+        try {
+            // Get list of observation stations (sorted by distance)
+            val stations = nwsApi.getObservationStations(stationsUrl)
+            if (stations.isEmpty()) {
+                Log.w(TAG, "fetchYesterdayObservations: No observation stations found")
+                return null
+            }
+
+            val stationId = stations.first()
+            Log.d(TAG, "fetchYesterdayObservations: Using station $stationId")
+
+            // Fetch observations for yesterday (full day in UTC)
+            val startTime = yesterday.atStartOfDay(java.time.ZoneId.of("UTC"))
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+            val endTime = yesterday.plusDays(1).atStartOfDay(java.time.ZoneId.of("UTC"))
+                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+
+            val observations = nwsApi.getObservations(stationId, startTime, endTime)
+            if (observations.isEmpty()) {
+                Log.w(TAG, "fetchYesterdayObservations: No observations found for $stationId on $yesterday")
+                return null
+            }
+
+            Log.d(TAG, "fetchYesterdayObservations: Got ${observations.size} observations")
+
+            // Calculate high/low from observations (convert C to F)
+            val temps = observations.map { (it.temperatureCelsius * 9 / 5 + 32).toInt() }
+            val high = temps.maxOrNull() ?: return null
+            val low = temps.minOrNull() ?: return null
+
+            return high to low
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchYesterdayObservations: Error: ${e.message}", e)
+            return null
         }
     }
 
