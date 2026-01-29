@@ -56,3 +56,9 @@ Battery-aware refresh strategy using WorkManager:
 | GPS unavailable | Fall back to last known location or default (Google HQ); display location name |
 | API failure | Try fallback API (Open-Meteo); if both fail, show cached data with error indicator |
 | No data available | Display "Tap to configure" message |
+
+## Build Requirements
+
+- **Java**: Requires Java 21 (Java 25 is not compatible with Gradle 8.5)
+- Build with: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug`
+- Available emulators: `Generic_Foldable_API36`, `Medium_Phone_API_36`
