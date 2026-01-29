@@ -46,8 +46,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         newOptions: Bundle?
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
-        // Trigger update when widget is resized
-        triggerImmediateUpdate(context)
+        Log.d(TAG, "onAppWidgetOptionsChanged: widgetId=$appWidgetId")
+        // Handle resize immediately using goAsync() to avoid blocking
+        val pendingResult = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                handleResizeDirect(context, appWidgetManager, appWidgetId)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onEnabled(context: Context) {
@@ -145,6 +153,32 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         // Update widget directly
         val appWidgetManager = AppWidgetManager.getInstance(context)
+        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots)
+    }
+
+    private suspend fun handleResizeDirect(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
+        Log.d(TAG, "handleResizeDirect: Updating widget $appWidgetId after resize")
+
+        // Read weather data directly from database
+        val database = WeatherDatabase.getDatabase(context)
+        val weatherDao = database.weatherDao()
+        val snapshotDao = database.forecastSnapshotDao()
+
+        // Get location from latest weather data in database
+        val latestWeather = weatherDao.getLatestWeather()
+        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+        val yesterday = java.time.LocalDate.now().minusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherList = weatherDao.getWeatherRange(yesterday, twoWeeks, lat, lon)
+        val forecastSnapshots = snapshotDao.getForecastsInRange(yesterday, twoWeeks, lat, lon)
+            .groupBy { it.targetDate }
+
+        Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries")
+
+        // Update widget directly with new size
         updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots)
     }
 
