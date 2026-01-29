@@ -24,11 +24,19 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false"
+            android:label="@string/settings" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.weatherwidget.ACTION_REFRESH" />
+                <action android:name="com.weatherwidget.ACTION_NAV_LEFT" />
+                <action android:name="com.weatherwidget.ACTION_NAV_RIGHT" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

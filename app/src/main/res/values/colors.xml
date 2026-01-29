@@ -9,4 +9,7 @@
     <color name="widget_background">#B3000000</color>
     <color name="widget_text_primary">#FFFFFF</color>
     <color name="widget_text_secondary">#AAAAAA</color>
+
+    <!-- Settings activity colors -->
+    <color name="background">#1C1C1E</color>
 </resources>

@@ -2,10 +2,12 @@ package com.weatherwidget.di
 
 import android.content.Context
 import androidx.room.Room
+import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.widget.WidgetStateManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -45,11 +47,24 @@ object AppModule {
         context,
         WeatherDatabase::class.java,
         "weather_database"
-    ).build()
+    )
+        .addMigrations(WeatherDatabase.MIGRATION_1_2)
+        .build()
 
     @Provides
     @Singleton
     fun provideWeatherDao(database: WeatherDatabase): WeatherDao = database.weatherDao()
+
+    @Provides
+    @Singleton
+    fun provideForecastSnapshotDao(database: WeatherDatabase): ForecastSnapshotDao =
+        database.forecastSnapshotDao()
+
+    @Provides
+    @Singleton
+    fun provideWidgetStateManager(
+        @ApplicationContext context: Context
+    ): WidgetStateManager = WidgetStateManager(context)
 
     @Provides
     @Singleton

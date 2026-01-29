@@ -1,5 +1,6 @@
 package com.weatherwidget.data.repository
 
+import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.remote.NwsApi
@@ -15,6 +16,7 @@ import java.time.format.DateTimeFormatter
 class WeatherRepositoryTest {
 
     private lateinit var weatherDao: WeatherDao
+    private lateinit var forecastSnapshotDao: ForecastSnapshotDao
     private lateinit var nwsApi: NwsApi
     private lateinit var openMeteoApi: OpenMeteoApi
     private lateinit var repository: WeatherRepository
@@ -27,9 +29,10 @@ class WeatherRepositoryTest {
     @Before
     fun setup() {
         weatherDao = mockk(relaxed = true)
+        forecastSnapshotDao = mockk(relaxed = true)
         nwsApi = mockk()
         openMeteoApi = mockk()
-        repository = WeatherRepository(weatherDao, nwsApi, openMeteoApi)
+        repository = WeatherRepository(weatherDao, forecastSnapshotDao, nwsApi, openMeteoApi)
     }
 
     @Test

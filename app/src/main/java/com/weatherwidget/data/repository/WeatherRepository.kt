@@ -1,25 +1,44 @@
 package com.weatherwidget.data.repository
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import com.weatherwidget.data.ApiLogger
+import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.widget.ApiPreference
+import com.weatherwidget.widget.WidgetStateManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 
 private const val TAG = "WeatherRepository"
 
 @Singleton
 class WeatherRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val weatherDao: WeatherDao,
+    private val forecastSnapshotDao: ForecastSnapshotDao,
     private val nwsApi: NwsApi,
-    private val openMeteoApi: OpenMeteoApi
+    private val openMeteoApi: OpenMeteoApi,
+    private val widgetStateManager: WidgetStateManager,
+    private val apiLogger: ApiLogger
 ) {
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+    }
     companion object {
         private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
+        private const val SNAPSHOT_CUTOFF_HOUR = 20  // 8pm - don't save snapshots after this hour
     }
 
     // Toggle between APIs - alternate fairly between both
@@ -39,8 +58,9 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            val weather = fetchFromApis(lat, lon, locationName)
-            weatherDao.insertAll(weather)
+            val (displayWeather, _) = fetchFromBothApis(lat, lon, locationName)
+
+            weatherDao.insertAll(displayWeather)
             cleanOldData()
             // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
             Result.success(getCachedData(lat, lon))
@@ -54,36 +74,166 @@ class WeatherRepository @Inject constructor(
         }
     }
 
-    private suspend fun getCachedData(lat: Double, lon: Double): List<WeatherEntity> {
-        val yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val nextWeek = LocalDate.now().plusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return weatherDao.getWeatherRange(yesterday, nextWeek, lat, lon)
+    private fun shouldSaveSnapshot(): Boolean {
+        val now = LocalTime.now()
+        return now.hour < SNAPSHOT_CUTOFF_HOUR
     }
 
-    private suspend fun fetchFromApis(
+    private suspend fun saveForecastSnapshot(
+        weather: List<WeatherEntity>,
+        lat: Double,
+        lon: Double,
+        source: String
+    ) {
+        if (!shouldSaveSnapshot()) {
+            Log.d(TAG, "Skipping snapshot save (after ${SNAPSHOT_CUTOFF_HOUR}:00)")
+            return
+        }
+
+        val today = LocalDate.now()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        // Find tomorrow's forecast in the new weather data
+        val tomorrowForecast = weather.find { it.date == tomorrowStr }
+
+        if (tomorrowForecast != null) {
+            // Save as 1-day-ahead forecast (forecasted today for tomorrow)
+            val snapshot = ForecastSnapshotEntity(
+                targetDate = tomorrowStr,
+                forecastDate = todayStr,
+                locationLat = lat,
+                locationLon = lon,
+                highTemp = tomorrowForecast.highTemp,
+                lowTemp = tomorrowForecast.lowTemp,
+                condition = tomorrowForecast.condition,
+                source = source,
+                fetchedAt = System.currentTimeMillis()
+            )
+            forecastSnapshotDao.insertSnapshot(snapshot)
+            Log.d(TAG, "Saved forecast snapshot ($source): $todayStr forecast for $tomorrowStr - H:${snapshot.highTemp} L:${snapshot.lowTemp}")
+        }
+    }
+
+    suspend fun getForecastForDate(
+        targetDate: String,
+        lat: Double,
+        lon: Double
+    ): ForecastSnapshotEntity? {
+        return forecastSnapshotDao.getForecastForDate(targetDate, lat, lon)
+    }
+
+    suspend fun getForecastForDateBySource(
+        targetDate: String,
+        lat: Double,
+        lon: Double,
+        source: String
+    ): ForecastSnapshotEntity? {
+        // Get all snapshots for this date and filter by source
+        val snapshots = forecastSnapshotDao.getForecastsInRange(targetDate, targetDate, lat, lon)
+        return snapshots.find { it.source == source }
+    }
+
+    suspend fun getForecastsInRange(
+        startDate: String,
+        endDate: String,
+        lat: Double,
+        lon: Double
+    ): List<ForecastSnapshotEntity> {
+        return forecastSnapshotDao.getForecastsInRange(startDate, endDate, lat, lon)
+    }
+
+    suspend fun getWeatherRange(
+        startDate: String,
+        endDate: String,
+        lat: Double,
+        lon: Double
+    ): List<WeatherEntity> {
+        return weatherDao.getWeatherRange(startDate, endDate, lat, lon)
+    }
+
+    private suspend fun getCachedData(lat: Double, lon: Double): List<WeatherEntity> {
+        val yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        return weatherDao.getWeatherRange(yesterday, twoWeeks, lat, lon)
+    }
+
+    /**
+     * Fetches weather from both APIs concurrently and saves snapshots from both sources.
+     * Returns the preferred API's data for display, and both results for snapshot saving.
+     */
+    private suspend fun fetchFromBothApis(
         lat: Double,
         lon: Double,
         locationName: String
-    ): List<WeatherEntity> {
-        // Toggle which API to try first
-        val tryOpenMeteoFirst = useOpenMeteoFirst
-        useOpenMeteoFirst = !useOpenMeteoFirst  // Toggle for next time
+    ): Pair<List<WeatherEntity>, List<WeatherEntity>?> = coroutineScope {
+        val apiPreference = widgetStateManager.getApiPreference()
 
-        return if (tryOpenMeteoFirst) {
+        // Try both APIs concurrently
+        val nwsDeferred = async {
             try {
-                Log.d(TAG, "fetchFromApis: Trying Open-Meteo first")
-                fetchFromOpenMeteo(lat, lon, locationName)
+                val startTime = System.currentTimeMillis()
+                val result = fetchFromNws(lat, lon, locationName)
+                val duration = System.currentTimeMillis() - startTime
+                apiLogger.logApiCall("NWS", true, null, locationName, duration)
+                Log.d(TAG, "fetchFromBothApis: NWS succeeded")
+                result to null
             } catch (e: Exception) {
-                Log.d(TAG, "fetchFromApis: Open-Meteo failed, trying NWS", e)
-                fetchFromNws(lat, lon, locationName)
+                Log.d(TAG, "fetchFromBothApis: NWS failed: ${e.message}")
+                apiLogger.logApiCall("NWS", false, e.message ?: "Unknown error", locationName)
+                null to e
             }
-        } else {
+        }
+
+        val meteoDeferred = async {
             try {
-                Log.d(TAG, "fetchFromApis: Trying NWS first")
-                fetchFromNws(lat, lon, locationName)
+                val startTime = System.currentTimeMillis()
+                val result = fetchFromOpenMeteo(lat, lon, locationName, days = 14)
+                val duration = System.currentTimeMillis() - startTime
+                apiLogger.logApiCall("Open-Meteo", true, null, locationName, duration)
+                Log.d(TAG, "fetchFromBothApis: Open-Meteo succeeded")
+                result to null
             } catch (e: Exception) {
-                Log.d(TAG, "fetchFromApis: NWS failed, trying Open-Meteo", e)
-                fetchFromOpenMeteo(lat, lon, locationName)
+                Log.d(TAG, "fetchFromBothApis: Open-Meteo failed: ${e.message}")
+                apiLogger.logApiCall("Open-Meteo", false, e.message ?: "Unknown error", locationName)
+                null to e
+            }
+        }
+
+        val nwsResult = nwsDeferred.await()
+        val meteoResult = meteoDeferred.await()
+
+        // Save snapshots from both APIs (if available and before cutoff time)
+        nwsResult.first?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
+        meteoResult.first?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
+
+        // Determine which to use for display based on preference
+        val tryOpenMeteoFirst = when (apiPreference) {
+            ApiPreference.PREFER_OPENMETEO -> true
+            ApiPreference.PREFER_NWS -> false
+            ApiPreference.ALTERNATE -> {
+                val result = useOpenMeteoFirst
+                useOpenMeteoFirst = !useOpenMeteoFirst
+                result
+            }
+        }
+
+        val (primaryResult, secondaryResult) = if (tryOpenMeteoFirst) {
+            meteoResult to nwsResult
+        } else {
+            nwsResult to meteoResult
+        }
+
+        // Return preferred API's data, or fallback to the other
+        when {
+            primaryResult.first != null -> primaryResult.first!! to secondaryResult.first
+            secondaryResult.first != null -> {
+                Log.d(TAG, "fetchFromBothApis: Using fallback API for display")
+                secondaryResult.first!! to null
+            }
+            else -> {
+                Log.e(TAG, "fetchFromBothApis: Both APIs failed")
+                throw primaryResult.second ?: Exception("Both APIs failed")
             }
         }
     }
@@ -96,6 +246,7 @@ class WeatherRepository @Inject constructor(
         val gridPoint = nwsApi.getGridPoint(lat, lon)
         val forecast = nwsApi.getForecast(gridPoint)
         Log.d(TAG, "fetchFromNws: Got ${forecast.size} periods")
+        prefs.edit().putString("last_api_source", "NWS").apply()
 
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
@@ -139,11 +290,13 @@ class WeatherRepository @Inject constructor(
     private suspend fun fetchFromOpenMeteo(
         lat: Double,
         lon: Double,
-        locationName: String
+        locationName: String,
+        days: Int = 7
     ): List<WeatherEntity> {
-        Log.d(TAG, "fetchFromOpenMeteo: Fetching for $lat, $lon")
-        val forecast = openMeteoApi.getForecast(lat, lon)
+        Log.d(TAG, "fetchFromOpenMeteo: Fetching for $lat, $lon (days=$days)")
+        val forecast = openMeteoApi.getForecast(lat, lon, days)
         Log.d(TAG, "fetchFromOpenMeteo: Got ${forecast.daily.size} days from API")
+        prefs.edit().putString("last_api_source", "Open-Meteo").apply()
         forecast.daily.forEach { d ->
             Log.d(TAG, "  API day: ${d.date} H=${d.highTemp} L=${d.lowTemp}")
         }
@@ -167,6 +320,7 @@ class WeatherRepository @Inject constructor(
     private suspend fun cleanOldData() {
         val cutoff = System.currentTimeMillis() - MONTH_IN_MILLIS
         weatherDao.deleteOldData(cutoff)
+        forecastSnapshotDao.deleteOldSnapshots(cutoff)
     }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? {

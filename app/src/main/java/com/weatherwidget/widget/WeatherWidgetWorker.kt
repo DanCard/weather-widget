@@ -9,6 +9,7 @@ import android.os.BatteryManager
 import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
+import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.repository.WeatherRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -43,7 +44,9 @@ class WeatherWidgetWorker @AssistedInject constructor(
                     weatherList.forEach { w ->
                         Log.d(TAG, "  ${w.date}: H=${w.highTemp} L=${w.lowTemp}")
                     }
-                    updateAllWidgets(weatherList)
+                    // Fetch forecast snapshots for comparison
+                    val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
+                    updateAllWidgets(weatherList, forecastSnapshots)
                     scheduleNextUpdate()
                     Result.success()
                 },
@@ -58,7 +61,33 @@ class WeatherWidgetWorker @AssistedInject constructor(
         }
     }
 
-    private fun updateAllWidgets(weatherList: List<com.weatherwidget.data.local.WeatherEntity>) {
+    private suspend fun fetchForecastSnapshots(
+        lat: Double,
+        lon: Double
+    ): Map<String, List<ForecastSnapshotEntity>> {
+        return try {
+            val startDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val endDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val snapshots = weatherRepository.getForecastsInRange(startDate, endDate, lat, lon)
+            // Group by target date, keeping all sources for each date
+            // For each date, we want the most recent forecast from each API source
+            snapshots.groupBy { it.targetDate }
+                .mapValues { (_, forecasts) ->
+                    // Group by source and take most recent for each
+                    forecasts.groupBy { it.source }
+                        .mapValues { (_, sourceForecasts) -> sourceForecasts.maxByOrNull { it.forecastDate }!! }
+                        .values.toList()
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch forecast snapshots", e)
+            emptyMap()
+        }
+    }
+
+    private fun updateAllWidgets(
+        weatherList: List<com.weatherwidget.data.local.WeatherEntity>,
+        forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>
+    ) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -68,7 +97,8 @@ class WeatherWidgetWorker @AssistedInject constructor(
                 context = context,
                 appWidgetManager = appWidgetManager,
                 appWidgetId = appWidgetId,
-                weatherList = weatherList
+                weatherList = weatherList,
+                forecastSnapshots = forecastSnapshots
             )
         }
     }

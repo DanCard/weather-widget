@@ -6,11 +6,37 @@
     android:padding="8dp"
     android:background="@drawable/widget_background">
 
+    <!-- Left navigation arrow -->
+    <ImageButton
+        android:id="@+id/nav_left"
+        android:layout_width="32dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start|center_vertical"
+        android:src="@drawable/ic_chevron_left"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside"
+        android:contentDescription="@string/nav_previous"
+        android:visibility="visible" />
+
+    <!-- Right navigation arrow -->
+    <ImageButton
+        android:id="@+id/nav_right"
+        android:layout_width="32dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end|center_vertical"
+        android:src="@drawable/ic_chevron_right"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside"
+        android:contentDescription="@string/nav_next"
+        android:visibility="visible" />
+
     <!-- Text-only view (for 1-row height) -->
     <LinearLayout
         android:id="@+id/text_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
         android:orientation="horizontal"
         android:gravity="center">
 
@@ -200,7 +226,22 @@
         android:id="@+id/graph_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
         android:scaleType="fitXY"
         android:visibility="gone" />
+
+    <!-- API Source indicator -->
+    <TextView
+        android:id="@+id/api_source"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="2dp"
+        android:layout_marginEnd="36dp"
+        android:text="NWS"
+        android:textSize="11sp"
+        android:textColor="#AAFFFFFF"
+        android:visibility="visible" />
 
 </FrameLayout>

@@ -59,6 +59,22 @@ Battery-aware refresh strategy using WorkManager:
 
 ## Build Requirements
 
-- **Java**: Requires Java 21 (Java 25 is not compatible with Gradle 8.5)
-- Build with: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug`
+- **Java**: Requires Java 21 (use Android Studio's bundled JDK)
+- **JAVA_HOME**: Set to `/home/dcar/Downloads/high/android-studio/jbr`
+- **Gradle**: Currently using Gradle 8.13
+- Build with: `./gradlew installDebug`
 - Available emulators: `Generic_Foldable_API36`, `Medium_Phone_API_36`
+
+## Testing the Widget
+
+This is a widget-only app (no launcher activity). To test:
+
+1. Build and install: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug`
+2. On the emulator/device, long-press the home screen and select "Widgets"
+3. Find "Weather Widget" and drag it to the home screen
+4. Resize the widget to test different layouts (1x1, 1x3, 2x3, etc.)
+
+Alternatively, use ADB to open the widget picker:
+```bash
+adb shell am start -a android.appwidget.action.APPWIDGET_PICK
+```

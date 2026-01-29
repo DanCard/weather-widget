@@ -1,7 +1,9 @@
 package com.weatherwidget.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -11,6 +13,7 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
+import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.WeatherEntity
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -25,10 +28,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        Log.d(TAG, "onUpdate: Updating ${appWidgetIds.size} widgets")
         for (appWidgetId in appWidgetIds) {
             updateWidgetLoading(context, appWidgetManager, appWidgetId)
         }
         schedulePeriodicUpdate(context)
+        // Trigger immediate update to fetch data
+        triggerImmediateUpdate(context)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -52,11 +58,44 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val stateManager = WidgetStateManager(context)
+        for (appWidgetId in appWidgetIds) {
+            stateManager.clearWidgetState(appWidgetId)
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH) {
-            triggerImmediateUpdate(context)
+        Log.d(TAG, "onReceive: action=${intent.action}")
+        when (intent.action) {
+            ACTION_REFRESH -> {
+                Log.d(TAG, "onReceive: Triggering immediate update")
+                triggerImmediateUpdate(context)
+            }
+            ACTION_NAV_LEFT, ACTION_NAV_RIGHT -> {
+                val appWidgetId = intent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID
+                )
+                Log.d(TAG, "onReceive: Navigation action for widget $appWidgetId")
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    handleNavigation(context, appWidgetId, intent.action == ACTION_NAV_LEFT)
+                }
+            }
         }
+    }
+
+    private fun handleNavigation(context: Context, appWidgetId: Int, isLeft: Boolean) {
+        val stateManager = WidgetStateManager(context)
+        if (isLeft) {
+            stateManager.navigateLeft(appWidgetId)
+        } else {
+            stateManager.navigateRight(appWidgetId)
+        }
+        // Trigger refresh to update widget with new offset
+        triggerImmediateUpdate(context)
     }
 
     private fun schedulePeriodicUpdate(context: Context) {
@@ -78,6 +117,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     }
 
     private fun triggerImmediateUpdate(context: Context) {
+        Log.d(TAG, "triggerImmediateUpdate: Enqueueing worker")
         val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -87,11 +127,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             .build()
 
         WorkManager.getInstance(context).enqueue(workRequest)
+        Log.d(TAG, "triggerImmediateUpdate: Worker enqueued with id=${workRequest.id}")
     }
 
     companion object {
         const val WORK_NAME = "weather_widget_update"
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
+        const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
+        const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
         private const val TAG = "WeatherWidgetProvider"
 
         private const val CELL_WIDTH_DP = 73
@@ -133,15 +176,39 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
-            weatherList: List<WeatherEntity>
+            weatherList: List<WeatherEntity>,
+            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap()
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
-            Log.d(TAG, "updateWidgetWithData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, weatherCount=${weatherList.size}")
+            val stateManager = WidgetStateManager(context)
+            val dateOffset = stateManager.getDateOffset(appWidgetId)
+            val accuracyMode = stateManager.getAccuracyDisplayMode()
+
+            Log.d(TAG, "updateWidgetWithData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, weatherCount=${weatherList.size}")
+
+            // Set API source indicator
+            val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
+            val apiSource = prefs.getString("last_api_source", "NWS") ?: "NWS"
+            views.setTextViewText(R.id.api_source, apiSource)
+
+            // Set tap to open settings
+            val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
+            val settingsPendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                settingsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.widget_root, settingsPendingIntent)
 
             val today = LocalDate.now()
+            val centerDate = today.plusDays(dateOffset.toLong())
             val sortedWeather = weatherList.sortedBy { it.date }
             val weatherByDate = sortedWeather.associateBy { it.date }
+
+            // Set up navigation click handlers
+            setupNavigationButtons(context, views, appWidgetId, stateManager)
 
             // Use graph mode for 2+ rows
             val useGraph = numRows >= 2
@@ -150,11 +217,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.text_container, View.GONE)
                 views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
-                // Build day data for graph
-                val days = buildDayDataList(today, weatherByDate, numColumns)
+                // Build day data for graph with offset
+                val days = buildDayDataList(centerDate, today, weatherByDate, forecastSnapshots, numColumns, accuracyMode)
 
-                // Calculate widget size in pixels
-                val widthPx = dpToPx(context, numColumns * CELL_WIDTH_DP)
+                // Calculate widget size in pixels (accounting for nav arrows)
+                val widthPx = dpToPx(context, numColumns * CELL_WIDTH_DP) - dpToPx(context, 32)  // 16dp margin on each side
                 val heightPx = dpToPx(context, numRows * CELL_HEIGHT_DP)
 
                 // Render graph
@@ -165,44 +232,108 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.graph_view, View.GONE)
 
                 // Text mode - set visibility and populate
-                updateTextMode(views, today, weatherByDate, numColumns)
+                updateTextMode(views, centerDate, today, weatherByDate, numColumns)
             }
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
 
+        private fun setupNavigationButtons(
+            context: Context,
+            views: RemoteViews,
+            appWidgetId: Int,
+            stateManager: WidgetStateManager
+        ) {
+            // Left arrow
+            val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_NAV_LEFT
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val leftPendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 2, // Unique request code
+                leftIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
+
+            // Right arrow
+            val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_NAV_RIGHT
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val rightPendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 2 + 1, // Unique request code
+                rightIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
+
+            // Show/hide arrows based on navigation bounds
+            val canLeft = stateManager.canNavigateLeft(appWidgetId)
+            val canRight = stateManager.canNavigateRight(appWidgetId)
+            views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
+            views.setViewVisibility(R.id.nav_right, if (canRight) View.VISIBLE else View.INVISIBLE)
+        }
+
         private fun buildDayDataList(
+            centerDate: LocalDate,
             today: LocalDate,
             weatherByDate: Map<String, WeatherEntity>,
-            numColumns: Int
+            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+            numColumns: Int,
+            accuracyMode: AccuracyDisplayMode
         ): List<TemperatureGraphRenderer.DayData> {
             val days = mutableListOf<TemperatureGraphRenderer.DayData>()
+            Log.d(TAG, "buildDayDataList: numColumns=$numColumns, weatherByDate keys=${weatherByDate.keys}, centerDate=$centerDate, today=$today")
 
-            // Determine which days to show based on columns
+            // Determine which days to show based on columns (relative to center)
+            // Note: We only have yesterday's data, so don't go back more than -1
             val dayOffsets = when {
-                numColumns >= 5 -> listOf(-1L, 0L, 1L, 2L, 3L)
-                numColumns == 4 -> listOf(-1L, 0L, 1L, 2L)
-                numColumns == 3 -> listOf(-1L, 0L, 1L)
-                numColumns == 2 -> listOf(0L, 1L)
-                else -> listOf(0L)
+                numColumns >= 8 -> listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L)  // 7 days (yesterday through +5)
+                numColumns == 7 -> listOf(-1L, 0L, 1L, 2L, 3L, 4L)       // 6 days (yesterday through +4)
+                numColumns == 6 -> listOf(-1L, 0L, 1L, 2L, 3L, 4L)        // 6 days
+                numColumns == 5 -> listOf(-1L, 0L, 1L, 2L, 3L)             // 5 days
+                numColumns == 4 -> listOf(-1L, 0L, 1L, 2L)                 // 4 days
+                numColumns == 3 -> listOf(-1L, 0L, 1L)                     // 3 days
+                numColumns == 2 -> listOf(0L, 1L)                          // 2 days
+                else -> listOf(0L)                                          // 1 day
             }
 
+            Log.d(TAG, "buildDayDataList: For $numColumns columns, showing ${dayOffsets.size} days with offsets: $dayOffsets")
+
             dayOffsets.forEach { offset ->
-                val date = today.plusDays(offset)
+                val date = centerDate.plusDays(offset)
                 val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val weather = weatherByDate[dateStr]
+                val forecasts = forecastSnapshots[dateStr] ?: emptyList()
+                Log.d(TAG, "buildDayDataList: Looking for $dateStr, found=${weather != null}, high=${weather?.highTemp}, forecasts=${forecasts.size}")
 
-                val label = when (offset) {
-                    0L -> "Today"
+                // Extract forecasts by source
+                val nwsForecast = forecasts.find { it.source == "NWS" }
+                val meteoForecast = forecasts.find { it.source == "OPEN_METEO" }
+
+                val label = when {
+                    date == today -> "Today"
                     else -> date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
                 }
+
+                // Determine if we should show forecast comparison (only for past dates with forecast data)
+                val isPastDate = date.isBefore(today)
+                val showComparison = isPastDate && forecasts.isNotEmpty() && accuracyMode != AccuracyDisplayMode.NONE
 
                 days.add(
                     TemperatureGraphRenderer.DayData(
                         label = label,
                         high = weather?.highTemp ?: 0,
                         low = weather?.lowTemp ?: 0,
-                        isToday = offset == 0L
+                        isToday = date == today,
+                        forecastHighNWS = if (showComparison) nwsForecast?.highTemp else null,
+                        forecastLowNWS = if (showComparison) nwsForecast?.lowTemp else null,
+                        forecastHighOpenMeteo = if (showComparison) meteoForecast?.highTemp else null,
+                        forecastLowOpenMeteo = if (showComparison) meteoForecast?.lowTemp else null,
+                        accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE
                     )
                 )
             }
@@ -212,15 +343,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         private fun updateTextMode(
             views: RemoteViews,
+            centerDate: LocalDate,
             today: LocalDate,
             weatherByDate: Map<String, WeatherEntity>,
             numColumns: Int
         ) {
-            val yesterdayStr = today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val day4Str = today.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val day5Str = today.plusDays(3).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            // Calculate dates relative to center
+            val day1Date = centerDate.minusDays(1)
+            val day2Date = centerDate
+            val day3Date = centerDate.plusDays(1)
+            val day4Date = centerDate.plusDays(2)
+            val day5Date = centerDate.plusDays(3)
+
+            val day1Str = day1Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val day2Str = day2Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val day3Str = day3Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val day4Str = day4Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
             // Set visibility based on columns
             when {
@@ -261,18 +400,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 }
             }
 
+            // Helper to get label for a date
+            fun getLabelForDate(date: LocalDate): String {
+                return if (date == today) "Today"
+                else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            }
+
             // Populate days
-            val yesterdayLabel = today.minusDays(1).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            val tomorrowLabel = today.plusDays(1).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            populateDay(views, R.id.day1_label, R.id.day1_high, R.id.day1_low, yesterdayLabel, weatherByDate[yesterdayStr])
-            populateDay(views, R.id.day2_label, R.id.day2_high, R.id.day2_low, "Today", weatherByDate[todayStr])
-            populateDay(views, R.id.day3_label, R.id.day3_high, R.id.day3_low, tomorrowLabel, weatherByDate[tomorrowStr])
-
-            val day4Label = today.plusDays(2).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            populateDay(views, R.id.day4_label, R.id.day4_high, R.id.day4_low, day4Label, weatherByDate[day4Str])
-
-            val day5Label = today.plusDays(3).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            populateDay(views, R.id.day5_label, R.id.day5_high, R.id.day5_low, day5Label, weatherByDate[day5Str])
+            populateDay(views, R.id.day1_label, R.id.day1_high, R.id.day1_low, getLabelForDate(day1Date), weatherByDate[day1Str])
+            populateDay(views, R.id.day2_label, R.id.day2_high, R.id.day2_low, getLabelForDate(day2Date), weatherByDate[day2Str])
+            populateDay(views, R.id.day3_label, R.id.day3_high, R.id.day3_low, getLabelForDate(day3Date), weatherByDate[day3Str])
+            populateDay(views, R.id.day4_label, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
+            populateDay(views, R.id.day5_label, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
         }
 
         private fun populateDay(
