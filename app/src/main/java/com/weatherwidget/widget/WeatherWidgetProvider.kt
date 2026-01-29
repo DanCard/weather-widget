@@ -187,11 +187,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, weatherCount=${weatherList.size}")
 
-            // Set API source indicator
-            val prefs = context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
-            val apiSource = prefs.getString("last_api_source", "NWS") ?: "NWS"
-            views.setTextViewText(R.id.api_source, apiSource)
-
             // Set tap to open settings
             val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
             val settingsPendingIntent = PendingIntent.getActivity(
@@ -206,6 +201,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val centerDate = today.plusDays(dateOffset.toLong())
             val sortedWeather = weatherList.sortedBy { it.date }
             val weatherByDate = sortedWeather.associateBy { it.date }
+
+            // Set API source indicator from today's data
+            val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val todayWeather = weatherByDate[todayStr]
+            val apiSource = todayWeather?.source ?: "Unknown"
+            views.setTextViewText(R.id.api_source, apiSource)
 
             // Set up navigation click handlers
             setupNavigationButtons(context, views, appWidgetId, stateManager)

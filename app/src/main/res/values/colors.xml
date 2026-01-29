@@ -6,7 +6,7 @@
     <color name="accent">#5AC8FA</color>
 
     <!-- Widget colors - Apple glass aesthetic (dark theme) -->
-    <color name="widget_background">#B3000000</color>
+    <color name="widget_background">#80000000</color>
     <color name="widget_text_primary">#FFFFFF</color>
     <color name="widget_text_secondary">#AAAAAA</color>
 

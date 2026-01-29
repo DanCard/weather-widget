@@ -16,5 +16,6 @@ data class WeatherEntity(
     val currentTemp: Int?,
     val condition: String,
     val isActual: Boolean,
+    val source: String = "Unknown",
     val fetchedAt: Long = System.currentTimeMillis()
 )

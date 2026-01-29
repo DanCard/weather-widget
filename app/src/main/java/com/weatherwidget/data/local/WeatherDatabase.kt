@@ -7,7 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [WeatherEntity::class, ForecastSnapshotEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -31,6 +31,12 @@ abstract class WeatherDatabase : RoomDatabase() {
                         PRIMARY KEY(targetDate, forecastDate, locationLat, locationLon)
                     )
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE weather_data ADD COLUMN source TEXT NOT NULL DEFAULT 'Unknown'")
             }
         }
     }

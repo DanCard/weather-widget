@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <!-- Header (fixed at top) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp"
+        android:paddingBottom="8dp">
+
+        <ImageButton
+            android:id="@+id/back_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_chevron_left"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/back" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings"
+            android:textSize="24sp"
+            android:textColor="@color/widget_text_primary"
+            android:textStyle="bold"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <!-- Scrollable content area -->
+    <ScrollView
+        android:id="@+id/settings_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+    <!-- Accuracy Display Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/forecast_accuracy_display"
+        android:textSize="16sp"
+        android:textColor="@color/widget_text_primary"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/forecast_accuracy_description"
+        android:textSize="14sp"
+        android:textColor="@color/widget_text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <RadioGroup
+        android:id="@+id/accuracy_display_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <RadioButton
+            android:id="@+id/radio_none"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/display_none"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <RadioButton
+            android:id="@+id/radio_accuracy_dot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/display_accuracy_dot"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <RadioButton
+            android:id="@+id/radio_side_by_side"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/display_side_by_side"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <RadioButton
+            android:id="@+id/radio_difference"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/display_difference"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+    </RadioGroup>
+
+    <!-- API Preference Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/api_preference"
+        android:textSize="16sp"
+        android:textColor="@color/widget_text_primary"
+        android:textStyle="bold"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/api_preference_description"
+        android:textSize="14sp"
+        android:textColor="@color/widget_text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <RadioGroup
+        android:id="@+id/api_preference_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <RadioButton
+            android:id="@+id/radio_api_alternate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/api_alternate"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <RadioButton
+            android:id="@+id/radio_api_nws"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/api_prefer_nws"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <RadioButton
+            android:id="@+id/radio_api_openmeteo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/api_prefer_openmeteo"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+    </RadioGroup>
+
+    <!-- API Diagnostics Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/api_diagnostics"
+        android:textSize="16sp"
+        android:textColor="@color/widget_text_primary"
+        android:textStyle="bold"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/api_diagnostics_description"
+        android:textSize="14sp"
+        android:textColor="@color/widget_text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/api_log_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Checking log..."
+        android:textSize="12sp"
+        android:textColor="@color/widget_text_secondary"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/view_api_log_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/view_api_log"
+            android:textColor="#FFFFFF"
+            android:backgroundTint="#5AC8FA"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/clear_api_log_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/clear_log"
+            android:textColor="#AAAAAA"
+            android:backgroundTint="#444444"
+            android:textSize="11sp"
+            android:layout_marginStart="12dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:minWidth="0dp" />
+    </LinearLayout>
+
+    <!-- API Log Display (initially hidden) -->
+    <ScrollView
+        android:id="@+id/api_log_container"
+        android:layout_width="match_parent"
+        android:layout_height="400dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        android:visibility="gone"
+        android:background="#1E1E1E"
+        android:padding="12dp"
+        android:elevation="4dp"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false">
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="horizontal"
+            android:fadeScrollbars="false">
+
+            <TextView
+                android:id="@+id/api_log_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:textColor="#00FF00"
+                android:text="Loading log..." />
+
+        </HorizontalScrollView>
+    </ScrollView>
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

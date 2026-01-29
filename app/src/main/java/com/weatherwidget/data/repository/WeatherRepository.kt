@@ -225,10 +225,17 @@ class WeatherRepository @Inject constructor(
         }
 
         // Return preferred API's data, or fallback to the other
+        val primaryApiName = if (tryOpenMeteoFirst) "Open-Meteo" else "NWS"
+        val secondaryApiName = if (tryOpenMeteoFirst) "NWS" else "Open-Meteo"
+
         when {
-            primaryResult.first != null -> primaryResult.first!! to secondaryResult.first
+            primaryResult.first != null -> {
+                prefs.edit().putString("last_api_source", primaryApiName).apply()
+                primaryResult.first!! to secondaryResult.first
+            }
             secondaryResult.first != null -> {
                 Log.d(TAG, "fetchFromBothApis: Using fallback API for display")
+                prefs.edit().putString("last_api_source", secondaryApiName).apply()
                 secondaryResult.first!! to null
             }
             else -> {
@@ -246,7 +253,6 @@ class WeatherRepository @Inject constructor(
         val gridPoint = nwsApi.getGridPoint(lat, lon)
         val forecast = nwsApi.getForecast(gridPoint)
         Log.d(TAG, "fetchFromNws: Got ${forecast.size} periods")
-        prefs.edit().putString("last_api_source", "NWS").apply()
 
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
@@ -282,7 +288,8 @@ class WeatherRepository @Inject constructor(
                 lowTemp = temps.second ?: 0,
                 currentTemp = null,
                 condition = conditionByDate[date] ?: "Unknown",
-                isActual = LocalDate.parse(date).isBefore(LocalDate.now())
+                isActual = LocalDate.parse(date).isBefore(LocalDate.now()),
+                source = "NWS"
             )
         }
     }
@@ -296,7 +303,6 @@ class WeatherRepository @Inject constructor(
         Log.d(TAG, "fetchFromOpenMeteo: Fetching for $lat, $lon (days=$days)")
         val forecast = openMeteoApi.getForecast(lat, lon, days)
         Log.d(TAG, "fetchFromOpenMeteo: Got ${forecast.daily.size} days from API")
-        prefs.edit().putString("last_api_source", "Open-Meteo").apply()
         forecast.daily.forEach { d ->
             Log.d(TAG, "  API day: ${d.date} H=${d.highTemp} L=${d.lowTemp}")
         }
@@ -312,7 +318,8 @@ class WeatherRepository @Inject constructor(
                 lowTemp = daily.lowTemp,
                 currentTemp = if (daily.date == today) forecast.currentTemp else null,
                 condition = openMeteoApi.weatherCodeToCondition(daily.weatherCode),
-                isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now())
+                isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
+                source = "Open-Meteo"
             )
         }
     }
