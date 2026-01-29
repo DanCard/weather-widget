@@ -5,11 +5,8 @@
     <color name="primary_dark">#0056B3</color>
     <color name="accent">#5AC8FA</color>
 
-    <!-- Widget colors - Apple glass aesthetic -->
-    <color name="widget_background">#B3FFFFFF</color>
-    <color name="widget_background_dark">#B3000000</color>
-    <color name="widget_text_primary">#000000</color>
-    <color name="widget_text_secondary">#666666</color>
-    <color name="widget_text_primary_dark">#FFFFFF</color>
-    <color name="widget_text_secondary_dark">#AAAAAA</color>
+    <!-- Widget colors - Apple glass aesthetic (dark theme) -->
+    <color name="widget_background">#B3000000</color>
+    <color name="widget_text_primary">#FFFFFF</color>
+    <color name="widget_text_secondary">#AAAAAA</color>
 </resources>

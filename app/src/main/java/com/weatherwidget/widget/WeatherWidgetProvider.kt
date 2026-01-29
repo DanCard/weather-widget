@@ -193,9 +193,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val weather = weatherByDate[dateStr]
 
                 val label = when (offset) {
-                    -1L -> "Yest"
                     0L -> "Today"
-                    1L -> "Tmrw"
                     else -> date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
                 }
 
@@ -264,9 +262,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
 
             // Populate days
-            populateDay(views, R.id.day1_label, R.id.day1_high, R.id.day1_low, "Yest", weatherByDate[yesterdayStr])
+            val yesterdayLabel = today.minusDays(1).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            val tomorrowLabel = today.plusDays(1).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            populateDay(views, R.id.day1_label, R.id.day1_high, R.id.day1_low, yesterdayLabel, weatherByDate[yesterdayStr])
             populateDay(views, R.id.day2_label, R.id.day2_high, R.id.day2_low, "Today", weatherByDate[todayStr])
-            populateDay(views, R.id.day3_label, R.id.day3_high, R.id.day3_low, "Tmrw", weatherByDate[tomorrowStr])
+            populateDay(views, R.id.day3_label, R.id.day3_high, R.id.day3_low, tomorrowLabel, weatherByDate[tomorrowStr])
 
             val day4Label = today.plusDays(2).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             populateDay(views, R.id.day4_label, R.id.day4_high, R.id.day4_low, day4Label, weatherByDate[day4Str])

@@ -28,7 +28,7 @@
                 android:id="@+id/day1_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Yest"
+                android:text="Mon"
                 android:textSize="10sp"
                 android:textColor="@color/widget_text_secondary" />
 
@@ -99,7 +99,7 @@
                 android:id="@+id/day3_label"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Tmrw"
+                android:text="Wed"
                 android:textSize="10sp"
                 android:textColor="@color/widget_text_secondary" />
 
