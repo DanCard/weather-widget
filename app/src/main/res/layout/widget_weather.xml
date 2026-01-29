@@ -231,17 +231,27 @@
         android:scaleType="fitXY"
         android:visibility="gone" />
 
-    <!-- API Source indicator -->
-    <TextView
-        android:id="@+id/api_source"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!-- API Source indicator - wrapped in FrameLayout for larger click target -->
+    <FrameLayout
+        android:id="@+id/api_source_container"
+        android:layout_width="64dp"
+        android:layout_height="32dp"
         android:layout_gravity="top|end"
-        android:layout_marginTop="2dp"
-        android:layout_marginEnd="36dp"
-        android:text="NWS"
-        android:textSize="11sp"
-        android:textColor="#AAFFFFFF"
-        android:visibility="visible" />
+        android:layout_marginEnd="32dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true">
+
+        <TextView
+            android:id="@+id/api_source"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="NWS"
+            android:textSize="11sp"
+            android:textColor="#AAFFFFFF"
+            android:visibility="visible" />
+
+    </FrameLayout>
 
 </FrameLayout>

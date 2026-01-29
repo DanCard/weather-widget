@@ -21,11 +21,19 @@ import java.util.concurrent.TimeUnit
 class WeatherWidgetWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted workerParams: WorkerParameters,
-    private val weatherRepository: WeatherRepository
+    private val weatherRepository: WeatherRepository,
+    private val widgetStateManager: WidgetStateManager
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        Log.d(TAG, "doWork: Starting weather fetch")
+        val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
+        Log.d(TAG, "doWork: Starting weather fetch (uiOnly=$uiOnlyRefresh)")
+
+        // Reset toggle states only on full refresh (not UI-only refresh)
+        if (!uiOnlyRefresh) {
+            widgetStateManager.resetAllToggleStates()
+        }
+
         return try {
             val location = weatherRepository.getLatestLocation()
                 ?: (DEFAULT_LAT to DEFAULT_LON)
@@ -35,7 +43,7 @@ class WeatherWidgetWorker @AssistedInject constructor(
                 lat = location.first,
                 lon = location.second,
                 locationName = getLocationName(location.first, location.second),
-                forceRefresh = true
+                forceRefresh = !uiOnlyRefresh  // Don't fetch from network for UI-only refresh
             )
 
             result.fold(
@@ -47,7 +55,9 @@ class WeatherWidgetWorker @AssistedInject constructor(
                     // Fetch forecast snapshots for comparison
                     val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
                     updateAllWidgets(weatherList, forecastSnapshots)
-                    scheduleNextUpdate()
+                    if (!uiOnlyRefresh) {
+                        scheduleNextUpdate()
+                    }
                     Result.success()
                 },
                 onFailure = { e ->
@@ -154,5 +164,6 @@ class WeatherWidgetWorker @AssistedInject constructor(
         private const val TAG = "WeatherWidgetWorker"
         const val DEFAULT_LAT = 37.4220
         const val DEFAULT_LON = -122.0841
+        const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
     }
 }

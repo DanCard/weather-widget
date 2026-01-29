@@ -48,7 +48,7 @@ object AppModule {
         WeatherDatabase::class.java,
         "weather_database"
     )
-        .addMigrations(WeatherDatabase.MIGRATION_1_2, WeatherDatabase.MIGRATION_2_3)
+        .addMigrations(WeatherDatabase.MIGRATION_1_2, WeatherDatabase.MIGRATION_2_3, WeatherDatabase.MIGRATION_3_4)
         .build()
 
     @Provides

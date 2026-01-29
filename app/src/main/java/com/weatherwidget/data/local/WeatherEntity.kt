@@ -4,9 +4,11 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.LocalDate
 
-@Entity(tableName = "weather_data")
+@Entity(
+    tableName = "weather_data",
+    primaryKeys = ["date", "source"]
+)
 data class WeatherEntity(
-    @PrimaryKey
     val date: String,
     val locationLat: Double,
     val locationLon: Double,

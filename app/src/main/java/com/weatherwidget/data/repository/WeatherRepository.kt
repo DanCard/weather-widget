@@ -58,9 +58,15 @@ class WeatherRepository @Inject constructor(
                 }
             }
 
-            val (displayWeather, _) = fetchFromBothApis(lat, lon, locationName)
+            val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
 
-            weatherDao.insertAll(displayWeather)
+            // Save both APIs' data (composite primary key allows both)
+            if (nwsWeather != null) {
+                weatherDao.insertAll(nwsWeather)
+            }
+            if (meteoWeather != null) {
+                weatherDao.insertAll(meteoWeather)
+            }
             cleanOldData()
             // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
             Result.success(getCachedData(lat, lon))
@@ -158,17 +164,21 @@ class WeatherRepository @Inject constructor(
         return weatherDao.getWeatherRange(yesterday, twoWeeks, lat, lon)
     }
 
+    suspend fun getCachedDataBySource(lat: Double, lon: Double, source: String): List<WeatherEntity> {
+        val yesterday = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        return weatherDao.getWeatherRangeBySource(yesterday, twoWeeks, lat, lon, source)
+    }
+
     /**
      * Fetches weather from both APIs concurrently and saves snapshots from both sources.
-     * Returns the preferred API's data for display, and both results for snapshot saving.
+     * Returns both APIs' data (NWS first, Open-Meteo second) for storage.
      */
     private suspend fun fetchFromBothApis(
         lat: Double,
         lon: Double,
         locationName: String
-    ): Pair<List<WeatherEntity>, List<WeatherEntity>?> = coroutineScope {
-        val apiPreference = widgetStateManager.getApiPreference()
-
+    ): Pair<List<WeatherEntity>?, List<WeatherEntity>?> = coroutineScope {
         // Try both APIs concurrently
         val nwsDeferred = async {
             try {
@@ -177,11 +187,11 @@ class WeatherRepository @Inject constructor(
                 val duration = System.currentTimeMillis() - startTime
                 apiLogger.logApiCall("NWS", true, null, locationName, duration)
                 Log.d(TAG, "fetchFromBothApis: NWS succeeded")
-                result to null
+                result
             } catch (e: Exception) {
                 Log.d(TAG, "fetchFromBothApis: NWS failed: ${e.message}")
                 apiLogger.logApiCall("NWS", false, e.message ?: "Unknown error", locationName)
-                null to e
+                null
             }
         }
 
@@ -192,11 +202,11 @@ class WeatherRepository @Inject constructor(
                 val duration = System.currentTimeMillis() - startTime
                 apiLogger.logApiCall("Open-Meteo", true, null, locationName, duration)
                 Log.d(TAG, "fetchFromBothApis: Open-Meteo succeeded")
-                result to null
+                result
             } catch (e: Exception) {
                 Log.d(TAG, "fetchFromBothApis: Open-Meteo failed: ${e.message}")
                 apiLogger.logApiCall("Open-Meteo", false, e.message ?: "Unknown error", locationName)
-                null to e
+                null
             }
         }
 
@@ -204,45 +214,16 @@ class WeatherRepository @Inject constructor(
         val meteoResult = meteoDeferred.await()
 
         // Save snapshots from both APIs (if available and before cutoff time)
-        nwsResult.first?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
-        meteoResult.first?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
+        nwsResult?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
+        meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
 
-        // Determine which to use for display based on preference
-        val tryOpenMeteoFirst = when (apiPreference) {
-            ApiPreference.PREFER_OPENMETEO -> true
-            ApiPreference.PREFER_NWS -> false
-            ApiPreference.ALTERNATE -> {
-                val result = useOpenMeteoFirst
-                useOpenMeteoFirst = !useOpenMeteoFirst
-                result
-            }
+        // If both failed, throw an exception
+        if (nwsResult == null && meteoResult == null) {
+            Log.e(TAG, "fetchFromBothApis: Both APIs failed")
+            throw Exception("Both APIs failed")
         }
 
-        val (primaryResult, secondaryResult) = if (tryOpenMeteoFirst) {
-            meteoResult to nwsResult
-        } else {
-            nwsResult to meteoResult
-        }
-
-        // Return preferred API's data, or fallback to the other
-        val primaryApiName = if (tryOpenMeteoFirst) "Open-Meteo" else "NWS"
-        val secondaryApiName = if (tryOpenMeteoFirst) "NWS" else "Open-Meteo"
-
-        when {
-            primaryResult.first != null -> {
-                prefs.edit().putString("last_api_source", primaryApiName).apply()
-                primaryResult.first!! to secondaryResult.first
-            }
-            secondaryResult.first != null -> {
-                Log.d(TAG, "fetchFromBothApis: Using fallback API for display")
-                prefs.edit().putString("last_api_source", secondaryApiName).apply()
-                secondaryResult.first!! to null
-            }
-            else -> {
-                Log.e(TAG, "fetchFromBothApis: Both APIs failed")
-                throw primaryResult.second ?: Exception("Both APIs failed")
-            }
-        }
+        nwsResult to meteoResult
     }
 
     private suspend fun fetchFromNws(

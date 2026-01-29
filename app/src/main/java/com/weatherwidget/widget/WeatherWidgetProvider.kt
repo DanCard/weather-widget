@@ -14,7 +14,9 @@ import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -84,6 +86,24 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     handleNavigation(context, appWidgetId, intent.action == ACTION_NAV_LEFT)
                 }
             }
+            ACTION_TOGGLE_API -> {
+                val appWidgetId = intent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID
+                )
+                Log.d(TAG, "onReceive: Toggle API action for widget $appWidgetId")
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    // Use goAsync() and coroutine for immediate update without WorkManager delay
+                    val pendingResult = goAsync()
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        try {
+                            handleToggleApiDirect(context, appWidgetId)
+                        } finally {
+                            pendingResult.finish()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -96,6 +116,36 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
         // Trigger refresh to update widget with new offset
         triggerImmediateUpdate(context)
+    }
+
+    private suspend fun handleToggleApiDirect(context: Context, appWidgetId: Int) {
+        val stateManager = WidgetStateManager(context)
+        val newSource = stateManager.toggleDisplaySource(appWidgetId)
+        Log.d(TAG, "handleToggleApiDirect: Toggled to $newSource for widget $appWidgetId")
+
+        // Read weather data directly from database
+        val database = WeatherDatabase.getDatabase(context)
+        val weatherDao = database.weatherDao()
+        val snapshotDao = database.forecastSnapshotDao()
+
+        // Get location from latest weather data in database
+        val latestWeather = weatherDao.getLatestWeather()
+        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        Log.d(TAG, "handleToggleApiDirect: Using location lat=$lat, lon=$lon")
+
+        val yesterday = java.time.LocalDate.now().minusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherList = weatherDao.getWeatherRange(yesterday, twoWeeks, lat, lon)
+        val forecastSnapshots = snapshotDao.getForecastsInRange(yesterday, twoWeeks, lat, lon)
+            .groupBy { it.targetDate }
+
+        Log.d(TAG, "handleToggleApiDirect: Got ${weatherList.size} weather entries")
+
+        // Update widget directly
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots)
     }
 
     private fun schedulePeriodicUpdate(context: Context) {
@@ -118,16 +168,28 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     private fun triggerImmediateUpdate(context: Context) {
         Log.d(TAG, "triggerImmediateUpdate: Enqueueing worker")
+        // No network constraint - worker will use cached data if network unavailable
         val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            )
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
         WorkManager.getInstance(context).enqueue(workRequest)
         Log.d(TAG, "triggerImmediateUpdate: Worker enqueued with id=${workRequest.id}")
+    }
+
+    private fun triggerUiOnlyUpdate(context: Context) {
+        Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker")
+        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                    .build()
+            )
+            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            .build()
+
+        WorkManager.getInstance(context).enqueue(workRequest)
+        Log.d(TAG, "triggerUiOnlyUpdate: Worker enqueued with id=${workRequest.id}")
     }
 
     companion object {
@@ -135,6 +197,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
         const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
         const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
+        const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
         private const val TAG = "WeatherWidgetProvider"
 
         private const val CELL_WIDTH_DP = 73
@@ -187,7 +250,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, weatherCount=${weatherList.size}")
 
-            // Set tap to open settings
+            // Set tap to open settings on content areas (not widget_root, to allow API toggle click)
             val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
             val settingsPendingIntent = PendingIntent.getActivity(
                 context,
@@ -195,18 +258,39 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 settingsIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.widget_root, settingsPendingIntent)
+            views.setOnClickPendingIntent(R.id.text_container, settingsPendingIntent)
+            views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
 
             val today = LocalDate.now()
             val centerDate = today.plusDays(dateOffset.toLong())
-            val sortedWeather = weatherList.sortedBy { it.date }
-            val weatherByDate = sortedWeather.associateBy { it.date }
 
-            // Set API source indicator from today's data
+            // Get the current display source for this widget
+            val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+
+            // Build weather map: prefer displaySource, but use any available data for dates without it
+            val weatherByDate = mutableMapOf<String, WeatherEntity>()
+            val sortedWeather = weatherList.sortedBy { it.date }
+
+            // First pass: add all data from preferred source
+            sortedWeather.filter { it.source == displaySource }.forEach { weather ->
+                weatherByDate[weather.date] = weather
+            }
+
+            // Second pass: fill in gaps with data from other sources (for historical data)
+            sortedWeather.filter { it.source != displaySource }.forEach { weather ->
+                if (!weatherByDate.containsKey(weather.date)) {
+                    weatherByDate[weather.date] = weather
+                }
+            }
+
+            // Set API source indicator (shows current display source)
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val todayWeather = weatherByDate[todayStr]
-            val apiSource = todayWeather?.source ?: "Unknown"
+            val apiSource = todayWeather?.source ?: displaySource
             views.setTextViewText(R.id.api_source, apiSource)
+
+            // Set up API source toggle click handler
+            setupApiToggle(context, views, appWidgetId, numRows)
 
             // Set up navigation click handlers
             setupNavigationButtons(context, views, appWidgetId, stateManager)
@@ -276,6 +360,34 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val canRight = stateManager.canNavigateRight(appWidgetId)
             views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
             views.setViewVisibility(R.id.nav_right, if (canRight) View.VISIBLE else View.INVISIBLE)
+        }
+
+        private fun setupApiToggle(
+            context: Context,
+            views: RemoteViews,
+            appWidgetId: Int,
+            numRows: Int
+        ) {
+            val toggleIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_TOGGLE_API
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val togglePendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 2 + 100, // Unique request code (offset from nav buttons)
+                toggleIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            // Set click on the container for larger touch target
+            views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
+
+            // Scale text size based on widget rows
+            val textSizeSp = when {
+                numRows >= 3 -> 14f
+                numRows >= 2 -> 12f
+                else -> 10f
+            }
+            views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
         }
 
         private fun buildDayDataList(

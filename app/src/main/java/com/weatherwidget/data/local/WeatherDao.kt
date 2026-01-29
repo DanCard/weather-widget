@@ -9,6 +9,9 @@ interface WeatherDao {
     @Query("SELECT * FROM weather_data WHERE date = :date AND locationLat = :lat AND locationLon = :lon")
     suspend fun getWeatherForDate(date: String, lat: Double, lon: Double): WeatherEntity?
 
+    @Query("SELECT * FROM weather_data WHERE date >= :startDate AND date <= :endDate AND locationLat = :lat AND locationLon = :lon AND source = :source ORDER BY date ASC")
+    suspend fun getWeatherRangeBySource(startDate: String, endDate: String, lat: Double, lon: Double, source: String): List<WeatherEntity>
+
     @Query("SELECT * FROM weather_data WHERE locationLat = :lat AND locationLon = :lon ORDER BY date DESC")
     fun getWeatherHistory(lat: Double, lon: Double): Flow<List<WeatherEntity>>
 
