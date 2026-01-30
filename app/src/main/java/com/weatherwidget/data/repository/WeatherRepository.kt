@@ -80,9 +80,32 @@ class WeatherRepository @Inject constructor(
         }
     }
 
-    private fun shouldSaveSnapshot(): Boolean {
+    private suspend fun shouldSaveSnapshot(
+        targetDate: String,
+        forecastDate: String,
+        lat: Double,
+        lon: Double,
+        source: String
+    ): Boolean {
         val now = LocalTime.now()
-        return now.hour < SNAPSHOT_CUTOFF_HOUR
+
+        // Before cutoff time, always save
+        if (now.hour < SNAPSHOT_CUTOFF_HOUR) {
+            return true
+        }
+
+        // After cutoff time, only save if no snapshot exists yet for this target date + source
+        val existingSnapshot = forecastSnapshotDao.getForecastForDateBySource(
+            targetDate, forecastDate, lat, lon, source
+        )
+
+        if (existingSnapshot == null) {
+            Log.d(TAG, "Saving snapshot after ${SNAPSHOT_CUTOFF_HOUR}:00 (no data saved yet for $source)")
+            return true
+        }
+
+        Log.d(TAG, "Skipping snapshot save (after ${SNAPSHOT_CUTOFF_HOUR}:00 and data already exists)")
+        return false
     }
 
     private suspend fun saveForecastSnapshot(
@@ -91,11 +114,6 @@ class WeatherRepository @Inject constructor(
         lon: Double,
         source: String
     ) {
-        if (!shouldSaveSnapshot()) {
-            Log.d(TAG, "Skipping snapshot save (after ${SNAPSHOT_CUTOFF_HOUR}:00)")
-            return
-        }
-
         val today = LocalDate.now()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -104,6 +122,10 @@ class WeatherRepository @Inject constructor(
         val tomorrowForecast = weather.find { it.date == tomorrowStr }
 
         if (tomorrowForecast != null) {
+            if (!shouldSaveSnapshot(tomorrowStr, todayStr, lat, lon, source)) {
+                return
+            }
+
             // Save as 1-day-ahead forecast (forecasted today for tomorrow)
             val snapshot = ForecastSnapshotEntity(
                 targetDate = tomorrowStr,

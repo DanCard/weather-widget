@@ -31,6 +31,22 @@ interface ForecastSnapshotDao {
 
     @Query("""
         SELECT * FROM forecast_snapshots
+        WHERE targetDate = :targetDate
+        AND forecastDate = :forecastDate
+        AND locationLat = :lat
+        AND locationLon = :lon
+        AND source = :source
+    """)
+    suspend fun getForecastForDateBySource(
+        targetDate: String,
+        forecastDate: String,
+        lat: Double,
+        lon: Double,
+        source: String
+    ): ForecastSnapshotEntity?
+
+    @Query("""
+        SELECT * FROM forecast_snapshots
         WHERE locationLat = :lat
         AND locationLon = :lon
         AND targetDate >= :startDate

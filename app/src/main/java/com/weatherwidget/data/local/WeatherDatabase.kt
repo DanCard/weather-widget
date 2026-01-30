@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [WeatherEntity::class, ForecastSnapshotEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -27,7 +27,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     WeatherDatabase::class.java,
                     "weather_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                 INSTANCE = instance
                 instance
@@ -83,6 +83,32 @@ abstract class WeatherDatabase : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("DROP TABLE weather_data")
                 db.execSQL("ALTER TABLE weather_data_new RENAME TO weather_data")
+            }
+        }
+
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add source to primary key of forecast_snapshots to store both APIs' forecasts
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS forecast_snapshots_new (
+                        targetDate TEXT NOT NULL,
+                        forecastDate TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        highTemp INTEGER NOT NULL,
+                        lowTemp INTEGER NOT NULL,
+                        `condition` TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(targetDate, forecastDate, locationLat, locationLon, source)
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO forecast_snapshots_new (targetDate, forecastDate, locationLat, locationLon, highTemp, lowTemp, `condition`, source, fetchedAt)
+                    SELECT targetDate, forecastDate, locationLat, locationLon, highTemp, lowTemp, `condition`, source, fetchedAt FROM forecast_snapshots
+                """.trimIndent())
+                db.execSQL("DROP TABLE forecast_snapshots")
+                db.execSQL("ALTER TABLE forecast_snapshots_new RENAME TO forecast_snapshots")
             }
         }
     }

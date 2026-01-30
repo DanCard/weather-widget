@@ -137,7 +137,7 @@ class WeatherWidgetWorker @AssistedInject constructor(
         val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
 
-        if (isCharging) return 30
+        if (isCharging) return 60
 
         val level = batteryStatus?.let { intent ->
             val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
@@ -146,9 +146,9 @@ class WeatherWidgetWorker @AssistedInject constructor(
         } ?: 100
 
         return when {
-            level > 50 -> 60
-            level > 20 -> 120
-            else -> 240
+            level > 50 -> 120
+            level > 20 -> 240
+            else -> 480
         }
     }
 
