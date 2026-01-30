@@ -317,13 +317,28 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 }
             }
 
-            // Set API source indicator (shows current display source)
+            // Set API source indicator (shows current display source with accuracy score)
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val todayWeather = weatherByDate[todayStr]
             val apiSource = todayWeather?.source ?: displaySource
-            // Use shorter display name for Open-Meteo to prevent wrapping
-            val displayName = if (apiSource == "Open-Meteo") "Meteo" else apiSource
-            Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
+
+            // Calculate quick accuracy score from recent forecasts
+            val accuracyScore = calculateQuickAccuracyScore(
+                weatherByDate,
+                forecastSnapshots,
+                apiSource,
+                today
+            )
+
+            // Format display name with accuracy score
+            val baseDisplayName = if (apiSource == "Open-Meteo") "Meteo" else apiSource
+            val displayName = if (accuracyScore != null) {
+                "$baseDisplayName ★%.1f".format(accuracyScore)
+            } else {
+                baseDisplayName
+            }
+
+            Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName', score=$accuracyScore")
             views.setTextViewText(R.id.api_source, displayName)
 
             // Set up API source toggle click handler
@@ -340,7 +355,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
                 // Build day data for graph with offset
-                val days = buildDayDataList(centerDate, today, weatherByDate, forecastSnapshots, numColumns, accuracyMode)
+                val days = buildDayDataList(centerDate, today, weatherByDate, forecastSnapshots, numColumns, accuracyMode, displaySource)
 
                 // Calculate widget size in pixels (accounting for nav arrows)
                 val widthPx = dpToPx(context, numColumns * CELL_WIDTH_DP) - dpToPx(context, 32)  // 16dp margin on each side
@@ -433,7 +448,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             weatherByDate: Map<String, WeatherEntity>,
             forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
             numColumns: Int,
-            accuracyMode: AccuracyDisplayMode
+            accuracyMode: AccuracyDisplayMode,
+            displaySource: String  // "NWS" or "Open-Meteo"
         ): List<TemperatureGraphRenderer.DayData> {
             val days = mutableListOf<TemperatureGraphRenderer.DayData>()
             Log.d(TAG, "buildDayDataList: numColumns=$numColumns, weatherByDate keys=${weatherByDate.keys}, centerDate=$centerDate, today=$today")
@@ -460,9 +476,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val forecasts = forecastSnapshots[dateStr] ?: emptyList()
                 Log.d(TAG, "buildDayDataList: Looking for $dateStr, found=${weather != null}, high=${weather?.highTemp}, forecasts=${forecasts.size}")
 
-                // Extract forecasts by source
-                val nwsForecast = forecasts.find { it.source == "NWS" }
-                val meteoForecast = forecasts.find { it.source == "OPEN_METEO" }
+                // Get forecast for the display source only
+                val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
+                val forecast = forecasts.find { it.source == sourceName }
 
                 val label = when {
                     date == today -> "Today"
@@ -471,7 +487,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                 // Determine if we should show forecast comparison (only for past dates with forecast data)
                 val isPastDate = date.isBefore(today)
-                val showComparison = isPastDate && forecasts.isNotEmpty() && accuracyMode != AccuracyDisplayMode.NONE
+                val showComparison = isPastDate && forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
                 days.add(
                     TemperatureGraphRenderer.DayData(
@@ -479,10 +495,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         high = weather?.highTemp ?: 0,
                         low = weather?.lowTemp ?: 0,
                         isToday = date == today,
-                        forecastHighNWS = if (showComparison) nwsForecast?.highTemp else null,
-                        forecastLowNWS = if (showComparison) nwsForecast?.lowTemp else null,
-                        forecastHighOpenMeteo = if (showComparison) meteoForecast?.highTemp else null,
-                        forecastLowOpenMeteo = if (showComparison) meteoForecast?.lowTemp else null,
+                        forecastHigh = if (showComparison) forecast?.highTemp else null,
+                        forecastLow = if (showComparison) forecast?.lowTemp else null,
+                        forecastSource = if (showComparison) displaySource else null,
                         accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE
                     )
                 )
@@ -575,6 +590,60 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(labelId, label)
             views.setTextViewText(highId, weather?.let { "${it.highTemp}°" } ?: "--°")
             views.setTextViewText(lowId, weather?.let { "${it.lowTemp}°" } ?: "--°")
+        }
+
+        /**
+         * Calculate a quick accuracy score (0-5) from recent forecast data.
+         * Returns null if insufficient data available.
+         */
+        private fun calculateQuickAccuracyScore(
+            weatherByDate: Map<String, WeatherEntity>,
+            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+            apiSource: String,
+            today: LocalDate
+        ): Double? {
+            val sourceName = if (apiSource == "NWS") "NWS" else "OPEN_METEO"
+            val errors = mutableListOf<Int>()
+
+            // Look at last 7 days of actual data
+            for (daysAgo in 1..7) {
+                val date = today.minusDays(daysAgo.toLong())
+                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val weather = weatherByDate[dateStr]
+
+                if (weather != null && weather.isActual) {
+                    val forecasts = forecastSnapshots[dateStr] ?: emptyList()
+                    val forecastDateStr = date.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+                    // Find 1-day-ahead forecast
+                    val forecast = forecasts.find {
+                        it.source == sourceName && it.forecastDate == forecastDateStr
+                    }
+
+                    if (forecast != null) {
+                        val highError = kotlin.math.abs(weather.highTemp - forecast.highTemp)
+                        val lowError = kotlin.math.abs(weather.lowTemp - forecast.lowTemp)
+                        errors.add(highError)
+                        errors.add(lowError)
+                    }
+                }
+            }
+
+            if (errors.isEmpty()) {
+                return null
+            }
+
+            // Calculate average error
+            val avgError = errors.average()
+
+            // Convert to 0-5 score (same algorithm as AccuracyCalculator)
+            return when {
+                avgError <= 1.0 -> 5.0
+                avgError <= 2.0 -> 5.0 - ((avgError - 1.0) * 0.5)
+                avgError <= 3.0 -> 4.5 - ((avgError - 2.0) * 0.5)
+                avgError <= 4.0 -> 4.0 - ((avgError - 3.0) * 0.5)
+                else -> kotlin.math.max(0.0, 3.5 - ((avgError - 4.0) * 0.5))
+            }
         }
     }
 }

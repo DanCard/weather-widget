@@ -29,6 +29,11 @@
             android:exported="false"
             android:label="@string/settings" />
 
+        <activity
+            android:name=".ui.StatisticsActivity"
+            android:exported="false"
+            android:label="@string/statistics" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">

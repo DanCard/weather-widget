@@ -114,6 +114,47 @@
 
     </RadioGroup>
 
+    <!-- Accuracy Statistics Section -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/accuracy_statistics"
+        android:textSize="16sp"
+        android:textColor="@color/widget_text_primary"
+        android:textStyle="bold"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/accuracy_statistics_description"
+        android:textSize="14sp"
+        android:textColor="@color/widget_text_secondary"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:id="@+id/accuracy_stats_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#1E1E1E"
+        android:padding="16dp"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:textColor="@color/widget_text_primary"
+        android:text="Loading statistics..."
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/view_detailed_stats_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/view_detailed_statistics"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#5AC8FA"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp" />
+
     <!-- API Preference Section -->
     <TextView
         android:layout_width="wrap_content"

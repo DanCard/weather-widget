@@ -28,7 +28,7 @@ class OpenMeteoApi @Inject constructor(
             parameter("current", "temperature_2m,weather_code")
             parameter("temperature_unit", "fahrenheit")
             parameter("timezone", "auto")
-            parameter("past_days", 1)
+            parameter("past_days", 7)  // Fetch last 7 days of historical data
             parameter("forecast_days", days)
         }.body()
 

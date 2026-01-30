@@ -1,5 +1,6 @@
 package com.weatherwidget.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -9,12 +10,16 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import com.weatherwidget.R
 import com.weatherwidget.data.ApiLogger
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.ApiPreference
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -25,6 +30,9 @@ class SettingsActivity : AppCompatActivity() {
 
     @Inject
     lateinit var apiLogger: ApiLogger
+
+    @Inject
+    lateinit var accuracyCalculator: AccuracyCalculator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -124,6 +132,18 @@ class SettingsActivity : AppCompatActivity() {
             logStatus.text = "Log: 0 API calls recorded"
         }
 
+        // Accuracy Statistics
+        val statsText = findViewById<TextView>(R.id.accuracy_stats_text)
+        val viewStatsButton = findViewById<Button>(R.id.view_detailed_stats_button)
+
+        // Load and display accuracy statistics
+        loadAccuracyStatistics(statsText)
+
+        viewStatsButton.setOnClickListener {
+            val intent = Intent(this, StatisticsActivity::class.java)
+            startActivity(intent)
+        }
+
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()
@@ -150,5 +170,80 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         textView.text = logText
+    }
+
+    private fun loadAccuracyStatistics(textView: TextView) {
+        lifecycleScope.launch {
+            try {
+                // Get location from latest weather data
+                val database = WeatherDatabase.getDatabase(this@SettingsActivity)
+                val latestWeather = database.weatherDao().getLatestWeather()
+
+                if (latestWeather == null) {
+                    textView.text = "No weather data available yet.\nFetch weather data to see statistics."
+                    return@launch
+                }
+
+                val lat = latestWeather.locationLat
+                val lon = latestWeather.locationLon
+
+                // Calculate comparison statistics
+                val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
+
+                // Check if we have any data at all
+                val hasAnyData = (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||
+                                 (comparison.meteoStats?.totalForecasts ?: 0) > 0
+
+                val statsText = if (!hasAnyData) {
+                    buildString {
+                        append("No historical forecast data available yet.\n\n")
+                        append("Forecast snapshots are being saved daily.\n")
+                        append("Check back tomorrow to see your first accuracy data point!\n\n")
+                        append("Timeline:\n")
+                        append("  • Tomorrow: First accuracy comparison\n")
+                        append("  • 7 days: API indicator shows score\n")
+                        append("  • 30 days: Full statistics available")
+                    }
+                } else {
+                    buildString {
+                        append("Last 30 Days Accuracy:\n\n")
+
+                        if (comparison.nwsStats != null && comparison.nwsStats.totalForecasts > 0) {
+                            val stats = comparison.nwsStats
+                            append("NWS:\n")
+                            append("  • Avg Error: %.1f°\n".format(stats.avgError))
+                            append("  • Max Error: %d°\n".format(stats.maxError))
+                            append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
+                            append("  • Score: %.1f/5.0 %s\n".format(stats.accuracyScore, getScoreStars(stats.accuracyScore)))
+                            append("  • Forecasts: %d\n\n".format(stats.totalForecasts))
+                        } else {
+                            append("NWS: No data yet\n\n")
+                        }
+
+                        if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
+                            val stats = comparison.meteoStats
+                            append("Open-Meteo:\n")
+                            append("  • Avg Error: %.1f°\n".format(stats.avgError))
+                            append("  • Max Error: %d°\n".format(stats.maxError))
+                            append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
+                            append("  • Score: %.1f/5.0 %s\n".format(stats.accuracyScore, getScoreStars(stats.accuracyScore)))
+                            append("  • Forecasts: %d\n".format(stats.totalForecasts))
+                        } else {
+                            append("Open-Meteo: No data yet")
+                        }
+                    }
+                }
+
+                textView.text = statsText
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsActivity", "Error loading accuracy statistics", e)
+                textView.text = "Error loading statistics:\n${e.message}"
+            }
+        }
+    }
+
+    private fun getScoreStars(score: Double): String {
+        val fullStars = score.toInt().coerceAtMost(5)
+        return "★".repeat(fullStars)
     }
 }

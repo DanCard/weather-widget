@@ -28,4 +28,8 @@
     <string name="api_diagnostics_description">View recent API calls and troubleshoot issues</string>
     <string name="view_api_log">View API Log</string>
     <string name="clear_log">Clear Log</string>
+    <string name="accuracy_statistics">Forecast Accuracy Statistics</string>
+    <string name="accuracy_statistics_description">30-day accuracy summary for both weather sources</string>
+    <string name="view_detailed_statistics">View Detailed Statistics</string>
+    <string name="statistics">Statistics</string>
 </resources>

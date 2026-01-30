@@ -29,7 +29,7 @@ class WidgetStateManager @Inject constructor(
         private const val KEY_API_PREFERENCE = "api_preference"
         private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
 
-        const val MIN_DATE_OFFSET = -30  // 30 days back
+        const val MIN_DATE_OFFSET = -7   // Last 7 days of history
         const val MAX_DATE_OFFSET = 14   // 14 days forward
 
         const val SOURCE_NWS = "NWS"

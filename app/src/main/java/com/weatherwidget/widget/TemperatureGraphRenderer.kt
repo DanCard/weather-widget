@@ -11,10 +11,9 @@ object TemperatureGraphRenderer {
         val high: Int,
         val low: Int,
         val isToday: Boolean = false,
-        val forecastHighNWS: Int? = null,
-        val forecastLowNWS: Int? = null,
-        val forecastHighOpenMeteo: Int? = null,
-        val forecastLowOpenMeteo: Int? = null,
+        val forecastHigh: Int? = null,          // Single forecast
+        val forecastLow: Int? = null,           // Single forecast
+        val forecastSource: String? = null,     // "NWS" or "Open-Meteo"
         val accuracyMode: AccuracyDisplayMode = AccuracyDisplayMode.NONE
     )
 
@@ -128,51 +127,30 @@ object TemperatureGraphRenderer {
             canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
 
             // Draw high/low labels with forecast comparison
-            val highLabel = formatTempWithDualForecast(
-                day.high, day.forecastHighNWS, day.forecastHighOpenMeteo, day.accuracyMode
+            val highLabel = formatTempWithForecast(
+                day.high, day.forecastHigh, day.forecastSource, day.accuracyMode
             )
-            val lowLabel = formatTempWithDualForecast(
-                day.low, day.forecastLowNWS, day.forecastLowOpenMeteo, day.accuracyMode
+            val lowLabel = formatTempWithForecast(
+                day.low, day.forecastLow, day.forecastSource, day.accuracyMode
             )
 
             canvas.drawText(highLabel, centerX, highY - dpToPx(context, 6f * scaleFactor), tempTextPaint)
             canvas.drawText(lowLabel, centerX, lowY + dpToPx(context, 22f * scaleFactor), tempTextPaint)
 
-            // Draw dual accuracy dots if applicable
-            if (day.accuracyMode == AccuracyDisplayMode.ACCURACY_DOT) {
-                val dotSpacing = dpToPx(context, 10f * scaleFactor)
-
-                // NWS dot (left)
-                if (day.forecastHighNWS != null) {
-                    val highDiff = kotlin.math.abs(day.high - day.forecastHighNWS)
-                    val dotPaint = when {
-                        highDiff <= 2 -> accuracyGreenPaint
-                        highDiff <= 5 -> accuracyYellowPaint
-                        else -> accuracyRedPaint
-                    }
-                    canvas.drawCircle(
-                        centerX + dpToPx(context, 15f * scaleFactor),
-                        highY - dpToPx(context, 6f * scaleFactor) - dotRadius,
-                        dotRadius,
-                        dotPaint
-                    )
+            // Draw single accuracy dot if applicable
+            if (day.accuracyMode == AccuracyDisplayMode.ACCURACY_DOT && day.forecastHigh != null) {
+                val highDiff = kotlin.math.abs(day.high - day.forecastHigh)
+                val dotPaint = when {
+                    highDiff <= 2 -> accuracyGreenPaint
+                    highDiff <= 5 -> accuracyYellowPaint
+                    else -> accuracyRedPaint
                 }
-
-                // Open-Meteo dot (right)
-                if (day.forecastHighOpenMeteo != null) {
-                    val highDiff = kotlin.math.abs(day.high - day.forecastHighOpenMeteo)
-                    val dotPaint = when {
-                        highDiff <= 2 -> accuracyGreenPaint
-                        highDiff <= 5 -> accuracyYellowPaint
-                        else -> accuracyRedPaint
-                    }
-                    canvas.drawCircle(
-                        centerX + dpToPx(context, 25f * scaleFactor),
-                        highY - dpToPx(context, 6f * scaleFactor) - dotRadius,
-                        dotRadius,
-                        dotPaint
-                    )
-                }
+                canvas.drawCircle(
+                    centerX + dpToPx(context, 20f * scaleFactor),
+                    highY - dpToPx(context, 6f * scaleFactor) - dotRadius,
+                    dotRadius,
+                    dotPaint
+                )
             }
 
             // Draw day label at bottom
@@ -190,45 +168,25 @@ object TemperatureGraphRenderer {
         )
     }
 
-    private fun formatTempWithDualForecast(
+    private fun formatTempWithForecast(
         actual: Int,
-        forecastNWS: Int?,
-        forecastOpenMeteo: Int?,
+        forecast: Int?,
+        forecastSource: String?,
         mode: AccuracyDisplayMode
     ): String {
         return when {
             mode == AccuracyDisplayMode.NONE || mode == AccuracyDisplayMode.ACCURACY_DOT -> {
                 "$actual°"
             }
-            mode == AccuracyDisplayMode.SIDE_BY_SIDE -> {
-                val parts = mutableListOf<String>()
-                if (forecastNWS != null) parts.add("N:$forecastNWS°")
-                if (forecastOpenMeteo != null) parts.add("M:$forecastOpenMeteo°")
-
-                if (parts.isEmpty()) {
-                    "$actual°"
-                } else {
-                    "$actual° (${parts.joinToString(" ")})"
-                }
+            mode == AccuracyDisplayMode.SIDE_BY_SIDE && forecast != null -> {
+                val label = if (forecastSource == "NWS") "N" else "M"
+                "$actual° ($label:$forecast°)"
             }
-            mode == AccuracyDisplayMode.DIFFERENCE -> {
-                val parts = mutableListOf<String>()
-                if (forecastNWS != null) {
-                    val diff = actual - forecastNWS
-                    val sign = if (diff >= 0) "+" else ""
-                    parts.add("N:$sign$diff")
-                }
-                if (forecastOpenMeteo != null) {
-                    val diff = actual - forecastOpenMeteo
-                    val sign = if (diff >= 0) "+" else ""
-                    parts.add("M:$sign$diff")
-                }
-
-                if (parts.isEmpty()) {
-                    "$actual°"
-                } else {
-                    "$actual° (${parts.joinToString(" ")})"
-                }
+            mode == AccuracyDisplayMode.DIFFERENCE && forecast != null -> {
+                val diff = actual - forecast
+                val sign = if (diff >= 0) "+" else ""
+                val label = if (forecastSource == "NWS") "N" else "M"
+                "$actual° ($label:$sign$diff)"
             }
             else -> "$actual°"
         }
