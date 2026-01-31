@@ -39,9 +39,16 @@ class AccuracyCalculator @Inject constructor(
             return null
         }
 
-        // Calculate average absolute error
-        val totalError = dailyAccuracies.sumOf { abs(it.highError) + abs(it.lowError) }
-        val avgError = totalError.toDouble() / (dailyAccuracies.size * 2) // *2 for high and low
+        // Calculate average absolute errors separately for high and low
+        val totalHighError = dailyAccuracies.sumOf { abs(it.highError) }
+        val totalLowError = dailyAccuracies.sumOf { abs(it.lowError) }
+        val avgHighError = totalHighError.toDouble() / dailyAccuracies.size
+        val avgLowError = totalLowError.toDouble() / dailyAccuracies.size
+        val avgError = (avgHighError + avgLowError) / 2
+
+        // Calculate directional bias (positive = forecasts run low, negative = forecasts run high)
+        val highBias = dailyAccuracies.sumOf { it.highError }.toDouble() / dailyAccuracies.size
+        val lowBias = dailyAccuracies.sumOf { it.lowError }.toDouble() / dailyAccuracies.size
 
         // Find maximum error
         val maxError = dailyAccuracies.maxOf { maxOf(abs(it.highError), abs(it.lowError)) }
@@ -57,6 +64,10 @@ class AccuracyCalculator @Inject constructor(
 
         return AccuracyStatistics(
             source = source,
+            avgHighError = avgHighError,
+            avgLowError = avgLowError,
+            highBias = highBias,
+            lowBias = lowBias,
             avgError = avgError,
             maxError = maxError,
             percentWithin3Degrees = percentWithin3,

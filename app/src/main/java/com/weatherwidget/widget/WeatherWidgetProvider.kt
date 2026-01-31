@@ -142,14 +142,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         Log.d(TAG, "handleToggleApiDirect: Using location lat=$lat, lon=$lon")
 
-        val yesterday = java.time.LocalDate.now().minusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
         val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
 
-        val weatherList = weatherDao.getWeatherRange(yesterday, twoWeeks, lat, lon)
-        val forecastSnapshots = snapshotDao.getForecastsInRange(yesterday, twoWeeks, lat, lon)
+        val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             .groupBy { it.targetDate }
 
-        Log.d(TAG, "handleToggleApiDirect: Got ${weatherList.size} weather entries")
+        Log.d(TAG, "handleToggleApiDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates")
 
         // Update widget directly
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -169,14 +169,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
-        val yesterday = java.time.LocalDate.now().minusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
         val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
 
-        val weatherList = weatherDao.getWeatherRange(yesterday, twoWeeks, lat, lon)
-        val forecastSnapshots = snapshotDao.getForecastsInRange(yesterday, twoWeeks, lat, lon)
+        val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             .groupBy { it.targetDate }
 
-        Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries")
+        Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates")
 
         // Update widget directly with new size
         updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots)
@@ -322,23 +322,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val todayWeather = weatherByDate[todayStr]
             val apiSource = todayWeather?.source ?: displaySource
 
-            // Calculate quick accuracy score from recent forecasts
-            val accuracyScore = calculateQuickAccuracyScore(
-                weatherByDate,
-                forecastSnapshots,
-                apiSource,
-                today
-            )
+            // Format display name
+            val displayName = if (apiSource == "Open-Meteo") "Meteo" else apiSource
 
-            // Format display name with accuracy score
-            val baseDisplayName = if (apiSource == "Open-Meteo") "Meteo" else apiSource
-            val displayName = if (accuracyScore != null) {
-                "$baseDisplayName ★%.1f".format(accuracyScore)
-            } else {
-                baseDisplayName
-            }
-
-            Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName', score=$accuracyScore")
+            Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
             views.setTextViewText(R.id.api_source, displayName)
 
             // Set up API source toggle click handler

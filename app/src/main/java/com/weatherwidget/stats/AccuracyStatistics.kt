@@ -5,7 +5,11 @@ package com.weatherwidget.stats
  */
 data class AccuracyStatistics(
     val source: String,                    // "NWS" or "Open-Meteo"
-    val avgError: Double,                  // Average absolute difference
+    val avgHighError: Double,              // Average absolute error for highs
+    val avgLowError: Double,               // Average absolute error for lows
+    val highBias: Double,                  // Directional bias for highs (+ = forecasts too low)
+    val lowBias: Double,                   // Directional bias for lows (+ = forecasts too low)
+    val avgError: Double,                  // Combined average absolute error
     val maxError: Int,                     // Maximum absolute difference
     val percentWithin3Degrees: Double,     // Percentage within 3°
     val accuracyScore: Double,             // 0-5 rating (5 = perfect)

@@ -203,7 +203,7 @@ class SettingsActivity : AppCompatActivity() {
                         append("Check back tomorrow to see your first accuracy data point!\n\n")
                         append("Timeline:\n")
                         append("  • Tomorrow: First accuracy comparison\n")
-                        append("  • 7 days: API indicator shows score\n")
+                        append("  • 7 days: Meaningful statistics\n")
                         append("  • 30 days: Full statistics available")
                     }
                 } else {
@@ -213,10 +213,9 @@ class SettingsActivity : AppCompatActivity() {
                         if (comparison.nwsStats != null && comparison.nwsStats.totalForecasts > 0) {
                             val stats = comparison.nwsStats
                             append("NWS:\n")
-                            append("  • Avg Error: %.1f°\n".format(stats.avgError))
-                            append("  • Max Error: %d°\n".format(stats.maxError))
+                            append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
+                            append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
                             append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
-                            append("  • Score: %.1f/5.0 %s\n".format(stats.accuracyScore, getScoreStars(stats.accuracyScore)))
                             append("  • Forecasts: %d\n\n".format(stats.totalForecasts))
                         } else {
                             append("NWS: No data yet\n\n")
@@ -225,10 +224,9 @@ class SettingsActivity : AppCompatActivity() {
                         if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
                             val stats = comparison.meteoStats
                             append("Open-Meteo:\n")
-                            append("  • Avg Error: %.1f°\n".format(stats.avgError))
-                            append("  • Max Error: %d°\n".format(stats.maxError))
+                            append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
+                            append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
                             append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
-                            append("  • Score: %.1f/5.0 %s\n".format(stats.accuracyScore, getScoreStars(stats.accuracyScore)))
                             append("  • Forecasts: %d\n".format(stats.totalForecasts))
                         } else {
                             append("Open-Meteo: No data yet")
@@ -244,8 +242,12 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    private fun getScoreStars(score: Double): String {
-        val fullStars = score.toInt().coerceAtMost(5)
-        return "★".repeat(fullStars)
+    private fun formatBias(bias: Double): String {
+        val absBias = kotlin.math.abs(bias)
+        return when {
+            absBias < 0.5 -> ""  // Don't show negligible bias
+            bias > 0 -> " (forecasts %.1f° low)".format(absBias)
+            else -> " (forecasts %.1f° high)".format(absBias)
+        }
     }
 }

@@ -14,9 +14,9 @@ enum class AccuracyDisplayMode {
 }
 
 enum class ApiPreference {
-    ALTERNATE,      // Alternate between NWS and Open-Meteo
-    PREFER_NWS,     // Prefer NWS, fallback to Open-Meteo
-    PREFER_OPENMETEO // Prefer Open-Meteo, fallback to NWS
+    ALTERNATE,       // Pseudo-random initial source, changes daily
+    PREFER_NWS,      // Default to NWS, toggle switches to Open-Meteo
+    PREFER_OPENMETEO // Default to Open-Meteo, toggle switches to NWS
 }
 
 @Singleton
@@ -30,7 +30,7 @@ class WidgetStateManager @Inject constructor(
         private const val KEY_API_PREFERENCE = "api_preference"
         private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
 
-        const val MIN_DATE_OFFSET = -7   // Last 7 days of history
+        const val MIN_DATE_OFFSET = -30  // Last 30 days of history
         const val MAX_DATE_OFFSET = 14   // 14 days forward
 
         const val SOURCE_NWS = "NWS"
@@ -113,8 +113,14 @@ class WidgetStateManager @Inject constructor(
             ApiPreference.PREFER_NWS -> if (isToggled) SOURCE_OPEN_METEO else SOURCE_NWS
             ApiPreference.PREFER_OPENMETEO -> if (isToggled) SOURCE_NWS else SOURCE_OPEN_METEO
             ApiPreference.ALTERNATE -> {
-                // For alternate mode, default to NWS first, toggle switches to Open-Meteo
-                if (isToggled) SOURCE_OPEN_METEO else SOURCE_NWS
+                // Pseudo-random initial source: changes daily, varies by widget
+                val daysSinceEpoch = (System.currentTimeMillis() / (1000 * 60 * 60 * 24)).toInt()
+                val defaultSource = if ((daysSinceEpoch + widgetId) % 2 == 0) SOURCE_NWS else SOURCE_OPEN_METEO
+                if (isToggled) {
+                    if (defaultSource == SOURCE_NWS) SOURCE_OPEN_METEO else SOURCE_NWS
+                } else {
+                    defaultSource
+                }
             }
         }
     }

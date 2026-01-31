@@ -77,8 +77,9 @@ class StatisticsActivity : AppCompatActivity() {
                     buildString {
                         if (comparison.nwsStats != null && comparison.nwsStats.totalForecasts > 0) {
                             val stats = comparison.nwsStats
-                            append("NWS: %.1f° avg error, %.0f%% within 3°, Score: %.1f/5.0\n".format(
-                                stats.avgError, stats.percentWithin3Degrees, stats.accuracyScore
+                            append("NWS: High ±%.1f°%s, Low ±%.1f°%s\n".format(
+                                stats.avgHighError, formatBias(stats.highBias),
+                                stats.avgLowError, formatBias(stats.lowBias)
                             ))
                         } else {
                             append("NWS: No data yet\n")
@@ -86,8 +87,9 @@ class StatisticsActivity : AppCompatActivity() {
 
                         if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
                             val stats = comparison.meteoStats
-                            append("Open-Meteo: %.1f° avg error, %.0f%% within 3°, Score: %.1f/5.0".format(
-                                stats.avgError, stats.percentWithin3Degrees, stats.accuracyScore
+                            append("Open-Meteo: High ±%.1f°%s, Low ±%.1f°%s".format(
+                                stats.avgHighError, formatBias(stats.highBias),
+                                stats.avgLowError, formatBias(stats.lowBias)
                             ))
                         } else {
                             append("Open-Meteo: No data yet")
@@ -103,6 +105,15 @@ class StatisticsActivity : AppCompatActivity() {
                 findViewById<TextView>(R.id.stats_summary_text).text =
                     "Error loading statistics: ${e.message}"
             }
+        }
+    }
+
+    private fun formatBias(bias: Double): String {
+        val absBias = kotlin.math.abs(bias)
+        return when {
+            absBias < 0.5 -> ""
+            bias > 0 -> " (${absBias.toInt()}° low)"
+            else -> " (${absBias.toInt()}° high)"
         }
     }
 }

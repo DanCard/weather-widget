@@ -4,12 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Android weather widget app with resizable widget support. Currently in early development (requirements phase).
+Android weather widget app with resizable widget support and forecast accuracy tracking.
 
 ## Weather Data APIs
 
-- **Primary**: NWS (National Weather Service) API
-- **Fallback**: Open-Meteo API (free, can switch dynamically)
+- **NWS** (National Weather Service) API
+- **Open-Meteo** API (free, no API key required)
+- Both APIs fetched and stored equally (composite keys allow comparison)
+- Widget toggles between sources; user can set a preferred primary in Settings
 
 ## Widget Sizing Behavior
 
@@ -20,7 +22,7 @@ Android weather widget app with resizable widget support. Currently in early dev
 | 2x3 | Same as 1x3 but graphical |
 | 4+ cols | Add forecast days (4 cols = 2 forecast days, 5 cols = 3 forecast days, etc.) |
 
-**Graphical display**: Bar showing high/low temperature range for each day.
+**Graphical display**: Bar showing high/low temperature range for each day. Past days can show forecast overlay (yellow bar) for accuracy comparison.
 
 ## Key Requirements
 
@@ -29,10 +31,39 @@ Android weather widget app with resizable widget support. Currently in early dev
 - Location via GPS or zip code (default: Google HQ)
 - Visual style: Apple glass aesthetic
 
+## Forecast Accuracy Tracking
+
+The app tracks forecast accuracy by comparing 1-day-ahead predictions against actual weather:
+
+**Data Collection:**
+- Fetches 7 days of actual historical observations from NWS observation stations
+- Saves 1-day-ahead forecast snapshots daily (before 8pm cutoff)
+- Stores forecasts from both NWS and Open-Meteo for comparison
+
+**Accuracy Metrics (30-day lookback):**
+- Average absolute error (°F)
+- Maximum error
+- Percent of days within ±3°F
+- Accuracy score (0-5 scale, 5 = perfect)
+
+**Display Modes (configurable in Settings):**
+| Mode | Description |
+|------|-------------|
+| FORECAST_BAR (default) | Yellow bar overlay showing predicted range alongside actual |
+| ACCURACY_DOT | Colored dot next to high temp (green ≤2°, yellow ≤5°, red >5°) |
+| SIDE_BY_SIDE | Shows "72° (N:68°)" with source abbreviation |
+| DIFFERENCE | Shows "72° (N:+4)" with temp difference |
+| NONE | No forecast comparison shown |
+
+**Key Files:**
+- `AccuracyCalculator.kt` - Calculates accuracy statistics
+- `ForecastSnapshotEntity.kt` - Database entity for forecast snapshots
+- `StatisticsActivity.kt` - Detailed accuracy breakdown UI
+
 ## Data Retention
 
-- Retain historical weather data for 1 month
-- Current requirements only need 1 day of history (yesterday's actual data)
+- Retain historical weather data for 1 month (automatic cleanup)
+- Forecast snapshots also retained for 1 month
 
 ## Update Frequency
 
@@ -54,7 +85,7 @@ Battery-aware refresh strategy using WorkManager:
 |----------|----------|
 | No network | Show cached data with "offline" indicator and last update timestamp |
 | GPS unavailable | Fall back to last known location or default (Google HQ); display location name |
-| API failure | Try fallback API (Open-Meteo); if both fail, show cached data with error indicator |
+| API failure | Try other API; if both fail, show cached data with error indicator |
 | No data available | Display "Tap to configure" message |
 
 ## Build Requirements
