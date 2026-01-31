@@ -166,6 +166,16 @@
         android:textSize="14sp"
         android:layout_marginBottom="8dp" />
 
+    <Button
+        android:id="@+id/view_feature_tour_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/view_feature_tour"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#5AC8FA"
+        android:textSize="14sp"
+        android:layout_marginBottom="24dp" />
+
     <!-- API Preference Section -->
     <TextView
         android:layout_width="wrap_content"

@@ -34,6 +34,11 @@
             android:exported="false"
             android:label="@string/statistics" />
 
+        <activity
+            android:name=".ui.FeatureTourActivity"
+            android:exported="false"
+            android:label="@string/feature_tour" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">

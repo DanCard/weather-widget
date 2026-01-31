@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/background">
+
+    <!-- Header (fixed at top) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp"
+        android:paddingBottom="8dp">
+
+        <ImageButton
+            android:id="@+id/back_button"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_chevron_left"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/back" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/feature_tour"
+            android:textSize="24sp"
+            android:textColor="@color/widget_text_primary"
+            android:textStyle="bold"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <!-- Scrollable content area -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Section 1: Widget Sizing -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_widget_sizing_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_widget_sizing_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/tour_widget_sizes"
+                android:scaleType="fitCenter"
+                android:maxHeight="400dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="Widget size variations" />
+
+            <!-- Section 2: Current Temperature -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_current_temp_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_current_temp_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/tour_current_temp"
+                android:scaleType="fitCenter"
+                android:maxHeight="400dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="Current temperature display" />
+
+            <!-- Section 3: API Source Toggle -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_api_toggle_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_api_toggle_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/tour_api_indicator"
+                android:scaleType="fitCenter"
+                android:maxHeight="400dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="API source indicator" />
+
+            <!-- Section 4: Navigation -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_navigation_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_navigation_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/tour_navigation"
+                android:scaleType="fitCenter"
+                android:maxHeight="400dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="Navigation arrows" />
+
+            <!-- Section 5: Forecast Accuracy -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_accuracy_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_accuracy_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/tour_accuracy_modes"
+                android:scaleType="fitCenter"
+                android:maxHeight="400dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="Forecast accuracy display modes" />
+
+            <!-- Section 6: Settings & Customization -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_settings_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_settings_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:src="@drawable/tour_settings"
+                android:scaleType="fitCenter"
+                android:maxHeight="400dp"
+                android:adjustViewBounds="true"
+                android:layout_marginBottom="24dp"
+                android:contentDescription="Settings screen" />
+
+            <!-- Section 7: Battery-Aware Updates (text only) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_battery_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_battery_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="24dp" />
+
+            <!-- Section 8: Location Options (text only) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_location_title"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/tour_location_desc"
+                android:textSize="14sp"
+                android:textColor="@color/widget_text_secondary"
+                android:layout_marginBottom="16dp" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

@@ -146,6 +146,13 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        // Feature Tour button
+        val featureTourButton = findViewById<Button>(R.id.view_feature_tour_button)
+        featureTourButton.setOnClickListener {
+            val intent = Intent(this, FeatureTourActivity::class.java)
+            startActivity(intent)
+        }
+
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()
