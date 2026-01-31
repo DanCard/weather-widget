@@ -91,6 +91,17 @@
             android:paddingBottom="12dp" />
 
         <RadioButton
+            android:id="@+id/radio_forecast_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/display_forecast_bar"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <RadioButton
             android:id="@+id/radio_side_by_side"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

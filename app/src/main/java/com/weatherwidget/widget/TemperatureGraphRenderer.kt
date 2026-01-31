@@ -106,7 +106,21 @@ object TemperatureGraphRenderer {
             textAlign = Paint.Align.CENTER
         }
 
+        // Forecast bar paint (yellow/gold line showing what was predicted)
+        val forecastBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FFD60A")  // Gold/yellow
+            strokeWidth = barWidth * 0.5f  // Thinner than actual bar
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        val forecastCapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FFD60A")
+            strokeWidth = (barWidth + dpToPx(context, 4f * scaleFactor)) * 0.5f
+            strokeCap = Paint.Cap.BUTT
+        }
+
         val dotRadius = dpToPx(context, 4f * scaleFactor)
+        val forecastBarOffset = barWidth * 1.2f  // Offset for forecast bar from main bar
 
         // Draw each day
         days.forEachIndexed { index, day ->
@@ -125,6 +139,22 @@ object TemperatureGraphRenderer {
             // Draw caps (horizontal lines at top and bottom)
             canvas.drawLine(centerX - capHeight, highY, centerX + capHeight, highY, cap)
             canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
+
+            // Draw forecast bar (yellow line showing what was predicted) for historical days
+            if (day.accuracyMode == AccuracyDisplayMode.FORECAST_BAR &&
+                day.forecastHigh != null && day.forecastLow != null) {
+                val forecastHighY = graphTop + graphHeight * (1 - (day.forecastHigh - minTemp).toFloat() / tempRange)
+                val forecastLowY = graphTop + graphHeight * (1 - (day.forecastLow - minTemp).toFloat() / tempRange)
+                val forecastX = centerX + forecastBarOffset
+
+                // Draw the forecast bar
+                canvas.drawLine(forecastX, forecastHighY, forecastX, forecastLowY, forecastBarPaint)
+
+                // Draw forecast caps
+                val forecastCapSize = capHeight * 0.6f
+                canvas.drawLine(forecastX - forecastCapSize, forecastHighY, forecastX + forecastCapSize, forecastHighY, forecastCapPaint)
+                canvas.drawLine(forecastX - forecastCapSize, forecastLowY, forecastX + forecastCapSize, forecastLowY, forecastCapPaint)
+            }
 
             // Draw high/low labels with forecast comparison
             val highLabel = formatTempWithForecast(
@@ -175,7 +205,9 @@ object TemperatureGraphRenderer {
         mode: AccuracyDisplayMode
     ): String {
         return when {
-            mode == AccuracyDisplayMode.NONE || mode == AccuracyDisplayMode.ACCURACY_DOT -> {
+            mode == AccuracyDisplayMode.NONE ||
+            mode == AccuracyDisplayMode.ACCURACY_DOT ||
+            mode == AccuracyDisplayMode.FORECAST_BAR -> {
                 "$actual°"
             }
             mode == AccuracyDisplayMode.SIDE_BY_SIDE && forecast != null -> {

@@ -15,6 +15,7 @@
     <string name="forecast_accuracy_description">Choose how to show forecast vs actual comparison for past dates</string>
     <string name="display_none">None - Don\'t show comparison</string>
     <string name="display_accuracy_dot">Accuracy dot - Colored indicator (green/yellow/red)</string>
+    <string name="display_forecast_bar">Forecast bar - Yellow line showing predicted range (Recommended)</string>
     <string name="display_side_by_side">Side by side - Show "72\u00B0 (F:68\u00B0)"</string>
     <string name="display_difference">Difference - Show "72\u00B0 (+4)"</string>
     <string name="nav_previous">Previous days</string>

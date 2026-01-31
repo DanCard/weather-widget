@@ -7,6 +7,7 @@ import javax.inject.Singleton
 
 enum class AccuracyDisplayMode {
     NONE,           // Don't show forecast comparison
+    FORECAST_BAR,   // Yellow bar showing forecast alongside actual (Recommended)
     ACCURACY_DOT,   // Colored dot (green/yellow/red) based on accuracy
     SIDE_BY_SIDE,   // Show "72° (F:68°)"
     DIFFERENCE      // Show "72° (+4)"
@@ -76,8 +77,8 @@ class WidgetStateManager @Inject constructor(
     }
 
     fun getAccuracyDisplayMode(): AccuracyDisplayMode {
-        val ordinal = prefs.getInt(KEY_ACCURACY_DISPLAY, AccuracyDisplayMode.ACCURACY_DOT.ordinal)
-        return AccuracyDisplayMode.entries.getOrElse(ordinal) { AccuracyDisplayMode.ACCURACY_DOT }
+        val ordinal = prefs.getInt(KEY_ACCURACY_DISPLAY, AccuracyDisplayMode.FORECAST_BAR.ordinal)
+        return AccuracyDisplayMode.entries.getOrElse(ordinal) { AccuracyDisplayMode.FORECAST_BAR }
     }
 
     fun setAccuracyDisplayMode(mode: AccuracyDisplayMode) {
