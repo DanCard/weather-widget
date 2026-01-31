@@ -45,6 +45,21 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+    <!-- Feature Tour Button (at top for easy discovery) -->
+    <Button
+        android:id="@+id/view_feature_tour_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/view_feature_tour"
+        android:textColor="#FFFFFF"
+        android:background="@drawable/rounded_button_blue"
+        android:textSize="16sp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="14dp"
+        android:layout_marginBottom="24dp" />
+
     <!-- Accuracy Display Section -->
     <TextView
         android:layout_width="wrap_content"
@@ -162,18 +177,12 @@
         android:layout_height="wrap_content"
         android:text="@string/view_detailed_statistics"
         android:textColor="#FFFFFF"
-        android:backgroundTint="#5AC8FA"
+        android:background="@drawable/rounded_button_blue"
         android:textSize="14sp"
-        android:layout_marginBottom="8dp" />
-
-    <Button
-        android:id="@+id/view_feature_tour_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/view_feature_tour"
-        android:textColor="#FFFFFF"
-        android:backgroundTint="#5AC8FA"
-        android:textSize="14sp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
         android:layout_marginBottom="24dp" />
 
     <!-- API Preference Section -->
@@ -275,8 +284,12 @@
             android:layout_height="wrap_content"
             android:text="@string/view_api_log"
             android:textColor="#FFFFFF"
-            android:backgroundTint="#5AC8FA"
-            android:textSize="14sp" />
+            android:background="@drawable/rounded_button_blue"
+            android:textSize="14sp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
 
         <Button
             android:id="@+id/clear_api_log_button"
@@ -284,11 +297,13 @@
             android:layout_height="wrap_content"
             android:text="@string/clear_log"
             android:textColor="#AAAAAA"
-            android:backgroundTint="#444444"
+            android:background="@drawable/rounded_button_gray"
             android:textSize="11sp"
             android:layout_marginStart="12dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp"
             android:minWidth="0dp" />
     </LinearLayout>
 
