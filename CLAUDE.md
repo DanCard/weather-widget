@@ -11,7 +11,10 @@ Android weather widget app with resizable widget support and forecast accuracy t
 - **NWS** (National Weather Service) API
 - **Open-Meteo** API (free, no API key required)
 - Both APIs fetched and stored equally (composite keys allow comparison)
-- Widget toggles between sources; user can set a preferred primary in Settings
+- Widget toggles between sources via tap on API indicator
+- User can set API preference in Settings:
+  - **Alternate** (default): Pseudo-random initial source (varies daily + by widget ID)
+  - **NWS Primary** or **Open-Meteo Primary**: Preferred source with fallback
 
 ## Widget Sizing Behavior
 
@@ -31,6 +34,20 @@ Android weather widget app with resizable widget support and forecast accuracy t
 - Location via GPS or zip code (default: Google HQ)
 - Visual style: Apple glass aesthetic
 
+## Widget UI Layout
+
+- **Current temperature**: Top-left corner, large font (30sp)
+- **API source indicator**: Top-right corner, clickable to toggle between NWS/Meteo
+- **Navigation arrows**: Left/right sides for browsing history (30 days back) and forecast
+- **Content area**: Maximized with minimal margins; arrows overlap slightly for more space
+- Touch priority: API indicator rendered last (on top) with `clipChildren="false"` for reliable touch handling
+
+## Temperature Display
+
+- **Current temp**: Interpolated from hourly forecasts when not available from API
+- **Hourly interpolation**: Smooth temperature transitions between hourly data points
+- Update frequency scales with temperature change rate (1-4 updates/hour)
+
 ## Forecast Accuracy Tracking
 
 The app tracks forecast accuracy by comparing 1-day-ahead predictions against actual weather:
@@ -41,7 +58,8 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - Stores forecasts from both NWS and Open-Meteo for comparison
 
 **Accuracy Metrics (30-day lookback):**
-- Average absolute error (°F)
+- Separate high/low temperature error tracking
+- Directional bias (e.g., "forecasts run 2° high on average")
 - Maximum error
 - Percent of days within ±3°F
 - Accuracy score (0-5 scale, 5 = perfect)
@@ -56,14 +74,18 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 | NONE | No forecast comparison shown |
 
 **Key Files:**
-- `AccuracyCalculator.kt` - Calculates accuracy statistics
+- `AccuracyCalculator.kt` - Calculates accuracy statistics with separate high/low and bias
 - `ForecastSnapshotEntity.kt` - Database entity for forecast snapshots
+- `HourlyForecastEntity.kt` - Database entity for hourly temperature data
+- `TemperatureInterpolator.kt` - Interpolates current temp between hourly data points
+- `TemperatureGraphRenderer.kt` - Renders graphical temperature bars with scaling fonts
 - `StatisticsActivity.kt` - Detailed accuracy breakdown UI
 
 ## Data Retention
 
 - Retain historical weather data for 1 month (automatic cleanup)
 - Forecast snapshots also retained for 1 month
+- Widget navigation allows browsing up to 30 days of history
 
 ## Update Frequency
 

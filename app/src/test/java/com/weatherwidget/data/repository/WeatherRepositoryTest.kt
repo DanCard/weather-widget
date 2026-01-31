@@ -1,10 +1,16 @@
 package com.weatherwidget.data.repository
 
+import android.content.Context
+import android.content.SharedPreferences
+import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -15,10 +21,15 @@ import java.time.format.DateTimeFormatter
 
 class WeatherRepositoryTest {
 
+    private lateinit var context: Context
     private lateinit var weatherDao: WeatherDao
     private lateinit var forecastSnapshotDao: ForecastSnapshotDao
+    private lateinit var hourlyForecastDao: HourlyForecastDao
     private lateinit var nwsApi: NwsApi
     private lateinit var openMeteoApi: OpenMeteoApi
+    private lateinit var widgetStateManager: WidgetStateManager
+    private lateinit var apiLogger: ApiLogger
+    private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -28,11 +39,30 @@ class WeatherRepositoryTest {
 
     @Before
     fun setup() {
+        context = mockk(relaxed = true)
+        val sharedPrefs = mockk<SharedPreferences>(relaxed = true)
+        every { context.getSharedPreferences(any(), any()) } returns sharedPrefs
+
         weatherDao = mockk(relaxed = true)
         forecastSnapshotDao = mockk(relaxed = true)
+        hourlyForecastDao = mockk(relaxed = true)
         nwsApi = mockk()
         openMeteoApi = mockk()
-        repository = WeatherRepository(weatherDao, forecastSnapshotDao, nwsApi, openMeteoApi)
+        widgetStateManager = mockk(relaxed = true)
+        apiLogger = mockk(relaxed = true)
+        temperatureInterpolator = TemperatureInterpolator()
+
+        repository = WeatherRepository(
+            context,
+            weatherDao,
+            forecastSnapshotDao,
+            hourlyForecastDao,
+            nwsApi,
+            openMeteoApi,
+            widgetStateManager,
+            apiLogger,
+            temperatureInterpolator
+        )
     }
 
     @Test
@@ -149,6 +179,8 @@ class WeatherRepositoryTest {
         lowTemp = low,
         currentTemp = null,
         condition = "Sunny",
-        isActual = false
+        isActual = false,
+        source = "NWS",
+        fetchedAt = System.currentTimeMillis()
     )
 }

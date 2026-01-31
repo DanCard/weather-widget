@@ -8,13 +8,14 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WeatherEntity::class, ForecastSnapshotEntity::class],
-    version = 5,
+    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun weatherDao(): WeatherDao
     abstract fun forecastSnapshotDao(): ForecastSnapshotDao
+    abstract fun hourlyForecastDao(): HourlyForecastDao
 
     companion object {
         @Volatile
@@ -27,7 +28,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     WeatherDatabase::class.java,
                     "weather_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance
@@ -109,6 +110,23 @@ abstract class WeatherDatabase : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("DROP TABLE forecast_snapshots")
                 db.execSQL("ALTER TABLE forecast_snapshots_new RENAME TO forecast_snapshots")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add hourly_forecasts table for temperature interpolation
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS hourly_forecasts (
+                        dateTime TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        temperature INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(dateTime, source, locationLat, locationLon)
+                    )
+                """.trimIndent())
             }
         }
     }

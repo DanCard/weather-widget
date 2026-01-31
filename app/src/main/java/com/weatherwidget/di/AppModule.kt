@@ -3,6 +3,7 @@ package com.weatherwidget.di
 import android.content.Context
 import androidx.room.Room
 import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.remote.NwsApi
@@ -48,7 +49,13 @@ object AppModule {
         WeatherDatabase::class.java,
         "weather_database"
     )
-        .addMigrations(WeatherDatabase.MIGRATION_1_2, WeatherDatabase.MIGRATION_2_3, WeatherDatabase.MIGRATION_3_4)
+        .addMigrations(
+            WeatherDatabase.MIGRATION_1_2,
+            WeatherDatabase.MIGRATION_2_3,
+            WeatherDatabase.MIGRATION_3_4,
+            WeatherDatabase.MIGRATION_4_5,
+            WeatherDatabase.MIGRATION_5_6
+        )
         .build()
 
     @Provides
@@ -59,6 +66,11 @@ object AppModule {
     @Singleton
     fun provideForecastSnapshotDao(database: WeatherDatabase): ForecastSnapshotDao =
         database.forecastSnapshotDao()
+
+    @Provides
+    @Singleton
+    fun provideHourlyForecastDao(database: WeatherDatabase): HourlyForecastDao =
+        database.hourlyForecastDao()
 
     @Provides
     @Singleton

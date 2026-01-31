@@ -25,6 +25,7 @@ class OpenMeteoApi @Inject constructor(
             parameter("latitude", lat)
             parameter("longitude", lon)
             parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code")
+            parameter("hourly", "temperature_2m")
             parameter("current", "temperature_2m,weather_code")
             parameter("temperature_unit", "fahrenheit")
             parameter("timezone", "auto")
@@ -60,10 +61,30 @@ class OpenMeteoApi @Inject constructor(
             )
         }
 
+        // Parse hourly data
+        val hourly = jsonObj["hourly"]?.jsonObject
+        val hourlyTimes = hourly?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
+        val hourlyTemps = hourly?.get("temperature_2m")?.jsonArray?.map {
+            it.jsonPrimitive.content.toDoubleOrNull()?.toInt()
+        } ?: emptyList()
+
+        val hourlyForecasts = hourlyTimes.mapIndexedNotNull { index, time ->
+            val temp = hourlyTemps.getOrNull(index)
+            if (temp != null) {
+                HourlyForecast(
+                    dateTime = time,
+                    temperature = temp
+                )
+            } else null
+        }
+
+        Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
+
         return WeatherForecast(
             currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt(),
             currentWeatherCode = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull(),
-            daily = dailyForecasts
+            daily = dailyForecasts,
+            hourly = hourlyForecasts
         )
     }
 
@@ -85,7 +106,8 @@ class OpenMeteoApi @Inject constructor(
     data class WeatherForecast(
         val currentTemp: Int?,
         val currentWeatherCode: Int?,
-        val daily: List<DailyForecast>
+        val daily: List<DailyForecast>,
+        val hourly: List<HourlyForecast> = emptyList()
     )
 
     data class DailyForecast(
@@ -93,5 +115,10 @@ class OpenMeteoApi @Inject constructor(
         val highTemp: Int,
         val lowTemp: Int,
         val weatherCode: Int
+    )
+
+    data class HourlyForecast(
+        val dateTime: String,  // ISO 8601 format: "2024-01-15T14:00"
+        val temperature: Int
     )
 }

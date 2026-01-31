@@ -4,13 +4,16 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:padding="8dp"
+    android:clipChildren="false"
+    android:clipToPadding="false"
     android:background="@drawable/widget_background">
 
-    <!-- Left navigation arrow -->
+    <!-- Left navigation arrow - vertically centered, narrow to maximize content area -->
     <ImageButton
         android:id="@+id/nav_left"
-        android:layout_width="32dp"
-        android:layout_height="match_parent"
+        android:layout_width="20dp"
+        android:layout_height="wrap_content"
+        android:minHeight="80dp"
         android:layout_gravity="start|center_vertical"
         android:src="@drawable/ic_chevron_left"
         android:background="@android:color/transparent"
@@ -18,11 +21,12 @@
         android:contentDescription="@string/nav_previous"
         android:visibility="visible" />
 
-    <!-- Right navigation arrow -->
+    <!-- Right navigation arrow - vertically centered, narrow to maximize content area -->
     <ImageButton
         android:id="@+id/nav_right"
-        android:layout_width="32dp"
-        android:layout_height="match_parent"
+        android:layout_width="20dp"
+        android:layout_height="wrap_content"
+        android:minHeight="80dp"
         android:layout_gravity="end|center_vertical"
         android:src="@drawable/ic_chevron_right"
         android:background="@android:color/transparent"
@@ -35,8 +39,8 @@
         android:id="@+id/text_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
         android:orientation="horizontal"
         android:gravity="center">
 
@@ -226,18 +230,31 @@
         android:id="@+id/graph_view"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
         android:scaleType="fitXY"
         android:visibility="gone" />
 
-    <!-- API Source indicator - wrapped in FrameLayout for larger click target -->
+    <!-- Current temperature indicator - positioned in top-left corner -->
+    <TextView
+        android:id="@+id/current_temp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="-4dp"
+        android:text="72°"
+        android:textSize="30sp"
+        android:textColor="#AAFFFFFF"
+        android:visibility="visible" />
+
+    <!-- API Source indicator - rendered last for touch priority, positioned in top-right corner -->
     <FrameLayout
         android:id="@+id/api_source_container"
         android:layout_width="64dp"
-        android:layout_height="32dp"
+        android:layout_height="48dp"
         android:layout_gravity="top|end"
-        android:layout_marginEnd="32dp"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="-4dp"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true">
@@ -246,7 +263,9 @@
             android:id="@+id/api_source"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="4dp"
             android:text="NWS"
             android:textSize="11sp"
             android:textColor="#AAFFFFFF"

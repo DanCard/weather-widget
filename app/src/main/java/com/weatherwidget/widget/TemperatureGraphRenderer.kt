@@ -43,7 +43,7 @@ object TemperatureGraphRenderer {
         val horizontalPadding = dpToPx(context, -8f * scaleFactor)  // Slight negative for more space
         val topPadding = dpToPx(context, 20f * scaleFactor)  // Room for API source indicator
         val bottomPadding = dpToPx(context, 2f * scaleFactor)  // Minimal bottom padding
-        val labelHeight = dpToPx(context, 32f * scaleFactor)
+        val labelHeight = dpToPx(context, 40f * scaleFactor)
         val graphTop = topPadding
         val graphBottom = heightPx - labelHeight - bottomPadding
         val graphHeight = graphBottom - graphTop
@@ -79,13 +79,13 @@ object TemperatureGraphRenderer {
 
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
-            textSize = dpToPx(context, 14f * scaleFactor)
+            textSize = dpToPx(context, 20f * scaleFactor)
             textAlign = Paint.Align.CENTER
         }
 
         val tempTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 13f * scaleFactor)
+            textSize = dpToPx(context, 18f * scaleFactor)
             textAlign = Paint.Align.CENTER
         }
 
@@ -102,7 +102,7 @@ object TemperatureGraphRenderer {
 
         val forecastTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#888888")
-            textSize = dpToPx(context, 9f * scaleFactor)
+            textSize = dpToPx(context, 13f * scaleFactor)
             textAlign = Paint.Align.CENTER
         }
 

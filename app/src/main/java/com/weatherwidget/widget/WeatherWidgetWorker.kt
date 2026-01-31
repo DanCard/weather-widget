@@ -10,7 +10,10 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.WeatherRepository
+import java.time.LocalDateTime
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.time.LocalDate
@@ -54,7 +57,9 @@ class WeatherWidgetWorker @AssistedInject constructor(
                     }
                     // Fetch forecast snapshots for comparison
                     val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-                    updateAllWidgets(weatherList, forecastSnapshots)
+                    // Fetch hourly forecasts for interpolation
+                    val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+                    updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
                     if (!uiOnlyRefresh) {
                         scheduleNextUpdate()
                     }
@@ -94,9 +99,27 @@ class WeatherWidgetWorker @AssistedInject constructor(
         }
     }
 
+    private suspend fun fetchHourlyForecasts(
+        lat: Double,
+        lon: Double
+    ): List<HourlyForecastEntity> {
+        return try {
+            val database = WeatherDatabase.getDatabase(context)
+            val hourlyDao = database.hourlyForecastDao()
+            val now = LocalDateTime.now()
+            val startTime = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch hourly forecasts", e)
+            emptyList()
+        }
+    }
+
     private fun updateAllWidgets(
         weatherList: List<com.weatherwidget.data.local.WeatherEntity>,
-        forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>
+        forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+        hourlyForecasts: List<HourlyForecastEntity>
     ) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -108,7 +131,8 @@ class WeatherWidgetWorker @AssistedInject constructor(
                 appWidgetManager = appWidgetManager,
                 appWidgetId = appWidgetId,
                 weatherList = weatherList,
-                forecastSnapshots = forecastSnapshots
+                forecastSnapshots = forecastSnapshots,
+                hourlyForecasts = hourlyForecasts
             )
         }
     }

@@ -14,8 +14,11 @@ import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.util.TemperatureInterpolator
+import java.time.LocalDateTime
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -135,6 +138,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val database = WeatherDatabase.getDatabase(context)
         val weatherDao = database.weatherDao()
         val snapshotDao = database.forecastSnapshotDao()
+        val hourlyDao = database.hourlyForecastDao()
 
         // Get location from latest weather data in database
         val latestWeather = weatherDao.getLatestWeather()
@@ -149,11 +153,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             .groupBy { it.targetDate }
 
-        Log.d(TAG, "handleToggleApiDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates")
+        // Get hourly forecasts for interpolation
+        val now = java.time.LocalDateTime.now()
+        val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+
+        Log.d(TAG, "handleToggleApiDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
 
         // Update widget directly
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots)
+        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
     }
 
     private suspend fun handleResizeDirect(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
@@ -163,6 +173,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val database = WeatherDatabase.getDatabase(context)
         val weatherDao = database.weatherDao()
         val snapshotDao = database.forecastSnapshotDao()
+        val hourlyDao = database.hourlyForecastDao()
 
         // Get location from latest weather data in database
         val latestWeather = weatherDao.getLatestWeather()
@@ -176,10 +187,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             .groupBy { it.targetDate }
 
-        Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates")
+        // Get hourly forecasts for interpolation
+        val now = java.time.LocalDateTime.now()
+        val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+
+        Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
 
         // Update widget directly with new size
-        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots)
+        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
     }
 
     private fun schedulePeriodicUpdate(context: Context) {
@@ -274,7 +291,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
             weatherList: List<WeatherEntity>,
-            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap()
+            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap(),
+            hourlyForecasts: List<HourlyForecastEntity> = emptyList()
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -327,6 +345,28 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
             views.setTextViewText(R.id.api_source, displayName)
+
+            // Set current temperature (from any source that has it, or interpolate from hourly)
+            var currentTemp = weatherList
+                .filter { it.date == todayStr && it.currentTemp != null && it.currentTemp != 0 }
+                .maxByOrNull { it.fetchedAt }
+                ?.currentTemp
+
+            // If no current temp from API, try interpolation from hourly forecasts
+            if (currentTemp == null && hourlyForecasts.isNotEmpty()) {
+                val interpolator = TemperatureInterpolator()
+                currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, LocalDateTime.now())
+                if (currentTemp != null) {
+                    Log.d(TAG, "updateWidgetWithData: Using interpolated temp: $currentTemp")
+                }
+            }
+
+            if (currentTemp != null) {
+                views.setTextViewText(R.id.current_temp, "${currentTemp}°")
+                views.setViewVisibility(R.id.current_temp, View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.current_temp, View.GONE)
+            }
 
             // Set up API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)

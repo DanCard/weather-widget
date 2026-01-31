@@ -6,8 +6,12 @@ import android.util.Log
 import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.util.TemperatureInterpolator
+import java.time.LocalDateTime
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.widget.ApiPreference
@@ -28,10 +32,12 @@ class WeatherRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val weatherDao: WeatherDao,
     private val forecastSnapshotDao: ForecastSnapshotDao,
+    private val hourlyForecastDao: HourlyForecastDao,
     private val nwsApi: NwsApi,
     private val openMeteoApi: OpenMeteoApi,
     private val widgetStateManager: WidgetStateManager,
-    private val apiLogger: ApiLogger
+    private val apiLogger: ApiLogger,
+    private val temperatureInterpolator: TemperatureInterpolator
 ) {
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
@@ -372,6 +378,11 @@ class WeatherRepository @Inject constructor(
         }
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
+        // Save hourly forecasts for interpolation
+        if (forecast.hourly.isNotEmpty()) {
+            saveHourlyForecasts(forecast.hourly, lat, lon)
+        }
+
         return forecast.daily.map { daily ->
             WeatherEntity(
                 date = daily.date,
@@ -388,10 +399,77 @@ class WeatherRepository @Inject constructor(
         }
     }
 
+    private suspend fun saveHourlyForecasts(
+        hourlyForecasts: List<OpenMeteoApi.HourlyForecast>,
+        lat: Double,
+        lon: Double
+    ) {
+        val entities = hourlyForecasts.map { hourly ->
+            HourlyForecastEntity(
+                dateTime = hourly.dateTime,
+                locationLat = lat,
+                locationLon = lon,
+                temperature = hourly.temperature,
+                source = "OPEN_METEO",
+                fetchedAt = System.currentTimeMillis()
+            )
+        }
+        hourlyForecastDao.insertAll(entities)
+        Log.d(TAG, "saveHourlyForecasts: Saved ${entities.size} hourly forecasts")
+    }
+
+    /**
+     * Gets the interpolated current temperature based on hourly forecast data.
+     * Returns null if no hourly data is available.
+     */
+    suspend fun getInterpolatedTemperature(
+        lat: Double,
+        lon: Double,
+        currentTime: LocalDateTime = LocalDateTime.now()
+    ): Int? {
+        // Get hourly forecasts around the current time (3 hours before and after)
+        val startTime = currentTime.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val endTime = currentTime.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+
+        val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startTime, endTime, lat, lon)
+
+        if (hourlyForecasts.isEmpty()) {
+            Log.d(TAG, "getInterpolatedTemperature: No hourly forecasts available")
+            return null
+        }
+
+        val interpolatedTemp = temperatureInterpolator.getInterpolatedTemperature(hourlyForecasts, currentTime)
+        Log.d(TAG, "getInterpolatedTemperature: Interpolated temp = $interpolatedTemp at $currentTime")
+        return interpolatedTemp
+    }
+
+    /**
+     * Gets the next time the widget should update based on temperature change rate.
+     */
+    suspend fun getNextInterpolationUpdateTime(
+        lat: Double,
+        lon: Double,
+        currentTime: LocalDateTime = LocalDateTime.now()
+    ): LocalDateTime {
+        val currentHour = currentTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val nextHour = currentTime.plusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+
+        val forecasts = hourlyForecastDao.getHourlyForecasts(currentHour, nextHour, lat, lon)
+
+        val tempDiff = if (forecasts.size >= 2) {
+            forecasts[1].temperature - forecasts[0].temperature
+        } else {
+            0
+        }
+
+        return temperatureInterpolator.getNextUpdateTime(currentTime, tempDiff)
+    }
+
     private suspend fun cleanOldData() {
         val cutoff = System.currentTimeMillis() - MONTH_IN_MILLIS
         weatherDao.deleteOldData(cutoff)
         forecastSnapshotDao.deleteOldSnapshots(cutoff)
+        hourlyForecastDao.deleteOldForecasts(cutoff)
     }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? {
