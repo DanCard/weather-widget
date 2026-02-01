@@ -34,16 +34,20 @@ object TemperatureGraphRenderer {
         val maxTemp = (allTemps.maxOrNull() ?: 100) + 5
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1)
 
-        // Scale factor based on widget height (base is ~136dp for 2 rows)
-        val baseHeightDp = 136f
-        val heightDp = heightPx / context.resources.displayMetrics.density
-        val scaleFactor = (heightDp / baseHeightDp).coerceIn(1f, 2.5f)
+        // Scale factor based on widget dimensions
+        val density = context.resources.displayMetrics.density
+        val widthDp = widthPx / density
+
+        // Width-based scale factor only: ensure day labels fit (base ~70dp per day)
+        val baseDayWidthDp = 70f
+        val dayWidthDp = widthDp / days.size
+        val scaleFactor = (dayWidthDp / baseDayWidthDp).coerceIn(1.0f, 1.8f)
 
         // Layout constants (scaled)
         val horizontalPadding = dpToPx(context, -8f * scaleFactor)  // Slight negative for more space
         val topPadding = dpToPx(context, 20f * scaleFactor)  // Room for API source indicator
         val bottomPadding = dpToPx(context, 2f * scaleFactor)  // Minimal bottom padding
-        val labelHeight = dpToPx(context, 40f * scaleFactor)
+        val labelHeight = dpToPx(context, 24f * scaleFactor)
         val graphTop = topPadding
         val graphBottom = heightPx - labelHeight - bottomPadding
         val graphHeight = graphBottom - graphTop
@@ -79,13 +83,13 @@ object TemperatureGraphRenderer {
 
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
-            textSize = dpToPx(context, 20f * scaleFactor)
+            textSize = dpToPx(context, 24f)  // Day labels - large readable size
             textAlign = Paint.Align.CENTER
         }
 
         val tempTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 18f * scaleFactor)
+            textSize = dpToPx(context, 22f)  // Temp labels - large readable size
             textAlign = Paint.Align.CENTER
         }
 
@@ -102,7 +106,7 @@ object TemperatureGraphRenderer {
 
         val forecastTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#888888")
-            textSize = dpToPx(context, 13f * scaleFactor)
+            textSize = dpToPx(context, 10f * scaleFactor)
             textAlign = Paint.Align.CENTER
         }
 

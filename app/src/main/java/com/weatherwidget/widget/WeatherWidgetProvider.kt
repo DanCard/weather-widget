@@ -546,21 +546,32 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val day3Date = centerDate.plusDays(1)
             val day4Date = centerDate.plusDays(2)
             val day5Date = centerDate.plusDays(3)
+            val day6Date = centerDate.plusDays(4)
 
             val day1Str = day1Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day2Str = day2Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day3Str = day3Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day4Str = day4Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val day6Str = day6Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
             // Set visibility based on columns
             when {
-                numColumns >= 5 -> {
+                numColumns >= 6 -> {
                     views.setViewVisibility(R.id.day1_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day2_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day3_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day4_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day5_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day6_container, View.VISIBLE)
+                }
+                numColumns == 5 -> {
+                    views.setViewVisibility(R.id.day1_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day3_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day4_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day5_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 numColumns == 4 -> {
                     views.setViewVisibility(R.id.day1_container, View.VISIBLE)
@@ -568,6 +579,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(R.id.day3_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day4_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
+                    views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 numColumns == 3 -> {
                     views.setViewVisibility(R.id.day1_container, View.VISIBLE)
@@ -575,6 +587,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(R.id.day3_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day4_container, View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
+                    views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 numColumns == 2 -> {
                     views.setViewVisibility(R.id.day1_container, View.GONE)
@@ -582,6 +595,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(R.id.day3_container, View.VISIBLE)
                     views.setViewVisibility(R.id.day4_container, View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
+                    views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 else -> {
                     views.setViewVisibility(R.id.day1_container, View.GONE)
@@ -589,6 +603,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(R.id.day3_container, View.GONE)
                     views.setViewVisibility(R.id.day4_container, View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
+                    views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
             }
 
@@ -604,6 +619,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             populateDay(views, R.id.day3_label, R.id.day3_high, R.id.day3_low, getLabelForDate(day3Date), weatherByDate[day3Str])
             populateDay(views, R.id.day4_label, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
             populateDay(views, R.id.day5_label, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
+            populateDay(views, R.id.day6_label, R.id.day6_high, R.id.day6_low, getLabelForDate(day6Date), weatherByDate[day6Str])
         }
 
         private fun populateDay(
