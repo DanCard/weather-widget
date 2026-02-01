@@ -982,6 +982,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithHourlyData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
+            // Set tap to open settings on content areas (not widget_root, to allow API toggle click)
+            val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
+            val settingsPendingIntent = PendingIntent.getActivity(
+                context,
+                0,
+                settingsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.text_container, settingsPendingIntent)
+            views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
+
             // Setup navigation buttons
             setupNavigationButtons(context, views, appWidgetId, stateManager)
 
