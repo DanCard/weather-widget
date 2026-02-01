@@ -63,63 +63,17 @@
     <string name="tour_location_desc">Choose your location method when configuring the widget:\n\n• GPS: Automatic location detection\n• ZIP Code: Manual entry for specific location\n• Default: Falls back to Google HQ (37.4220, -122.0841) if location unavailable\n\nThe widget displays the location name at the bottom.</string>
 
     <!-- Feature Tour Text Art Mockups -->
-    <string name="tour_mockup_widget_sizes" translatable="false">
-┌─────┐  ┌─────────────────┐  ┌─────────────────┐
-│ 72° │  │ ◀ Yest  Today ▶ │  │ 72°        Meteo│
-│     │  │   68°   72°     │  │ ◀ ▓▓░░░  ▓▓░░ ▶│
-└─────┘  └─────────────────┘  └─────────────────┘
-  1x1           1x3                  2x3
-</string>
+    <string name="tour_mockup_widget_sizes" translatable="false">1x1:\n┌──────┐\n│\u00A072°\u00A0\u00A0\u00A0│\n└──────┘\n\n1x3:\n┌──────────────────┐\n│\u00A0◀\u00A0Yest\u00A0Today\u00A0Tmrw\u00A0▶│\n└──────────────────┘\n\n2x3:\n┌──────────────────┐\n│\u00A072°\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0Meteo│\n│\u00A0◀\u00A0▓▓░░░\u00A0▓▓░░\u00A0▶\u00A0│\n└──────────────────┘</string>
 
-    <string name="tour_mockup_current_temp" translatable="false">
-┌────────────────────────┐
-│ 72°              Meteo │
-│                        │
-│  Current temperature   │
-│  updates automatically │
-└────────────────────────┘
-</string>
+    <string name="tour_mockup_current_temp" translatable="false">┌────────────────────────┐\n│\u00A072°\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0Meteo\u00A0│\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0Current\u00A0temperature\u00A0\u00A0\u00A0│\n│\u00A0\u00A0updates\u00A0automatically\u00A0│\n└────────────────────────┘</string>
 
-    <string name="tour_mockup_api_nws" translatable="false">
-┌────────────────────────┐
-│ 72°              [NWS] │  ← Tap to toggle
-│    ▓▓░░░    ▓▓▓░░      │
-└────────────────────────┘
-</string>
+    <string name="tour_mockup_api_nws" translatable="false">┌────────────────────────┐\n│\u00A072°\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0[NWS]\u00A0│\u00A0\u00A0←\u00A0Tap\u00A0to\u00A0toggle\n│\u00A0\u00A0\u00A0\u00A0▓▓░░░\u00A0\u00A0\u00A0\u00A0▓▓▓░░\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n└────────────────────────┘</string>
 
-    <string name="tour_mockup_api_meteo" translatable="false">
-┌────────────────────────┐
-│ 72°            [Meteo] │  ← Tap to toggle
-│    ▓▓░░░    ▓▓▓░░      │
-└────────────────────────┘
-</string>
+    <string name="tour_mockup_api_meteo" translatable="false">┌────────────────────────┐\n│\u00A072°\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0[Meteo]\u00A0│\u00A0\u00A0←\u00A0Tap\u00A0to\u00A0toggle\n│\u00A0\u00A0\u00A0\u00A0▓▓░░░\u00A0\u00A0\u00A0\u00A0▓▓▓░░\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n└────────────────────────┘</string>
 
-    <string name="tour_mockup_navigation" translatable="false">
-┌──────────────────────────────┐
-│ 72°                    Meteo │
-│ ◀  Jan 28  Jan 29  Jan 30  ▶ │
-│    ▓▓░░    ▓▓▓░░   ▓▓░░░     │
-└──────────────────────────────┘
-    ↑                        ↑
-  30 days                 7 days
-   back                  forecast
-</string>
+    <string name="tour_mockup_navigation" translatable="false">┌──────────────────────────────┐\n│\u00A072°\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0Meteo\u00A0│\n│\u00A0◀\u00A0\u00A0Jan\u00A028\u00A0\u00A0Jan\u00A029\u00A0\u00A0Jan\u00A030\u00A0\u00A0▶\u00A0│\n│\u00A0\u00A0\u00A0\u00A0▓▓░░\u00A0\u00A0\u00A0\u00A0▓▓▓░░\u00A0\u00A0\u00A0▓▓░░░\u00A0\u00A0\u00A0\u00A0\u00A0│\n└──────────────────────────────┘\n\u00A0\u00A0\u00A0\u00A0↑\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0↑\n\u00A0\u00A030\u00A0days\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A07\u00A0days\n\u00A0\u00A0\u00A0back\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0forecast</string>
 
-    <string name="tour_mockup_accuracy" translatable="false">
-FORECAST_BAR:  ▓▓▓░░░ (yellow = predicted)
-ACCURACY_DOT:  72° ●  (green ≤2° / yellow ≤5° / red >5°)
-SIDE_BY_SIDE:  72° (N:68°)
-DIFFERENCE:    72° (N:+4)
-</string>
+    <string name="tour_mockup_accuracy" translatable="false">FORECAST_BAR:\u00A0\u00A0▓▓▓░░░\u00A0(yellow\u00A0=\u00A0predicted)\nACCURACY_DOT:\u00A0\u00A072°\u00A0●\u00A0\u00A0(green\u00A0≤2°\u00A0/\u00A0yellow\u00A0≤5°\u00A0/\u00A0red\u00A0>5°)\nSIDE_BY_SIDE:\u00A0\u00A072°\u00A0(N:68°)\nDIFFERENCE:\u00A0\u00A0\u00A0\u00A072°\u00A0(N:+4)</string>
 
-    <string name="tour_mockup_settings" translatable="false">
-┌─ Settings ─────────────────┐
-│                            │
-│  📍 Location: GPS / ZIP    │
-│  🌡️ API: Alternate / NWS   │
-│  📊 Accuracy: Forecast Bar │
-│  📈 View Statistics        │
-│                            │
-└────────────────────────────┘
-</string>
+    <string name="tour_mockup_settings" translatable="false">┌─\u00A0Settings\u00A0─────────────────┐\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0📍\u00A0Location:\u00A0GPS\u00A0/\u00A0ZIP\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0🌡️\u00A0API:\u00A0Alternate\u00A0/\u00A0NWS\u00A0\u00A0\u00A0│\n│\u00A0\u00A0📊\u00A0Accuracy:\u00A0Forecast\u00A0Bar\u00A0│\n│\u00A0\u00A0📈\u00A0View\u00A0Statistics\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n└────────────────────────────┘</string>
 </resources>
