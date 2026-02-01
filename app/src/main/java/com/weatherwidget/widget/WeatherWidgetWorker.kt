@@ -62,6 +62,9 @@ class WeatherWidgetWorker @AssistedInject constructor(
                     updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
                     if (!uiOnlyRefresh) {
                         scheduleNextUpdate()
+                        // Schedule next UI update after data fetch
+                        val uiScheduler = UIUpdateScheduler(context)
+                        uiScheduler.scheduleNextUpdate()
                     }
                     Result.success()
                 },
@@ -107,8 +110,9 @@ class WeatherWidgetWorker @AssistedInject constructor(
             val database = WeatherDatabase.getDatabase(context)
             val hourlyDao = database.hourlyForecastDao()
             val now = LocalDateTime.now()
-            val startTime = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            // Extended range for hourly view: 24 hours past to 24 hours future
+            val startTime = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = now.plusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch hourly forecasts", e)

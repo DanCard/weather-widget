@@ -65,7 +65,7 @@ class OpenMeteoApi @Inject constructor(
         val hourly = jsonObj["hourly"]?.jsonObject
         val hourlyTimes = hourly?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
         val hourlyTemps = hourly?.get("temperature_2m")?.jsonArray?.map {
-            it.jsonPrimitive.content.toDoubleOrNull()?.toInt()
+            it.jsonPrimitive.content.toDoubleOrNull()?.toFloat()
         } ?: emptyList()
 
         val hourlyForecasts = hourlyTimes.mapIndexedNotNull { index, time ->
@@ -119,6 +119,6 @@ class OpenMeteoApi @Inject constructor(
 
     data class HourlyForecast(
         val dateTime: String,  // ISO 8601 format: "2024-01-15T14:00"
-        val temperature: Int
+        val temperature: Float
     )
 }

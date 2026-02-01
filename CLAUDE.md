@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **📖 For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md)**
+> - Complete system architecture and data flow
+> - Two-tier update system design
+> - Battery optimization strategies
+> - Performance considerations
+
 ## Project Overview
 
 Android weather widget app with resizable widget support and forecast accuracy tracking.
@@ -87,19 +93,35 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - Forecast snapshots also retained for 1 month
 - Widget navigation allows browsing up to 30 days of history
 
-## Update Frequency
+## Update Strategy
 
-Battery-aware refresh strategy using WorkManager:
+**Two-Tier System**: Separates UI updates (current temp) from data fetches (API calls) for optimal battery efficiency.
+
+**Quick Reference:**
+
+| Update Type | Frequency | Wakeup | Purpose |
+|-------------|-----------|--------|---------|
+| Current Temp UI | 15-60 min (temp-based) | No (opportunistic) | Update interpolated temp from cache |
+| Data Fetch | 60-480 min (battery-aware) | Yes (controlled) | Fetch from APIs |
+| User Interaction | Immediate | N/A | Instant UI + conditional fetch |
+| Screen Unlock | Immediate | N/A | UI update + fetch if charging & stale |
+
+**Data Fetch Intervals** (battery-aware via WorkManager):
 
 | Condition | Interval |
 |-----------|----------|
-| Plugged in | 30 min |
-| Battery > 50% | 1 hour |
-| Battery 20-50% | 2 hours |
-| Battery < 20% | 4 hours |
+| Plugged in | 60 min |
+| Battery > 50% | 120 min |
+| Battery 20-50% | 240 min |
+| Battery < 20% | 480 min |
 
-- Support manual refresh via tap gesture
-- Skip updates when widget is not visible
+**Key Points:**
+- Zero independent wakeups for UI updates (opportunistic only)
+- User interactions always provide instant feedback from cache
+- Background fetches only when data is stale (>30 min old)
+- Current temp interpolated from hourly forecasts (no network required)
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for complete update system design.
 
 ## Error Handling
 

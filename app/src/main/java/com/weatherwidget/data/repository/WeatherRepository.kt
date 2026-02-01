@@ -263,6 +263,18 @@ class WeatherRepository @Inject constructor(
         val forecast = nwsApi.getForecast(gridPoint)
         Log.d(TAG, "fetchFromNws: Got ${forecast.size} periods")
 
+        // Fetch and save hourly forecasts
+        try {
+            Log.d(TAG, "fetchFromNws: Fetching hourly forecasts from NWS...")
+            val hourlyForecast = nwsApi.getHourlyForecast(gridPoint)
+            Log.d(TAG, "fetchFromNws: Got ${hourlyForecast.size} NWS hourly periods")
+            if (hourlyForecast.isNotEmpty()) {
+                saveNwsHourlyForecasts(hourlyForecast, lat, lon)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchFromNws: Failed to fetch hourly forecasts: ${e.message}", e)
+        }
+
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
         val today = LocalDate.now()
@@ -415,7 +427,35 @@ class WeatherRepository @Inject constructor(
             )
         }
         hourlyForecastDao.insertAll(entities)
-        Log.d(TAG, "saveHourlyForecasts: Saved ${entities.size} hourly forecasts")
+        Log.d(TAG, "saveHourlyForecasts: Saved ${entities.size} Open-Meteo hourly forecasts")
+    }
+
+    private suspend fun saveNwsHourlyForecasts(
+        hourlyForecasts: List<NwsApi.HourlyForecastPeriod>,
+        lat: Double,
+        lon: Double
+    ) {
+        val entities = hourlyForecasts.mapNotNull { hourly ->
+            // Convert NWS ISO 8601 format "2026-02-01T10:00:00-08:00" to "2026-02-01T10:00"
+            val dateTime = try {
+                val zonedDateTime = java.time.ZonedDateTime.parse(hourly.startTime)
+                zonedDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            } catch (e: Exception) {
+                Log.w(TAG, "saveNwsHourlyForecasts: Failed to parse time ${hourly.startTime}: ${e.message}")
+                return@mapNotNull null
+            }
+
+            HourlyForecastEntity(
+                dateTime = dateTime,
+                locationLat = lat,
+                locationLon = lon,
+                temperature = hourly.temperature.toFloat(),
+                source = "NWS",
+                fetchedAt = System.currentTimeMillis()
+            )
+        }
+        hourlyForecastDao.insertAll(entities)
+        Log.d(TAG, "saveNwsHourlyForecasts: Saved ${entities.size} NWS hourly forecasts")
     }
 
     /**
@@ -426,7 +466,7 @@ class WeatherRepository @Inject constructor(
         lat: Double,
         lon: Double,
         currentTime: LocalDateTime = LocalDateTime.now()
-    ): Int? {
+    ): Float? {
         // Get hourly forecasts around the current time (3 hours before and after)
         val startTime = currentTime.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
         val endTime = currentTime.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
@@ -457,7 +497,7 @@ class WeatherRepository @Inject constructor(
         val forecasts = hourlyForecastDao.getHourlyForecasts(currentHour, nextHour, lat, lon)
 
         val tempDiff = if (forecasts.size >= 2) {
-            forecasts[1].temperature - forecasts[0].temperature
+            (forecasts[1].temperature - forecasts[0].temperature).toInt()
         } else {
             0
         }

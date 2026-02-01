@@ -10,7 +10,7 @@ data class HourlyForecastEntity(
     val dateTime: String,          // ISO 8601 format: "2024-01-15T14:00"
     val locationLat: Double,
     val locationLon: Double,
-    val temperature: Int,          // Temperature in Fahrenheit
+    val temperature: Float,        // Temperature in Fahrenheit
     val source: String,            // "NWS" or "OPEN_METEO"
     val fetchedAt: Long            // When this data was fetched
 )

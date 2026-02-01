@@ -1,12 +1,14 @@
 package com.weatherwidget.util
 
+import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.roundToInt
+
+private const val TAG = "TemperatureInterpolator"
 
 /**
  * Interpolates temperature between hourly forecast data points.
@@ -32,13 +34,32 @@ class TemperatureInterpolator @Inject constructor() {
      *
      * @param hourlyForecasts List of hourly forecast data points, should be sorted by dateTime
      * @param targetTime The time to interpolate for
+     * @param source Optional source filter ("NWS" or "OPEN_METEO"). If null, prefers OPEN_METEO.
      * @return The interpolated temperature, or null if insufficient data
      */
     fun getInterpolatedTemperature(
         hourlyForecasts: List<HourlyForecastEntity>,
-        targetTime: LocalDateTime
-    ): Int? {
+        targetTime: LocalDateTime,
+        source: String? = null
+    ): Float? {
         if (hourlyForecasts.isEmpty()) return null
+
+        // Filter by source if specified, otherwise prefer the specified source with fallback
+        val sourcesInData = hourlyForecasts.map { it.source }.distinct()
+        Log.d(TAG, "getInterpolatedTemperature: source=$source, sourcesInData=$sourcesInData, totalForecasts=${hourlyForecasts.size}")
+
+        val filteredForecasts = if (source != null) {
+            val sourceName = if (source == "NWS") "NWS" else "OPEN_METEO"
+            // Group by dateTime and prefer the requested source
+            hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
+                }
+                .values.filterNotNull()
+        } else {
+            hourlyForecasts
+        }
+        Log.d(TAG, "getInterpolatedTemperature: filteredForecasts=${filteredForecasts.size}, sources=${filteredForecasts.map { it.source }.distinct()}")
 
         // Find the two surrounding data points
         val targetHour = targetTime.truncatedTo(ChronoUnit.HOURS)
@@ -47,8 +68,10 @@ class TemperatureInterpolator @Inject constructor() {
         val targetHourStr = targetHour.format(HOUR_FORMATTER)
         val nextHourStr = nextHour.format(HOUR_FORMATTER)
 
-        val currentHourForecast = hourlyForecasts.find { it.dateTime == targetHourStr }
-        val nextHourForecast = hourlyForecasts.find { it.dateTime == nextHourStr }
+        val currentHourForecast = filteredForecasts.find { it.dateTime == targetHourStr }
+        val nextHourForecast = filteredForecasts.find { it.dateTime == nextHourStr }
+
+        Log.d(TAG, "getInterpolatedTemperature: currentHour=$targetHourStr found=${currentHourForecast?.source}:${currentHourForecast?.temperature}, nextHour=$nextHourStr found=${nextHourForecast?.source}:${nextHourForecast?.temperature}")
 
         // If we only have current hour, return that
         if (currentHourForecast != null && nextHourForecast == null) {
@@ -62,7 +85,7 @@ class TemperatureInterpolator @Inject constructor() {
 
         // If we have neither, try to find the closest data point
         if (currentHourForecast == null && nextHourForecast == null) {
-            return findClosestTemperature(hourlyForecasts, targetTime)
+            return findClosestTemperature(filteredForecasts, targetTime)
         }
 
         // We have both hours - interpolate
@@ -72,16 +95,20 @@ class TemperatureInterpolator @Inject constructor() {
 
         // If difference is below threshold, just return current hour temp
         if (kotlin.math.abs(tempDiff) < INTERPOLATION_THRESHOLD) {
+            Log.d(TAG, "Below threshold, returning currentTemp=$currentTemp")
             return currentTemp
         }
 
         // Calculate interpolation factor (0.0 to 1.0)
         val minutesIntoHour = targetTime.minute
-        val factor = minutesIntoHour / 60.0
+        val factor = minutesIntoHour / 60.0f
 
         // Linear interpolation
         val interpolatedTemp = currentTemp + (tempDiff * factor)
-        return interpolatedTemp.roundToInt()
+        Log.d(TAG, "Interpolating: time=${targetTime.hour}:${targetTime.minute}, " +
+                "current=$currentTemp@$targetHourStr, next=$nextTemp@$nextHourStr, " +
+                "factor=$factor, result=$interpolatedTemp")
+        return interpolatedTemp
     }
 
     /**
@@ -90,7 +117,7 @@ class TemperatureInterpolator @Inject constructor() {
     private fun findClosestTemperature(
         hourlyForecasts: List<HourlyForecastEntity>,
         targetTime: LocalDateTime
-    ): Int? {
+    ): Float? {
         if (hourlyForecasts.isEmpty()) return null
 
         val targetMinutes = targetTime.toLocalDate().atStartOfDay()

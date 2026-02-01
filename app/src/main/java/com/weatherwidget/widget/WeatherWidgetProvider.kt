@@ -64,11 +64,36 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         schedulePeriodicUpdate(context)
+
+        // Schedule UI-only updates using AlarmManager
+        val pendingResult = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                val uiScheduler = UIUpdateScheduler(context)
+                uiScheduler.scheduleNextUpdate()
+            } finally {
+                pendingResult.finish()
+            }
+        }
+
+        // Schedule opportunistic updates using JobScheduler (Android 8+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
+        }
     }
 
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+
+        // Cancel scheduled UI updates
+        val uiScheduler = UIUpdateScheduler(context)
+        uiScheduler.cancelScheduledUpdates()
+
+        // Cancel opportunistic updates
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            OpportunisticUpdateJobService.cancelOpportunisticUpdate(context)
+        }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -84,8 +109,24 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: action=${intent.action}")
         when (intent.action) {
             ACTION_REFRESH -> {
-                Log.d(TAG, "onReceive: Triggering immediate update")
-                triggerImmediateUpdate(context)
+                Log.d(TAG, "onReceive: User triggered refresh")
+                // Always update UI immediately for instant feedback
+                triggerUiOnlyUpdate(context)
+
+                // Check data staleness and fetch in background if needed
+                val pendingResult = goAsync()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    try {
+                        if (DataFreshness.isDataStale(context)) {
+                            Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
+                            triggerImmediateUpdate(context)
+                        } else {
+                            Log.d(TAG, "onReceive: Data is fresh, UI update only")
+                        }
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
             }
             ACTION_NAV_LEFT, ACTION_NAV_RIGHT -> {
                 val appWidgetId = intent.getIntExtra(
@@ -123,10 +164,38 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
                 }
             }
+            ACTION_TOGGLE_VIEW -> {
+                val appWidgetId = intent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID
+                )
+                Log.d(TAG, "onReceive: Toggle View action for widget $appWidgetId")
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val pendingResult = goAsync()
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        try {
+                            handleToggleViewDirect(context, appWidgetId)
+                        } finally {
+                            pendingResult.finish()
+                        }
+                    }
+                }
+            }
         }
     }
 
     private suspend fun handleNavigationDirect(context: Context, appWidgetId: Int, isLeft: Boolean) {
+        val stateManager = WidgetStateManager(context)
+        val viewMode = stateManager.getViewMode(appWidgetId)
+
+        if (viewMode == ViewMode.HOURLY) {
+            handleHourlyNavigationDirect(context, appWidgetId, isLeft)
+        } else {
+            handleDailyNavigationDirect(context, appWidgetId, isLeft)
+        }
+    }
+
+    private suspend fun handleDailyNavigationDirect(context: Context, appWidgetId: Int, isLeft: Boolean) {
         val stateManager = WidgetStateManager(context)
         val currentOffset = stateManager.getDateOffset(appWidgetId)
 
@@ -154,7 +223,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         // Check if we have data for the target center date
         if (weatherByDate[targetDateStr] == null) {
-            Log.d(TAG, "handleNavigationDirect: No data for $targetDateStr, showing toast")
+            Log.d(TAG, "handleDailyNavigationDirect: No data for $targetDateStr, showing toast")
             // Show toast on main thread
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 android.widget.Toast.makeText(context, "No more data", android.widget.Toast.LENGTH_SHORT).show()
@@ -168,7 +237,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         } else {
             stateManager.navigateRight(appWidgetId)
         }
-        Log.d(TAG, "handleNavigationDirect: Navigated to offset $newOffset for widget $appWidgetId")
+        Log.d(TAG, "handleDailyNavigationDirect: Navigated to offset $newOffset for widget $appWidgetId")
 
         val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             .groupBy { it.targetDate }
@@ -184,10 +253,45 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
     }
 
+    private suspend fun handleHourlyNavigationDirect(context: Context, appWidgetId: Int, isLeft: Boolean) {
+        val stateManager = WidgetStateManager(context)
+
+        // Update hourly offset
+        val newOffset = if (isLeft) {
+            stateManager.navigateHourlyLeft(appWidgetId)
+        } else {
+            stateManager.navigateHourlyRight(appWidgetId)
+        }
+        Log.d(TAG, "handleHourlyNavigationDirect: Navigated to offset $newOffset for widget $appWidgetId")
+
+        // Read hourly data from database
+        val database = WeatherDatabase.getDatabase(context)
+        val hourlyDao = database.hourlyForecastDao()
+        val weatherDao = database.weatherDao()
+
+        // Get location
+        val latestWeather = weatherDao.getLatestWeather()
+        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+        // Calculate time window based on offset
+        val now = java.time.LocalDateTime.now()
+        val centerTime = now.plusHours(newOffset.toLong())
+        val startTime = centerTime.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val endTime = centerTime.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+
+        val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+
+        // Update widget with hourly view
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+    }
+
     private suspend fun handleToggleApiDirect(context: Context, appWidgetId: Int) {
         val stateManager = WidgetStateManager(context)
         val newSource = stateManager.toggleDisplaySource(appWidgetId)
-        Log.d(TAG, "handleToggleApiDirect: Toggled to $newSource for widget $appWidgetId")
+        val viewMode = stateManager.getViewMode(appWidgetId)
+        Log.d(TAG, "handleToggleApiDirect: Toggled to $newSource for widget $appWidgetId, viewMode=$viewMode")
 
         // Read weather data directly from database
         val database = WeatherDatabase.getDatabase(context)
@@ -201,28 +305,44 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         Log.d(TAG, "handleToggleApiDirect: Using location lat=$lat, lon=$lon")
 
-        val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-
-        val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
-        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
-            .groupBy { it.targetDate }
-
-        // Get hourly forecasts for interpolation
-        val now = java.time.LocalDateTime.now()
-        val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
-
-        Log.d(TAG, "handleToggleApiDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
-
-        // Update widget directly
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+
+        if (viewMode == ViewMode.HOURLY) {
+            // Hourly mode: get extended hourly data (24 hours centered on current offset)
+            val now = java.time.LocalDateTime.now()
+            val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+            val centerTime = now.plusHours(hourlyOffset.toLong())
+            val startTime = centerTime.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = centerTime.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+
+            Log.d(TAG, "handleToggleApiDirect: Hourly mode - Got ${hourlyForecasts.size} hourly forecasts")
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+        } else {
+            // Daily mode: get daily data
+            val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+            val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+            val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                .groupBy { it.targetDate }
+
+            // Get hourly forecasts for current temp interpolation
+            val now = java.time.LocalDateTime.now()
+            val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+
+            Log.d(TAG, "handleToggleApiDirect: Daily mode - Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
+            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+        }
     }
 
     private suspend fun handleResizeDirect(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
         Log.d(TAG, "handleResizeDirect: Updating widget $appWidgetId after resize")
+
+        val stateManager = WidgetStateManager(context)
+        val viewMode = stateManager.getViewMode(appWidgetId)
 
         // Read weather data directly from database
         val database = WeatherDatabase.getDatabase(context)
@@ -235,23 +355,80 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
-        val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        if (viewMode == ViewMode.HOURLY) {
+            // Hourly mode: get extended hourly data
+            val now = java.time.LocalDateTime.now()
+            val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+            val centerTime = now.plusHours(hourlyOffset.toLong())
+            val startTime = centerTime.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = centerTime.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
-        val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
-        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
-            .groupBy { it.targetDate }
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+        } else {
+            // Daily mode: get daily data
+            val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
 
-        // Get hourly forecasts for interpolation
-        val now = java.time.LocalDateTime.now()
-        val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+            val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+            val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                .groupBy { it.targetDate }
 
-        Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
+            // Get hourly forecasts for interpolation
+            val now = java.time.LocalDateTime.now()
+            val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
-        // Update widget directly with new size
-        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+            Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
+
+            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+        }
+    }
+
+    private suspend fun handleToggleViewDirect(context: Context, appWidgetId: Int) {
+        val stateManager = WidgetStateManager(context)
+        val newMode = stateManager.toggleViewMode(appWidgetId)
+        Log.d(TAG, "handleToggleViewDirect: Toggled to $newMode for widget $appWidgetId")
+
+        // Read data from database
+        val database = WeatherDatabase.getDatabase(context)
+        val weatherDao = database.weatherDao()
+        val hourlyDao = database.hourlyForecastDao()
+        val snapshotDao = database.forecastSnapshotDao()
+
+        // Get location
+        val latestWeather = weatherDao.getLatestWeather()
+        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+
+        if (newMode == ViewMode.HOURLY) {
+            // Switched to hourly mode: fetch 24-hour window
+            val now = java.time.LocalDateTime.now()
+            val startTime = now.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = now.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now)
+        } else {
+            // Switched to daily mode: fetch daily data
+            val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+            val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+            val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                .groupBy { it.targetDate }
+
+            // Get hourly forecasts for current temp interpolation
+            val now = java.time.LocalDateTime.now()
+            val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+
+            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+        }
     }
 
     private fun schedulePeriodicUpdate(context: Context) {
@@ -304,6 +481,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
         const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
         const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
+        const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
         private const val TAG = "WeatherWidgetProvider"
 
         private const val CELL_WIDTH_DP = 73
@@ -351,9 +529,43 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList()
         ) {
+            val stateManager = WidgetStateManager(context)
+            val viewMode = stateManager.getViewMode(appWidgetId)
+
+            // Route to appropriate renderer based on view mode
+            if (viewMode == ViewMode.HOURLY) {
+                // Fetch extended hourly data if not already provided
+                if (hourlyForecasts.size < 20) {  // Need more than just ±3 hours
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        val database = WeatherDatabase.getDatabase(context)
+                        val hourlyDao = database.hourlyForecastDao()
+                        val weatherDao = database.weatherDao()
+
+                        val latestWeather = weatherDao.getLatestWeather()
+                        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+                        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+                        val now = LocalDateTime.now()
+                        val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+                        val centerTime = now.plusHours(hourlyOffset.toLong())
+                        val startTime = centerTime.minusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                        val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                        val extendedHourly = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+
+                        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, extendedHourly, centerTime)
+                    }
+                } else {
+                    val now = LocalDateTime.now()
+                    val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+                    val centerTime = now.plusHours(hourlyOffset.toLong())
+                    updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+                }
+                return
+            }
+
+            // Daily mode
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
-            val stateManager = WidgetStateManager(context)
             val dateOffset = stateManager.getDateOffset(appWidgetId)
             val accuracyMode = stateManager.getAccuracyDisplayMode()
 
@@ -369,6 +581,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.text_container, settingsPendingIntent)
             views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
+
+            // Setup current temp click to toggle view mode
+            setupCurrentTempToggle(context, views, appWidgetId)
 
             val today = LocalDate.now()
             val centerDate = today.plusDays(dateOffset.toLong())
@@ -403,14 +618,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
             views.setTextViewText(R.id.api_source, displayName)
 
-            // Set current temperature (from any source that has it, or interpolate from hourly)
-            var currentTemp = weatherList
-                .filter { it.date == todayStr && it.currentTemp != null && it.currentTemp != 0 }
-                .maxByOrNull { it.fetchedAt }
-                ?.currentTemp
-
-            // If no current temp from API, try interpolation from hourly forecasts
-            if (currentTemp == null && hourlyForecasts.isNotEmpty()) {
+            // Set current temperature - always use interpolation from hourly forecasts for accuracy
+            var currentTemp: Float? = null
+            if (hourlyForecasts.isNotEmpty()) {
                 val interpolator = TemperatureInterpolator()
                 currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, LocalDateTime.now())
                 if (currentTemp != null) {
@@ -418,8 +628,24 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 }
             }
 
+            // Fallback to API currentTemp if interpolation unavailable
+            if (currentTemp == null) {
+                currentTemp = weatherList
+                    .filter { it.date == todayStr && it.currentTemp != null && it.currentTemp != 0 }
+                    .maxByOrNull { it.fetchedAt }
+                    ?.currentTemp?.toFloat()
+                if (currentTemp != null) {
+                    Log.d(TAG, "updateWidgetWithData: Using API currentTemp fallback: $currentTemp")
+                }
+            }
+
             if (currentTemp != null) {
-                views.setTextViewText(R.id.current_temp, "${currentTemp}°")
+                // Format with decimal on 2+ columns, without decimal on 1 column
+                val formattedTemp = when {
+                    numColumns >= 2 -> String.format("%.1f°", currentTemp)  // "72.5°"
+                    else -> String.format("%.0f°", currentTemp)              // "73°"
+                }
+                views.setTextViewText(R.id.current_temp, formattedTemp)
                 views.setViewVisibility(R.id.current_temp, View.VISIBLE)
             } else {
                 views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -493,9 +719,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
             views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
 
-            // Show/hide arrows and touch zones based on navigation bounds
-            val canLeft = stateManager.canNavigateLeft(appWidgetId)
-            val canRight = stateManager.canNavigateRight(appWidgetId)
+            // Show/hide arrows and touch zones based on navigation bounds and view mode
+            val viewMode = stateManager.getViewMode(appWidgetId)
+            val canLeft = if (viewMode == ViewMode.HOURLY) {
+                stateManager.canNavigateHourlyLeft(appWidgetId)
+            } else {
+                stateManager.canNavigateLeft(appWidgetId)
+            }
+            val canRight = if (viewMode == ViewMode.HOURLY) {
+                stateManager.canNavigateHourlyRight(appWidgetId)
+            } else {
+                stateManager.canNavigateRight(appWidgetId)
+            }
             views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
             views.setViewVisibility(R.id.nav_left_zone, if (canLeft) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.nav_right, if (canRight) View.VISIBLE else View.INVISIBLE)
@@ -695,6 +930,222 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(labelId, label)
             views.setTextViewText(highId, weather?.let { "${it.highTemp}°" } ?: "--°")
             views.setTextViewText(lowId, weather?.let { "${it.lowTemp}°" } ?: "--°")
+        }
+
+        private fun updateWidgetWithHourlyData(
+            context: Context,
+            appWidgetManager: AppWidgetManager,
+            appWidgetId: Int,
+            hourlyForecasts: List<HourlyForecastEntity>,
+            centerTime: LocalDateTime
+        ) {
+            val views = RemoteViews(context.packageName, R.layout.widget_weather)
+            val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
+            val stateManager = WidgetStateManager(context)
+
+            Log.d(TAG, "updateWidgetWithHourlyData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
+
+            // Setup navigation buttons
+            setupNavigationButtons(context, views, appWidgetId, stateManager)
+
+            // Setup current temp click to toggle view
+            setupCurrentTempToggle(context, views, appWidgetId)
+
+            // Get current display source
+            val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+            val displayName = if (displaySource == "Open-Meteo") "Meteo" else displaySource
+            views.setTextViewText(R.id.api_source, displayName)
+
+            // Setup API toggle
+            setupApiToggle(context, views, appWidgetId, numRows)
+
+            // Set current temperature (interpolated from hourly data)
+            val now = LocalDateTime.now()
+            if (hourlyForecasts.isNotEmpty()) {
+                val interpolator = TemperatureInterpolator()
+                val currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, now, displaySource)
+                if (currentTemp != null) {
+                    val formattedTemp = when {
+                        numColumns >= 2 -> String.format("%.1f°", currentTemp)
+                        else -> String.format("%.0f°", currentTemp)
+                    }
+                    views.setTextViewText(R.id.current_temp, formattedTemp)
+                    views.setViewVisibility(R.id.current_temp, View.VISIBLE)
+                } else {
+                    views.setViewVisibility(R.id.current_temp, View.GONE)
+                }
+            } else {
+                views.setViewVisibility(R.id.current_temp, View.GONE)
+            }
+
+            // Use graph mode for 2+ rows, text mode for 1 row
+            val useGraph = numRows >= 2
+
+            if (useGraph) {
+                views.setViewVisibility(R.id.text_container, View.GONE)
+                views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+
+                // Build hour data list for graph (24 hours visible)
+                val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
+
+                // Calculate widget size in pixels
+                val widthPx = dpToPx(context, numColumns * CELL_WIDTH_DP) - dpToPx(context, 32)
+                val heightPx = dpToPx(context, numRows * CELL_HEIGHT_DP)
+
+                // Render hourly graph
+                val bitmap = HourlyGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now)
+                views.setImageViewBitmap(R.id.graph_view, bitmap)
+            } else {
+                views.setViewVisibility(R.id.text_container, View.VISIBLE)
+                views.setViewVisibility(R.id.graph_view, View.GONE)
+
+                // Text mode: show hourly data as text
+                updateHourlyTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
+            }
+
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+
+        private fun setupCurrentTempToggle(
+            context: Context,
+            views: RemoteViews,
+            appWidgetId: Int
+        ) {
+            val toggleIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_TOGGLE_VIEW
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val togglePendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 2 + 200, // Unique request code
+                toggleIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.current_temp, togglePendingIntent)
+        }
+
+        private fun buildHourDataList(
+            hourlyForecasts: List<HourlyForecastEntity>,
+            centerTime: LocalDateTime,
+            numColumns: Int,
+            displaySource: String
+        ): List<HourlyGraphRenderer.HourData> {
+            val hours = mutableListOf<HourlyGraphRenderer.HourData>()
+            val now = LocalDateTime.now()
+
+            // Group by dateTime and prefer the selected source
+            val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
+            val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
+                }
+
+            // Determine how many hours to show (24 total, centered on centerTime)
+            val startHour = centerTime.minusHours(12)
+            val endHour = centerTime.plusHours(12)
+
+            // Determine label frequency based on widget size
+            // For 24 hours displayed, aim for ~4-6 visible labels to avoid overlap
+            val labelInterval = when {
+                numColumns >= 7 -> 3  // Every 3 hours (8 labels)
+                numColumns >= 5 -> 4  // Every 4 hours (6 labels)
+                else -> 6              // Every 6 hours (4 labels)
+            }
+
+            var currentHour = startHour
+            var hourIndex = 0
+            while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
+                val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val forecast = forecastsByTime[hourKey]
+
+                if (forecast != null) {
+                    hours.add(
+                        HourlyGraphRenderer.HourData(
+                            dateTime = currentHour,
+                            temperature = forecast.temperature,
+                            label = formatHourLabel(currentHour),
+                            isCurrentHour = currentHour.hour == now.hour && currentHour.toLocalDate() == now.toLocalDate(),
+                            showLabel = hourIndex % labelInterval == 0
+                        )
+                    )
+                    hourIndex++
+                }
+
+                currentHour = currentHour.plusHours(1)
+            }
+
+            return hours
+        }
+
+        private fun formatHourLabel(time: LocalDateTime): String {
+            val hour = time.hour
+            return when {
+                hour == 0 -> "12a"
+                hour < 12 -> "${hour}a"
+                hour == 12 -> "12p"
+                else -> "${hour - 12}p"
+            }
+        }
+
+        private fun updateHourlyTextMode(
+            views: RemoteViews,
+            hourlyForecasts: List<HourlyForecastEntity>,
+            centerTime: LocalDateTime,
+            numColumns: Int,
+            displaySource: String
+        ) {
+            // Group by dateTime and prefer the selected source
+            val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
+            val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
+                }
+
+            // Determine which time points to show based on columns
+            // Show: Now, +3h, +6h, +9h, +12h, +15h
+            val timeOffsets = when {
+                numColumns >= 6 -> listOf(0, 3, 6, 9, 12, 15)
+                numColumns == 5 -> listOf(0, 3, 6, 9, 12)
+                numColumns == 4 -> listOf(0, 3, 6, 9)
+                numColumns == 3 -> listOf(0, 3, 6)
+                numColumns == 2 -> listOf(0, 6)
+                else -> listOf(0)
+            }
+
+            // Map offsets to containers
+            val containerIds = listOf(
+                R.id.day1_container to Triple(R.id.day1_label, R.id.day1_high, R.id.day1_low),
+                R.id.day2_container to Triple(R.id.day2_label, R.id.day2_high, R.id.day2_low),
+                R.id.day3_container to Triple(R.id.day3_label, R.id.day3_high, R.id.day3_low),
+                R.id.day4_container to Triple(R.id.day4_label, R.id.day4_high, R.id.day4_low),
+                R.id.day5_container to Triple(R.id.day5_label, R.id.day5_high, R.id.day5_low),
+                R.id.day6_container to Triple(R.id.day6_label, R.id.day6_high, R.id.day6_low)
+            )
+
+            containerIds.forEachIndexed { index, (containerId, labelIds) ->
+                if (index < timeOffsets.size) {
+                    val offset = timeOffsets[index]
+                    val targetTime = centerTime.plusHours(offset.toLong())
+                    val hourKey = targetTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    val forecast = forecastsByTime[hourKey]
+
+                    views.setViewVisibility(containerId, View.VISIBLE)
+
+                    val label = if (offset == 0) "Now" else "+${offset}h"
+                    views.setTextViewText(labelIds.first, label)
+
+                    if (forecast != null) {
+                        val temp = String.format("%.0f°", forecast.temperature)
+                        views.setTextViewText(labelIds.second, temp)
+                        views.setTextViewText(labelIds.third, "")  // No low temp in hourly mode
+                    } else {
+                        views.setTextViewText(labelIds.second, "--°")
+                        views.setTextViewText(labelIds.third, "")
+                    }
+                } else {
+                    views.setViewVisibility(containerId, View.GONE)
+                }
+            }
         }
 
         /**

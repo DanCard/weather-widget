@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -28,7 +28,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     WeatherDatabase::class.java,
                     "weather_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .build()
                 INSTANCE = instance
                 instance
@@ -127,6 +127,33 @@ abstract class WeatherDatabase : RoomDatabase() {
                         PRIMARY KEY(dateTime, source, locationLat, locationLon)
                     )
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Convert hourly_forecasts temperature column from INTEGER to REAL for decimal precision
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS hourly_forecasts_new (
+                        dateTime TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        temperature REAL NOT NULL,
+                        source TEXT NOT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(dateTime, source, locationLat, locationLon)
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO hourly_forecasts_new
+                    SELECT dateTime, locationLat, locationLon,
+                           CAST(temperature AS REAL), source, fetchedAt
+                    FROM hourly_forecasts
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE hourly_forecasts")
+                db.execSQL("ALTER TABLE hourly_forecasts_new RENAME TO hourly_forecasts")
             }
         }
     }

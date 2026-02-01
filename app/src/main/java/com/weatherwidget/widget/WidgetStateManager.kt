@@ -19,6 +19,11 @@ enum class ApiPreference {
     PREFER_OPENMETEO // Default to Open-Meteo, toggle switches to NWS
 }
 
+enum class ViewMode {
+    DAILY,    // Default: shows daily forecast bars
+    HOURLY    // Alternative: shows hourly temperature curve
+}
+
 @Singleton
 class WidgetStateManager @Inject constructor(
     private val context: Context
@@ -29,9 +34,14 @@ class WidgetStateManager @Inject constructor(
         private const val KEY_ACCURACY_DISPLAY = "accuracy_display_mode"
         private const val KEY_API_PREFERENCE = "api_preference"
         private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
+        private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
+        private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
 
         const val MIN_DATE_OFFSET = -30  // Last 30 days of history
         const val MAX_DATE_OFFSET = 14   // 14 days forward
+        const val MIN_HOURLY_OFFSET = -6   // 6 hours back
+        const val MAX_HOURLY_OFFSET = 18   // 18 hours forward
+        const val HOURLY_NAV_JUMP = 6      // Navigate in 6-hour chunks
 
         const val SOURCE_NWS = "NWS"
         const val SOURCE_OPEN_METEO = "Open-Meteo"
@@ -98,7 +108,62 @@ class WidgetStateManager @Inject constructor(
         prefs.edit()
             .remove("$KEY_DATE_OFFSET_PREFIX$widgetId")
             .remove("$KEY_DISPLAY_SOURCE_PREFIX$widgetId")
+            .remove("$KEY_VIEW_MODE_PREFIX$widgetId")
+            .remove("$KEY_HOURLY_OFFSET_PREFIX$widgetId")
             .apply()
+    }
+
+    // View mode management
+    fun getViewMode(widgetId: Int): ViewMode {
+        val ordinal = prefs.getInt("$KEY_VIEW_MODE_PREFIX$widgetId", ViewMode.DAILY.ordinal)
+        return ViewMode.entries.getOrElse(ordinal) { ViewMode.DAILY }
+    }
+
+    fun setViewMode(widgetId: Int, mode: ViewMode) {
+        prefs.edit().putInt("$KEY_VIEW_MODE_PREFIX$widgetId", mode.ordinal).apply()
+    }
+
+    fun toggleViewMode(widgetId: Int): ViewMode {
+        val currentMode = getViewMode(widgetId)
+        val newMode = if (currentMode == ViewMode.DAILY) ViewMode.HOURLY else ViewMode.DAILY
+        setViewMode(widgetId, newMode)
+        // Reset hourly offset when entering hourly mode
+        if (newMode == ViewMode.HOURLY) {
+            setHourlyOffset(widgetId, 0)
+        }
+        return newMode
+    }
+
+    // Hourly offset management
+    fun getHourlyOffset(widgetId: Int): Int {
+        return prefs.getInt("$KEY_HOURLY_OFFSET_PREFIX$widgetId", 0)
+    }
+
+    fun setHourlyOffset(widgetId: Int, offset: Int) {
+        val clampedOffset = offset.coerceIn(MIN_HOURLY_OFFSET, MAX_HOURLY_OFFSET)
+        prefs.edit().putInt("$KEY_HOURLY_OFFSET_PREFIX$widgetId", clampedOffset).apply()
+    }
+
+    fun navigateHourlyLeft(widgetId: Int): Int {
+        val currentOffset = getHourlyOffset(widgetId)
+        val newOffset = (currentOffset - HOURLY_NAV_JUMP).coerceAtLeast(MIN_HOURLY_OFFSET)
+        setHourlyOffset(widgetId, newOffset)
+        return newOffset
+    }
+
+    fun navigateHourlyRight(widgetId: Int): Int {
+        val currentOffset = getHourlyOffset(widgetId)
+        val newOffset = (currentOffset + HOURLY_NAV_JUMP).coerceAtMost(MAX_HOURLY_OFFSET)
+        setHourlyOffset(widgetId, newOffset)
+        return newOffset
+    }
+
+    fun canNavigateHourlyLeft(widgetId: Int): Boolean {
+        return getHourlyOffset(widgetId) > MIN_HOURLY_OFFSET
+    }
+
+    fun canNavigateHourlyRight(widgetId: Int): Boolean {
+        return getHourlyOffset(widgetId) < MAX_HOURLY_OFFSET
     }
 
     /**

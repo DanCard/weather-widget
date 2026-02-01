@@ -107,6 +107,37 @@ class NwsApi @Inject constructor(
         }
     }
 
+    suspend fun getHourlyForecast(gridPoint: GridPointInfo): List<HourlyForecastPeriod> {
+        val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}/forecast/hourly"
+        val response: String = httpClient.get(url) {
+            header("User-Agent", USER_AGENT)
+            header("Accept", "application/json")
+        }.body()
+
+        val jsonObj = json.parseToJsonElement(response).jsonObject
+        val periods = jsonObj["properties"]?.jsonObject?.get("periods")?.jsonArray
+            ?: return emptyList()
+
+        return periods.mapNotNull { period ->
+            val obj = period.jsonObject
+            val startTime = obj["startTime"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            val temperature = obj["temperature"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@mapNotNull null
+            val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
+
+            // Convert to Fahrenheit if needed (NWS usually returns F)
+            val tempF = if (temperatureUnit == "C") {
+                (temperature * 9 / 5) + 32
+            } else {
+                temperature
+            }
+
+            HourlyForecastPeriod(
+                startTime = startTime,
+                temperature = tempF
+            )
+        }
+    }
+
     data class GridPointInfo(
         val gridId: String,
         val gridX: Int,
@@ -126,5 +157,10 @@ class NwsApi @Inject constructor(
     data class Observation(
         val timestamp: String,
         val temperatureCelsius: Double
+    )
+
+    data class HourlyForecastPeriod(
+        val startTime: String,  // ISO 8601 format: "2026-02-01T10:00:00-08:00"
+        val temperature: Int    // Fahrenheit
     )
 }
