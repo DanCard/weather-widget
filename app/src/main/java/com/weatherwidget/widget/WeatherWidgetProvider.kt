@@ -1041,8 +1041,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 }
 
             // Determine how many hours to show (24 total, centered on centerTime)
-            val startHour = centerTime.minusHours(12)
-            val endHour = centerTime.plusHours(12)
+            // Align grid to clock hours
+            val alignedCenter = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val startHour = alignedCenter.minusHours(12)
+            val endHour = alignedCenter.plusHours(12)
 
             // Determine label frequency based on widget size
             // For 24 hours displayed, aim for ~4-6 visible labels to avoid overlap
@@ -1054,18 +1056,30 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             var currentHour = startHour
             var hourIndex = 0
+            
+            // Debug logging for label selection
+            Log.d(TAG, "buildHourDataList: now=$now, alignedCenter=$alignedCenter")
+            
             while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
                 val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 val forecast = forecastsByTime[hourKey]
 
                 if (forecast != null) {
+                    val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
+                    val absDiff = kotlin.math.abs(diffMinutes)
+                    val isClosest = absDiff <= 30
+                    
+                    if (isClosest) {
+                        Log.d(TAG, "buildHourDataList: Found closest hour: $currentHour (diff=${diffMinutes}m)")
+                    }
+                    
                     hours.add(
                         HourlyGraphRenderer.HourData(
                             dateTime = currentHour,
                             temperature = forecast.temperature,
                             label = formatHourLabel(currentHour),
-                            isCurrentHour = currentHour.hour == now.hour && currentHour.toLocalDate() == now.toLocalDate(),
-                            showLabel = hourIndex % labelInterval == 0
+                            isCurrentHour = isClosest,
+                            showLabel = isClosest || (hourIndex % labelInterval == 0)
                         )
                     )
                     hourIndex++

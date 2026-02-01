@@ -67,7 +67,15 @@ class UIUpdateScheduler(private val context: Context) {
 
             // Calculate next update time based on temperature change rate
             val nextUpdateTime = interpolator.getNextUpdateTime(now, tempDifference)
-            val delayMillis = java.time.Duration.between(now, nextUpdateTime).toMillis()
+            var delayMillis = java.time.Duration.between(now, nextUpdateTime).toMillis()
+
+            // Cap update interval at 15 minutes to ensure "NOW" indicator on hourly graph
+            // and time-sensitive labels remain accurate
+            val maxDelay = 15 * 60 * 1000L
+            if (delayMillis > maxDelay) {
+                delayMillis = maxDelay
+                Log.d(TAG, "Capped delay to 15 mins for UI responsiveness")
+            }
 
             Log.d(TAG, "Scheduling next UI update in ${delayMillis / 1000 / 60} minutes " +
                     "(tempDiff=$tempDifference, nextUpdate=$nextUpdateTime)")

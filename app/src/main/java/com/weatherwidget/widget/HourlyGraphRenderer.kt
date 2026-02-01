@@ -151,10 +151,14 @@ object HourlyGraphRenderer {
         }
 
         // Draw current time indicator
-        val currentHour = hours.find { it.isCurrentHour }
-        if (currentHour != null) {
-            val index = hours.indexOf(currentHour)
-            val x = horizontalPadding + hourWidth * index + hourWidth / 2
+        val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
+        if (currentHourIndex != -1) {
+            val anchorHour = hours[currentHourIndex]
+            // Calculate precise position based on minutes between anchor hour and current time
+            val minutesOffset = java.time.Duration.between(anchorHour.dateTime, currentTime).toMinutes()
+            val offsetPx = (minutesOffset / 60f) * hourWidth
+            val x = horizontalPadding + hourWidth * currentHourIndex + hourWidth / 2 + offsetPx
+            
             canvas.drawLine(x, graphTop, x, graphBottom, currentTimePaint)
             canvas.drawText("NOW", x, graphTop - dpToPx(context, 4f), nowLabelTextPaint)
         }

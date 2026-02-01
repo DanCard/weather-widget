@@ -28,7 +28,13 @@ class ScreenOnReceiver : BroadcastReceiver() {
         Log.d(TAG, "Screen unlocked - triggering UI update")
 
         // Always trigger UI-only update for instant feedback
-        triggerUiOnlyUpdate(context)
+        // Call provider directly to avoid WorkManager latency
+        val providerIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WeatherWidgetProvider.ACTION_REFRESH
+            // Add extra to signal UI-only update if we want to skip stale check inside provider
+            // For now, ACTION_REFRESH in provider handles the UI update first thing
+        }
+        context.sendBroadcast(providerIntent)
 
         // If charging, check data staleness and fetch if needed
         if (isCharging(context)) {

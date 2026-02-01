@@ -35,11 +35,14 @@ Android weather widget app with resizable widget support, dual-API data sources 
   - Handles widget creation, updates, and user interactions
   - Manages navigation (history browsing, forecast scrolling)
   - API source toggling (NWS ↔ Open-Meteo)
+  - **View mode toggling (Daily ↔ Hourly)**
   - Coordinates scheduled updates
 
 #### Widget State Management
 - **WidgetStateManager**: Persists per-widget state
   - Date offset for navigation (30 days history, 14 days forecast)
+  - **View Mode**: Toggles between DAILY and HOURLY views
+  - **Hourly Offset**: Tracks time navigation in hourly view (±24h window)
   - Current display source (NWS or Open-Meteo)
   - Navigation bounds checking
   - Accuracy display mode preference
@@ -51,10 +54,16 @@ Android weather widget app with resizable widget support, dual-API data sources 
   - 2x3: Graphical bars with high/low ranges
   - 4+ cols: Additional forecast days (2-5 days)
 
-- **TemperatureGraphRenderer**: Renders graphical temperature bars
+- **TemperatureGraphRenderer**: Renders graphical temperature bars (Daily View)
   - Height-based text scaling for readability
   - Past days show forecast overlay (yellow bar) for accuracy comparison
   - Multiple display modes: FORECAST_BAR, ACCURACY_DOT, SIDE_BY_SIDE, DIFFERENCE
+
+- **HourlyGraphRenderer**: Renders hourly temperature trends (Hourly View)
+  - Smooth Bezier curve connecting 24 data points
+  - Dynamic vertical scaling based on min/max temp in window
+  - Visual "NOW" indicator line
+  - Adaptive density (Graph for 2+ rows, Text list for 1 row)
 
 ### Update System
 
@@ -98,7 +107,7 @@ The widget uses separate update mechanisms for UI updates vs data fetches to min
   - Battery <20%: 480 min
 - Fetches from NWS and Open-Meteo APIs
 - Fetches historical observations (7 days)
-- Fetches hourly forecasts for interpolation
+- Fetches hourly forecasts (extended ±24h range for hourly view)
 - Saves forecast snapshots (before 8pm daily)
 - Triggers UI update scheduler after completion
 
@@ -211,7 +220,7 @@ The widget uses separate update mechanisms for UI updates vs data fetches to min
 
 ### User Interaction (Tap/Swipe)
 ```
-1. User taps refresh / navigates / toggles API
+1. User taps refresh / navigates / toggles API / toggles View
    ↓
 2. BroadcastReceiver handles intent
    ↓
