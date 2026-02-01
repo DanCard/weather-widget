@@ -94,7 +94,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 )
                 Log.d(TAG, "onReceive: Navigation action for widget $appWidgetId")
                 if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                    handleNavigation(context, appWidgetId, intent.action == ACTION_NAV_LEFT)
+                    // Use goAsync() and coroutine for immediate update without WorkManager delay
+                    val pendingResult = goAsync()
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        try {
+                            handleNavigationDirect(context, appWidgetId, intent.action == ACTION_NAV_LEFT)
+                        } finally {
+                            pendingResult.finish()
+                        }
+                    }
                 }
             }
             ACTION_TOGGLE_API -> {
@@ -118,15 +126,62 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    private fun handleNavigation(context: Context, appWidgetId: Int, isLeft: Boolean) {
+    private suspend fun handleNavigationDirect(context: Context, appWidgetId: Int, isLeft: Boolean) {
         val stateManager = WidgetStateManager(context)
-        if (isLeft) {
+        val currentOffset = stateManager.getDateOffset(appWidgetId)
+
+        // Read weather data directly from database
+        val database = WeatherDatabase.getDatabase(context)
+        val weatherDao = database.weatherDao()
+        val snapshotDao = database.forecastSnapshotDao()
+        val hourlyDao = database.hourlyForecastDao()
+
+        // Get location from latest weather data
+        val latestWeather = weatherDao.getLatestWeather()
+        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+        val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+
+        // Check if there's data for the target date
+        val proposedOffset = if (isLeft) currentOffset - 1 else currentOffset + 1
+        val targetCenterDate = java.time.LocalDate.now().plusDays(proposedOffset.toLong())
+        val targetDateStr = targetCenterDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = weatherList.associateBy { it.date }
+
+        // Check if we have data for the target center date
+        if (weatherByDate[targetDateStr] == null) {
+            Log.d(TAG, "handleNavigationDirect: No data for $targetDateStr, showing toast")
+            // Show toast on main thread
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                android.widget.Toast.makeText(context, "No more data", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
+        // Data exists, proceed with navigation
+        val newOffset = if (isLeft) {
             stateManager.navigateLeft(appWidgetId)
         } else {
             stateManager.navigateRight(appWidgetId)
         }
-        // Trigger refresh to update widget with new offset
-        triggerImmediateUpdate(context)
+        Log.d(TAG, "handleNavigationDirect: Navigated to offset $newOffset for widget $appWidgetId")
+
+        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+            .groupBy { it.targetDate }
+
+        // Get hourly forecasts for interpolation
+        val now = java.time.LocalDateTime.now()
+        val hourStart = now.minusHours(2).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        val hourEnd = now.plusHours(2).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourStart, hourEnd, lat, lon)
+
+        // Update widget directly
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
     }
 
     private suspend fun handleToggleApiDirect(context: Context, appWidgetId: Int) {
@@ -422,6 +477,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
+            views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
 
             // Right arrow
             val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -435,12 +491,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
+            views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
 
-            // Show/hide arrows based on navigation bounds
+            // Show/hide arrows and touch zones based on navigation bounds
             val canLeft = stateManager.canNavigateLeft(appWidgetId)
             val canRight = stateManager.canNavigateRight(appWidgetId)
             views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
+            views.setViewVisibility(R.id.nav_left_zone, if (canLeft) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.nav_right, if (canRight) View.VISIBLE else View.INVISIBLE)
+            views.setViewVisibility(R.id.nav_right_zone, if (canRight) View.VISIBLE else View.GONE)
         }
 
         private fun setupApiToggle(
@@ -524,6 +583,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         high = weather?.highTemp ?: 0,
                         low = weather?.lowTemp ?: 0,
                         isToday = date == today,
+                        isPast = isPastDate,
                         forecastHigh = if (showComparison) forecast?.highTemp else null,
                         forecastLow = if (showComparison) forecast?.lowTemp else null,
                         forecastSource = if (showComparison) displaySource else null,

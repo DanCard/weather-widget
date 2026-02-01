@@ -11,6 +11,7 @@ object TemperatureGraphRenderer {
         val high: Int,
         val low: Int,
         val isToday: Boolean = false,
+        val isPast: Boolean = false,            // Is this a historical day?
         val forecastHigh: Int? = null,          // Single forecast
         val forecastLow: Int? = null,           // Single forecast
         val forecastSource: String? = null,     // "NWS" or "Open-Meteo"
@@ -82,6 +83,13 @@ object TemperatureGraphRenderer {
             strokeCap = Paint.Cap.ROUND
         }
 
+        // History bar - yellow for actual past temperatures
+        val historyBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FFD60A")  // Yellow for past days (actual)
+            strokeWidth = barWidth
+            strokeCap = Paint.Cap.ROUND
+        }
+
         val capPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#5AC8FA")
             strokeWidth = barWidth + dpToPx(context, 4f * scaleFactor)
@@ -90,6 +98,12 @@ object TemperatureGraphRenderer {
 
         val todayCapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF9F0A")
+            strokeWidth = barWidth + dpToPx(context, 4f * scaleFactor)
+            strokeCap = Paint.Cap.BUTT
+        }
+
+        val historyCapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FFD60A")  // Yellow caps for history
             strokeWidth = barWidth + dpToPx(context, 4f * scaleFactor)
             strokeCap = Paint.Cap.BUTT
         }
@@ -129,15 +143,15 @@ object TemperatureGraphRenderer {
             textAlign = Paint.Align.CENTER
         }
 
-        // Forecast bar paint (yellow/gold line showing what was predicted)
+        // Forecast bar paint (blue line showing what was predicted for past days)
         val forecastBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFD60A")  // Gold/yellow
+            color = Color.parseColor("#5AC8FA")  // Blue for forecast comparison
             strokeWidth = barWidth * 0.5f  // Thinner than actual bar
             strokeCap = Paint.Cap.ROUND
         }
 
         val forecastCapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFD60A")
+            color = Color.parseColor("#5AC8FA")  // Blue caps
             strokeWidth = (barWidth + dpToPx(context, 4f * scaleFactor)) * 0.5f
             strokeCap = Paint.Cap.BUTT
         }
@@ -153,8 +167,16 @@ object TemperatureGraphRenderer {
             val highY = graphTop + graphHeight * (1 - (day.high - minTemp).toFloat() / tempRange)
             val lowY = graphTop + graphHeight * (1 - (day.low - minTemp).toFloat() / tempRange)
 
-            val paint = if (day.isToday) todayBarPaint else barPaint
-            val cap = if (day.isToday) todayCapPaint else capPaint
+            val paint = when {
+                day.isToday -> todayBarPaint
+                day.isPast -> historyBarPaint
+                else -> barPaint  // Future days
+            }
+            val cap = when {
+                day.isToday -> todayCapPaint
+                day.isPast -> historyCapPaint
+                else -> capPaint
+            }
 
             // Draw vertical bar (the "error bar" stem)
             canvas.drawLine(centerX, highY, centerX, lowY, paint)
