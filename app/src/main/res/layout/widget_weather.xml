@@ -62,6 +62,16 @@
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
 
+            <ImageView
+                android:id="@+id/day1_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
+
             <TextView
                 android:id="@+id/day1_high"
                 android:layout_width="wrap_content"
@@ -96,6 +106,16 @@
                 android:text="Today"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <ImageView
+                android:id="@+id/day2_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
 
             <TextView
                 android:id="@+id/day2_high"
@@ -133,6 +153,16 @@
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
 
+            <ImageView
+                android:id="@+id/day3_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
+
             <TextView
                 android:id="@+id/day3_high"
                 android:layout_width="wrap_content"
@@ -168,6 +198,16 @@
                 android:text="Day"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <ImageView
+                android:id="@+id/day4_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
 
             <TextView
                 android:id="@+id/day4_high"
@@ -205,6 +245,16 @@
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
 
+            <ImageView
+                android:id="@+id/day5_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
+
             <TextView
                 android:id="@+id/day5_high"
                 android:layout_width="wrap_content"
@@ -240,6 +290,16 @@
                 android:text="Day"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <ImageView
+                android:id="@+id/day6_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
 
             <TextView
                 android:id="@+id/day6_high"
@@ -291,17 +351,36 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- Current temperature indicator - positioned in top-left corner -->
-    <TextView
-        android:id="@+id/current_temp"
+    <!-- Current temperature and weather icon - positioned in top-left corner -->
+    <LinearLayout
+        android:id="@+id/current_weather_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|start"
         android:layout_marginTop="-4dp"
-        android:text="72°"
-        android:textSize="30sp"
-        android:textColor="#AAFFFFFF"
-        android:visibility="visible" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/weather_icon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:src="@drawable/ic_weather_unknown"
+            android:contentDescription="@string/weather_icon_desc"
+            android:visibility="gone"
+            android:layout_marginEnd="2dp"
+            android:tint="#AAFFFFFF" />
+
+        <TextView
+            android:id="@+id/current_temp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="72°"
+            android:textSize="30sp"
+            android:textColor="#AAFFFFFF"
+            android:visibility="visible" />
+
+    </LinearLayout>
 
     <!-- API Source indicator - rendered last for touch priority, positioned in top-right corner -->
     <FrameLayout

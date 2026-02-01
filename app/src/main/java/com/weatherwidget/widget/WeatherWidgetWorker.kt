@@ -129,6 +129,10 @@ class WeatherWidgetWorker @AssistedInject constructor(
         val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
+        // Find today's condition for the icon
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayCondition = weatherList.find { it.date == todayStr }?.condition
+
         for (appWidgetId in appWidgetIds) {
             WeatherWidgetProvider.updateWidgetWithData(
                 context = context,
@@ -136,7 +140,8 @@ class WeatherWidgetWorker @AssistedInject constructor(
                 appWidgetId = appWidgetId,
                 weatherList = weatherList,
                 forecastSnapshots = forecastSnapshots,
-                hourlyForecasts = hourlyForecasts
+                hourlyForecasts = hourlyForecasts,
+                currentCondition = todayCondition
             )
         }
     }

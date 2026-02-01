@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.util.WeatherIconMapper
 import java.time.LocalDateTime
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -248,9 +249,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val hourEnd = now.plusHours(2).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourStart, hourEnd, lat, lon)
 
+        // Find today's condition
+        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayCondition = weatherList.find { it.date == todayStr }?.condition
+
         // Update widget directly
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+        updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, todayCondition)
     }
 
     private suspend fun handleHourlyNavigationDirect(context: Context, appWidgetId: Int, isLeft: Boolean) {
@@ -282,9 +287,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
+        // Find today's condition
+        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayCondition = weatherDao.getWeatherForDate(todayStr, lat, lon)?.condition
+
         // Update widget with hourly view
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayCondition)
     }
 
     private suspend fun handleToggleApiDirect(context: Context, appWidgetId: Int) {
@@ -307,17 +316,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
 
+        // Find today's condition
+        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayCondition = weatherDao.getWeatherForDate(todayStr, lat, lon)?.condition
+
         if (viewMode == ViewMode.HOURLY) {
             // Hourly mode: get extended hourly data (24 hours centered on current offset)
             val now = java.time.LocalDateTime.now()
             val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(hourlyOffset.toLong())
-            val startTime = centerTime.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = centerTime.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val startTime = centerTime.minusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
             Log.d(TAG, "handleToggleApiDirect: Hourly mode - Got ${hourlyForecasts.size} hourly forecasts")
-            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayCondition)
         } else {
             // Daily mode: get daily data
             val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
@@ -330,11 +343,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Get hourly forecasts for current temp interpolation
             val now = java.time.LocalDateTime.now()
             val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             Log.d(TAG, "handleToggleApiDirect: Daily mode - Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
-            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, todayCondition)
         }
     }
 
@@ -355,16 +368,20 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
+        // Find today's condition
+        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayCondition = weatherDao.getWeatherForDate(todayStr, lat, lon)?.condition
+
         if (viewMode == ViewMode.HOURLY) {
             // Hourly mode: get extended hourly data
             val now = java.time.LocalDateTime.now()
             val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(hourlyOffset.toLong())
-            val startTime = centerTime.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = centerTime.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val startTime = centerTime.minusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
-            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayCondition)
         } else {
             // Daily mode: get daily data
             val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
@@ -382,7 +399,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "handleResizeDirect: Got ${weatherList.size} weather entries, ${forecastSnapshots.size} forecast dates, ${hourlyForecasts.size} hourly")
 
-            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, todayCondition)
         }
     }
 
@@ -402,6 +419,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
+        // Find today's condition
+        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayCondition = weatherDao.getWeatherForDate(todayStr, lat, lon)?.condition
+
         val appWidgetManager = AppWidgetManager.getInstance(context)
 
         if (newMode == ViewMode.HOURLY) {
@@ -411,7 +432,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val endTime = now.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
-            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now)
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayCondition)
         } else {
             // Switched to daily mode: fetch daily data
             val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
@@ -427,7 +448,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
-            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+            updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, todayCondition)
         }
     }
 
@@ -529,7 +550,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             weatherList: List<WeatherEntity>,
             forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap(),
-            hourlyForecasts: List<HourlyForecastEntity> = emptyList()
+            hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
+            currentCondition: String? = null
         ) {
             val stateManager = WidgetStateManager(context)
             val viewMode = stateManager.getViewMode(appWidgetId)
@@ -554,13 +576,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                         val extendedHourly = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
-                        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, extendedHourly, centerTime)
+                        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, extendedHourly, centerTime, currentCondition)
                     }
                 } else {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
-                    updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+                    updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, currentCondition)
                 }
                 return
             }
@@ -619,6 +641,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
             views.setTextViewText(R.id.api_source, displayName)
+
+            // Set weather icon
+            val iconRes = WeatherIconMapper.getIconResource(currentCondition ?: todayWeather?.condition)
+            views.setImageViewResource(R.id.weather_icon, iconRes)
+            views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
             // Set current temperature - always use interpolation from hourly forecasts for accuracy
             var currentTemp: Float? = null
@@ -913,23 +940,30 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
 
             // Populate days
-            populateDay(views, R.id.day1_label, R.id.day1_high, R.id.day1_low, getLabelForDate(day1Date), weatherByDate[day1Str])
-            populateDay(views, R.id.day2_label, R.id.day2_high, R.id.day2_low, getLabelForDate(day2Date), weatherByDate[day2Str])
-            populateDay(views, R.id.day3_label, R.id.day3_high, R.id.day3_low, getLabelForDate(day3Date), weatherByDate[day3Str])
-            populateDay(views, R.id.day4_label, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
-            populateDay(views, R.id.day5_label, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
-            populateDay(views, R.id.day6_label, R.id.day6_high, R.id.day6_low, getLabelForDate(day6Date), weatherByDate[day6Str])
+            populateDay(views, R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low, getLabelForDate(day1Date), weatherByDate[day1Str])
+            populateDay(views, R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low, getLabelForDate(day2Date), weatherByDate[day2Str])
+            populateDay(views, R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low, getLabelForDate(day3Date), weatherByDate[day3Str])
+            populateDay(views, R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
+            populateDay(views, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
+            populateDay(views, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, getLabelForDate(day6Date), weatherByDate[day6Str])
         }
 
         private fun populateDay(
             views: RemoteViews,
             labelId: Int,
+            iconId: Int,
             highId: Int,
             lowId: Int,
             label: String,
             weather: WeatherEntity?
         ) {
             views.setTextViewText(labelId, label)
+            
+            // Set weather icon
+            val iconRes = WeatherIconMapper.getIconResource(weather?.condition)
+            views.setImageViewResource(iconId, iconRes)
+            views.setViewVisibility(iconId, View.VISIBLE)
+            
             views.setTextViewText(highId, weather?.let { "${it.highTemp}°" } ?: "--°")
             views.setTextViewText(lowId, weather?.let { "${it.lowTemp}°" } ?: "--°")
         }
@@ -939,7 +973,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
             hourlyForecasts: List<HourlyForecastEntity>,
-            centerTime: LocalDateTime
+            centerTime: LocalDateTime,
+            currentCondition: String? = null
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
             val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -957,6 +992,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
             val displayName = if (displaySource == "Open-Meteo") "Meteo" else displaySource
             views.setTextViewText(R.id.api_source, displayName)
+
+            // Set weather icon
+            val iconRes = WeatherIconMapper.getIconResource(currentCondition)
+            views.setImageViewResource(R.id.weather_icon, iconRes)
+            views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
             // Setup API toggle
             setupApiToggle(context, views, appWidgetId, numRows)
@@ -1130,15 +1170,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             // Map offsets to containers
             val containerIds = listOf(
-                R.id.day1_container to Triple(R.id.day1_label, R.id.day1_high, R.id.day1_low),
-                R.id.day2_container to Triple(R.id.day2_label, R.id.day2_high, R.id.day2_low),
-                R.id.day3_container to Triple(R.id.day3_label, R.id.day3_high, R.id.day3_low),
-                R.id.day4_container to Triple(R.id.day4_label, R.id.day4_high, R.id.day4_low),
-                R.id.day5_container to Triple(R.id.day5_label, R.id.day5_high, R.id.day5_low),
-                R.id.day6_container to Triple(R.id.day6_label, R.id.day6_high, R.id.day6_low)
+                R.id.day1_container to Quad(R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low),
+                R.id.day2_container to Quad(R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low),
+                R.id.day3_container to Quad(R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low),
+                R.id.day4_container to Quad(R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low),
+                R.id.day5_container to Quad(R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low),
+                R.id.day6_container to Quad(R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low)
             )
 
-            containerIds.forEachIndexed { index, (containerId, labelIds) ->
+            containerIds.forEachIndexed { index, (containerId, ids) ->
                 if (index < timeOffsets.size) {
                     val offset = timeOffsets[index]
                     val targetTime = centerTime.plusHours(offset.toLong())
@@ -1148,21 +1188,27 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(containerId, View.VISIBLE)
 
                     val label = if (offset == 0) "Now" else "+${offset}h"
-                    views.setTextViewText(labelIds.first, label)
+                    views.setTextViewText(ids.first, label)
+                    
+                    // Hide icon for hourly text mode as condition data is not yet in HourlyForecastEntity
+                    views.setViewVisibility(ids.second, View.GONE)
 
                     if (forecast != null) {
                         val temp = String.format("%.0f°", forecast.temperature)
-                        views.setTextViewText(labelIds.second, temp)
-                        views.setTextViewText(labelIds.third, "")  // No low temp in hourly mode
+                        views.setTextViewText(ids.third, temp)
+                        views.setTextViewText(ids.fourth, "")  // No low temp in hourly mode
                     } else {
-                        views.setTextViewText(labelIds.second, "--°")
-                        views.setTextViewText(labelIds.third, "")
+                        views.setTextViewText(ids.third, "--°")
+                        views.setTextViewText(ids.fourth, "")
                     }
                 } else {
                     views.setViewVisibility(containerId, View.GONE)
                 }
             }
         }
+
+        // Helper data class for updateHourlyTextMode
+        private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
         /**
          * Calculate a quick accuracy score (0-5) from recent forecast data.

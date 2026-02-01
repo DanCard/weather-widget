@@ -2,9 +2,7 @@ package com.weatherwidget.ui
 
 import android.os.Bundle
 import android.widget.ImageButton
-import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
-import com.bumptech.glide.Glide
 import com.weatherwidget.R
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -23,12 +21,6 @@ class FeatureTourActivity : AppCompatActivity() {
         findViewById<ImageButton>(R.id.back_button).setOnClickListener {
             finish()
         }
-
-        // Load animated GIF for API toggle demonstration
-        val apiToggleImage = findViewById<ImageView>(R.id.api_toggle_image)
-        Glide.with(this)
-            .asGif()
-            .load(R.drawable.tour_api_toggle)
-            .into(apiToggleImage)
+        // ViewFlipper for API toggle animation is handled via XML attributes (autoStart, flipInterval)
     }
 }

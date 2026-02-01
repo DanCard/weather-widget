@@ -20,6 +20,7 @@
     <string name="display_difference">Difference - Show "72\u00B0 (+4)"</string>
     <string name="nav_previous">Previous days</string>
     <string name="nav_next">Next days</string>
+    <string name="weather_icon_desc">Weather condition icon</string>
     <string name="api_preference">Weather Data Source</string>
     <string name="api_preference_description">Choose which weather API to prefer (fallback to other if unavailable)</string>
     <string name="api_alternate">Alternate - Switch between NWS and Open-Meteo</string>
@@ -60,4 +61,65 @@
 
     <string name="tour_location_title">Location Options</string>
     <string name="tour_location_desc">Choose your location method when configuring the widget:\n\n• GPS: Automatic location detection\n• ZIP Code: Manual entry for specific location\n• Default: Falls back to Google HQ (37.4220, -122.0841) if location unavailable\n\nThe widget displays the location name at the bottom.</string>
+
+    <!-- Feature Tour Text Art Mockups -->
+    <string name="tour_mockup_widget_sizes" translatable="false">
+┌─────┐  ┌─────────────────┐  ┌─────────────────┐
+│ 72° │  │ ◀ Yest  Today ▶ │  │ 72°        Meteo│
+│     │  │   68°   72°     │  │ ◀ ▓▓░░░  ▓▓░░ ▶│
+└─────┘  └─────────────────┘  └─────────────────┘
+  1x1           1x3                  2x3
+</string>
+
+    <string name="tour_mockup_current_temp" translatable="false">
+┌────────────────────────┐
+│ 72°              Meteo │
+│                        │
+│  Current temperature   │
+│  updates automatically │
+└────────────────────────┘
+</string>
+
+    <string name="tour_mockup_api_nws" translatable="false">
+┌────────────────────────┐
+│ 72°              [NWS] │  ← Tap to toggle
+│    ▓▓░░░    ▓▓▓░░      │
+└────────────────────────┘
+</string>
+
+    <string name="tour_mockup_api_meteo" translatable="false">
+┌────────────────────────┐
+│ 72°            [Meteo] │  ← Tap to toggle
+│    ▓▓░░░    ▓▓▓░░      │
+└────────────────────────┘
+</string>
+
+    <string name="tour_mockup_navigation" translatable="false">
+┌──────────────────────────────┐
+│ 72°                    Meteo │
+│ ◀  Jan 28  Jan 29  Jan 30  ▶ │
+│    ▓▓░░    ▓▓▓░░   ▓▓░░░     │
+└──────────────────────────────┘
+    ↑                        ↑
+  30 days                 7 days
+   back                  forecast
+</string>
+
+    <string name="tour_mockup_accuracy" translatable="false">
+FORECAST_BAR:  ▓▓▓░░░ (yellow = predicted)
+ACCURACY_DOT:  72° ●  (green ≤2° / yellow ≤5° / red >5°)
+SIDE_BY_SIDE:  72° (N:68°)
+DIFFERENCE:    72° (N:+4)
+</string>
+
+    <string name="tour_mockup_settings" translatable="false">
+┌─ Settings ─────────────────┐
+│                            │
+│  📍 Location: GPS / ZIP    │
+│  🌡️ API: Alternate / NWS   │
+│  📊 Accuracy: Forecast Bar │
+│  📈 View Statistics        │
+│                            │
+└────────────────────────────┘
+</string>
 </resources>

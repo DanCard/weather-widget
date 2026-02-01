@@ -61,15 +61,12 @@
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
-            <ImageView
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:src="@drawable/tour_widget_sizes"
-                android:scaleType="fitCenter"
-                android:maxHeight="400dp"
-                android:adjustViewBounds="true"
-                android:layout_marginBottom="24dp"
-                android:contentDescription="Widget size variations" />
+                android:text="@string/tour_mockup_widget_sizes"
+                style="@style/TourMockupText"
+                android:layout_marginBottom="24dp" />
 
             <!-- Section 2: Current Temperature -->
             <TextView
@@ -89,15 +86,12 @@
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
-            <ImageView
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:src="@drawable/tour_current_temp"
-                android:scaleType="fitCenter"
-                android:maxHeight="400dp"
-                android:adjustViewBounds="true"
-                android:layout_marginBottom="24dp"
-                android:contentDescription="Current temperature display" />
+                android:text="@string/tour_mockup_current_temp"
+                style="@style/TourMockupText"
+                android:layout_marginBottom="24dp" />
 
             <!-- Section 3: API Source Toggle -->
             <TextView
@@ -117,16 +111,29 @@
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
-            <ImageView
-                android:id="@+id/api_toggle_image"
+            <ViewFlipper
+                android:id="@+id/api_toggle_flipper"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:src="@drawable/tour_api_indicator"
-                android:scaleType="fitCenter"
-                android:maxHeight="400dp"
-                android:adjustViewBounds="true"
-                android:layout_marginBottom="24dp"
-                android:contentDescription="API source indicator toggle animation" />
+                android:autoStart="true"
+                android:flipInterval="1500"
+                android:inAnimation="@android:anim/fade_in"
+                android:outAnimation="@android:anim/fade_out"
+                android:layout_marginBottom="24dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tour_mockup_api_nws"
+                    style="@style/TourMockupText" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tour_mockup_api_meteo"
+                    style="@style/TourMockupText" />
+
+            </ViewFlipper>
 
             <!-- Section 4: Navigation -->
             <TextView
@@ -146,15 +153,12 @@
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
-            <ImageView
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:src="@drawable/tour_navigation"
-                android:scaleType="fitCenter"
-                android:maxHeight="400dp"
-                android:adjustViewBounds="true"
-                android:layout_marginBottom="24dp"
-                android:contentDescription="Navigation arrows" />
+                android:text="@string/tour_mockup_navigation"
+                style="@style/TourMockupText"
+                android:layout_marginBottom="24dp" />
 
             <!-- Section 5: Forecast Accuracy -->
             <TextView
@@ -174,15 +178,12 @@
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
-            <ImageView
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:src="@drawable/tour_accuracy_modes"
-                android:scaleType="fitCenter"
-                android:maxHeight="400dp"
-                android:adjustViewBounds="true"
-                android:layout_marginBottom="24dp"
-                android:contentDescription="Forecast accuracy display modes" />
+                android:text="@string/tour_mockup_accuracy"
+                style="@style/TourMockupText"
+                android:layout_marginBottom="24dp" />
 
             <!-- Section 6: Settings & Customization -->
             <TextView
@@ -202,15 +203,12 @@
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
-            <ImageView
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:src="@drawable/tour_settings"
-                android:scaleType="fitCenter"
-                android:maxHeight="400dp"
-                android:adjustViewBounds="true"
-                android:layout_marginBottom="24dp"
-                android:contentDescription="Settings screen" />
+                android:text="@string/tour_mockup_settings"
+                style="@style/TourMockupText"
+                android:layout_marginBottom="24dp" />
 
             <!-- Section 7: Battery-Aware Updates (text only) -->
             <TextView
