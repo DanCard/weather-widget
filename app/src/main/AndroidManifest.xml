@@ -9,7 +9,7 @@
 
     <application
         android:name=".WeatherWidgetApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
@@ -47,6 +47,7 @@
                 <action android:name="com.weatherwidget.ACTION_REFRESH" />
                 <action android:name="com.weatherwidget.ACTION_NAV_LEFT" />
                 <action android:name="com.weatherwidget.ACTION_NAV_RIGHT" />
+                <action android:name="com.weatherwidget.ACTION_TOGGLE_API" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

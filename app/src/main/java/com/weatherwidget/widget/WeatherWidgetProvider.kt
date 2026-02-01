@@ -622,9 +622,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             var currentTemp: Float? = null
             if (hourlyForecasts.isNotEmpty()) {
                 val interpolator = TemperatureInterpolator()
-                currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, LocalDateTime.now())
+                currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, LocalDateTime.now(), displaySource)
                 if (currentTemp != null) {
-                    Log.d(TAG, "updateWidgetWithData: Using interpolated temp: $currentTemp")
+                    Log.d(TAG, "updateWidgetWithData: Using interpolated temp: $currentTemp from source $displaySource")
                 }
             }
 
