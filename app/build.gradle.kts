@@ -81,6 +81,9 @@ dependencies {
     // Google Play Services
     implementation(libs.play.services.location)
 
+    // Glide for GIF support in feature tour
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

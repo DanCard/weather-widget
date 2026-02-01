@@ -26,9 +26,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/feature_tour"
-            android:textSize="24sp"
+            android:textSize="26sp"
             android:textColor="@color/widget_text_primary"
-            android:textStyle="bold"
             android:layout_marginStart="8dp" />
     </LinearLayout>
 
@@ -49,7 +48,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_widget_sizing_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -58,7 +57,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_widget_sizing_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
@@ -77,7 +76,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_current_temp_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -86,7 +85,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_current_temp_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
@@ -105,7 +104,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_api_toggle_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -114,11 +113,12 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_api_toggle_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
             <ImageView
+                android:id="@+id/api_toggle_image"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:src="@drawable/tour_api_indicator"
@@ -126,14 +126,14 @@
                 android:maxHeight="400dp"
                 android:adjustViewBounds="true"
                 android:layout_marginBottom="24dp"
-                android:contentDescription="API source indicator" />
+                android:contentDescription="API source indicator toggle animation" />
 
             <!-- Section 4: Navigation -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_navigation_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -142,7 +142,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_navigation_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
@@ -161,7 +161,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_accuracy_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -170,7 +170,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_accuracy_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
@@ -189,7 +189,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_settings_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -198,7 +198,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_settings_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 
@@ -217,7 +217,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_battery_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -226,7 +226,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_battery_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="24dp" />
 
@@ -235,7 +235,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_location_title"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold"
                 android:layout_marginBottom="8dp" />
@@ -244,7 +244,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/tour_location_desc"
-                android:textSize="14sp"
+                android:textSize="16sp"
                 android:textColor="@color/widget_text_secondary"
                 android:layout_marginBottom="16dp" />
 

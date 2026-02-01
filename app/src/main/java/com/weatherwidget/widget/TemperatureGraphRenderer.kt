@@ -37,11 +37,24 @@ object TemperatureGraphRenderer {
         // Scale factor based on widget dimensions
         val density = context.resources.displayMetrics.density
         val widthDp = widthPx / density
+        val heightDp = heightPx / density
 
-        // Width-based scale factor only: ensure day labels fit (base ~70dp per day)
+        // Width-based scale factor: ensure day labels fit (base ~70dp per day)
         val baseDayWidthDp = 70f
         val dayWidthDp = widthDp / days.size
-        val scaleFactor = (dayWidthDp / baseDayWidthDp).coerceIn(1.0f, 1.8f)
+        val widthScaleFactor = (dayWidthDp / baseDayWidthDp).coerceIn(1.0f, 1.8f)
+
+        // Height-based scale factor: scale fonts up with widget height
+        // Base height ~136dp (2 rows), scale up 10% per additional row
+        val baseHeightDp = 136f  // 2-row widget height
+        val heightScaleFactor = when {
+            heightDp < 150f -> 1.0f      // 2 rows or less: baseline
+            heightDp < 250f -> 1.1f      // 3 rows: 10% bigger
+            else -> 1.2f                  // 4+ rows: 20% bigger
+        }
+
+        // Combined scale factor for layout elements
+        val scaleFactor = widthScaleFactor
 
         // Layout constants (scaled)
         val horizontalPadding = dpToPx(context, -8f * scaleFactor)  // Slight negative for more space
@@ -81,15 +94,21 @@ object TemperatureGraphRenderer {
             strokeCap = Paint.Cap.BUTT
         }
 
+        // Scale text sizes with widget height
+        val baseDayLabelSize = 24f
+        val baseTempLabelSize = 22f
+        val dayLabelTextSize = dpToPx(context, baseDayLabelSize * heightScaleFactor)
+        val tempLabelTextSize = dpToPx(context, baseTempLabelSize * heightScaleFactor)
+
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
-            textSize = dpToPx(context, 24f)  // Day labels - large readable size
+            textSize = dayLabelTextSize  // Day labels - scaled with height
             textAlign = Paint.Align.CENTER
         }
 
         val tempTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 22f)  // Temp labels - large readable size
+            textSize = tempLabelTextSize  // Temp labels - scaled with height
             textAlign = Paint.Align.CENTER
         }
 

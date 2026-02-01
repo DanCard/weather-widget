@@ -252,15 +252,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         private const val TAG = "WeatherWidgetProvider"
 
         private const val CELL_WIDTH_DP = 73
-        private const val CELL_HEIGHT_DP = 68  // Slightly smaller to detect 2-row widgets correctly
+        private const val CELL_HEIGHT_DP = 93  // Adjusted: 187dp/2rows=93.5, 294dp/3rows=98 → 93 balances both
 
         private fun getWidgetSize(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int): Pair<Int, Int> {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 40)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 40)
-            Log.d(TAG, "getWidgetSize: minWidth=$minWidth, minHeight=$minHeight")
+            val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, minWidth)
+            val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, minHeight)
             val cols = (minWidth / CELL_WIDTH_DP).coerceAtLeast(1)
             val rows = (minHeight / CELL_HEIGHT_DP).coerceAtLeast(1)
+            Log.d(TAG, "getWidgetSize: widgetId=$appWidgetId, minWidth=$minWidth, minHeight=$minHeight, maxWidth=$maxWidth, maxHeight=$maxHeight -> cols=$cols, rows=$rows")
             return cols to rows
         }
 
