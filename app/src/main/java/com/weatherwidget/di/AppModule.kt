@@ -54,7 +54,9 @@ object AppModule {
             WeatherDatabase.MIGRATION_2_3,
             WeatherDatabase.MIGRATION_3_4,
             WeatherDatabase.MIGRATION_4_5,
-            WeatherDatabase.MIGRATION_5_6
+            WeatherDatabase.MIGRATION_5_6,
+            WeatherDatabase.MIGRATION_6_7,
+            WeatherDatabase.MIGRATION_7_8
         )
         .build()
 

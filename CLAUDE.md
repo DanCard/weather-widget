@@ -64,8 +64,16 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 
 **Data Collection:**
 - Fetches 7 days of actual historical observations from NWS observation stations
+  - **Multi-station fallback**: Tries up to 5 nearby stations when nearest station has missing data
+  - **Station caching**: Station lists cached for 24 hours to reduce API calls
+  - **Station tracking**: `stationId` stored in database for transparency and debugging
 - Saves 1-day-ahead forecast snapshots daily (before 8pm cutoff)
 - Stores forecasts from both NWS and Open-Meteo for comparison
+
+**Important**: Forecast history requires continuous operation:
+- Day 1: App saves forecast for Day 2
+- Day 2: Can display Day 1's forecast vs actual (yesterday's history)
+- Clearing app data destroys historical forecast snapshots
 
 **Accuracy Metrics (30-day lookback):**
 - Separate high/low temperature error tracking
@@ -96,6 +104,18 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - Retain historical weather data for 1 month (automatic cleanup)
 - Forecast snapshots also retained for 1 month
 - Widget navigation allows browsing up to 30 days of history
+
+## Database Schema
+
+- **Version**: 8 (last updated: 2026-02-02)
+- **WeatherEntity**: Main weather data table
+  - Composite primary key: `(date, source)` to store both NWS and Open-Meteo data
+  - `stationId` field (nullable): NWS observation station ID (e.g., "KSFO") - only populated for actual observations (`isActual = true`)
+- **ForecastSnapshotEntity**: Historical forecast predictions
+  - Composite primary key: `(targetDate, forecastDate, locationLat, locationLon, source)`
+- **HourlyForecastEntity**: Hourly temperature data for interpolation
+  - `temperature` field: Float (changed from Int in migration 6→7)
+- **Migration path**: Supports migrations from version 1-8
 
 ## Update Strategy
 
