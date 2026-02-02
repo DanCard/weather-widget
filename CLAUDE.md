@@ -8,6 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > - Battery optimization strategies
 > - Performance considerations
 
+## Important Guidelines
+
+- **Never clear app data** (`adb shell pm clear`) without explicit user consent. Cached data is valuable for testing and debugging.
+
 ## Project Overview
 
 Android weather widget app with resizable widget support and forecast accuracy tracking.

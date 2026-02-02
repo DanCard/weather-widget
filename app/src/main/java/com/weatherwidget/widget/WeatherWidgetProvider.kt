@@ -645,12 +645,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Set API source indicator (shows current display source with accuracy score)
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val todayWeather = weatherByDate[todayStr]
-            val apiSource = todayWeather?.source ?: displaySource
 
-            // Format display name
-            val displayName = if (apiSource == "Open-Meteo") "Meteo" else apiSource
+            // Format display name - always show the user's selected displaySource, not the data's source
+            val displayName = if (displaySource == "Open-Meteo") "Meteo" else displaySource
 
-            Log.d(TAG, "updateWidgetWithData: apiSource='$apiSource', displayName='$displayName'")
+            Log.d(TAG, "updateWidgetWithData: displaySource='$displaySource', displayName='$displayName'")
             views.setTextViewText(R.id.api_source, displayName)
 
             // Set weather icon

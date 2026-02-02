@@ -66,12 +66,16 @@ class WeatherRepository @Inject constructor(
 
             val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
 
-            // Save both APIs' data (composite primary key allows both)
+            // Save both APIs' data, merging with existing to preserve non-zero values
+            // This handles the case where evening NWS only has "Tonight" (low) but
+            // earlier fetch had "Today" (high) - we keep the high from earlier
             if (nwsWeather != null) {
-                weatherDao.insertAll(nwsWeather)
+                val merged = mergeWithExisting(nwsWeather, lat, lon)
+                weatherDao.insertAll(merged)
             }
             if (meteoWeather != null) {
-                weatherDao.insertAll(meteoWeather)
+                val merged = mergeWithExisting(meteoWeather, lat, lon)
+                weatherDao.insertAll(merged)
             }
             cleanOldData()
             // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
@@ -199,6 +203,36 @@ class WeatherRepository @Inject constructor(
     }
 
     /**
+     * Merges new weather data with existing data, preserving non-zero values.
+     * This handles the case where NWS evening fetch only has "Tonight" (low temp)
+     * but an earlier fetch had "Today" (high temp) - we keep the high from earlier.
+     */
+    private suspend fun mergeWithExisting(
+        newData: List<WeatherEntity>,
+        lat: Double,
+        lon: Double
+    ): List<WeatherEntity> {
+        if (newData.isEmpty()) return newData
+
+        val source = newData.first().source
+        val existingData = getCachedDataBySource(lat, lon, source)
+        val existingByDate = existingData.associateBy { it.date }
+
+        return newData.map { new ->
+            val existing = existingByDate[new.date]
+            if (existing != null && (new.highTemp == 0 || new.lowTemp == 0)) {
+                // Merge: use existing non-zero values where new data has zeros
+                new.copy(
+                    highTemp = if (new.highTemp == 0 && existing.highTemp != 0) existing.highTemp else new.highTemp,
+                    lowTemp = if (new.lowTemp == 0 && existing.lowTemp != 0) existing.lowTemp else new.lowTemp
+                )
+            } else {
+                new
+            }
+        }
+    }
+
+    /**
      * Fetches weather from both APIs concurrently and saves snapshots from both sources.
      * Returns both APIs' data (NWS first, Open-Meteo second) for storage.
      */
@@ -301,19 +335,14 @@ class WeatherRepository @Inject constructor(
         }
 
         // NWS returns periods with startTime - extract date from there
-        // For nighttime periods starting in evening (after 6pm), the low temp belongs to the NEXT day
-        // e.g., "Tonight" at 10pm Sunday represents Monday's overnight low
+        // Each day has a daytime period (high) and nighttime period (low)
+        // e.g., "Monday" at 6am = Monday's high, "Monday Night" at 6pm = Monday's low
+        // Simply use the start date from each period
         forecast.forEachIndexed { index, period ->
             // Parse the date from the startTime (format: "2026-02-02T06:00:00-08:00")
             val date = try {
                 val zonedDateTime = java.time.ZonedDateTime.parse(period.startTime)
-                val baseDate = zonedDateTime.toLocalDate()
-                // Nighttime periods starting at 6pm or later belong to the next day's low
-                if (!period.isDaytime && zonedDateTime.hour >= 18) {
-                    baseDate.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                } else {
-                    baseDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                }
+                zonedDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to parse startTime ${period.startTime}, falling back to index-based calculation")
                 today.plusDays((index / 2).toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE)
