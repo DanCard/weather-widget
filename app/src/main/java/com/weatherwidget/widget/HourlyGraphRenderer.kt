@@ -112,9 +112,11 @@ object HourlyGraphRenderer {
         canvas.drawPath(curvePath, curvePaint)
 
         // Draw hour labels and temperature points
-        // Track last temp label position to avoid overlap
+        // Track last label positions to avoid overlap
         var lastTempLabelX = -1000f
+        var lastHourLabelX = -1000f
         val minTempLabelSpacing = dpToPx(context, 40f)  // Minimum spacing between temp labels
+        val minHourLabelSpacing = dpToPx(context, 28f)  // Minimum spacing between hour labels
 
         hours.forEachIndexed { index, hour ->
             val x = horizontalPadding + hourWidth * index + hourWidth / 2
@@ -144,9 +146,10 @@ object HourlyGraphRenderer {
                 lastTempLabelX = x
             }
 
-            // Draw hour label at bottom (only if showLabel is true)
-            if (hour.showLabel) {
+            // Draw hour label at bottom (only if showLabel is true AND not overlapping)
+            if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
                 canvas.drawText(hour.label, x, heightPx - bottomPadding, hourLabelTextPaint)
+                lastHourLabelX = x
             }
         }
 
