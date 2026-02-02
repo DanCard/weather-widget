@@ -280,10 +280,11 @@ class WeatherRepository @Inject constructor(
         val today = LocalDate.now()
 
         // Fetch last 7 days of actual observations if observation stations are available
+        // Include today (daysAgo=0) to get today's actual high/low when it's evening
         try {
             if (gridPoint.observationStationsUrl != null) {
-                // Fetch observations for the last 7 days
-                for (daysAgo in 1..7) {
+                // Fetch observations for today and the last 7 days
+                for (daysAgo in 0..7) {
                     val date = today.minusDays(daysAgo.toLong())
                     val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -299,15 +300,27 @@ class WeatherRepository @Inject constructor(
             Log.e(TAG, "fetchFromNws: Failed to fetch historical observations: ${e.message}")
         }
 
-        // NWS returns periods in pairs: day/night for each day
-        // Calculate date based on period index
+        // NWS returns periods with startTime - extract date from there
+        // For nighttime periods starting in evening (after 6pm), the low temp belongs to the NEXT day
+        // e.g., "Tonight" at 10pm Sunday represents Monday's overnight low
         forecast.forEachIndexed { index, period ->
-            // Each day has 2 periods (day + night), so day offset = index / 2
-            val dayOffset = index / 2L
-            val date = today.plusDays(dayOffset).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            // Parse the date from the startTime (format: "2026-02-02T06:00:00-08:00")
+            val date = try {
+                val zonedDateTime = java.time.ZonedDateTime.parse(period.startTime)
+                val baseDate = zonedDateTime.toLocalDate()
+                // Nighttime periods starting at 6pm or later belong to the next day's low
+                if (!period.isDaytime && zonedDateTime.hour >= 18) {
+                    baseDate.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                } else {
+                    baseDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse startTime ${period.startTime}, falling back to index-based calculation")
+                today.plusDays((index / 2).toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            }
             val current = weatherByDate[date] ?: (null to null)
 
-            Log.d(TAG, "  Period $index: ${period.name} isDaytime=${period.isDaytime} temp=${period.temperature} -> date=$date")
+            Log.d(TAG, "  Period $index: ${period.name} isDaytime=${period.isDaytime} temp=${period.temperature} startTime=${period.startTime} -> date=$date")
 
             if (period.isDaytime) {
                 weatherByDate[date] = period.temperature to current.second

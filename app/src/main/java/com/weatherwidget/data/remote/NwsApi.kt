@@ -99,6 +99,7 @@ class NwsApi @Inject constructor(
             val obj = period.jsonObject
             ForecastPeriod(
                 name = obj["name"]?.jsonPrimitive?.content ?: "",
+                startTime = obj["startTime"]?.jsonPrimitive?.content ?: "",
                 temperature = obj["temperature"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
                 temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F",
                 shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "",
@@ -148,6 +149,7 @@ class NwsApi @Inject constructor(
 
     data class ForecastPeriod(
         val name: String,
+        val startTime: String,
         val temperature: Int,
         val temperatureUnit: String,
         val shortForecast: String,
