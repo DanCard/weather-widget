@@ -392,10 +392,11 @@ class WeatherRepository @Inject constructor(
             val stationId = stations.first()
             Log.d(TAG, "fetchDayObservations: Using station $stationId for $date")
 
-            // Fetch observations for the specified day (full day in UTC)
-            val startTime = date.atStartOfDay(java.time.ZoneId.of("UTC"))
+            // Fetch observations for the specified day (full day in local timezone)
+            val localZone = java.time.ZoneId.systemDefault()
+            val startTime = date.atStartOfDay(localZone)
                 .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
-            val endTime = date.plusDays(1).atStartOfDay(java.time.ZoneId.of("UTC"))
+            val endTime = date.plusDays(1).atStartOfDay(localZone)
                 .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
 
             val observations = nwsApi.getObservations(stationId, startTime, endTime)

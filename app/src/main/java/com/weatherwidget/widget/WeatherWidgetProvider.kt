@@ -199,6 +199,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private suspend fun handleDailyNavigationDirect(context: Context, appWidgetId: Int, isLeft: Boolean) {
         val stateManager = WidgetStateManager(context)
         val currentOffset = stateManager.getDateOffset(appWidgetId)
+        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
 
         // Read weather data directly from database
         val database = WeatherDatabase.getDatabase(context)
@@ -216,19 +217,35 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
 
-        // Check if there's data for the target date
-        val proposedOffset = if (isLeft) currentOffset - 1 else currentOffset + 1
-        val targetCenterDate = java.time.LocalDate.now().plusDays(proposedOffset.toLong())
-        val targetDateStr = targetCenterDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        val weatherByDate = weatherList.associateBy { it.date }
+        // Filter by current display source
+        val filteredWeatherList = weatherList.filter { it.source == displaySource }
+        val weatherByDate = filteredWeatherList.associateBy { it.date }
 
-        // Check if we have data for the target center date
-        if (weatherByDate[targetDateStr] == null) {
-            Log.d(TAG, "handleDailyNavigationDirect: No data for $targetDateStr, showing toast")
-            // Show toast on main thread
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                android.widget.Toast.makeText(context, "No more data", android.widget.Toast.LENGTH_SHORT).show()
-            }
+        val today = java.time.LocalDate.now()
+        val currentCenterDate = today.plusDays(currentOffset.toLong())
+
+        // Filter out incomplete future dates (lowTemp=0 means no night forecast yet)
+        val availableDates = weatherByDate.filter { (dateStr, weather) ->
+            val date = java.time.LocalDate.parse(dateStr)
+            val isFutureDate = !date.isBefore(today)
+            !(isFutureDate && weather.lowTemp == 0)
+        }.keys.map { java.time.LocalDate.parse(it) }.sorted()
+
+        val minDate = availableDates.firstOrNull()
+        val maxDate = availableDates.lastOrNull()
+
+        // Check if navigation would reveal new data
+        val canNavigate = if (isLeft) {
+            // Can go left only if there's data BEFORE the current center
+            minDate != null && minDate < currentCenterDate
+        } else {
+            // Can go right only if there's data AFTER the current center
+            maxDate != null && maxDate > currentCenterDate
+        }
+
+        if (!canNavigate) {
+            Log.d(TAG, "handleDailyNavigationDirect: No more $displaySource data to ${if (isLeft) "left" else "right"}")
+            // Do nothing - no toast, just silently ignore
             return
         }
 
@@ -249,9 +266,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val hourEnd = now.plusHours(2).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourStart, hourEnd, lat, lon)
 
-        // Find today's condition
+        // Find today's condition from the current source
         val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        val todayCondition = weatherList.find { it.date == todayStr }?.condition
+        val todayCondition = filteredWeatherList.find { it.date == todayStr }?.condition
 
         // Update widget directly
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -626,21 +643,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Get the current display source for this widget
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
 
-            // Build weather map: prefer displaySource, but use any available data for dates without it
-            val weatherByDate = mutableMapOf<String, WeatherEntity>()
-            val sortedWeather = weatherList.sortedBy { it.date }
-
-            // First pass: add all data from preferred source
-            sortedWeather.filter { it.source == displaySource }.forEach { weather ->
-                weatherByDate[weather.date] = weather
-            }
-
-            // Second pass: fill in gaps with data from other sources (for historical data)
-            sortedWeather.filter { it.source != displaySource }.forEach { weather ->
-                if (!weatherByDate.containsKey(weather.date)) {
-                    weatherByDate[weather.date] = weather
-                }
-            }
+            // Build weather map: only use data from the selected display source
+            val weatherByDate = weatherList
+                .filter { it.source == displaySource }
+                .associateBy { it.date }
 
             // Set API source indicator (shows current display source with accuracy score)
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -693,8 +699,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Set up API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)
 
-            // Set up navigation click handlers
-            setupNavigationButtons(context, views, appWidgetId, stateManager)
+            // Filter out incomplete future dates (lowTemp=0 means no night forecast yet)
+            val availableDates = weatherByDate.filter { (dateStr, weather) ->
+                val date = LocalDate.parse(dateStr)
+                val isFutureDate = !date.isBefore(today)
+                !(isFutureDate && weather.lowTemp == 0)
+            }.keys
+
+            // Set up navigation click handlers with available dates
+            setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates)
 
             // Use graph mode for 2+ rows
             val useGraph = numRows >= 2
@@ -728,7 +741,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context: Context,
             views: RemoteViews,
             appWidgetId: Int,
-            stateManager: WidgetStateManager
+            stateManager: WidgetStateManager,
+            availableDates: Set<String> = emptySet()
         ) {
             // Left arrow
             val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -760,16 +774,30 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             // Show/hide arrows and touch zones based on navigation bounds and view mode
             val viewMode = stateManager.getViewMode(appWidgetId)
-            val canLeft = if (viewMode == ViewMode.HOURLY) {
-                stateManager.canNavigateHourlyLeft(appWidgetId)
+            val canLeft: Boolean
+            val canRight: Boolean
+
+            if (viewMode == ViewMode.HOURLY) {
+                canLeft = stateManager.canNavigateHourlyLeft(appWidgetId)
+                canRight = stateManager.canNavigateHourlyRight(appWidgetId)
             } else {
-                stateManager.canNavigateLeft(appWidgetId)
+                // Check if navigating would reveal new data
+                val today = LocalDate.now()
+                val currentOffset = stateManager.getDateOffset(appWidgetId)
+                val currentCenterDate = today.plusDays(currentOffset.toLong())
+
+                // Find min/max available dates
+                val sortedDates = availableDates.map { LocalDate.parse(it) }.sorted()
+                val minDate = sortedDates.firstOrNull()
+                val maxDate = sortedDates.lastOrNull()
+
+                // Can go left only if there's data BEFORE the current center
+                canLeft = minDate != null && minDate < currentCenterDate
+
+                // Can go right only if there's data AFTER the current center
+                canRight = maxDate != null && maxDate > currentCenterDate
             }
-            val canRight = if (viewMode == ViewMode.HOURLY) {
-                stateManager.canNavigateHourlyRight(appWidgetId)
-            } else {
-                stateManager.canNavigateRight(appWidgetId)
-            }
+
             views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
             views.setViewVisibility(R.id.nav_left_zone, if (canLeft) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.nav_right, if (canRight) View.VISIBLE else View.INVISIBLE)
@@ -835,8 +863,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val date = centerDate.plusDays(offset)
                 val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val weather = weatherByDate[dateStr]
+
+                // Skip days without data
+                if (weather == null) {
+                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - no data available")
+                    return@forEach
+                }
+
+                // Skip future days with incomplete data (lowTemp=0 means NWS hasn't published night forecast yet)
+                val isFutureDate = !date.isBefore(today)
+                if (isFutureDate && weather.lowTemp == 0) {
+                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - incomplete forecast (low=0)")
+                    return@forEach
+                }
+
                 val forecasts = forecastSnapshots[dateStr] ?: emptyList()
-                Log.d(TAG, "buildDayDataList: Looking for $dateStr, found=${weather != null}, high=${weather?.highTemp}, forecasts=${forecasts.size}")
+                Log.d(TAG, "buildDayDataList: Including $dateStr, high=${weather.highTemp}, low=${weather.lowTemp}, forecasts=${forecasts.size}")
 
                 // Get forecast for the display source only
                 val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
@@ -854,8 +896,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 days.add(
                     TemperatureGraphRenderer.DayData(
                         label = label,
-                        high = weather?.highTemp ?: 0,
-                        low = weather?.lowTemp ?: 0,
+                        high = weather.highTemp,
+                        low = weather.lowTemp,
                         isToday = date == today,
                         isPast = isPastDate,
                         forecastHigh = if (showComparison) forecast?.highTemp else null,
@@ -891,51 +933,65 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day6Str = day6Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-            // Set visibility based on columns
+            // Check data availability for each day (exclude incomplete future dates with lowTemp=0)
+            fun hasCompleteData(date: LocalDate, dateStr: String): Boolean {
+                val weather = weatherByDate[dateStr] ?: return false
+                val isFutureDate = !date.isBefore(today)
+                return !(isFutureDate && weather.lowTemp == 0)
+            }
+
+            val hasDay1 = hasCompleteData(day1Date, day1Str)
+            val hasDay2 = hasCompleteData(day2Date, day2Str)
+            val hasDay3 = hasCompleteData(day3Date, day3Str)
+            val hasDay4 = hasCompleteData(day4Date, day4Str)
+            val hasDay5 = hasCompleteData(day5Date, day5Str)
+            val hasDay6 = hasCompleteData(day6Date, day6Str)
+
+            // Set visibility based on columns AND data availability
             when {
                 numColumns >= 6 -> {
-                    views.setViewVisibility(R.id.day1_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day3_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day4_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day5_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day6_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day6_container, if (hasDay6) View.VISIBLE else View.GONE)
                 }
                 numColumns == 5 -> {
-                    views.setViewVisibility(R.id.day1_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day3_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day4_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day5_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
                     views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 numColumns == 4 -> {
-                    views.setViewVisibility(R.id.day1_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day3_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day4_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
                     views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 numColumns == 3 -> {
-                    views.setViewVisibility(R.id.day1_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day3_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
                     views.setViewVisibility(R.id.day4_container, View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
                     views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 numColumns == 2 -> {
                     views.setViewVisibility(R.id.day1_container, View.GONE)
-                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
-                    views.setViewVisibility(R.id.day3_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
+                    views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
                     views.setViewVisibility(R.id.day4_container, View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
                     views.setViewVisibility(R.id.day6_container, View.GONE)
                 }
                 else -> {
                     views.setViewVisibility(R.id.day1_container, View.GONE)
-                    views.setViewVisibility(R.id.day2_container, View.VISIBLE)
+                    views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
                     views.setViewVisibility(R.id.day3_container, View.GONE)
                     views.setViewVisibility(R.id.day4_container, View.GONE)
                     views.setViewVisibility(R.id.day5_container, View.GONE)
@@ -949,13 +1005,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             }
 
-            // Populate days
-            populateDay(views, R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low, getLabelForDate(day1Date), weatherByDate[day1Str])
-            populateDay(views, R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low, getLabelForDate(day2Date), weatherByDate[day2Str])
-            populateDay(views, R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low, getLabelForDate(day3Date), weatherByDate[day3Str])
-            populateDay(views, R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
-            populateDay(views, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
-            populateDay(views, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, getLabelForDate(day6Date), weatherByDate[day6Str])
+            // Populate days (only if data exists)
+            if (hasDay1) populateDay(views, R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low, getLabelForDate(day1Date), weatherByDate[day1Str])
+            if (hasDay2) populateDay(views, R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low, getLabelForDate(day2Date), weatherByDate[day2Str])
+            if (hasDay3) populateDay(views, R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low, getLabelForDate(day3Date), weatherByDate[day3Str])
+            if (hasDay4) populateDay(views, R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
+            if (hasDay5) populateDay(views, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
+            if (hasDay6) populateDay(views, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, getLabelForDate(day6Date), weatherByDate[day6Str])
         }
 
         private fun populateDay(
