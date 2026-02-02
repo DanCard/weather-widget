@@ -19,5 +19,6 @@ data class WeatherEntity(
     val condition: String,
     val isActual: Boolean,
     val source: String = "Unknown",
+    val stationId: String? = null,  // NWS observation station ID (e.g., "KSFO") - only for actual observations
     val fetchedAt: Long = System.currentTimeMillis()
 )

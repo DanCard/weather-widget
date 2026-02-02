@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -28,7 +28,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     WeatherDatabase::class.java,
                     "weather_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                 INSTANCE = instance
                 instance
@@ -154,6 +154,13 @@ abstract class WeatherDatabase : RoomDatabase() {
 
                 db.execSQL("DROP TABLE hourly_forecasts")
                 db.execSQL("ALTER TABLE hourly_forecasts_new RENAME TO hourly_forecasts")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add stationId column to track which NWS observation station provided the data
+                db.execSQL("ALTER TABLE weather_data ADD COLUMN stationId TEXT DEFAULT NULL")
             }
         }
     }

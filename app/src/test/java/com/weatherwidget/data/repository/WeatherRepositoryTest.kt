@@ -88,8 +88,8 @@ class WeatherRepositoryTest {
         val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com")
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
         coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
-            NwsApi.ForecastPeriod("Today", 70, "F", "Sunny", true),
-            NwsApi.ForecastPeriod("Tonight", 50, "F", "Clear", false)
+            NwsApi.ForecastPeriod("Today", "2026-02-02T06:00:00-08:00", 70, "F", "Sunny", true),
+            NwsApi.ForecastPeriod("Tonight", "2026-02-02T18:00:00-08:00", 50, "F", "Clear", false)
         )
 
         val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
@@ -181,6 +181,7 @@ class WeatherRepositoryTest {
         condition = "Sunny",
         isActual = false,
         source = "NWS",
+        stationId = null,
         fetchedAt = System.currentTimeMillis()
     )
 }

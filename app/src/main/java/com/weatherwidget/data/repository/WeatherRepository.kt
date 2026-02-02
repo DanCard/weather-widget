@@ -311,6 +311,7 @@ class WeatherRepository @Inject constructor(
 
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
+        val stationByDate = mutableMapOf<String, String>()  // Track which station provided data
         val today = LocalDate.now()
 
         // Fetch last 7 days of actual observations if observation stations are available
@@ -325,8 +326,9 @@ class WeatherRepository @Inject constructor(
                     val observationData = fetchDayObservations(gridPoint.observationStationsUrl, date)
                     if (observationData != null) {
                         weatherByDate[dateStr] = observationData.first to observationData.second
+                        stationByDate[dateStr] = observationData.third  // Track station ID
                         conditionByDate[dateStr] = "Observed"
-                        Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second}")
+                        Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third}")
                     }
                 }
             }
@@ -372,48 +374,97 @@ class WeatherRepository @Inject constructor(
                 currentTemp = null,
                 condition = conditionByDate[date] ?: "Unknown",
                 isActual = LocalDate.parse(date).isBefore(LocalDate.now()),
-                source = "NWS"
+                source = "NWS",
+                stationId = stationByDate[date]  // Include station ID (null for forecast data)
             )
         }
+    }
+
+    private fun getCachedStations(stationsUrl: String): List<String>? {
+        val key = "observation_stations_${stationsUrl.hashCode()}"
+        val timeKey = "observation_stations_time_${stationsUrl.hashCode()}"
+
+        val cacheTime = prefs.getLong(timeKey, 0L)
+        val cacheTtl = 24 * 60 * 60 * 1000L  // 24 hours
+        if (System.currentTimeMillis() - cacheTime > cacheTtl) {
+            return null  // Cache expired
+        }
+
+        val cached = prefs.getString(key, null) ?: return null
+        return cached.split(",").filter { it.isNotBlank() }
+    }
+
+    private fun cacheStations(stationsUrl: String, stations: List<String>) {
+        val key = "observation_stations_${stationsUrl.hashCode()}"
+        val timeKey = "observation_stations_time_${stationsUrl.hashCode()}"
+
+        prefs.edit()
+            .putString(key, stations.joinToString(","))
+            .putLong(timeKey, System.currentTimeMillis())
+            .apply()
     }
 
     private suspend fun fetchDayObservations(
         stationsUrl: String,
         date: LocalDate
-    ): Pair<Int, Int>? {
+    ): Triple<Int, Int, String>? {  // CHANGED: Now returns (high, low, stationId)
         try {
-            // Get list of observation stations (sorted by distance)
-            val stations = nwsApi.getObservationStations(stationsUrl)
-            if (stations.isEmpty()) {
-                Log.w(TAG, "fetchDayObservations: No observation stations found")
-                return null
+            // Try cached station list first
+            var stations = getCachedStations(stationsUrl)
+            if (stations == null || stations.isEmpty()) {
+                Log.d(TAG, "fetchDayObservations: Fetching station list from API")
+                stations = nwsApi.getObservationStations(stationsUrl)
+                if (stations.isEmpty()) {
+                    Log.w(TAG, "fetchDayObservations: No observation stations found")
+                    return null
+                }
+                cacheStations(stationsUrl, stations)
+            } else {
+                Log.d(TAG, "fetchDayObservations: Using cached stations (${stations.size} total)")
             }
 
-            val stationId = stations.first()
-            Log.d(TAG, "fetchDayObservations: Using station $stationId for $date")
+            // Try up to 5 stations
+            val maxRetries = 5
+            val stationsToTry = stations.take(maxRetries)
 
-            // Fetch observations for the specified day (full day in local timezone)
-            val localZone = java.time.ZoneId.systemDefault()
-            val startTime = date.atStartOfDay(localZone)
-                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
-            val endTime = date.plusDays(1).atStartOfDay(localZone)
-                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+            for ((index, stationId) in stationsToTry.withIndex()) {
+                Log.d(TAG, "fetchDayObservations: Trying station $stationId (${index + 1}/${stationsToTry.size}) for $date")
 
-            Log.d(TAG, "fetchDayObservations: Querying $stationId for $date: start=$startTime end=$endTime")
-            val observations = nwsApi.getObservations(stationId, startTime, endTime)
-            if (observations.isEmpty()) {
-                Log.w(TAG, "fetchDayObservations: No observations found for $stationId on $date (start=$startTime end=$endTime)")
-                return null
+                try {
+                    // Fetch observations for the specified day
+                    val localZone = java.time.ZoneId.systemDefault()
+                    val startTime = date.atStartOfDay(localZone)
+                        .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+                    val endTime = date.plusDays(1).atStartOfDay(localZone)
+                        .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+
+                    val observations = nwsApi.getObservations(stationId, startTime, endTime)
+                    if (observations.isEmpty()) {
+                        Log.w(TAG, "fetchDayObservations: No observations from $stationId for $date - trying next")
+                        continue  // Try next station
+                    }
+
+                    Log.i(TAG, "fetchDayObservations: SUCCESS - Got ${observations.size} observations from $stationId for $date")
+
+                    // Calculate high/low from observations (convert C to F)
+                    val temps = observations.map { (it.temperatureCelsius * 9 / 5 + 32).toInt() }
+                    val high = temps.maxOrNull() ?: continue
+                    val low = temps.minOrNull() ?: continue
+
+                    Log.i(TAG, "fetchDayObservations: Station $stationId provided data for $date (H:$high L:$low) after ${index + 1} attempts")
+
+                    return Triple(high, low, stationId)  // CHANGED: Return station ID
+
+                } catch (e: Exception) {
+                    Log.w(TAG, "fetchDayObservations: Station $stationId failed for $date: ${e.message}")
+                    // Continue to next station
+                }
             }
 
-            Log.d(TAG, "fetchDayObservations: Got ${observations.size} observations for $date")
+            // All stations failed
+            Log.w(TAG, "fetchDayObservations: All ${stationsToTry.size} stations failed for $date")
+            return null
 
-            // Calculate high/low from observations (convert C to F)
-            val temps = observations.map { (it.temperatureCelsius * 9 / 5 + 32).toInt() }
-            val high = temps.maxOrNull() ?: return null
-            val low = temps.minOrNull() ?: return null
-
-            return high to low
         } catch (e: Exception) {
             Log.e(TAG, "fetchDayObservations: Error for $date: ${e.message}", e)
             return null

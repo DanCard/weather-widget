@@ -21,7 +21,7 @@ class TemperatureInterpolatorTest {
             dateTime = dateTime,
             locationLat = 37.42,
             locationLon = -122.08,
-            temperature = temp,
+            temperature = temp.toFloat(),
             source = "OPEN_METEO",
             fetchedAt = System.currentTimeMillis()
         )
@@ -47,7 +47,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 30)
         )
 
-        assertEquals(70, result)
+        assertEquals(70.0f, result)
     }
 
     @Test
@@ -61,7 +61,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 30)
         )
 
-        assertEquals(72, result)
+        assertEquals(72.0f, result)
     }
 
     @Test
@@ -77,7 +77,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 30)
         )
 
-        assertEquals(72, result)
+        assertEquals(72.0f, result)
     }
 
     @Test
@@ -93,7 +93,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 15)
         )
 
-        assertEquals(71, result)
+        assertEquals(71.0f, result)
     }
 
     @Test
@@ -109,7 +109,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 45)
         )
 
-        assertEquals(73, result)
+        assertEquals(73.0f, result)
     }
 
     @Test
@@ -125,7 +125,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 30)
         )
 
-        assertEquals(73, result)
+        assertEquals(73.0f, result)
     }
 
     @Test
@@ -141,7 +141,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 30)
         )
 
-        assertEquals(70, result)
+        assertEquals(70.0f, result)
     }
 
     @Test
@@ -157,7 +157,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 0)
         )
 
-        assertEquals(70, result)
+        assertEquals(70.0f, result)
     }
 
     @Test
@@ -173,7 +173,7 @@ class TemperatureInterpolatorTest {
             LocalDateTime.of(2026, 1, 15, 14, 0)
         )
 
-        assertEquals(68, result)
+        assertEquals(68.0f, result)
     }
 
     // Tests for getUpdatesPerHour
