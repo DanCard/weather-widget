@@ -399,9 +399,10 @@ class WeatherRepository @Inject constructor(
             val endTime = date.plusDays(1).atStartOfDay(localZone)
                 .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
 
+            Log.d(TAG, "fetchDayObservations: Querying $stationId for $date: start=$startTime end=$endTime")
             val observations = nwsApi.getObservations(stationId, startTime, endTime)
             if (observations.isEmpty()) {
-                Log.w(TAG, "fetchDayObservations: No observations found for $stationId on $date")
+                Log.w(TAG, "fetchDayObservations: No observations found for $stationId on $date (start=$startTime end=$endTime)")
                 return null
             }
 

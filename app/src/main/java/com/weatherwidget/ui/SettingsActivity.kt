@@ -16,9 +16,11 @@ import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.AccuracyDisplayMode
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.ApiPreference
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -34,11 +36,37 @@ class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
 
+    @Inject
+    lateinit var weatherRepository: WeatherRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
         setupViews()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Trigger background refresh so data is fresh when user returns to widget
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val database = WeatherDatabase.getDatabase(this@SettingsActivity)
+                val latestWeather = database.weatherDao().getLatestWeather()
+                if (latestWeather != null) {
+                    android.util.Log.d("SettingsActivity", "Triggering background weather refresh")
+                    weatherRepository.getWeatherData(
+                        latestWeather.locationLat,
+                        latestWeather.locationLon,
+                        latestWeather.locationName,
+                        forceRefresh = true
+                    )
+                    android.util.Log.d("SettingsActivity", "Background weather refresh complete")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsActivity", "Background refresh failed: ${e.message}")
+            }
+        }
     }
 
     private fun setupViews() {
