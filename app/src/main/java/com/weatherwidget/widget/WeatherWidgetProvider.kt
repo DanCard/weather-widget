@@ -234,14 +234,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val minDate = availableDates.firstOrNull()
         val maxDate = availableDates.lastOrNull()
 
-        // Check if navigation would reveal new data
+        // Use conservative maxOffset = 3 (covers widgets up to 5 columns)
+        // This prevents navigation that would result in lost columns
+        val maxOffset = 3
+        val minOffset = -1
+
+        // Check if navigation would reveal new data for ALL visible columns
         val canNavigate = if (isLeft) {
-            // Can go left only if there's data BEFORE the current center
-            minDate != null && minDate < currentCenterDate
+            // Can go left if there's data for the new leftmost day
+            val newLeftmost = currentCenterDate.minusDays(1).plusDays(minOffset.toLong())
+            minDate != null && !minDate.isAfter(newLeftmost)
         } else {
-            // Can go right only if there's data AFTER the current center
-            maxDate != null && maxDate > currentCenterDate
+            // Can go right if there's data for the new rightmost day
+            val newRightmost = currentCenterDate.plusDays(1).plusDays(maxOffset.toLong())
+            maxDate != null && !maxDate.isBefore(newRightmost)
         }
+
+        Log.d(TAG, "handleDailyNavigationDirect: center=$currentCenterDate, minDate=$minDate, maxDate=$maxDate, canNavigate=$canNavigate")
 
         if (!canNavigate) {
             Log.d(TAG, "handleDailyNavigationDirect: No more $displaySource data to ${if (isLeft) "left" else "right"}")
@@ -706,8 +715,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 !(isFutureDate && weather.lowTemp == 0)
             }.keys
 
-            // Set up navigation click handlers with available dates
-            setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates)
+            // Set up navigation click handlers with available dates and widget width
+            setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns)
 
             // Use graph mode for 2+ rows
             val useGraph = numRows >= 2
@@ -742,7 +751,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views: RemoteViews,
             appWidgetId: Int,
             stateManager: WidgetStateManager,
-            availableDates: Set<String> = emptySet()
+            availableDates: Set<String> = emptySet(),
+            numColumns: Int = 3
         ) {
             // Left arrow
             val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -781,7 +791,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 canLeft = stateManager.canNavigateHourlyLeft(appWidgetId)
                 canRight = stateManager.canNavigateHourlyRight(appWidgetId)
             } else {
-                // Check if navigating would reveal new data
+                // Check if navigating would reveal new data for ALL visible columns
                 val today = LocalDate.now()
                 val currentOffset = stateManager.getDateOffset(appWidgetId)
                 val currentCenterDate = today.plusDays(currentOffset.toLong())
@@ -791,11 +801,29 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val minDate = sortedDates.firstOrNull()
                 val maxDate = sortedDates.lastOrNull()
 
-                // Can go left only if there's data BEFORE the current center
-                canLeft = minDate != null && minDate < currentCenterDate
+                // Calculate offsets based on widget width (matches buildDayDataList logic)
+                // minOffset: leftmost day relative to center (-1 for 3+ columns, 0 for 1-2)
+                // maxOffset: rightmost day relative to center
+                val minOffset = if (numColumns <= 2) 0 else -1
+                val maxOffset = when {
+                    numColumns <= 1 -> 0
+                    numColumns == 2 -> 1
+                    else -> numColumns - 2  // 3->1, 4->2, 5->3, 6->4, etc.
+                }
 
-                // Can go right only if there's data AFTER the current center
-                canRight = maxDate != null && maxDate > currentCenterDate
+                // Can go left if there's data for the new leftmost day after navigation
+                // newLeftmost = (currentCenter - 1) + minOffset
+                val newLeftmost = currentCenterDate.minusDays(1).plusDays(minOffset.toLong())
+                canLeft = minDate != null && !minDate.isAfter(newLeftmost)
+
+                // Can go right if there's data for the new rightmost day after navigation
+                // newRightmost = (currentCenter + 1) + maxOffset
+                val newRightmost = currentCenterDate.plusDays(1).plusDays(maxOffset.toLong())
+                canRight = maxDate != null && !maxDate.isBefore(newRightmost)
+
+                Log.d(TAG, "setupNavigationButtons: center=$currentCenterDate, numCols=$numColumns, minOffset=$minOffset, maxOffset=$maxOffset")
+                Log.d(TAG, "setupNavigationButtons: minDate=$minDate, maxDate=$maxDate, newLeftmost=$newLeftmost, newRightmost=$newRightmost")
+                Log.d(TAG, "setupNavigationButtons: canLeft=$canLeft, canRight=$canRight")
             }
 
             views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
