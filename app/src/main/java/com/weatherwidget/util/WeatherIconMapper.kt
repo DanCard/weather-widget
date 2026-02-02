@@ -15,6 +15,7 @@ object WeatherIconMapper {
             lowerCondition.contains("fog") || lowerCondition.contains("mist") || lowerCondition.contains("haze") -> R.drawable.ic_weather_fog
             lowerCondition.contains("partly") && lowerCondition.contains("cloudy") -> R.drawable.ic_weather_partly_cloudy
             lowerCondition.contains("cloudy") || lowerCondition.contains("overcast") -> R.drawable.ic_weather_cloudy
+            lowerCondition.contains("wind") || lowerCondition.contains("breez") || lowerCondition.contains("gale") -> R.drawable.ic_weather_wind
             lowerCondition.contains("clear") || lowerCondition.contains("sunny") -> R.drawable.ic_weather_clear
             else -> R.drawable.ic_weather_unknown
         }
