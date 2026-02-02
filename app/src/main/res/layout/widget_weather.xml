@@ -334,7 +334,7 @@
     <!-- Left navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
-        android:layout_width="48dp"
+        android:layout_width="32dp"
         android:layout_height="match_parent"
         android:layout_gravity="start|center_vertical"
         android:background="@android:color/transparent"
@@ -344,9 +344,19 @@
     <!-- Right navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_right_zone"
-        android:layout_width="48dp"
+        android:layout_width="32dp"
         android:layout_height="match_parent"
         android:layout_gravity="end|center_vertical"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Current temperature touch zone - invisible overlay for larger touch target -->
+    <FrameLayout
+        android:id="@+id/current_temp_zone"
+        android:layout_width="80dp"
+        android:layout_height="56dp"
+        android:layout_gravity="top|start"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true" />

@@ -435,10 +435,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val appWidgetManager = AppWidgetManager.getInstance(context)
 
         if (newMode == ViewMode.HOURLY) {
-            // Switched to hourly mode: fetch 24-hour window
+            // Switched to hourly mode: fetch 24-hour window (8h history + 16h forecast)
             val now = java.time.LocalDateTime.now()
-            val startTime = now.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = now.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val startTime = now.minusHours(8).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = now.plusHours(16).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
             updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayCondition)
@@ -1085,6 +1085,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             views.setOnClickPendingIntent(R.id.current_temp, togglePendingIntent)
+            views.setOnClickPendingIntent(R.id.current_temp_zone, togglePendingIntent)
         }
 
         private fun buildHourDataList(
