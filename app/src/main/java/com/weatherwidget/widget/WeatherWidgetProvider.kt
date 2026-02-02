@@ -279,11 +279,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
-        // Calculate time window based on offset
+        // Calculate time window based on offset, rounded to nearest hour
         val now = java.time.LocalDateTime.now()
         val centerTime = now.plusHours(newOffset.toLong())
-        val startTime = centerTime.minusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val endTime = centerTime.plusHours(12).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+        val startTime = roundedCenter.minusHours(8).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val endTime = roundedCenter.plusHours(16).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
 
         val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
@@ -325,11 +327,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val now = java.time.LocalDateTime.now()
             val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(hourlyOffset.toLong())
-            val startTime = centerTime.minusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            // Round to nearest hour (same as display logic)
+            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+            // Query 8 hours back + 16 hours forward to match display range
+            val startTime = roundedCenter.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = roundedCenter.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
-            Log.d(TAG, "handleToggleApiDirect: Hourly mode - Got ${hourlyForecasts.size} hourly forecasts")
+            Log.d(TAG, "handleToggleApiDirect: Hourly mode - Got ${hourlyForecasts.size} hourly forecasts from $startTime to $endTime")
             updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayCondition)
         } else {
             // Daily mode: get daily data
@@ -377,8 +383,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val now = java.time.LocalDateTime.now()
             val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(hourlyOffset.toLong())
-            val startTime = centerTime.minusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            // Round to nearest hour (same as display logic)
+            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+            val startTime = roundedCenter.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = roundedCenter.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
             updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayCondition)
@@ -572,8 +581,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         val now = LocalDateTime.now()
                         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                         val centerTime = now.plusHours(hourlyOffset.toLong())
-                        val startTime = centerTime.minusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                        val endTime = centerTime.plusHours(12).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                        // Query 8 hours back + 16 hours forward to match display range
+                        val startTime = centerTime.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                        val endTime = centerTime.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                        Log.d(TAG, "updateWidgetWithData: Fetching hourly from $startTime to $endTime")
                         val extendedHourly = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
                         updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, extendedHourly, centerTime, currentCondition)
@@ -1093,11 +1104,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
                 }
 
-            // Determine how many hours to show (24 total, centered on centerTime)
-            // Align grid to clock hours
-            val alignedCenter = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val startHour = alignedCenter.minusHours(12)
-            val endHour = alignedCenter.plusHours(12)
+            // Determine how many hours to show (24 total, with "now" at 1/3 position)
+            // 8 hours history + 16 hours forecast
+            // Round to nearest hour (if >= 30 min, round up)
+            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+            val startHour = alignedCenter.minusHours(8)
+            val endHour = alignedCenter.plusHours(16)
 
             // Determine label frequency based on widget size
             // For 24 hours displayed, aim for ~4-6 visible labels to avoid overlap
@@ -1110,9 +1123,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             var currentHour = startHour
             var hourIndex = 0
             
-            // Debug logging for label selection
-            Log.d(TAG, "buildHourDataList: now=$now, alignedCenter=$alignedCenter")
-            
+            // Debug logging for time range
+            Log.d(TAG, "buildHourDataList: now=$now, centerTime=$centerTime, alignedCenter=$alignedCenter")
+            Log.d(TAG, "buildHourDataList: startHour=$startHour, endHour=$endHour (${startHour.hour}:00 to ${endHour.hour}:00)")
+            Log.d(TAG, "buildHourDataList: forecastsByTime has ${forecastsByTime.size} entries, labelInterval=$labelInterval")
+            Log.d(TAG, "buildHourDataList: forecastsByTime keys=${forecastsByTime.keys.sorted()}")
+
             while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
                 val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 val forecast = forecastsByTime[hourKey]
@@ -1121,26 +1137,30 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
                     val absDiff = kotlin.math.abs(diffMinutes)
                     val isClosest = absDiff <= 30
-                    
-                    if (isClosest) {
-                        Log.d(TAG, "buildHourDataList: Found closest hour: $currentHour (diff=${diffMinutes}m)")
+                    val showLabel = isClosest || (hourIndex % labelInterval == 0)
+
+                    if (isClosest || hourIndex == 0 || showLabel) {
+                        Log.d(TAG, "buildHourDataList: hour[$hourIndex] $currentHour label=${formatHourLabel(currentHour)} showLabel=$showLabel isClosest=$isClosest")
                     }
-                    
+
                     hours.add(
                         HourlyGraphRenderer.HourData(
                             dateTime = currentHour,
                             temperature = forecast.temperature,
                             label = formatHourLabel(currentHour),
                             isCurrentHour = isClosest,
-                            showLabel = isClosest || (hourIndex % labelInterval == 0)
+                            showLabel = showLabel
                         )
                     )
                     hourIndex++
+                } else {
+                    Log.d(TAG, "buildHourDataList: MISSING data for $currentHour (key=$hourKey)")
                 }
 
                 currentHour = currentHour.plusHours(1)
             }
 
+            Log.d(TAG, "buildHourDataList: Built ${hours.size} hours, first=${hours.firstOrNull()?.dateTime}, last=${hours.lastOrNull()?.dateTime}")
             return hours
         }
 

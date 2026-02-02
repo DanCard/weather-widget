@@ -39,8 +39,8 @@ class WidgetStateManager @Inject constructor(
 
         const val MIN_DATE_OFFSET = -30  // Last 30 days of history
         const val MAX_DATE_OFFSET = 14   // 14 days forward
-        const val MIN_HOURLY_OFFSET = -6   // 6 hours back
-        const val MAX_HOURLY_OFFSET = 18   // 18 hours forward
+        const val MIN_HOURLY_OFFSET = -4   // Reduced (since we show 8h history by default)
+        const val MAX_HOURLY_OFFSET = 12   // Adjusted for new layout
         const val HOURLY_NAV_JUMP = 6      // Navigate in 6-hour chunks
 
         const val SOURCE_NWS = "NWS"

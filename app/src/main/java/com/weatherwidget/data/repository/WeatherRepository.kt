@@ -427,7 +427,8 @@ class WeatherRepository @Inject constructor(
             )
         }
         hourlyForecastDao.insertAll(entities)
-        Log.d(TAG, "saveHourlyForecasts: Saved ${entities.size} Open-Meteo hourly forecasts")
+        val sortedTimes = entities.map { it.dateTime }.sorted()
+        Log.d(TAG, "saveHourlyForecasts: Saved ${entities.size} Open-Meteo hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}")
     }
 
     private suspend fun saveNwsHourlyForecasts(
@@ -455,7 +456,8 @@ class WeatherRepository @Inject constructor(
             )
         }
         hourlyForecastDao.insertAll(entities)
-        Log.d(TAG, "saveNwsHourlyForecasts: Saved ${entities.size} NWS hourly forecasts")
+        val sortedTimes = entities.map { it.dateTime }.sorted()
+        Log.d(TAG, "saveNwsHourlyForecasts: Saved ${entities.size} NWS hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}")
     }
 
     /**
