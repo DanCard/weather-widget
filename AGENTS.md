@@ -11,10 +11,10 @@ This file provides guidance to AI agents working on this repository.
 
 ## Testing Commands
 
-- **Run all unit tests**: `./gradlew test`
+- **Run all tests**: `./gradlew test`
 - **Run specific test class**: `./gradlew test --tests com.weatherwidget.data.repository.WeatherRepositoryTest`
 - **Run specific test method**: `./gradlew test --tests com.weatherwidget.data.repository.WeatherRepositoryTest.testGetWeatherData`
-- **Run tests with coverage**: `./gradlew testDebugUnitTest`
+- **Run with coverage**: `./gradlew testDebugUnitTest`
 
 ## Lint/Type Checking
 
@@ -120,6 +120,8 @@ This file provides guidance to AI agents working on this repository.
 - Handle resize events directly without WorkManager delays
 - API source toggle handled via click on indicator
 - Fetch data from database with 30-day lookback for navigation
+- Use `goAsync()` with coroutines in receivers for non-blocking operations
+- Temperature interpolation updates based on hourly change rate (1-4 updates/hour)
 
 ### Git Commits
 
@@ -152,9 +154,9 @@ app/src/main/java/com/weatherwidget/
 
 ## Testing the Widget
 
-This is a widget-only app. To test:
+Widget-only app. To test:
 1. Build and install: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug`
-2. On emulator/device, long-press home screen → "Widgets"
+2. Long-press home screen → "Widgets"
 3. Find "Weather Widget" and drag to home screen
 4. Resize to test different layouts (1x1, 1x3, 2x3, etc.)
 

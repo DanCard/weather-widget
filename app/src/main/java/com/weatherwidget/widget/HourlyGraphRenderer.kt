@@ -53,15 +53,18 @@ object HourlyGraphRenderer {
         // Layout constants
         // Layout constants
         val horizontalPadding = dpToPx(context, 0f) // Full width (was 4f)
-        val topPadding = dpToPx(context, 16f) 
+        val topPadding = dpToPx(context, 16f)
         val bottomPadding = dpToPx(context, 0f) // Zero bottom padding
-        
+
         // Icon size fixed to 8dp
         val iconSizeDp = 8f
         val iconSize = dpToPx(context, iconSizeDp).toInt()
 
         // Calculate layout height components
-        val labelHeight = dpToPx(context, 9f * heightScaleFactor) // Height of text (Reduced to 9f)
+        val labelHeight = dpToPx(context, 9f) // Fixed size, no height scaling
+
+        // Log font sizing info
+        android.util.Log.d("HourlyGraph", "Widget: ${widthPx}px × ${heightPx}px (${widthDp.toInt()}dp × ${heightDp.toInt()}dp) | heightScaleFactor=$heightScaleFactor | baseLabel=9dp, finalLabel=9dp")
         
         val graphTop = topPadding
         // Bottom reserved area: Text Label + Icon + Padding
@@ -88,21 +91,25 @@ object HourlyGraphRenderer {
             pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 4f)), 0f)
         }
 
+        val hourLabelSize = dpToPx(context, 9f) // Fixed size, no height scaling
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
-            textSize = dpToPx(context, 9f * heightScaleFactor) // Smaller (Reduced to 9f)
+            textSize = hourLabelSize // Smaller (Reduced to 9f)
             textAlign = Paint.Align.CENTER
         }
 
+        val tempLabelSize = dpToPx(context, 9f) // Fixed size, no height scaling
         val tempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 9f * heightScaleFactor) // Smaller (Reduced to 9f)
+            textSize = tempLabelSize // Smaller (Reduced to 9f)
             textAlign = Paint.Align.CENTER
         }
+
+        android.util.Log.d("HourlyGraph", "Font sizes: hourLabel=${hourLabelSize}px (${hourLabelSize/density}dp), tempLabel=${tempLabelSize}px (${tempLabelSize/density}dp)")
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF9F0A")
-            textSize = dpToPx(context, 8.5f * heightScaleFactor) // Smaller
+            textSize = dpToPx(context, 8.5f) // Fixed size, no height scaling
             textAlign = Paint.Align.CENTER
         }
 
@@ -170,7 +177,7 @@ object HourlyGraphRenderer {
 
             // Draw hour label at bottom (only if showLabel is true AND not overlapping)
             if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
-                val labelY = heightPx.toFloat() // Absolute bottom
+                val labelY = heightPx - 3f // Experiment: move up 3 pixels
                 canvas.drawText(hour.label, x, labelY, hourLabelTextPaint)
                 lastHourLabelX = x
                 
