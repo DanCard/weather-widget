@@ -1,4 +1,31 @@
+# NWS Navigation & Partial Data Fix - COMPLETE ✅
+
+## Status: IMPLEMENTED & DEPLOYED
+
+**Build:** ✅ SUCCESS
+**Installation:** ✅ DEPLOYED
+**Feature:** Allow navigation to partial NWS forecast days
+
+## Goal
+Fix the issue where the "Next" arrow was missing on wide widgets when using NWS data, because NWS forecasts are shorter (7 days) and often end with a partial day (high only).
+
+## Implementation Details
+
+### ✅ WeatherWidgetProvider.kt
+- **Dynamic Navigation Bounds:** Updated `handleDailyNavigationDirect` to calculate `maxOffset` based on `numColumns` instead of a hardcoded value.
+- **Relaxed Filtering:** Updated `handleDailyNavigationDirect` and `updateWidgetWithData` to allow days with *either* high or low temperatures (previously required both).
+- **Graph Data Sync:** Updated `buildDayDataList` to include partial days in the graph data sent to the renderer.
+
+### ✅ TemperatureGraphRenderer.kt
+- **Partial Data Rendering:** Updated `renderGraph` to gracefully handle days with missing high or low temperatures.
+- **Visuals:** Draws a "cap" and label for the available temperature (high or low) instead of skipping the day or drawing a broken bar.
+- **Range Calculation:** Updated min/max temp calculation to safely handle nulls.
+
+## Tests
+- Added `renderGraph_withPartialData_rendersWithoutCrash` to `TemperatureGraphRendererTest` to verify graceful handling of partial data.
+
 # Decimal Precision Implementation - COMPLETE ✅
+
 
 ## Status: IMPLEMENTED & DEPLOYED
 

@@ -302,4 +302,53 @@ class TemperatureGraphRendererTest {
 
         assertTrue("Expected yellow bar for historical day", foundYellow)
     }
+
+    @Test
+    fun renderGraph_withPartialData_rendersWithoutCrash() {
+        // Test data with partial temperatures (high only, low only)
+        val days = listOf(
+            TemperatureGraphRenderer.DayData(
+                label = "HighOnly",
+                high = 70,
+                low = null, // Missing low
+                isToday = false,
+                isPast = false
+            ),
+            TemperatureGraphRenderer.DayData(
+                label = "LowOnly",
+                high = null, // Missing high
+                low = 50,
+                isToday = false,
+                isPast = false
+            )
+        )
+
+        val bitmap = TemperatureGraphRenderer.renderGraph(
+            context = context,
+            days = days,
+            widthPx = 200,
+            heightPx = 200
+        )
+
+        assertNotNull(bitmap)
+        assertEquals(200, bitmap.width)
+        assertEquals(200, bitmap.height)
+
+        // Verify that we rendered something (blue color for future days)
+        // Since we draw caps for partial data, we should still see blue pixels
+        val blueColor = Color.parseColor("#5AC8FA")
+        var foundBlue = false
+
+        for (x in 0 until bitmap.width) {
+            for (y in 0 until bitmap.height) {
+                if (bitmap.getPixel(x, y) == blueColor) {
+                    foundBlue = true
+                    break
+                }
+            }
+            if (foundBlue) break
+        }
+
+        assertTrue("Expected blue pixels for partial data caps", foundBlue)
+    }
 }
