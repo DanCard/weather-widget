@@ -214,9 +214,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
         val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val thirtyDays = java.time.LocalDate.now().plusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
 
-        val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+        val weatherList = weatherDao.getWeatherRange(historyStart, thirtyDays, lat, lon)
 
         // Filter by current display source
         val filteredWeatherList = weatherList.filter { it.source == displaySource }
@@ -270,7 +270,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
         Log.d(TAG, "handleDailyNavigationDirect: Navigated to offset $newOffset for widget $appWidgetId")
 
-        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+        val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, thirtyDays, lat, lon)
             .groupBy { it.targetDate }
 
         // Get hourly forecasts for interpolation
@@ -922,6 +922,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         low = weather.lowTemp,
                         isToday = date == today,
                         isPast = isPastDate,
+                        isClimateNormal = weather.isClimateNormal,
                         forecastHigh = if (showComparison) forecast?.highTemp else null,
                         forecastLow = if (showComparison) forecast?.lowTemp else null,
                         forecastSource = if (showComparison) displaySource else null,

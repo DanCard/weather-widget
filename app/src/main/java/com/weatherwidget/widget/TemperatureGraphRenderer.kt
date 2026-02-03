@@ -12,6 +12,7 @@ object TemperatureGraphRenderer {
         val low: Int?,
         val isToday: Boolean = false,
         val isPast: Boolean = false,            // Is this a historical day?
+        val isClimateNormal: Boolean = false,   // Is this long-range climate data?
         val forecastHigh: Int? = null,          // Single forecast
         val forecastLow: Int? = null,           // Single forecast
         val forecastSource: String? = null,     // "NWS" or "Open-Meteo"
@@ -108,6 +109,19 @@ object TemperatureGraphRenderer {
             strokeCap = Paint.Cap.BUTT
         }
 
+        // Climate Normal bar - Green for long-range averages
+        val climateNormalBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#34C759")
+            strokeWidth = barWidth
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        val climateNormalCapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#34C759")
+            strokeWidth = barWidth + dpToPx(context, 4f * scaleFactor)
+            strokeCap = Paint.Cap.BUTT
+        }
+
         // Scale text sizes with widget height
         val baseDayLabelSize = 24f
         val baseTempLabelSize = 22f
@@ -173,11 +187,13 @@ object TemperatureGraphRenderer {
             val paint = when {
                 day.isToday -> todayBarPaint
                 day.isPast -> historyBarPaint
+                day.isClimateNormal -> climateNormalBarPaint
                 else -> barPaint  // Future days
             }
             val cap = when {
                 day.isToday -> todayCapPaint
                 day.isPast -> historyCapPaint
+                day.isClimateNormal -> climateNormalCapPaint
                 else -> capPaint
             }
 

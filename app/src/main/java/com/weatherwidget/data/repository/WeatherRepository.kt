@@ -1,7 +1,10 @@
 package com.weatherwidget.data.repository
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.os.BatteryManager
 import android.util.Log
 import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.ForecastSnapshotDao
@@ -192,14 +195,14 @@ class WeatherRepository @Inject constructor(
 
     private suspend fun getCachedData(lat: Double, lon: Double): List<WeatherEntity> {
         val sevenDaysAgo = LocalDate.now().minusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return weatherDao.getWeatherRange(sevenDaysAgo, twoWeeks, lat, lon)
+        val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        return weatherDao.getWeatherRange(sevenDaysAgo, thirtyDays, lat, lon)
     }
 
     suspend fun getCachedDataBySource(lat: Double, lon: Double, source: String): List<WeatherEntity> {
         val sevenDaysAgo = LocalDate.now().minusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return weatherDao.getWeatherRangeBySource(sevenDaysAgo, twoWeeks, lat, lon, source)
+        val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        return weatherDao.getWeatherRangeBySource(sevenDaysAgo, thirtyDays, lat, lon, source)
     }
 
     /**
@@ -219,16 +222,19 @@ class WeatherRepository @Inject constructor(
         val existingByDate = existingData.associateBy { it.date }
 
         return newData.map { new ->
-            val existing = existingByDate[new.date]
-            if (existing != null && (new.highTemp == 0 || new.lowTemp == 0)) {
-                // Merge: use existing non-zero values where new data has zeros
-                new.copy(
-                    highTemp = if (new.highTemp == 0 && existing.highTemp != 0) existing.highTemp else new.highTemp,
-                    lowTemp = if (new.lowTemp == 0 && existing.lowTemp != 0) existing.lowTemp else new.lowTemp
-                )
-            } else {
-                new
+            val existing = existingByDate[new.date] ?: return@map new
+
+            // Prioritization: If new is climate normal but existing is a real forecast, 
+            // and the forecast has data, keep the existing one.
+            if (new.isClimateNormal && !existing.isClimateNormal && (existing.highTemp != null || existing.lowTemp != null)) {
+                return@map existing
             }
+
+            // Merge nullable temperatures: use existing values where new data has nulls
+            new.copy(
+                highTemp = if (new.highTemp == null) existing.highTemp else new.highTemp,
+                lowTemp = if (new.lowTemp == null) existing.lowTemp else new.lowTemp
+            )
         }
     }
 
@@ -286,6 +292,61 @@ class WeatherRepository @Inject constructor(
         }
 
         nwsResult to meteoResult
+    }
+
+    private fun isDevicePluggedIn(): Boolean {
+        val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL
+    }
+
+    private suspend fun fetchClimateNormalsGap(
+        lat: Double,
+        lon: Double,
+        locationName: String,
+        lastDate: LocalDate,
+        targetDays: Int,
+        source: String
+    ): List<WeatherEntity> {
+        if (!isDevicePluggedIn()) {
+            Log.d(TAG, "fetchClimateNormalsGap: Skipping climate fetch (not plugged in)")
+            return emptyList()
+        }
+
+        val today = LocalDate.now()
+        val targetDate = today.plusDays(targetDays.toLong())
+        val startDate = lastDate.plusDays(1)
+
+        if (!startDate.isBefore(targetDate) && !startDate.isEqual(targetDate)) {
+            return emptyList()
+        }
+
+        return try {
+            val startDateStr = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val endDateStr = targetDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            Log.d(TAG, "fetchClimateNormalsGap: Fetching climate normals from $startDateStr to $endDateStr for $source")
+            
+            val climateData = openMeteoApi.getClimateForecast(lat, lon, startDateStr, endDateStr)
+            climateData.map { daily ->
+                WeatherEntity(
+                    date = daily.date,
+                    locationLat = lat,
+                    locationLon = lon,
+                    locationName = locationName,
+                    highTemp = daily.highTemp,
+                    lowTemp = daily.lowTemp,
+                    currentTemp = null,
+                    condition = "Climate Avg",
+                    isActual = false,
+                    isClimateNormal = true,
+                    source = source
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "fetchClimateNormalsGap: Failed to fetch climate normals: ${e.message}")
+            emptyList()
+        }
     }
 
     private suspend fun fetchFromNws(
@@ -363,7 +424,7 @@ class WeatherRepository @Inject constructor(
 
         Log.d(TAG, "fetchFromNws: Parsed ${weatherByDate.size} days")
 
-        return weatherByDate.map { (date, temps) ->
+        val nwsResults = weatherByDate.map { (date, temps) ->
             WeatherEntity(
                 date = date,
                 locationLat = lat,
@@ -375,9 +436,16 @@ class WeatherRepository @Inject constructor(
                 condition = conditionByDate[date] ?: "Unknown",
                 isActual = LocalDate.parse(date).isBefore(LocalDate.now()),
                 source = "NWS",
-                stationId = stationByDate[date]  // Include station ID (null for forecast data)
+                stationId = stationByDate[date],
+                isClimateNormal = false
             )
         }
+
+        // Fill gap with climate normals up to 30 days
+        val lastNwsDate = nwsResults.map { LocalDate.parse(it.date) }.maxOrNull() ?: today
+        val climateGaps = fetchClimateNormalsGap(lat, lon, locationName, lastNwsDate, 30, "NWS")
+        
+        return nwsResults + climateGaps
     }
 
     private fun getCachedStations(stationsUrl: String): List<String>? {
@@ -490,7 +558,7 @@ class WeatherRepository @Inject constructor(
             saveHourlyForecasts(forecast.hourly, lat, lon)
         }
 
-        return forecast.daily.map { daily ->
+        val meteoResults = forecast.daily.map { daily ->
             WeatherEntity(
                 date = daily.date,
                 locationLat = lat,
@@ -501,9 +569,16 @@ class WeatherRepository @Inject constructor(
                 currentTemp = if (daily.date == today) forecast.currentTemp else null,
                 condition = openMeteoApi.weatherCodeToCondition(daily.weatherCode),
                 isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
-                source = "Open-Meteo"
+                source = "Open-Meteo",
+                isClimateNormal = false
             )
         }
+
+        // Fill gap with climate normals up to 30 days
+        val lastMeteoDate = meteoResults.map { LocalDate.parse(it.date) }.maxOrNull() ?: LocalDate.now()
+        val climateGaps = fetchClimateNormalsGap(lat, lon, locationName, lastMeteoDate, 30, "Open-Meteo")
+
+        return meteoResults + climateGaps
     }
 
     private suspend fun saveHourlyForecasts(
