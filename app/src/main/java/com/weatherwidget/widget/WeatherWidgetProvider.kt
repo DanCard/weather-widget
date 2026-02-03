@@ -26,6 +26,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 class WeatherWidgetProvider : AppWidgetProvider() {
 
@@ -548,10 +549,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 40)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 40)
             
-            // Standard Android widget size formula: (size + 30) / cell_size
-            // This is more robust against device-specific padding and aligns better with launcher grids.
-            val cols = ((minWidth + 30) / CELL_WIDTH_DP).coerceAtLeast(1)
-            val rows = ((minHeight + 30) / CELL_HEIGHT_DP).coerceAtLeast(1)
+            // Standard Android widget size formula: (size + padding) / cell_size with rounding
+            // Using +15 padding and proper rounding to handle widgets that are "almost" N rows/cols
+            val cols = ((minWidth + 15).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
+            val rows = ((minHeight + 15).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
             
             Log.d(TAG, "getWidgetSize: widgetId=$appWidgetId, minWidth=$minWidth, minHeight=$minHeight -> cols=$cols, rows=$rows")
             return cols to rows
