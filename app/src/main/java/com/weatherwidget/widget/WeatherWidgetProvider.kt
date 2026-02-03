@@ -893,9 +893,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val weather = weatherByDate[dateStr]
 
-                // Skip days without data or with incomplete data
-                if (weather == null || weather.highTemp == null || weather.lowTemp == null) {
-                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - incomplete data")
+                // Skip days without any data
+                if (weather == null || (weather.highTemp == null && weather.lowTemp == null)) {
+                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - no data")
                     return@forEach
                 }
 
