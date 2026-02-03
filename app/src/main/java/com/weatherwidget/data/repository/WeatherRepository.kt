@@ -592,6 +592,7 @@ class WeatherRepository @Inject constructor(
                 locationLat = lat,
                 locationLon = lon,
                 temperature = hourly.temperature,
+                condition = openMeteoApi.weatherCodeToCondition(hourly.weatherCode),
                 source = "OPEN_METEO",
                 fetchedAt = System.currentTimeMillis()
             )
@@ -621,6 +622,7 @@ class WeatherRepository @Inject constructor(
                 locationLat = lat,
                 locationLon = lon,
                 temperature = hourly.temperature.toFloat(),
+                condition = hourly.shortForecast,
                 source = "NWS",
                 fetchedAt = System.currentTimeMillis()
             )

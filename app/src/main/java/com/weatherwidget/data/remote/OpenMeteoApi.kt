@@ -26,7 +26,7 @@ class OpenMeteoApi @Inject constructor(
             parameter("latitude", lat)
             parameter("longitude", lon)
             parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code")
-            parameter("hourly", "temperature_2m")
+            parameter("hourly", "temperature_2m,weather_code")
             parameter("current", "temperature_2m,weather_code")
             parameter("temperature_unit", "fahrenheit")
             parameter("timezone", "auto")
@@ -68,13 +68,18 @@ class OpenMeteoApi @Inject constructor(
         val hourlyTemps = hourly?.get("temperature_2m")?.jsonArray?.map {
             it.jsonPrimitive.content.toDoubleOrNull()?.toFloat()
         } ?: emptyList()
+        val hourlyCodes = hourly?.get("weather_code")?.jsonArray?.map {
+            it.jsonPrimitive.content.toIntOrNull() ?: 0
+        } ?: emptyList()
 
         val hourlyForecasts = hourlyTimes.mapIndexedNotNull { index, time ->
             val temp = hourlyTemps.getOrNull(index)
+            val code = hourlyCodes.getOrNull(index) ?: 0
             if (temp != null) {
                 HourlyForecast(
                     dateTime = time,
-                    temperature = temp
+                    temperature = temp,
+                    weatherCode = code
                 )
             } else null
         }
@@ -152,6 +157,7 @@ class OpenMeteoApi @Inject constructor(
 
     data class HourlyForecast(
         val dateTime: String,  // ISO 8601 format: "2024-01-15T14:00"
-        val temperature: Float
+        val temperature: Float,
+        val weatherCode: Int
     )
 }

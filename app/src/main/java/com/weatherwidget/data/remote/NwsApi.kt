@@ -124,6 +124,7 @@ class NwsApi @Inject constructor(
             val startTime = obj["startTime"]?.jsonPrimitive?.content ?: return@mapNotNull null
             val temperature = obj["temperature"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@mapNotNull null
             val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
+            val shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "Unknown"
 
             // Convert to Fahrenheit if needed (NWS usually returns F)
             val tempF = if (temperatureUnit == "C") {
@@ -134,7 +135,8 @@ class NwsApi @Inject constructor(
 
             HourlyForecastPeriod(
                 startTime = startTime,
-                temperature = tempF
+                temperature = tempF,
+                shortForecast = shortForecast
             )
         }
     }
@@ -163,6 +165,7 @@ class NwsApi @Inject constructor(
 
     data class HourlyForecastPeriod(
         val startTime: String,  // ISO 8601 format: "2026-02-01T10:00:00-08:00"
-        val temperature: Int    // Fahrenheit
+        val temperature: Int,   // Fahrenheit
+        val shortForecast: String
     )
 }

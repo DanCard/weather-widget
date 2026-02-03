@@ -10,6 +10,8 @@ object TemperatureGraphRenderer {
         val label: String,
         val high: Int?,
         val low: Int?,
+        val iconRes: Int? = null,
+        val isSunny: Boolean = false,
         val isToday: Boolean = false,
         val isPast: Boolean = false,            // Is this a historical day?
         val isClimateNormal: Boolean = false,   // Is this long-range climate data?
@@ -172,6 +174,15 @@ object TemperatureGraphRenderer {
 
         val dotRadius = dpToPx(context, 4f * scaleFactor)
         val forecastBarOffset = barWidth * 1.2f  // Offset for forecast bar from main bar
+        
+        // Icon paints
+        val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = PorterDuffColorFilter(Color.parseColor("#AAAAAA"), PorterDuff.Mode.SRC_IN)
+        }
+        val sunnyIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = PorterDuffColorFilter(Color.parseColor("#FFD60A"), PorterDuff.Mode.SRC_IN)
+        }
+        val iconSize = dpToPx(context, 20f * scaleFactor).toInt()
 
         // Draw each day
         days.forEachIndexed { index, day ->
@@ -179,6 +190,30 @@ object TemperatureGraphRenderer {
 
             // Draw day label at bottom (always draw this)
             canvas.drawText(day.label, centerX, heightPx - bottomPadding, textPaint)
+            
+            // Draw weather icon above day label
+            if (day.iconRes != null) {
+                val drawable = androidx.core.content.ContextCompat.getDrawable(context, day.iconRes)
+                if (drawable != null) {
+                    val iconY = heightPx - bottomPadding - dayLabelTextSize - dpToPx(context, 4f * scaleFactor) - iconSize
+                    val iconX = centerX - iconSize / 2f
+                    
+                    drawable.setBounds(
+                        iconX.toInt(), 
+                        iconY.toInt(), 
+                        (iconX + iconSize).toInt(), 
+                        (iconY + iconSize).toInt()
+                    )
+                    
+                    if (day.isSunny) {
+                        drawable.setTint(Color.parseColor("#FFD60A"))
+                    } else {
+                        drawable.setTint(Color.parseColor("#AAAAAA"))
+                    }
+                    
+                    drawable.draw(canvas)
+                }
+            }
 
             // Skip drawing bar if BOTH high and low are missing
             if (day.high == null && day.low == null) return@forEachIndexed

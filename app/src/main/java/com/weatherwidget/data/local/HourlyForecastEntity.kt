@@ -11,6 +11,7 @@ data class HourlyForecastEntity(
     val locationLat: Double,
     val locationLon: Double,
     val temperature: Float,        // Temperature in Fahrenheit
+    val condition: String,         // Weather condition (e.g., "Cloudy", "Rain")
     val source: String,            // "NWS" or "OPEN_METEO"
     val fetchedAt: Long            // When this data was fetched
 )

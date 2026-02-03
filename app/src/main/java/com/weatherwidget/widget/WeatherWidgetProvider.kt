@@ -542,6 +542,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
         const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
         private const val TAG = "WeatherWidgetProvider"
+        private const val MAX_BITMAP_PIXELS = 125_000 // Limit bitmap to ~500KB (ARGB_8888 is 4 bytes/px)
 
         private const val CELL_WIDTH_DP = 70
         private const val CELL_HEIGHT_DP = 90
@@ -558,6 +559,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             
             Log.d(TAG, "getWidgetSize: widgetId=$appWidgetId, minWidth=$minWidth, minHeight=$minHeight -> cols=$cols, rows=$rows")
             return cols to rows
+        }
+
+        private fun getOptimalBitmapSize(context: Context, widthDp: Int, heightDp: Int): Pair<Int, Int> {
+            val rawWidth = dpToPx(context, widthDp)
+            val rawHeight = dpToPx(context, heightDp)
+            val rawPixels = rawWidth * rawHeight
+            
+            return if (rawPixels > MAX_BITMAP_PIXELS) {
+                val scale = kotlin.math.sqrt(MAX_BITMAP_PIXELS.toFloat() / rawPixels)
+                val newWidth = (rawWidth * scale).toInt()
+                val newHeight = (rawHeight * scale).toInt()
+                Log.d(TAG, "getOptimalBitmapSize: Downscaling bitmap from ${rawWidth}x${rawHeight} to ${newWidth}x${newHeight} (scale=$scale)")
+                newWidth to newHeight
+            } else {
+                rawWidth to rawHeight
+            }
         }
 
         private fun dpToPx(context: Context, dp: Int): Int {
@@ -730,8 +747,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val days = buildDayDataList(centerDate, today, weatherByDate, forecastSnapshots, numColumns, accuracyMode, displaySource)
 
                 // Calculate widget size in pixels (accounting for nav arrows)
-                val widthPx = dpToPx(context, numColumns * CELL_WIDTH_DP) - dpToPx(context, 32)  // 16dp margin on each side
-                val heightPx = dpToPx(context, numRows * CELL_HEIGHT_DP)
+                val widthDp = numColumns * CELL_WIDTH_DP - 32 // 16dp margin on each side
+                val heightDp = numRows * CELL_HEIGHT_DP
+                
+                val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
                 // Render graph
                 val bitmap = TemperatureGraphRenderer.renderGraph(context, days, widthPx, heightPx)
@@ -915,11 +934,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val isPastDate = date.isBefore(today)
                 val showComparison = isPastDate && forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
+                val iconRes = WeatherIconMapper.getIconResource(weather.condition)
+                val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
+
                 days.add(
                     TemperatureGraphRenderer.DayData(
                         label = label,
                         high = weather.highTemp,
                         low = weather.lowTemp,
+                        iconRes = iconRes,
+                        isSunny = isSunny,
                         isToday = date == today,
                         isPast = isPastDate,
                         isClimateNormal = weather.isClimateNormal,
@@ -1130,8 +1154,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
 
                 // Calculate widget size in pixels
-                val widthPx = dpToPx(context, numColumns * CELL_WIDTH_DP) - dpToPx(context, 32)
-                val heightPx = dpToPx(context, numRows * CELL_HEIGHT_DP)
+                val widthDp = numColumns * CELL_WIDTH_DP - 32
+                val heightDp = numRows * CELL_HEIGHT_DP
+                
+                val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
                 // Render hourly graph
                 val bitmap = HourlyGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now)
@@ -1221,11 +1247,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         Log.d(TAG, "buildHourDataList: hour[$hourIndex] $currentHour label=${formatHourLabel(currentHour)} showLabel=$showLabel isClosest=$isClosest")
                     }
 
+                    val iconRes = WeatherIconMapper.getIconResource(forecast.condition)
+                    val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
+
                     hours.add(
                         HourlyGraphRenderer.HourData(
                             dateTime = currentHour,
                             temperature = forecast.temperature,
                             label = formatHourLabel(currentHour),
+                            iconRes = iconRes,
+                            isSunny = isSunny,
                             isCurrentHour = isClosest,
                             showLabel = showLabel
                         )

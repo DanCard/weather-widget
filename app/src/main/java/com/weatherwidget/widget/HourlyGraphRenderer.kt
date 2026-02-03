@@ -12,6 +12,8 @@ object HourlyGraphRenderer {
         val dateTime: LocalDateTime,
         val temperature: Float,
         val label: String,           // "12a", "1p", "2p"
+        val iconRes: Int? = null,
+        val isSunny: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true  // Only at intervals
     )
@@ -93,6 +95,15 @@ object HourlyGraphRenderer {
             textAlign = Paint.Align.CENTER
         }
 
+        // Icon paints
+        val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = PorterDuffColorFilter(Color.parseColor("#AAAAAA"), PorterDuff.Mode.SRC_IN)
+        }
+        val sunnyIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            colorFilter = PorterDuffColorFilter(Color.parseColor("#FFD60A"), PorterDuff.Mode.SRC_IN)
+        }
+        val iconSize = dpToPx(context, 16f * heightScaleFactor).toInt()
+
         // Draw temperature curve using smooth bezier
         val curvePath = Path()
         hours.forEachIndexed { index, hour ->
@@ -148,8 +159,33 @@ object HourlyGraphRenderer {
 
             // Draw hour label at bottom (only if showLabel is true AND not overlapping)
             if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
-                canvas.drawText(hour.label, x, heightPx - bottomPadding, hourLabelTextPaint)
+                val labelY = heightPx - bottomPadding
+                canvas.drawText(hour.label, x, labelY, hourLabelTextPaint)
                 lastHourLabelX = x
+                
+                // Draw icon above label if available
+                if (hour.iconRes != null) {
+                    val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
+                    if (drawable != null) {
+                        val iconY = labelY - dpToPx(context, 20f * heightScaleFactor) - iconSize
+                        val iconX = x - iconSize / 2f
+                        
+                        drawable.setBounds(
+                            iconX.toInt(),
+                            iconY.toInt(),
+                            (iconX + iconSize).toInt(),
+                            (iconY + iconSize).toInt()
+                        )
+                        
+                        if (hour.isSunny) {
+                            drawable.setTint(Color.parseColor("#FFD60A"))
+                        } else {
+                            drawable.setTint(Color.parseColor("#AAAAAA"))
+                        }
+                        
+                        drawable.draw(canvas)
+                    }
+                }
             }
         }
 
