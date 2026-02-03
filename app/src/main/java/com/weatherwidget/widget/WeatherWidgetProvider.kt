@@ -709,13 +709,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Set up API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)
 
-            // Filter out incomplete future dates (lowTemp=-9999 means no night forecast yet)
+            // Filter out incomplete future dates (lowTemp=0 means no night forecast yet)
             val availableDates = weatherByDate.filter { (dateStr, weather) ->
                 val date = LocalDate.parse(dateStr)
                 val isFutureDate = !date.isBefore(today)
-                // Filter if missing low temp (sentinel -9999) or if old data (0) and we suspect it's invalid?
-                // For now, just check sentinel. If DB has old 0s, they will show up.
-                !(isFutureDate && weather.lowTemp == -9999)
+                !(isFutureDate && weather.lowTemp == 0)
             }.keys
 
             // Set up navigation click handlers with available dates and widget width
