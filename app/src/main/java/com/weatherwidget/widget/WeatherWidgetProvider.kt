@@ -709,8 +709,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Setup API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)
 
-            // Get available dates (don't filter incomplete ones, as we handle nulls now)
-            val availableDates = weatherByDate.keys
+            // Get available dates (filter out incomplete ones with null temps)
+            val availableDates = weatherByDate.filter { (_, weather) ->
+                weather.highTemp != null && weather.lowTemp != null
+            }.keys
 
             // Set up navigation click handlers with available dates and widget width
             setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns)
@@ -889,9 +891,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val weather = weatherByDate[dateStr]
 
-                // Skip days without data
-                if (weather == null) {
-                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - no data available")
+                // Skip days without data or with incomplete data
+                if (weather == null || weather.highTemp == null || weather.lowTemp == null) {
+                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - incomplete data")
                     return@forEach
                 }
 
@@ -951,9 +953,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day6Str = day6Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-            // Check data availability for each day
+            // Check data availability for each day (must have both high and low)
             fun hasCompleteData(date: LocalDate, dateStr: String): Boolean {
-                return weatherByDate[dateStr] != null
+                val weather = weatherByDate[dateStr] ?: return false
+                return weather.highTemp != null && weather.lowTemp != null
             }
 
             val hasDay1 = hasCompleteData(day1Date, day1Str)
