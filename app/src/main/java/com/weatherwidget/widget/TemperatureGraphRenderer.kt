@@ -34,9 +34,10 @@ object TemperatureGraphRenderer {
 
         // Find temperature range for scaling (ignore nulls)
         val allTemps = days.flatMap { listOfNotNull(it.high, it.low) }
-        val minTemp = (allTemps.minOrNull() ?: 0) - 5
-        val maxTemp = (allTemps.maxOrNull() ?: 100) + 5
-        val tempRange = (maxTemp - minTemp).coerceAtLeast(1)
+        // Remove buffer so the lowest temp hits the bottom exactly
+        val minTemp = (allTemps.minOrNull() ?: 0).toFloat()
+        val maxTemp = (allTemps.maxOrNull() ?: 100).toFloat()
+        val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
         // Scale factor based on widget dimensions
         val density = context.resources.displayMetrics.density
@@ -46,31 +47,49 @@ object TemperatureGraphRenderer {
         // Width-based scale factor: ensure day labels fit (base ~70dp per day)
         val baseDayWidthDp = 70f
         val dayWidthDp = widthDp / days.size
-        val widthScaleFactor = (dayWidthDp / baseDayWidthDp).coerceIn(1.0f, 1.8f)
+        val widthScaleFactor = (dayWidthDp / baseDayWidthDp).coerceIn(1.0f, 1.2f) // Cap at 1.2x
 
         // Height-based scale factor: scale fonts up with widget height
-        // Base height ~136dp (2 rows), scale up 10% per additional row
+        // Base height ~136dp (2 rows), scale up slightly
         val baseHeightDp = 136f  // 2-row widget height
         val heightScaleFactor = when {
             heightDp < 150f -> 1.0f      // 2 rows or less: baseline
-            heightDp < 250f -> 1.1f      // 3 rows: 10% bigger
-            else -> 1.2f                  // 4+ rows: 20% bigger
+            heightDp < 250f -> 1.0f      // 3 rows: keep baseline
+            else -> 1.05f                 // 4+ rows: only 5% bigger
         }
 
         // Combined scale factor for layout elements
         val scaleFactor = widthScaleFactor
 
         // Layout constants (scaled)
-        val horizontalPadding = dpToPx(context, -8f * scaleFactor)  // Slight negative for more space
-        val topPadding = dpToPx(context, 20f * scaleFactor)  // Room for API source indicator
-        val bottomPadding = dpToPx(context, 2f * scaleFactor)  // Minimal bottom padding
-        val labelHeight = dpToPx(context, 24f * scaleFactor)
+        val horizontalPadding = dpToPx(context, 0f)  // Maximize width (was 4f)
+        val topPadding = dpToPx(context, 16f * scaleFactor)
+        val bottomPadding = dpToPx(context, 0f) // No bottom padding
+        
+        // Scale text sizes with widget height
+        val baseDayLabelSize = 9.5f
+        val baseTempLabelSize = 8.5f
+        
+        // Icon size fixed to 8dp (Tiny)
+        val iconSizeDp = 8f
+        val iconSize = dpToPx(context, iconSizeDp).toInt()
+
+        // Calculate layout height components
+        val dayLabelHeight = dpToPx(context, baseDayLabelSize * heightScaleFactor)
+        val tempLabelHeight = dpToPx(context, baseTempLabelSize * heightScaleFactor)
+        
+        // Stack Height: Low Temp Label + Icon + Padding (Space attached to the BAR)
+        // Added 4dp padding (2dp bar-to-icon + 2dp icon-to-text) for breathing room
+        val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, 4f)
+
+        // Graph area calculations
         val graphTop = topPadding
-        val graphBottom = heightPx - labelHeight - bottomPadding
+        // Reserve minimal space - overlap logic handled in drawing
+        val graphBottom = heightPx - dayLabelHeight - attachedStackHeight
         val graphHeight = graphBottom - graphTop
 
         val dayWidth = (widthPx - 2 * horizontalPadding) / days.size
-        val barWidth = dpToPx(context, 6f * scaleFactor)
+        val barWidth = dpToPx(context, 2.2f * scaleFactor) // Even thinner bars (was 3f)
         val capHeight = dpToPx(context, 2f * scaleFactor)
 
         // Paints
@@ -86,10 +105,10 @@ object TemperatureGraphRenderer {
             strokeCap = Paint.Cap.ROUND
         }
 
-        // History bar - yellow for actual past temperatures
+        // History bar - slight bold
         val historyBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFD60A")  // Yellow for past days (actual)
-            strokeWidth = barWidth
+            strokeWidth = barWidth * 1.1f // Slightly bold (was 1.8x)
             strokeCap = Paint.Cap.ROUND
         }
 
@@ -107,7 +126,7 @@ object TemperatureGraphRenderer {
 
         val historyCapPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFD60A")  // Yellow caps for history
-            strokeWidth = barWidth + dpToPx(context, 4f * scaleFactor)
+            strokeWidth = (barWidth * 1.1f) + dpToPx(context, 4f * scaleFactor)
             strokeCap = Paint.Cap.BUTT
         }
 
@@ -124,9 +143,6 @@ object TemperatureGraphRenderer {
             strokeCap = Paint.Cap.BUTT
         }
 
-        // Scale text sizes with widget height
-        val baseDayLabelSize = 11f
-        val baseTempLabelSize = 10f
         val dayLabelTextSize = dpToPx(context, baseDayLabelSize * heightScaleFactor)
         val tempLabelTextSize = dpToPx(context, baseTempLabelSize * heightScaleFactor)
 
@@ -155,14 +171,14 @@ object TemperatureGraphRenderer {
 
         val forecastTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#888888")
-            textSize = dpToPx(context, 10f * scaleFactor)
+            textSize = dpToPx(context, 8.5f * scaleFactor)
             textAlign = Paint.Align.CENTER
         }
 
         // Forecast bar paint (blue line showing what was predicted for past days)
         val forecastBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#5AC8FA")  // Blue for forecast comparison
-            strokeWidth = barWidth * 0.5f  // Thinner than actual bar
+            strokeWidth = barWidth * 0.8f  // More visible (was 0.5f)
             strokeCap = Paint.Cap.ROUND
         }
 
@@ -182,49 +198,188 @@ object TemperatureGraphRenderer {
         val sunnyIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             colorFilter = PorterDuffColorFilter(Color.parseColor("#FFD60A"), PorterDuff.Mode.SRC_IN)
         }
-        val iconSize = dpToPx(context, 20f * scaleFactor).toInt()
-
+        
         // Draw each day
         days.forEachIndexed { index, day ->
             val centerX = horizontalPadding + dayWidth * index + dayWidth / 2
 
-            // Draw day label at bottom (always draw this)
-            canvas.drawText(day.label, centerX, heightPx - bottomPadding, textPaint)
+                        // 1. Draw Day Label (Fixed at absolute Bottom)
+
+                        val dayLabelY = heightPx.toFloat()
+
+                        canvas.drawText(day.label, centerX, dayLabelY, textPaint)
+
             
-            // Draw weather icon at extreme top
-            if (day.iconRes != null) {
-                val drawable = androidx.core.content.ContextCompat.getDrawable(context, day.iconRes)
-                if (drawable != null) {
-                    // Move icon to extreme top row
-                    val iconY = dpToPx(context, 2f)
-                    val iconX = centerX - iconSize / 2f
 
-                    // Collision detection constants
-                    val leftExclusionWidth = dpToPx(context, 100f) // Current Temp area
-                    val rightExclusionWidth = dpToPx(context, 50f) // API Source area
-                    val rightExclusionStart = widthPx - rightExclusionWidth
+                        // Calculate Y positions first
 
-                    val overlapsLeft = iconX < leftExclusionWidth
-                    val overlapsRight = (iconX + iconSize) > rightExclusionStart
+                        val highY = day.high?.let {
 
-                    if (!overlapsLeft && !overlapsRight) {
-                        drawable.setBounds(
-                            iconX.toInt(),
-                            iconY.toInt(),
-                            (iconX + iconSize).toInt(),
-                            (iconY + iconSize).toInt()
-                        )
+                            graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
 
-                        if (day.isSunny) {
-                            drawable.setTint(Color.parseColor("#FFD60A"))
-                        } else {
-                            drawable.setTint(Color.parseColor("#AAAAAA"))
                         }
 
-                        drawable.draw(canvas)
-                    }
-                }
-            }
+                        val lowY = day.low?.let {
+
+                            graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+
+                        }
+
+            
+
+                                    // 2. Draw attached elements with overlap
+
+            
+
+                                    if (lowY != null) {
+
+            
+
+                                        // Icon sits immediately below the bar (2dp padding for breathing room)
+
+            
+
+                                        val iconY = lowY + dpToPx(context, 2f)
+
+            
+
+                                        
+
+            
+
+                                        // Draw Icon
+
+            
+
+                                        if (day.iconRes != null) {
+
+            
+
+                                            val drawable = androidx.core.content.ContextCompat.getDrawable(context, day.iconRes)
+
+            
+
+                                            if (drawable != null) {
+
+            
+
+                                                val iconX = centerX - iconSize / 2f
+
+            
+
+                                                drawable.setBounds(
+
+            
+
+                                                    iconX.toInt(),
+
+            
+
+                                                    iconY.toInt(),
+
+            
+
+                                                    (iconX + iconSize).toInt(),
+
+            
+
+                                                    (iconY + iconSize).toInt()
+
+            
+
+                                                )
+
+            
+
+                                                
+
+            
+
+                                                if (day.isSunny) {
+
+            
+
+                                                    drawable.setTint(Color.parseColor("#FFD60A"))
+
+            
+
+                                                } else {
+
+            
+
+                                                    drawable.setTint(Color.parseColor("#AAAAAA"))
+
+            
+
+                                                }
+
+            
+
+                                                drawable.draw(canvas)
+
+            
+
+                                            }
+
+            
+
+                                        }
+
+            
+
+                        
+
+            
+
+                                        // Low Temp Label sits below the Icon
+
+            
+
+                                        // 2dp padding for breathing room (reversing the previous overlap)
+
+            
+
+                                        val lowTempY = iconY + iconSize + tempLabelHeight + dpToPx(context, 2f) 
+
+            
+
+                                        
+
+            
+
+                                        // Draw Low Temp Label
+
+            
+
+                                        if (day.low != null) {
+
+            
+
+                                            val lowLabel = formatTempWithForecast(
+
+            
+
+                                                day.low, day.forecastLow, day.forecastSource, day.accuracyMode
+
+            
+
+                                            )
+
+            
+
+                                            canvas.drawText(lowLabel, centerX, lowTempY, tempTextPaint)
+
+            
+
+                                        }
+
+            
+
+                                    } else {
+
+                            // Fallback
+
+                        }
 
             // Skip drawing bar if BOTH high and low are missing
             if (day.high == null && day.low == null) return@forEachIndexed
@@ -243,26 +398,17 @@ object TemperatureGraphRenderer {
                 else -> capPaint
             }
 
-            // Calculate Y positions (if values exist)
-            val highY = day.high?.let {
-                graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
-            }
-            val lowY = day.low?.let {
-                graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
-            }
-
             // Draw based on available data
             if (highY != null && lowY != null) {
-                // Full data: draw vertical bar and both caps
+                // Full data: draw vertical bar (no caps as requested)
                 canvas.drawLine(centerX, highY, centerX, lowY, paint)
-                canvas.drawLine(centerX - capHeight, highY, centerX + capHeight, highY, cap)
-                canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
             } else if (highY != null) {
-                // Only high temp: draw top cap only
-                canvas.drawLine(centerX - capHeight, highY, centerX + capHeight, highY, cap)
+                // Only high temp: draw point/small segment? 
+                // Using a 1-pixel line to mark the spot if no range exists
+                canvas.drawLine(centerX, highY, centerX, highY, paint)
             } else if (lowY != null) {
-                // Only low temp: draw bottom cap only
-                canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
+                // Only low temp
+                canvas.drawLine(centerX, lowY, centerX, lowY, paint)
             }
 
             // Draw forecast bar (only if full data available for comparison)
@@ -272,13 +418,8 @@ object TemperatureGraphRenderer {
                 val forecastLowY = graphTop + graphHeight * (1 - (day.forecastLow - minTemp).toFloat() / tempRange)
                 val forecastX = centerX + forecastBarOffset
 
-                // Draw the forecast bar
+                // Draw the forecast bar (simple vertical line)
                 canvas.drawLine(forecastX, forecastHighY, forecastX, forecastLowY, forecastBarPaint)
-
-                // Draw forecast caps
-                val forecastCapSize = capHeight * 0.6f
-                canvas.drawLine(forecastX - forecastCapSize, forecastHighY, forecastX + forecastCapSize, forecastHighY, forecastCapPaint)
-                canvas.drawLine(forecastX - forecastCapSize, forecastLowY, forecastX + forecastCapSize, forecastLowY, forecastCapPaint)
             }
 
             // Draw high label if available
@@ -289,16 +430,6 @@ object TemperatureGraphRenderer {
                 // If we have a Y position, use it. Otherwise (shouldn't happen here), skip.
                 highY?.let { y ->
                     canvas.drawText(highLabel, centerX, y - dpToPx(context, 6f * scaleFactor), tempTextPaint)
-                }
-            }
-
-            // Draw low label if available
-            if (day.low != null) {
-                val lowLabel = formatTempWithForecast(
-                    day.low, day.forecastLow, day.forecastSource, day.accuracyMode
-                )
-                lowY?.let { y ->
-                    canvas.drawText(lowLabel, centerX, y + dpToPx(context, 22f * scaleFactor), tempTextPaint)
                 }
             }
 

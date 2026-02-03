@@ -32,8 +32,9 @@ object HourlyGraphRenderer {
 
         // Find temperature range for scaling
         val allTemps = hours.map { it.temperature }
-        val minTemp = (allTemps.minOrNull() ?: 0f) - 5f
-        val maxTemp = (allTemps.maxOrNull() ?: 100f) + 5f
+        // Remove buffer so the curve hits the edges exactly
+        val minTemp = (allTemps.minOrNull() ?: 0f)
+        val maxTemp = (allTemps.maxOrNull() ?: 100f)
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
         // Scale factor based on widget dimensions
@@ -41,21 +42,31 @@ object HourlyGraphRenderer {
         val widthDp = widthPx / density
         val heightDp = heightPx / density
 
-        // Height-based scale factor
+        // Height-based scale factor - kept conservative to prevent huge fonts
         val baseHeightDp = 136f  // 2-row widget height
         val heightScaleFactor = when {
             heightDp < 150f -> 1.0f      // 2 rows or less: baseline
-            heightDp < 250f -> 1.1f      // 3 rows: 10% bigger
-            else -> 1.2f                  // 4+ rows: 20% bigger
+            heightDp < 250f -> 1.0f      // 3 rows: keep baseline
+            else -> 1.05f                 // 4+ rows: only 5% bigger
         }
 
         // Layout constants
-        val horizontalPadding = dpToPx(context, 8f)
-        val topPadding = dpToPx(context, 20f)
-        val bottomPadding = dpToPx(context, 2f)
-        val labelHeight = dpToPx(context, 24f * heightScaleFactor)
+        // Layout constants
+        val horizontalPadding = dpToPx(context, 0f) // Full width (was 4f)
+        val topPadding = dpToPx(context, 16f) 
+        val bottomPadding = dpToPx(context, 0f) // Zero bottom padding
+        
+        // Icon size fixed to 8dp
+        val iconSizeDp = 8f
+        val iconSize = dpToPx(context, iconSizeDp).toInt()
+
+        // Calculate layout height components
+        val labelHeight = dpToPx(context, 9f * heightScaleFactor) // Height of text (Reduced to 9f)
+        
         val graphTop = topPadding
-        val graphBottom = heightPx - labelHeight - bottomPadding
+        // Bottom reserved area: Text Label + Icon + Padding
+        // Added 4dp padding for breathing room
+        val graphBottom = heightPx - labelHeight - iconSize - dpToPx(context, 4f)
         val graphHeight = graphBottom - graphTop
 
         // Calculate hour spacing
@@ -64,7 +75,7 @@ object HourlyGraphRenderer {
         // Paints
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#5AC8FA")
-            strokeWidth = dpToPx(context, 3f * heightScaleFactor)
+            strokeWidth = dpToPx(context, 2f) // Thinner stroke (was 3f)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
@@ -79,19 +90,19 @@ object HourlyGraphRenderer {
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
-            textSize = dpToPx(context, 12f * heightScaleFactor)
+            textSize = dpToPx(context, 9f * heightScaleFactor) // Smaller (Reduced to 9f)
             textAlign = Paint.Align.CENTER
         }
 
         val tempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 12f * heightScaleFactor)
+            textSize = dpToPx(context, 9f * heightScaleFactor) // Smaller (Reduced to 9f)
             textAlign = Paint.Align.CENTER
         }
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF9F0A")
-            textSize = dpToPx(context, 10f * heightScaleFactor)
+            textSize = dpToPx(context, 8.5f * heightScaleFactor) // Smaller
             textAlign = Paint.Align.CENTER
         }
 
@@ -102,8 +113,7 @@ object HourlyGraphRenderer {
         val sunnyIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             colorFilter = PorterDuffColorFilter(Color.parseColor("#FFD60A"), PorterDuff.Mode.SRC_IN)
         }
-        val iconSize = dpToPx(context, 16f * heightScaleFactor).toInt()
-
+        
         // Draw temperature curve using smooth bezier
         val curvePath = Path()
         hours.forEachIndexed { index, hour ->
@@ -127,7 +137,8 @@ object HourlyGraphRenderer {
         var lastTempLabelX = -1000f
         var lastHourLabelX = -1000f
         val minTempLabelSpacing = dpToPx(context, 40f)  // Minimum spacing between temp labels
-        val minHourLabelSpacing = dpToPx(context, 28f)  // Minimum spacing between hour labels
+        val minHourLabelSpacing = dpToPx(context, 18f)  // Reduced (was 22f) to ensure dense labels fit
+
 
         hours.forEachIndexed { index, hour ->
             val x = horizontalPadding + hourWidth * index + hourWidth / 2
@@ -159,7 +170,7 @@ object HourlyGraphRenderer {
 
             // Draw hour label at bottom (only if showLabel is true AND not overlapping)
             if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
-                val labelY = heightPx - bottomPadding
+                val labelY = heightPx.toFloat() // Absolute bottom
                 canvas.drawText(hour.label, x, labelY, hourLabelTextPaint)
                 lastHourLabelX = x
                 
@@ -167,35 +178,24 @@ object HourlyGraphRenderer {
                 if (hour.iconRes != null) {
                     val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
                     if (drawable != null) {
-                        // Move icon to extreme top row
-                        val iconY = dpToPx(context, 2f)
+                        // Position: Restore 2dp gap above the label
+                        val iconY = heightPx - labelHeight - iconSize - dpToPx(context, 2f) 
                         val iconX = x - iconSize / 2f
                         
-                        // Collision detection constants (approximate based on layout)
-                        val leftExclusionWidth = dpToPx(context, 100f) // Current Temp area
-                        val rightExclusionWidth = dpToPx(context, 50f) // API Source area
-                        val rightExclusionStart = widthPx - rightExclusionWidth
-
-                        val overlapsLeft = iconX < leftExclusionWidth
-                        val overlapsRight = (iconX + iconSize) > rightExclusionStart
-
-                        // Only draw if not overlapping with critical UI elements
-                        if (!overlapsLeft && !overlapsRight) {
-                            drawable.setBounds(
-                                iconX.toInt(),
-                                iconY.toInt(),
-                                (iconX + iconSize).toInt(),
-                                (iconY + iconSize).toInt()
-                            )
-                            
-                            if (hour.isSunny) {
-                                drawable.setTint(Color.parseColor("#FFD60A"))
-                            } else {
-                                drawable.setTint(Color.parseColor("#AAAAAA"))
-                            }
-                            
-                            drawable.draw(canvas)
+                        drawable.setBounds(
+                            iconX.toInt(),
+                            iconY.toInt(),
+                            (iconX + iconSize).toInt(),
+                            (iconY + iconSize).toInt()
+                        )
+                        
+                        if (hour.isSunny) {
+                            drawable.setTint(Color.parseColor("#FFD60A"))
+                        } else {
+                            drawable.setTint(Color.parseColor("#AAAAAA"))
                         }
+                        
+                        drawable.draw(canvas)
                     }
                 }
             }

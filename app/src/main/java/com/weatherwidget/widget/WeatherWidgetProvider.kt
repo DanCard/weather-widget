@@ -1074,6 +1074,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Set weather icon
             val iconRes = WeatherIconMapper.getIconResource(weather?.condition)
             views.setImageViewResource(iconId, iconRes)
+            
+            // Apply tint based on condition (Yellow for sunny, Grey for others)
+            val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
+            val tintColor = if (isSunny) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#AAAAAA")
+            views.setInt(iconId, "setColorFilter", tintColor)
+            
             views.setViewVisibility(iconId, View.VISIBLE)
             
             views.setTextViewText(highId, weather?.highTemp?.let { "${it}°" } ?: "--°")
@@ -1217,11 +1223,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val endHour = alignedCenter.plusHours(16)
 
             // Determine label frequency based on widget size
-            // For 24 hours displayed, aim for ~4-6 visible labels to avoid overlap
+            // For 24 hours displayed, aim for ~8-12 visible labels to avoid overlap
             val labelInterval = when {
-                numColumns >= 7 -> 3  // Every 3 hours (8 labels)
-                numColumns >= 5 -> 4  // Every 4 hours (6 labels)
-                else -> 6              // Every 6 hours (4 labels)
+                numColumns >= 3 -> 2  // Every 2 hours (12 labels) - Increased density
+                else -> 3             // Every 3 hours (8 labels)
             }
 
             var currentHour = startHour
