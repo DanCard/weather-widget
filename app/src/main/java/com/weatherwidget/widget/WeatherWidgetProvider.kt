@@ -706,15 +706,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.current_temp, View.GONE)
             }
 
-            // Set up API source toggle click handler
+            // Setup API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)
 
-            // Filter out incomplete future dates (lowTemp=0 means no night forecast yet)
-            val availableDates = weatherByDate.filter { (dateStr, weather) ->
-                val date = LocalDate.parse(dateStr)
-                val isFutureDate = !date.isBefore(today)
-                !(isFutureDate && weather.lowTemp == 0)
-            }.keys
+            // Get available dates (don't filter incomplete ones, as we handle nulls now)
+            val availableDates = weatherByDate.keys
 
             // Set up navigation click handlers with available dates and widget width
             setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns)
@@ -899,13 +895,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     return@forEach
                 }
 
-                // Skip future days with incomplete data (lowTemp=0 means NWS hasn't published night forecast yet)
-                val isFutureDate = !date.isBefore(today)
-                if (isFutureDate && weather.lowTemp == 0) {
-                    Log.d(TAG, "buildDayDataList: Skipping $dateStr - incomplete forecast (low=0)")
-                    return@forEach
-                }
-
                 val forecasts = forecastSnapshots[dateStr] ?: emptyList()
                 Log.d(TAG, "buildDayDataList: Including $dateStr, high=${weather.highTemp}, low=${weather.lowTemp}, forecasts=${forecasts.size}")
 
@@ -962,11 +951,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val day6Str = day6Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-            // Check data availability for each day (exclude incomplete future dates with lowTemp=0)
+            // Check data availability for each day
             fun hasCompleteData(date: LocalDate, dateStr: String): Boolean {
-                val weather = weatherByDate[dateStr] ?: return false
-                val isFutureDate = !date.isBefore(today)
-                return !(isFutureDate && weather.lowTemp == 0)
+                return weatherByDate[dateStr] != null
             }
 
             val hasDay1 = hasCompleteData(day1Date, day1Str)
@@ -1059,8 +1046,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setImageViewResource(iconId, iconRes)
             views.setViewVisibility(iconId, View.VISIBLE)
             
-            views.setTextViewText(highId, weather?.let { "${it.highTemp}°" } ?: "--°")
-            views.setTextViewText(lowId, weather?.let { "${it.lowTemp}°" } ?: "--°")
+            views.setTextViewText(highId, weather?.highTemp?.let { "${it}°" } ?: "--°")
+            views.setTextViewText(lowId, weather?.lowTemp?.let { "${it}°" } ?: "--°")
         }
 
         private fun updateWidgetWithHourlyData(

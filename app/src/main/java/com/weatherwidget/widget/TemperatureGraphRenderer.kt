@@ -8,8 +8,8 @@ object TemperatureGraphRenderer {
 
     data class DayData(
         val label: String,
-        val high: Int,
-        val low: Int,
+        val high: Int?,
+        val low: Int?,
         val isToday: Boolean = false,
         val isPast: Boolean = false,            // Is this a historical day?
         val forecastHigh: Int? = null,          // Single forecast
@@ -29,8 +29,8 @@ object TemperatureGraphRenderer {
 
         if (days.isEmpty()) return bitmap
 
-        // Find temperature range for scaling
-        val allTemps = days.flatMap { listOf(it.high, it.low) }
+        // Find temperature range for scaling (ignore nulls)
+        val allTemps = days.flatMap { listOfNotNull(it.high, it.low) }
         val minTemp = (allTemps.minOrNull() ?: 0) - 5
         val maxTemp = (allTemps.maxOrNull() ?: 100) + 5
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1)
@@ -163,6 +163,12 @@ object TemperatureGraphRenderer {
         days.forEachIndexed { index, day ->
             val centerX = horizontalPadding + dayWidth * index + dayWidth / 2
 
+            // Draw day label at bottom (always draw this)
+            canvas.drawText(day.label, centerX, heightPx - bottomPadding, textPaint)
+
+            // Skip drawing bar if data is missing
+            if (day.high == null || day.low == null) return@forEachIndexed
+
             // Calculate Y positions (inverted - higher temp = lower Y)
             val highY = graphTop + graphHeight * (1 - (day.high - minTemp).toFloat() / tempRange)
             val lowY = graphTop + graphHeight * (1 - (day.low - minTemp).toFloat() / tempRange)
@@ -213,7 +219,7 @@ object TemperatureGraphRenderer {
             canvas.drawText(lowLabel, centerX, lowY + dpToPx(context, 22f * scaleFactor), tempTextPaint)
 
             // Draw single accuracy dot if applicable
-            if (day.accuracyMode == AccuracyDisplayMode.ACCURACY_DOT && day.forecastHigh != null) {
+            if (day.accuracyMode == AccuracyDisplayMode.ACCURACY_DOT && day.forecastHigh != null && day.high != null) {
                 val highDiff = kotlin.math.abs(day.high - day.forecastHigh)
                 val dotPaint = when {
                     highDiff <= 2 -> accuracyGreenPaint
@@ -227,9 +233,6 @@ object TemperatureGraphRenderer {
                     dotPaint
                 )
             }
-
-            // Draw day label at bottom
-            canvas.drawText(day.label, centerX, heightPx - bottomPadding, textPaint)
         }
 
         return bitmap
