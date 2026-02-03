@@ -225,33 +225,36 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val today = java.time.LocalDate.now()
         val currentCenterDate = today.plusDays(currentOffset.toLong())
 
-        // Filter out incomplete future dates (lowTemp=0 means no night forecast yet)
+        // Get actual widget size to determine navigation bounds
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val (numColumns, _) = getWidgetSize(context, appWidgetManager, appWidgetId)
+
+        // Calculate maxOffset based on widget width (matching setupNavigationButtons logic)
+        val maxOffset = when {
+            numColumns <= 1 -> 0
+            numColumns == 2 -> 1
+            else -> numColumns - 2
+        }
+        val minOffset = if (numColumns <= 2) 0 else -1
+
+        // Filter for any dates that have at least some data (high OR low)
         val availableDates = weatherByDate.filter { (dateStr, weather) ->
-            val date = java.time.LocalDate.parse(dateStr)
-            val isFutureDate = !date.isBefore(today)
-            !(isFutureDate && weather.lowTemp == 0)
+            weather.highTemp != null || weather.lowTemp != null
         }.keys.map { java.time.LocalDate.parse(it) }.sorted()
 
         val minDate = availableDates.firstOrNull()
         val maxDate = availableDates.lastOrNull()
 
-        // Use conservative maxOffset = 3 (covers widgets up to 5 columns)
-        // This prevents navigation that would result in lost columns
-        val maxOffset = 3
-        val minOffset = -1
-
-        // Check if navigation would reveal new data for ALL visible columns
+        // Check if navigation would reveal new data for the rightmost/leftmost column
         val canNavigate = if (isLeft) {
-            // Can go left if there's data for the new leftmost day
             val newLeftmost = currentCenterDate.minusDays(1).plusDays(minOffset.toLong())
             minDate != null && !minDate.isAfter(newLeftmost)
         } else {
-            // Can go right if there's data for the new rightmost day
             val newRightmost = currentCenterDate.plusDays(1).plusDays(maxOffset.toLong())
             maxDate != null && !maxDate.isBefore(newRightmost)
         }
 
-        Log.d(TAG, "handleDailyNavigationDirect: center=$currentCenterDate, minDate=$minDate, maxDate=$maxDate, canNavigate=$canNavigate")
+        Log.d(TAG, "handleDailyNavigationDirect: widgetId=$appWidgetId, cols=$numColumns, center=$currentCenterDate, maxOffset=$maxOffset, maxDate=$maxDate, canNavigate=$canNavigate")
 
         if (!canNavigate) {
             Log.d(TAG, "handleDailyNavigationDirect: No more $displaySource data to ${if (isLeft) "left" else "right"}")
@@ -281,7 +284,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val todayCondition = filteredWeatherList.find { it.date == todayStr }?.condition
 
         // Update widget directly
-        val appWidgetManager = AppWidgetManager.getInstance(context)
         updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, todayCondition)
     }
 
@@ -709,9 +711,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Setup API source toggle click handler
             setupApiToggle(context, views, appWidgetId, numRows)
 
-            // Get available dates (filter out incomplete ones with null temps)
+            // Get available dates (allow partial data: high OR low)
             val availableDates = weatherByDate.filter { (_, weather) ->
-                weather.highTemp != null && weather.lowTemp != null
+                weather.highTemp != null || weather.lowTemp != null
             }.keys
 
             // Set up navigation click handlers with available dates and widget width

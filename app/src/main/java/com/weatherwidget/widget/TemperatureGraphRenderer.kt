@@ -166,13 +166,10 @@ object TemperatureGraphRenderer {
             // Draw day label at bottom (always draw this)
             canvas.drawText(day.label, centerX, heightPx - bottomPadding, textPaint)
 
-            // Skip drawing bar if data is missing
-            if (day.high == null || day.low == null) return@forEachIndexed
+            // Skip drawing bar if BOTH high and low are missing
+            if (day.high == null && day.low == null) return@forEachIndexed
 
-            // Calculate Y positions (inverted - higher temp = lower Y)
-            val highY = graphTop + graphHeight * (1 - (day.high - minTemp).toFloat() / tempRange)
-            val lowY = graphTop + graphHeight * (1 - (day.low - minTemp).toFloat() / tempRange)
-
+            // Determine paint style
             val paint = when {
                 day.isToday -> todayBarPaint
                 day.isPast -> historyBarPaint
@@ -184,14 +181,29 @@ object TemperatureGraphRenderer {
                 else -> capPaint
             }
 
-            // Draw vertical bar (the "error bar" stem)
-            canvas.drawLine(centerX, highY, centerX, lowY, paint)
+            // Calculate Y positions (if values exist)
+            val highY = day.high?.let {
+                graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+            }
+            val lowY = day.low?.let {
+                graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+            }
 
-            // Draw caps (horizontal lines at top and bottom)
-            canvas.drawLine(centerX - capHeight, highY, centerX + capHeight, highY, cap)
-            canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
+            // Draw based on available data
+            if (highY != null && lowY != null) {
+                // Full data: draw vertical bar and both caps
+                canvas.drawLine(centerX, highY, centerX, lowY, paint)
+                canvas.drawLine(centerX - capHeight, highY, centerX + capHeight, highY, cap)
+                canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
+            } else if (highY != null) {
+                // Only high temp: draw top cap only
+                canvas.drawLine(centerX - capHeight, highY, centerX + capHeight, highY, cap)
+            } else if (lowY != null) {
+                // Only low temp: draw bottom cap only
+                canvas.drawLine(centerX - capHeight, lowY, centerX + capHeight, lowY, cap)
+            }
 
-            // Draw forecast bar (yellow line showing what was predicted) for historical days
+            // Draw forecast bar (only if full data available for comparison)
             if (day.accuracyMode == AccuracyDisplayMode.FORECAST_BAR &&
                 day.forecastHigh != null && day.forecastLow != null) {
                 val forecastHighY = graphTop + graphHeight * (1 - (day.forecastHigh - minTemp).toFloat() / tempRange)
@@ -207,18 +219,28 @@ object TemperatureGraphRenderer {
                 canvas.drawLine(forecastX - forecastCapSize, forecastLowY, forecastX + forecastCapSize, forecastLowY, forecastCapPaint)
             }
 
-            // Draw high/low labels with forecast comparison
-            val highLabel = formatTempWithForecast(
-                day.high, day.forecastHigh, day.forecastSource, day.accuracyMode
-            )
-            val lowLabel = formatTempWithForecast(
-                day.low, day.forecastLow, day.forecastSource, day.accuracyMode
-            )
+            // Draw high label if available
+            if (day.high != null) {
+                val highLabel = formatTempWithForecast(
+                    day.high, day.forecastHigh, day.forecastSource, day.accuracyMode
+                )
+                // If we have a Y position, use it. Otherwise (shouldn't happen here), skip.
+                highY?.let { y ->
+                    canvas.drawText(highLabel, centerX, y - dpToPx(context, 6f * scaleFactor), tempTextPaint)
+                }
+            }
 
-            canvas.drawText(highLabel, centerX, highY - dpToPx(context, 6f * scaleFactor), tempTextPaint)
-            canvas.drawText(lowLabel, centerX, lowY + dpToPx(context, 22f * scaleFactor), tempTextPaint)
+            // Draw low label if available
+            if (day.low != null) {
+                val lowLabel = formatTempWithForecast(
+                    day.low, day.forecastLow, day.forecastSource, day.accuracyMode
+                )
+                lowY?.let { y ->
+                    canvas.drawText(lowLabel, centerX, y + dpToPx(context, 22f * scaleFactor), tempTextPaint)
+                }
+            }
 
-            // Draw single accuracy dot if applicable
+            // Draw single accuracy dot if applicable (requires high temp)
             if (day.accuracyMode == AccuracyDisplayMode.ACCURACY_DOT && day.forecastHigh != null && day.high != null) {
                 val highDiff = kotlin.math.abs(day.high - day.forecastHigh)
                 val dotPaint = when {
@@ -226,12 +248,14 @@ object TemperatureGraphRenderer {
                     highDiff <= 5 -> accuracyYellowPaint
                     else -> accuracyRedPaint
                 }
-                canvas.drawCircle(
-                    centerX + dpToPx(context, 20f * scaleFactor),
-                    highY - dpToPx(context, 6f * scaleFactor) - dotRadius,
-                    dotRadius,
-                    dotPaint
-                )
+                highY?.let { y ->
+                    canvas.drawCircle(
+                        centerX + dpToPx(context, 20f * scaleFactor),
+                        y - dpToPx(context, 6f * scaleFactor) - dotRadius,
+                        dotRadius,
+                        dotPaint
+                    )
+                }
             }
         }
 
