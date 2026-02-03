@@ -150,10 +150,10 @@ Generate bitmaps for all possible widget sizes at startup:
 
 **Android's Widget Architecture:**
 ```
-┌─────────────────────────────────────┐
-│   App Process (WeatherWidgetProvider)  │
-│   - Create RemoteViews                 │
-│   - Generate bitmap with graphics      │
+┌───────────────────────────────────────┐
+│   App Process (WeatherWidgetProvider) │
+│   - Create RemoteViews                │
+│   - Generate bitmap with graphics     │
 │   - Set bitmap on ImageView           │
 └────────────────┬──────────────────────┘
                  │
@@ -161,10 +161,10 @@ Generate bitmaps for all possible widget sizes at startup:
                  │
                  ▼
 ┌─────────────────────────────────────┐
-│   System Process (Home Screen)       │
+│   System Process (Home Screen)      │
 │   - Receive RemoteViews             │
-│   - Inflate standard views           │
-│   - Display bitmaps                │
+│   - Inflate standard views          │
+│   - Display bitmaps                 │
 └─────────────────────────────────────┘
 ```
 

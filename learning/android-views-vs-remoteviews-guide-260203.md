@@ -86,21 +86,21 @@ RemoteViews are a **special kind of view system** for widgets (app widgets on ho
 **Widgets run in a different process:**
 
 ```
-┌──────────────────────────────────┐
-│   Your App Process              │
-│   - WeatherWidgetProvider       │
-│   - Fetches weather data       │
-│   - Generates UI               │
+┌──────────────────────────────┐
+│   Your App Process           │
+│   - WeatherWidgetProvider    │
+│   - Fetches weather data     │
+│   - Generates UI             │
 └──────────────┬───────────────┘
                │
                │ Cross-process boundary
                │
                ▼
-┌──────────────────────────────────┐
-│   System Launcher Process       │
+┌──────────────────────────────┐
+│   System Launcher Process    │
 │   - Home screen              │
-│   - Displays widgets          │
-└──────────────────────────────────┘
+│   - Displays widgets         │
+└──────────────────────────────┘
 ```
 
 **The Challenge:**
@@ -363,33 +363,33 @@ This is the **only viable approach** for custom graphics in widgets!
 ## The Weather Widget's Architecture
 
 ```
-┌─────────────────────────────────────┐
-│   Weather App Process             │
-│                                 │
-│   1. Fetch weather from API      │
-│   2. Calculate temperatures      │
-│   3. Create bitmap:             │
-│      - Draw bars to canvas       │
-│      - Draw text labels          │
-│      - Draw icons               │
-│   4. Create RemoteViews:        │
-│      - views.setTextViewText(...) │
-│      - views.setImageViewBitmap(bitmap) │
-└────────────┬──────────────────────┘
+┌────────────────────────────────────────┐
+│   Weather App Process                  │
+│                                        │
+│   1. Fetch weather from API            │
+│   2. Calculate temperatures            │
+│   3. Create bitmap:                    │
+│      - Draw bars to canvas             │
+│      - Draw text labels                │
+│      - Draw icons                      │
+│   4. Create RemoteViews:               │
+│      - views.setTextViewText(...)      │
+│      - views.setImageViewBitmap(bitmap)│
+└────────────┬───────────────────────────┘
              │
              │ Serialized instructions
              │
              ▼
-┌─────────────────────────────────────┐
-│   System Launcher Process         │
-│                                 │
-│   5. Receive RemoteViews        │
-│   6. Inflate layout            │
-│   7. Apply instructions        │
+┌───────────────────────────────┐
+│   System Launcher Process     │
+│                               │
+│   5. Receive RemoteViews      │
+│   6. Inflate layout           │
+│   7. Apply instructions       │
 │      - Set "72°" text         │
-│      - Display graph bitmap      │
+│      - Display graph bitmap   │
 │   8. Show on home screen      │
-└─────────────────────────────────────┘
+└───────────────────────────────┘
 ```
 
 This architecture allows:
