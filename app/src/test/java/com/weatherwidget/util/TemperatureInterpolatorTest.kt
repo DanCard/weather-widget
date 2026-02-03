@@ -22,6 +22,7 @@ class TemperatureInterpolatorTest {
             locationLat = 37.42,
             locationLon = -122.08,
             temperature = temp.toFloat(),
+            condition = "Clear",
             source = "OPEN_METEO",
             fetchedAt = System.currentTimeMillis()
         )

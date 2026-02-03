@@ -191,27 +191,38 @@ object TemperatureGraphRenderer {
             // Draw day label at bottom (always draw this)
             canvas.drawText(day.label, centerX, heightPx - bottomPadding, textPaint)
             
-            // Draw weather icon above day label
+            // Draw weather icon at extreme top
             if (day.iconRes != null) {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, day.iconRes)
                 if (drawable != null) {
-                    val iconY = heightPx - bottomPadding - dayLabelTextSize - dpToPx(context, 4f * scaleFactor) - iconSize
+                    // Move icon to extreme top row
+                    val iconY = dpToPx(context, 2f)
                     val iconX = centerX - iconSize / 2f
-                    
-                    drawable.setBounds(
-                        iconX.toInt(), 
-                        iconY.toInt(), 
-                        (iconX + iconSize).toInt(), 
-                        (iconY + iconSize).toInt()
-                    )
-                    
-                    if (day.isSunny) {
-                        drawable.setTint(Color.parseColor("#FFD60A"))
-                    } else {
-                        drawable.setTint(Color.parseColor("#AAAAAA"))
+
+                    // Collision detection constants
+                    val leftExclusionWidth = dpToPx(context, 100f) // Current Temp area
+                    val rightExclusionWidth = dpToPx(context, 50f) // API Source area
+                    val rightExclusionStart = widthPx - rightExclusionWidth
+
+                    val overlapsLeft = iconX < leftExclusionWidth
+                    val overlapsRight = (iconX + iconSize) > rightExclusionStart
+
+                    if (!overlapsLeft && !overlapsRight) {
+                        drawable.setBounds(
+                            iconX.toInt(),
+                            iconY.toInt(),
+                            (iconX + iconSize).toInt(),
+                            (iconY + iconSize).toInt()
+                        )
+
+                        if (day.isSunny) {
+                            drawable.setTint(Color.parseColor("#FFD60A"))
+                        } else {
+                            drawable.setTint(Color.parseColor("#AAAAAA"))
+                        }
+
+                        drawable.draw(canvas)
                     }
-                    
-                    drawable.draw(canvas)
                 }
             }
 

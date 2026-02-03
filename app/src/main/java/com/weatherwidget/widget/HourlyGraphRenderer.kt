@@ -167,23 +167,35 @@ object HourlyGraphRenderer {
                 if (hour.iconRes != null) {
                     val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
                     if (drawable != null) {
-                        val iconY = labelY - dpToPx(context, 20f * heightScaleFactor) - iconSize
+                        // Move icon to extreme top row
+                        val iconY = dpToPx(context, 2f)
                         val iconX = x - iconSize / 2f
                         
-                        drawable.setBounds(
-                            iconX.toInt(),
-                            iconY.toInt(),
-                            (iconX + iconSize).toInt(),
-                            (iconY + iconSize).toInt()
-                        )
-                        
-                        if (hour.isSunny) {
-                            drawable.setTint(Color.parseColor("#FFD60A"))
-                        } else {
-                            drawable.setTint(Color.parseColor("#AAAAAA"))
+                        // Collision detection constants (approximate based on layout)
+                        val leftExclusionWidth = dpToPx(context, 100f) // Current Temp area
+                        val rightExclusionWidth = dpToPx(context, 50f) // API Source area
+                        val rightExclusionStart = widthPx - rightExclusionWidth
+
+                        val overlapsLeft = iconX < leftExclusionWidth
+                        val overlapsRight = (iconX + iconSize) > rightExclusionStart
+
+                        // Only draw if not overlapping with critical UI elements
+                        if (!overlapsLeft && !overlapsRight) {
+                            drawable.setBounds(
+                                iconX.toInt(),
+                                iconY.toInt(),
+                                (iconX + iconSize).toInt(),
+                                (iconY + iconSize).toInt()
+                            )
+                            
+                            if (hour.isSunny) {
+                                drawable.setTint(Color.parseColor("#FFD60A"))
+                            } else {
+                                drawable.setTint(Color.parseColor("#AAAAAA"))
+                            }
+                            
+                            drawable.draw(canvas)
                         }
-                        
-                        drawable.draw(canvas)
                     }
                 }
             }
