@@ -125,8 +125,8 @@ object TemperatureGraphRenderer {
         }
 
         // Scale text sizes with widget height
-        val baseDayLabelSize = 24f
-        val baseTempLabelSize = 22f
+        val baseDayLabelSize = 11f
+        val baseTempLabelSize = 10f
         val dayLabelTextSize = dpToPx(context, baseDayLabelSize * heightScaleFactor)
         val tempLabelTextSize = dpToPx(context, baseTempLabelSize * heightScaleFactor)
 

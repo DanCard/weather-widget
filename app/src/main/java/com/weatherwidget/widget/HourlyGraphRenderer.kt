@@ -79,19 +79,19 @@ object HourlyGraphRenderer {
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
-            textSize = dpToPx(context, 20f * heightScaleFactor)
+            textSize = dpToPx(context, 12f * heightScaleFactor)
             textAlign = Paint.Align.CENTER
         }
 
         val tempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 18f * heightScaleFactor)
+            textSize = dpToPx(context, 12f * heightScaleFactor)
             textAlign = Paint.Align.CENTER
         }
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF9F0A")
-            textSize = dpToPx(context, 16f * heightScaleFactor)
+            textSize = dpToPx(context, 10f * heightScaleFactor)
             textAlign = Paint.Align.CENTER
         }
 
