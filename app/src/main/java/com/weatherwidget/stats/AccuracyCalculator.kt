@@ -137,21 +137,28 @@ class AccuracyCalculator @Inject constructor(
             }
 
             if (forecast != null) {
-                val highError = actual.highTemp - forecast.highTemp
-                val lowError = actual.lowTemp - forecast.lowTemp
+                val aHigh = actual.highTemp
+                val aLow = actual.lowTemp
+                val fHigh = forecast.highTemp
+                val fLow = forecast.lowTemp
 
-                dailyAccuracies.add(
-                    DailyAccuracy(
-                        date = actual.date,
-                        actualHigh = actual.highTemp,
-                        actualLow = actual.lowTemp,
-                        forecastHigh = forecast.highTemp,
-                        forecastLow = forecast.lowTemp,
-                        source = source,
-                        highError = highError,
-                        lowError = lowError
+                if (aHigh != null && aLow != null && fHigh != null && fLow != null) {
+                    val highError = aHigh - fHigh
+                    val lowError = aLow - fLow
+
+                    dailyAccuracies.add(
+                        DailyAccuracy(
+                            date = actual.date,
+                            actualHigh = aHigh,
+                            actualLow = aLow,
+                            forecastHigh = fHigh,
+                            forecastLow = fLow,
+                            source = source,
+                            highError = highError,
+                            lowError = lowError
+                        )
                     )
-                )
+                }
             }
         }
 

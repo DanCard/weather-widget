@@ -28,7 +28,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     WeatherDatabase::class.java,
                     "weather_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
@@ -162,6 +162,75 @@ abstract class WeatherDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Add stationId column to track which NWS observation station provided the data
                 db.execSQL("ALTER TABLE weather_data ADD COLUMN stationId TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Migrate weather_data to support nullable temperatures
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS weather_data_v9 (
+                        date TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        locationName TEXT NOT NULL,
+                        highTemp INTEGER,
+                        lowTemp INTEGER,
+                        currentTemp INTEGER,
+                        `condition` TEXT NOT NULL,
+                        isActual INTEGER NOT NULL,
+                        source TEXT NOT NULL DEFAULT 'Unknown',
+                        stationId TEXT DEFAULT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(date, source)
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO weather_data_v9 (
+                        date, locationLat, locationLon, locationName, 
+                        highTemp, lowTemp, currentTemp, `condition`, 
+                        isActual, source, stationId, fetchedAt
+                    )
+                    SELECT 
+                        date, locationLat, locationLon, locationName, 
+                        highTemp, lowTemp, currentTemp, `condition`, 
+                        isActual, source, stationId, fetchedAt 
+                    FROM weather_data
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE weather_data")
+                db.execSQL("ALTER TABLE weather_data_v9 RENAME TO weather_data")
+
+                // 2. Migrate forecast_snapshots to support nullable temperatures
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS forecast_snapshots_v9 (
+                        targetDate TEXT NOT NULL,
+                        forecastDate TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        highTemp INTEGER,
+                        lowTemp INTEGER,
+                        `condition` TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(targetDate, forecastDate, locationLat, locationLon, source)
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO forecast_snapshots_v9 (
+                        targetDate, forecastDate, locationLat, locationLon, 
+                        highTemp, lowTemp, `condition`, source, fetchedAt
+                    )
+                    SELECT 
+                        targetDate, forecastDate, locationLat, locationLon, 
+                        highTemp, lowTemp, `condition`, source, fetchedAt 
+                    FROM forecast_snapshots
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE forecast_snapshots")
+                db.execSQL("ALTER TABLE forecast_snapshots_v9 RENAME TO forecast_snapshots")
             }
         }
     }

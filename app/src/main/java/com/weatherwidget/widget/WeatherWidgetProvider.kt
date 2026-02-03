@@ -1345,10 +1345,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
 
                     if (forecast != null) {
-                        val highError = kotlin.math.abs(weather.highTemp - forecast.highTemp)
-                        val lowError = kotlin.math.abs(weather.lowTemp - forecast.lowTemp)
-                        errors.add(highError)
-                        errors.add(lowError)
+                        val weatherHigh = weather.highTemp
+                        val forecastHigh = forecast.highTemp
+                        val weatherLow = weather.lowTemp
+                        val forecastLow = forecast.lowTemp
+
+                        if (weatherHigh != null && forecastHigh != null) {
+                            errors.add(kotlin.math.abs(weatherHigh - forecastHigh))
+                        }
+                        if (weatherLow != null && forecastLow != null) {
+                            errors.add(kotlin.math.abs(weatherLow - forecastLow))
+                        }
                     }
                 }
             }

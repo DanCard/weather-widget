@@ -107,7 +107,7 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 
 ## Database Schema
 
-- **Version**: 8 (last updated: 2026-02-02)
+- **Version**: 9 (last updated: 2026-02-02)
 - **WeatherEntity**: Main weather data table
   - Composite primary key: `(date, source)` to store both NWS and Open-Meteo data
   - `stationId` field (nullable): NWS observation station ID (e.g., "KSFO") - only populated for actual observations (`isActual = true`)
