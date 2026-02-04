@@ -1,0 +1,1411 @@
+--------- beginning of main
+02-04 12:12:09.239 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[18] 2026-02-04T22:00 label=10p showLabel=true isClosest=false
+02-04 12:12:09.239 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[20] 2026-02-05T00:00 label=12a showLabel=true isClosest=false
+02-04 12:12:09.240 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[22] 2026-02-05T02:00 label=2a showLabel=true isClosest=false
+02-04 12:12:09.241 17716 17759 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=26df4b90-08cd-4667-bbcb-d12c71946d7c, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.242 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[24] 2026-02-05T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.243 17716 17745 D WeatherWidgetProvider: buildHourDataList: Built 25 hours, first=2026-02-04T04:00, last=2026-02-05T04:00
+02-04 12:12:09.243 17716 17745 D WeatherWidgetProvider: getOptimalBitmapSize: 318dp×180dp → Downscaling from 834x472px (1537KB) to 630x356px (876KB), scale=0.75602686, rawPixels=393648
+02-04 12:12:09.245 17716 17745 D HourlyGraph: Widget: 630px × 356px (240dp × 135dp) | heightScaleFactor=1.0 | baseLabel=9dp, finalLabel=9dp
+02-04 12:12:09.246 17716 17745 D HourlyGraph: Font sizes: hourLabel=23.625px (9.0dp), tempLabel=23.625px (9.0dp)
+02-04 12:12:09.259  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86deeab8) locale list changing from [] to [en-US]
+--------- beginning of system
+02-04 12:12:09.264   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.271 17716 17769 D WeatherWidgetProvider: getWidgetSize: widgetId=10, minWidth=360, minHeight=137 -> cols=5, rows=2
+02-04 12:12:09.272 17716 17769 D WeatherWidgetProvider: updateWidgetWithHourlyData: widgetId=10, cols=5, rows=2, hourlyCount=93
+02-04 12:12:09.275 17716 17769 D TemperatureInterpolator: getInterpolatedTemperature: source=NWS, sourcesInData=[OPEN_METEO, NWS], totalForecasts=93
+02-04 12:12:09.276 17716 17769 D TemperatureInterpolator: getInterpolatedTemperature: filteredForecasts=49, sources=[OPEN_METEO, NWS]
+02-04 12:12:09.276 17716 17769 D TemperatureInterpolator: getInterpolatedTemperature: currentHour=2026-02-04T12:00 found=NWS:65.0, nextHour=2026-02-04T13:00 found=NWS:69.0
+02-04 12:12:09.276 17716 17769 D TemperatureInterpolator: Interpolating: time=12:12, current=65.0@2026-02-04T12:00, next=69.0@2026-02-04T13:00, factor=0.2, result=65.8
+02-04 12:12:09.277 17716 17769 D WeatherWidgetProvider: buildHourDataList: now=2026-02-04T12:12:09.277149, centerTime=2026-02-04T12:12:09.269879, alignedCenter=2026-02-04T12:00
+02-04 12:12:09.277 17716 17769 D WeatherWidgetProvider: buildHourDataList: startHour=2026-02-04T04:00, endHour=2026-02-05T04:00 (4:00 to 4:00)
+02-04 12:12:09.277 17716 17769 D WeatherWidgetProvider: buildHourDataList: forecastsByTime has 49 entries, labelInterval=2
+02-04 12:12:09.277 17716 17769 D WeatherWidgetProvider: buildHourDataList: forecastsByTime keys=[2026-02-03T12:00, 2026-02-03T13:00, 2026-02-03T14:00, 2026-02-03T15:00, 2026-02-03T16:00, 2026-02-03T17:00, 2026-02-03T18:00, 2026-02-03T19:00, 2026-02-03T20:00, 2026-02-03T21:00, 2026-02-03T22:00, 2026-02-03T23:00, 2026-02-04T00:00, 2026-02-04T01:00, 2026-02-04T02:00, 2026-02-04T03:00, 2026-02-04T04:00, 2026-02-04T05:00, 2026-02-04T06:00, 2026-02-04T07:00, 2026-02-04T08:00, 2026-02-04T09:00, 2026-02-04T10:00, 2026-02-04T11:00, 2026-02-04T12:00, 2026-02-04T13:00, 2026-02-04T14:00, 2026-02-04T15:00, 2026-02-04T16:00, 2026-02-04T17:00, 2026-02-04T18:00, 2026-02-04T19:00, 2026-02-04T20:00, 2026-02-04T21:00, 2026-02-04T22:00, 2026-02-04T23:00, 2026-02-05T00:00, 2026-02-05T01:00, 2026-02-05T02:00, 2026-02-05T03:00, 2026-02-05T04:00, 2026-02-05T05:00, 2026-02-05T06:00, 2026-02-05T07:00, 2026-02-05T08:00, 2026-02-05T09:00, 2026-02-05T10:00, 2026-02-05T11:00, 2026-02-05T12:00]
+02-04 12:12:09.278 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[0] 2026-02-04T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.278 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[2] 2026-02-04T06:00 label=6a showLabel=true isClosest=false
+02-04 12:12:09.278 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[4] 2026-02-04T08:00 label=8a showLabel=true isClosest=false
+02-04 12:12:09.278 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[6] 2026-02-04T10:00 label=10a showLabel=true isClosest=false
+02-04 12:12:09.279 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[8] 2026-02-04T12:00 label=12p showLabel=true isClosest=true
+02-04 12:12:09.279 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[10] 2026-02-04T14:00 label=2p showLabel=true isClosest=false
+02-04 12:12:09.279 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[12] 2026-02-04T16:00 label=4p showLabel=true isClosest=false
+02-04 12:12:09.280 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[14] 2026-02-04T18:00 label=6p showLabel=true isClosest=false
+02-04 12:12:09.280 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[16] 2026-02-04T20:00 label=8p showLabel=true isClosest=false
+02-04 12:12:09.281 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[18] 2026-02-04T22:00 label=10p showLabel=true isClosest=false
+02-04 12:12:09.281 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[20] 2026-02-05T00:00 label=12a showLabel=true isClosest=false
+02-04 12:12:09.281 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[22] 2026-02-05T02:00 label=2a showLabel=true isClosest=false
+02-04 12:12:09.281 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[24] 2026-02-05T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.281 17716 17769 D WeatherWidgetProvider: buildHourDataList: Built 25 hours, first=2026-02-04T04:00, last=2026-02-05T04:00
+02-04 12:12:09.282 17716 17769 D WeatherWidgetProvider: getOptimalBitmapSize: 318dp×180dp → Downscaling from 834x472px (1537KB) to 630x356px (876KB), scale=0.75602686, rawPixels=393648
+02-04 12:12:09.282 17716 17769 D HourlyGraph: Widget: 630px × 356px (240dp × 135dp) | heightScaleFactor=1.0 | baseLabel=9dp, finalLabel=9dp
+02-04 12:12:09.282 17716 17759 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=b1277214-c203-462c-a6b5-91cf59ef1eed, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.282 17716 17769 D HourlyGraph: Font sizes: hourLabel=23.625px (9.0dp), tempLabel=23.625px (9.0dp)
+02-04 12:12:09.294  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dece98) locale list changing from [] to [en-US]
+02-04 12:12:09.304 17716 17759 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=77098256-0a2e-4d00-b1f3-444f5111acc4, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.307 17716 17759 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=41d47ba1-e400-485c-ac82-29e74aaf1097, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.312 17716 17757 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=05a3b842-1f5e-44d6-877f-a1c7c5835efd, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.333   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.362 17716 17769 D WeatherWidgetProvider: getWidgetSize: widgetId=10, minWidth=360, minHeight=137 -> cols=5, rows=2
+02-04 12:12:09.362 17716 17769 D WeatherWidgetProvider: updateWidgetWithHourlyData: widgetId=10, cols=5, rows=2, hourlyCount=93
+02-04 12:12:09.363 17716 17766 D WeatherWidgetProvider: getWidgetSize: widgetId=10, minWidth=360, minHeight=137 -> cols=5, rows=2
+02-04 12:12:09.363 17716 17766 D WeatherWidgetProvider: updateWidgetWithHourlyData: widgetId=10, cols=5, rows=2, hourlyCount=93
+02-04 12:12:09.365 17716 17745 D WeatherWidgetProvider: getWidgetSize: widgetId=10, minWidth=360, minHeight=137 -> cols=5, rows=2
+02-04 12:12:09.365 17716 17745 D WeatherWidgetProvider: updateWidgetWithHourlyData: widgetId=10, cols=5, rows=2, hourlyCount=93
+02-04 12:12:09.366   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.369   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.369 17716 17769 D TemperatureInterpolator: getInterpolatedTemperature: source=NWS, sourcesInData=[OPEN_METEO, NWS], totalForecasts=93
+02-04 12:12:09.369 17716 17745 D TemperatureInterpolator: getInterpolatedTemperature: source=NWS, sourcesInData=[OPEN_METEO, NWS], totalForecasts=93
+02-04 12:12:09.369   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.369 17716 17769 D TemperatureInterpolator: getInterpolatedTemperature: filteredForecasts=49, sources=[OPEN_METEO, NWS]
+02-04 12:12:09.369 17716 17769 D TemperatureInterpolator: getInterpolatedTemperature: currentHour=2026-02-04T12:00 found=NWS:65.0, nextHour=2026-02-04T13:00 found=NWS:69.0
+02-04 12:12:09.370 17716 17745 D TemperatureInterpolator: getInterpolatedTemperature: filteredForecasts=49, sources=[OPEN_METEO, NWS]
+02-04 12:12:09.370 17716 17769 D TemperatureInterpolator: Interpolating: time=12:12, current=65.0@2026-02-04T12:00, next=69.0@2026-02-04T13:00, factor=0.2, result=65.8
+02-04 12:12:09.370   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.370 17716 17745 D TemperatureInterpolator: getInterpolatedTemperature: currentHour=2026-02-04T12:00 found=NWS:65.0, nextHour=2026-02-04T13:00 found=NWS:69.0
+02-04 12:12:09.370 17716 17745 D TemperatureInterpolator: Interpolating: time=12:12, current=65.0@2026-02-04T12:00, next=69.0@2026-02-04T13:00, factor=0.2, result=65.8
+02-04 12:12:09.370 17716 17769 D WeatherWidgetProvider: buildHourDataList: now=2026-02-04T12:12:09.370294, centerTime=2026-02-04T12:12:09.361989, alignedCenter=2026-02-04T12:00
+02-04 12:12:09.370 17716 17769 D WeatherWidgetProvider: buildHourDataList: startHour=2026-02-04T04:00, endHour=2026-02-05T04:00 (4:00 to 4:00)
+02-04 12:12:09.370 17716 17769 D WeatherWidgetProvider: buildHourDataList: forecastsByTime has 49 entries, labelInterval=2
+02-04 12:12:09.370 17716 17745 D WeatherWidgetProvider: buildHourDataList: now=2026-02-04T12:12:09.370447, centerTime=2026-02-04T12:12:09.364874, alignedCenter=2026-02-04T12:00
+02-04 12:12:09.370 17716 17745 D WeatherWidgetProvider: buildHourDataList: startHour=2026-02-04T04:00, endHour=2026-02-05T04:00 (4:00 to 4:00)
+02-04 12:12:09.370 17716 17745 D WeatherWidgetProvider: buildHourDataList: forecastsByTime has 49 entries, labelInterval=2
+02-04 12:12:09.371 17716 17769 D WeatherWidgetProvider: buildHourDataList: forecastsByTime keys=[2026-02-03T12:00, 2026-02-03T13:00, 2026-02-03T14:00, 2026-02-03T15:00, 2026-02-03T16:00, 2026-02-03T17:00, 2026-02-03T18:00, 2026-02-03T19:00, 2026-02-03T20:00, 2026-02-03T21:00, 2026-02-03T22:00, 2026-02-03T23:00, 2026-02-04T00:00, 2026-02-04T01:00, 2026-02-04T02:00, 2026-02-04T03:00, 2026-02-04T04:00, 2026-02-04T05:00, 2026-02-04T06:00, 2026-02-04T07:00, 2026-02-04T08:00, 2026-02-04T09:00, 2026-02-04T10:00, 2026-02-04T11:00, 2026-02-04T12:00, 2026-02-04T13:00, 2026-02-04T14:00, 2026-02-04T15:00, 2026-02-04T16:00, 2026-02-04T17:00, 2026-02-04T18:00, 2026-02-04T19:00, 2026-02-04T20:00, 2026-02-04T21:00, 2026-02-04T22:00, 2026-02-04T23:00, 2026-02-05T00:00, 2026-02-05T01:00, 2026-02-05T02:00, 2026-02-05T03:00, 2026-02-05T04:00, 2026-02-05T05:00, 2026-02-05T06:00, 2026-02-05T07:00, 2026-02-05T08:00, 2026-02-05T09:00, 2026-02-05T10:00, 2026-02-05T11:00, 2026-02-05T12:00]
+02-04 12:12:09.371 17716 17745 D WeatherWidgetProvider: buildHourDataList: forecastsByTime keys=[2026-02-03T12:00, 2026-02-03T13:00, 2026-02-03T14:00, 2026-02-03T15:00, 2026-02-03T16:00, 2026-02-03T17:00, 2026-02-03T18:00, 2026-02-03T19:00, 2026-02-03T20:00, 2026-02-03T21:00, 2026-02-03T22:00, 2026-02-03T23:00, 2026-02-04T00:00, 2026-02-04T01:00, 2026-02-04T02:00, 2026-02-04T03:00, 2026-02-04T04:00, 2026-02-04T05:00, 2026-02-04T06:00, 2026-02-04T07:00, 2026-02-04T08:00, 2026-02-04T09:00, 2026-02-04T10:00, 2026-02-04T11:00, 2026-02-04T12:00, 2026-02-04T13:00, 2026-02-04T14:00, 2026-02-04T15:00, 2026-02-04T16:00, 2026-02-04T17:00, 2026-02-04T18:00, 2026-02-04T19:00, 2026-02-04T20:00, 2026-02-04T21:00, 2026-02-04T22:00, 2026-02-04T23:00, 2026-02-05T00:00, 2026-02-05T01:00, 2026-02-05T02:00, 2026-02-05T03:00, 2026-02-05T04:00, 2026-02-05T05:00, 2026-02-05T06:00, 2026-02-05T07:00, 2026-02-05T08:00, 2026-02-05T09:00, 2026-02-05T10:00, 2026-02-05T11:00, 2026-02-05T12:00]
+02-04 12:12:09.371 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[0] 2026-02-04T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.371 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[2] 2026-02-04T06:00 label=6a showLabel=true isClosest=false
+02-04 12:12:09.371 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[4] 2026-02-04T08:00 label=8a showLabel=true isClosest=false
+02-04 12:12:09.371 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[6] 2026-02-04T10:00 label=10a showLabel=true isClosest=false
+02-04 12:12:09.372 17716 17766 D TemperatureInterpolator: getInterpolatedTemperature: source=NWS, sourcesInData=[OPEN_METEO, NWS], totalForecasts=93
+02-04 12:12:09.372 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[8] 2026-02-04T12:00 label=12p showLabel=true isClosest=true
+02-04 12:12:09.372 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[10] 2026-02-04T14:00 label=2p showLabel=true isClosest=false
+02-04 12:12:09.372 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[12] 2026-02-04T16:00 label=4p showLabel=true isClosest=false
+02-04 12:12:09.372 17716 17766 D TemperatureInterpolator: getInterpolatedTemperature: filteredForecasts=49, sources=[OPEN_METEO, NWS]
+02-04 12:12:09.372 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[14] 2026-02-04T18:00 label=6p showLabel=true isClosest=false
+02-04 12:12:09.372 17716 17766 D TemperatureInterpolator: getInterpolatedTemperature: currentHour=2026-02-04T12:00 found=NWS:65.0, nextHour=2026-02-04T13:00 found=NWS:69.0
+02-04 12:12:09.373 17716 17766 D TemperatureInterpolator: Interpolating: time=12:12, current=65.0@2026-02-04T12:00, next=69.0@2026-02-04T13:00, factor=0.2, result=65.8
+02-04 12:12:09.373 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[16] 2026-02-04T20:00 label=8p showLabel=true isClosest=false
+02-04 12:12:09.373 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[18] 2026-02-04T22:00 label=10p showLabel=true isClosest=false
+02-04 12:12:09.373 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[20] 2026-02-05T00:00 label=12a showLabel=true isClosest=false
+02-04 12:12:09.373 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[22] 2026-02-05T02:00 label=2a showLabel=true isClosest=false
+02-04 12:12:09.373 17716 17745 D WeatherWidgetProvider: buildHourDataList: hour[24] 2026-02-05T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.373 17716 17766 D WeatherWidgetProvider: buildHourDataList: now=2026-02-04T12:12:09.373072, centerTime=2026-02-04T12:12:09.362973, alignedCenter=2026-02-04T12:00
+02-04 12:12:09.373 17716 17766 D WeatherWidgetProvider: buildHourDataList: startHour=2026-02-04T04:00, endHour=2026-02-05T04:00 (4:00 to 4:00)
+02-04 12:12:09.374 17716 17766 D WeatherWidgetProvider: buildHourDataList: forecastsByTime has 49 entries, labelInterval=2
+02-04 12:12:09.374 17716 17766 D WeatherWidgetProvider: buildHourDataList: forecastsByTime keys=[2026-02-03T12:00, 2026-02-03T13:00, 2026-02-03T14:00, 2026-02-03T15:00, 2026-02-03T16:00, 2026-02-03T17:00, 2026-02-03T18:00, 2026-02-03T19:00, 2026-02-03T20:00, 2026-02-03T21:00, 2026-02-03T22:00, 2026-02-03T23:00, 2026-02-04T00:00, 2026-02-04T01:00, 2026-02-04T02:00, 2026-02-04T03:00, 2026-02-04T04:00, 2026-02-04T05:00, 2026-02-04T06:00, 2026-02-04T07:00, 2026-02-04T08:00, 2026-02-04T09:00, 2026-02-04T10:00, 2026-02-04T11:00, 2026-02-04T12:00, 2026-02-04T13:00, 2026-02-04T14:00, 2026-02-04T15:00, 2026-02-04T16:00, 2026-02-04T17:00, 2026-02-04T18:00, 2026-02-04T19:00, 2026-02-04T20:00, 2026-02-04T21:00, 2026-02-04T22:00, 2026-02-04T23:00, 2026-02-05T00:00, 2026-02-05T01:00, 2026-02-05T02:00, 2026-02-05T03:00, 2026-02-05T04:00, 2026-02-05T05:00, 2026-02-05T06:00, 2026-02-05T07:00, 2026-02-05T08:00, 2026-02-05T09:00, 2026-02-05T10:00, 2026-02-05T11:00, 2026-02-05T12:00]
+02-04 12:12:09.374 17716 17745 D WeatherWidgetProvider: buildHourDataList: Built 25 hours, first=2026-02-04T04:00, last=2026-02-05T04:00
+02-04 12:12:09.374 17716 17745 D WeatherWidgetProvider: getOptimalBitmapSize: 318dp×180dp → Downscaling from 834x472px (1537KB) to 630x356px (876KB), scale=0.75602686, rawPixels=393648
+02-04 12:12:09.375 17716 17745 D HourlyGraph: Widget: 630px × 356px (240dp × 135dp) | heightScaleFactor=1.0 | baseLabel=9dp, finalLabel=9dp
+02-04 12:12:09.375 17716 17745 D HourlyGraph: Font sizes: hourLabel=23.625px (9.0dp), tempLabel=23.625px (9.0dp)
+02-04 12:12:09.379 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[0] 2026-02-04T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.379 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[0] 2026-02-04T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.380 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[2] 2026-02-04T06:00 label=6a showLabel=true isClosest=false
+02-04 12:12:09.380 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[2] 2026-02-04T06:00 label=6a showLabel=true isClosest=false
+02-04 12:12:09.380 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[4] 2026-02-04T08:00 label=8a showLabel=true isClosest=false
+02-04 12:12:09.380 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[4] 2026-02-04T08:00 label=8a showLabel=true isClosest=false
+02-04 12:12:09.380 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[6] 2026-02-04T10:00 label=10a showLabel=true isClosest=false
+02-04 12:12:09.381 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[8] 2026-02-04T12:00 label=12p showLabel=true isClosest=true
+02-04 12:12:09.382 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[10] 2026-02-04T14:00 label=2p showLabel=true isClosest=false
+02-04 12:12:09.383 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[6] 2026-02-04T10:00 label=10a showLabel=true isClosest=false
+02-04 12:12:09.383 17716 17744 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=bd9cedaa-0b49-425c-9cc9-ed9f2d5eac11, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.383 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[12] 2026-02-04T16:00 label=4p showLabel=true isClosest=false
+02-04 12:12:09.383 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[14] 2026-02-04T18:00 label=6p showLabel=true isClosest=false
+02-04 12:12:09.383 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[8] 2026-02-04T12:00 label=12p showLabel=true isClosest=true
+02-04 12:12:09.383 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[16] 2026-02-04T20:00 label=8p showLabel=true isClosest=false
+02-04 12:12:09.383 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[10] 2026-02-04T14:00 label=2p showLabel=true isClosest=false
+02-04 12:12:09.383 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[18] 2026-02-04T22:00 label=10p showLabel=true isClosest=false
+02-04 12:12:09.384 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[12] 2026-02-04T16:00 label=4p showLabel=true isClosest=false
+02-04 12:12:09.384 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[20] 2026-02-05T00:00 label=12a showLabel=true isClosest=false
+02-04 12:12:09.384 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[14] 2026-02-04T18:00 label=6p showLabel=true isClosest=false
+02-04 12:12:09.384 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[22] 2026-02-05T02:00 label=2a showLabel=true isClosest=false
+02-04 12:12:09.384 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[16] 2026-02-04T20:00 label=8p showLabel=true isClosest=false
+02-04 12:12:09.384 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[18] 2026-02-04T22:00 label=10p showLabel=true isClosest=false
+02-04 12:12:09.385 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[20] 2026-02-05T00:00 label=12a showLabel=true isClosest=false
+02-04 12:12:09.385 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[22] 2026-02-05T02:00 label=2a showLabel=true isClosest=false
+02-04 12:12:09.385 17716 17766 D WeatherWidgetProvider: buildHourDataList: hour[24] 2026-02-05T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.385 17716 17766 D WeatherWidgetProvider: buildHourDataList: Built 25 hours, first=2026-02-04T04:00, last=2026-02-05T04:00
+02-04 12:12:09.385 17716 17766 D WeatherWidgetProvider: getOptimalBitmapSize: 318dp×180dp → Downscaling from 834x472px (1537KB) to 630x356px (876KB), scale=0.75602686, rawPixels=393648
+02-04 12:12:09.386 17716 17769 D WeatherWidgetProvider: buildHourDataList: hour[24] 2026-02-05T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:09.386 17716 17766 D HourlyGraph: Widget: 630px × 356px (240dp × 135dp) | heightScaleFactor=1.0 | baseLabel=9dp, finalLabel=9dp
+02-04 12:12:09.386 17716 17769 D WeatherWidgetProvider: buildHourDataList: Built 25 hours, first=2026-02-04T04:00, last=2026-02-05T04:00
+02-04 12:12:09.386 17716 17769 D WeatherWidgetProvider: getOptimalBitmapSize: 318dp×180dp → Downscaling from 834x472px (1537KB) to 630x356px (876KB), scale=0.75602686, rawPixels=393648
+02-04 12:12:09.386 17716 17766 D HourlyGraph: Font sizes: hourLabel=23.625px (9.0dp), tempLabel=23.625px (9.0dp)
+02-04 12:12:09.386  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86ded7f8) locale list changing from [] to [en-US]
+02-04 12:12:09.387 17716 17769 D HourlyGraph: Widget: 630px × 356px (240dp × 135dp) | heightScaleFactor=1.0 | baseLabel=9dp, finalLabel=9dp
+02-04 12:12:09.387 17716 17769 D HourlyGraph: Font sizes: hourLabel=23.625px (9.0dp), tempLabel=23.625px (9.0dp)
+02-04 12:12:09.390   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.391  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dedb18) locale list changing from [] to [en-US]
+02-04 12:12:09.455 17716 17759 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=6db3e519-adbb-4afb-a43a-a07bec7d4067, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.457 17716 17758 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=264f03ee-c19a-41de-84cd-aa1ef5e69ec1, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.462 17716 17758 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=41a3b795-fdf2-4ee4-ace5-901c722b9148, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.482   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.488 17716 17757 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=0d0c64c3-9344-4abf-b361-f5e5c9adca1d, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.510 17716 17744 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=198d0f9d-5978-4d48-bcf6-de9dd98630f1, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.568   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.576   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:09.576 17716 17758 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=3acdb717-4dd5-4980-ac82-6506f1d44278, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.647  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de8398) locale list changing from [] to [en-US]
+02-04 12:12:09.672 17716 17758 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=eca7916e-1492-455b-8806-e48d99e47135, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.695 17716 17744 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=63cd8169-1166-4f4e-a549-c0764f368f44, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.697  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86deb8b8) locale list changing from [] to [en-US]
+02-04 12:12:09.697 17716 17744 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=1d8de7aa-ccbd-4fc4-8eec-d8842318d59c, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:09.720  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de9978) locale list changing from [] to [en-US]
+02-04 12:12:09.734  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86deedd8) locale list changing from [] to [en-US]
+02-04 12:12:09.776 17716 17745 D WeatherRepository: fetchFromNws: Got 14 periods
+02-04 12:12:09.776 17716 17745 D WeatherRepository: fetchFromNws: Fetching hourly forecasts from NWS...
+02-04 12:12:09.837  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de2c18) locale list changing from [] to [en-US]
+02-04 12:12:09.918 17716 17769 D OpenMeteoApi: getForecast: Raw response length=14379
+02-04 12:12:09.926  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dee798) locale list changing from [] to [en-US]
+02-04 12:12:09.937  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df1fd8) locale list changing from [] to [en-US]
+02-04 12:12:09.948  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfaf98) locale list changing from [] to [en-US]
+02-04 12:12:09.949 17716 17769 D OpenMeteoApi: getForecast: daily object keys=[time, temperature_2m_max, temperature_2m_min, weather_code]
+02-04 12:12:09.949 17716 17769 D OpenMeteoApi: getForecast: parsed 21 dates: [2026-01-28, 2026-01-29, 2026-01-30, 2026-01-31, 2026-02-01, 2026-02-02, 2026-02-03, 2026-02-04, 2026-02-05, 2026-02-06, 2026-02-07, 2026-02-08, 2026-02-09, 2026-02-10, 2026-02-11, 2026-02-12, 2026-02-13, 2026-02-14, 2026-02-15, 2026-02-16, 2026-02-17]
+02-04 12:12:09.972  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfdb58) locale list changing from [] to [en-US]
+02-04 12:12:09.997  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfc578) locale list changing from [] to [en-US]
+02-04 12:12:10.009  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfe198) locale list changing from [] to [en-US]
+02-04 12:12:10.024  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfac78) locale list changing from [] to [en-US]
+02-04 12:12:10.027 17716 17746 D WeatherRepository: fetchFromNws: Got 156 NWS hourly periods
+02-04 12:12:10.044  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df7438) locale list changing from [] to [en-US]
+02-04 12:12:10.071 17716 17769 D OpenMeteoApi: getForecast: parsed 504 hourly forecasts
+02-04 12:12:10.072 17716 17769 D WeatherRepository: fetchFromOpenMeteo: Got 21 days from API
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-01-28 H=63 L=49
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-01-29 H=64 L=42
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-01-30 H=64 L=42
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-01-31 H=64 L=42
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-01 H=64 L=42
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-02 H=67 L=41
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-03 H=67 L=40
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-04 H=69 L=40
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-05 H=68 L=44
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-06 H=69 L=49
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-07 H=67 L=53
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-08 H=66 L=51
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-09 H=61 L=51
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-10 H=58 L=49
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-11 H=54 L=46
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-12 H=56 L=44
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-13 H=60 L=45
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-14 H=52 L=43
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-15 H=50 L=41
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-16 H=54 L=39
+02-04 12:12:10.072 17716 17769 D WeatherRepository:   API day: 2026-02-17 H=54 L=46
+02-04 12:12:10.083 17716 17746 D WeatherRepository: saveNwsHourlyForecasts: Saved 156 NWS hourly forecasts, range: 2026-02-04T11:00 to 2026-02-10T22:00
+02-04 12:12:10.088 17716 17746 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.088 17716 17746 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-02-04
+02-04 12:12:10.112 17716 17765 W WeatherRepository: fetchDayObservations: No observations from AW020 for 2026-02-04 - trying next
+02-04 12:12:10.113 17716 17765 D WeatherRepository: fetchDayObservations: Trying station KNUQ (2/5) for 2026-02-04
+02-04 12:12:10.117 17716 17746 D WeatherRepository: saveHourlyForecasts: Saved 504 Open-Meteo hourly forecasts, range: 2026-01-28T00:00 to 2026-02-17T23:00
+02-04 12:12:10.128   696  1167 D CompatChangeReporter: Compat change id reported: 161145287; UID 10231; state: ENABLED
+02-04 12:12:10.129 17716 17746 D WeatherRepository: isDevicePluggedIn: status=4, plugType=0 -> isPlugged=false
+02-04 12:12:10.129 17716 17746 D WeatherRepository: fetchClimateNormalsGap: Checking if plugged in: false (Source Context: Open-Meteo)
+02-04 12:12:10.129 17716 17746 D ApiLogger: logApiCall: Open-Meteo, success=true, error=null
+02-04 12:12:10.140  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfb2b8) locale list changing from [] to [en-US]
+02-04 12:12:10.161  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df9ff8) locale list changing from [] to [en-US]
+02-04 12:12:10.185  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfb5d8) locale list changing from [] to [en-US]
+02-04 12:12:10.202 17716 17746 D ApiLogger: Successfully saved 100 entries
+02-04 12:12:10.202 17716 17746 D WeatherRepository: fetchFromBothApis: Open-Meteo succeeded
+02-04 12:12:10.232 17716 17766 I WeatherRepository: fetchDayObservations: SUCCESS - Got 35 observations from KNUQ for 2026-02-04
+02-04 12:12:10.232 17716 17766 I WeatherRepository: fetchDayObservations: Station KNUQ provided data for 2026-02-04 (H:62 L:42) after 2 attempts
+02-04 12:12:10.233 17716 17766 D WeatherRepository: fetchFromNws: Got observations for 2026-02-04 H=62 L=42 from station KNUQ
+02-04 12:12:10.233 17716 17766 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.233 17716 17766 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-02-03
+02-04 12:12:10.252 17716 17766 W WeatherRepository: fetchDayObservations: No observations from AW020 for 2026-02-03 - trying next
+02-04 12:12:10.253 17716 17766 D WeatherRepository: fetchDayObservations: Trying station KNUQ (2/5) for 2026-02-03
+02-04 12:12:10.283  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de09b8) locale list changing from [] to [en-US]
+02-04 12:12:10.308  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfa318) locale list changing from [] to [en-US]
+02-04 12:12:10.314  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df83d8) locale list changing from [] to [en-US]
+02-04 12:12:10.332  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de5af8) locale list changing from [] to [en-US]
+02-04 12:12:10.359  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfe7d8) locale list changing from [] to [en-US]
+02-04 12:12:10.368 17716 17745 I WeatherRepository: fetchDayObservations: SUCCESS - Got 72 observations from KNUQ for 2026-02-03
+02-04 12:12:10.368 17716 17745 I WeatherRepository: fetchDayObservations: Station KNUQ provided data for 2026-02-03 (H:68 L:42) after 2 attempts
+02-04 12:12:10.368 17716 17745 D WeatherRepository: fetchFromNws: Got observations for 2026-02-03 H=68 L=42 from station KNUQ
+02-04 12:12:10.369 17716 17745 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.369 17716 17745 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-02-02
+02-04 12:12:10.371  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df9698) locale list changing from [] to [en-US]
+02-04 12:12:10.377  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df9378) locale list changing from [] to [en-US]
+02-04 12:12:10.382  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df8d38) locale list changing from [] to [en-US]
+02-04 12:12:10.387  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df9cd8) locale list changing from [] to [en-US]
+02-04 12:12:10.388 17716 17745 W WeatherRepository: fetchDayObservations: No observations from AW020 for 2026-02-02 - trying next
+02-04 12:12:10.388 17716 17745 D WeatherRepository: fetchDayObservations: Trying station KNUQ (2/5) for 2026-02-02
+02-04 12:12:10.392  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df80b8) locale list changing from [] to [en-US]
+02-04 12:12:10.396  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfa958) locale list changing from [] to [en-US]
+02-04 12:12:10.400  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfc898) locale list changing from [] to [en-US]
+02-04 12:12:10.413  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfee18) locale list changing from [] to [en-US]
+02-04 12:12:10.417  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df8a18) locale list changing from [] to [en-US]
+02-04 12:12:10.429  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfb8f8) locale list changing from [] to [en-US]
+02-04 12:12:10.433  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfbc18) locale list changing from [] to [en-US]
+02-04 12:12:10.445  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfd1f8) locale list changing from [] to [en-US]
+02-04 12:12:10.470  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfced8) locale list changing from [] to [en-US]
+02-04 12:12:10.480  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df7d98) locale list changing from [] to [en-US]
+02-04 12:12:10.490  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfa638) locale list changing from [] to [en-US]
+02-04 12:12:10.492 17716 17746 I WeatherRepository: fetchDayObservations: SUCCESS - Got 72 observations from KNUQ for 2026-02-02
+02-04 12:12:10.492 17716 17746 I WeatherRepository: fetchDayObservations: Station KNUQ provided data for 2026-02-02 (H:69 L:41) after 2 attempts
+02-04 12:12:10.492 17716 17746 D WeatherRepository: fetchFromNws: Got observations for 2026-02-02 H=69 L=41 from station KNUQ
+02-04 12:12:10.493 17716 17746 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.493 17716 17746 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-02-01
+02-04 12:12:10.495  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e035f8) locale list changing from [] to [en-US]
+02-04 12:12:10.497  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86df7758) locale list changing from [] to [en-US]
+02-04 12:12:10.510 17716 17746 W WeatherRepository: fetchDayObservations: No observations from AW020 for 2026-02-01 - trying next
+02-04 12:12:10.510 17716 17746 D WeatherRepository: fetchDayObservations: Trying station KNUQ (2/5) for 2026-02-01
+02-04 12:12:10.524  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e048b8) locale list changing from [] to [en-US]
+02-04 12:12:10.534  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e00718) locale list changing from [] to [en-US]
+02-04 12:12:10.542  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dfeaf8) locale list changing from [] to [en-US]
+02-04 12:12:10.584 17716 17747 I WeatherRepository: fetchDayObservations: SUCCESS - Got 71 observations from KNUQ for 2026-02-01
+02-04 12:12:10.584 17716 17747 I WeatherRepository: fetchDayObservations: Station KNUQ provided data for 2026-02-01 (H:64 L:42) after 2 attempts
+02-04 12:12:10.584 17716 17747 D WeatherRepository: fetchFromNws: Got observations for 2026-02-01 H=64 L=42 from station KNUQ
+02-04 12:12:10.584 17716 17747 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.584 17716 17747 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-01-31
+02-04 12:12:10.665 17716 17769 I WeatherRepository: fetchDayObservations: SUCCESS - Got 75 observations from AW020 for 2026-01-31
+02-04 12:12:10.665 17716 17769 I WeatherRepository: fetchDayObservations: Station AW020 provided data for 2026-01-31 (H:64 L:41) after 1 attempts
+02-04 12:12:10.665 17716 17769 D WeatherRepository: fetchFromNws: Got observations for 2026-01-31 H=64 L=41 from station AW020
+02-04 12:12:10.665 17716 17769 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.665 17716 17769 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-01-30
+02-04 12:12:10.679  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e032d8) locale list changing from [] to [en-US]
+02-04 12:12:10.688  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e04ef8) locale list changing from [] to [en-US]
+02-04 12:12:10.707  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e02018) locale list changing from [] to [en-US]
+02-04 12:12:10.720  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e0acb8) locale list changing from [] to [en-US]
+02-04 12:12:10.753  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e01398) locale list changing from [] to [en-US]
+02-04 12:12:10.772  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de1958) locale list changing from [] to [en-US]
+02-04 12:12:10.777  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e019d8) locale list changing from [] to [en-US]
+02-04 12:12:10.781  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de70d8) locale list changing from [] to [en-US]
+02-04 12:12:10.805 17716 17747 I WeatherRepository: fetchDayObservations: SUCCESS - Got 142 observations from AW020 for 2026-01-30
+02-04 12:12:10.806 17716 17747 I WeatherRepository: fetchDayObservations: Station AW020 provided data for 2026-01-30 (H:68 L:42) after 1 attempts
+02-04 12:12:10.806 17716 17747 D WeatherRepository: fetchFromNws: Got observations for 2026-01-30 H=68 L=42 from station AW020
+02-04 12:12:10.806 17716 17747 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.806 17716 17747 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-01-29
+02-04 12:12:10.823  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dea918) locale list changing from [] to [en-US]
+02-04 12:12:10.831  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de7a38) locale list changing from [] to [en-US]
+02-04 12:12:10.844   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:10.845  1454  1460 W gle.android.gms: Suspending all threads took: 6.008ms
+02-04 12:12:10.848   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:10.848   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10207} in 6ms
+02-04 12:12:10.848   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:10.848  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dec538) locale list changing from [] to [en-US]
+02-04 12:12:10.848   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:10.848   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={20207} in 1ms
+02-04 12:12:10.857  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de3578) locale list changing from [] to [en-US]
+02-04 12:12:10.918  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dd8038) locale list changing from [] to [en-US]
+02-04 12:12:10.930  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86ddfd38) locale list changing from [] to [en-US]
+02-04 12:12:10.942 17716 17768 I WeatherRepository: fetchDayObservations: SUCCESS - Got 142 observations from AW020 for 2026-01-29
+02-04 12:12:10.943 17716 17768 I WeatherRepository: fetchDayObservations: Station AW020 provided data for 2026-01-29 (H:69 L:41) after 1 attempts
+02-04 12:12:10.943 17716 17768 D WeatherRepository: fetchFromNws: Got observations for 2026-01-29 H=69 L=41 from station AW020
+02-04 12:12:10.943 17716 17768 D WeatherRepository: fetchDayObservations: Using cached stations (52 total)
+02-04 12:12:10.943 17716 17768 D WeatherRepository: fetchDayObservations: Trying station AW020 (1/5) for 2026-01-28
+02-04 12:12:10.966  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e09d18) locale list changing from [] to [en-US]
+02-04 12:12:10.973  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e08418) locale list changing from [] to [en-US]
+02-04 12:12:11.034 17716 17768 I WeatherRepository: fetchDayObservations: SUCCESS - Got 74 observations from AW020 for 2026-01-28
+02-04 12:12:11.034 17716 17768 I WeatherRepository: fetchDayObservations: Station AW020 provided data for 2026-01-28 (H:64 L:48) after 1 attempts
+02-04 12:12:11.034 17716 17768 D WeatherRepository: fetchFromNws: Got observations for 2026-01-28 H=64 L=48 from station AW020
+02-04 12:12:11.035 17716 17768 D WeatherRepository:   Period 0: Today isDaytime=true temp=72 startTime=2026-02-04T06:00:00-08:00 -> date=2026-02-04
+02-04 12:12:11.035 17716 17768 D WeatherRepository:   Period 1: Tonight isDaytime=false temp=46 startTime=2026-02-04T18:00:00-08:00 -> date=2026-02-04
+02-04 12:12:11.035 17716 17768 D WeatherRepository:   Period 2: Thursday isDaytime=true temp=73 startTime=2026-02-05T06:00:00-08:00 -> date=2026-02-05
+02-04 12:12:11.035 17716 17768 D WeatherRepository:   Period 3: Thursday Night isDaytime=false temp=51 startTime=2026-02-05T18:00:00-08:00 -> date=2026-02-05
+02-04 12:12:11.035 17716 17768 D WeatherRepository:   Period 4: Friday isDaytime=true temp=68 startTime=2026-02-06T06:00:00-08:00 -> date=2026-02-06
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 5: Friday Night isDaytime=false temp=47 startTime=2026-02-06T18:00:00-08:00 -> date=2026-02-06
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 6: Saturday isDaytime=true temp=66 startTime=2026-02-07T06:00:00-08:00 -> date=2026-02-07
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 7: Saturday Night isDaytime=false temp=47 startTime=2026-02-07T18:00:00-08:00 -> date=2026-02-07
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 8: Sunday isDaytime=true temp=64 startTime=2026-02-08T06:00:00-08:00 -> date=2026-02-08
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 9: Sunday Night isDaytime=false temp=46 startTime=2026-02-08T18:00:00-08:00 -> date=2026-02-08
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 10: Monday isDaytime=true temp=59 startTime=2026-02-09T06:00:00-08:00 -> date=2026-02-09
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 11: Monday Night isDaytime=false temp=44 startTime=2026-02-09T18:00:00-08:00 -> date=2026-02-09
+02-04 12:12:11.036 17716 17768 D WeatherRepository:   Period 12: Tuesday isDaytime=true temp=57 startTime=2026-02-10T06:00:00-08:00 -> date=2026-02-10
+02-04 12:12:11.037 17716 17768 D WeatherRepository:   Period 13: Tuesday Night isDaytime=false temp=43 startTime=2026-02-10T18:00:00-08:00 -> date=2026-02-10
+02-04 12:12:11.037 17716 17768 D WeatherRepository: fetchFromNws: Parsed 14 days
+02-04 12:12:11.038 17716 17768 D WeatherRepository: isDevicePluggedIn: status=4, plugType=0 -> isPlugged=false
+02-04 12:12:11.038 17716 17768 D WeatherRepository: fetchClimateNormalsGap: Checking if plugged in: false (Source Context: NWS)
+02-04 12:12:11.038 17716 17768 D ApiLogger: logApiCall: NWS, success=true, error=null
+02-04 12:12:11.048 17716 17768 D ApiLogger: Successfully saved 100 entries
+02-04 12:12:11.048 17716 17768 D WeatherRepository: fetchFromBothApis: NWS succeeded
+02-04 12:12:11.053 17716 17768 D WeatherRepository: saveForecastSnapshot: Saved 7 snapshots for NWS (IncludeToday=true). Range: 2026-02-04 to 2026-02-10
+02-04 12:12:11.056 17716 17768 D WeatherRepository: saveForecastSnapshot: Saved 14 snapshots for OPEN_METEO (IncludeToday=true). Range: 2026-02-04 to 2026-02-17
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker: doWork: Got 35 weather entries
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-28: H=64 L=48
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-28: H=63 L=49
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-29: H=69 L=41
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-29: H=64 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-30: H=68 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-30: H=64 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-31: H=64 L=41
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-01-31: H=64 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-01: H=64 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-01: H=64 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-02: H=69 L=41
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-02: H=67 L=41
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-03: H=68 L=42
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-03: H=67 L=40
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-04: H=72 L=46
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-04: H=69 L=40
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-05: H=73 L=51
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-05: H=68 L=44
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-06: H=68 L=47
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-06: H=69 L=49
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-07: H=66 L=47
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-07: H=67 L=53
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-08: H=64 L=46
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-08: H=66 L=51
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-09: H=59 L=44
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-09: H=61 L=51
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-10: H=57 L=43
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-10: H=58 L=49
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-11: H=54 L=46
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-12: H=56 L=44
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-13: H=60 L=45
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-14: H=52 L=43
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-15: H=50 L=41
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-16: H=54 L=39
+02-04 12:12:11.069 17716 17768 D WeatherWidgetWorker:   2026-02-17: H=54 L=46
+02-04 12:12:11.074 17716 17768 D WeatherWidgetProvider: getWidgetSize: widgetId=10, minWidth=360, minHeight=137 -> cols=5, rows=2
+02-04 12:12:11.074 17716 17768 D WeatherWidgetProvider: updateWidgetWithHourlyData: widgetId=10, cols=5, rows=2, hourlyCount=93
+02-04 12:12:11.077 17716 17768 D TemperatureInterpolator: getInterpolatedTemperature: source=NWS, sourcesInData=[OPEN_METEO, NWS], totalForecasts=93
+02-04 12:12:11.078 17716 17768 D TemperatureInterpolator: getInterpolatedTemperature: filteredForecasts=49, sources=[OPEN_METEO, NWS]
+02-04 12:12:11.078 17716 17768 D TemperatureInterpolator: getInterpolatedTemperature: currentHour=2026-02-04T12:00 found=NWS:65.0, nextHour=2026-02-04T13:00 found=NWS:69.0
+02-04 12:12:11.078 17716 17768 D TemperatureInterpolator: Interpolating: time=12:12, current=65.0@2026-02-04T12:00, next=69.0@2026-02-04T13:00, factor=0.2, result=65.8
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: now=2026-02-04T12:12:11.078776, centerTime=2026-02-04T12:12:11.074057, alignedCenter=2026-02-04T12:00
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: startHour=2026-02-04T04:00, endHour=2026-02-05T04:00 (4:00 to 4:00)
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: forecastsByTime has 49 entries, labelInterval=2
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: forecastsByTime keys=[2026-02-03T12:00, 2026-02-03T13:00, 2026-02-03T14:00, 2026-02-03T15:00, 2026-02-03T16:00, 2026-02-03T17:00, 2026-02-03T18:00, 2026-02-03T19:00, 2026-02-03T20:00, 2026-02-03T21:00, 2026-02-03T22:00, 2026-02-03T23:00, 2026-02-04T00:00, 2026-02-04T01:00, 2026-02-04T02:00, 2026-02-04T03:00, 2026-02-04T04:00, 2026-02-04T05:00, 2026-02-04T06:00, 2026-02-04T07:00, 2026-02-04T08:00, 2026-02-04T09:00, 2026-02-04T10:00, 2026-02-04T11:00, 2026-02-04T12:00, 2026-02-04T13:00, 2026-02-04T14:00, 2026-02-04T15:00, 2026-02-04T16:00, 2026-02-04T17:00, 2026-02-04T18:00, 2026-02-04T19:00, 2026-02-04T20:00, 2026-02-04T21:00, 2026-02-04T22:00, 2026-02-04T23:00, 2026-02-05T00:00, 2026-02-05T01:00, 2026-02-05T02:00, 2026-02-05T03:00, 2026-02-05T04:00, 2026-02-05T05:00, 2026-02-05T06:00, 2026-02-05T07:00, 2026-02-05T08:00, 2026-02-05T09:00, 2026-02-05T10:00, 2026-02-05T11:00, 2026-02-05T12:00]
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[0] 2026-02-04T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[2] 2026-02-04T06:00 label=6a showLabel=true isClosest=false
+02-04 12:12:11.079 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[4] 2026-02-04T08:00 label=8a showLabel=true isClosest=false
+02-04 12:12:11.080 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[6] 2026-02-04T10:00 label=10a showLabel=true isClosest=false
+02-04 12:12:11.080 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[8] 2026-02-04T12:00 label=12p showLabel=true isClosest=true
+02-04 12:12:11.080 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[10] 2026-02-04T14:00 label=2p showLabel=true isClosest=false
+02-04 12:12:11.080 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[12] 2026-02-04T16:00 label=4p showLabel=true isClosest=false
+02-04 12:12:11.081 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[14] 2026-02-04T18:00 label=6p showLabel=true isClosest=false
+02-04 12:12:11.081 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[16] 2026-02-04T20:00 label=8p showLabel=true isClosest=false
+02-04 12:12:11.081 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[18] 2026-02-04T22:00 label=10p showLabel=true isClosest=false
+02-04 12:12:11.082 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[20] 2026-02-05T00:00 label=12a showLabel=true isClosest=false
+02-04 12:12:11.082 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[22] 2026-02-05T02:00 label=2a showLabel=true isClosest=false
+02-04 12:12:11.082 17716 17768 D WeatherWidgetProvider: buildHourDataList: hour[24] 2026-02-05T04:00 label=4a showLabel=true isClosest=false
+02-04 12:12:11.082 17716 17768 D WeatherWidgetProvider: buildHourDataList: Built 25 hours, first=2026-02-04T04:00, last=2026-02-05T04:00
+02-04 12:12:11.082 17716 17768 D WeatherWidgetProvider: getOptimalBitmapSize: 318dp×180dp → Downscaling from 834x472px (1537KB) to 630x356px (876KB), scale=0.75602686, rawPixels=393648
+02-04 12:12:11.083 17716 17768 D HourlyGraph: Widget: 630px × 356px (240dp × 135dp) | heightScaleFactor=1.0 | baseLabel=9dp, finalLabel=9dp
+02-04 12:12:11.083 17716 17768 D HourlyGraph: Font sizes: hourLabel=23.625px (9.0dp), tempLabel=23.625px (9.0dp)
+02-04 12:12:11.112   696   866 D AppWidgetServiceImpl: Trying to notify widget update for package com.weatherwidget with widget id: 10
+02-04 12:12:11.115  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e016b8) locale list changing from [] to [en-US]
+02-04 12:12:11.124 17716 17768 D UIUpdateScheduler: Scheduling next UI update in 7 minutes (tempDiff=4, nextUpdate=2026-02-04T12:20)
+02-04 12:12:11.127 17716 17768 D UIUpdateScheduler: UI update alarm scheduled for 468 seconds from now
+02-04 12:12:11.128 17716 17759 I WM-WorkerWrapper: Worker result SUCCESS for Work [ id=5a8f1348-f23c-4d94-87ee-870b0a45f1c4, tags={ com.weatherwidget.widget.WeatherWidgetWorker } ]
+02-04 12:12:11.136  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de6db8) locale list changing from [] to [en-US]
+02-04 12:12:11.145  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e0a358) locale list changing from [] to [en-US]
+02-04 12:12:11.150  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e0d878) locale list changing from [] to [en-US]
+02-04 12:12:11.157  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e07dd8) locale list changing from [] to [en-US]
+02-04 12:12:11.166  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e0d238) locale list changing from [] to [en-US]
+02-04 12:12:11.174  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e0a038) locale list changing from [] to [en-US]
+02-04 12:12:11.178  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de0058) locale list changing from [] to [en-US]
+02-04 12:12:11.192  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de1f98) locale list changing from [] to [en-US]
+02-04 12:12:11.198  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86ddbb98) locale list changing from [] to [en-US]
+02-04 12:12:11.201  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e0c298) locale list changing from [] to [en-US]
+02-04 12:12:11.203  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de0698) locale list changing from [] to [en-US]
+02-04 12:12:11.208  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de22b8) locale list changing from [] to [en-US]
+02-04 12:12:11.210  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de4518) locale list changing from [] to [en-US]
+02-04 12:12:11.212  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de1c78) locale list changing from [] to [en-US]
+02-04 12:12:11.235  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86ddcb38) locale list changing from [] to [en-US]
+02-04 12:12:11.275  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de1638) locale list changing from [] to [en-US]
+02-04 12:12:11.278 17716 17780 D ProfileInstaller: Installing profile for com.weatherwidget
+02-04 12:12:11.280  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e01078) locale list changing from [] to [en-US]
+02-04 12:12:11.304  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86de8cf8) locale list changing from [] to [en-US]
+02-04 12:12:11.454  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e01cf8) locale list changing from [] to [en-US]
+02-04 12:12:11.464  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86ddabf8) locale list changing from [] to [en-US]
+02-04 12:12:11.477  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86dff778) locale list changing from [] to [en-US]
+02-04 12:12:11.502  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e000d8) locale list changing from [] to [en-US]
+02-04 12:12:11.532  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e04278) locale list changing from [] to [en-US]
+02-04 12:12:11.553  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e05e98) locale list changing from [] to [en-US]
+02-04 12:12:11.590  1429  1492 I .apps.wellbeing: AssetManager2(0x7ded86e003f8) locale list changing from [] to [en-US]
+02-04 12:12:12.786   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:12.787   696   840 D InetDiagMessage: Destroyed 2 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:12.787   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10231} in 3ms
+02-04 12:12:12.788   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:12.788   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:12.788   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={20231} in 1ms
+02-04 12:12:13.246 17781 17781 W dumpsys : Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+02-04 12:12:13.394  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+02-04 12:12:13.411  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.419  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.425  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.437  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.454  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.463  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.477  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.485  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:13.487  2998  3829 I artd    : GetBestInfo: /data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+02-04 12:12:13.518  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+02-04 12:12:13.518  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.519  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+02-04 12:12:13.520  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.520  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+02-04 12:12:13.521  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+02-04 12:12:13.521  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.522  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.522  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.522  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.523  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.525  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000d/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+02-04 12:12:13.527  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-MlkitBarcodeUi.optional_250834100800.apk has no usable artifacts
+02-04 12:12:13.529  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-Appsearch.optional_250834100800.apk has no usable artifacts
+02-04 12:12:13.529  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.529  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.530  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:13.531  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~Dn-t3qWGqkn6kS5a5CU3YQ==/com.android.vending-L6lslMmuwC-7dk7rYzAKOQ==/base.apk, fd=-1
+02-04 12:12:15.828   696   786 D ActivityManager: freezing 9245 com.google.android.adservices.api
+02-04 12:12:15.850   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:15.851   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:15.851   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10207} in 7ms
+02-04 12:12:16.316  1038  1229 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+02-04 12:12:16.727  1548  1830 I OpaConnection: Destroying connection
+02-04 12:12:16.838  1548  1830 I aosl    : setupConnection
+02-04 12:12:16.912   696  1167 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@f6ae1dbc does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+02-04 12:12:16.913   696  1167 D CompatChangeReporter: Compat change id reported: 151861875; UID 10149; state: ENABLED
+02-04 12:12:17.032  1548  1830 I aosl    : (REDACTED) State changed: %s => %s
+02-04 12:12:17.193   479   479 D Zygote  : Forked child process 17784
+02-04 12:12:17.195   696   727 W ActivityManager: Slow operation: 280ms so far, now at startProcess: returned from zygote!
+02-04 12:12:17.198   696   727 W ActivityManager: Slow operation: 284ms so far, now at startProcess: done updating battery stats
+02-04 12:12:17.199   696   727 W ActivityManager: Slow operation: 285ms so far, now at startProcess: building log message
+02-04 12:12:17.200   696   727 I ActivityManager: Start proc 17784:com.google.android.googlequicksearchbox:search/u0a149 for service {com.google.android.googlequicksearchbox/com.google.android.apps.gsa.publicsearch.PublicSearchService}
+02-04 12:12:17.200   696   727 W ActivityManager: Slow operation: 285ms so far, now at startProcess: starting to update pids map
+02-04 12:12:17.200   696   727 I ActivityManager: ProcessObserver broadcast disabled
+02-04 12:12:17.200   696   727 W ActivityManager: Slow operation: 286ms so far, now at startProcess: done updating pids map
+02-04 12:12:17.334 17784 17784 I earchbox:search: Using CollectorTypeCMC GC.
+02-04 12:12:17.382 17784 17784 W earchbox:search: Unexpected CPU variant for x86: x86_64.
+02-04 12:12:17.382 17784 17784 W earchbox:search: Known variants: atom, sandybridge, silvermont, goldmont, goldmont-plus, goldmont-without-sha-xsaves, tremont, kabylake, alderlake, default
+02-04 12:12:17.453 17784 17784 E earchbox:search: Not starting debugger since process cannot load the jdwp agent.
+02-04 12:12:17.533 17784 17784 D nativeloader: Load libframework-connectivity-tiramisu-jni.so using APEX ns com_android_tethering for caller /apex/com.android.tethering/javalib/framework-connectivity-t.jar: ok
+02-04 12:12:17.681 17784 17784 D ApplicationLoaders: Returning zygote-cached class loader: /system/framework/org.apache.http.legacy.jar
+02-04 12:12:17.703 17784 17784 D nativeloader: Configuring clns-9 for other apk /system_ext/framework/com.android.extensions.appfunctions.jar. target_sdk_version=35, uses_libraries=ALL, library_path=/product/priv-app/Velvet/lib/x86_64:/product/priv-app/Velvet/Velvet.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.googlequicksearchbox
+02-04 12:12:17.706 17784 17784 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.extensions.jar
+02-04 12:12:17.706 17784 17784 D ApplicationLoaders: Returning zygote-cached class loader: /system_ext/framework/androidx.window.sidecar.jar
+02-04 12:12:17.783   696   786 D ActivityManager: freezing 17716 com.weatherwidget
+02-04 12:12:17.793   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:17.794   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:17.794   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10231} in 3ms
+02-04 12:12:17.895 17784 17784 D nativeloader: InitLlndkLibrariesProduct: libEGL.so:libGLESv1_CM.so:libGLESv2.so:libGLESv3.so:libRS.so:libandroid_net.so:libapexsupport.so:libavf.so:libbinder_ndk.so:libc.so:libcgrouprc.so:libclang_rt.asan-x86_64-android.so:libcom.android.tethering.connectivity_native.so:libdl.so:libft2.so:liblog.so:libm.so:libmediandk.so:libnativewindow.so:libneuralnetworks.so:libselinux.so:libsync.so:libvendorsupport.so:libvndksupport.so:libvulkan.so
+02-04 12:12:17.895 17784 17784 D nativeloader: Configuring product-clns-10 for unbundled product apk /product/priv-app/Velvet/Velvet.apk. target_sdk_version=35, uses_libraries=, library_path=/product/priv-app/Velvet/lib/x86_64:/product/priv-app/Velvet/Velvet.apk!/lib/x86_64:/product/lib64:/system/product/lib64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.googlequicksearchbox:/product/lib64:/system/product/lib64
+02-04 12:12:17.902 17784 17784 D nativeloader: InitVndkspLibrariesProduct: VNDK is deprecated with product
+02-04 12:12:17.904 17784 17784 D CompatChangeReporter: Compat change id reported: 202956589; UID 10149; state: ENABLED
+02-04 12:12:17.989 17784 17784 I earchbox:search: AssetManager2(0x7ded86dd8998) locale list changing from [] to [en-US]
+02-04 12:12:18.014 17784 17784 V GraphicsEnvironment: Currently set values for:
+02-04 12:12:18.014 17784 17784 V GraphicsEnvironment:   angle_gl_driver_selection_pkgs=[]
+02-04 12:12:18.014 17784 17784 V GraphicsEnvironment:   angle_gl_driver_selection_values=[]
+02-04 12:12:18.014 17784 17784 V GraphicsEnvironment: com.google.android.googlequicksearchbox is not listed in per-application setting
+02-04 12:12:18.015 17784 17784 V GraphicsEnvironment: ANGLE allowlist from config: com.dreamgames.royalmatch com.dts.freefiremax com.dxx.firenow com.gramgames.mergedragons com.ludo.king com.mojang.minecraftpe com.my.defense com.nintendo.zaka com.os.airforce com.playrix.fishdomdd.gplay io.teslatech.callbreak jp.konami.prospia net.peakgames.toonblast
+02-04 12:12:18.015 17784 17784 V GraphicsEnvironment: com.google.android.googlequicksearchbox is not listed in ANGLE allowlist or settings, returning default
+02-04 12:12:18.015 17784 17784 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+02-04 12:12:18.108 17784 17784 I MultiDex: VM with version 2.1.0 has multidex support
+02-04 12:12:18.110 17784 17784 I MultiDex: Installing application
+02-04 12:12:18.110 17784 17784 I MultiDex: VM has multidex support, MultiDex support library is disabled.
+02-04 12:12:18.165 17784 17784 D ProcessLifecycleG3: androidx.startup is not available, initializing using ProcessLifecycleOwnerInitializer instead.
+02-04 12:12:18.397 17784 17802 D nativeloader: Load /product/priv-app/Velvet/Velvet.apk!/lib/x86_64/libnative_crash_handler_jni.so using class loader ns product-clns-10 (caller=/product/priv-app/Velvet/Velvet.apk!classes2.dex): ok
+02-04 12:12:18.468 17784 17784 I dmna    : Initializing GMS Compliance Client Library...
+02-04 12:12:18.468 17784 17784 I dmna    : Checking for device compliance...
+02-04 12:12:18.468 17784 17784 I dmna    : Completed library init.
+02-04 12:12:18.481   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:18.514  1548  1830 I aosl    : onServiceConnected
+02-04 12:12:18.528 17784 17794 I A       : Calling beginBinderSession().
+02-04 12:12:18.544   696   786 D ActivityManager: freezing 16825 com.android.vending
+02-04 12:12:18.560   696   786 D ActivityManager: freezing 16835 com.android.vending:background
+02-04 12:12:18.583 17784 17794 W DynamiteModule: Local module descriptor class for com.google.android.gms.googlecertificates not found.
+02-04 12:12:18.601 17784 17799 I dmna    : (REDACTED) Device Compliance Fetch time taken = %sms
+02-04 12:12:18.601 17784 17799 I dmna    : Device is compliant!
+02-04 12:12:18.602 17784 17799 I dmna    : Invoking "compliant" action...
+02-04 12:12:18.627 17784 17794 W earchbox:search: ClassLoaderContext classpath size mismatch. expected=1, found=0 (DLC[];PCL[base.apk*64411587]{PCL[/system/framework/org.apache.http.legacy.jar*4247870504]#PCL[/system/framework/com.android.location.provider.jar*1570284764]#PCL[/system/framework/com.android.media.remotedisplay.jar*487574312]#PCL[/system_ext/framework/androidx.window.extensions.jar*1030441313]#PCL[/system_ext/framework/androidx.window.sidecar.jar*3860983653]} | DLC[];PCL[])
+02-04 12:12:18.635 17784 17794 I DynamiteModule: Considering local module com.google.android.gms.googlecertificates:0 and remote module com.google.android.gms.googlecertificates:7
+02-04 12:12:18.635 17784 17794 I DynamiteModule: Selected remote version of com.google.android.gms.googlecertificates, version >= 7
+02-04 12:12:18.635 17784 17794 V DynamiteModule: Dynamite loader version >= 2, using loadModule2NoCrashUtils
+02-04 12:12:18.648 17784 17794 W System  : ClassLoader referenced unknown path: 
+02-04 12:12:18.649 17784 17794 D nativeloader: Configuring clns-11 for other apk . target_sdk_version=36, uses_libraries=, library_path=/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/lib/x86_64:/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/base.apk!/lib/x86_64, permitted_path=/data:/mnt/expand:/data/user/0/com.google.android.gms
+02-04 12:12:18.662  1548  1685 I bbax    : (REDACTED) getHotwordActive::active query: %s, watch: %s, devices connected: %s
+02-04 12:12:18.680 17784 17794 I earchbox:search: AssetManager2(0x7ded86ddaf18) locale list changing from [] to [en-US]
+02-04 12:12:18.689 17784 17794 W earchbox:search: ClassLoaderContext classpath element mismatch. expected=base.apk, found=/product/priv-app/Velvet/Velvet.apk (DLC[];PCL[base.apk*64411587]{PCL[/system/framework/org.apache.http.legacy.jar*4247870504]#PCL[/system/framework/com.android.location.provider.jar*1570284764]#PCL[/system/framework/com.android.media.remotedisplay.jar*487574312]#PCL[/system_ext/framework/androidx.window.extensions.jar*1030441313]#PCL[/system_ext/framework/androidx.window.sidecar.jar*3860983653]} | DLC[];PCL[/product/priv-app/Velvet/Velvet.apk*3644391116]{PCL[/system/framework/org.apache.http.legacy.jar*4247870504]#PCL[/system_ext/framework/com.android.extensions.appfunctions.jar*2880224042]#PCL[/system_ext/framework/androidx.window.extensions.jar*1030441313]#PCL[/system_ext/framework/androidx.window.sidecar.jar*3860983653]})
+02-04 12:12:18.792 17784 17794 I earchbox:search: AssetManager2(0x7ded86dd8038) locale list changing from [] to [en-US]
+02-04 12:12:18.794 17784 17794 I earchbox:search: AssetManager2(0x7ded86ddabf8) locale list changing from [] to [en-US]
+02-04 12:12:18.849 17784 17794 I A       : beginBinderSession(): calling binder
+02-04 12:12:18.856 17784 17799 D nativeloader: Load /product/priv-app/Velvet/Velvet.apk!/lib/x86_64/libmappedcountercacheversionjni.so using class loader ns product-clns-10 (caller=/product/priv-app/Velvet/Velvet.apk!classes3.dex): ok
+02-04 12:12:18.857 17784 17799 D CompatChangeReporter: Compat change id reported: 312399441; UID 10149; state: ENABLED
+02-04 12:12:18.861  1548  1830 D StrictMode: StrictMode policy violation: android.os.strictmode.DiskReadViolation
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.StrictMode$AndroidBlockGuardPolicy.onReadFromDisk(StrictMode.java:1728)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at libcore.io.BlockGuardOs.access(BlockGuardOs.java:74)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at libcore.io.ForwardingOs.access(ForwardingOs.java:128)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.app.ActivityThread$AndroidOs.access(ActivityThread.java:8944)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at java.io.UnixFileSystem.checkAccess(UnixFileSystem.java:332)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at java.io.File.exists(File.java:829)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.app.ContextImpl.getDataDir(ContextImpl.java:3347)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.app.ContextImpl.getDir(ContextImpl.java:3366)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.content.ContextWrapper.getDir(ContextWrapper.java:353)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abod.<init>(PG:23)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at rru.a(PG:2563)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzds.d(PG:10)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzds.a(PG:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzdr.a(PG:5)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at rru.C(PG:2713)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at rru.a(PG:135)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at rru.C(PG:2726)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at rru.a(PG:135)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzds.d(PG:10)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzds.a(PG:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzdr.a(PG:5)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzds.d(PG:10)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fzds.a(PG:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.a(PG:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.861  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgi.a(PG:15)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at aosd.run(PG:62)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at dnqr.run(PG:9)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at agie.b(PG:3)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at agih.run(PG:1)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fmrp.run(PG:3)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fmrq.run(PG:68)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at djui.run(PG:5)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at fler.run(PG:44)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at djtz.run(PG:42)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at java.lang.Thread.run(Thread.java:1119)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at djvl.run(PG:62)
+02-04 12:12:18.861  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkp.g(PG:161)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.861  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkp.g(PG:42)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.861  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at com.google.android.gms.dynamite.DynamiteModule.d(PG:282)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkh.c(PG:24)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkp.g(PG:32)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.861  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.862  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.863  1548  1830 D StrictMode: StrictMode policy violation: android.os.strictmode.DiskReadViolation
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.StrictMode$AndroidBlockGuardPolicy.onReadFromDisk(StrictMode.java:1728)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at libcore.io.BlockGuardOs.access(BlockGuardOs.java:74)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at libcore.io.ForwardingOs.access(ForwardingOs.java:128)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.app.ActivityThread$AndroidOs.access(ActivityThread.java:8944)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at java.io.UnixFileSystem.checkAccess(UnixFileSystem.java:332)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at java.io.File.exists(File.java:829)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.app.ContextImpl.getDir(ContextImpl.java:3367)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.content.ContextWrapper.getDir(ContextWrapper.java:353)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abod.<init>(PG:23)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at rru.a(PG:2563)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzds.d(PG:10)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzds.a(PG:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzdr.a(PG:5)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at rru.C(PG:2713)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at rru.a(PG:135)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at rru.C(PG:2726)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at rru.a(PG:135)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzds.d(PG:10)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzds.a(PG:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzdr.a(PG:5)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzds.d(PG:10)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fzds.a(PG:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.a(PG:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.863  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgi.a(PG:15)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at aosd.run(PG:62)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at dnqr.run(PG:9)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at agie.b(PG:3)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at agih.run(PG:1)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fmrp.run(PG:3)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fmrq.run(PG:68)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at djui.run(PG:5)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at fler.run(PG:44)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at djtz.run(PG:42)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at java.lang.Thread.run(Thread.java:1119)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at djvl.run(PG:62)
+02-04 12:12:18.863  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkp.g(PG:161)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.863  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkp.g(PG:42)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.863  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at com.google.android.gms.dynamite.DynamiteModule.d(PG:282)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkh.c(PG:24)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkp.g(PG:32)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.863  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.864  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.866  1548  1830 D StrictMode: StrictMode policy violation: android.os.strictmode.CustomViolation: gcore.dynamite
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode$AndroidBlockGuardPolicy.onCustomSlowCall(StrictMode.java:1695)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode.noteSlowCall(StrictMode.java:2873)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at bewa.a(:com.google.android.gms@260234038@26.02.34 (260800-860235415):3)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.gms.chimera.container.GmsModuleChimeraProvider.query(:com.google.android.gms@260234038@26.02.34 (260800-860235415):143)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at aypk.query(:com.google.android.gms@260234038@26.02.34 (260800-860235415):84)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProvider.query(ContentProvider.java:1625)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at ymg.superQuery(:com.google.android.gms@260234038@26.02.34 (260800-860235415):6)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.chimera.ContentProvider.query(:com.google.android.gms@260234038@26.02.34 (260800-860235415):8)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at aypk.query(:com.google.android.gms@260234038@26.02.34 (260800-860235415):21)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProvider.query(ContentProvider.java:1721)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at ymg.superQuery(:com.google.android.gms@260234038@26.02.34 (260800-860235415):1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.chimera.ContentProvider.query(:com.google.android.gms@260234038@26.02.34 (260800-860235415):3)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at ymg.query(:com.google.android.gms@260234038@26.02.34 (260800-860235415):64)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProvider$Transport.query(ContentProvider.java:296)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProviderNative.onTransact(ContentProviderNative.java:107)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.866  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgi.a(PG:15)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at aosd.run(PG:62)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at dnqr.run(PG:9)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at agie.b(PG:3)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at agih.run(PG:1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at fmrp.run(PG:3)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at fmrq.run(PG:68)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at djui.run(PG:5)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at fler.run(PG:44)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at djtz.run(PG:42)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at java.lang.Thread.run(Thread.java:1119)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at djvl.run(PG:62)
+02-04 12:12:18.866  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.g(PG:161)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.866  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.g(PG:42)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.866  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readException(Parcel.java:3246)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxw.transactAndReadException(PG:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.gms.dynamite.DynamiteModule.d(PG:282)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkh.c(PG:24)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.g(PG:32)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.866  1548  1830 D StrictMode: # via Binder call with stack:
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.StrictMode.readAndHandleBinderCallViolations(StrictMode.java:2671)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Parcel.readExceptionCode(Parcel.java:3285)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.database.DatabaseUtils.readExceptionFromParcel(DatabaseUtils.java:150)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProviderProxy.query(ContentProviderNative.java:495)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProviderClient.query(ContentProviderClient.java:196)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProviderClient.query(ContentProviderClient.java:178)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.content.ContentProviderClient.query(ContentProviderClient.java:168)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.gms.dynamite.DynamiteModule.e(PG:80)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.gms.dynamite.DynamiteModule.b(PG:87)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwzb.b(PG:1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwzc.a(PG:65)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at com.google.android.gms.dynamite.DynamiteModule.d(PG:58)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkh.c(PG:24)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.g(PG:32)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at cwkp.c(PG:1)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgs.test(PG:5)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.y0.accept(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.m0.tryAdvance(SourceFile:20)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.y(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.q(SourceFile:16)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.n(SourceFile:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.J(SourceFile:8)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.nio.file.G.a(SourceFile:11)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.a.u(SourceFile:35)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at j$.util.stream.r2.allMatch(SourceFile:7)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.b(PG:40)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.a(PG:49)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at abgj.dispatchTransaction(PG:28)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at nxx.onTransact(PG:13)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransactInternal(Binder.java:1421)
+02-04 12:12:18.866  1548  1830 D StrictMode: 	at android.os.Binder.execTransact(Binder.java:1365)
+02-04 12:12:18.867  1548  1830 I aosl    : (REDACTED) State changed: %s => %s
+02-04 12:12:18.879  1548  1830 I aosl    : (REDACTED) State changed: %s => %s (%s)
+02-04 12:12:19.153   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:19.156   696   840 D InetDiagMessage: Destroyed 2 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:19.156   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10146} in 5ms
+02-04 12:12:19.611 17784 17808 I fbgv    : Validating WorkManager process
+02-04 12:12:19.612 17784 17807 I fbgv    : (REDACTED) Processes: %s, %s, %s, %s
+02-04 12:12:19.612 17784 17799 E ashmem  : Pinning is deprecated since Android Q. Please use trim or other methods.
+02-04 12:12:19.618 17784 17808 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemjob.SystemJobService
+02-04 12:12:19.618 17784 17808 D WM-Schedulers: Created SystemJobScheduler and enabled SystemJobService
+02-04 12:12:19.619 17784 17818 D WM-ForceStopRunnable: Is default app process = true
+02-04 12:12:19.619 17784 17818 D WM-ForceStopRunnable: Performing cleanup operations.
+02-04 12:12:19.620 17784 17808 I abvk    : Getting accounts.
+02-04 12:12:19.634 17784 17808 I anyq    : send OpaEligibilityChange broadcast to CommonBroadcastReceiver
+02-04 12:12:19.644 17784 17815 I aznj    : (REDACTED) Set Assistant Enabled to %s
+02-04 12:12:19.656 17784 17819 I acie    : (REDACTED) Event Bus thread starting with TID %d
+02-04 12:12:19.657 17784 17784 I achh    : We were killed and are starting back!
+02-04 12:12:19.670 17784 17819 I agyo    : (REDACTED) Util.isLowRamDevice: %b, canUsePreemptibleAudioSource: %b
+02-04 12:12:19.697 17784 17818 D WM-PackageManagerHelper: Skipping component enablement for androidx.work.impl.background.systemalarm.RescheduleReceiver
+02-04 12:12:19.707   696  1167 W ParceledListSlice: Element #4 is 19520 bytes.
+02-04 12:12:19.715 17784 17821 I aznd    : Set Assistant eligibility status
+02-04 12:12:19.753  1454  1454 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.audit.service.START xflg=0x4 pkg=com.google.android.gms }
+02-04 12:12:19.753  1454  1454 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.audit.service.START xflg=0x4 pkg=com.google.android.gms }
+02-04 12:12:19.764 17784 17799 I alhi    : NGA enabled in interactor.
+02-04 12:12:19.766 17784 17799 I alhi    : (REDACTED) Nga state changed to %s
+02-04 12:12:19.766 17784 17799 I alhi    : (REDACTED) isTngActive=%s
+02-04 12:12:19.769 17784 17799 I alhi    : NGA enabled in interactor.
+02-04 12:12:19.814 17784 17818 D nativeloader: Load /product/priv-app/Velvet/Velvet.apk!/lib/x86_64/libgeller_jni_lib.so using class loader ns product-clns-10 (caller=/product/priv-app/Velvet/Velvet.apk!classes2.dex): ok
+02-04 12:12:19.829 17784 17808 I dmkr    : (REDACTED) Setting isLegacySQLite mode to %s.
+02-04 12:12:19.830   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:19.844   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:19.887 17784 17819 W cdac    : No value provided for the places model index flag.
+02-04 12:12:19.887 17784 17819 W cdac    : No value provided for the places model index flag.
+02-04 12:12:19.904  1548  1830 I tuc     : (REDACTED) on opa visibility changed %s
+02-04 12:12:19.919 17784 17819 I agyw    : getLocaleToModelSpecsMap
+02-04 12:12:19.919 17784 17819 I agyw    : Fetching latest config from MDD...
+02-04 12:12:19.926  1548  1830 I tuc     : (REDACTED) on opa visibility changed %s
+02-04 12:12:19.928 17784 17819 I agyw    : (REDACTED) Found map of size: %d
+02-04 12:12:19.931 17784 17834 W acto    : (REDACTED) isEligible(): Absent status for permission %s. Calling ensureCachedSettingsLoaded().
+02-04 12:12:19.932 17784 17834 W acto    : (REDACTED) Absent status for permission %s. Calling ensureCachedSettingsLoaded().
+02-04 12:12:19.933 17784 17834 W acto    : (REDACTED) isEligible(): Absent status for permission %s. Calling ensureCachedSettingsLoaded().
+02-04 12:12:19.934 17784 17834 W acto    : (REDACTED) Absent status for permission %s. Calling ensureCachedSettingsLoaded().
+02-04 12:12:19.935 17784 17834 W acto    : (REDACTED) isEligible(): Absent status for permission %s. Calling ensureCachedSettingsLoaded().
+02-04 12:12:19.936 17784 17834 W acto    : (REDACTED) Absent status for permission %s. Calling ensureCachedSettingsLoaded().
+02-04 12:12:19.936  1291  2669 I FacsCacheGmsModule: (REDACTED) Receiving API connection to FACS API from package '%s'...
+02-04 12:12:19.941 17784 17819 I aldy    : (REDACTED) Initializing MicroDataManager InitializeType-%d, isForced-%b, isActivePhoneEnrollment-%b isActiveGoogleHomeEnrollment-%b
+02-04 12:12:19.943  1548  1865 I tkr     : (REDACTED) Nga on-device enabled based on TNG:MA active state: %b
+02-04 12:12:19.945 17784 17819 I acrf    : Returning false in #takeChangeMicroDetectorMode without doing anything.
+02-04 12:12:19.946 17784 17842 I abue    : (REDACTED) Successfully received auth token for scope: %s in time %d ms
+02-04 12:12:19.947 17784 17799 I agyw    : getLocaleToModelSpecsMap
+02-04 12:12:19.947 17784 17799 I agyw    : Fetching latest config from MDD...
+02-04 12:12:19.947 17784 17799 I agyw    : (REDACTED) Found map of size: %d
+02-04 12:12:19.948 17784 17799 I ahau    : (REDACTED) Location for model with model type: %s and locale: %s, is : %s
+02-04 12:12:19.948 17784 17799 I ahbb    : (REDACTED) #getHotwordModel [locale: %s, modelType: %s]
+02-04 12:12:19.948 17784 17784 I fsoa    : (REDACTED) Scoped context discovery schemas: %s.
+02-04 12:12:19.954 17784 17784 I ssSettingsReceiver: #SmartspaceSettingsChangeReceiver
+02-04 12:12:19.954 17784 17815 I eoet    : (REDACTED) %s TNG App is logging Clearcut event named %s with the %s account state and %s source
+02-04 12:12:19.955 17784 17784 I ssSettingsReceiver: (REDACTED) #onReceive:%s result code: %d, extras: %s
+02-04 12:12:19.956 17784 17784 I ssSettingsReceiver: Received intent which is not a smartspace settings change signal.
+02-04 12:12:19.971  1291  2669 I FacsCacheGmsModule: API connection successful!
+02-04 12:12:19.973  1454  1454 D BoundBrokerSvc: onBind: Intent { act=com.google.android.gms.facs.internal.service.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.GmsInternalApiService }
+02-04 12:12:19.973  1454  1454 D BoundBrokerSvc: Loading bound service for intent: Intent { act=com.google.android.gms.facs.internal.service.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.GmsInternalApiService }
+02-04 12:12:19.978  1454  3348 I FacsCacheGmsModule: Receiving API connection to internal FACS API...
+02-04 12:12:19.981  1454  3348 I FacsCacheGmsModule: API connection successful!
+02-04 12:12:19.984 17784 17799 I ahbb    : (REDACTED) #getHotwordModelFromMobstore [mobstoreUri: %s]
+02-04 12:12:20.082 17784 17815 I ahau    : (REDACTED) MicroDataManager InitializationTask. googleHotwordData is null: true, hotwordModel is null: %b , sourceLocationOfCurrentHotwordModel %s
+02-04 12:12:20.083 17784 17819 I agyw    : getLocaleToModelSpecsMap
+02-04 12:12:20.083 17784 17819 I agyw    : Fetching latest config from MDD...
+02-04 12:12:20.083 17784 17819 I agyw    : (REDACTED) Found map of size: %d
+02-04 12:12:20.084 17784 17819 I acrf    : Returning false in #takeChangeMicroDetectorMode without doing anything.
+02-04 12:12:20.182  1548  1558 W hbox:interactor: Reducing the number of considered missed Gc histogram windows from 425 to 100
+02-04 12:12:20.265  1548  1548 I AmbBrdcstRcvrServClient: (REDACTED) handleRefreshAction(): handling %s
+02-04 12:12:20.265  1548  1845 I BrdcstRcvrMsgr: (REDACTED) sendMessage(): received broadcast id:%d with action:%s
+02-04 12:12:20.268   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:20.270 17784 17844 I A       : Calling beginBinderSession().
+02-04 12:12:20.304   696  1167 D ConnectivityService: requestNetwork for uid/pid:10149/17784 activeRequest: null callbackRequest: 266 [NetworkRequest [ REQUEST id=267, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647 isUidTracked: false declaredMethods: AVAIL|LOST
+02-04 12:12:20.311   696   840 D ConnectivityService: NetReassign [267 : null → 100] [c 1] [a 3] [i 2]
+02-04 12:12:20.311   696   834 D WifiNetworkFactory: got request NetworkRequest [ REQUEST id=267, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.312   696   834 D UntrustedWifiNetworkFactory: got request NetworkRequest [ REQUEST id=267, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.313   696   834 D OemPaidWifiNetworkFactory: got request NetworkRequest [ REQUEST id=267, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.313   696   834 D MultiInternetWifiNetworkFactory: got request NetworkRequest [ REQUEST id=267, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.319 17784 17815 I A       : HeadsetState: startMonitoring
+02-04 12:12:20.319 17784 17820 I A       : Restoring UserContext and chips from storage.
+02-04 12:12:20.320 17784 17815 I A       : (REDACTED) %s(%s): shouldRegister: %b
+02-04 12:12:20.320 17784 17844 I A       : (REDACTED) Forwarding trigger sources: %d
+02-04 12:12:20.321 17784 17844 I A       : beginBinderSession(): calling binder
+02-04 12:12:20.321  1548  1845 I BrdcstRcvrMsgr: SvcConn: messenger connected
+02-04 12:12:20.322 17784 17817 I BrdcstRcvrBProvider: (REDACTED) handleMessage(): id:%d action:%s
+02-04 12:12:20.323 17784 17817 I AmbBrdcstRcvrBProvider: (REDACTED) receive(): %s
+02-04 12:12:20.324 17784 17817 I A       : (REDACTED) handleIntent(): action:%s
+02-04 12:12:20.325 17784 17815 I A       : No UserContext was restored.
+02-04 12:12:20.370 17784 17807 W CPDataMediator: Missing weather card from content store
+02-04 12:12:20.371 17784 17807 I A       : refreshSmartspaceChip
+02-04 12:12:20.371 17784 17807 I A       : refreshSmartspaceChip
+02-04 12:12:20.372 17784 17807 I A       : #sendEchoUpdates
+02-04 12:12:20.374 17784 17807 W WeatherUtils: Weather cards are missing from cache.
+02-04 12:12:20.377 17784 17807 W WeatherUtils: Weather cards are missing from cache.
+02-04 12:12:20.377 17784 17807 I A       : Trigger SS weather background task via Tng
+02-04 12:12:20.378 17784 17815 I A       : transmitSmartspaceContent
+02-04 12:12:20.378 17784 17815 I A       : logCardsSentInAmbientLogs
+02-04 12:12:20.379 17784 17815 I A       : (REDACTED) sending card %s , pre event title : %s, during event title: %s, post event title: %s, event start time: %d, updated at time: %d, isTriggeringUpdate? %b, is from work profile? %b, expirationTimeMillis %d
+02-04 12:12:20.381 17784 17808 I agyw    : getLocaleToModelSpecsMap
+02-04 12:12:20.382 17784 17808 I agyw    : Fetching latest config from MDD...
+02-04 12:12:20.382 17784 17808 I agyw    : (REDACTED) Found map of size: %d
+02-04 12:12:20.383 17784 17808 I ahaf    : (REDACTED) hasHotwordEverywhere-%b
+02-04 12:12:20.383 17784 17808 I BCSsUpdateIntent: (REDACTED) Legacy disabled set is: %s
+02-04 12:12:20.385 17784 17807 I TemplateParserPvdImpl: (REDACTED) UI template for: %s for surfacce: %s is disabled. Skipping...
+02-04 12:12:20.386 17784 17807 I BCSsUpdateIntent: (REDACTED) Non-empty bluechip card list, size: %d, types: %s
+02-04 12:12:20.387 17784 17807 I BCSsUpdateIntent: (REDACTED) Sending filtered bluechip card list, size %d, types: %s
+02-04 12:12:20.387 17784 17807 I BCSsUpdateIntent: attempt to aiaiConnect
+02-04 12:12:20.414 17784 17807 I aukg    : Using pair HTTP connection
+02-04 12:12:20.416   696  1167 D CompatChangeReporter: Compat change id reported: 297989574; UID 10149; state: ENABLED
+02-04 12:12:20.422 17784 17850 I abhp    : [Upload] Connected
+02-04 12:12:20.424 17784 17807 I awec    : (REDACTED) #shareData for %s with pending task count: %d
+02-04 12:12:20.425 17784 17807 I ContentCaptureHelper: Setting logging level to OFF
+02-04 12:12:20.442 17784 17842 I abue    : (REDACTED) Successfully received auth token for scope: %s in time %d ms
+02-04 12:12:20.443   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:20.457 17784 17818 W ccsv    : No feature type found for Smartspace card - not logging!
+02-04 12:12:20.467   696  1798 I ContentCaptureManagerService: Data share request accepted by Content Capture service
+02-04 12:12:20.468 17784 17851 I cn_CronetLibraryLoader: HTTP flags log line: Using live production flag values from Google
+02-04 12:12:20.470 17784 17799 I awec    : (REDACTED) #shareData onWrite success: %s
+02-04 12:12:20.470 17784 17799 I awec    : (REDACTED) %s completed with unretriable status %s on retry attempt %d
+02-04 12:12:20.471 17784 17818 I awec    : (REDACTED) #shareData for %s done
+02-04 12:12:20.471   696  1161 D ConnectivityService: requestNetwork for uid/pid:10149/17784 activeRequest: null callbackRequest: 268 [NetworkRequest [ REQUEST id=269, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]] callback flags: 0 order: 2147483647 isUidTracked: false declaredMethods: AVAIL|LOST|NC|LP
+02-04 12:12:20.471 17784 17818 I agre    : (REDACTED) cardId: %d, card type: %s, update time: %s, expireTime: %s
+02-04 12:12:20.472 17784 17818 I agre    : (REDACTED) Sending successful with locus ID %s
+02-04 12:12:20.473   696  1790 D CompatChangeReporter: Compat change id reported: 319212206; UID 10149; state: ENABLED
+02-04 12:12:20.473  1515  2496 I AiAiEcho: EchoDataShareHandler starts to process file, locusId=smartspace_update
+02-04 12:12:20.474 17784 17822 I BrdcstRcvrBProvider: (REDACTED) handleMessage(): DONE id:%d
+02-04 12:12:20.475  1548  1845 I BrdcstRcvrMsgr: (REDACTED) handleMessage(): id:%d, DEC to %d
+02-04 12:12:20.476  1548  1845 I BrdcstRcvrMsgr: disconnect()
+02-04 12:12:20.476  1548  1876 I AmbBrdcstRcvrServClient: disconnectInternal(): unregisterReceiver failed
+02-04 12:12:20.477  1548  1876 I BrdcstRcvrMsgr: disconnect()
+02-04 12:12:20.477  1548  1876 I AmbBrdcstRcvrServClient: (REDACTED) stopping trigger monitor: %s
+02-04 12:12:20.477   696   834 D WifiNetworkFactory: got request NetworkRequest [ REQUEST id=269, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.477   696   834 D UntrustedWifiNetworkFactory: got request NetworkRequest [ REQUEST id=269, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.477  1548  1876 I A       : (REDACTED) HeadsetState(%s): stopMonitoring
+02-04 12:12:20.478   696   834 D OemPaidWifiNetworkFactory: got request NetworkRequest [ REQUEST id=269, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.478   696   834 D MultiInternetWifiNetworkFactory: got request NetworkRequest [ REQUEST id=269, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VCN_MANAGED&NOT_BANDWIDTH_CONSTRAINED Uid: 10149 RequestorUid: 10149 RequestorPkg: com.google.android.googlequicksearchbox UnderlyingNetworks: Null] ]
+02-04 12:12:20.479   696   840 D ConnectivityService: NetReassign [269 : null → 100] [c 1] [a 1] [i 5]
+02-04 12:12:20.479  1548  1876 I AmbBrdcstRcvrServClient: handleRefreshAction(): disconnect success
+02-04 12:12:20.479  1548  1876 D StrictMode: StrictMode policy violation: android.os.strictmode.DiskReadViolation
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at android.os.StrictMode$AndroidBlockGuardPolicy.onReadFromDisk(StrictMode.java:1728)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at android.app.SharedPreferencesImpl.hasFileChangedUnexpectedly(SharedPreferencesImpl.java:252)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at android.app.SharedPreferencesImpl.startReloadIfChangedUnexpectedly(SharedPreferencesImpl.java:228)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at android.app.ContextImpl.getSharedPreferences(ContextImpl.java:645)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at android.app.ContextImpl.getSharedPreferences(ContextImpl.java:609)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at android.content.ContextWrapper.getSharedPreferences(ContextWrapper.java:223)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at agme.a(PG:8)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at anhy.apply(PG:25)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at fcqt.apply(PG:13)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at fmnz.e(PG:3)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at fmob.run(PG:38)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at fmrq.run(PG:68)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at djui.run(PG:5)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at fler.run(PG:44)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at djtz.run(PG:42)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at java.lang.Thread.run(Thread.java:1119)
+02-04 12:12:20.479  1548  1876 D StrictMode: 	at djvl.run(PG:62)
+02-04 12:12:20.483  1548  1876 D StrictMode: StrictMode policy violation: android.os.strictmode.DiskReadViolation
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.os.StrictMode$AndroidBlockGuardPolicy.onReadFromDisk(StrictMode.java:1728)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at libcore.io.BlockGuardOs.stat(BlockGuardOs.java:419)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at libcore.io.ForwardingOs.stat(ForwardingOs.java:851)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.app.ActivityThread$AndroidOs.stat(ActivityThread.java:8967)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.system.Os.stat(Os.java:910)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.app.SharedPreferencesImpl.hasFileChangedUnexpectedly(SharedPreferencesImpl.java:253)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.app.SharedPreferencesImpl.startReloadIfChangedUnexpectedly(SharedPreferencesImpl.java:228)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.app.ContextImpl.getSharedPreferences(ContextImpl.java:645)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.app.ContextImpl.getSharedPreferences(ContextImpl.java:609)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at android.content.ContextWrapper.getSharedPreferences(ContextWrapper.java:223)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at agme.a(PG:8)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at anhy.apply(PG:25)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at fcqt.apply(PG:13)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at fmnz.e(PG:3)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at fmob.run(PG:38)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at fmrq.run(PG:68)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at djui.run(PG:5)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at fler.run(PG:44)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at djtz.run(PG:42)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at java.lang.Thread.run(Thread.java:1119)
+02-04 12:12:20.483  1548  1876 D StrictMode: 	at djvl.run(PG:62)
+02-04 12:12:20.484  1548  1876 I AmbBrdcstRcvrServClient: connecting to AmbBroadcastReceiver
+02-04 12:12:20.484   696   840 D ConnectivityService: NetReassign [no changes] [c 1] [a 2] [i 2]
+02-04 12:12:20.485  1548  1876 I AmbBrdcstRcvrServClient: (REDACTED) enable ambient assistant: %b, isWidgetInstalled: %b, BlueChipSmartspaceEnabled: %b
+02-04 12:12:20.486  1548  1876 I AmbBrdcstRcvrServClient: connect(): listening to headphone on broadcast.
+02-04 12:12:20.486  1548  1876 I AmbBrdcstRcvrServClient: (REDACTED) connect(): setting up trigger sources of size: %d
+02-04 12:12:20.486  1548  1876 I AmbBrdcstRcvrServClient: (REDACTED) starting trigger monitor: %s
+02-04 12:12:20.487  1548  1865 I A       : HeadsetState: startMonitoring
+02-04 12:12:20.487  1548  1865 I A       : (REDACTED) %s(%s): shouldRegister: %b
+02-04 12:12:20.487  1548  1865 I A       : HeadsetState: Registering headset listener.
+02-04 12:12:20.488   696  1790 W ActivityManager: Receiver with filter android.content.IntentFilter@f661fde already registered for pid 1548, callerPackage is com.google.android.googlequicksearchbox
+02-04 12:12:20.488  1548  1876 I BrdcstRcvrMsgr: (REDACTED) sendMessage(): received broadcast id:%d with action:%s
+02-04 12:12:20.489  1548  1865 I A       : HeadsetState: Registered headset listener.
+02-04 12:12:20.490   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:20.490  1548  1865 I A       : HeadsetState: First trigger, start trigger through profile intents.
+02-04 12:12:20.491 17784 17794 I A       : Calling beginBinderSession().
+02-04 12:12:20.491 17784 17794 I A       : beginBinderSession(): calling binder
+02-04 12:12:20.492  1548  1876 I BrdcstRcvrMsgr: SvcConn: messenger connected
+02-04 12:12:20.493 17784 17817 I BrdcstRcvrBProvider: (REDACTED) handleMessage(): id:%d action:%s
+02-04 12:12:20.493 17784 17817 I AmbBrdcstRcvrBProvider: (REDACTED) receive(): %s
+02-04 12:12:20.494 17784 17817 I A       : (REDACTED) handleIntent(): action:%s
+02-04 12:12:20.494 17784 17820 I BrdcstRcvrBProvider: (REDACTED) handleMessage(): DONE id:%d
+02-04 12:12:20.500  1548  1876 I BrdcstRcvrMsgr: (REDACTED) handleMessage(): id:%d, DEC to %d
+02-04 12:12:20.500 17784 17807 D nativeloader: Load /product/priv-app/Velvet/Velvet.apk!/lib/x86_64/libcronet.135.0.7012.3.so using class loader ns product-clns-10 (caller=/product/priv-app/Velvet/Velvet.apk!classes3.dex): ok
+02-04 12:12:20.501  1548  1876 I BrdcstRcvrMsgr: disconnect()
+02-04 12:12:20.514 17784 17807 I cn_CronetLibraryLoader: Cronet version: 135.0.7012.3, arch: x86_64
+02-04 12:12:20.520 17784 17807 W dncx    : Upload request without a content type.
+02-04 12:12:20.532  1515  1841 I AiAiEcho: From CCAPI, Echo received 
+02-04 12:12:20.550   536  3589 W APM::HwModule: getDeviceDescriptor: could not find HW module for device  (AUDIO_DEVICE_OUT_WIRED_HEADSET, 00000004) address 
+02-04 12:12:20.554   536  3589 W APM::HwModule: getDeviceDescriptor: could not find HW module for device  (AUDIO_DEVICE_OUT_WIRED_HEADPHONE, 00000008) address 
+02-04 12:12:20.554   536  3589 W APM::HwModule: getDeviceDescriptor: could not find HW module for device  (AUDIO_DEVICE_OUT_USB_HEADSET, 04000000) address 
+02-04 12:12:20.555  1515  1841 I AiAiEcho: Predicting[0]:  [CONTEXT sampling_count=5 ]
+02-04 12:12:20.556  1515  1841 I AiAiEcho: EchoTargets: 
+02-04 12:12:20.556  1515  1841 I AiAiEcho: Filtered by AiAi flag check: 
+02-04 12:12:20.556  1515  1841 I AiAiEcho: [CONTEXT ratelimit_period="10 SECONDS" ]
+02-04 12:12:20.556 17784 17855 W chromium: [0204/121220.538544:WARNING:url_request_context_config.cc(715)] Unrecognized Cronet experimental option "enable_telemetry" with params "true
+02-04 12:12:20.556 17784 17855 W chromium: 
+02-04 12:12:20.558  1548  1865 I headsetCtxPrv: wired -- returning false
+02-04 12:12:20.564  1515  1841 I AiAiEcho: #remoteViewsTwiddler: feature disabled.
+02-04 12:12:20.565  1515  1841 I AiAiEcho: Predicting[0]:  [CONTEXT sampling_count=5 ]
+02-04 12:12:20.565  1515  1841 I AiAiEcho: EchoTargets: 
+02-04 12:12:20.565  1515  1841 I AiAiEcho: Filtered by AiAi flag check: 
+02-04 12:12:20.565  1515  1841 I AiAiEcho: [CONTEXT ratelimit_period="10 SECONDS" ]
+02-04 12:12:20.565  1515  1841 I AiAiEcho: #remoteViewsTwiddler: feature disabled.
+02-04 12:12:20.573  1515  1841 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface lockscreen with targets# 0 (types=[])
+02-04 12:12:20.579  1515  1841 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+02-04 12:12:20.597  1548  1865 I headsetCtxPrv: (REDACTED) is headset profile connected? %s check_enabled? %b
+02-04 12:12:20.599  1548  1865 I headsetCtxPrv: (REDACTED) is a2dp profile connected? %s
+02-04 12:12:20.600  1548  1865 I headsetCtxPrv: (REDACTED) getBluetoothHeadsetState(): profiles connected: headset:%b a2dp:%b
+02-04 12:12:20.601  1043  1043 D SsBaseTemplateCard: No text view can be set up
+02-04 12:12:20.601  1043  1043 D SsBaseTemplateCard: Passed-in item info is null
+02-04 12:12:20.601  1043  1043 D SsBaseTemplateCard: Passed-in item info is null
+02-04 12:12:20.601  1043  1043 D SsBaseTemplateCard: Passed-in item info is null
+02-04 12:12:20.601  1043  1043 I SsBaseTemplateCard: Secondary card pane is null
+02-04 12:12:20.605  1548  1865 D BluetoothAdapter: A2DP connected
+02-04 12:12:20.606  1548  1865 I headsetCtxPrv: (REDACTED) Attempt to connect to profile proxy was successful? %s
+02-04 12:12:20.609  1548  1548 D BluetoothAdapter: A2DP disconnected
+02-04 12:12:20.609  1548  1548 I headsetCtxPrv: (REDACTED) getDevicesForProfile(): for profile %d, returning: [%s]
+02-04 12:12:20.610  1548  1876 I headsetCtxPrv: getBluetoothHeadsetState(): device fetch done
+02-04 12:12:20.610  1548  1876 W headsetCtxPrv: getStateFromBluetoothDevices(): no connected devices.
+02-04 12:12:20.611  1548  1865 I A       : Returning HeadsetState for first trigger
+02-04 12:12:20.611  1548  1865 I AmbBrdcstRcvrServClient: (REDACTED) onTrigger(): %s
+02-04 12:12:20.613  1548  1876 I BrdcstRcvrMsgr: (REDACTED) sendMessage(): received broadcast id:%d with action:%s
+02-04 12:12:20.616   696   885 D BackgroundInstallControlService: Package event received: 0
+02-04 12:12:20.617   932   932 W PageIndicator: Total number of pages invalid: 0. Assuming 1 page.
+02-04 12:12:20.618 17784 17794 I A       : Calling beginBinderSession().
+02-04 12:12:20.618 17784 17794 I A       : beginBinderSession(): calling binder
+02-04 12:12:20.618  1548  1876 I BrdcstRcvrMsgr: SvcConn: messenger connected
+02-04 12:12:20.619 17784 17817 I BrdcstRcvrBProvider: (REDACTED) handleMessage(): id:%d action:%s
+02-04 12:12:20.620 17784 17817 I AmbBrdcstRcvrBProvider: (REDACTED) receive(): %s
+02-04 12:12:20.620 17784 17817 I A       : (REDACTED) handleIntent(): action:%s
+02-04 12:12:20.623 17784 17821 I HeadsetContextPlugin: (REDACTED) headset state. %s
+02-04 12:12:20.625 17784 17815 I A       : (REDACTED) Applying result: %s
+02-04 12:12:20.626 17784 17815 I HeadsetContextPlugin: (REDACTED) updating context. Connected %s, type %s, name %s
+02-04 12:12:20.626 17784 17815 I A       : (REDACTED) Applying result: %s
+02-04 12:12:20.627 17784 17815 I SuggAggr: onContextChanged
+02-04 12:12:20.649 17784 17815 I MediaRecsCtxProducer: #shouldHandleContext(): Bypassing content store, all headset states are handled.
+02-04 12:12:20.650 17784 17815 I SuggAggr: (REDACTED) Selected producer: %s
+02-04 12:12:20.652 17784 17822 I MediaRecsCtxProducer: #generateSuggestions: Handling disconnection. Generating empty card
+02-04 12:12:20.653 17784 17820 I A       : (REDACTED) Sending %d updates directly to AiAi
+02-04 12:12:20.654 17784 17821 I A       : (REDACTED) set() chips:%s filtered:%s
+02-04 12:12:20.655 17784 17820 I aukg    : Using pair HTTP connection
+02-04 12:12:20.661 17784 17842 I abue    : (REDACTED) Successfully received auth token for scope: %s in time %d ms
+02-04 12:12:20.661 17784 17860 I abhp    : [Upload] Connected
+02-04 12:12:20.667 17784 17818 W dncx    : Upload request without a content type.
+02-04 12:12:20.668 17784 17820 I awec    : (REDACTED) #shareData for %s with pending task count: %d
+02-04 12:12:20.668 17784 17818 W CPDataMediator: Missing weather card from content store
+02-04 12:12:20.669 17784 17807 W CPDataMediator: Missing weather card from content store
+02-04 12:12:20.671 17784 17799 W ccsv    : No feature type found for Smartspace card - not logging!
+02-04 12:12:20.671   696  1161 I ContentCaptureManagerService: Data share request accepted by Content Capture service
+02-04 12:12:20.671  1515  2496 I AiAiEcho: EchoDataShareHandler starts to process file, locusId=aa_update
+02-04 12:12:20.672 17784 17807 I awec    : (REDACTED) #shareData onWrite success: %s
+02-04 12:12:20.672 17784 17807 I awec    : (REDACTED) %s completed with unretriable status %s on retry attempt %d
+02-04 12:12:20.672 17784 17799 I awec    : (REDACTED) #shareData for %s done
+02-04 12:12:20.673 17784 17799 I agre    : (REDACTED) cardId: %d, card type: %s, update time: %s, expireTime: %s
+02-04 12:12:20.674 17784 17799 I agre    : (REDACTED) Sending successful with locus ID %s
+02-04 12:12:20.674 17784 17821 I A       : Successfully sent to AiAi
+02-04 12:12:20.675 17784 17820 I BrdcstRcvrBProvider: (REDACTED) handleMessage(): DONE id:%d
+02-04 12:12:20.676  1548  1876 I BrdcstRcvrMsgr: (REDACTED) handleMessage(): id:%d, DEC to %d
+02-04 12:12:20.676  1548  1876 I BrdcstRcvrMsgr: disconnect()
+02-04 12:12:20.676  1548  1865 I AmbBrdcstRcvrServClient: (REDACTED) handleRefreshAction(): connect done success:%b
+02-04 12:12:20.861 17784 17848 I abhp    : [Download] starting read
+02-04 12:12:20.896 17784 17859 I abhp    : [Download] starting read
+02-04 12:12:20.931 17784 17784 I apnw    : Not enabled for version S+
+02-04 12:12:20.932 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.933 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.933 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.933 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.933 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.933 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.934 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.934 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.940 17784 17784 I apnw    : Not enabled for version S+
+02-04 12:12:20.942 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.942 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.955 17784 17821 I eoet    : (REDACTED) %s TNG App is logging Clearcut event named %s with the %s account state and %s source
+02-04 12:12:20.983 17784 17784 I apnw    : Not enabled for version S+
+02-04 12:12:20.984 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.984 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.984 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.985 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.985 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.985 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.985 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.985 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.989 17784 17821 I bosm    : OptInSetting is UNKNOWN or UNRECOGNIZED [CONTEXT ratelimit_period="10 SECONDS" ]
+02-04 12:12:20.990 17784 17784 I apnw    : Not enabled for version S+
+02-04 12:12:20.991 17784 17784 I abkn    : Falling back to non-UDC sources
+02-04 12:12:20.992 17784 17784 I abkn    : (REDACTED) Setting = %s, optedInt = %s
+02-04 12:12:20.994 17784 17822 I eoet    : (REDACTED) %s TNG App is logging Clearcut event named %s with the %s account state and %s source
+02-04 12:12:21.028 17784 17822 I bndk    : (REDACTED) User is in cohort: %s
+02-04 12:12:21.028 17784 17822 I bndk    : (REDACTED) User is in cohort: %s
+02-04 12:12:21.032 17784 17822 I blnl    : (REDACTED) Enterprise check result: %s
+02-04 12:12:21.033 17784 17822 I bloc    : (REDACTED) Writing %s cross-process flag values: %s
+02-04 12:12:21.036 17784 17820 I bleo    : Manufacturer not matched [CONTEXT ratelimit_period="10 SECONDS" ]
+02-04 12:12:21.036 17784 17820 I bleo    : Device not matched [CONTEXT ratelimit_period="10 SECONDS" ]
+02-04 12:12:21.036 17784 17820 I bosm    : #getOobeStatus: FastTrack [CONTEXT ratelimit_period="10 SECONDS" ]
+02-04 12:12:21.038 17784 17820 I biqq    : User OptedIn. Checking Eligibility.
+02-04 12:12:21.038 17784 17822 I biqq    : User OptedIn. Checking Eligibility.
+02-04 12:12:21.104  1291 11617 I .gms.persistent: AssetManager2(0x7ded86df86f8) locale list changing from [] to [en-US]
+02-04 12:12:23.635 17865 17865 W dumpsys : Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+02-04 12:12:23.864  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+02-04 12:12:23.876  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.886  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.891  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.899  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.907  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.912  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.918  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.930  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:23.932  2998  3829 I artd    : GetBestInfo: /data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+02-04 12:12:23.943  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+02-04 12:12:23.944  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.947  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+02-04 12:12:23.948  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.949  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+02-04 12:12:23.949  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+02-04 12:12:23.949  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.950  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.951  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.952  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.953  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.955  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000d/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+02-04 12:12:23.957  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-MlkitBarcodeUi.optional_250834100800.apk has no usable artifacts
+02-04 12:12:23.958  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-Appsearch.optional_250834100800.apk has no usable artifacts
+02-04 12:12:23.959  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.960  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.960  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:23.961  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~Dn-t3qWGqkn6kS5a5CU3YQ==/com.android.vending-L6lslMmuwC-7dk7rYzAKOQ==/base.apk, fd=-1
+02-04 12:12:24.215   696   786 D ActivityManager: freezing 3605 com.google.android.permissioncontroller
+02-04 12:12:24.236   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:24.238   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:24.239   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10197} in 7ms
+02-04 12:12:25.415 17784 17801 I dyzc    : (REDACTED) Failed to find any valid flight records for process id %d
+02-04 12:12:25.484 17784 17844 V ClearcutMetricXmitter: Transmission is done.
+02-04 12:12:25.485 17784 17844 V ClearcutMetricXmitter: Transmission is done.
+02-04 12:12:25.486 17784 17844 V ClearcutMetricXmitter: Transmission is done.
+02-04 12:12:25.486 17784 17844 V ClearcutMetricXmitter: Transmission is done.
+02-04 12:12:26.322  1038  1229 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+02-04 12:12:28.025   696   778 D ActivityManager: sync unfroze 16825 com.android.vending for 6
+02-04 12:12:28.082   696   778 D ActivityManager: sync unfroze 16835 com.android.vending:background for 6
+02-04 12:12:28.173   696  1790 W ProcessStats: Tracking association SourceState{c99260f com.android.vending:background/10146 ImpBg #8382} whose proc state 6 is better than process ProcessState{2178f19 com.android.vending/10146 pkg=com.android.vending (sub)} proc state 14 (7 skipped)
+02-04 12:12:28.185 16825 16825 I Finsky  : [2] SCH: job service start with id 9764.
+02-04 12:12:28.246 16825 17681 I Finsky  : [195] SCH: Satisfied jobs for 9764 are: 12-1
+02-04 12:12:28.259 16825 17752 I Finsky  : [202] SCH: Job 12-1 starting
+02-04 12:12:28.263 16825 16825 I Finsky  : [2] WM::SCH: Logging work start for 12-1
+02-04 12:12:28.271 16825 16825 I Finsky  : [2] [ContentSync] job started
+02-04 12:12:28.468 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.468 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.468 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.468 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.469 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.469 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.469 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.469 16825 16828 W android.vending: Missing inline cache for java.lang.Object nwt.apply(java.lang.Object)
+02-04 12:12:28.602 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.threadnetwork' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.612 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.uprobestats' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.628 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.vibrator' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.652 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.compos' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.652 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.uwb' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.654 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.bt' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.656 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.widevine.nonupdatable' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.659 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.tzdata6' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.673 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.permission' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.707 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.wifi' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.715 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.contexthub' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.715 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.authsecret' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.725 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.apex.cts.shim' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.733 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.thermal' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.870 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.appsearch' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.870 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.media.swcodec' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.871 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.art' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.881 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.profiling' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.902 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.mediaprovider' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.913 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.uwb' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.916 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.virt' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.916 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.neuralnetworks' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.917 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.crashrecovery' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.917 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.adbd' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.920 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.resolv' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.931 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.i18n' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.934 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.dumpstate' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.935 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.configinfrastructure' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.935 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.media' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.935 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.conscrypt' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.939 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.cas' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.951 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.neuralnetworks' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.954 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.runtime' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.955 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.ipsec' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.956 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.devicelock' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.969 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.power' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.973 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.ondevicepersonalization' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.981 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.sdkext' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:28.981 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.healthfitness' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.002 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.adservices' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.002 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.tethering' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.012 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.extservices' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.022 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.nfcservices' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.059 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.os.statsd' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.060 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.rebootescrow' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.062 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.cellbroadcast' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.072 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.rkpd' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.095 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.google.android.scheduling' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.099 16825 16825 W Finsky  : [2] STU: Failed to get storage stats for package 'com.android.hardware.gatekeeper' (1601: Error getting stats: android.content.pm.PackageManager.NameNotFoundException)
+02-04 12:12:29.105 16825 16825 I Finsky  : [2] App states replicator found 4 unowned apps
+02-04 12:12:29.110 16825 16932 I Finsky  : [69] Completed 0 account content syncs with 0 successful.
+02-04 12:12:29.110 16825 16825 I Finsky  : [2] [ContentSync] Installation state replication succeeded.
+02-04 12:12:29.110 16825 16825 I Finsky  : [2] SCH: jobFinished: 12-1. TimeElapsed: 850ms.
+02-04 12:12:29.111 16825 16825 I Finsky  : [2] WM::SCH: Logging work end for 12-1
+02-04 12:12:29.127 16825 16932 I Finsky  : [69] SCH: Scheduling phonesky job Id: 1-1337, CT: 1770235296093, Constraints: [{ L: 14399998, D: 47739759, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+02-04 12:12:29.127 16825 16932 I Finsky  : [69] SCH: Scheduling phonesky job Id: 10-4, CT: 1770235295535, Constraints: [{ L: 1200000, D: 86400000, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+02-04 12:12:29.127 16825 16932 I Finsky  : [69] SCH: Scheduling phonesky job Id: 34-18, CT: 1770235299721, Constraints: [{ L: 604800000, D: 2524601057, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+02-04 12:12:29.127 16825 16932 I Finsky  : [69] SCH: Scheduling phonesky job Id: 34-21, CT: 1770235299721, Constraints: [{ L: 11800590, D: 1307800590, C: CHARGING_NONE, I: IDLE_NONE, N: NET_ANY, B: BATTERY_ANY }]
+02-04 12:12:29.134 16825 16926 I Finsky  : [64] SCH: Scheduling 1 system job(s)
+02-04 12:12:29.134 16825 16926 I Finsky  : [64] SCH: Scheduling system job Id: 9769, L: 546401, D: 47086718, C: false, I: false, N: 1
+02-04 12:12:29.142 16825 17752 I Finsky  : [202] SCH: job service finished with id 9764.
+02-04 12:12:29.147 16825 16825 I Finsky  : [2] Memory trim requested to level 40
+02-04 12:12:29.147 16825 16825 I Finsky  : [2] Flushing in-memory image cache
+02-04 12:12:29.156 16835 16835 I Finsky:background: [2] Memory trim requested to level 40
+02-04 12:12:32.751 16835 16886 I Finsky:background: [46] Stats for Executor: bgExecutor uup@4657b4a[Running, pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 221]
+02-04 12:12:32.758 16825 16888 I Finsky  : [46] Stats for Executor: BlockingExecutor uup@d2ad99e[Running, pool size = 2, active threads = 0, queued tasks = 0, completed tasks = 198]
+02-04 12:12:32.759 16825 16888 I Finsky  : [46] Stats for Executor: LightweightExecutor uup@7c0fc7f[Running, pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 1707]
+02-04 12:12:32.767 16825 16888 I Finsky  : [46] Stats for Executor: bgExecutor uup@354644c[Running, pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 4265]
+02-04 12:12:32.769 16835 16886 I Finsky:background: [46] Stats for Executor: LightweightExecutor uup@23abb[Running, pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 229]
+02-04 12:12:32.815 16835 16886 I Finsky:background: [46] Stats for Executor: BlockingExecutor uup@67a2bd8[Running, pool size = 2, active threads = 0, queued tasks = 0, completed tasks = 43]
+02-04 12:12:32.981 16825 16888 I Finsky  : [46] Stats for Executor: GrpcBackgroundExecutor uup@460c95[Running, pool size = 4, active threads = 0, queued tasks = 0, completed tasks = 7]
+02-04 12:12:33.361 17871 17871 W dumpsys : Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+02-04 12:12:33.542  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+02-04 12:12:33.550  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.556  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.562  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.567  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.574  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.579  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.587  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.592  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:33.594  2998  3829 I artd    : GetBestInfo: /data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+02-04 12:12:33.605  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+02-04 12:12:33.606  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.609  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+02-04 12:12:33.609  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.610  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+02-04 12:12:33.611  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+02-04 12:12:33.611  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.611  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.612  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.613  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.614  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.617  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000d/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+02-04 12:12:33.619  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-MlkitBarcodeUi.optional_250834100800.apk has no usable artifacts
+02-04 12:12:33.620  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-Appsearch.optional_250834100800.apk has no usable artifacts
+02-04 12:12:33.620  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.621  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.622  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:33.623  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~Dn-t3qWGqkn6kS5a5CU3YQ==/com.android.vending-L6lslMmuwC-7dk7rYzAKOQ==/base.apk, fd=-1
+02-04 12:12:34.109 16825 16829 W android.vending: Suspending all threads took: 7.291ms
+02-04 12:12:34.806  1454  1454 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.audit.service.START xflg=0x4 pkg=com.google.android.gms }
+02-04 12:12:34.988  1454  1454 D BoundBrokerSvc: onUnbind: Intent { act=com.google.android.gms.facs.internal.service.START dat=chimera-action:/... xflg=0x4 cmp=com.google.android.gms/.chimera.GmsInternalApiService }
+02-04 12:12:36.313  1038  1229 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled
+02-04 12:12:39.172   696   786 D ActivityManager: freezing 16825 com.android.vending
+02-04 12:12:39.195   696   786 D ActivityManager: freezing 16835 com.android.vending:background
+02-04 12:12:40.430   696   786 D ActivityManager: freezing 17784 com.google.android.googlequicksearchbox:search
+02-04 12:12:40.434   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+02-04 12:12:40.436   696   840 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+02-04 12:12:40.436   696   840 D InetDiagMessage: Destroyed live tcp sockets for uids={10146} in 7ms
+02-04 12:12:43.170   696   786 D ActivityManager: freezing 11909 com.android.keychain
+02-04 12:12:43.174   696   786 D ActivityManager: freezing 3786 com.android.settings
+02-04 12:12:43.282 17875 17875 W dumpsys : Thread Pool max thread count is 0. Cannot cache binder as linkToDeath cannot be implemented. serviceName: package
+02-04 12:12:43.452  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/base.odex) is kOatUpToDate with filter 'speed-profile' executable 'false'
+02-04 12:12:43.458  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_AdsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.462  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_CronetDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.470  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteLoader_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.473  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesA_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.477  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_DynamiteModulesC_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.482  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_GoogleCertificates_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.485  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MapsDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.490  2998  3829 I artd    : GetBestInfo: odex next to the dex file (/data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/oat/x86_64/split_MeasurementDynamite_installtime.odex) is kOatUpToDate with filter 'speed' executable 'false'
+02-04 12:12:43.492  2998  3829 I artd    : GetBestInfo: /data/app/~~gV4f4bRQqfVD57peDS93Eg==/com.google.android.gms-HfxPsdu4H1LkJXRcn_UIBQ==/split_maps_core_dynamite_ondemand.apk has no usable artifacts
+02-04 12:12:43.498  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000008/dl-VisionOcr.optional_250834100000.apk has no usable artifacts
+02-04 12:12:43.498  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.500  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000001/CronetDynamite.apk has no usable artifacts
+02-04 12:12:43.500  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.501  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000002/DynamiteLoader.apk has no usable artifacts
+02-04 12:12:43.501  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000005/GoogleCertificates.apk has no usable artifacts
+02-04 12:12:43.501  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.502  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.502  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.503  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.504  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.506  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000d/dl-MlkitOcrCommon.optional_250834100800.apk has no usable artifacts
+02-04 12:12:43.508  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/0000000a/dl-MlkitBarcodeUi.optional_250834100800.apk has no usable artifacts
+02-04 12:12:43.509  2998  3829 I artd    : GetBestInfo: /data/user_de/0/com.google.android.gms/app_chimera/m/00000009/dl-Appsearch.optional_250834100800.apk has no usable artifacts
+02-04 12:12:43.509  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.510  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.511  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~rwBMRXUT5FvemNQVuy2C3A==/com.google.android.gms-tBVaPQ2RBPnYr8vmLf2Gmg==/base.apk, fd=-1
+02-04 12:12:43.511  2998  3829 W artd    : Could not get dex checksums for location /data/app/~~Dn-t3qWGqkn6kS5a5CU3YQ==/com.android.vending-L6lslMmuwC-7dk7rYzAKOQ==/base.apk, fd=-1
+02-04 12:12:44.198   696   708 I system_server: Background concurrent mark compact GC freed 28MB AllocSpace bytes, 20(652KB) LOS objects, 42% free, 32MB/56MB, paused 5.725ms,7.184ms total 858.845ms
+02-04 12:12:44.996   696   786 D ActivityManager: freezing 1454 com.google.android.gms
+02-04 12:12:46.322  1038  1229 D SatelliteController: iisInCarrierRoamingNbIotNtn: satellite is disabled

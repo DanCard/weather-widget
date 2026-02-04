@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <int name="widget_view_mode_230" value="1" />
+    <int name="widget_view_mode_231" value="0" />
+    <int name="widget_hourly_offset_232" value="0" />
+    <int name="widget_date_offset_231" value="0" />
+    <int name="widget_view_mode_232" value="1" />
+    <int name="widget_date_offset_230" value="0" />
+    <boolean name="widget_display_source_231" value="true" />
+    <int name="widget_hourly_offset_231" value="0" />
+    <int name="widget_hourly_offset_230" value="0" />
+    <int name="widget_date_offset_205" value="0" />
+</map>

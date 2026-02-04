@@ -98,14 +98,44 @@ class WeatherRepository @Inject constructor(
         lon: Double,
         source: String
     ) {
-        val today = LocalDate.now()
+        val now = LocalDateTime.now()
+        val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val fetchedAt = System.currentTimeMillis()
 
-        // Save snapshots for ALL future days (not just tomorrow)
-        val futureForecasts = weather.filter { LocalDate.parse(it.date).isAfter(today) }
+        /*
+        fetchFromNws function doesn't just get the forecast; it also explicitly fetches the last 7 days of actual observations (highs and lows
+        that already happened) so the widget can show the "Yesterday" history.
 
-        val snapshots = futureForecasts.map { forecast ->
+
+        If we change the code to just date != null, the app will do the following every hour:
+        1. Fetch the last 7 days of observations.
+        2. Save them into the forecast_snapshots table as "snapshots" made today.
+
+
+        The result:
+        Your forecast_snapshots table would become cluttered with "predictions" of the past. For example, it would store a record saying: "Today (Feb 4), we predict that
+        on Feb 1st, it was 65 degrees." Since Feb 1st is already over, that's not a forecast—it's just a record of history.
+
+
+        My recommendation:
+        Keep (date.isAfter(today) || date.isEqual(today)). This ensures the snapshot table stays focused on predictions (what we think will happen today and in the future)
+        rather than re-saving old observations over and over again.
+
+        */
+
+        // Include all forecasts for today and the future.
+        // We filter out past dates because NWS also returns historical observations
+        // for the last 7 days which we don't want to store as 'forecast' snapshots.
+        val relevantForecasts = weather.filter { 
+            val date = try { LocalDate.parse(it.date) } catch (e: Exception) { null }
+            date != null && (date.isAfter(today) || date.isEqual(today))
+        }
+
+        val snapshots = relevantForecasts.mapNotNull { forecast ->
+            // Save even if partial, but not if both are null
+            if (forecast.highTemp == null && forecast.lowTemp == null) return@mapNotNull null
+            
             ForecastSnapshotEntity(
                 targetDate = forecast.date,
                 forecastDate = todayStr,
@@ -114,14 +144,15 @@ class WeatherRepository @Inject constructor(
                 highTemp = forecast.highTemp,
                 lowTemp = forecast.lowTemp,
                 condition = forecast.condition,
-                source = source,
+                // Tag climate normals as GAP to distinguish from real forecasts
+                source = if (forecast.isClimateNormal) "GAP_$source" else source,
                 fetchedAt = fetchedAt
             )
         }
 
         if (snapshots.isNotEmpty()) {
             forecastSnapshotDao.insertAll(snapshots)
-            Log.d(TAG, "Saved ${snapshots.size} forecast snapshots ($source): $todayStr forecast for dates ${snapshots.first().targetDate} to ${snapshots.last().targetDate}")
+            Log.d(TAG, "saveForecastSnapshot: Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}")
         }
     }
 
@@ -250,7 +281,7 @@ class WeatherRepository @Inject constructor(
         val nwsResult = nwsDeferred.await()
         val meteoResult = meteoDeferred.await()
 
-        // Save snapshots from both APIs (if available and before cutoff time)
+        // Save snapshots from both APIs (if available)
         nwsResult?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
         meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
 
@@ -266,8 +297,14 @@ class WeatherRepository @Inject constructor(
     private fun isDevicePluggedIn(): Boolean {
         val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val status = intent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                status == BatteryManager.BATTERY_STATUS_FULL
+        val plugType = intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
+        
+        val isPlugged = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL ||
+                plugType > 0
+                
+        Log.d(TAG, "isDevicePluggedIn: status=$status, plugType=$plugType -> isPlugged=$isPlugged")
+        return isPlugged
     }
 
     private suspend fun fetchClimateNormalsGap(
@@ -278,8 +315,10 @@ class WeatherRepository @Inject constructor(
         targetDays: Int,
         source: String
     ): List<WeatherEntity> {
-        if (!isDevicePluggedIn()) {
-            Log.d(TAG, "fetchClimateNormalsGap: Skipping climate fetch (not plugged in)")
+        val isPlugged = isDevicePluggedIn()
+        Log.d(TAG, "fetchClimateNormalsGap: Checking if plugged in: $isPlugged (Source Context: $source)")
+        
+        if (!isPlugged) {
             return emptyList()
         }
 
@@ -368,10 +407,7 @@ class WeatherRepository @Inject constructor(
 
         // NWS returns periods with startTime - extract date from there
         // Each day has a daytime period (high) and nighttime period (low)
-        // e.g., "Monday" at 6am = Monday's high, "Monday Night" at 6pm = Monday's low
-        // Simply use the start date from each period
         forecast.forEachIndexed { index, period ->
-            // Parse the date from the startTime (format: "2026-02-02T06:00:00-08:00")
             val date = try {
                 val zonedDateTime = java.time.ZonedDateTime.parse(period.startTime)
                 zonedDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -388,6 +424,10 @@ class WeatherRepository @Inject constructor(
                 conditionByDate[date] = period.shortForecast
             } else {
                 weatherByDate[date] = current.first to period.temperature
+                // Ensure partial days have a condition (use night if day is missing)
+                if (conditionByDate[date] == null) {
+                    conditionByDate[date] = period.shortForecast
+                }
             }
         }
 

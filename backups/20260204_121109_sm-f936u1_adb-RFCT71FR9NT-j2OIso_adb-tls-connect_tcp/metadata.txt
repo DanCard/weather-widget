@@ -1,0 +1,3 @@
+Backup Time: Wed Feb  4 12:12:42 PM PST 2026
+Device ID: adb-RFCT71FR9NT-j2OIso._adb-tls-connect._tcp
+Model: sm-f936u1
