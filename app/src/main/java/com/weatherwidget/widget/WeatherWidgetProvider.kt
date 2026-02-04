@@ -542,7 +542,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
         const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
         private const val TAG = "WeatherWidgetProvider"
-        private const val MAX_BITMAP_PIXELS = 125_000 // Limit bitmap to ~500KB (ARGB_8888 is 4 bytes/px)
+        private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
 
         private const val CELL_WIDTH_DP = 70
         private const val CELL_HEIGHT_DP = 90
@@ -565,14 +565,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val rawWidth = dpToPx(context, widthDp)
             val rawHeight = dpToPx(context, heightDp)
             val rawPixels = rawWidth * rawHeight
-            
+            val rawMemoryKB = rawPixels * 4 / 1024
+
             return if (rawPixels > MAX_BITMAP_PIXELS) {
                 val scale = kotlin.math.sqrt(MAX_BITMAP_PIXELS.toFloat() / rawPixels)
                 val newWidth = (rawWidth * scale).toInt()
                 val newHeight = (rawHeight * scale).toInt()
-                Log.d(TAG, "getOptimalBitmapSize: Downscaling bitmap from ${rawWidth}x${rawHeight} to ${newWidth}x${newHeight} (scale=$scale)")
+                val newPixels = newWidth * newHeight
+                val newMemoryKB = newPixels * 4 / 1024
+                Log.d(TAG, "getOptimalBitmapSize: ${widthDp}dp×${heightDp}dp → Downscaling from ${rawWidth}x${rawHeight}px (${rawMemoryKB}KB) to ${newWidth}x${newHeight}px (${newMemoryKB}KB), scale=$scale, rawPixels=$rawPixels")
                 newWidth to newHeight
             } else {
+                Log.d(TAG, "getOptimalBitmapSize: ${widthDp}dp×${heightDp}dp → No downscaling needed: ${rawWidth}x${rawHeight}px (${rawMemoryKB}KB), rawPixels=$rawPixels")
                 rawWidth to rawHeight
             }
         }
