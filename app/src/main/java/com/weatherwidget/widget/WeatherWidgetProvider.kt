@@ -219,8 +219,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val weatherList = weatherDao.getWeatherRange(historyStart, thirtyDays, lat, lon)
 
-        // Filter by current display source
-        val filteredWeatherList = weatherList.filter { it.source == displaySource }
+        // Filter by current display source + generic gap
+        val filteredWeatherList = weatherList.filter { it.source == displaySource || it.source == WidgetStateManager.SOURCE_GENERIC_GAP }
+            .groupBy { it.date }
+            .map { (_, items) -> items.find { it.source == displaySource } ?: items.first() }
         val weatherByDate = filteredWeatherList.associateBy { it.date }
 
         val today = java.time.LocalDate.now()
@@ -666,10 +668,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Get the current display source for this widget
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
 
-            // Build weather map: only use data from the selected display source
+            // Build weather map: prefer the selected display source, fallback to generic gap
             val weatherByDate = weatherList
-                .filter { it.source == displaySource }
-                .associateBy { it.date }
+                .filter { it.source == displaySource || it.source == WidgetStateManager.SOURCE_GENERIC_GAP }
+                .groupBy { it.date }
+                .mapValues { (_, items) -> items.find { it.source == displaySource } ?: items.first() }
 
             // Set API source indicator (shows current display source with accuracy score)
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -928,9 +931,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val forecasts = forecastSnapshots[dateStr] ?: emptyList()
                 Log.d(TAG, "buildDayDataList: Including $dateStr, high=${weather.highTemp}, low=${weather.lowTemp}, forecasts=${forecasts.size}")
 
-                // Get forecast for the display source only
+                // Get forecast for the display source, falling back to generic gap
                 val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
-                val forecast = forecasts.find { it.source == sourceName }
+                val forecast = forecasts.find { it.source == sourceName } ?: forecasts.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP }
 
                 val label = when {
                     date == today -> "Today"
@@ -1329,11 +1332,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val hours = mutableListOf<HourlyGraphRenderer.HourData>()
             val now = LocalDateTime.now()
 
-            // Group by dateTime and prefer the selected source
+            // Group by dateTime and prefer the selected source, fallback to generic gap
             val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
             val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
                 .mapValues { entry ->
-                    entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
+                    entry.value.find { it.source == sourceName } ?: entry.value.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP } ?: entry.value.firstOrNull()
                 }
 
             // Determine how many hours to show (24 total, with "now" at 1/3 position)
@@ -1417,11 +1420,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             numColumns: Int,
             displaySource: String
         ) {
-            // Group by dateTime and prefer the selected source
+            // Group by dateTime and prefer the selected source, fallback to generic gap
             val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
             val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
                 .mapValues { entry ->
-                    entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
+                    entry.value.find { it.source == sourceName } ?: entry.value.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP } ?: entry.value.firstOrNull()
                 }
 
             // Determine which time points to show based on columns

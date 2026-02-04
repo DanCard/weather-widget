@@ -116,10 +116,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
         // Group by source
         val nwsPoints = evolutionPoints.filter { it.source == "NWS" }
         val meteoPoints = evolutionPoints.filter { it.source == "OPEN_METEO" }
+        val gapPoints = evolutionPoints.filter { it.source == "GENERIC_GAP" }
 
         // Update summary
         val summaryText = buildString {
             append("${nwsPoints.size} forecasts from NWS, ${meteoPoints.size} from Open-Meteo")
+            if (gapPoints.isNotEmpty()) {
+                append(", ${gapPoints.size} from Climate Avg")
+            }
         }
         findViewById<TextView>(R.id.snapshot_summary_text).text = summaryText
 

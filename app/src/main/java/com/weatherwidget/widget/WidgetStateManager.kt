@@ -45,6 +45,7 @@ class WidgetStateManager @Inject constructor(
 
         const val SOURCE_NWS = "NWS"
         const val SOURCE_OPEN_METEO = "Open-Meteo"
+        const val SOURCE_GENERIC_GAP = "GENERIC_GAP"
     }
 
     private val prefs: SharedPreferences by lazy {

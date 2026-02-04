@@ -144,8 +144,8 @@ class WeatherRepository @Inject constructor(
                 highTemp = forecast.highTemp,
                 lowTemp = forecast.lowTemp,
                 condition = forecast.condition,
-                // Tag climate normals as GAP to distinguish from real forecasts
-                source = if (forecast.isClimateNormal) "GAP_$source" else source,
+                // Use generic gap source for climate normals
+                source = if (forecast.isClimateNormal) WidgetStateManager.SOURCE_GENERIC_GAP else source,
                 fetchedAt = fetchedAt
             )
         }
@@ -170,9 +170,9 @@ class WeatherRepository @Inject constructor(
         lon: Double,
         source: String
     ): ForecastSnapshotEntity? {
-        // Get all snapshots for this date and filter by source
+        // Get all snapshots for this date and filter by source, falling back to GENERIC_GAP
         val snapshots = forecastSnapshotDao.getForecastsInRange(targetDate, targetDate, lat, lon)
-        return snapshots.find { it.source == source }
+        return snapshots.find { it.source == source } ?: snapshots.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP }
     }
 
     suspend fun getForecastsInRange(
@@ -202,7 +202,13 @@ class WeatherRepository @Inject constructor(
     suspend fun getCachedDataBySource(lat: Double, lon: Double, source: String): List<WeatherEntity> {
         val sevenDaysAgo = LocalDate.now().minusDays(7).format(DateTimeFormatter.ISO_LOCAL_DATE)
         val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        return weatherDao.getWeatherRangeBySource(sevenDaysAgo, thirtyDays, lat, lon, source)
+        
+        val sourceData = weatherDao.getWeatherRangeBySource(sevenDaysAgo, thirtyDays, lat, lon, source)
+        val gapData = weatherDao.getWeatherRangeBySource(sevenDaysAgo, thirtyDays, lat, lon, WidgetStateManager.SOURCE_GENERIC_GAP)
+        
+        // Merge: prefer source data, fill gaps with generic gap data
+        val mergedByDate = (gapData + sourceData).associateBy { it.date }
+        return mergedByDate.values.sortedBy { it.date }
     }
 
     /**
@@ -217,24 +223,25 @@ class WeatherRepository @Inject constructor(
     ): List<WeatherEntity> {
         if (newData.isEmpty()) return newData
 
-        val source = newData.first().source
-        val existingData = getCachedDataBySource(lat, lon, source)
-        val existingByDate = existingData.associateBy { it.date }
+        return newData.groupBy { it.source }.flatMap { (source, items) ->
+            val existingData = getCachedDataBySource(lat, lon, source)
+            val existingByDate = existingData.associateBy { it.date }
 
-        return newData.map { new ->
-            val existing = existingByDate[new.date] ?: return@map new
+            items.map { new ->
+                val existing = existingByDate[new.date] ?: return@map new
 
-            // Prioritization: If new is climate normal but existing is a real forecast, 
-            // and the forecast has data, keep the existing one.
-            if (new.isClimateNormal && !existing.isClimateNormal && (existing.highTemp != null || existing.lowTemp != null)) {
-                return@map existing
+                // Prioritization: If new is climate normal but existing is a real forecast, 
+                // and the forecast has data, keep the existing one.
+                if (new.isClimateNormal && !existing.isClimateNormal && (existing.highTemp != null || existing.lowTemp != null)) {
+                    return@map existing
+                }
+
+                // Merge nullable temperatures: use existing values where new data has nulls
+                new.copy(
+                    highTemp = if (new.highTemp == null) existing.highTemp else new.highTemp,
+                    lowTemp = if (new.lowTemp == null) existing.lowTemp else new.lowTemp
+                )
             }
-
-            // Merge nullable temperatures: use existing values where new data has nulls
-            new.copy(
-                highTemp = if (new.highTemp == null) existing.highTemp else new.highTemp,
-                lowTemp = if (new.lowTemp == null) existing.lowTemp else new.lowTemp
-            )
         }
     }
 
@@ -348,7 +355,7 @@ class WeatherRepository @Inject constructor(
                     condition = "Climate Avg",
                     isActual = false,
                     isClimateNormal = true,
-                    source = source
+                    source = WidgetStateManager.SOURCE_GENERIC_GAP
                 )
             }
         } catch (e: Exception) {

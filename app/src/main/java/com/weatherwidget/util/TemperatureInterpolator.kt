@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -50,10 +51,10 @@ class TemperatureInterpolator @Inject constructor() {
 
         val filteredForecasts = if (source != null) {
             val sourceName = if (source == "NWS") "NWS" else "OPEN_METEO"
-            // Group by dateTime and prefer the requested source
+            // Group by dateTime and prefer the requested source, fallback to generic gap
             hourlyForecasts.groupBy { it.dateTime }
                 .mapValues { entry ->
-                    entry.value.find { it.source == sourceName } ?: entry.value.firstOrNull()
+                    entry.value.find { it.source == sourceName } ?: entry.value.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP } ?: entry.value.firstOrNull()
                 }
                 .values.filterNotNull()
         } else {
