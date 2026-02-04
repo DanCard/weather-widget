@@ -34,6 +34,7 @@
     <string name="accuracy_statistics_description">30-day accuracy summary for both weather sources</string>
     <string name="view_detailed_statistics">View Detailed Statistics</string>
     <string name="statistics">Statistics</string>
+    <string name="forecast_history">Forecast History</string>
     <string name="feature_tour">Feature Tour</string>
     <string name="view_feature_tour">View Feature Tour</string>
 

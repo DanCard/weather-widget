@@ -4,7 +4,7 @@ import androidx.room.Entity
 
 @Entity(
     tableName = "forecast_snapshots",
-    primaryKeys = ["targetDate", "forecastDate", "locationLat", "locationLon", "source"]
+    primaryKeys = ["targetDate", "forecastDate", "locationLat", "locationLon", "source", "fetchedAt"]
 )
 data class ForecastSnapshotEntity(
     val targetDate: String,      // Date being forecasted (e.g., "2024-01-15")

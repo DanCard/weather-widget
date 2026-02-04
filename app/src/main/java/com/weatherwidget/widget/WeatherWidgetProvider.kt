@@ -14,6 +14,7 @@ import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
@@ -656,17 +657,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, weatherCount=${weatherList.size}")
 
-            // Set tap to open settings on content areas (not widget_root, to allow API toggle click)
-            val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
-            val settingsPendingIntent = PendingIntent.getActivity(
-                context,
-                0,
-                settingsIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.text_container, settingsPendingIntent)
-            views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
-
             // Setup current temp click to toggle view mode
             setupCurrentTempToggle(context, views, appWidgetId)
 
@@ -743,9 +733,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Use graph mode for 2+ rows
             val useGraph = numRows >= 2
 
+            // Get location for click handlers
+            val latestWeather = weatherList.maxByOrNull { it.fetchedAt }
+            val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+            val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
             if (useGraph) {
                 views.setViewVisibility(R.id.text_container, View.GONE)
                 views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+                views.setViewVisibility(R.id.graph_day_zones, View.VISIBLE)
 
                 // Build day data for graph with offset
                 val days = buildDayDataList(centerDate, today, weatherByDate, forecastSnapshots, numColumns, accuracyMode, displaySource)
@@ -759,12 +755,19 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 // Render graph
                 val bitmap = TemperatureGraphRenderer.renderGraph(context, days, widthPx, heightPx)
                 views.setImageViewBitmap(R.id.graph_view, bitmap)
+
+                // Setup per-day click handlers for graph mode
+                setupGraphDayClickHandlers(context, views, appWidgetId, days, lat, lon)
             } else {
                 views.setViewVisibility(R.id.text_container, View.VISIBLE)
                 views.setViewVisibility(R.id.graph_view, View.GONE)
+                views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
                 // Text mode - set visibility and populate
-                updateTextMode(views, centerDate, today, weatherByDate, numColumns)
+                val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, numColumns)
+
+                // Setup per-day click handlers for text mode
+                setupTextDayClickHandlers(context, views, appWidgetId, visibleDates, lat, lon)
             }
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -968,7 +971,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             today: LocalDate,
             weatherByDate: Map<String, WeatherEntity>,
             numColumns: Int
-        ) {
+        ): List<Pair<Int, String>> {
             // Calculate dates relative to center
             val day1Date = centerDate.minusDays(1)
             val day2Date = centerDate
@@ -1062,6 +1065,119 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             if (hasDay4) populateDay(views, R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low, getLabelForDate(day4Date), weatherByDate[day4Str])
             if (hasDay5) populateDay(views, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, getLabelForDate(day5Date), weatherByDate[day5Str])
             if (hasDay6) populateDay(views, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, getLabelForDate(day6Date), weatherByDate[day6Str])
+
+            // Return list of visible day indices and their dates for click handler setup
+            val visibleDays = mutableListOf<Pair<Int, String>>()
+            if (hasDay1) visibleDays.add(1 to day1Str)
+            if (hasDay2) visibleDays.add(2 to day2Str)
+            if (hasDay3) visibleDays.add(3 to day3Str)
+            if (hasDay4) visibleDays.add(4 to day4Str)
+            if (hasDay5) visibleDays.add(5 to day5Str)
+            if (hasDay6) visibleDays.add(6 to day6Str)
+            return visibleDays
+        }
+
+        private fun setupTextDayClickHandlers(
+            context: Context,
+            views: RemoteViews,
+            appWidgetId: Int,
+            visibleDays: List<Pair<Int, String>>,
+            lat: Double,
+            lon: Double
+        ) {
+            val containerIds = listOf(
+                R.id.day1_container,
+                R.id.day2_container,
+                R.id.day3_container,
+                R.id.day4_container,
+                R.id.day5_container,
+                R.id.day6_container
+            )
+
+            // Calculate midpoint for left/right split
+            val midpoint = visibleDays.size / 2
+
+            visibleDays.forEachIndexed { index, (dayIndex, dateStr) ->
+                val containerId = containerIds[dayIndex - 1]
+
+                val intent = if (index < midpoint) {
+                    // Left half -> Forecast History
+                    Intent(context, ForecastHistoryActivity::class.java).apply {
+                        putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+                        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                    }
+                } else {
+                    // Right half -> Settings
+                    Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
+                }
+
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    appWidgetId * 100 + dayIndex,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(containerId, pendingIntent)
+            }
+        }
+
+        private fun setupGraphDayClickHandlers(
+            context: Context,
+            views: RemoteViews,
+            appWidgetId: Int,
+            days: List<TemperatureGraphRenderer.DayData>,
+            lat: Double,
+            lon: Double
+        ) {
+            val zoneIds = listOf(
+                R.id.graph_day1_zone,
+                R.id.graph_day2_zone,
+                R.id.graph_day3_zone,
+                R.id.graph_day4_zone,
+                R.id.graph_day5_zone,
+                R.id.graph_day6_zone
+            )
+
+            // Calculate midpoint for left/right split
+            val midpoint = days.size / 2
+
+            days.forEachIndexed { index, dayData ->
+                val zoneId = zoneIds.getOrNull(index) ?: return@forEachIndexed
+
+                // Show this zone
+                views.setViewVisibility(zoneId, View.VISIBLE)
+
+                val dateStr = when (index) {
+                    0 -> LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    else -> LocalDate.now().plusDays((index - 1).toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                }
+
+                val intent = if (index < midpoint) {
+                    // Left half -> Forecast History
+                    Intent(context, ForecastHistoryActivity::class.java).apply {
+                        putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+                        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                    }
+                } else {
+                    // Right half -> Settings
+                    Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
+                }
+
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    appWidgetId * 100 + 50 + index,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                views.setOnClickPendingIntent(zoneId, pendingIntent)
+            }
+
+            // Hide unused zones
+            for (i in days.size until zoneIds.size) {
+                views.setViewVisibility(zoneIds[i], View.GONE)
+            }
         }
 
         private fun populateDay(
@@ -1104,7 +1220,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             Log.d(TAG, "updateWidgetWithHourlyData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
-            // Set tap to open settings on content areas (not widget_root, to allow API toggle click)
+            // Hourly mode: hide graph day zones, keep settings click on graph_view
+            views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+
+            // Set tap to open settings on graph_view (hourly mode doesn't have per-day clicks)
             val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
             val settingsPendingIntent = PendingIntent.getActivity(
                 context,
@@ -1112,7 +1231,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 settingsIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.text_container, settingsPendingIntent)
             views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
 
             // Setup navigation buttons

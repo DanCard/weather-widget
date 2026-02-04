@@ -40,6 +40,11 @@
             android:exported="false"
             android:label="@string/feature_tour" />
 
+        <activity
+            android:name=".ui.ForecastHistoryActivity"
+            android:exported="false"
+            android:label="@string/forecast_history" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">

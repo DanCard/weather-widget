@@ -10,7 +10,7 @@ interface ForecastSnapshotDao {
         WHERE targetDate = :targetDate
         AND locationLat = :lat
         AND locationLon = :lon
-        ORDER BY forecastDate DESC
+        ORDER BY forecastDate DESC, fetchedAt DESC
         LIMIT 1
     """)
     suspend fun getForecastForDate(targetDate: String, lat: Double, lon: Double): ForecastSnapshotEntity?
@@ -21,6 +21,8 @@ interface ForecastSnapshotDao {
         AND forecastDate = :forecastDate
         AND locationLat = :lat
         AND locationLon = :lon
+        ORDER BY fetchedAt DESC
+        LIMIT 1
     """)
     suspend fun getSpecificForecast(
         targetDate: String,
@@ -36,6 +38,8 @@ interface ForecastSnapshotDao {
         AND locationLat = :lat
         AND locationLon = :lon
         AND source = :source
+        ORDER BY fetchedAt DESC
+        LIMIT 1
     """)
     suspend fun getForecastForDateBySource(
         targetDate: String,
@@ -68,4 +72,17 @@ interface ForecastSnapshotDao {
 
     @Query("DELETE FROM forecast_snapshots WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldSnapshots(cutoffTime: Long)
+
+    @Query("""
+        SELECT * FROM forecast_snapshots
+        WHERE targetDate = :targetDate
+        AND locationLat = :lat
+        AND locationLon = :lon
+        ORDER BY forecastDate ASC, fetchedAt ASC
+    """)
+    suspend fun getForecastEvolution(
+        targetDate: String,
+        lat: Double,
+        lon: Double
+    ): List<ForecastSnapshotEntity>
 }

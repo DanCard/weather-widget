@@ -130,11 +130,14 @@ class AccuracyCalculator @Inject constructor(
             val forecastDateStr = forecastDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
             // Find the forecast made the day before for this target date
-            val forecast = forecasts.find {
-                it.targetDate == actual.date &&
-                it.forecastDate == forecastDateStr &&
-                it.source == mapSourceName(source)
-            }
+            // Use the latest forecast if multiple exist (fetchedAt is now part of PK)
+            val forecast = forecasts
+                .filter {
+                    it.targetDate == actual.date &&
+                    it.forecastDate == forecastDateStr &&
+                    it.source == mapSourceName(source)
+                }
+                .maxByOrNull { it.fetchedAt }
 
             if (forecast != null) {
                 val aHigh = actual.highTemp

@@ -47,7 +47,6 @@ class WeatherRepository @Inject constructor(
     }
     companion object {
         private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
-        private const val SNAPSHOT_CUTOFF_HOUR = 20  // 8pm - don't save snapshots after this hour
     }
 
     // Toggle between APIs - alternate fairly between both
@@ -93,34 +92,6 @@ class WeatherRepository @Inject constructor(
         }
     }
 
-    private suspend fun shouldSaveSnapshot(
-        targetDate: String,
-        forecastDate: String,
-        lat: Double,
-        lon: Double,
-        source: String
-    ): Boolean {
-        val now = LocalTime.now()
-
-        // Before cutoff time, always save
-        if (now.hour < SNAPSHOT_CUTOFF_HOUR) {
-            return true
-        }
-
-        // After cutoff time, only save if no snapshot exists yet for this target date + source
-        val existingSnapshot = forecastSnapshotDao.getForecastForDateBySource(
-            targetDate, forecastDate, lat, lon, source
-        )
-
-        if (existingSnapshot == null) {
-            Log.d(TAG, "Saving snapshot after ${SNAPSHOT_CUTOFF_HOUR}:00 (no data saved yet for $source)")
-            return true
-        }
-
-        Log.d(TAG, "Skipping snapshot save (after ${SNAPSHOT_CUTOFF_HOUR}:00 and data already exists)")
-        return false
-    }
-
     private suspend fun saveForecastSnapshot(
         weather: List<WeatherEntity>,
         lat: Double,
@@ -129,30 +100,28 @@ class WeatherRepository @Inject constructor(
     ) {
         val today = LocalDate.now()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val fetchedAt = System.currentTimeMillis()
 
-        // Find tomorrow's forecast in the new weather data
-        val tomorrowForecast = weather.find { it.date == tomorrowStr }
+        // Save snapshots for ALL future days (not just tomorrow)
+        val futureForecasts = weather.filter { LocalDate.parse(it.date).isAfter(today) }
 
-        if (tomorrowForecast != null) {
-            if (!shouldSaveSnapshot(tomorrowStr, todayStr, lat, lon, source)) {
-                return
-            }
-
-            // Save as 1-day-ahead forecast (forecasted today for tomorrow)
-            val snapshot = ForecastSnapshotEntity(
-                targetDate = tomorrowStr,
+        val snapshots = futureForecasts.map { forecast ->
+            ForecastSnapshotEntity(
+                targetDate = forecast.date,
                 forecastDate = todayStr,
                 locationLat = lat,
                 locationLon = lon,
-                highTemp = tomorrowForecast.highTemp,
-                lowTemp = tomorrowForecast.lowTemp,
-                condition = tomorrowForecast.condition,
+                highTemp = forecast.highTemp,
+                lowTemp = forecast.lowTemp,
+                condition = forecast.condition,
                 source = source,
-                fetchedAt = System.currentTimeMillis()
+                fetchedAt = fetchedAt
             )
-            forecastSnapshotDao.insertSnapshot(snapshot)
-            Log.d(TAG, "Saved forecast snapshot ($source): $todayStr forecast for $tomorrowStr - H:${snapshot.highTemp} L:${snapshot.lowTemp}")
+        }
+
+        if (snapshots.isNotEmpty()) {
+            forecastSnapshotDao.insertAll(snapshots)
+            Log.d(TAG, "Saved ${snapshots.size} forecast snapshots ($source): $todayStr forecast for dates ${snapshots.first().targetDate} to ${snapshots.last().targetDate}")
         }
     }
 

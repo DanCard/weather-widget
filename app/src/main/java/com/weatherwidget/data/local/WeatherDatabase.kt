@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -28,7 +28,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     WeatherDatabase::class.java,
                     "weather_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
                     .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
@@ -244,6 +244,40 @@ abstract class WeatherDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // Add condition column to hourly_forecasts
                 db.execSQL("ALTER TABLE hourly_forecasts ADD COLUMN condition TEXT NOT NULL DEFAULT 'Unknown'")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add fetchedAt to primary key to allow multiple snapshots per fetch
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS forecast_snapshots_v12 (
+                        targetDate TEXT NOT NULL,
+                        forecastDate TEXT NOT NULL,
+                        locationLat REAL NOT NULL,
+                        locationLon REAL NOT NULL,
+                        highTemp INTEGER,
+                        lowTemp INTEGER,
+                        `condition` TEXT NOT NULL,
+                        source TEXT NOT NULL,
+                        fetchedAt INTEGER NOT NULL,
+                        PRIMARY KEY(targetDate, forecastDate, locationLat, locationLon, source, fetchedAt)
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO forecast_snapshots_v12 (
+                        targetDate, forecastDate, locationLat, locationLon, 
+                        highTemp, lowTemp, `condition`, source, fetchedAt
+                    )
+                    SELECT 
+                        targetDate, forecastDate, locationLat, locationLon, 
+                        highTemp, lowTemp, `condition`, source, fetchedAt 
+                    FROM forecast_snapshots
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE forecast_snapshots")
+                db.execSQL("ALTER TABLE forecast_snapshots_v12 RENAME TO forecast_snapshots")
             }
         }
     }

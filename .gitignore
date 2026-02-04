@@ -69,3 +69,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# debug files
+screenshots/

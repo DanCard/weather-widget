@@ -331,6 +331,65 @@
         android:scaleType="fitXY"
         android:visibility="gone" />
 
+    <!-- Graph day touch zones (for per-day click handling in graph mode) -->
+    <LinearLayout
+        android:id="@+id/graph_day_zones"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:id="@+id/graph_day1_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day2_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day3_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day4_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day5_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day6_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+    </LinearLayout>
+
     <!-- Left navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
