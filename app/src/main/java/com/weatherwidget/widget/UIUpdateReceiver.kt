@@ -30,7 +30,11 @@ class UIUpdateReceiver : BroadcastReceiver() {
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
         Log.d(TAG, "UI-only update enqueued")
 
         // Schedule next UI update using goAsync to avoid blocking

@@ -25,35 +25,18 @@ class ScreenOnReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_USER_PRESENT) return
 
-        Log.d(TAG, "Screen unlocked - triggering UI update")
+        val charging = isCharging(context)
+        Log.d(TAG, "Screen unlocked - charging=$charging")
 
-        // Always trigger UI-only update for instant feedback
-        // Call provider directly to avoid WorkManager latency
+        // Trigger update via provider
         val providerIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_REFRESH
-            // Add extra to signal UI-only update if we want to skip stale check inside provider
-            // For now, ACTION_REFRESH in provider handles the UI update first thing
+            // If not charging, only do UI update (no full fetch)
+            if (!charging) {
+                putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+            }
         }
         context.sendBroadcast(providerIntent)
-
-        // If charging, check data staleness and fetch if needed
-        if (isCharging(context)) {
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    if (DataFreshness.isDataStale(context)) {
-                        Log.d(TAG, "Screen unlocked while charging and data is stale - triggering background fetch")
-                        triggerBackgroundFetch(context)
-                    } else {
-                        Log.d(TAG, "Screen unlocked while charging but data is fresh - skipping fetch")
-                    }
-                } finally {
-                    pendingResult.finish()
-                }
-            }
-        } else {
-            Log.d(TAG, "Screen unlocked but not charging - UI update only")
-        }
     }
 
     private fun isCharging(context: Context): Boolean {
@@ -64,29 +47,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
         val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         return status == BatteryManager.BATTERY_STATUS_CHARGING ||
                 status == BatteryManager.BATTERY_STATUS_FULL
-    }
-
-    private fun triggerUiOnlyUpdate(context: Context) {
-        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-            .setInputData(
-                Data.Builder()
-                    .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
-                    .build()
-            )
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
-
-        WorkManager.getInstance(context).enqueue(workRequest)
-        Log.d(TAG, "UI-only update enqueued")
-    }
-
-    private fun triggerBackgroundFetch(context: Context) {
-        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
-
-        WorkManager.getInstance(context).enqueue(workRequest)
-        Log.d(TAG, "Background data fetch enqueued")
     }
 
     companion object {

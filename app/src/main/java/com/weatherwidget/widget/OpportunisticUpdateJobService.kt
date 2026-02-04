@@ -49,7 +49,11 @@ class OpportunisticUpdateJobService : JobService() {
                         .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                         .build()
 
-                    WorkManager.getInstance(applicationContext).enqueue(workRequest)
+                    WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+                        WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
+                        androidx.work.ExistingWorkPolicy.REPLACE,
+                        workRequest
+                    )
                 } else {
                     Log.d(TAG, "No recent hourly data, skipping opportunistic update")
                 }

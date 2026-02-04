@@ -30,7 +30,8 @@ class WeatherWidgetWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
-        Log.d(TAG, "doWork: Starting weather fetch (uiOnly=$uiOnlyRefresh)")
+        val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
+        Log.d(TAG, "doWork: Starting weather fetch (uiOnly=$uiOnlyRefresh, force=$forceRefresh)")
 
         // Reset toggle states only on full refresh (not UI-only refresh)
         if (!uiOnlyRefresh) {
@@ -46,7 +47,7 @@ class WeatherWidgetWorker @AssistedInject constructor(
                 lat = location.first,
                 lon = location.second,
                 locationName = getLocationName(location.first, location.second),
-                forceRefresh = !uiOnlyRefresh  // Don't fetch from network for UI-only refresh
+                forceRefresh = forceRefresh && !uiOnlyRefresh
             )
 
             result.fold(
@@ -198,5 +199,6 @@ class WeatherWidgetWorker @AssistedInject constructor(
         const val DEFAULT_LAT = 37.4220
         const val DEFAULT_LON = -122.0841
         const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
+        const val KEY_FORCE_REFRESH = "force_refresh"
     }
 }

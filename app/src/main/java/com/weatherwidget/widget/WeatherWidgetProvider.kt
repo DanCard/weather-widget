@@ -41,8 +41,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             updateWidgetLoading(context, appWidgetManager, appWidgetId)
         }
         schedulePeriodicUpdate(context)
-        // Trigger immediate update to fetch data
-        triggerImmediateUpdate(context)
+        
+        // Only trigger immediate fetch if data is stale
+        val pendingResult = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                if (DataFreshness.isDataStale(context)) {
+                    Log.d(TAG, "onUpdate: Data is stale, triggering background fetch")
+                    triggerImmediateUpdate(context)
+                } else {
+                    Log.d(TAG, "onUpdate: Data is fresh, skipping fetch")
+                }
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -112,9 +125,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: action=${intent.action}")
         when (intent.action) {
             ACTION_REFRESH -> {
-                Log.d(TAG, "onReceive: User triggered refresh")
+                val uiOnly = intent.getBooleanExtra(EXTRA_UI_ONLY, false)
+                Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
+                
                 // Always update UI immediately for instant feedback
                 triggerUiOnlyUpdate(context)
+
+                if (uiOnly) return
 
                 // Check data staleness and fetch in background if needed
                 val pendingResult = goAsync()
@@ -122,7 +139,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     try {
                         if (DataFreshness.isDataStale(context)) {
                             Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
-                            triggerImmediateUpdate(context)
+                            triggerImmediateUpdate(context, forceRefresh = true)
                         } else {
                             Log.d(TAG, "onReceive: Data is fresh, UI update only")
                         }
@@ -511,14 +528,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         )
     }
 
-    private fun triggerImmediateUpdate(context: Context) {
-        Log.d(TAG, "triggerImmediateUpdate: Enqueueing worker")
+    private fun triggerImmediateUpdate(context: Context, forceRefresh: Boolean = false) {
+        Log.d(TAG, "triggerImmediateUpdate: Enqueueing worker (force=$forceRefresh)")
         // No network constraint - worker will use cached data if network unavailable
         val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+            .setInputData(
+                Data.Builder()
+                    .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, forceRefresh)
+                    .build()
+            )
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME_ONE_TIME,
+            ExistingWorkPolicy.KEEP,
+            workRequest
+        )
         Log.d(TAG, "triggerImmediateUpdate: Worker enqueued with id=${workRequest.id}")
     }
 
@@ -533,17 +559,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_NAME_ONE_TIME + "_ui",
+            ExistingWorkPolicy.REPLACE, // UI-only updates should replace each other to show latest toggles
+            workRequest
+        )
         Log.d(TAG, "triggerUiOnlyUpdate: Worker enqueued with id=${workRequest.id}")
     }
 
     companion object {
         const val WORK_NAME = "weather_widget_update"
+        const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
         const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
         const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
         const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
         const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
+        const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
         private const val TAG = "WeatherWidgetProvider"
         private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
 

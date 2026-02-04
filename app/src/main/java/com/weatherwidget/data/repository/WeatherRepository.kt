@@ -52,6 +52,10 @@ class WeatherRepository @Inject constructor(
     // Toggle between APIs - alternate fairly between both
     private var useOpenMeteoFirst = false
 
+    // Rate limiting for network fetches to prevent bursts
+    private var lastNetworkFetchTime = 0L
+    private const val MIN_NETWORK_INTERVAL_MS = 60_000L // 1 minute minimum between network attempts
+
     suspend fun getWeatherData(
         lat: Double,
         lon: Double,
@@ -59,13 +63,29 @@ class WeatherRepository @Inject constructor(
         forceRefresh: Boolean = false
     ): Result<List<WeatherEntity>> {
         return try {
-            if (!forceRefresh) {
-                val cached = getCachedData(lat, lon)
-                if (cached.isNotEmpty()) {
+            val now = System.currentTimeMillis()
+            val cached = getCachedData(lat, lon)
+            
+            // If not forced, check if cached data is fresh (within 30 mins)
+            if (!forceRefresh && cached.isNotEmpty()) {
+                val latestFetch = cached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
+                val isFresh = (now - latestFetch) < 30L * 60 * 1000 // 30 minutes
+                if (isFresh) {
+                    Log.d(TAG, "getWeatherData: Returning fresh cached data (${(now - latestFetch) / 1000}s old)")
                     return Result.success(cached)
                 }
             }
 
+            // Global rate limit for network fetches (even if forced, unless it's a very long time)
+            // This prevents bursts from multiple workers starting at once
+            val timeSinceLastFetch = now - lastNetworkFetchTime
+            if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && cached.isNotEmpty()) {
+                val reason = if (forceRefresh) "forced refresh" else "stale data"
+                Log.w(TAG, "getWeatherData: Rate limiting network fetch ($reason). Last fetch was only ${timeSinceLastFetch}ms ago. Returning cache.")
+                return Result.success(cached)
+            }
+
+            lastNetworkFetchTime = now
             val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
 
             // Save both APIs' data, merging with existing to preserve non-zero values
@@ -527,12 +547,17 @@ class WeatherRepository @Inject constructor(
                     val endTime = date.plusDays(1).atStartOfDay(localZone)
                         .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
 
+                    val startTimeMs = System.currentTimeMillis()
                     val observations = nwsApi.getObservations(stationId, startTime, endTime)
+                    val durationMs = System.currentTimeMillis() - startTimeMs
+                    
                     if (observations.isEmpty()) {
+                        apiLogger.logApiCall("NWS-Obs", false, "No observations", stationId, durationMs)
                         Log.w(TAG, "fetchDayObservations: No observations from $stationId for $date - trying next")
                         continue  // Try next station
                     }
 
+                    apiLogger.logApiCall("NWS-Obs", true, null, stationId, durationMs)
                     Log.i(TAG, "fetchDayObservations: SUCCESS - Got ${observations.size} observations from $stationId for $date")
 
                     // Calculate high/low from observations (convert C to F)
