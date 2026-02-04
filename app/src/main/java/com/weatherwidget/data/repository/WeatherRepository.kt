@@ -79,6 +79,17 @@ class WeatherRepository @Inject constructor(
                 val merged = mergeWithExisting(meteoWeather, lat, lon)
                 weatherDao.insertAll(merged)
             }
+
+            // Fetch and save generic gap data once to cover any gaps in either API
+            val lastNwsDate = nwsWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
+            val lastMeteoDate = meteoWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
+            val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate).minOrNull() ?: LocalDate.now()
+
+            val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
+            if (gapWeather.isNotEmpty()) {
+                weatherDao.insertAll(gapWeather)
+            }
+
             cleanOldData()
             // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
             Result.success(getCachedData(lat, lon))
@@ -127,9 +138,10 @@ class WeatherRepository @Inject constructor(
         // Include all forecasts for today and the future.
         // We filter out past dates because NWS also returns historical observations
         // for the last 7 days which we don't want to store as 'forecast' snapshots.
+        // We also skip climate normals (gap data) as they are static and not part of prediction history.
         val relevantForecasts = weather.filter { 
             val date = try { LocalDate.parse(it.date) } catch (e: Exception) { null }
-            date != null && (date.isAfter(today) || date.isEqual(today))
+            date != null && (date.isAfter(today) || date.isEqual(today)) && !it.isClimateNormal
         }
 
         val snapshots = relevantForecasts.mapNotNull { forecast ->
@@ -144,8 +156,7 @@ class WeatherRepository @Inject constructor(
                 highTemp = forecast.highTemp,
                 lowTemp = forecast.lowTemp,
                 condition = forecast.condition,
-                // Use generic gap source for climate normals
-                source = if (forecast.isClimateNormal) WidgetStateManager.SOURCE_GENERIC_GAP else source,
+                source = source,
                 fetchedAt = fetchedAt
             )
         }
@@ -440,7 +451,7 @@ class WeatherRepository @Inject constructor(
 
         Log.d(TAG, "fetchFromNws: Parsed ${weatherByDate.size} days")
 
-        val nwsResults = weatherByDate.map { (date, temps) ->
+        return weatherByDate.map { (date, temps) ->
             WeatherEntity(
                 date = date,
                 locationLat = lat,
@@ -456,12 +467,6 @@ class WeatherRepository @Inject constructor(
                 isClimateNormal = false
             )
         }
-
-        // Fill gap with climate normals up to 30 days
-        val lastNwsDate = nwsResults.map { LocalDate.parse(it.date) }.maxOrNull() ?: today
-        val climateGaps = fetchClimateNormalsGap(lat, lon, locationName, lastNwsDate, 30, "NWS")
-        
-        return nwsResults + climateGaps
     }
 
     private fun getCachedStations(stationsUrl: String): List<String>? {
@@ -574,7 +579,7 @@ class WeatherRepository @Inject constructor(
             saveHourlyForecasts(forecast.hourly, lat, lon)
         }
 
-        val meteoResults = forecast.daily.map { daily ->
+        return forecast.daily.map { daily ->
             WeatherEntity(
                 date = daily.date,
                 locationLat = lat,
@@ -589,12 +594,6 @@ class WeatherRepository @Inject constructor(
                 isClimateNormal = false
             )
         }
-
-        // Fill gap with climate normals up to 30 days
-        val lastMeteoDate = meteoResults.map { LocalDate.parse(it.date) }.maxOrNull() ?: LocalDate.now()
-        val climateGaps = fetchClimateNormalsGap(lat, lon, locationName, lastMeteoDate, 30, "Open-Meteo")
-
-        return meteoResults + climateGaps
     }
 
     private suspend fun saveHourlyForecasts(
