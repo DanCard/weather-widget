@@ -1,9 +1,0 @@
-<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
-<map>
-    <float name="widget_lat_230" value="37.416832" />
-    <float name="widget_lat_231" value="37.416813" />
-    <float name="widget_lat_232" value="37.4168" />
-    <float name="widget_lon_232" value="-122.08898" />
-    <float name="widget_lon_231" value="-122.089005" />
-    <float name="widget_lon_230" value="-122.089005" />
-</map>

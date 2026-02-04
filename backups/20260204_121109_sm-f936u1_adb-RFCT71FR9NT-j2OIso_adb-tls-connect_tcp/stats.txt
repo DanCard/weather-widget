@@ -1,5 +1,0 @@
-Database: weather_database
-Record Counts:
-  - Weather records: 87
-  - Forecast snapshots: 11477
-  - Hourly forecasts: 793

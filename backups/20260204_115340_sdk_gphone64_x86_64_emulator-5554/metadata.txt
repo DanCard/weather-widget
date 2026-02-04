@@ -1,3 +1,0 @@
-Backup Time: Wed Feb  4 11:54:29 AM PST 2026
-Device ID: emulator-5554
-Model: sdk_gphone64_x86_64
