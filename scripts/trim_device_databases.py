@@ -114,6 +114,9 @@ def process_device(serial):
     print(f"    [+] Removed {removed} records from local copy.")
 
     # 5. Push back
+    print(f"    [*] Stopping {PACKAGE_NAME}...")
+    run_adb(["shell", f"am force-stop {PACKAGE_NAME}"], serial=serial)
+
     for ext in ["", "-wal", "-shm"]:
         local = f"{local_db}{ext}"
         if not os.path.exists(local): continue

@@ -845,17 +845,17 @@ class WeatherRepository @Inject constructor(
         
         // Log cleanup stats
         try {
-            // This is a simple approximation for logging; actual delete is in DAO
-            // We don't want to do separate count queries for performance, but for 
-            // forensic logging it's worth it during this investigation.
+            // Forensic logging during cleanup
             val historyStart = LocalDate.now().minusDays(60).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val historyEnd = LocalDate.now().minusDays(31).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val latestWeather = weatherDao.getLatestWeather()
             val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
             val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
             
+            // Count records before deletion
             val oldWeather = weatherDao.getWeatherRange(historyStart, historyEnd, lat, lon).size
             
+            // Perform deletion
             weatherDao.deleteOldData(cutoff)
             forecastSnapshotDao.deleteOldSnapshots(cutoff)
             hourlyForecastDao.deleteOldForecasts(cutoff)
@@ -865,13 +865,20 @@ class WeatherRepository @Inject constructor(
             appLogDao.deleteOldLogs(logCutoff)
 
             if (oldWeather > 0) {
+                val cutoffDate = Instant.ofEpochMilli(cutoff).atZone(ZoneId.systemDefault()).toLocalDate()
                 appLogDao.insert(AppLogEntity(
                     tag = "DB_CLEANUP",
-                    message = "Cleaned up records older than 30 days. Removed approx $oldWeather weather entries."
+                    message = "Cleaned records older than $cutoffDate ($cutoff). Removed approx $oldWeather weather entries.",
+                    level = "INFO"
                 ))
             }
         } catch (e: Exception) {
             Log.e(TAG, "cleanOldData: Failed to audit cleanup: ${e.message}")
+            appLogDao.insert(AppLogEntity(
+                tag = "DB_CLEANUP_ERROR",
+                message = "Cleanup failed: ${e.message}",
+                level = "ERROR"
+            ))
         }
     }
 
