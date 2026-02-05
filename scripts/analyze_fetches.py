@@ -8,18 +8,19 @@ import glob
 
 
 def analyze_database(db_path, folder_name):
+    # Parse folder name (YYYYMMDD_HHMMSS_model_serial)
+    parts = folder_name.split("_")
+    if len(parts) >= 3:
+        timestamp = f"{parts[0]}_{parts[1]}"
+        device_id = "_".join(parts[2:])
+        display_name = f"{device_id} ({timestamp})"
+    else:
+        display_name = folder_name
+
+    conn = None
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-
-        # Parse folder name (YYYYMMDD_HHMMSS_model_serial)
-        parts = folder_name.split("_")
-        if len(parts) >= 3:
-            timestamp = f"{parts[0]}_{parts[1]}"
-            device_id = "_".join(parts[2:])
-            display_name = f"{device_id} ({timestamp})"
-        else:
-            display_name = folder_name
 
         print("\n" + "=" * 85)
         print(f"Device: {display_name}")
@@ -99,9 +100,11 @@ def analyze_database(db_path, folder_name):
                 f"{date_str:<12} | {nws_fcst:<10} | {nws_obs:<10} | {meteo_count:<12} | {gap_count:<8} | {hourly_count:<8}"
             )
 
-        conn.close()
     except Exception as e:
-        print(f"Error analyzing {device_name}: {e}")
+        print(f"Error analyzing {display_name}: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 
 def should_run_backup(backup_dir):
@@ -174,14 +177,27 @@ def main():
         print()
 
     db_pattern = os.path.join(backup_dir, "*/databases/weather_database")
-
     databases = glob.glob(db_pattern)
 
-    for db_path in sorted(databases):
+    # Group by device and find the latest backup for each
+    latest_by_device = {}
+    for db_path in databases:
         parts = db_path.split("/")
         if len(parts) >= 3:
             folder_name = parts[-3]
-            analyze_database(db_path, folder_name)
+            # folder_name format: YYYYMMDD_HHMMSS_model_serial
+            f_parts = folder_name.split("_")
+            if len(f_parts) >= 3:
+                timestamp = f"{f_parts[0]}_{f_parts[1]}"
+                device_id = "_".join(f_parts[2:])
+                
+                if device_id not in latest_by_device or timestamp > latest_by_device[device_id][0]:
+                    latest_by_device[device_id] = (timestamp, db_path, folder_name)
+
+    # Analyze only the latest backup for each device
+    for device_id in sorted(latest_by_device.keys()):
+        _, db_path, folder_name = latest_by_device[device_id]
+        analyze_database(db_path, folder_name)
 
 
 if __name__ == "__main__":
