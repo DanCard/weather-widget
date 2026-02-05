@@ -97,23 +97,25 @@ class WeatherRepository @Inject constructor(
             val timeSinceLastFetch = now - lastNetworkFetchTime
             if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && cached.isNotEmpty()) {
                 val reason = if (forceRefresh) "forced refresh" else "stale data"
+                appLogDao.insert(AppLogEntity(tag = "NET_RATE_LIMIT", message = "Skipping $reason, last fetch ${timeSinceLastFetch/1000}s ago"))
                 Log.w(TAG, "getWeatherData: Rate limiting network fetch ($reason). Last fetch was only ${timeSinceLastFetch}ms ago. Returning cache.")
                 return Result.success(cached)
             }
 
             lastNetworkFetchTime = now
+            appLogDao.insert(AppLogEntity(tag = "NET_FETCH_START", message = "Forcing fetch: force=$forceRefresh"))
             val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
 
             // Save both APIs' data, merging with existing to preserve non-zero values
-            // This handles the case where evening NWS only has "Tonight" (low) but
-            // earlier fetch had "Today" (high) - we keep the high from earlier
             if (nwsWeather != null) {
                 val merged = mergeWithExisting(nwsWeather, lat, lon)
                 weatherDao.insertAll(merged)
+                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "NWS: Got ${nwsWeather.size} entries"))
             }
             if (meteoWeather != null) {
                 val merged = mergeWithExisting(meteoWeather, lat, lon)
                 weatherDao.insertAll(merged)
+                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "Meteo: Got ${meteoWeather.size} entries"))
             }
 
             // Fetch and save generic gap data once to cover any gaps in either API
@@ -838,8 +840,8 @@ class WeatherRepository @Inject constructor(
             forecastSnapshotDao.deleteOldSnapshots(cutoff)
             hourlyForecastDao.deleteOldForecasts(cutoff)
             
-            // Maintain logs for 7 days
-            val logCutoff = now - (7L * 24 * 60 * 60 * 1000)
+            // Maintain logs for 3 days (72 hours) to optimize space while keeping recent forensics
+            val logCutoff = now - (3L * 24 * 60 * 60 * 1000)
             appLogDao.deleteOldLogs(logCutoff)
 
             if (oldWeather > 0) {

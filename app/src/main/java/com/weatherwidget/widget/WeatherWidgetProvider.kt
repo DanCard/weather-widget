@@ -13,6 +13,7 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
+import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -46,12 +47,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val weatherDao = database.weatherDao()
                 val snapshotDao = database.forecastSnapshotDao()
                 val hourlyDao = database.hourlyForecastDao()
+                val appLogDao = database.appLogDao()
 
                 // 1. Get latest data from DB to see if we can skip loading state
                 val latestWeather = weatherDao.getLatestWeather()
                 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
+                    logToDb(context, "WIDGET_UPDATE", "DB is empty, showing loading")
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetLoading(context, appWidgetManager, appWidgetId)
                     }
@@ -66,6 +69,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
                         .groupBy { it.targetDate }
                     
+                    logToDb(context, "WIDGET_UPDATE", "Updating with ${weatherList.size} weather entries")
+
                     // Get hourly forecasts for interpolation
                     val now = LocalDateTime.now()
                     val hourlyStart = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
@@ -94,10 +99,20 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 
                 schedulePeriodicUpdate(context)
             } catch (e: Exception) {
+                logToDb(context, "WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}")
                 Log.e(TAG, "onUpdate: Error during update", e)
             } finally {
                 pendingResult.finish()
             }
+        }
+    }
+
+    private suspend fun logToDb(context: Context, tag: String, message: String) {
+        try {
+            val db = WeatherDatabase.getDatabase(context)
+            db.appLogDao().insert(AppLogEntity(tag = tag, message = message))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to log to DB", e)
         }
     }
 

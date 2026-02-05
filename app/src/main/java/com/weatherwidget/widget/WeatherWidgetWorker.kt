@@ -9,6 +9,8 @@ import android.os.BatteryManager
 import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
@@ -25,12 +27,19 @@ class WeatherWidgetWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted workerParams: WorkerParameters,
     private val weatherRepository: WeatherRepository,
-    private val widgetStateManager: WidgetStateManager
+    private val widgetStateManager: WidgetStateManager,
+    private val appLogDao: AppLogDao
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
         val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
         val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
+        
+        val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val isPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
+        
+        logToDb("SYNC_START", "uiOnly=$uiOnlyRefresh, force=$forceRefresh, battery=$batteryLevel%, plugged=$isPlugged")
         Log.d(TAG, "doWork: Starting weather fetch (uiOnly=$uiOnlyRefresh, force=$forceRefresh)")
 
         // Reset toggle states only on full refresh (not UI-only refresh)
@@ -54,13 +63,14 @@ class WeatherWidgetWorker @AssistedInject constructor(
             result.fold(
                 onSuccess = { weatherList ->
                     Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
-                    weatherList.forEach { w ->
-                        Log.d(TAG, "  ${w.date}: H=${w.highTemp} L=${w.lowTemp}")
-                    }
+                    
                     // Fetch forecast snapshots for comparison
                     val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
                     // Fetch hourly forecasts for interpolation
                     val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+                    
+                    logToDb("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}")
+                    
                     updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
                     if (!uiOnlyRefresh) {
                         scheduleNextUpdate()
@@ -71,13 +81,23 @@ class WeatherWidgetWorker @AssistedInject constructor(
                     Result.success()
                 },
                 onFailure = { e ->
+                    logToDb("SYNC_FAILURE", "Repository failed: ${e.message}")
                     Log.e(TAG, "doWork: Failed to get weather", e)
                     Result.retry()
                 }
             )
         } catch (e: Exception) {
+            logToDb("SYNC_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}")
             Log.e(TAG, "doWork: Exception", e)
             Result.retry()
+        }
+    }
+
+    private suspend fun logToDb(tag: String, message: String) {
+        try {
+            appLogDao.insert(AppLogEntity(tag = tag, message = message))
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to log to DB", e)
         }
     }
 

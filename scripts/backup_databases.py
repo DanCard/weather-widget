@@ -42,12 +42,19 @@ def run_adb(args, serial=None, timeout=30):
 def get_devices():
     stdout, _ = run_adb(["devices"])
     devices = []
+    # Known adb device states
+    states = ["device", "offline", "unauthorized", "recovery", "sideload", "bootloader"]
+    state_pattern = "|".join(states)
+    
     for line in stdout.splitlines():
         if "List of devices" in line or not line.strip():
             continue
-        parts = line.split()
-        if len(parts) >= 2:
-            serial, state = parts[0], parts[1]
+        
+        # Match everything from start until a known state followed by whitespace or end of line
+        match = re.search(f"^(.*?)\\s+({state_pattern})(?:\\s+|$)", line)
+        if match:
+            serial = match.group(1).strip()
+            state = match.group(2)
             if state == "device":
                 devices.append(serial)
     return devices
