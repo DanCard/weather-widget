@@ -1474,6 +1474,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             temperature = forecast.temperature,
                             label = formatHourLabel(currentHour),
                             iconRes = iconRes,
+                            isNight = isNight,
                             isSunny = isSunny,
                             isCurrentHour = isClosest,
                             showLabel = showLabel

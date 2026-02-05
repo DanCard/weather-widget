@@ -14,6 +14,7 @@ object HourlyGraphRenderer {
         val temperature: Float,
         val label: String,           // "12a", "1p", "2p"
         val iconRes: Int? = null,
+        val isNight: Boolean = false,
         val isSunny: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true  // Only at intervals
@@ -257,9 +258,8 @@ object HourlyGraphRenderer {
                             (iconY + iconSize).toInt()
                         )
 
-                        val isNighttime = hour.dateTime.hour < 6 || hour.dateTime.hour >= 20
                         val iconTint = when {
-                            isNighttime -> Color.parseColor("#BBBBBB")
+                            hour.isNight -> Color.parseColor("#BBBBBB")
                             hour.isSunny -> Color.parseColor("#FFD60A")
                             else -> Color.parseColor("#BBBBBB")
                         }

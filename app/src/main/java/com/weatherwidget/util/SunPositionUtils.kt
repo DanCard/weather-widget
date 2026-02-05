@@ -30,8 +30,10 @@ object SunPositionUtils {
     private fun calculateSunriseSunset(dateTime: LocalDateTime, lat: Double, lon: Double, isSunrise: Boolean): Double {
         val dayOfYear = dateTime.dayOfYear
         
-        // Zenith for sunrise/sunset (90.833 degrees is standard for atmospheric refraction)
-        val zenith = 90.833
+        // Zenith for Civil Twilight (96 degrees).
+        // We use Civil Twilight instead of official sunrise (90.833) because visually
+        // users expect "Day" icons as soon as it gets light (Dawn) until it gets dark (Dusk).
+        val zenith = 96.0
         
         // 1. Calculate the day of the year
         val n = dayOfYear.toDouble()
