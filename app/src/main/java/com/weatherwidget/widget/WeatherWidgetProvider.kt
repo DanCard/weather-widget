@@ -22,6 +22,7 @@ import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.SunPositionUtils
+import com.weatherwidget.util.NavigationUtils
 import java.time.LocalDateTime
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -296,13 +297,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val (numColumns, _) = getWidgetSize(context, appWidgetManager, appWidgetId)
 
-        // Calculate maxOffset based on widget width (matching setupNavigationButtons logic)
-        val maxOffset = when {
-            numColumns <= 1 -> 0
-            numColumns == 2 -> 1
-            else -> numColumns - 2
-        }
-        val minOffset = if (numColumns <= 2) 0 else -1
+        // Calculate offsets based on widget width using NavigationUtils
+        val minOffset = NavigationUtils.getMinOffset(numColumns)
+        val maxOffset = NavigationUtils.getMaxOffset(numColumns)
 
         // Filter for any dates that have at least some data (high OR low)
         val availableDates = weatherByDate.filter { (dateStr, weather) ->
@@ -908,15 +905,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val minDate = sortedDates.firstOrNull()
                 val maxDate = sortedDates.lastOrNull()
 
-                // Calculate offsets based on widget width (matches buildDayDataList logic)
-                // minOffset: leftmost day relative to center (-1 for 3+ columns, 0 for 1-2)
-                // maxOffset: rightmost day relative to center
-                val minOffset = if (numColumns <= 2) 0 else -1
-                val maxOffset = when {
-                    numColumns <= 1 -> 0
-                    numColumns == 2 -> 1
-                    else -> numColumns - 2  // 3->1, 4->2, 5->3, 6->4, etc.
-                }
+                // Calculate offsets based on widget width using NavigationUtils
+                val minOffset = NavigationUtils.getMinOffset(numColumns)
+                val maxOffset = NavigationUtils.getMaxOffset(numColumns)
 
                 // Can go left if there's data for the new leftmost day after navigation
                 // newLeftmost = (currentCenter - 1) + minOffset
@@ -979,18 +970,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val days = mutableListOf<TemperatureGraphRenderer.DayData>()
             Log.d(TAG, "buildDayDataList: numColumns=$numColumns, weatherByDate keys=${weatherByDate.keys}, centerDate=$centerDate, today=$today")
 
-            // Determine which days to show based on columns (relative to center)
-            // Note: We only have yesterday's data, so don't go back more than -1
-            val dayOffsets = when {
-                numColumns >= 8 -> listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L)  // 7 days (yesterday through +5)
-                numColumns == 7 -> listOf(-1L, 0L, 1L, 2L, 3L, 4L)       // 6 days (yesterday through +4)
-                numColumns == 6 -> listOf(-1L, 0L, 1L, 2L, 3L, 4L)        // 6 days
-                numColumns == 5 -> listOf(-1L, 0L, 1L, 2L, 3L)             // 5 days
-                numColumns == 4 -> listOf(-1L, 0L, 1L, 2L)                 // 4 days
-                numColumns == 3 -> listOf(-1L, 0L, 1L)                     // 3 days
-                numColumns == 2 -> listOf(0L, 1L)                          // 2 days
-                else -> listOf(0L)                                          // 1 day
-            }
+            // Determine which days to show based on columns (relative to center) using NavigationUtils
+            val dayOffsets = NavigationUtils.getDayOffsets(numColumns)
 
             Log.d(TAG, "buildDayDataList: For $numColumns columns, showing ${dayOffsets.size} days with offsets: $dayOffsets")
 
