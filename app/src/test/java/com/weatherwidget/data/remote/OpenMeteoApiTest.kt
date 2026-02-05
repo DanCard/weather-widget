@@ -98,8 +98,9 @@ class OpenMeteoApiTest {
         val api = OpenMeteoApi(HttpClient(MockEngine) { engine { addHandler { error("unused") } } }, json)
 
         assertEquals("Clear", api.weatherCodeToCondition(0))
-        assertEquals("Partly Cloudy", api.weatherCodeToCondition(1))
+        assertEquals("Mostly Clear", api.weatherCodeToCondition(1))
         assertEquals("Partly Cloudy", api.weatherCodeToCondition(2))
+        assertEquals("Overcast", api.weatherCodeToCondition(3))
         assertEquals("Rain", api.weatherCodeToCondition(61))
         assertEquals("Snow", api.weatherCodeToCondition(71))
         assertEquals("Thunderstorm", api.weatherCodeToCondition(95))

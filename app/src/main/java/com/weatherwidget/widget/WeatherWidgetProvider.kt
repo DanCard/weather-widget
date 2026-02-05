@@ -1466,7 +1466,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
                     val iconRes = WeatherIconMapper.getIconResource(forecast.condition, isNight)
-                    val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
+                    val isSunny = iconRes == R.drawable.ic_weather_clear ||
+                        iconRes == R.drawable.ic_weather_partly_cloudy ||
+                        iconRes == R.drawable.ic_weather_mostly_clear
 
                     hours.add(
                         HourlyGraphRenderer.HourData(

@@ -129,7 +129,9 @@ class OpenMeteoApi @Inject constructor(
 
     fun weatherCodeToCondition(code: Int): String = when (code) {
         0 -> "Clear"
-        1, 2, 3 -> "Partly Cloudy"
+        1 -> "Mostly Clear"
+        2 -> "Partly Cloudy"
+        3 -> "Overcast"
         45, 48 -> "Foggy"
         51, 53, 55 -> "Drizzle"
         61, 63, 65 -> "Rain"

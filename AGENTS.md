@@ -12,6 +12,8 @@ This file provides guidance to AI agents working on this repository.
 - **Two View Modes**: Daily view (forecast bars) and Hourly view (temperature curve)
 - **Temperature Interpolation**: Smooth current temperature display using hourly forecast data
 - **Forecast Accuracy Tracking**: Compares predictions vs actual observations
+- **Forecast History Viewer**: Activity to inspect forecast evolution and compare with actuals
+- **App Log Auditing**: Persists fetch and cleanup events for diagnostics
 - **Battery-Aware Updates**: Adjusts fetch intervals based on battery level (60-480 min)
 
 ## Technology Stack
@@ -58,8 +60,10 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug
 
 ```
 app/src/main/java/com/weatherwidget/
+├── WeatherWidgetApp.kt           # Application + WorkManager config
 ├── data/
 │   ├── local/              # Room entities, DAOs, and database
+│   │   ├── AppLogEntity.kt
 │   │   ├── WeatherEntity.kt
 │   │   ├── ForecastSnapshotEntity.kt
 │   │   ├── HourlyForecastEntity.kt
@@ -83,16 +87,20 @@ app/src/main/java/com/weatherwidget/
 │   ├── SettingsActivity.kt
 │   ├── StatisticsActivity.kt
 │   ├── FeatureTourActivity.kt
+│   ├── ForecastHistoryActivity.kt
 │   └── DailyAccuracyAdapter.kt
 ├── util/
 │   ├── TemperatureInterpolator.kt
-│   └── WeatherIconMapper.kt
+│   ├── NavigationUtils.kt
+│   ├── WeatherIconMapper.kt
+│   └── SunPositionUtils.kt
 └── widget/                 # Widget core components
     ├── WeatherWidgetProvider.kt    # Main widget lifecycle
     ├── WeatherWidgetWorker.kt      # Background data fetch
     ├── WidgetStateManager.kt       # Per-widget state persistence
-    ├── TemperatureGraphRenderer.kt # Daily view graph rendering
+    ├── DailyForecastGraphRenderer.kt # Daily view graph rendering
     ├── HourlyGraphRenderer.kt      # Hourly view graph rendering
+    ├── ForecastEvolutionRenderer.kt # Forecast history graphs
     ├── UIUpdateScheduler.kt        # AlarmManager-based UI updates
     ├── UIUpdateReceiver.kt
     ├── OpportunisticUpdateJobService.kt  # JobScheduler for Android 8+
@@ -266,6 +274,10 @@ override fun onAppWidgetOptionsChanged(...) {
 - Enables smooth current temperature transitions via interpolation
 - Used for UI-only updates without network requests
 - Source-tagged for dual-API support
+
+### AppLogEntity
+- Stores diagnostic logs for fetches, merges, and cleanup events
+- Used for quick auditing in debug flows
 
 ## Testing the Widget
 

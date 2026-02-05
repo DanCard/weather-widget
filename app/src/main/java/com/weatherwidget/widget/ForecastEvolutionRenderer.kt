@@ -93,6 +93,28 @@ object ForecastEvolutionRenderer {
 
         if (allTemps.isEmpty()) return bitmap
 
+        val forecastSamples = (nwsPoints + meteoPoints).mapNotNull { point ->
+            val temp = if (isHigh) point.highTemp else point.lowTemp
+            temp?.let {
+                ForecastSample(
+                    temp = it,
+                    daysAhead = point.daysAhead,
+                    source = point.source
+                )
+            }
+        }
+
+        if (forecastSamples.size == 1) {
+            return renderSinglePointBarGraph(
+                context = context,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                sample = forecastSamples.first(),
+                actualValue = actualValue,
+                isHigh = isHigh
+            )
+        }
+
         val minTemp = allTemps.minOrNull()?.toFloat() ?: 0f
         val maxTemp = allTemps.maxOrNull()?.toFloat() ?: 100f
         val tempRange = (maxTemp - minTemp).coerceAtLeast(5f)  // Minimum 5 degree range
@@ -121,6 +143,7 @@ object ForecastEvolutionRenderer {
         val minDay = allDays.minOrNull() ?: 1
         val maxDay = allDays.maxOrNull() ?: 7
         val dayRange = (maxDay - minDay).coerceAtLeast(1)
+        val isSingleDayDataset = allDays.size == 1
 
         // Paints
         val nwsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -184,7 +207,7 @@ object ForecastEvolutionRenderer {
 
         // Draw X-axis labels (days ahead)
         allDays.forEach { day ->
-            val x = graphLeft + graphWidth * (maxDay - day) / dayRange
+            val x = getDayX(day, graphLeft, graphWidth, maxDay, dayRange, isSingleDayDataset)
             val label = "${day}d"
             canvas.drawText(label, x, heightPx - dpToPx(context, 8f), labelPaint)
 
@@ -206,7 +229,7 @@ object ForecastEvolutionRenderer {
             val indexInDay = sameDayPoints.indexOfFirst { it.fetchedAt == point.fetchedAt }
             val totalInDay = sameDayPoints.size.coerceAtLeast(1)
 
-            val dayX = graphLeft + graphWidth * (maxDay - point.daysAhead) / dayRange
+            val dayX = getDayX(point.daysAhead, graphLeft, graphWidth, maxDay, dayRange, isSingleDayDataset)
             val offset = if (totalInDay > 1) {
                 (indexInDay - (totalInDay - 1) / 2f) * dpToPx(context, 8f) / totalInDay
             } else 0f
@@ -304,6 +327,141 @@ object ForecastEvolutionRenderer {
         )
     }
 
+    private fun getDayX(
+        day: Int,
+        graphLeft: Float,
+        graphWidth: Float,
+        maxDay: Int,
+        dayRange: Int,
+        isSingleDayDataset: Boolean
+    ): Float {
+        return if (isSingleDayDataset) {
+            graphLeft + graphWidth / 2f
+        } else {
+            graphLeft + graphWidth * (maxDay - day) / dayRange
+        }
+    }
+
+    private fun renderSinglePointBarGraph(
+        context: Context,
+        widthPx: Int,
+        heightPx: Int,
+        sample: ForecastSample,
+        actualValue: Int?,
+        isHigh: Boolean
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.TRANSPARENT)
+
+        val allTemps = mutableListOf(sample.temp)
+        actualValue?.let { allTemps.add(it) }
+
+        val minTemp = (allTemps.minOrNull() ?: sample.temp).toFloat()
+        val maxTemp = (allTemps.maxOrNull() ?: sample.temp).toFloat()
+        val tempRange = (maxTemp - minTemp).coerceAtLeast(5f)
+
+        val paddingLeft = dpToPx(context, 40f)
+        val paddingRight = dpToPx(context, 16f)
+        val paddingTop = dpToPx(context, 24f)
+        val paddingBottom = dpToPx(context, 28f)
+
+        val graphLeft = paddingLeft
+        val graphRight = widthPx - paddingRight
+        val graphTop = paddingTop
+        val graphBottom = heightPx - paddingBottom
+        val graphWidth = graphRight - graphLeft
+        val graphHeight = graphBottom - graphTop
+
+        fun getY(temp: Float): Float {
+            return graphBottom - graphHeight * (temp - minTemp) / tempRange
+        }
+
+        val sourceColor = if (sample.source == "NWS") NWS_COLOR else METEO_COLOR
+
+        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(GRID_COLOR)
+            style = Paint.Style.STROKE
+            strokeWidth = dpToPx(context, 1f)
+        }
+        val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(LABEL_COLOR)
+            textSize = dpToPx(context, 12f)
+            textAlign = Paint.Align.RIGHT
+        }
+        val forecastBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(sourceColor)
+            style = Paint.Style.STROKE
+            strokeWidth = dpToPx(context, 5f)
+            strokeCap = Paint.Cap.ROUND
+        }
+        val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(sourceColor)
+            style = Paint.Style.FILL
+        }
+        val markerOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FFFFFF")
+            style = Paint.Style.STROKE
+            strokeWidth = dpToPx(context, 1.5f)
+        }
+        val actualLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(ACTUAL_COLOR)
+            style = Paint.Style.STROKE
+            strokeWidth = dpToPx(context, 2f)
+            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
+        }
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(LABEL_COLOR)
+            textSize = dpToPx(context, 12f)
+            textAlign = Paint.Align.CENTER
+        }
+        val forecastLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(sourceColor)
+            textSize = dpToPx(context, 14f)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val actualLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(ACTUAL_COLOR)
+            textSize = dpToPx(context, 12f)
+            textAlign = Paint.Align.LEFT
+        }
+
+        val maxLabel = String.format("%.0f°", maxTemp)
+        val minLabel = String.format("%.0f°", minTemp)
+        canvas.drawText(maxLabel, graphLeft - dpToPx(context, 6f), graphTop + dpToPx(context, 4f), yLabelPaint)
+        canvas.drawText(minLabel, graphLeft - dpToPx(context, 6f), graphBottom + dpToPx(context, 4f), yLabelPaint)
+
+        val forecastY = getY(sample.temp.toFloat())
+        canvas.drawLine(graphLeft, forecastY, graphRight, forecastY, forecastBarPaint)
+
+        if (actualValue != null) {
+            val actualY = getY(actualValue.toFloat())
+            canvas.drawLine(graphLeft, actualY, graphRight, actualY, actualLinePaint)
+            canvas.drawText("Actual ${actualValue}°", graphRight + dpToPx(context, 6f), actualY + dpToPx(context, 4f), actualLabelPaint)
+        }
+
+        val markerX = graphLeft + graphWidth / 2f
+        canvas.drawCircle(markerX, forecastY, dpToPx(context, 6f), markerPaint)
+        canvas.drawCircle(markerX, forecastY, dpToPx(context, 6f), markerOutlinePaint)
+
+        val title = if (isHigh) "Single High Forecast" else "Single Low Forecast"
+        canvas.drawText(title, widthPx / 2f, dpToPx(context, 16f), titlePaint)
+        val sourceLabel = if (sample.source == "NWS") "NWS" else "Open-Meteo"
+        val error = actualValue?.let { it - sample.temp }
+        val diffText = if (error != null) {
+            val sign = if (error >= 0) "+" else ""
+            "  Diff ${sign}${error}°"
+        } else {
+            ""
+        }
+        val forecastLabel = "$sourceLabel ${sample.temp}°  (${sample.daysAhead}d)$diffText"
+        canvas.drawText(forecastLabel, markerX, forecastY - dpToPx(context, 10f), forecastLabelPaint)
+
+        return bitmap
+    }
+
     // Track last point manually since Path doesn't expose it directly
     private data class PathPoint(val x: Float, val y: Float)
+    private data class ForecastSample(val temp: Int, val daysAhead: Int, val source: String)
 }
