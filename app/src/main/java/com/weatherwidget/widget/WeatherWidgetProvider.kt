@@ -20,6 +20,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.util.SunPositionUtils
 import java.time.LocalDateTime
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -725,7 +726,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.api_source, displayName)
 
             // Set weather icon
-            val iconRes = WeatherIconMapper.getIconResource(currentCondition ?: todayWeather?.condition)
+            val now = LocalDateTime.now()
+            val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+            val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+            val isNight = SunPositionUtils.isNight(now, lat, lon)
+            val iconRes = WeatherIconMapper.getIconResource(currentCondition ?: todayWeather?.condition, isNight)
             views.setImageViewResource(R.id.weather_icon, iconRes)
             views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
@@ -775,11 +780,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             // Use graph mode for 2+ rows
             val useGraph = numRows >= 2
-
-            // Get location for click handlers
-            val latestWeather = weatherList.maxByOrNull { it.fetchedAt }
-            val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-            val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
             if (useGraph) {
                 views.setViewVisibility(R.id.text_container, View.GONE)
@@ -1288,7 +1288,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.api_source, displayName)
 
             // Set weather icon
-            val iconRes = WeatherIconMapper.getIconResource(currentCondition)
+            val now = LocalDateTime.now()
+            val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+            val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+            val isNight = SunPositionUtils.isNight(now, lat, lon)
+            val iconRes = WeatherIconMapper.getIconResource(currentCondition, isNight)
             views.setImageViewResource(R.id.weather_icon, iconRes)
             views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
@@ -1296,7 +1300,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             setupApiToggle(context, views, appWidgetId, numRows)
 
             // Set current temperature (interpolated from hourly data)
-            val now = LocalDateTime.now()
             if (hourlyForecasts.isNotEmpty()) {
                 val interpolator = TemperatureInterpolator()
                 val currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, now, displaySource)
@@ -1400,6 +1403,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             Log.d(TAG, "buildHourDataList: forecastsByTime has ${forecastsByTime.size} entries, labelInterval=$labelInterval")
             Log.d(TAG, "buildHourDataList: forecastsByTime keys=${forecastsByTime.keys.sorted()}")
 
+            val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+            val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
             while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
                 val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 val forecast = forecastsByTime[hourKey]
@@ -1414,7 +1420,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         Log.d(TAG, "buildHourDataList: hour[$hourIndex] $currentHour label=${formatHourLabel(currentHour)} showLabel=$showLabel isClosest=$isClosest")
                     }
 
-                    val iconRes = WeatherIconMapper.getIconResource(forecast.condition)
+                    val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
+                    val iconRes = WeatherIconMapper.getIconResource(forecast.condition, isNight)
                     val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
 
                     hours.add(
