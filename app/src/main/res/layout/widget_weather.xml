@@ -328,7 +328,7 @@
         android:layout_height="match_parent"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
-        android:scaleType="fitXY"
+        android:scaleType="fitCenter"
         android:visibility="gone" />
 
     <!-- Graph day touch zones (for per-day click handling in graph mode) -->

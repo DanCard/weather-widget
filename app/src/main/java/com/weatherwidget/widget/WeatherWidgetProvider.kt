@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -643,17 +644,26 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 40)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 40)
-            
+            val maxWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, minWidth)
+            val maxHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, minHeight)
+
+            // Android reports both min and max widget dimensions:
+            //   Portrait:  actual size ≈ minWidth × maxHeight
+            //   Landscape: actual size ≈ maxWidth × minHeight
+            val isPortrait = context.resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
+            val width = if (isPortrait) minWidth else maxWidth
+            val height = if (isPortrait) maxHeight else minHeight
+
             // Standard Android widget size formula: (size + padding) / cell_size with rounding
             // Using +15/+25 padding and proper rounding to handle widgets that are "almost" N rows/cols
-            val cols = ((minWidth + 15).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
-            val rows = ((minHeight + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
-            
-            Log.d(TAG, "getWidgetSize: widgetId=$appWidgetId, minWidth=$minWidth, minHeight=$minHeight -> cols=$cols, rows=$rows")
-            return WidgetDimensions(cols, rows, minWidth, minHeight)
+            val cols = ((width + 15).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
+            val rows = ((height + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
+
+            Log.d(TAG, "getWidgetSize: widgetId=$appWidgetId, minW=$minWidth, minH=$minHeight, maxW=$maxWidth, maxH=$maxHeight, isPortrait=$isPortrait -> using ${width}x${height}, cols=$cols, rows=$rows")
+            return WidgetDimensions(cols, rows, width, height)
         }
 
-        data class WidgetDimensions(val cols: Int, val rows: Int, val minWidth: Int, val minHeight: Int)
+        data class WidgetDimensions(val cols: Int, val rows: Int, val widthDp: Int, val heightDp: Int)
 
         private fun getOptimalBitmapSize(context: Context, widthDp: Int, heightDp: Int): Pair<Int, Int> {
             val rawWidth = dpToPx(context, widthDp)
@@ -663,8 +673,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             return if (rawPixels > MAX_BITMAP_PIXELS) {
                 val scale = kotlin.math.sqrt(MAX_BITMAP_PIXELS.toFloat() / rawPixels)
-                val newWidth = (rawWidth * scale).toInt()
-                val newHeight = (rawHeight * scale).toInt()
+                val newWidth = (rawWidth * scale).roundToInt()
+                val newHeight = (rawHeight * scale).roundToInt()
                 val newPixels = newWidth * newHeight
                 val newMemoryKB = newPixels * 4 / 1024
                 Log.d(TAG, "getOptimalBitmapSize: ${widthDp}dp×${heightDp}dp → Downscaling from ${rawWidth}x${rawHeight}px (${rawMemoryKB}KB) to ${newWidth}x${newHeight}px (${newMemoryKB}KB), scale=$scale, rawPixels=$rawPixels")
@@ -812,7 +822,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns)
 
             // Use graph mode for 2+ rows (using a lower threshold for devices like Pixel 7 Pro)
-            val rawRows = (dimensions.minHeight + 25).toFloat() / CELL_HEIGHT_DP
+            val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val useGraph = rawRows >= 1.4f
 
             if (useGraph) {
@@ -825,8 +835,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                 // Use actual widget dimensions for bitmap to match ImageView size
                 // Root padding: 8dp×2=16dp, ImageView margins: 4dp×2=8dp → total 24dp horizontal, 16dp vertical
-                val widthDp = dimensions.minWidth - 24
-                val heightDp = dimensions.minHeight - 16
+                val widthDp = dimensions.widthDp - 24
+                val heightDp = dimensions.heightDp - 16
 
                 val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
@@ -1344,7 +1354,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
 
             // Use graph mode for 2+ rows, text mode for 1 row
-            val rawRows = (dimensions.minHeight + 25).toFloat() / CELL_HEIGHT_DP
+            val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val useGraph = rawRows >= 1.4f
 
             if (useGraph) {
@@ -1355,8 +1365,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
 
                 // Use actual widget dimensions for bitmap to match ImageView size
-                val widthDp = dimensions.minWidth - 24
-                val heightDp = dimensions.minHeight - 16
+                val widthDp = dimensions.widthDp - 24
+                val heightDp = dimensions.heightDp - 16
 
                 val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
