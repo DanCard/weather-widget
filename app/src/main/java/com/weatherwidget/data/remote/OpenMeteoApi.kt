@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 private const val TAG = "OpenMeteoApi"
 
@@ -44,10 +45,10 @@ class OpenMeteoApi @Inject constructor(
         val dates = daily?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
         Log.d(TAG, "getForecast: parsed ${dates.size} dates: $dates")
         val maxTemps = daily?.get("temperature_2m_max")?.jsonArray?.map {
-            it.jsonPrimitive.content.toDoubleOrNull()?.toInt() ?: 0
+            it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
         } ?: emptyList()
         val minTemps = daily?.get("temperature_2m_min")?.jsonArray?.map {
-            it.jsonPrimitive.content.toDoubleOrNull()?.toInt() ?: 0
+            it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
         } ?: emptyList()
         val weatherCodes = daily?.get("weather_code")?.jsonArray?.map {
             it.jsonPrimitive.content.toIntOrNull() ?: 0
@@ -87,7 +88,7 @@ class OpenMeteoApi @Inject constructor(
         Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
 
         return WeatherForecast(
-            currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toDoubleOrNull()?.toInt(),
+            currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt(),
             currentWeatherCode = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull(),
             daily = dailyForecasts,
             hourly = hourlyForecasts
@@ -110,10 +111,10 @@ class OpenMeteoApi @Inject constructor(
 
         val dates = daily?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
         val maxTemps = daily?.get("temperature_2m_max")?.jsonArray?.map {
-            it.jsonPrimitive.content.toDoubleOrNull()?.toInt() ?: 0
+            it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
         } ?: emptyList()
         val minTemps = daily?.get("temperature_2m_min")?.jsonArray?.map {
-            it.jsonPrimitive.content.toDoubleOrNull()?.toInt() ?: 0
+            it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
         } ?: emptyList()
 
         return dates.mapIndexed { index, date ->

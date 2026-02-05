@@ -30,6 +30,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlin.math.roundToInt
 
 private const val TAG = "WeatherRepository"
 
@@ -633,8 +634,10 @@ class WeatherRepository @Inject constructor(
                     apiLogger.logApiCall("NWS-Obs", true, null, stationId, durationMs)
                     Log.i(TAG, "fetchDayObservations: SUCCESS - Got ${observations.size} observations from $stationId for $date")
 
-                    // Calculate high/low from observations (convert C to F)
-                    val temps = observations.map { (it.temperatureCelsius * 9 / 5 + 32).toInt() }
+                    // Calculate high/low from observations (convert C to F) using Float math for precision
+                    val temps: List<Int> = observations.map { obs: NwsApi.Observation -> 
+                        (obs.temperatureCelsius * 1.8f + 32f).roundToInt() 
+                    }
                     val high = temps.maxOrNull() ?: continue
                     val low = temps.minOrNull() ?: continue
 

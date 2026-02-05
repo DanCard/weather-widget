@@ -32,8 +32,8 @@ class WeatherHistoryConditionTest {
         
         coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
         coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
-            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0, "Clear"),
-            NwsApi.Observation("2026-02-04T19:00:00Z", 21.0, "Sunny")
+            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Clear"),
+            NwsApi.Observation("2026-02-04T19:00:00Z", 21.0f, "Sunny")
         )
 
         val result = repository.fetchDayObservations(stationsUrl, date)
@@ -47,10 +47,10 @@ class WeatherHistoryConditionTest {
         
         coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
         coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
-            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0, "Clear"),
-            NwsApi.Observation("2026-02-04T19:00:00Z", 21.0, "Mostly Clear"),
-            NwsApi.Observation("2026-02-04T20:00:00Z", 22.0, "Mostly Sunny"),
-            NwsApi.Observation("2026-02-04T21:00:00Z", 23.0, "Partly Cloudy")
+            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Clear"),
+            NwsApi.Observation("2026-02-04T19:00:00Z", 21.0f, "Mostly Clear"),
+            NwsApi.Observation("2026-02-04T20:00:00Z", 22.0f, "Mostly Sunny"),
+            NwsApi.Observation("2026-02-04T21:00:00Z", 23.0f, "Partly Cloudy")
         )
         // (0 + 25 + 25 + 50) / 4 = 100 / 4 = 25%
 
@@ -65,7 +65,7 @@ class WeatherHistoryConditionTest {
         
         coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
         coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
-            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0, "Fair")
+            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Fair")
         )
 
         val result = repository.fetchDayObservations("url", date)
@@ -84,7 +84,7 @@ class WeatherHistoryConditionTest {
         coEvery { nwsApi.getGridPoint(lat, lon) } returns gridPoint
         coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
         coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
-            NwsApi.Observation("${todayStr}T12:00:00Z", 20.0, "Clear")
+            NwsApi.Observation("${todayStr}T12:00:00Z", 20.0f, "Clear")
         )
         coEvery { nwsApi.getForecast(any()) } returns listOf(
             NwsApi.ForecastPeriod("Today", "${todayStr}T06:00:00-08:00", 72, "F", "Cloudy", true)

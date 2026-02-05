@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
+import kotlin.math.roundToInt
 
 class NwsApi @Inject constructor(
     private val httpClient: HttpClient,
@@ -79,7 +80,7 @@ class NwsApi @Inject constructor(
             if (tempValue != null) {
                 Observation(
                     timestamp = timestamp,
-                    temperatureCelsius = tempValue,
+                    temperatureCelsius = tempValue.toFloat(),
                     textDescription = textDescription
                 )
             } else {
@@ -103,7 +104,7 @@ class NwsApi @Inject constructor(
             ForecastPeriod(
                 name = obj["name"]?.jsonPrimitive?.content ?: "",
                 startTime = obj["startTime"]?.jsonPrimitive?.content ?: "",
-                temperature = obj["temperature"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                temperature = obj["temperature"]?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt() ?: 0,
                 temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F",
                 shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "",
                 isDaytime = obj["isDaytime"]?.jsonPrimitive?.content?.toBoolean() ?: true
@@ -125,15 +126,15 @@ class NwsApi @Inject constructor(
         return periods.mapNotNull { period ->
             val obj = period.jsonObject
             val startTime = obj["startTime"]?.jsonPrimitive?.content ?: return@mapNotNull null
-            val temperature = obj["temperature"]?.jsonPrimitive?.content?.toIntOrNull() ?: return@mapNotNull null
+            val temperature = obj["temperature"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
             val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
             val shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "Unknown"
 
             // Convert to Fahrenheit if needed (NWS usually returns F)
             val tempF = if (temperatureUnit == "C") {
-                (temperature * 9 / 5) + 32
+                (temperature.toFloat() * 1.8f) + 32f
             } else {
-                temperature
+                temperature.toFloat()
             }
 
             HourlyForecastPeriod(
@@ -163,13 +164,13 @@ class NwsApi @Inject constructor(
 
     data class Observation(
         val timestamp: String,
-        val temperatureCelsius: Double,
+        val temperatureCelsius: Float,
         val textDescription: String
     )
 
     data class HourlyForecastPeriod(
         val startTime: String,  // ISO 8601 format: "2026-02-01T10:00:00-08:00"
-        val temperature: Int,   // Fahrenheit
+        val temperature: Float,   // Fahrenheit
         val shortForecast: String
     )
 }
