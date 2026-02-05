@@ -443,7 +443,7 @@ class WeatherRepository @Inject constructor(
         }
     }
 
-    private suspend fun fetchFromNws(
+    internal suspend fun fetchFromNws(
         lat: Double,
         lon: Double,
         locationName: String
@@ -523,10 +523,13 @@ class WeatherRepository @Inject constructor(
 
             if (period.isDaytime) {
                 weatherByDate[date] = period.temperature to current.second
-                conditionByDate[date] = period.shortForecast
+                // Only use forecast condition if we don't already have an observation
+                if (conditionByDate[date] == null) {
+                    conditionByDate[date] = period.shortForecast
+                }
             } else {
                 weatherByDate[date] = current.first to period.temperature
-                // Ensure partial days have a condition (use night if day is missing)
+                // Ensure partial days have a condition (use night if day is missing/no observation)
                 if (conditionByDate[date] == null) {
                     conditionByDate[date] = period.shortForecast
                 }
@@ -646,7 +649,7 @@ class WeatherRepository @Inject constructor(
                             desc.contains("mostly clear") || desc.contains("mostly sunny") -> 25
                             desc.contains("partly") -> 50
                             desc.contains("cloudy") || desc.contains("overcast") -> 100
-                            desc.contains("clear") || desc.contains("sunny") -> 0
+                            desc.contains("clear") || desc.contains("sunny") || desc.contains("fair") -> 0
                             else -> 50 // Default to middle for unknown
                         }
                     }

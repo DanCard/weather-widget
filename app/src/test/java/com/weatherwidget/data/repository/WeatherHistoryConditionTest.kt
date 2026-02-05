@@ -60,20 +60,42 @@ class WeatherHistoryConditionTest {
     }
 
     @Test
-    fun `fetchDayObservations calculates Mostly Cloudy for 75 percent cloud coverage`() = runTest {
+    fun `fetchDayObservations calculates Sunny for Fair observations`() = runTest {
         val date = LocalDate.now()
         
         coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
         coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
-            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0, "Cloudy"),
-            NwsApi.Observation("2026-02-04T19:00:00Z", 21.0, "Mostly Cloudy"),
-            NwsApi.Observation("2026-02-04T20:00:00Z", 22.0, "Overcast"),
-            NwsApi.Observation("2026-02-04T21:00:00Z", 23.0, "Partly Cloudy")
+            NwsApi.Observation("2026-02-04T18:00:00Z", 20.0, "Fair")
         )
-        // (100 + 75 + 100 + 50) / 4 = 325 / 4 = 81.25% (Mostly Cloudy bucket)
 
         val result = repository.fetchDayObservations("url", date)
         
-        assertEquals("Mostly Cloudy (75%)", result?.fourth)
+        assertEquals("Sunny", result?.fourth)
+    }
+
+    @Test
+    fun `fetchFromNws does not let forecast overwrite observation condition`() = runTest {
+        val lat = 37.422
+        val lon = -122.0841
+        val today = LocalDate.now()
+        val todayStr = today.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        
+        val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "forecast", "stations")
+        coEvery { nwsApi.getGridPoint(lat, lon) } returns gridPoint
+        coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+        coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
+            NwsApi.Observation("${todayStr}T12:00:00Z", 20.0, "Clear")
+        )
+        coEvery { nwsApi.getForecast(any()) } returns listOf(
+            NwsApi.ForecastPeriod("Today", "${todayStr}T06:00:00-08:00", 72, "F", "Cloudy", true)
+        )
+        coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+
+        // Call fetchFromNws directly
+        val result = repository.fetchFromNws(lat, lon, "Location")
+        val data = result.find { it.date == todayStr }
+        
+        // Should be "Sunny" (from "Clear" observation) not "Cloudy" (from forecast)
+        assertEquals("Sunny", data?.condition)
     }
 }

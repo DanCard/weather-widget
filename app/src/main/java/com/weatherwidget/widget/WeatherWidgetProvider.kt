@@ -1007,7 +1007,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val showComparison = isPastDate && forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
                 val iconRes = WeatherIconMapper.getIconResource(weather.condition)
-                val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
+                val isSunny = iconRes == R.drawable.ic_weather_clear || 
+                             iconRes == R.drawable.ic_weather_partly_cloudy ||
+                             iconRes == R.drawable.ic_weather_mostly_clear
 
                 days.add(
                     TemperatureGraphRenderer.DayData(
@@ -1261,7 +1263,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setImageViewResource(iconId, iconRes)
             
             // Apply tint based on condition (Yellow for sunny, Grey for others)
-            val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_partly_cloudy
+            val isSunny = iconRes == R.drawable.ic_weather_clear || 
+                         iconRes == R.drawable.ic_weather_partly_cloudy ||
+                         iconRes == R.drawable.ic_weather_mostly_clear
             val tintColor = if (isSunny) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#AAAAAA")
             views.setInt(iconId, "setColorFilter", tintColor)
             
