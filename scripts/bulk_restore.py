@@ -60,7 +60,7 @@ def pipe_restore(src_path, target_db, table, columns):
         subprocess.run(["sqlite3", temp_b, "PRAGMA journal_mode=delete;"], capture_output=True)
         
         sql_cmd = f".mode insert {table}\nSELECT {columns} FROM {table};"
-        res = subprocess.run(["sqlite3", "-batch", temp_b, sql_cmd], capture_output=True, text=True)
+        res = subprocess.run(["sqlite3", "-batch", temp_b], input=sql_cmd, capture_output=True, text=True)
         
         if res.stderr:
             print(f"    [!] Error reading {table}: {res.stderr.strip()}")

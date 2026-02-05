@@ -14,7 +14,9 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.util.TemperatureInterpolator
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.remote.NwsApi

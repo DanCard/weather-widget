@@ -315,8 +315,16 @@ abstract class WeatherDatabase : RoomDatabase() {
 
         val MIGRATION_12_14 = object : Migration(12, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Version 13 was skipped or missing a migration path. 
-                // This ensures we can get from 12 straight to 14 without data loss.
+                // Version 13 introduced app_logs table; this migration jumps 12→14 so we must create it here
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS app_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        timestamp INTEGER NOT NULL,
+                        tag TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        level TEXT NOT NULL
+                    )
+                """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_weather_data_locationLat_locationLon ON weather_data (locationLat, locationLon)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_forecast_snapshots_locationLat_locationLon ON forecast_snapshots (locationLat, locationLon)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_hourly_forecasts_locationLat_locationLon ON hourly_forecasts (locationLat, locationLon)")
