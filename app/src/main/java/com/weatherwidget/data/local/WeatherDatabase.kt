@@ -8,14 +8,15 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class],
-    version = 12,
+    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class],
+    version = 13,
     exportSchema = true
 )
 abstract class WeatherDatabase : RoomDatabase() {
     abstract fun weatherDao(): WeatherDao
     abstract fun forecastSnapshotDao(): ForecastSnapshotDao
     abstract fun hourlyForecastDao(): HourlyForecastDao
+    abstract fun appLogDao(): AppLogDao
 
     companion object {
         @Volatile

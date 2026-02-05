@@ -15,6 +15,8 @@ import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.util.TemperatureInterpolator
 import java.time.LocalDateTime
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.widget.ApiPreference
@@ -23,6 +25,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.widget.WeatherWidgetWorker
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.async
@@ -36,6 +39,7 @@ class WeatherRepository @Inject constructor(
     private val weatherDao: WeatherDao,
     private val forecastSnapshotDao: ForecastSnapshotDao,
     private val hourlyForecastDao: HourlyForecastDao,
+    private val appLogDao: AppLogDao,
     private val nwsApi: NwsApi,
     private val openMeteoApi: OpenMeteoApi,
     private val widgetStateManager: WidgetStateManager,
@@ -53,8 +57,11 @@ class WeatherRepository @Inject constructor(
     // Toggle between APIs - alternate fairly between both
     private var useOpenMeteoFirst = false
 
-    // Rate limiting for network fetches to prevent bursts
-    private var lastNetworkFetchTime = 0L
+    // Rate limiting for network fetches to prevent bursts. 
+    // Persisted in SharedPreferences to survive process restarts.
+    private var lastNetworkFetchTime: Long
+        get() = prefs.getLong("last_network_fetch_time", 0L)
+        set(value) = prefs.edit().putLong("last_network_fetch_time", value).apply()
 
     suspend fun getWeatherData(
         lat: Double,
@@ -243,35 +250,63 @@ class WeatherRepository @Inject constructor(
     }
 
     /**
-     * Merges new weather data with existing data, preserving non-zero values.
-     * This handles the case where NWS evening fetch only has "Tonight" (low temp)
-     * but an earlier fetch had "Today" (high temp) - we keep the high from earlier.
+     * Merges new weather data with existing data, preserving historical "Actual" records
+     * and non-zero values. This ensures that history is not lost during partial API fetches.
      */
     private suspend fun mergeWithExisting(
         newData: List<WeatherEntity>,
         lat: Double,
         lon: Double
     ): List<WeatherEntity> {
-        if (newData.isEmpty()) return newData
+        if (newData.isEmpty()) return emptyList()
 
-        return newData.groupBy { it.source }.flatMap { (source, items) ->
+        // Grouping by source because merge logic applies per-provider
+        return newData.groupBy { it.source }.flatMap { (source, newItems) ->
             val existingData = getCachedDataBySource(lat, lon, source)
             val existingByDate = existingData.associateBy { it.date }
+            val newByDate = newItems.associateBy { it.date }
 
-            items.map { new ->
-                val existing = existingByDate[new.date] ?: return@map new
+            // START WITH ALL EXISTING DATES to ensure we don't drop anything
+            val allDates = (existingByDate.keys + newByDate.keys).distinct()
 
-                // Prioritization: If new is climate normal but existing is a real forecast, 
-                // and the forecast has data, keep the existing one.
-                if (new.isClimateNormal && !existing.isClimateNormal && (existing.highTemp != null || existing.lowTemp != null)) {
-                    return@map existing
+            allDates.map { date ->
+                val existing = existingByDate[date]
+                val new = newByDate[date]
+
+                when {
+                    // Scenario 1: Only in DB, not in API -> KEEP DB (History preservation)
+                    new == null && existing != null -> existing
+
+                    // Scenario 2: Only in API, not in DB -> USE API (New forecast)
+                    new != null && existing == null -> new
+
+                    // Scenario 3: Both exist -> MERGE
+                    new != null && existing != null -> {
+                        // AUDIT: Check if we are replacing Actual (History) with Forecast
+                        if (existing.isActual && !new.isActual) {
+                            val existingTime = java.time.Instant.ofEpochMilli(existing.fetchedAt)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
+                                
+                            appLogDao.insert(AppLogEntity(
+                                tag = "MERGE_CONFLICT",
+                                message = "[$source] $date: Preserving ACTUAL record from $existingTime over new FORECAST"
+                            ))
+                            // Prioritize keeping the existing ACTUAL record if the new one is just a forecast
+                            existing.copy(
+                                highTemp = new.highTemp ?: existing.highTemp,
+                                lowTemp = new.lowTemp ?: existing.lowTemp
+                            )
+                        } else {
+                            // Merge nullable temperatures: use existing values where new data has nulls
+                            new.copy(
+                                highTemp = if (new.highTemp == null) existing.highTemp else new.highTemp,
+                                lowTemp = if (new.lowTemp == null) existing.lowTemp else new.lowTemp
+                            )
+                        }
+                    }
+                    else -> throw IllegalStateException("Should not happen")
                 }
-
-                // Merge nullable temperatures: use existing values where new data has nulls
-                new.copy(
-                    highTemp = if (new.highTemp == null) existing.highTemp else new.highTemp,
-                    lowTemp = if (new.lowTemp == null) existing.lowTemp else new.lowTemp
-                )
             }
         }
     }
@@ -399,21 +434,28 @@ class WeatherRepository @Inject constructor(
         lat: Double,
         lon: Double,
         locationName: String
-    ): List<WeatherEntity> {
+    ): List<WeatherEntity> = coroutineScope {
         val gridPoint = nwsApi.getGridPoint(lat, lon)
-        val forecast = nwsApi.getForecast(gridPoint)
-        Log.d(TAG, "fetchFromNws: Got ${forecast.size} periods")
-
-        // Fetch and save hourly forecasts
-        try {
-            Log.d(TAG, "fetchFromNws: Fetching hourly forecasts from NWS...")
-            val hourlyForecast = nwsApi.getHourlyForecast(gridPoint)
-            Log.d(TAG, "fetchFromNws: Got ${hourlyForecast.size} NWS hourly periods")
-            if (hourlyForecast.isNotEmpty()) {
-                saveNwsHourlyForecasts(hourlyForecast, lat, lon)
+        
+        // Start forecast and hourly fetches in parallel
+        val forecastDeferred = async { nwsApi.getForecast(gridPoint) }
+        val hourlyDeferred = async {
+            try {
+                Log.d(TAG, "fetchFromNws: Fetching hourly forecasts from NWS...")
+                val result = nwsApi.getHourlyForecast(gridPoint)
+                Log.d(TAG, "fetchFromNws: Got ${result.size} NWS hourly periods")
+                result
+            } catch (e: Exception) {
+                Log.e(TAG, "fetchFromNws: Failed to fetch hourly forecasts: ${e.message}")
+                emptyList()
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "fetchFromNws: Failed to fetch hourly forecasts: ${e.message}", e)
+        }
+
+        val forecast = forecastDeferred.await()
+        val hourlyForecast = hourlyDeferred.await()
+
+        if (hourlyForecast.isNotEmpty()) {
+            saveNwsHourlyForecasts(hourlyForecast, lat, lon)
         }
 
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
@@ -425,12 +467,21 @@ class WeatherRepository @Inject constructor(
         // Include today (daysAgo=0) to get today's actual high/low when it's evening
         try {
             if (gridPoint.observationStationsUrl != null) {
-                // Fetch observations for today and the last 7 days
-                for (daysAgo in 0..7) {
+                val stationsUrl = gridPoint.observationStationsUrl!!
+                
+                // Fetch all 8 days in parallel
+                val observationDeferreds = (0..7).map { daysAgo ->
                     val date = today.minusDays(daysAgo.toLong())
-                    val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    async {
+                        val result = fetchDayObservations(stationsUrl, date)
+                        date to result
+                    }
+                }
 
-                    val observationData = fetchDayObservations(gridPoint.observationStationsUrl, date)
+                observationDeferreds.forEach { deferred ->
+                    val (date, observationData) = deferred.await()
+                    val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    
                     if (observationData != null) {
                         weatherByDate[dateStr] = observationData.first to observationData.second
                         stationByDate[dateStr] = observationData.third  // Track station ID
@@ -471,7 +522,7 @@ class WeatherRepository @Inject constructor(
 
         Log.d(TAG, "fetchFromNws: Parsed ${weatherByDate.size} days")
 
-        return weatherByDate.map { (date, temps) ->
+        weatherByDate.map { (date, temps) ->
             WeatherEntity(
                 date = date,
                 locationLat = lat,
@@ -720,10 +771,39 @@ class WeatherRepository @Inject constructor(
     }
 
     private suspend fun cleanOldData() {
-        val cutoff = System.currentTimeMillis() - MONTH_IN_MILLIS
-        weatherDao.deleteOldData(cutoff)
-        forecastSnapshotDao.deleteOldSnapshots(cutoff)
-        hourlyForecastDao.deleteOldForecasts(cutoff)
+        val now = System.currentTimeMillis()
+        val cutoff = now - MONTH_IN_MILLIS
+        
+        // Log cleanup stats
+        try {
+            // This is a simple approximation for logging; actual delete is in DAO
+            // We don't want to do separate count queries for performance, but for 
+            // forensic logging it's worth it during this investigation.
+            val historyStart = LocalDate.now().minusDays(60).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val historyEnd = LocalDate.now().minusDays(31).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val latestWeather = weatherDao.getLatestWeather()
+            val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+            val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+            
+            val oldWeather = weatherDao.getWeatherRange(historyStart, historyEnd, lat, lon).size
+            
+            weatherDao.deleteOldData(cutoff)
+            forecastSnapshotDao.deleteOldSnapshots(cutoff)
+            hourlyForecastDao.deleteOldForecasts(cutoff)
+            
+            // Maintain logs for 7 days
+            val logCutoff = now - (7L * 24 * 60 * 60 * 1000)
+            appLogDao.deleteOldLogs(logCutoff)
+
+            if (oldWeather > 0) {
+                appLogDao.insert(AppLogEntity(
+                    tag = "DB_CLEANUP",
+                    message = "Cleaned up records older than 30 days. Removed approx $oldWeather weather entries."
+                ))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "cleanOldData: Failed to audit cleanup: ${e.message}")
+        }
     }
 
     suspend fun getLatestLocation(): Pair<Double, Double>? {

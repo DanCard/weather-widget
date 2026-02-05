@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.remote.NwsApi
@@ -44,21 +45,7 @@ object AppModule {
     @Singleton
     fun provideWeatherDatabase(
         @ApplicationContext context: Context
-    ): WeatherDatabase = Room.databaseBuilder(
-        context,
-        WeatherDatabase::class.java,
-        "weather_database"
-    )
-        .addMigrations(
-            WeatherDatabase.MIGRATION_1_2,
-            WeatherDatabase.MIGRATION_2_3,
-            WeatherDatabase.MIGRATION_3_4,
-            WeatherDatabase.MIGRATION_4_5,
-            WeatherDatabase.MIGRATION_5_6,
-            WeatherDatabase.MIGRATION_6_7,
-            WeatherDatabase.MIGRATION_7_8
-        )
-        .build()
+    ): WeatherDatabase = WeatherDatabase.getDatabase(context)
 
     @Provides
     @Singleton
@@ -73,6 +60,11 @@ object AppModule {
     @Singleton
     fun provideHourlyForecastDao(database: WeatherDatabase): HourlyForecastDao =
         database.hourlyForecastDao()
+
+    @Provides
+    @Singleton
+    fun provideAppLogDao(database: WeatherDatabase): AppLogDao =
+        database.appLogDao()
 
     @Provides
     @Singleton

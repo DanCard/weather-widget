@@ -3,6 +3,7 @@ package com.weatherwidget.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.data.ApiLogger
+import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
@@ -25,6 +26,7 @@ class WeatherGapTest {
     private lateinit var weatherDao: WeatherDao
     private lateinit var forecastSnapshotDao: ForecastSnapshotDao
     private lateinit var hourlyForecastDao: HourlyForecastDao
+    private lateinit var appLogDao: AppLogDao
     private lateinit var nwsApi: NwsApi
     private lateinit var openMeteoApi: OpenMeteoApi
     private lateinit var widgetStateManager: WidgetStateManager
@@ -47,6 +49,7 @@ class WeatherGapTest {
         weatherDao = mockk(relaxed = true)
         forecastSnapshotDao = mockk(relaxed = true)
         hourlyForecastDao = mockk(relaxed = true)
+        appLogDao = mockk(relaxed = true)
         nwsApi = mockk()
         openMeteoApi = mockk()
         widgetStateManager = mockk(relaxed = true)
@@ -58,6 +61,7 @@ class WeatherGapTest {
             weatherDao,
             forecastSnapshotDao,
             hourlyForecastDao,
+            appLogDao,
             nwsApi,
             openMeteoApi,
             widgetStateManager,
