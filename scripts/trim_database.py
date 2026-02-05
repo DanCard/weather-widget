@@ -1,14 +1,18 @@
 import sqlite3
 import os
 import glob
+import datetime
 
 def trim_database(db_path):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
+        # Use today's date
+        target_date = datetime.date.today().strftime("%Y-%m-%d")
+        
         # Count before
-        cursor.execute("SELECT COUNT(*) FROM forecast_snapshots WHERE forecastDate = '2026-02-04'")
+        cursor.execute("SELECT COUNT(*) FROM forecast_snapshots WHERE forecastDate = ?", (target_date,))
         before = cursor.fetchone()[0]
         
         if before == 0:
@@ -22,20 +26,20 @@ def trim_database(db_path):
         # This preserves the first prediction of the day and the final corrected one.
         cursor.execute("""
             DELETE FROM forecast_snapshots 
-            WHERE forecastDate = '2026-02-04'
+            WHERE forecastDate = ?
             AND fetchedAt NOT IN (
-                SELECT MIN(fetchedAt) FROM forecast_snapshots WHERE forecastDate = '2026-02-04'
+                SELECT MIN(fetchedAt) FROM forecast_snapshots WHERE forecastDate = ?
                 GROUP BY targetDate, source
                 UNION
-                SELECT MAX(fetchedAt) FROM forecast_snapshots WHERE forecastDate = '2026-02-04'
+                SELECT MAX(fetchedAt) FROM forecast_snapshots WHERE forecastDate = ?
                 GROUP BY targetDate, source
             )
-        """)
+        """, (target_date, target_date, target_date))
         
         conn.commit()
         
         # Count after
-        cursor.execute("SELECT COUNT(*) FROM forecast_snapshots WHERE forecastDate = '2026-02-04'")
+        cursor.execute("SELECT COUNT(*) FROM forecast_snapshots WHERE forecastDate = ?", (target_date,))
         after = cursor.fetchone()[0]
         print(f"  Rows after:  {after}")
         print(f"  Removed:     {before - after}")

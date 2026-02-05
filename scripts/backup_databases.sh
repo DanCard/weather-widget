@@ -21,7 +21,7 @@ echo "Backup Root: $BACKUP_ROOT"
 # Get list of connected devices
 echo ""
 echo "[*] Detecting connected devices..."
-DEVICES=$(adb devices | grep -v "List of devices" | grep "device$" | cut -f1)
+DEVICES=$(adb devices | awk '$2 == "device" {print $1}')
 
 if [ -z "$DEVICES" ]; then
     echo "[!] Error: No devices found. Please connect a device via USB or Wireless ADB."
@@ -30,7 +30,8 @@ fi
 
 echo "[+] Found $(echo "$DEVICES" | wc -l) device(s):"
 for DEVICE_ID in $DEVICES; do
-    MODEL=$(adb -s "$DEVICE_ID" shell getprop ro.product.model | tr -d '\r ')
+    MODEL=$(timeout 10s adb -s "$DEVICE_ID" shell getprop ro.product.model | tr -d '\r ')
+    if [ $? -eq 124 ]; then MODEL="UNRESPONSIVE"; fi
     echo "    - $DEVICE_ID ($MODEL)"
 done
 
@@ -48,7 +49,9 @@ for DEVICE_ID in $DEVICES; do
     echo "[*] Processing device $DEVICE_COUNT of $(echo "$DEVICES" | wc -l)..."
     
     # Get device model for better folder naming
-    MODEL=$(adb -s "$DEVICE_ID" shell getprop ro.product.model | tr -d '\r ' | tr '[:upper:]' '[:lower:]')
+    MODEL=$(timeout 10s adb -s "$DEVICE_ID" shell getprop ro.product.model | tr -d '\r ' | tr '[:upper:]' '[:lower:]')
+    if [ -z "$MODEL" ]; then MODEL="unknown_device"; fi
+    
     SAFE_ID=$(echo "$DEVICE_ID" | tr -d '.:' | tr '/' '_')
     FOLDER_NAME="${TIMESTAMP}_${MODEL}_${SAFE_ID}"
     DEST_DIR="$BACKUP_ROOT/$FOLDER_NAME"
@@ -61,7 +64,16 @@ for DEVICE_ID in $DEVICES; do
     
     # Check if app is installed
     echo "[*] Checking if $PACKAGE_NAME is installed..."
-    if ! adb -s "$DEVICE_ID" shell pm list packages | grep -q "$PACKAGE_NAME"; then
+    PKGS=$(timeout 15s adb -s "$DEVICE_ID" shell pm list packages 2>/dev/null)
+    EXIT_CODE=$?
+    
+    if [ $EXIT_CODE -eq 124 ]; then
+        echo "[!] Timeout while checking packages on device $DEVICE_ID. Device may be hung. Skipping."
+        echo ""
+        continue
+    fi
+
+    if ! echo "$PKGS" | grep -q "$PACKAGE_NAME"; then
         echo "[!] App $PACKAGE_NAME not found on device $DEVICE_ID. Skipping."
         echo ""
         continue
@@ -83,13 +95,13 @@ for DEVICE_ID in $DEVICES; do
         echo "[*] Attempting to access /data/data/$PACKAGE_NAME/$subfolder ..."
         
         # Try run-as first
-        local files=$(adb -s "$DEVICE_ID" shell "run-as $PACKAGE_NAME ls /data/data/$PACKAGE_NAME/$subfolder/" 2>/dev/null)
+        local files=$(timeout 20s adb -s "$DEVICE_ID" shell "run-as $PACKAGE_NAME ls /data/data/$PACKAGE_NAME/$subfolder/" 2>/dev/null)
         local method="run-as"
         
         # Fallback to su if run-as fails or returns nothing
         if [ -z "$files" ]; then
             echo "[-] run-as failed or returned no files. Trying su method..."
-            files=$(adb -s "$DEVICE_ID" shell "su -c 'ls /data/data/$PACKAGE_NAME/$subfolder/'" 2>/dev/null)
+            files=$(timeout 20s adb -s "$DEVICE_ID" shell "su -c 'ls /data/data/$PACKAGE_NAME/$subfolder/'" 2>/dev/null)
             method="su"
         fi
 
@@ -109,9 +121,9 @@ for DEVICE_ID in $DEVICES; do
             echo "    [$file_count] Copying: $f"
             
             if [ "$method" == "run-as" ]; then
-                adb -s "$DEVICE_ID" exec-out run-as "$PACKAGE_NAME" cat "/data/data/$PACKAGE_NAME/$subfolder/$f" > "$DEST_DIR/$target_subdir/$f"
+                timeout 30s adb -s "$DEVICE_ID" exec-out run-as "$PACKAGE_NAME" cat "/data/data/$PACKAGE_NAME/$subfolder/$f" > "$DEST_DIR/$target_subdir/$f"
             else
-                adb -s "$DEVICE_ID" exec-out su -c "cat /data/data/$PACKAGE_NAME/$subfolder/$f" > "$DEST_DIR/$target_subdir/$f"
+                timeout 30s adb -s "$DEVICE_ID" exec-out su -c "cat /data/data/$PACKAGE_NAME/$subfolder/$f" > "$DEST_DIR/$target_subdir/$f"
             fi
             
             # Verify file was copied and show size
@@ -178,8 +190,8 @@ for DEVICE_ID in $DEVICES; do
     
     echo ""
     echo "[*] Capturing last 1000 lines of logcat..."
-    adb -s "$DEVICE_ID" logcat -d -t 1000 > "$DEST_DIR/logcat.txt" 2>/dev/null
-    if [ -f "$DEST_DIR/logcat.txt" ]; then
+    timeout 20s adb -s "$DEVICE_ID" logcat -d -t 1000 > "$DEST_DIR/logcat.txt" 2>/dev/null
+    if [ -f "$DEST_DIR/logcat.txt" ] && [ -s "$DEST_DIR/logcat.txt" ]; then
         logcat_lines=$(wc -l < "$DEST_DIR/logcat.txt")
         logcat_size=$(stat -f%z "$DEST_DIR/logcat.txt" 2>/dev/null || stat -c%s "$DEST_DIR/logcat.txt" 2>/dev/null || echo "0")
         logcat_size_kb=$((logcat_size / 1024))

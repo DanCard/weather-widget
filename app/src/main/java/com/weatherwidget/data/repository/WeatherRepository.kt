@@ -47,6 +47,7 @@ class WeatherRepository @Inject constructor(
     }
     companion object {
         private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
+        private const val MIN_NETWORK_INTERVAL_MS = 60_000L // 1 minute minimum between network attempts
     }
 
     // Toggle between APIs - alternate fairly between both
@@ -54,7 +55,6 @@ class WeatherRepository @Inject constructor(
 
     // Rate limiting for network fetches to prevent bursts
     private var lastNetworkFetchTime = 0L
-    private const val MIN_NETWORK_INTERVAL_MS = 60_000L // 1 minute minimum between network attempts
 
     suspend fun getWeatherData(
         lat: Double,

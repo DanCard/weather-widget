@@ -17,8 +17,8 @@ def analyze_database(db_path, device_name):
         print(f"Path: {db_path}")
         print("=" * 85)
 
-        # We'll look at the last 7 days from Feb 4, 2026
-        today = datetime.date(2026, 2, 4)
+        # Use the current date instead of hardcoded 2026-02-04
+        today = datetime.date.today()
 
         # NWS has separate fetch types; Meteo (All) includes both forecast and history in one call.
         print(
@@ -100,9 +100,10 @@ def should_run_backup(backup_dir):
     if not os.path.exists(backup_dir):
         return True
 
-    # Get all backup folders (they start with timestamp)
+    # Get all backup folders (only those starting with a year '202')
     backup_folders = [
-        f for f in os.listdir(backup_dir) if os.path.isdir(os.path.join(backup_dir, f))
+        f for f in os.listdir(backup_dir) 
+        if os.path.isdir(os.path.join(backup_dir, f)) and f.startswith("202")
     ]
 
     if not backup_folders:
@@ -132,11 +133,11 @@ def run_backup():
     """Run the backup script."""
     import subprocess
 
-    backup_script = "/home/dcar/projects/weather-widget/scripts/backup_databases.sh"
+    backup_script = "/home/dcar/projects/weather-widget/scripts/backup_databases.py"
     if os.path.exists(backup_script):
         try:
             result = subprocess.run(
-                ["bash", backup_script], capture_output=True, text=True
+                [sys.executable, backup_script], capture_output=True, text=True
             )
             print(result.stdout)
             if result.stderr:
