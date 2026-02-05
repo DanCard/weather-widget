@@ -1387,12 +1387,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val startHour = alignedCenter.minusHours(8)
             val endHour = alignedCenter.plusHours(16)
 
-            // Determine label frequency based on widget size
-            // For 24 hours displayed, aim for ~8-12 visible labels to avoid overlap
-            val labelInterval = when {
-                numColumns >= 3 -> 2  // Every 2 hours (12 labels) - Increased density
-                else -> 3             // Every 3 hours (8 labels)
-            }
+            // Label every 4 hours (~6 labels across 24h span)
+            // The renderer's minHourLabelSpacing (28dp) still acts as a safety valve on narrow widgets
+            val labelInterval = 4
 
             var currentHour = startHour
             var hourIndex = 0

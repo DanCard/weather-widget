@@ -32,193 +32,229 @@ object HourlyGraphRenderer {
 
         // Find temperature range for scaling
         val allTemps = hours.map { it.temperature }
-        // Remove buffer so the curve hits the edges exactly
         val minTemp = (allTemps.minOrNull() ?: 0f)
         val maxTemp = (allTemps.maxOrNull() ?: 100f)
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
-        // Scale factor based on widget dimensions
         val density = context.resources.displayMetrics.density
-        val widthDp = widthPx / density
         val heightDp = heightPx / density
 
-        // Height-based scale factor - kept conservative to prevent huge fonts
-        val baseHeightDp = 136f  // 2-row widget height
-        val heightScaleFactor = when {
-            heightDp < 150f -> 1.0f      // 2 rows or less: baseline
-            heightDp < 250f -> 1.0f      // 3 rows: keep baseline
-            else -> 1.05f                 // 4+ rows: only 5% bigger
-        }
-
-        // Layout constants
-        // Layout constants
-        val horizontalPadding = dpToPx(context, 0f) // Full width (was 4f)
-        val topPadding = dpToPx(context, 16f)
-        val bottomPadding = dpToPx(context, 0f) // Zero bottom padding
-
-        // Icon size fixed to 8dp
-        val iconSizeDp = 8f
+        // Layout zones (top to bottom):
+        // [NOW label] [temp labels above curve] [graph area] [temp labels below] [icons] [hour labels]
+        val topPadding = dpToPx(context, 10f)       // Space for "NOW" label
+        val iconSizeDp = 16f                         // Larger icons (was 8dp)
         val iconSize = dpToPx(context, iconSizeDp).toInt()
+        val labelHeight = dpToPx(context, 10f)
+        val iconTopPad = dpToPx(context, 2f)
+        val iconBottomPad = dpToPx(context, 1f)
 
-        // Calculate layout height components
-        val labelHeight = dpToPx(context, 9f) // Fixed size, no height scaling
-
-        // Log font sizing info
-        android.util.Log.d("HourlyGraph", "Widget: ${widthPx}px × ${heightPx}px (${widthDp.toInt()}dp × ${heightDp.toInt()}dp) | heightScaleFactor=$heightScaleFactor | baseLabel=9dp, finalLabel=9dp")
-        
         val graphTop = topPadding
-        // Bottom reserved area: Text Label + Icon + Padding
-        // Added 4dp padding for breathing room
-        val graphBottom = heightPx - labelHeight - iconSize - dpToPx(context, 4f)
-        val graphHeight = graphBottom - graphTop
+        val graphBottom = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
+        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        // Calculate hour spacing
-        val hourWidth = (widthPx - 2 * horizontalPadding) / hours.size.toFloat()
+        val hourWidth = widthPx.toFloat() / hours.size
 
-        // Paints
+        // --- Paints ---
+
+        // Main curve: scale stroke width with widget height
+        val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#5AC8FA")
-            strokeWidth = dpToPx(context, 2f) // Thinner stroke (was 3f)
+            strokeWidth = dpToPx(context, curveStrokeDp)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
 
+        // Gradient fill under curve
+        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            shader = LinearGradient(
+                0f, graphTop, 0f, graphBottom,
+                Color.parseColor("#445AC8FA"),  // 27% alpha blue at top
+                Color.parseColor("#005AC8FA"),  // 0% alpha at bottom
+                Shader.TileMode.CLAMP
+            )
+        }
+
+        // Current-time vertical line
         val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FF9F0A")
-            strokeWidth = dpToPx(context, 2f)
+            strokeWidth = dpToPx(context, 0.5f)
             style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 4f)), 0f)
+            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
         }
 
-        val hourLabelSize = dpToPx(context, 9f) // Fixed size, no height scaling
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#AAAAAA")
-            textSize = hourLabelSize // Smaller (Reduced to 9f)
+            color = Color.parseColor("#99FFFFFF")
+            textSize = dpToPx(context, 9f)
             textAlign = Paint.Align.CENTER
+            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
         }
 
-        val tempLabelSize = dpToPx(context, 9f) // Fixed size, no height scaling
         val tempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = tempLabelSize // Smaller (Reduced to 9f)
+            textSize = dpToPx(context, 10f)
             textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
-
-        android.util.Log.d("HourlyGraph", "Font sizes: hourLabel=${hourLabelSize}px (${hourLabelSize/density}dp), tempLabel=${tempLabelSize}px (${tempLabelSize/density}dp)")
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF9F0A")
-            textSize = dpToPx(context, 8.5f) // Fixed size, no height scaling
+            color = Color.parseColor("#BBFF9F0A")  // ~73% alpha for lighter feel
+            textSize = dpToPx(context, 8f)
             textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
         }
 
-        // Icon paints
-        val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            colorFilter = PorterDuffColorFilter(Color.parseColor("#AAAAAA"), PorterDuff.Mode.SRC_IN)
-        }
-        val sunnyIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            colorFilter = PorterDuffColorFilter(Color.parseColor("#FFD60A"), PorterDuff.Mode.SRC_IN)
-        }
-        
-        // Draw temperature curve using smooth bezier
+        // --- Build curve path & gradient fill path ---
         val curvePath = Path()
-        hours.forEachIndexed { index, hour ->
-            val x = horizontalPadding + hourWidth * index + hourWidth / 2
-            val y = graphTop + graphHeight * (1 - (hour.temperature - minTemp) / tempRange)
+        val fillPath = Path()
+        val points = mutableListOf<Pair<Float, Float>>() // x,y for each hour
 
-            if (index == 0) {
-                curvePath.moveTo(x, y)
-            } else {
-                // Create smooth bezier curve between points
-                val prevX = horizontalPadding + hourWidth * (index - 1) + hourWidth / 2
-                val prevY = graphTop + graphHeight * (1 - (hours[index - 1].temperature - minTemp) / tempRange)
-                val controlX = (prevX + x) / 2
-                curvePath.quadTo(controlX, prevY, x, y)
-            }
+        // Compute all data points first
+        hours.forEachIndexed { index, hour ->
+            val x = hourWidth * index + hourWidth / 2
+            val y = graphTop + graphHeight * (1 - (hour.temperature - minTemp) / tempRange)
+            points.add(x to y)
         }
+
+        if (points.isNotEmpty()) {
+            curvePath.moveTo(points[0].first, points[0].second)
+            fillPath.moveTo(points[0].first, points[0].second)
+
+            if (points.size == 1) {
+                // Single point — nothing to connect
+            } else {
+                // Catmull-Rom tangents for smooth cubic bezier curves
+                val tangents = points.indices.map { i ->
+                    when (i) {
+                        0 -> Pair(
+                            (points[1].first - points[0].first) * 0.5f,
+                            (points[1].second - points[0].second) * 0.5f
+                        )
+                        points.size - 1 -> Pair(
+                            (points[i].first - points[i - 1].first) * 0.5f,
+                            (points[i].second - points[i - 1].second) * 0.5f
+                        )
+                        else -> Pair(
+                            (points[i + 1].first - points[i - 1].first) * 0.5f,
+                            (points[i + 1].second - points[i - 1].second) * 0.5f
+                        )
+                    }
+                }
+
+                for (i in 0 until points.size - 1) {
+                    val cp1x = points[i].first + tangents[i].first / 3f
+                    val cp1y = points[i].second + tangents[i].second / 3f
+                    val cp2x = points[i + 1].first - tangents[i + 1].first / 3f
+                    val cp2y = points[i + 1].second - tangents[i + 1].second / 3f
+                    curvePath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
+                    fillPath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
+                }
+            }
+
+            // Close fill path along the bottom
+            fillPath.lineTo(points.last().first, graphBottom)
+            fillPath.lineTo(points.first().first, graphBottom)
+            fillPath.close()
+        }
+
+        // Draw gradient fill, then curve on top
+        canvas.drawPath(fillPath, gradientPaint)
         canvas.drawPath(curvePath, curvePaint)
 
-        // Draw hour labels and temperature points
-        // Track last label positions to avoid overlap
-        var lastTempLabelX = -1000f
+        // --- Draw labels, icons, current-time indicator ---
         var lastHourLabelX = -1000f
-        val minTempLabelSpacing = dpToPx(context, 40f)  // Minimum spacing between temp labels
-        val minHourLabelSpacing = dpToPx(context, 18f)  // Reduced (was 22f) to ensure dense labels fit
+        val minHourLabelSpacing = dpToPx(context, 28f)
 
+        // Key temperature labels — always drawn, no spacing check
+        val today = currentTime.toLocalDate()
+        val dailyHighIndex = hours.indices.maxByOrNull { hours[it].temperature } ?: -1
+        val dailyLowIndex = hours.indices.minByOrNull { hours[it].temperature } ?: -1
+
+        // History high (max temp from hours before current time)
+        val pastIndices = hours.indices.filter { hours[it].dateTime.isBefore(currentTime) }
+        val pastHighIndex = pastIndices.maxByOrNull { hours[it].temperature } ?: -1
+
+        // Collect indices that get special labels so we can draw them and skip duplicates
+        val specialIndices = mutableSetOf<Int>()
+        if (dailyHighIndex >= 0) specialIndices.add(dailyHighIndex)
+        if (dailyLowIndex >= 0 && dailyLowIndex != dailyHighIndex) specialIndices.add(dailyLowIndex)
+        if (pastHighIndex >= 0 && pastHighIndex !in specialIndices) specialIndices.add(pastHighIndex)
+        specialIndices.add(0) // Start of graph
+
+        for (idx in specialIndices) {
+            val sx = points[idx].first
+            val sy = points[idx].second
+            val label = String.format("%.0f°", hours[idx].temperature)
+            val textHalfWidth = tempLabelTextPaint.measureText(label) / 2f
+            val clampedX = sx.coerceIn(textHalfWidth, widthPx - textHalfWidth)
+
+            val isHigh = idx == dailyHighIndex || idx == pastHighIndex
+            if (isHigh) {
+                // Highs: draw below the curve
+                canvas.drawText(label, clampedX, sy + dpToPx(context, 14f), tempLabelTextPaint)
+            } else {
+                // Lows and start point: draw above the curve
+                canvas.drawText(label, clampedX, sy - dpToPx(context, 4f), tempLabelTextPaint)
+            }
+        }
 
         hours.forEachIndexed { index, hour ->
-            val x = horizontalPadding + hourWidth * index + hourWidth / 2
-            val y = graphTop + graphHeight * (1 - (hour.temperature - minTemp) / tempRange)
+            val x = points[index].first
+            val y = points[index].second
 
-            // Draw temperature label at peaks/valleys (local extrema)
-            val isPeak = index > 0 && index < hours.size - 1 &&
-                    hour.temperature >= hours[index - 1].temperature &&
-                    hour.temperature >= hours[index + 1].temperature
-            val isValley = index > 0 && index < hours.size - 1 &&
-                    hour.temperature <= hours[index - 1].temperature &&
-                    hour.temperature <= hours[index + 1].temperature
-            val isEndpoint = index == 0 || index == hours.size - 1
-
-            // Only draw if this is a significant point AND not too close to last label
-            val shouldDrawTemp = (isPeak || isValley || isEndpoint || hour.isCurrentHour) &&
-                    (x - lastTempLabelX >= minTempLabelSpacing)
-
-            if (shouldDrawTemp) {
-                val tempLabel = String.format("%.0f°", hour.temperature)
-                val tempYOffset = if (isPeak || (isEndpoint && hour.temperature > hours.getOrNull(1)?.temperature ?: hour.temperature)) {
-                    -dpToPx(context, 8f * heightScaleFactor)
-                } else {
-                    dpToPx(context, 20f * heightScaleFactor)
-                }
-                canvas.drawText(tempLabel, x, y + tempYOffset, tempLabelTextPaint)
-                lastTempLabelX = x
-            }
-
-            // Draw hour label at bottom (only if showLabel is true AND not overlapping)
+            // Hour labels at bottom, with weather icons aligned above
             if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
-                val labelY = heightPx - 3f // Experiment: move up 3 pixels
+                val labelY = heightPx - dpToPx(context, 1f)
                 canvas.drawText(hour.label, x, labelY, hourLabelTextPaint)
                 lastHourLabelX = x
-                
-                // Draw icon above label if available
+
+                // Weather icon above hour label
                 if (hour.iconRes != null) {
                     val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
                     if (drawable != null) {
-                        // Position: Restore 2dp gap above the label
-                        val iconY = heightPx - labelHeight - iconSize - dpToPx(context, 2f) 
+                        val iconY = graphBottom + iconTopPad
                         val iconX = x - iconSize / 2f
-                        
+
                         drawable.setBounds(
                             iconX.toInt(),
                             iconY.toInt(),
                             (iconX + iconSize).toInt(),
                             (iconY + iconSize).toInt()
                         )
-                        
-                        if (hour.isSunny) {
-                            drawable.setTint(Color.parseColor("#FFD60A"))
-                        } else {
-                            drawable.setTint(Color.parseColor("#AAAAAA"))
+
+                        val isNighttime = hour.dateTime.hour < 6 || hour.dateTime.hour >= 20
+                        val iconTint = when {
+                            isNighttime -> Color.parseColor("#BBBBBB")
+                            hour.isSunny -> Color.parseColor("#FFD60A")
+                            else -> Color.parseColor("#BBBBBB")
                         }
-                        
+                        drawable.setTint(iconTint)
                         drawable.draw(canvas)
                     }
                 }
             }
         }
 
-        // Draw current time indicator
+        // Current time indicator: dashed line + "NOW" label
         val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
         if (currentHourIndex != -1) {
             val anchorHour = hours[currentHourIndex]
-            // Calculate precise position based on minutes between anchor hour and current time
             val minutesOffset = java.time.Duration.between(anchorHour.dateTime, currentTime).toMinutes()
             val offsetPx = (minutesOffset / 60f) * hourWidth
-            val x = horizontalPadding + hourWidth * currentHourIndex + hourWidth / 2 + offsetPx
-            
-            canvas.drawLine(x, graphTop, x, graphBottom, currentTimePaint)
-            canvas.drawText("NOW", x, graphTop - dpToPx(context, 4f), nowLabelTextPaint)
+            val x = points[currentHourIndex].first + offsetPx
+
+            // Dashed vertical line (60% of graph height, centered)
+            val lineHeight = graphHeight * 0.6f
+            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
+            val lineBottom = lineTop + lineHeight
+            canvas.drawLine(x, lineTop, x, lineBottom, currentTimePaint)
+
+            // "NOW" label just above the dashed line
+            canvas.drawText("NOW", x, lineTop - dpToPx(context, 2f), nowLabelTextPaint)
         }
 
         return bitmap

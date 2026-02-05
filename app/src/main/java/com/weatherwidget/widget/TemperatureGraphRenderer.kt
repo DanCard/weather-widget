@@ -71,8 +71,8 @@ object TemperatureGraphRenderer {
         val baseDayLabelSize = 9.5f
         val baseTempLabelSize = 8.5f
 
-        // Icon size fixed to 8dp (Tiny)
-        val iconSizeDp = 8f
+        // Icon size
+        val iconSizeDp = 16f
         val iconSize = dpToPx(context, iconSizeDp).toInt()
 
         // Calculate layout height components
