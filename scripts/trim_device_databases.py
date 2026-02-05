@@ -29,6 +29,14 @@ def get_devices():
     stdout, _ = run_adb(["devices"])
     return [l.split()[0] for l in stdout.splitlines() if "device" in l and "List" not in l]
 
+def get_device_info(serial):
+    model, _ = run_adb(["shell", "getprop", "ro.product.model"], serial=serial)
+    if not model:
+        model = "unknown"
+    model = model.replace(" ", "_").lower()
+    safe_id = serial.replace(".", "").replace(":", "").replace("/", "_")
+    return f"{model}_{safe_id}"
+
 def trim_db(local_path):
     try:
         conn = sqlite3.connect(local_path)
@@ -64,7 +72,8 @@ def trim_db(local_path):
         return 0
 
 def process_device(serial):
-    print(f"\n[*] Processing {serial}...")
+    device_name = get_device_info(serial)
+    print(f"\n[*] Processing {device_name}...")
     
     # 1. Check if app is installed
     pkgs, _ = run_adb(["shell", "pm", "list", "packages", PACKAGE_NAME], serial=serial)

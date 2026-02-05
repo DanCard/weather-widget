@@ -7,13 +7,22 @@ import datetime
 import glob
 
 
-def analyze_database(db_path, device_name):
+def analyze_database(db_path, folder_name):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
+        # Parse folder name (YYYYMMDD_HHMMSS_model_serial)
+        parts = folder_name.split("_")
+        if len(parts) >= 3:
+            timestamp = f"{parts[0]}_{parts[1]}"
+            device_id = "_".join(parts[2:])
+            display_name = f"{device_id} ({timestamp})"
+        else:
+            display_name = folder_name
+
         print("\n" + "=" * 85)
-        print(f"Device: {device_name}")
+        print(f"Device: {display_name}")
         print(f"Path: {db_path}")
         print("=" * 85)
 
@@ -171,8 +180,8 @@ def main():
     for db_path in sorted(databases):
         parts = db_path.split("/")
         if len(parts) >= 3:
-            device_name = parts[-3]
-            analyze_database(db_path, device_name)
+            folder_name = parts[-3]
+            analyze_database(db_path, folder_name)
 
 
 if __name__ == "__main__":
