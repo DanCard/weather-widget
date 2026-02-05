@@ -40,8 +40,8 @@ object HourlyGraphRenderer {
         val heightDp = heightPx / density
 
         // Layout zones (top to bottom):
-        // [NOW label] [temp labels above curve] [graph area] [temp labels below] [icons] [hour labels]
-        val topPadding = dpToPx(context, 10f)       // Space for "NOW" label
+        // [current temp/icon] [temp labels above curve] [graph area] [temp labels below] [icons] [hour labels]
+        val topPadding = dpToPx(context, 12f)       // Space for current temp and weather icon
         val iconSizeDp = 16f                         // Larger icons (was 8dp)
         val iconSize = dpToPx(context, iconSizeDp).toInt()
         val labelHeight = dpToPx(context, 10f)
@@ -87,7 +87,7 @@ object HourlyGraphRenderer {
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 9f)
+            textSize = dpToPx(context, 10f)
             textAlign = Paint.Align.CENTER
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
         }
@@ -96,7 +96,7 @@ object HourlyGraphRenderer {
             color = Color.parseColor("#FFFFFF")
             textSize = dpToPx(context, 10f)
             textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
 
@@ -184,6 +184,7 @@ object HourlyGraphRenderer {
         if (dailyLowIndex >= 0 && dailyLowIndex != dailyHighIndex) specialIndices.add(dailyLowIndex)
         if (pastHighIndex >= 0 && pastHighIndex !in specialIndices) specialIndices.add(pastHighIndex)
         specialIndices.add(0) // Start of graph
+        if (hours.size > 1) specialIndices.add(hours.size - 1) // End of graph
 
         for (idx in specialIndices) {
             val sx = points[idx].first
@@ -192,12 +193,16 @@ object HourlyGraphRenderer {
             val textHalfWidth = tempLabelTextPaint.measureText(label) / 2f
             val clampedX = sx.coerceIn(textHalfWidth, widthPx - textHalfWidth)
 
-            val isHigh = idx == dailyHighIndex || idx == pastHighIndex
-            if (isHigh) {
-                // Highs: draw below the curve
+            // Smart placement: draw label toward center of graph
+            // If point is in upper half, draw below; if in lower half, draw above
+            val graphCenter = graphTop + graphHeight / 2f
+            val drawBelow = sy < graphCenter
+
+            if (drawBelow) {
+                // Point is in upper half: draw below the curve
                 canvas.drawText(label, clampedX, sy + dpToPx(context, 14f), tempLabelTextPaint)
             } else {
-                // Lows and start point: draw above the curve
+                // Point is in lower half: draw above the curve
                 canvas.drawText(label, clampedX, sy - dpToPx(context, 4f), tempLabelTextPaint)
             }
         }

@@ -64,7 +64,7 @@ object TemperatureGraphRenderer {
 
         // Layout constants (scaled)
         val horizontalPadding = dpToPx(context, 0f) // Maximize width (was 4f)
-        val topPadding = dpToPx(context, 16f * scaleFactor)
+        val topPadding = dpToPx(context, 18f * scaleFactor) // Space for current temp and weather icon
         val bottomPadding = dpToPx(context, 0f) // No bottom padding
 
         // Scale text sizes with widget height
