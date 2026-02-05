@@ -159,7 +159,11 @@ class WeatherWidgetWorker @AssistedInject constructor(
             .setConstraints(constraints)
             .build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "weather_widget_next_update",
+            ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
     }
 
     private fun getUpdateIntervalMinutes(): Long {

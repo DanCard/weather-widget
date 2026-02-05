@@ -57,9 +57,6 @@ class OpportunisticUpdateJobService : JobService() {
                 } else {
                     Log.d(TAG, "No recent hourly data, skipping opportunistic update")
                 }
-
-                // Reschedule for next opportunistic window
-                scheduleOpportunisticUpdate(applicationContext)
             } finally {
                 jobFinished(params, false)
             }

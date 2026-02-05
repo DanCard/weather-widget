@@ -1,10 +1,12 @@
 package com.weatherwidget.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 
 @Entity(
     tableName = "forecast_snapshots",
-    primaryKeys = ["targetDate", "forecastDate", "locationLat", "locationLon", "source", "fetchedAt"]
+    primaryKeys = ["targetDate", "forecastDate", "locationLat", "locationLon", "source", "fetchedAt"],
+    indices = [Index(value = ["locationLat", "locationLon"])]
 )
 data class ForecastSnapshotEntity(
     val targetDate: String,      // Date being forecasted (e.g., "2024-01-15")

@@ -37,21 +37,64 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         Log.d(TAG, "onUpdate: Updating ${appWidgetIds.size} widgets")
-        for (appWidgetId in appWidgetIds) {
-            updateWidgetLoading(context, appWidgetManager, appWidgetId)
-        }
-        schedulePeriodicUpdate(context)
         
-        // Only trigger immediate fetch if data is stale
         val pendingResult = goAsync()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try {
-                if (DataFreshness.isDataStale(context)) {
-                    Log.d(TAG, "onUpdate: Data is stale, triggering background fetch")
+                val database = WeatherDatabase.getDatabase(context)
+                val weatherDao = database.weatherDao()
+                val snapshotDao = database.forecastSnapshotDao()
+                val hourlyDao = database.hourlyForecastDao()
+
+                // 1. Get latest data from DB to see if we can skip loading state
+                val latestWeather = weatherDao.getLatestWeather()
+                
+                if (latestWeather == null) {
+                    // No data at all, show loading for all widgets
+                    for (appWidgetId in appWidgetIds) {
+                        updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                    }
+                    Log.d(TAG, "onUpdate: No data in DB, showing loading and triggering fetch")
                     triggerImmediateUpdate(context)
                 } else {
-                    Log.d(TAG, "onUpdate: Data is fresh, skipping fetch")
+                    // We have some data, refresh all widgets from cache immediately
+                    val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    
+                    val weatherList = weatherDao.getWeatherRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
+                    val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
+                        .groupBy { it.targetDate }
+                    
+                    // Get hourly forecasts for interpolation
+                    val now = LocalDateTime.now()
+                    val hourlyStart = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    val hourlyEnd = now.plusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, latestWeather.locationLat, latestWeather.locationLon)
+
+                    for (appWidgetId in appWidgetIds) {
+                        updateWidgetWithData(
+                            context = context,
+                            appWidgetManager = appWidgetManager,
+                            appWidgetId = appWidgetId,
+                            weatherList = weatherList,
+                            forecastSnapshots = forecastSnapshots,
+                            hourlyForecasts = hourlyForecasts,
+                            currentCondition = latestWeather.condition
+                        )
+                    }
+
+                    // 2. Check if data is stale and needs background fetch
+                    if (DataFreshness.isDataStale(context)) {
+                        Log.d(TAG, "onUpdate: Data is stale, triggering background fetch")
+                        triggerImmediateUpdate(context)
+                    } else {
+                        Log.d(TAG, "onUpdate: Data is fresh, skipped fetch")
+                    }
                 }
+                
+                schedulePeriodicUpdate(context)
+            } catch (e: Exception) {
+                Log.e(TAG, "onUpdate: Error during update", e)
             } finally {
                 pendingResult.finish()
             }
@@ -80,17 +123,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         schedulePeriodicUpdate(context)
-
-        // Schedule UI-only updates using AlarmManager
-        val pendingResult = goAsync()
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            try {
-                val uiScheduler = UIUpdateScheduler(context)
-                uiScheduler.scheduleNextUpdate()
-            } finally {
-                pendingResult.finish()
-            }
-        }
 
         // Schedule opportunistic updates using JobScheduler (Android 8+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
@@ -652,34 +684,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             // Route to appropriate renderer based on view mode
             if (viewMode == ViewMode.HOURLY) {
-                // Fetch extended hourly data if not already provided
-                if (hourlyForecasts.size < 20) {  // Need more than just ±3 hours
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                        val database = WeatherDatabase.getDatabase(context)
-                        val hourlyDao = database.hourlyForecastDao()
-                        val weatherDao = database.weatherDao()
-
-                        val latestWeather = weatherDao.getLatestWeather()
-                        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-                        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-
-                        val now = LocalDateTime.now()
-                        val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-                        val centerTime = now.plusHours(hourlyOffset.toLong())
-                        // Query 8 hours back + 16 hours forward to match display range
-                        val startTime = centerTime.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                        val endTime = centerTime.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                        Log.d(TAG, "updateWidgetWithData: Fetching hourly from $startTime to $endTime")
-                        val extendedHourly = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
-
-                        updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, extendedHourly, centerTime, currentCondition)
-                    }
-                } else {
-                    val now = LocalDateTime.now()
-                    val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-                    val centerTime = now.plusHours(hourlyOffset.toLong())
-                    updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, currentCondition)
-                }
+                val now = LocalDateTime.now()
+                val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+                val centerTime = now.plusHours(hourlyOffset.toLong())
+                updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, currentCondition)
                 return
             }
 

@@ -7,8 +7,8 @@ interface HourlyForecastDao {
 
     @Query("""
         SELECT * FROM hourly_forecasts
-        WHERE ABS(locationLat - :lat) < 0.02
-        AND ABS(locationLon - :lon) < 0.02
+        WHERE locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
+        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         ORDER BY dateTime ASC
@@ -22,8 +22,8 @@ interface HourlyForecastDao {
 
     @Query("""
         SELECT * FROM hourly_forecasts
-        WHERE ABS(locationLat - :lat) < 0.02
-        AND ABS(locationLon - :lon) < 0.02
+        WHERE locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
+        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         AND source = :source

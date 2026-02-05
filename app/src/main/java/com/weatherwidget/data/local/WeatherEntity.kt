@@ -1,12 +1,14 @@
 package com.weatherwidget.data.local
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.time.LocalDate
 
 @Entity(
     tableName = "weather_data",
-    primaryKeys = ["date", "source"]
+    primaryKeys = ["date", "source"],
+    indices = [Index(value = ["locationLat", "locationLon"])]
 )
 data class WeatherEntity(
     val date: String,
