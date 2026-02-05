@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import android.graphics.*
+import android.util.Log
 import android.util.TypedValue
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -169,41 +170,66 @@ object HourlyGraphRenderer {
         var lastHourLabelX = -1000f
         val minHourLabelSpacing = dpToPx(context, 28f)
 
-        // Key temperature labels — always drawn, no spacing check
-        val today = currentTime.toLocalDate()
+        // Compute NOW x-position early (needed for label proximity suppression)
+        val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
+        val nowX: Float? = if (currentHourIndex != -1) {
+            val minutesOffset = java.time.Duration.between(hours[currentHourIndex].dateTime, currentTime).toMinutes()
+            points[currentHourIndex].first + (minutesOffset / 60f) * hourWidth
+        } else null
+
+        // Key temperature labels — priority-ordered list (first drawn wins collisions)
         val dailyHighIndex = hours.indices.maxByOrNull { hours[it].temperature } ?: -1
         val dailyLowIndex = hours.indices.minByOrNull { hours[it].temperature } ?: -1
 
-        // History high (max temp from hours before current time)
-        val pastIndices = hours.indices.filter { hours[it].dateTime.isBefore(currentTime) }
-        val pastHighIndex = pastIndices.maxByOrNull { hours[it].temperature } ?: -1
+        // Priority order: low (1) → high (2) → start (3) → end (4)
+        val specialIndices = mutableListOf<Int>()
+        if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
+        if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
+        if (0 !in specialIndices) specialIndices.add(0)
+        if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
 
-        // Collect indices that get special labels so we can draw them and skip duplicates
-        val specialIndices = mutableSetOf<Int>()
-        if (dailyHighIndex >= 0) specialIndices.add(dailyHighIndex)
-        if (dailyLowIndex >= 0 && dailyLowIndex != dailyHighIndex) specialIndices.add(dailyLowIndex)
-        if (pastHighIndex >= 0 && pastHighIndex !in specialIndices) specialIndices.add(pastHighIndex)
-        specialIndices.add(0) // Start of graph
-        if (hours.size > 1) specialIndices.add(hours.size - 1) // End of graph
+        val drawnLabelBounds = mutableListOf<RectF>()
+
+        Log.d("HourlyGraph", "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) hours[dailyHighIndex].temperature else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) hours[dailyLowIndex].temperature else "N/A"}), nowX=$nowX, hourWidth=$hourWidth")
 
         for (idx in specialIndices) {
             val sx = points[idx].first
             val sy = points[idx].second
             val label = String.format("%.0f°", hours[idx].temperature)
-            val textHalfWidth = tempLabelTextPaint.measureText(label) / 2f
-            val clampedX = sx.coerceIn(textHalfWidth, widthPx - textHalfWidth)
+            val textWidth = tempLabelTextPaint.measureText(label)
+            val textHeight = tempLabelTextPaint.textSize
+            val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
             // Smart placement: draw label toward center of graph
-            // If point is in upper half, draw below; if in lower half, draw above
             val graphCenter = graphTop + graphHeight / 2f
             val drawBelow = sy < graphCenter
+            val labelY = if (drawBelow) sy + dpToPx(context, 14f) else sy - dpToPx(context, 4f)
 
-            if (drawBelow) {
-                // Point is in upper half: draw below the curve
-                canvas.drawText(label, clampedX, sy + dpToPx(context, 14f), tempLabelTextPaint)
+            // Build bounding rect for overlap detection
+            val bounds = RectF(
+                clampedX - textWidth / 2f,
+                labelY - textHeight,
+                clampedX + textWidth / 2f,
+                labelY
+            )
+
+            // Skip if overlaps any already-drawn label
+            val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+
+            val roleName = when (idx) {
+                dailyLowIndex -> "LOW"
+                dailyHighIndex -> "HIGH"
+                0 -> "START"
+                hours.size - 1 -> "END"
+                else -> "OTHER"
+            }
+
+            if (!overlaps) {
+                canvas.drawText(label, clampedX, labelY, tempLabelTextPaint)
+                drawnLabelBounds.add(bounds)
+                Log.d("HourlyGraph", "  DRAWN $roleName idx=$idx temp=${hours[idx].temperature} x=$clampedX y=$labelY bounds=$bounds")
             } else {
-                // Point is in lower half: draw above the curve
-                canvas.drawText(label, clampedX, sy - dpToPx(context, 4f), tempLabelTextPaint)
+                Log.d("HourlyGraph", "  SKIPPED $roleName idx=$idx temp=${hours[idx].temperature} overlaps=$overlaps bounds=$bounds")
             }
         }
 
@@ -244,22 +270,16 @@ object HourlyGraphRenderer {
             }
         }
 
-        // Current time indicator: dashed line + "NOW" label
-        val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
-        if (currentHourIndex != -1) {
-            val anchorHour = hours[currentHourIndex]
-            val minutesOffset = java.time.Duration.between(anchorHour.dateTime, currentTime).toMinutes()
-            val offsetPx = (minutesOffset / 60f) * hourWidth
-            val x = points[currentHourIndex].first + offsetPx
-
+        // Current time indicator: dashed line + "NOW" label (reuses precomputed nowX)
+        if (nowX != null) {
             // Dashed vertical line (60% of graph height, centered)
             val lineHeight = graphHeight * 0.6f
             val lineTop = graphTop + (graphHeight - lineHeight) / 2f
             val lineBottom = lineTop + lineHeight
-            canvas.drawLine(x, lineTop, x, lineBottom, currentTimePaint)
+            canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
 
             // "NOW" label just above the dashed line
-            canvas.drawText("NOW", x, lineTop - dpToPx(context, 2f), nowLabelTextPaint)
+            canvas.drawText("NOW", nowX, lineTop - dpToPx(context, 2f), nowLabelTextPaint)
         }
 
         return bitmap

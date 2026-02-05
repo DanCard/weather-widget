@@ -1406,7 +1406,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val sourceName = if (displaySource == "NWS") "NWS" else "OPEN_METEO"
             val forecastsByTime = hourlyForecasts.groupBy { it.dateTime }
                 .mapValues { entry ->
-                    entry.value.find { it.source == sourceName } ?: entry.value.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP } ?: entry.value.firstOrNull()
+                    val preferred = entry.value.find { it.source == sourceName }
+                    val gap = entry.value.find { it.source == WidgetStateManager.SOURCE_GENERIC_GAP }
+                    val fallback = entry.value.firstOrNull()
+                    val chosen = preferred ?: gap ?: fallback
+                    if (preferred == null && chosen != null) {
+                        Log.d(TAG, "buildHourDataList: FALLBACK for ${entry.key}: wanted=$sourceName, got=${chosen.source} temp=${chosen.temperature} (available: ${entry.value.map { "${it.source}:${it.temperature}" }})")
+                    }
+                    chosen
                 }
 
             // Determine how many hours to show (24 total, with "now" at 1/3 position)

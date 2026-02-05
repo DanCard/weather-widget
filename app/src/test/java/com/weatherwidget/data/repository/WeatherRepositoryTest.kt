@@ -72,30 +72,27 @@ class WeatherRepositoryTest {
     }
 
     @Test
-    fun `lastNetworkFetchTime is persisted in SharedPreferences`() = runTest {
+    fun `lastNetworkFetchTime is persisted via SharedPreferences`() = runTest {
         val editor = mockk<SharedPreferences.Editor>(relaxed = true)
         every { sharedPrefs.edit() } returns editor
-        
-        // Mock getLong to return a value we can verify later
-        var capturedTime = 0L
+
+        val capturedTimes = mutableListOf<Long>()
         every { editor.putLong("last_network_fetch_time", any()) } answers {
-            capturedTime = secondArg()
+            capturedTimes.add(secondArg())
             editor
         }
-        every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { capturedTime }
+        every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers {
+            capturedTimes.lastOrNull() ?: 0L
+        }
 
         // Mock cache to be empty to force network fetch
         coEvery { weatherDao.getWeatherRange(any(), any(), any(), any()) } returns emptyList()
-        coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("Forced failure to stop execution")
+        coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("Forced failure")
 
-        try {
-            repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
-        } catch (e: Exception) {
-            // Expected
-        }
+        repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
 
-        // Verify the internal setter was called by checking if the mock now returns a non-zero time
-        assertTrue("lastNetworkFetchTime should be greater than 0", capturedTime > 0)
+        // Verify SharedPreferences was written to (first set to now, then reset to 0 on failure)
+        assertTrue("SharedPreferences should have been written to", capturedTimes.size >= 1)
     }
 
     @Test
@@ -258,6 +255,92 @@ class WeatherRepositoryTest {
         val location = repository.getLatestLocation()
 
         assertNull(location)
+    }
+
+    @Test
+    fun `rate limit resets when fetch throws exception`() = runTest {
+        val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+        every { sharedPrefs.edit() } returns editor
+
+        var storedTime = 0L
+        every { editor.putLong("last_network_fetch_time", any()) } answers {
+            storedTime = secondArg()
+            editor
+        }
+        every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { storedTime }
+
+        // Empty cache forces network fetch
+        coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList()
+
+        // Both APIs throw exceptions
+        coEvery { nwsApi.getGridPoint(testLat, testLon) } throws Exception("NWS down")
+        coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } throws Exception("Meteo down")
+
+        repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+        // Rate limit should be reset to 0 so next attempt isn't blocked
+        assertEquals("Rate limit should be reset after exception", 0L, storedTime)
+    }
+
+    @Test
+    fun `rate limit resets when both APIs fail silently`() = runTest {
+        val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+        every { sharedPrefs.edit() } returns editor
+
+        var storedTime = 0L
+        every { editor.putLong("last_network_fetch_time", any()) } answers {
+            storedTime = secondArg()
+            editor
+        }
+        every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { storedTime }
+
+        // Stale cache forces network fetch
+        val staleData = listOf(createWeatherEntity(today, 70, 50).copy(
+            fetchedAt = System.currentTimeMillis() - 60 * 60 * 1000 // 1 hour old
+        ))
+        coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns staleData
+
+        // Both APIs throw (fetchFromBothApis catches these and returns null for each)
+        coEvery { nwsApi.getGridPoint(testLat, testLon) } throws Exception("NWS timeout")
+        coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } throws Exception("Meteo timeout")
+
+        repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+        // Rate limit should be restored to previous value (0), not stuck at current time
+        assertEquals("Rate limit should be reset when both APIs fail", 0L, storedTime)
+    }
+
+    @Test
+    fun `rate limit preserved on successful fetch`() = runTest {
+        val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+        every { sharedPrefs.edit() } returns editor
+
+        var storedTime = 0L
+        every { editor.putLong("last_network_fetch_time", any()) } answers {
+            storedTime = secondArg()
+            editor
+        }
+        every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { storedTime }
+
+        // Empty cache forces network fetch
+        coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList() andThen listOf(
+            createWeatherEntity(today, 70, 50)
+        )
+        coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, any()) } returns emptyList()
+
+        val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com")
+        coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
+        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
+            NwsApi.ForecastPeriod("Today", "${today}T06:00:00-08:00", 70, "F", "Sunny", true)
+        )
+        coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+        coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } throws Exception("Skipped")
+
+        val beforeFetch = System.currentTimeMillis()
+        repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+        // Rate limit should be set to approximately now (not reset to 0)
+        assertTrue("Rate limit should be set after successful fetch", storedTime >= beforeFetch)
     }
 
     private fun createWeatherEntity(

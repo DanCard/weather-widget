@@ -103,9 +103,18 @@ class WeatherRepository @Inject constructor(
                 return Result.success(cached)
             }
 
+            // Set rate limit timestamp to prevent concurrent bursts, but save the
+            // previous value so we can restore it if the fetch fails entirely.
+            val previousFetchTime = lastNetworkFetchTime
             lastNetworkFetchTime = now
             appLogDao.insert(AppLogEntity(tag = "NET_FETCH_START", message = "Forcing fetch: force=$forceRefresh"))
             val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
+
+            // If both APIs returned nothing, reset the rate limit so we can retry sooner
+            if (nwsWeather == null && meteoWeather == null) {
+                lastNetworkFetchTime = previousFetchTime
+                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_FAIL", message = "Both APIs returned null, rate limit reset"))
+            }
 
             // Save both APIs' data, merging with existing to preserve non-zero values
             if (nwsWeather != null) {
@@ -133,6 +142,10 @@ class WeatherRepository @Inject constructor(
             // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
             Result.success(getCachedData(lat, lon))
         } catch (e: Exception) {
+            // Reset rate limit so failed fetches don't block retries
+            lastNetworkFetchTime = 0L
+            appLogDao.insert(AppLogEntity(tag = "NET_FETCH_ERROR", message = "Exception: ${e.message}, rate limit reset"))
+            Log.e(TAG, "getWeatherData: Fetch failed, rate limit reset", e)
             val cached = getCachedData(lat, lon)
             if (cached.isNotEmpty()) {
                 Result.success(cached)
