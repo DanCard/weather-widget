@@ -1028,6 +1028,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                 days.add(
                     TemperatureGraphRenderer.DayData(
+                        date = dateStr,
                         label = label,
                         high = weather.highTemp,
                         low = weather.lowTemp,
@@ -1230,10 +1231,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 // Show this zone
                 views.setViewVisibility(zoneId, View.VISIBLE)
 
-                val dateStr = when (index) {
-                    0 -> LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    else -> LocalDate.now().plusDays((index - 1).toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                }
+                val dateStr = dayData.date
 
                 val intent = if (index < midpoint) {
                     // Left half -> Forecast History

@@ -25,6 +25,7 @@ class TemperatureGraphRendererTest {
         // Create test data with historical day that has forecast comparison
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-01",
                 label = "Sat",
                 high = 65,
                 low = 45,
@@ -36,6 +37,7 @@ class TemperatureGraphRendererTest {
                 accuracyMode = AccuracyDisplayMode.FORECAST_BAR
             ),
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-02",
                 label = "Today",
                 high = 68,
                 low = 48,
@@ -43,6 +45,7 @@ class TemperatureGraphRendererTest {
                 isPast = false
             ),
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-03",
                 label = "Mon",
                 high = 70,
                 low = 50,
@@ -91,6 +94,7 @@ class TemperatureGraphRendererTest {
         // Create test data with historical day but NO forecast comparison
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-01",
                 label = "Sat",
                 high = 65,
                 low = 45,
@@ -101,6 +105,7 @@ class TemperatureGraphRendererTest {
                 accuracyMode = AccuracyDisplayMode.FORECAST_BAR
             ),
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-02",
                 label = "Today",
                 high = 68,
                 low = 48,
@@ -147,6 +152,7 @@ class TemperatureGraphRendererTest {
         // Even with forecast data, if mode is NONE, no forecast line should appear
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-01",
                 label = "Sat",
                 high = 65,
                 low = 45,
@@ -193,6 +199,7 @@ class TemperatureGraphRendererTest {
     fun renderGraph_todayShowsOrangeBar() {
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-02",
                 label = "Today",
                 high = 68,
                 low = 48,
@@ -231,6 +238,7 @@ class TemperatureGraphRendererTest {
     fun renderGraph_futureShowsBlueBar() {
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-03",
                 label = "Mon",
                 high = 70,
                 low = 50,
@@ -269,6 +277,7 @@ class TemperatureGraphRendererTest {
     fun renderGraph_historyShowsYellowBar() {
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-01",
                 label = "Sat",
                 high = 65,
                 low = 45,
@@ -308,6 +317,7 @@ class TemperatureGraphRendererTest {
         // Test data with partial temperatures (high only, low only)
         val days = listOf(
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-04",
                 label = "HighOnly",
                 high = 70,
                 low = null, // Missing low
@@ -315,6 +325,7 @@ class TemperatureGraphRendererTest {
                 isPast = false
             ),
             TemperatureGraphRenderer.DayData(
+                date = "2026-02-05",
                 label = "LowOnly",
                 high = null, // Missing high
                 low = 50,

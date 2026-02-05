@@ -7,6 +7,7 @@ import android.util.TypedValue
 object TemperatureGraphRenderer {
 
     data class DayData(
+        val date: String,               // ISO date string (e.g. "2024-01-15")
         val label: String,
         val high: Int?,
         val low: Int?,

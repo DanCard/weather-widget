@@ -201,6 +201,10 @@ class WeatherRepository @Inject constructor(
 
         if (snapshots.isNotEmpty()) {
             forecastSnapshotDao.insertAll(snapshots)
+            appLogDao.insert(AppLogEntity(
+                tag = "SNAPSHOT_SAVE", 
+                message = "Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}"
+            ))
             Log.d(TAG, "saveForecastSnapshot: Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}")
         }
     }

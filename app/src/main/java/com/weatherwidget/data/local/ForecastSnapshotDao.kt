@@ -8,8 +8,8 @@ interface ForecastSnapshotDao {
     @Query("""
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
-        AND locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
-        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY forecastDate DESC, fetchedAt DESC
         LIMIT 1
     """)
@@ -19,8 +19,8 @@ interface ForecastSnapshotDao {
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
-        AND locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
-        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY fetchedAt DESC
         LIMIT 1
     """)
@@ -35,8 +35,8 @@ interface ForecastSnapshotDao {
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
-        AND locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
-        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         AND source = :source
         ORDER BY fetchedAt DESC
         LIMIT 1
@@ -51,8 +51,8 @@ interface ForecastSnapshotDao {
 
     @Query("""
         SELECT * FROM forecast_snapshots
-        WHERE locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
-        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
+        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         ORDER BY targetDate ASC, forecastDate DESC
@@ -76,8 +76,8 @@ interface ForecastSnapshotDao {
     @Query("""
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
-        AND locationLat BETWEEN :lat - 0.02 AND :lat + 0.02
-        AND locationLon BETWEEN :lon - 0.02 AND :lon + 0.02
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY forecastDate ASC, fetchedAt ASC
     """)
     suspend fun getForecastEvolution(
