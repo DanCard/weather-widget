@@ -241,7 +241,10 @@ object HourlyGraphRenderer {
             // Hour labels at bottom, with weather icons aligned above
             if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
                 val labelY = heightPx - dpToPx(context, 1f)
-                canvas.drawText(hour.label, x, labelY, hourLabelTextPaint)
+                val textWidth = hourLabelTextPaint.measureText(hour.label)
+                val clampedX = x.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                
+                canvas.drawText(hour.label, clampedX, labelY, hourLabelTextPaint)
                 lastHourLabelX = x
 
                 // Weather icon above hour label
@@ -249,7 +252,7 @@ object HourlyGraphRenderer {
                     val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
                     if (drawable != null) {
                         val iconY = graphBottom + iconTopPad
-                        val iconX = x - iconSize / 2f
+                        val iconX = clampedX - iconSize / 2f
 
                         drawable.setBounds(
                             iconX.toInt(),
