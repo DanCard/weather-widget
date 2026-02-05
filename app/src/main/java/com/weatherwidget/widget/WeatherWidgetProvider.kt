@@ -627,19 +627,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             return currentHourForecast?.condition
         }
 
-        private fun getWidgetSize(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int): Pair<Int, Int> {
+        private fun getWidgetSize(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int): WidgetDimensions {
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
             val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 40)
             val minHeight = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 40)
             
             // Standard Android widget size formula: (size + padding) / cell_size with rounding
-            // Using +15 padding and proper rounding to handle widgets that are "almost" N rows/cols
+            // Using +15/+25 padding and proper rounding to handle widgets that are "almost" N rows/cols
             val cols = ((minWidth + 15).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
-            val rows = ((minHeight + 15).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
+            val rows = ((minHeight + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
             
             Log.d(TAG, "getWidgetSize: widgetId=$appWidgetId, minWidth=$minWidth, minHeight=$minHeight -> cols=$cols, rows=$rows")
-            return cols to rows
+            return WidgetDimensions(cols, rows, minWidth, minHeight)
         }
+
+        data class WidgetDimensions(val cols: Int, val rows: Int, val minWidth: Int, val minHeight: Int)
 
         private fun getOptimalBitmapSize(context: Context, widthDp: Int, heightDp: Int): Pair<Int, Int> {
             val rawWidth = dpToPx(context, widthDp)
@@ -705,7 +707,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
             // Daily mode
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
-            val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
+            val dimensions = getWidgetSize(context, appWidgetManager, appWidgetId)
+            val numColumns = dimensions.cols
+            val numRows = dimensions.rows
+            
             val dateOffset = stateManager.getDateOffset(appWidgetId)
             val accuracyMode = stateManager.getAccuracyDisplayMode()
 
@@ -794,8 +799,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Set up navigation click handlers with available dates and widget width
             setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns)
 
-            // Use graph mode for 2+ rows
-            val useGraph = numRows >= 2
+            // Use graph mode for 2+ rows (using a lower threshold for devices like Pixel 7 Pro)
+            val rawRows = (dimensions.minHeight + 25).toFloat() / CELL_HEIGHT_DP
+            val useGraph = rawRows >= 1.4f
 
             if (useGraph) {
                 views.setViewVisibility(R.id.text_container, View.GONE)
@@ -1273,7 +1279,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             centerTime: LocalDateTime
         ) {
             val views = RemoteViews(context.packageName, R.layout.widget_weather)
-            val (numColumns, numRows) = getWidgetSize(context, appWidgetManager, appWidgetId)
+            val dimensions = getWidgetSize(context, appWidgetManager, appWidgetId)
+            val numColumns = dimensions.cols
+            val numRows = dimensions.rows
+            
             val stateManager = WidgetStateManager(context)
 
             Log.d(TAG, "updateWidgetWithHourlyData: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
@@ -1336,7 +1345,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
 
             // Use graph mode for 2+ rows, text mode for 1 row
-            val useGraph = numRows >= 2
+            val rawRows = (dimensions.minHeight + 25).toFloat() / CELL_HEIGHT_DP
+            val useGraph = rawRows >= 1.4f
 
             if (useGraph) {
                 views.setViewVisibility(R.id.text_container, View.GONE)

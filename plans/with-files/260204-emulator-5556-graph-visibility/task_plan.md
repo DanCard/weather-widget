@@ -1,47 +1,48 @@
-# Task Plan: Diagnose and fix graph visibility on emulator 5556 (2 rows)
+# Task Plan: Diagnose and fix graph visibility on emulator 5556 and Pixel 7 Pro (2 rows)
 
 ## Goal
-Diagnose why graphs are not shown on emulator 5556 when the widget is 2 rows high and implement a fix, ensuring verification with tests.
+Diagnose why graphs are not shown on emulator 5556 and Pixel 7 Pro when the widget is 2 rows high and implement a fix, ensuring verification with tests.
 
 ## Current Phase
-Phase 1: Requirements & Discovery
+Phase 3: Implementation
 
 ## Phases
 
 ### Phase 1: Requirements & Discovery
 - [x] Understand user intent
 - [x] Identify constraints and requirements
-- [ ] Investigate codebase for widget sizing and graph visibility logic
-- [ ] Document findings in findings.md
-- **Status:** in_progress
+- [x] Investigate codebase for widget sizing and graph visibility logic
+- [x] Document findings in findings.md
+- **Status:** complete
 
 ### Phase 2: Planning & Structure
-- [ ] Define technical approach (how to simulate 2-row height in tests)
-- [ ] Propose a fix based on discovery
-- [ ] Get explicit consent from the user before execution
-- **Status:** pending
+- [x] Define technical approach (P=25 for rows, P=15 for columns)
+- [x] Refine approach for Pixel 7 Pro (Use raw threshold 1.4f instead of integer comparison)
+- [x] Propose a fix based on discovery
+- [x] Get explicit consent from the user before execution
+- **Status:** complete
 
 ### Phase 3: Implementation
-- [ ] Create/Update unit tests to reproduce the issue
-- [ ] Apply the fix to the codebase
-- [ ] Verify fix with tests
-- **Status:** pending
+- [x] Update WeatherWidgetProvider.kt with 1.4f threshold
+- [x] Update/Add unit tests for the 1.4f threshold logic
+- [x] Verify fix with tests
+- **Status:** complete
 
 ### Phase 4: Testing & Verification
-- [ ] Run all relevant tests (unit, instrumented if possible)
-- [ ] Verify visual correctness (if possible via logs/checks)
-- [ ] Fix any issues found
-- **Status:** pending
+- [x] Run all relevant tests (unit)
+- [x] Verify visual correctness via Pixel 7 Pro logs
+- [x] Fix any issues found
+- **Status:** complete
 
 ### Phase 5: Delivery
-- [ ] Review all output files
-- [ ] Ensure deliverables are complete
-- [ ] Deliver to user with explanation
-- **Status:** pending
+- [x] Review all output files
+- [x] Ensure deliverables are complete
+- [x] Deliver to user with explanation
+- **Status:** complete
 
 ## Key Questions
 1. How does the widget determine whether to show the graph based on row height?
-2. Why does it specifically fail on emulator 5556? (Is it a specific screen density or resolution issue?)
+2. Why does it specifically fail on emulator 5556 and Pixel 7 Pro?
 3. How can we reliably test "2 rows high" programmatically?
 
 ## Decisions Made
@@ -49,6 +50,8 @@ Phase 1: Requirements & Discovery
 |----------|-----------|
 | Use planning-with-files | Complex task requiring multiple steps and discovery |
 | Use teach and explain mode | User request |
+| Set row padding P=25 | Base value for rounding logic. |
+| Use rawRows >= 1.4f | Pixel 7 Pro reports 107dp (1.46 rows). Rounding up requires P=28, which breaks Foldable (jumps to 3 rows). |
 
 ## Errors Encountered
 | Error | Attempt | Resolution |
@@ -58,5 +61,5 @@ Phase 1: Requirements & Discovery
 ## Notes
 - Project uses Kotlin and Gradle.
 - Widget uses RemoteViews.
-- Emulator 5556 is specifically mentioned.
-- 2 rows high is the threshold where it fails.
+- Pixel 7 Pro reports minHeight=107dp for 2 rows.
+- Foldable reports minHeight=198dp for 2 rows.
