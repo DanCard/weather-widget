@@ -73,11 +73,14 @@ class NwsApi @Inject constructor(
             // Temperature is in a value object with unitCode
             val tempObj = props["temperature"]?.jsonObject
             val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
+            
+            val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
 
             if (tempValue != null) {
                 Observation(
                     timestamp = timestamp,
-                    temperatureCelsius = tempValue
+                    temperatureCelsius = tempValue,
+                    textDescription = textDescription
                 )
             } else {
                 null
@@ -160,7 +163,8 @@ class NwsApi @Inject constructor(
 
     data class Observation(
         val timestamp: String,
-        val temperatureCelsius: Double
+        val temperatureCelsius: Double,
+        val textDescription: String
     )
 
     data class HourlyForecastPeriod(

@@ -46,6 +46,8 @@ class WeatherRepository @Inject constructor(
     private val apiLogger: ApiLogger,
     private val temperatureInterpolator: TemperatureInterpolator
 ) {
+    internal data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
     private val prefs: SharedPreferences by lazy {
         context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
     }
@@ -282,8 +284,12 @@ class WeatherRepository @Inject constructor(
 
                     // Scenario 3: Both exist -> MERGE
                     new != null && existing != null -> {
+                        // Special Case: If existing is a placeholder "Observed" record, 
+                        // always allow overwriting it with the new (better) data.
+                        val isPlaceholder = existing.condition == "Observed" || existing.condition == "Unknown"
+                        
                         // AUDIT: Check if we are replacing Actual (History) with Forecast
-                        if (existing.isActual && !new.isActual) {
+                        if (existing.isActual && !new.isActual && !isPlaceholder) {
                             val existingTime = java.time.Instant.ofEpochMilli(existing.fetchedAt)
                                 .atZone(java.time.ZoneId.systemDefault())
                                 .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
@@ -485,7 +491,7 @@ class WeatherRepository @Inject constructor(
                     if (observationData != null) {
                         weatherByDate[dateStr] = observationData.first to observationData.second
                         stationByDate[dateStr] = observationData.third  // Track station ID
-                        conditionByDate[dateStr] = "Observed"
+                        conditionByDate[dateStr] = observationData.fourth // Use calculated condition
                         Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third}")
                     }
                 }
@@ -564,10 +570,10 @@ class WeatherRepository @Inject constructor(
             .apply()
     }
 
-    private suspend fun fetchDayObservations(
+    internal suspend fun fetchDayObservations(
         stationsUrl: String,
         date: LocalDate
-    ): Triple<Int, Int, String>? {  // CHANGED: Now returns (high, low, stationId)
+    ): Quad<Int, Int, String, String>? {  // CHANGED: Now returns (high, low, stationId, condition)
         try {
             // Try cached station list first
             var stations = getCachedStations(stationsUrl)
@@ -616,9 +622,40 @@ class WeatherRepository @Inject constructor(
                     val high = temps.maxOrNull() ?: continue
                     val low = temps.minOrNull() ?: continue
 
-                    Log.i(TAG, "fetchDayObservations: Station $stationId provided data for $date (H:$high L:$low) after ${index + 1} attempts")
+                    // --- WEIGHTED CLOUD COVERAGE LOGIC ---
+                    // Prioritize daylight hours (7 AM to 7 PM)
+                    val daylightObservations = observations.filter { obs ->
+                        try {
+                            val dt = java.time.ZonedDateTime.parse(obs.timestamp)
+                                .withZoneSameInstant(localZone)
+                            dt.hour in 7..19
+                        } catch (e: Exception) { true }
+                    }.ifEmpty { observations }
 
-                    return Triple(high, low, stationId)  // CHANGED: Return station ID
+                    val cloudScores = daylightObservations.map { obs ->
+                        val desc = obs.textDescription.lowercase()
+                        when {
+                            desc.contains("mostly cloudy") -> 75
+                            desc.contains("mostly clear") || desc.contains("mostly sunny") -> 25
+                            desc.contains("partly") -> 50
+                            desc.contains("cloudy") || desc.contains("overcast") -> 100
+                            desc.contains("clear") || desc.contains("sunny") -> 0
+                            else -> 50 // Default to middle for unknown
+                        }
+                    }
+
+                    val averageCloudScore = if (cloudScores.isNotEmpty()) cloudScores.average() else 50.0
+                    val finalCondition = when {
+                        averageCloudScore <= 15 -> "Sunny"
+                        averageCloudScore <= 35 -> "Mostly Sunny (25%)"
+                        averageCloudScore <= 65 -> "Partly Cloudy (50%)"
+                        averageCloudScore <= 85 -> "Mostly Cloudy (75%)"
+                        else -> "Cloudy"
+                    }
+
+                    Log.i(TAG, "fetchDayObservations: Station $stationId provided data for $date (H:$high L:$low) Score: $averageCloudScore -> $finalCondition")
+
+                    return Quad(high, low, stationId, finalCondition)
 
                 } catch (e: Exception) {
                     Log.w(TAG, "fetchDayObservations: Station $stationId failed for $date: ${e.message}")

@@ -37,4 +37,37 @@ class WeatherIconMapperTest {
         val res = WeatherIconMapper.getIconResource("Rain", isNight = true)
         assertEquals(R.drawable.ic_weather_rain, res)
     }
+
+    @Test
+    fun testGetIconResource_MostlySunny25Percent() {
+        val res = WeatherIconMapper.getIconResource("Mostly Sunny (25%)", isNight = false)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_MostlyCloudy75Percent() {
+        val res = WeatherIconMapper.getIconResource("Mostly Cloudy (75%)", isNight = false)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_Fair() {
+        // NWS often uses "Fair" for clear/sunny
+        val res = WeatherIconMapper.getIconResource("Fair", isNight = false)
+        assertEquals(R.drawable.ic_weather_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_ObservedFallback() {
+        // If we still have "Observed" in the DB, it shouldn't be a cloud
+        val res = WeatherIconMapper.getIconResource("Observed", isNight = false)
+        assertEquals(R.drawable.ic_weather_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_UnknownNoLongerDefaultToCloudy() {
+        // Truly random strings should now default to CLEAR (optimistic) rather than CLOUDY
+        val res = WeatherIconMapper.getIconResource("Something Weird", isNight = false)
+        assertEquals(R.drawable.ic_weather_clear, res)
+    }
 }
