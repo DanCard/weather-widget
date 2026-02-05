@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.TypedValue
 
-object TemperatureGraphRenderer {
+object DailyForecastGraphRenderer {
 
     data class DayData(
         val date: String,               // ISO date string (e.g. "2024-01-15")
@@ -65,12 +65,13 @@ object TemperatureGraphRenderer {
 
         // Layout constants (scaled)
         val horizontalPadding = dpToPx(context, 0f) // Maximize width (was 4f)
-        val topPadding = dpToPx(context, 18f * scaleFactor) // Space for current temp and weather icon
+        // Allocate space on top for the current temp and weather icon
+        val topPadding = dpToPx(context, 24f * scaleFactor)
         val bottomPadding = dpToPx(context, 0f) // No bottom padding
 
         // Scale text sizes with widget height
-        val baseDayLabelSize = 9.5f
-        val baseTempLabelSize = 8.5f
+        val baseDayLabelSize = 12.5f
+        val baseTempLabelSize = 11.5f
 
         // Icon size
         val iconSizeDp = 16f
@@ -192,7 +193,7 @@ object TemperatureGraphRenderer {
         val forecastTextPaint =
                 Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = Color.parseColor("#888888")
-                    textSize = dpToPx(context, 8.5f * scaleFactor)
+                    textSize = dpToPx(context, 11.5f * scaleFactor)
                     textAlign = Paint.Align.CENTER
                 }
 

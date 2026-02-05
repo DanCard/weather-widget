@@ -154,19 +154,19 @@ object ForecastEvolutionRenderer {
 
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 10f)
+            textSize = dpToPx(context, 13.0f)
             textAlign = Paint.Align.CENTER
         }
 
         val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 10f)
+            textSize = dpToPx(context, 13.0f)
             textAlign = Paint.Align.RIGHT
         }
 
         val actualLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor(ACTUAL_COLOR)
-            textSize = dpToPx(context, 11f)
+            textSize = dpToPx(context, 14.5f)
             textAlign = Paint.Align.LEFT
         }
 

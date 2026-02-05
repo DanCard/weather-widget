@@ -87,14 +87,14 @@ object HourlyGraphRenderer {
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 10f)
+            textSize = dpToPx(context, 13.0f)
             textAlign = Paint.Align.CENTER
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
         }
 
         val tempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 10f)
+            textSize = dpToPx(context, 13.0f)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
@@ -102,7 +102,7 @@ object HourlyGraphRenderer {
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#BBFF9F0A")  // ~73% alpha for lighter feel
-            textSize = dpToPx(context, 8f)
+            textSize = dpToPx(context, 11.0f)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))

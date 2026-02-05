@@ -823,14 +823,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 // Build day data for graph with offset
                 val days = buildDayDataList(centerDate, today, weatherByDate, forecastSnapshots, numColumns, accuracyMode, displaySource)
 
-                // Calculate widget size in pixels (accounting for nav arrows)
-                val widthDp = numColumns * CELL_WIDTH_DP - 32 // 16dp margin on each side
-                val heightDp = numRows * CELL_HEIGHT_DP
-                
+                // Use actual widget dimensions for bitmap to match ImageView size
+                // Root padding: 8dp×2=16dp, ImageView margins: 4dp×2=8dp → total 24dp horizontal, 16dp vertical
+                val widthDp = dimensions.minWidth - 24
+                val heightDp = dimensions.minHeight - 16
+
                 val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
                 // Render graph
-                val bitmap = TemperatureGraphRenderer.renderGraph(context, days, widthPx, heightPx)
+                val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx)
                 views.setImageViewBitmap(R.id.graph_view, bitmap)
 
                 // Setup per-day click handlers for graph mode
@@ -966,8 +967,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             numColumns: Int,
             accuracyMode: AccuracyDisplayMode,
             displaySource: String  // "NWS" or "Open-Meteo"
-        ): List<TemperatureGraphRenderer.DayData> {
-            val days = mutableListOf<TemperatureGraphRenderer.DayData>()
+        ): List<DailyForecastGraphRenderer.DayData> {
+            val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
             Log.d(TAG, "buildDayDataList: numColumns=$numColumns, weatherByDate keys=${weatherByDate.keys}, centerDate=$centerDate, today=$today")
 
             // Determine which days to show based on columns (relative to center) using NavigationUtils
@@ -1008,7 +1009,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                              iconRes == R.drawable.ic_weather_mostly_clear
 
                 days.add(
-                    TemperatureGraphRenderer.DayData(
+                    DailyForecastGraphRenderer.DayData(
                         date = dateStr,
                         label = label,
                         high = weather.highTemp,
@@ -1190,7 +1191,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context: Context,
             views: RemoteViews,
             appWidgetId: Int,
-            days: List<TemperatureGraphRenderer.DayData>,
+            days: List<DailyForecastGraphRenderer.DayData>,
             lat: Double,
             lon: Double
         ) {
@@ -1353,10 +1354,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 // Build hour data list for graph (24 hours visible)
                 val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
 
-                // Calculate widget size in pixels
-                val widthDp = numColumns * CELL_WIDTH_DP - 32
-                val heightDp = numRows * CELL_HEIGHT_DP
-                
+                // Use actual widget dimensions for bitmap to match ImageView size
+                val widthDp = dimensions.minWidth - 24
+                val heightDp = dimensions.minHeight - 16
+
                 val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
                 // Render hourly graph
