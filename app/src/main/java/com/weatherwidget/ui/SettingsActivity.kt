@@ -59,7 +59,8 @@ class SettingsActivity : AppCompatActivity() {
                         latestWeather.locationLat,
                         latestWeather.locationLon,
                         latestWeather.locationName,
-                        forceRefresh = true
+                        forceRefresh = true,
+                        networkAllowed = true
                     )
                     android.util.Log.d("SettingsActivity", "Background weather refresh complete")
                 }

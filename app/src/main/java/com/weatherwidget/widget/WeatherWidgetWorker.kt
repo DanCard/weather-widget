@@ -47,7 +47,8 @@ class WeatherWidgetWorker @AssistedInject constructor(
                 lat = location.first,
                 lon = location.second,
                 locationName = getLocationName(location.first, location.second),
-                forceRefresh = forceRefresh && !uiOnlyRefresh
+                forceRefresh = forceRefresh && !uiOnlyRefresh,
+                networkAllowed = !uiOnlyRefresh
             )
 
             result.fold(

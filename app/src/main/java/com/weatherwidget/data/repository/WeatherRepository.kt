@@ -53,7 +53,7 @@ class WeatherRepository @Inject constructor(
     }
     companion object {
         private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
-        private const val MIN_NETWORK_INTERVAL_MS = 60_000L // 1 minute minimum between network attempts
+        private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
     }
 
     // Toggle between APIs - alternate fairly between both
@@ -69,7 +69,8 @@ class WeatherRepository @Inject constructor(
         lat: Double,
         lon: Double,
         locationName: String,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        networkAllowed: Boolean = true
     ): Result<List<WeatherEntity>> {
         return try {
             val now = System.currentTimeMillis()
@@ -83,6 +84,12 @@ class WeatherRepository @Inject constructor(
                     Log.d(TAG, "getWeatherData: Returning fresh cached data (${(now - latestFetch) / 1000}s old)")
                     return Result.success(cached)
                 }
+            }
+
+            // If network is explicitly disallowed, return cache regardless of staleness
+            if (!networkAllowed) {
+                Log.d(TAG, "getWeatherData: Network disallowed for this request, returning cache")
+                return Result.success(cached)
             }
 
             // Global rate limit for network fetches (even if forced, unless it's a very long time)
