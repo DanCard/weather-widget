@@ -8,8 +8,8 @@ interface ForecastSnapshotDao {
     @Query("""
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
-        AND locationLat = :lat
-        AND locationLon = :lon
+        AND ABS(locationLat - :lat) < 0.02
+        AND ABS(locationLon - :lon) < 0.02
         ORDER BY forecastDate DESC, fetchedAt DESC
         LIMIT 1
     """)
@@ -19,8 +19,8 @@ interface ForecastSnapshotDao {
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
-        AND locationLat = :lat
-        AND locationLon = :lon
+        AND ABS(locationLat - :lat) < 0.02
+        AND ABS(locationLon - :lon) < 0.02
         ORDER BY fetchedAt DESC
         LIMIT 1
     """)
@@ -35,8 +35,8 @@ interface ForecastSnapshotDao {
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
-        AND locationLat = :lat
-        AND locationLon = :lon
+        AND ABS(locationLat - :lat) < 0.02
+        AND ABS(locationLon - :lon) < 0.02
         AND source = :source
         ORDER BY fetchedAt DESC
         LIMIT 1
@@ -51,8 +51,8 @@ interface ForecastSnapshotDao {
 
     @Query("""
         SELECT * FROM forecast_snapshots
-        WHERE locationLat = :lat
-        AND locationLon = :lon
+        WHERE ABS(locationLat - :lat) < 0.02
+        AND ABS(locationLon - :lon) < 0.02
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         ORDER BY targetDate ASC, forecastDate DESC
@@ -76,8 +76,8 @@ interface ForecastSnapshotDao {
     @Query("""
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
-        AND locationLat = :lat
-        AND locationLon = :lon
+        AND ABS(locationLat - :lat) < 0.02
+        AND ABS(locationLon - :lon) < 0.02
         ORDER BY forecastDate ASC, fetchedAt ASC
     """)
     suspend fun getForecastEvolution(
