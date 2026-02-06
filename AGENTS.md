@@ -178,6 +178,47 @@ app/src/main/java/com/weatherwidget/
 - Handle network errors gracefully with try-catch
 - Log API calls via `ApiLogger`
 
+## Evidence-First Debug Protocol
+
+For bug reports, regressions, "why is this happening?" analysis, and data mismatch investigations:
+
+### Hard Gate Rules
+- Do not guess at root cause.
+- Do not propose or implement a fix until evidence is collected.
+- Evidence must be gathered in this order:
+  1. Database state first
+  2. Logs second
+  3. Hypothesis and fix proposal third
+- If database and logs are not accessible, stop and ask for the exact missing command/data needed.
+
+### Required Investigation Sequence
+1. **Check database state first (source of truth):**
+   - Prefer existing scripts:
+     - `scripts/query_captured_today.sh`
+     - `scripts/query_forecasts.sh [optional_db_path]`
+     - `scripts/query_forecasts_all.sh`
+   - If scripts are insufficient, run direct `sqlite3` queries against:
+     - `backups/<timestamp>/databases/weather_database`
+     - or device DB extracted into `backups/`.
+
+2. **Correlate with logs second:**
+   - Query persisted diagnostic logs from `app_logs` when available.
+   - Use targeted tags (for example `SYNC_START`, `SYNC_SUCCESS`, `SYNC_FAILURE`, `SYNC_EXCEPTION`, or NWS diagnostic tags).
+   - Use `adb logcat` when issue requires runtime-only events not captured in DB.
+
+3. **Only then propose action:**
+   - Separate facts from inference.
+   - Include the exact command(s) used and the key result rows/lines that support the conclusion.
+
+### Required Response Format For Debug Tasks
+- `Evidence`: concrete DB/log findings only.
+- `Inference`: what the evidence implies, including confidence.
+- `Action`: next command to run or patch to apply.
+
+### No-Evidence Behavior
+- If evidence cannot be collected, do not propose a fix.
+- Ask for one concrete unblock step (for example, backup path, device id, or permission to run a specific diagnostic command), then wait.
+
 ## Testing Guidelines
 
 ### Test Framework
@@ -314,6 +355,7 @@ Summary line
 - Use detailed commit messages with bullet points
 - Explain "why" not just "what"
 - Reference files when specific changes are notable
+- **Include all changes** when committing (modified files and untracked files including `learning/`, `plans/`, etc.)
 
 ## Architecture Reference
 
@@ -329,3 +371,17 @@ For detailed architecture documentation, see:
 - `build.gradle.kts` - Project-level build configuration
 - `settings.gradle.kts` - Project structure settings
 - `gradle.properties` - Gradle build properties
+
+## Codex CLI Usage
+
+- For evidence-first debugging sessions, start Codex with:
+  - `codex "$(cat .codex/prompts/evidence-first-debug.md)"`
+- For explain-first sessions, start Codex with:
+  - `./scripts/codex-explain.sh`
+  - (equivalent) `codex "$(cat .codex/prompts/explain-first.md)"`
+- Explain-first script supports standard Codex flags, for example:
+  - `./scripts/codex-explain.sh -m gpt-5.3-codex`
+  - `./scripts/codex-explain.sh --full-auto`
+- Optional shell aliases:
+  - `alias codex-debug='codex "$(cat .codex/prompts/evidence-first-debug.md)"'`
+  - `alias codex-explain='codex "$(cat .codex/prompts/explain-first.md)"'`
