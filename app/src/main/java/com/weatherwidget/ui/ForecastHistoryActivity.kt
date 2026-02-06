@@ -2,6 +2,8 @@ package com.weatherwidget.ui
 
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
+import android.view.View
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
@@ -34,6 +36,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         const val EXTRA_TARGET_DATE = "target_date"
         const val EXTRA_LAT = "latitude"
         const val EXTRA_LON = "longitude"
+        const val EXTRA_SOURCE = "source"
         private const val TAG = "ForecastHistoryActivity"
     }
 
@@ -45,6 +48,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val targetDate = intent.getStringExtra(EXTRA_TARGET_DATE)
         val lat = intent.getDoubleExtra(EXTRA_LAT, 0.0)
         val lon = intent.getDoubleExtra(EXTRA_LON, 0.0)
+        val requestedSource = normalizeSource(intent.getStringExtra(EXTRA_SOURCE))
 
         if (targetDate == null || lat == 0.0) {
             Log.e(TAG, "Missing required extras")
@@ -52,7 +56,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             return
         }
 
-        Log.d(TAG, "Loading forecast history for $targetDate at $lat, $lon")
+        Log.d(TAG, "Loading forecast history for $targetDate at $lat, $lon (source=$requestedSource)")
 
         // Setup back button
         findViewById<ImageButton>(R.id.back_button).setOnClickListener {
@@ -67,23 +71,39 @@ class ForecastHistoryActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.date_subtitle).text = dateText
 
         // Load data and render graphs
-        loadData(targetDate, lat, lon, date)
+        loadData(targetDate, lat, lon, date, requestedSource)
     }
 
-    private fun loadData(targetDate: String, lat: Double, lon: Double, date: LocalDate) {
+    private fun loadData(
+        targetDate: String,
+        lat: Double,
+        lon: Double,
+        date: LocalDate,
+        requestedSource: String?
+    ) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Get all snapshots for this target date
-                val snapshots = forecastSnapshotDao.getForecastEvolution(targetDate, lat, lon)
+                val allSnapshots = forecastSnapshotDao.getForecastEvolution(targetDate, lat, lon)
+                val snapshots = if (requestedSource != null) {
+                    allSnapshots.filter { it.source == requestedSource }
+                } else {
+                    allSnapshots
+                }
                 Log.d(TAG, "Found ${snapshots.size} snapshots for $targetDate")
 
                 // Get actual weather if this is a past date
                 val actualWeather = if (date.isBefore(LocalDate.now())) {
-                    weatherDao.getWeatherForDate(targetDate, lat, lon)
+                    if (requestedSource != null) {
+                        weatherDao.getWeatherForDateBySource(targetDate, lat, lon, requestedSource)
+                            ?: weatherDao.getWeatherForDate(targetDate, lat, lon)
+                    } else {
+                        weatherDao.getWeatherForDate(targetDate, lat, lon)
+                    }
                 } else null
 
                 withContext(Dispatchers.Main) {
-                    displayData(snapshots, actualWeather, date)
+                    displayData(snapshots, actualWeather, date, requestedSource)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading forecast history", e)
@@ -94,7 +114,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun displayData(
         snapshots: List<com.weatherwidget.data.local.ForecastSnapshotEntity>,
         actualWeather: com.weatherwidget.data.local.WeatherEntity?,
-        date: LocalDate
+        date: LocalDate,
+        requestedSource: String?
     ) {
         val targetDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
@@ -119,13 +140,49 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val gapPoints = evolutionPoints.filter { it.source == "GENERIC_GAP" }
 
         // Update summary
+        val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
+        val summaryCount = when (requestedSource) {
+            "NWS" -> nwsPoints.size
+            "OPEN_METEO" -> meteoPoints.size
+            else -> nwsPoints.size + meteoPoints.size
+        }
         val summaryText = buildString {
-            append("${nwsPoints.size} forecasts from NWS, ${meteoPoints.size} from Open-Meteo")
-            if (gapPoints.isNotEmpty()) {
-                append(", ${gapPoints.size} from Climate Avg")
+            if (requestedSource == "NWS") {
+                append("$summaryCount NWS forecast snapshots")
+            } else if (requestedSource == "OPEN_METEO") {
+                append("$summaryCount Open-Meteo forecast snapshots")
+            } else {
+                append("${nwsPoints.size} NWS + ${meteoPoints.size} Open-Meteo snapshots")
+                if (gapPoints.isNotEmpty()) append(" • ${gapPoints.size} climate-fill points")
             }
         }
-        findViewById<TextView>(R.id.snapshot_summary_text).text = summaryText
+        snapshotSummaryView.text = summaryText
+        if (summaryCount == 0) {
+            snapshotSummaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
+            snapshotSummaryView.setTextColor(resources.getColor(R.color.widget_text_primary, theme))
+            snapshotSummaryView.setTypeface(snapshotSummaryView.typeface, android.graphics.Typeface.BOLD)
+        } else {
+            snapshotSummaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+            snapshotSummaryView.setTextColor(resources.getColor(R.color.widget_text_secondary, theme))
+            snapshotSummaryView.setTypeface(snapshotSummaryView.typeface, android.graphics.Typeface.NORMAL)
+        }
+
+        val nwsLegend = findViewById<View>(R.id.legend_nws_group)
+        val meteoLegend = findViewById<View>(R.id.legend_meteo_group)
+        when (requestedSource) {
+            "NWS" -> {
+                nwsLegend.visibility = View.VISIBLE
+                meteoLegend.visibility = View.GONE
+            }
+            "OPEN_METEO" -> {
+                nwsLegend.visibility = View.GONE
+                meteoLegend.visibility = View.VISIBLE
+            }
+            else -> {
+                nwsLegend.visibility = View.VISIBLE
+                meteoLegend.visibility = View.VISIBLE
+            }
+        }
 
         // Show actual temps if past date
         val actualHigh = actualWeather?.highTemp
@@ -133,20 +190,32 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         if (actualHigh != null && actualLow != null) {
             val actualTextView = findViewById<TextView>(R.id.actual_temps_text)
-            actualTextView.text = "Actual: $actualHigh° / $actualLow°"
-            actualTextView.visibility = android.view.View.VISIBLE
+            val sourceLabel = when (requestedSource) {
+                "NWS" -> "NWS"
+                "OPEN_METEO" -> "Open-Meteo"
+                else -> "Observed"
+            }
+            actualTextView.text = "$sourceLabel actual: $actualHigh° / $actualLow°"
+            actualTextView.visibility = View.VISIBLE
         }
 
         // Render graphs
         val highGraphView = findViewById<ImageView>(R.id.high_temp_graph)
         val lowGraphView = findViewById<ImageView>(R.id.low_temp_graph)
+        val highCard = findViewById<View>(R.id.high_graph_card)
+        val lowCard = findViewById<View>(R.id.low_graph_card)
+        val noDataTextView = findViewById<TextView>(R.id.no_data_text)
 
         // Get screen dimensions for bitmap size
         val displayMetrics = resources.displayMetrics
-        val width = displayMetrics.widthPixels - dpToPx(32) // 16dp margin each side
-        val height = dpToPx(200) // Fixed height for each graph
+        val width = displayMetrics.widthPixels - dpToPx(64) // Card + inner padding
+        val height = dpToPx(220) // Match ImageView height
 
         if (nwsPoints.isNotEmpty() || meteoPoints.isNotEmpty()) {
+            noDataTextView.visibility = View.GONE
+            highCard.visibility = View.VISIBLE
+            lowCard.visibility = View.VISIBLE
+
             val highBitmap = ForecastEvolutionRenderer.renderHighGraph(
                 context = this,
                 nwsPoints = nwsPoints,
@@ -166,10 +235,28 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 heightPx = height
             )
             lowGraphView.setImageBitmap(lowBitmap)
+        } else {
+            val sourceLabel = when (requestedSource) {
+                "NWS" -> "NWS"
+                "OPEN_METEO" -> "Open-Meteo"
+                else -> "selected source"
+            }
+            noDataTextView.text = "No forecast history for this date ($sourceLabel)."
+            noDataTextView.visibility = View.VISIBLE
+            highCard.visibility = View.GONE
+            lowCard.visibility = View.GONE
         }
     }
 
     private fun dpToPx(dp: Int): Int {
         return (dp * resources.displayMetrics.density).toInt()
+    }
+
+    private fun normalizeSource(rawSource: String?): String? {
+        return when (rawSource) {
+            "NWS" -> "NWS"
+            "Open-Meteo", "OPEN_METEO" -> "OPEN_METEO"
+            else -> null
+        }
     }
 }

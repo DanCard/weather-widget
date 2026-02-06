@@ -845,7 +845,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 views.setImageViewBitmap(R.id.graph_view, bitmap)
 
                 // Setup per-day click handlers for graph mode
-                setupGraphDayClickHandlers(context, views, appWidgetId, days, lat, lon)
+                setupGraphDayClickHandlers(context, views, appWidgetId, days, lat, lon, displaySource)
             } else {
                 views.setViewVisibility(R.id.text_container, View.VISIBLE)
                 views.setViewVisibility(R.id.graph_view, View.GONE)
@@ -855,7 +855,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, numColumns)
 
                 // Setup per-day click handlers for text mode
-                setupTextDayClickHandlers(context, views, appWidgetId, visibleDates, lat, lon)
+                setupTextDayClickHandlers(context, views, appWidgetId, visibleDates, lat, lon, displaySource)
             }
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -1158,7 +1158,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             visibleDays: List<Pair<Int, String>>,
             lat: Double,
-            lon: Double
+            lon: Double,
+            displaySource: String
         ) {
             val containerIds = listOf(
                 R.id.day1_container,
@@ -1181,6 +1182,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
                         putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
                         putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource)
                     }
                 } else {
                     // Right half -> Settings
@@ -1203,7 +1205,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             days: List<DailyForecastGraphRenderer.DayData>,
             lat: Double,
-            lon: Double
+            lon: Double,
+            displaySource: String
         ) {
             val zoneIds = listOf(
                 R.id.graph_day1_zone,
@@ -1231,6 +1234,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
                         putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
                         putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource)
                     }
                 } else {
                     // Right half -> Settings

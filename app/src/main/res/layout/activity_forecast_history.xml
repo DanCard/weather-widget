@@ -5,7 +5,6 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -31,7 +30,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/forecast_history"
-                android:textSize="24sp"
+                android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
                 android:textStyle="bold" />
 
@@ -39,136 +38,207 @@
                 android:id="@+id/date_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="14sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:layout_marginTop="2dp"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="@color/widget_text_primary" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Summary Card -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp"
-        android:background="#1E1E1E"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp">
-
-        <TextView
-            android:id="@+id/actual_temps_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/snapshot_summary_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="13sp"
-            android:textColor="@color/widget_text_secondary" />
-    </LinearLayout>
-
-    <!-- Legend -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:paddingHorizontal="16dp"
-        android:paddingBottom="8dp">
-
-        <View
-            android:layout_width="16dp"
-            android:layout_height="3dp"
-            android:background="#5AC8FA" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="NWS"
-            android:textSize="12sp"
-            android:textColor="#5AC8FA"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="16dp" />
-
-        <View
-            android:layout_width="16dp"
-            android:layout_height="3dp"
-            android:background="#34C759" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Open-Meteo"
-            android:textSize="12sp"
-            android:textColor="#34C759"
-            android:layout_marginStart="6dp"
-            android:layout_marginEnd="16dp" />
-
-        <View
-            android:layout_width="16dp"
-            android:layout_height="3dp"
-            android:background="#FF9F0A"
-            android:layerType="software" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Actual"
-            android:textSize="12sp"
-            android:textColor="#FF9F0A"
-            android:layout_marginStart="6dp" />
-    </LinearLayout>
-
-    <!-- High Temperature Label -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="High Temperature"
-        android:textSize="16sp"
-        android:textColor="@color/widget_text_primary"
-        android:textStyle="bold"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="8dp" />
-
-    <!-- High Temperature Graph -->
-    <ImageView
-        android:id="@+id/high_temp_graph"
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:scaleType="fitXY" />
+        android:clipToPadding="false"
+        android:paddingBottom="16dp">
 
-    <!-- Low Temperature Label -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Low Temperature"
-        android:textSize="16sp"
-        android:textColor="@color/widget_text_primary"
-        android:textStyle="bold"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="8dp" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
 
-    <!-- Low Temperature Graph -->
-    <ImageView
-        android:id="@+id/low_temp_graph"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginStart="8dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="16dp"
-        android:scaleType="fitXY" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:background="@drawable/bg_surface_card"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:id="@+id/actual_temps_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="20sp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/snapshot_summary_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="13sp"
+                    android:textColor="@color/widget_text_secondary" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/legend_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:padding="12dp"
+                android:background="@drawable/bg_surface_card"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp">
+
+                <LinearLayout
+                    android:id="@+id/legend_nws_group"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginEnd="16dp">
+
+                    <View
+                        android:layout_width="14dp"
+                        android:layout_height="3dp"
+                        android:background="#5AC8FA" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="NWS"
+                        android:textSize="12sp"
+                        android:textColor="#5AC8FA"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/legend_meteo_group"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginEnd="16dp">
+
+                    <View
+                        android:layout_width="14dp"
+                        android:layout_height="3dp"
+                        android:background="#34C759" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Open-Meteo"
+                        android:textSize="12sp"
+                        android:textColor="#34C759"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/legend_actual_group"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <View
+                        android:layout_width="14dp"
+                        android:layout_height="3dp"
+                        android:background="#FF9F0A" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Actual"
+                        android:textSize="12sp"
+                        android:textColor="#FF9F0A"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/no_data_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_surface_card"
+                android:gravity="center"
+                android:padding="16dp"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/high_graph_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/bg_graph_card"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="High Temperature"
+                    android:textSize="15sp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textStyle="bold"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginBottom="8dp" />
+
+                <ImageView
+                    android:id="@+id/high_temp_graph"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
+                    android:scaleType="fitXY" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/low_graph_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp"
+                android:background="@drawable/bg_graph_card"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Low Temperature"
+                    android:textSize="15sp"
+                    android:textColor="@color/widget_text_primary"
+                    android:textStyle="bold"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginBottom="8dp" />
+
+                <ImageView
+                    android:id="@+id/low_temp_graph"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
+                    android:scaleType="fitXY" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
 
 </LinearLayout>

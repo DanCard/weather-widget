@@ -12,4 +12,6 @@
 
     <!-- Settings activity colors -->
     <color name="background">#1C1C1E</color>
+    <color name="surface_card">#2A2A2E</color>
+    <color name="surface_card_stroke">#3A3A3E</color>
 </resources>

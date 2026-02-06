@@ -5,6 +5,8 @@ import android.graphics.*
 import android.util.TypedValue
 
 object ForecastEvolutionRenderer {
+    private const val SNAPSHOT_BUCKET_HOURS = 4L
+    private const val MILLIS_PER_HOUR = 60L * 60L * 1000L
 
     data class EvolutionPoint(
         val forecastDate: String,      // When forecast was made
@@ -79,22 +81,44 @@ object ForecastEvolutionRenderer {
             return bitmap
         }
 
+        fun tempFor(point: EvolutionPoint): Int? {
+            return if (isHigh) point.highTemp else point.lowTemp
+        }
+
+        // Consolidate snapshots into time buckets so we preserve temporal evolution
+        // while preventing dense same-day spikes. Defaults to 4-hour resolution.
+        fun bucketize(points: List<EvolutionPoint>): List<EvolutionPoint> {
+            val bucketMillis = SNAPSHOT_BUCKET_HOURS * MILLIS_PER_HOUR
+            return points
+                .filter { tempFor(it) != null }
+                .groupBy { point ->
+                    val timeBucket = point.fetchedAt / bucketMillis
+                    point.daysAhead to timeBucket
+                }
+                .mapNotNull { (_, bucketPoints) -> bucketPoints.maxByOrNull { it.fetchedAt } }
+        }
+
+        val nwsSeries = bucketize(nwsPoints)
+        val meteoSeries = bucketize(meteoPoints)
+
+        if (nwsSeries.isEmpty() && meteoSeries.isEmpty()) {
+            return bitmap
+        }
+
         // Collect all temperature values for scaling
         val allTemps = mutableListOf<Int>()
-        nwsPoints.forEach {
-            if (isHigh) it.highTemp?.let { temp -> allTemps.add(temp) }
-            else it.lowTemp?.let { temp -> allTemps.add(temp) }
+        nwsSeries.forEach {
+            tempFor(it)?.let { temp -> allTemps.add(temp) }
         }
-        meteoPoints.forEach {
-            if (isHigh) it.highTemp?.let { temp -> allTemps.add(temp) }
-            else it.lowTemp?.let { temp -> allTemps.add(temp) }
+        meteoSeries.forEach {
+            tempFor(it)?.let { temp -> allTemps.add(temp) }
         }
         actualValue?.let { allTemps.add(it) }
 
         if (allTemps.isEmpty()) return bitmap
 
-        val forecastSamples = (nwsPoints + meteoPoints).mapNotNull { point ->
-            val temp = if (isHigh) point.highTemp else point.lowTemp
+        val forecastSamples = (nwsSeries + meteoSeries).mapNotNull { point ->
+            val temp = tempFor(point)
             temp?.let {
                 ForecastSample(
                     temp = it,
@@ -133,7 +157,7 @@ object ForecastEvolutionRenderer {
         val graphHeight = graphBottom - graphTop
 
         // Get unique days for X-axis (sorted by daysAhead descending, so 7d is left)
-        val allDays = (nwsPoints + meteoPoints)
+        val allDays = (nwsSeries + meteoSeries)
             .map { it.daysAhead }
             .distinct()
             .sortedDescending()
@@ -223,7 +247,7 @@ object ForecastEvolutionRenderer {
         // Helper function to get X position for a point
         fun getX(point: EvolutionPoint): Float {
             // Group points by daysAhead, then distribute within that day's column
-            val sameDayPoints = (nwsPoints + meteoPoints)
+            val sameDayPoints = (nwsSeries + meteoSeries)
                 .filter { it.daysAhead == point.daysAhead }
                 .sortedBy { it.fetchedAt }
             val indexInDay = sameDayPoints.indexOfFirst { it.fetchedAt == point.fetchedAt }
@@ -238,13 +262,13 @@ object ForecastEvolutionRenderer {
         }
 
         // Draw NWS curve
-        if (nwsPoints.isNotEmpty()) {
-            val sortedNws = nwsPoints.sortedBy { it.daysAhead }
+        if (nwsSeries.isNotEmpty()) {
+            val sortedNws = nwsSeries.sortedBy { it.daysAhead }
             val path = Path()
             var lastPoint: PathPoint? = null
 
             sortedNws.forEach { point ->
-                val temp = if (isHigh) point.highTemp else point.lowTemp
+                val temp = tempFor(point)
                 if (temp != null) {
                     val x = getX(point)
                     val y = getY(temp.toFloat())
@@ -262,7 +286,7 @@ object ForecastEvolutionRenderer {
 
             // Draw points
             sortedNws.forEach { point ->
-                val temp = if (isHigh) point.highTemp else point.lowTemp
+                val temp = tempFor(point)
                 if (temp != null) {
                     val x = getX(point)
                     val y = getY(temp.toFloat())
@@ -273,13 +297,13 @@ object ForecastEvolutionRenderer {
         }
 
         // Draw Open-Meteo curve
-        if (meteoPoints.isNotEmpty()) {
-            val sortedMeteo = meteoPoints.sortedBy { it.daysAhead }
+        if (meteoSeries.isNotEmpty()) {
+            val sortedMeteo = meteoSeries.sortedBy { it.daysAhead }
             val path = Path()
             var lastPoint: PathPoint? = null
 
             sortedMeteo.forEach { point ->
-                val temp = if (isHigh) point.highTemp else point.lowTemp
+                val temp = tempFor(point)
                 if (temp != null) {
                     val x = getX(point)
                     val y = getY(temp.toFloat())
@@ -296,7 +320,7 @@ object ForecastEvolutionRenderer {
 
             // Draw points
             sortedMeteo.forEach { point ->
-                val temp = if (isHigh) point.highTemp else point.lowTemp
+                val temp = tempFor(point)
                 if (temp != null) {
                     val x = getX(point)
                     val y = getY(temp.toFloat())
