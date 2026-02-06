@@ -1,5 +1,6 @@
 package com.weatherwidget.data.remote
 
+import android.util.Log
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -16,6 +17,7 @@ class NwsApi @Inject constructor(
     private val json: Json
 ) {
     companion object {
+        private const val TAG = "NwsApi"
         private const val BASE_URL = "https://api.weather.gov"
         private const val USER_AGENT = "WeatherWidget/1.0 (contact@weatherwidget.app)"
     }
@@ -90,24 +92,47 @@ class NwsApi @Inject constructor(
     }
 
     suspend fun getForecast(gridPoint: GridPointInfo): List<ForecastPeriod> {
+        val fetchStartedAt = System.currentTimeMillis()
         val response: String = httpClient.get(gridPoint.forecastUrl) {
             header("User-Agent", USER_AGENT)
             header("Accept", "application/json")
         }.body()
 
         val jsonObj = json.parseToJsonElement(response).jsonObject
-        val periods = jsonObj["properties"]?.jsonObject?.get("periods")?.jsonArray
+        val properties = jsonObj["properties"]?.jsonObject
+        val updated = properties?.get("updated")?.jsonPrimitive?.content
+        val generatedAt = properties?.get("generatedAt")?.jsonPrimitive?.content
+        val periods = properties?.get("periods")?.jsonArray
             ?: return emptyList()
 
-        return periods.mapNotNull { period ->
+        Log.i(
+            TAG,
+            "getForecast: url=${gridPoint.forecastUrl}, fetchedAt=$fetchStartedAt, updated=$updated, generatedAt=$generatedAt, periodCount=${periods.size}"
+        )
+
+        return periods.mapIndexedNotNull { index, period ->
             val obj = period.jsonObject
+            val name = obj["name"]?.jsonPrimitive?.content ?: ""
+            val startTime = obj["startTime"]?.jsonPrimitive?.content ?: ""
+            val endTime = obj["endTime"]?.jsonPrimitive?.content ?: ""
+            val tempRaw = obj["temperature"]?.jsonPrimitive?.content
+            val temperature = tempRaw?.toDoubleOrNull()?.roundToInt() ?: 0
+            val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
+            val shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: ""
+            val isDaytime = obj["isDaytime"]?.jsonPrimitive?.content?.toBoolean() ?: true
+
+            Log.d(
+                TAG,
+                "getForecast[$index]: name=$name start=$startTime end=$endTime tempRaw=$tempRaw tempRounded=$temperature unit=$temperatureUnit isDaytime=$isDaytime short=$shortForecast"
+            )
+
             ForecastPeriod(
-                name = obj["name"]?.jsonPrimitive?.content ?: "",
-                startTime = obj["startTime"]?.jsonPrimitive?.content ?: "",
-                temperature = obj["temperature"]?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt() ?: 0,
-                temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F",
-                shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "",
-                isDaytime = obj["isDaytime"]?.jsonPrimitive?.content?.toBoolean() ?: true
+                name = name,
+                startTime = startTime,
+                temperature = temperature,
+                temperatureUnit = temperatureUnit,
+                shortForecast = shortForecast,
+                isDaytime = isDaytime
             )
         }
     }

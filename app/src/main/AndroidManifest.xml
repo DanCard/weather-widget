@@ -27,7 +27,7 @@
 
         <activity
             android:name=".ui.SettingsActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/settings" />
 
         <activity

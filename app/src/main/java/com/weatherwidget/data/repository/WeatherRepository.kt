@@ -488,6 +488,10 @@ class WeatherRepository @Inject constructor(
 
         val forecast = forecastDeferred.await()
         val hourlyForecast = hourlyDeferred.await()
+        val today = LocalDate.now()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        persistNwsPeriodSummary(gridPoint.forecastUrl, forecast)
 
         if (hourlyForecast.isNotEmpty()) {
             saveNwsHourlyForecasts(hourlyForecast, lat, lon)
@@ -496,7 +500,8 @@ class WeatherRepository @Inject constructor(
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
         val stationByDate = mutableMapOf<String, String>()  // Track which station provided data
-        val today = LocalDate.now()
+        val highSourceByDate = mutableMapOf<String, String>()
+        val lowSourceByDate = mutableMapOf<String, String>()
 
         // Fetch last 7 days of actual observations if observation stations are available
         // Include today (daysAgo=0) to get today's actual high/low when it's evening
@@ -520,6 +525,8 @@ class WeatherRepository @Inject constructor(
                     if (observationData != null) {
                         weatherByDate[dateStr] = observationData.first to observationData.second
                         stationByDate[dateStr] = observationData.third  // Track station ID
+                        highSourceByDate[dateStr] = "OBS:${observationData.third}"
+                        lowSourceByDate[dateStr] = "OBS:${observationData.third}"
                         conditionByDate[dateStr] = observationData.fourth // Use calculated condition
                         Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third}")
                     }
@@ -532,12 +539,9 @@ class WeatherRepository @Inject constructor(
         // NWS returns periods with startTime - extract date from there
         // Each day has a daytime period (high) and nighttime period (low)
         forecast.forEachIndexed { index, period ->
-            val date = try {
-                val zonedDateTime = java.time.ZonedDateTime.parse(period.startTime)
-                zonedDateTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to parse startTime ${period.startTime}, falling back to index-based calculation")
-                today.plusDays((index / 2).toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val date = extractNwsForecastDate(period.startTime) ?: run {
+                Log.w(TAG, "Failed to parse startTime ${period.startTime}, skipping period index=$index name=${period.name}")
+                return@forEachIndexed
             }
             val current = weatherByDate[date] ?: (null to null)
 
@@ -545,12 +549,14 @@ class WeatherRepository @Inject constructor(
 
             if (period.isDaytime) {
                 weatherByDate[date] = period.temperature to current.second
+                highSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                 // Only use forecast condition if we don't already have an observation
                 if (conditionByDate[date] == null) {
                     conditionByDate[date] = period.shortForecast
                 }
             } else {
                 weatherByDate[date] = current.first to period.temperature
+                lowSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                 // Ensure partial days have a condition (use night if day is missing/no observation)
                 if (conditionByDate[date] == null) {
                     conditionByDate[date] = period.shortForecast
@@ -559,6 +565,43 @@ class WeatherRepository @Inject constructor(
         }
 
         Log.d(TAG, "fetchFromNws: Parsed ${weatherByDate.size} days")
+
+        val todayTemps = weatherByDate[todayStr]
+        if (todayTemps != null) {
+            val currentHigh = todayTemps.first
+            val currentLow = todayTemps.second
+            val highSource = highSourceByDate[todayStr] ?: "UNKNOWN"
+            val lowSource = lowSourceByDate[todayStr] ?: "UNKNOWN"
+
+            appLogDao.insert(
+                AppLogEntity(
+                    tag = "NWS_TODAY_SOURCE",
+                    message = "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource)"
+                )
+            )
+
+            val previous = forecastSnapshotDao.getForecastForDateBySource(
+                targetDate = todayStr,
+                forecastDate = todayStr,
+                lat = lat,
+                lon = lon,
+                source = "NWS"
+            )
+
+            val changed = previous != null &&
+                (previous.highTemp != currentHigh || previous.lowTemp != currentLow)
+            if (changed) {
+                val previousFetched = Instant.ofEpochMilli(previous.fetchedAt)
+                    .atZone(ZoneId.systemDefault())
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                appLogDao.insert(
+                    AppLogEntity(
+                        tag = "NWS_TODAY_TRANSITION",
+                        message = "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow prevFetched=$previousFetched"
+                    )
+                )
+            }
+        }
 
         weatherByDate.map { (date, temps) ->
             WeatherEntity(
@@ -576,6 +619,55 @@ class WeatherRepository @Inject constructor(
                 isClimateNormal = false
             )
         }
+    }
+
+    private suspend fun persistNwsPeriodSummary(
+        forecastUrl: String,
+        forecast: List<NwsApi.ForecastPeriod>
+    ) {
+        if (forecast.isEmpty()) {
+            appLogDao.insert(AppLogEntity(tag = "NWS_PERIOD_SUMMARY", message = "periods=0 url=$forecastUrl"))
+            return
+        }
+
+        val compact = forecast
+            .take(8)
+            .mapIndexed { index, period ->
+                val dayFlag = if (period.isDaytime) "D" else "N"
+                "$index:${period.name}@${period.startTime}=${period.temperature}${period.temperatureUnit}[$dayFlag]"
+            }
+            .joinToString("; ")
+
+        appLogDao.insert(
+            AppLogEntity(
+                tag = "NWS_PERIOD_SUMMARY",
+                message = "periods=${forecast.size} url=$forecastUrl first8=$compact"
+            )
+        )
+    }
+
+    private fun extractNwsForecastDate(startTime: String): String? {
+        // Typical NWS value: "2026-02-06T18:00:00-08:00"
+        try {
+            return java.time.ZonedDateTime.parse(startTime)
+                .toLocalDate()
+                .format(DateTimeFormatter.ISO_LOCAL_DATE)
+        } catch (_: Exception) {
+            // Continue to the next strategy.
+        }
+
+        try {
+            return java.time.OffsetDateTime.parse(startTime)
+                .toLocalDate()
+                .format(DateTimeFormatter.ISO_LOCAL_DATE)
+        } catch (_: Exception) {
+            // Continue to best-effort date-prefix parsing.
+        }
+
+        return runCatching {
+            LocalDate.parse(startTime.take(10), DateTimeFormatter.ISO_LOCAL_DATE)
+                .format(DateTimeFormatter.ISO_LOCAL_DATE)
+        }.getOrNull()
     }
 
     private fun getCachedStations(stationsUrl: String): List<String>? {

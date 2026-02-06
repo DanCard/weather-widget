@@ -5,6 +5,8 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
@@ -97,5 +99,30 @@ class WeatherHistoryConditionTest {
         
         // Should be "Sunny" (from "Clear" observation) not "Cloudy" (from forecast)
         assertEquals("Sunny", data?.condition)
+    }
+
+    @Test
+    fun `fetchFromNws assigns malformed startTime periods to parsed ISO date prefix`() = runTest {
+        val lat = 37.422
+        val lon = -122.0841
+        val todayStr = LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = LocalDate.now().plusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "forecast", null)
+        coEvery { nwsApi.getGridPoint(lat, lon) } returns gridPoint
+        coEvery { nwsApi.getForecast(any()) } returns listOf(
+            NwsApi.ForecastPeriod("Tomorrow", "$tomorrowStr invalid-time", 68, "F", "Partly Cloudy", true),
+            NwsApi.ForecastPeriod("Tomorrow Night", "$tomorrowStr still-invalid", 50, "F", "Clear", false)
+        )
+        coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+
+        val result = repository.fetchFromNws(lat, lon, "Location")
+        val todayData = result.find { it.date == todayStr }
+        val tomorrowData = result.find { it.date == tomorrowStr }
+
+        assertNull(todayData)
+        assertNotNull(tomorrowData)
+        assertEquals(68, tomorrowData?.highTemp)
+        assertEquals(50, tomorrowData?.lowTemp)
     }
 }
