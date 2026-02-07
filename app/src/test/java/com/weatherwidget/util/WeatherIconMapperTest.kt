@@ -32,6 +32,12 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testGetIconResource_PartlySunnyDay() {
+        val res = WeatherIconMapper.getIconResource("Partly Sunny", isNight = false)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
     fun testGetIconResource_Rain() {
         // Rain doesn't change for night currently
         val res = WeatherIconMapper.getIconResource("Rain", isNight = true)
