@@ -16,6 +16,8 @@ object HourlyGraphRenderer {
         val iconRes: Int? = null,
         val isNight: Boolean = false,
         val isSunny: Boolean = false,
+        val isRainy: Boolean = false,
+        val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true  // Only at intervals
     )
@@ -261,12 +263,16 @@ object HourlyGraphRenderer {
                             (iconY + iconSize).toInt()
                         )
 
-                        val iconTint = when {
-                            hour.isNight -> Color.parseColor("#BBBBBB")
-                            hour.isSunny -> Color.parseColor("#FFD60A")
-                            else -> Color.parseColor("#BBBBBB")
+                        // Rain/storm/mixed icons keep native vector colors (grey cloud + blue rain)
+                        if (!hour.isRainy && !hour.isMixed) {
+                            val iconTint = when {
+                                hour.isNight -> Color.parseColor("#BBBBBB")
+                                hour.isSunny -> Color.parseColor("#FFD60A")
+                                else -> Color.parseColor("#BBBBBB")
+                            }
+                            drawable.setTint(iconTint)
                         }
-                        drawable.setTint(iconTint)
+
                         drawable.draw(canvas)
                     }
                 }

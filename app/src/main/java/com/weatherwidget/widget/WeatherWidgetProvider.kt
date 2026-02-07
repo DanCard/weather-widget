@@ -1019,6 +1019,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                              iconRes == R.drawable.ic_weather_mostly_clear
                 val isRainy = iconRes == R.drawable.ic_weather_rain ||
                              iconRes == R.drawable.ic_weather_storm
+                val isMixed = iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                             iconRes == R.drawable.ic_weather_partly_cloudy ||
+                             iconRes == R.drawable.ic_weather_mostly_clear
 
                 days.add(
                     DailyForecastGraphRenderer.DayData(
@@ -1029,6 +1032,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         iconRes = iconRes,
                         isSunny = isSunny,
                         isRainy = isRainy,
+                        isMixed = isMixed,
                         isToday = date == today,
                         isPast = isPastDate,
                         isClimateNormal = weather.isClimateNormal,
@@ -1274,13 +1278,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val iconRes = WeatherIconMapper.getIconResource(weather?.condition)
             views.setImageViewResource(iconId, iconRes)
             
-            // Apply tint: Yellow for sunny, Grey for most, none for rain/storm (native vector colors)
+            // Apply tint: Yellow for sunny, Grey for most, none for rain/storm/mixed (native vector colors)
             val isSunny = iconRes == R.drawable.ic_weather_clear ||
                          iconRes == R.drawable.ic_weather_partly_cloudy ||
                          iconRes == R.drawable.ic_weather_mostly_clear
             val isRainy = iconRes == R.drawable.ic_weather_rain ||
                          iconRes == R.drawable.ic_weather_storm
-            if (!isRainy) {
+            val isMixed = iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                         iconRes == R.drawable.ic_weather_partly_cloudy ||
+                         iconRes == R.drawable.ic_weather_mostly_clear
+
+            if (!isRainy && !isMixed) {
                 val tintColor = if (isSunny) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#AAAAAA")
                 views.setInt(iconId, "setColorFilter", tintColor)
             }
@@ -1480,6 +1488,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val isSunny = iconRes == R.drawable.ic_weather_clear ||
                         iconRes == R.drawable.ic_weather_partly_cloudy ||
                         iconRes == R.drawable.ic_weather_mostly_clear
+                    val isRainy = iconRes == R.drawable.ic_weather_rain ||
+                        iconRes == R.drawable.ic_weather_storm
+                    val isMixed = iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                        iconRes == R.drawable.ic_weather_partly_cloudy ||
+                        iconRes == R.drawable.ic_weather_mostly_clear
 
                     hours.add(
                         HourlyGraphRenderer.HourData(
@@ -1489,6 +1502,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             iconRes = iconRes,
                             isNight = isNight,
                             isSunny = isSunny,
+                            isRainy = isRainy,
+                            isMixed = isMixed,
                             isCurrentHour = isClosest,
                             showLabel = showLabel
                         )
