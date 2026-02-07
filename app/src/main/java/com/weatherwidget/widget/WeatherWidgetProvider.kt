@@ -1014,9 +1014,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val showComparison = isPastDate && forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
                 val iconRes = WeatherIconMapper.getIconResource(weather.condition)
-                val isSunny = iconRes == R.drawable.ic_weather_clear || 
+                val isSunny = iconRes == R.drawable.ic_weather_clear ||
                              iconRes == R.drawable.ic_weather_partly_cloudy ||
                              iconRes == R.drawable.ic_weather_mostly_clear
+                val isRainy = iconRes == R.drawable.ic_weather_rain ||
+                             iconRes == R.drawable.ic_weather_storm
 
                 days.add(
                     DailyForecastGraphRenderer.DayData(
@@ -1026,6 +1028,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         low = weather.lowTemp,
                         iconRes = iconRes,
                         isSunny = isSunny,
+                        isRainy = isRainy,
                         isToday = date == today,
                         isPast = isPastDate,
                         isClimateNormal = weather.isClimateNormal,
@@ -1271,12 +1274,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val iconRes = WeatherIconMapper.getIconResource(weather?.condition)
             views.setImageViewResource(iconId, iconRes)
             
-            // Apply tint based on condition (Yellow for sunny, Grey for others)
-            val isSunny = iconRes == R.drawable.ic_weather_clear || 
+            // Apply tint: Yellow for sunny, Grey for most, none for rain/storm (native vector colors)
+            val isSunny = iconRes == R.drawable.ic_weather_clear ||
                          iconRes == R.drawable.ic_weather_partly_cloudy ||
                          iconRes == R.drawable.ic_weather_mostly_clear
-            val tintColor = if (isSunny) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#AAAAAA")
-            views.setInt(iconId, "setColorFilter", tintColor)
+            val isRainy = iconRes == R.drawable.ic_weather_rain ||
+                         iconRes == R.drawable.ic_weather_storm
+            if (!isRainy) {
+                val tintColor = if (isSunny) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#AAAAAA")
+                views.setInt(iconId, "setColorFilter", tintColor)
+            }
             
             views.setViewVisibility(iconId, View.VISIBLE)
             

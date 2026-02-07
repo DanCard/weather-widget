@@ -13,6 +13,7 @@ object DailyForecastGraphRenderer {
         val low: Int?,
         val iconRes: Int? = null,
         val isSunny: Boolean = false,
+        val isRainy: Boolean = false,
         val isToday: Boolean = false,
         val isPast: Boolean = false,            // Is this a historical day?
         val isClimateNormal: Boolean = false,   // Is this long-range climate data?
@@ -274,10 +275,10 @@ object DailyForecastGraphRenderer {
                                 (iconY + iconSize).toInt()
                         )
 
-                        if (day.isSunny) {
-                            drawable.setTint(Color.parseColor("#FFD60A"))
-                        } else {
-                            drawable.setTint(Color.parseColor("#AAAAAA"))
+                        if (!day.isRainy) {
+                            // Rain/storm icons keep native vector colors (grey cloud + blue rain)
+                            val tint = if (day.isSunny) Color.parseColor("#FFD60A") else Color.parseColor("#AAAAAA")
+                            drawable.setTint(tint)
                         }
 
                         drawable.draw(canvas)
