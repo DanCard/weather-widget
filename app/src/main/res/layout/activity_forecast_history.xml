@@ -154,6 +154,7 @@
                         android:background="#FF9F0A" />
 
                     <TextView
+                        android:id="@+id/legend_actual_text"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="Actual"
@@ -162,6 +163,23 @@
                         android:layout_marginStart="6dp" />
                 </LinearLayout>
             </LinearLayout>
+
+            <Button
+                android:id="@+id/graph_mode_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/rounded_button_gray"
+                android:minHeight="42dp"
+                android:paddingStart="18dp"
+                android:paddingEnd="18dp"
+                android:text="@string/forecast_mode_evolution"
+                android:textAllCaps="false"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/no_data_text"
@@ -190,6 +208,7 @@
                 android:layout_marginBottom="12dp">
 
                 <TextView
+                    android:id="@+id/high_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="High Temperature"
@@ -220,6 +239,7 @@
                 android:layout_marginBottom="8dp">
 
                 <TextView
+                    android:id="@+id/low_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Low Temperature"

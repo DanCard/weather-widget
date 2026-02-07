@@ -3,6 +3,12 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.*
 import android.util.TypedValue
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.ceil
 
 object ForecastEvolutionRenderer {
     private const val SNAPSHOT_BUCKET_HOURS = 4L
@@ -23,6 +29,8 @@ object ForecastEvolutionRenderer {
     private const val ACTUAL_COLOR = "#FF9F0A"    // Orange
     private const val LABEL_COLOR = "#AAAAAA"     // Gray
     private const val GRID_COLOR = "#333333"      // Dark gray
+    private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    private val DATETIME_FORMATTER = DateTimeFormatter.ofPattern("M/d h a", Locale.getDefault())
 
     fun renderHighGraph(
         context: Context,
@@ -52,6 +60,44 @@ object ForecastEvolutionRenderer {
         heightPx: Int
     ): Bitmap {
         return renderGraph(
+            context = context,
+            nwsPoints = nwsPoints,
+            meteoPoints = meteoPoints,
+            actualValue = actualLow,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            isHigh = false
+        )
+    }
+
+    fun renderHighErrorGraph(
+        context: Context,
+        nwsPoints: List<EvolutionPoint>,
+        meteoPoints: List<EvolutionPoint>,
+        actualHigh: Int?,
+        widthPx: Int,
+        heightPx: Int
+    ): Bitmap {
+        return renderErrorGraph(
+            context = context,
+            nwsPoints = nwsPoints,
+            meteoPoints = meteoPoints,
+            actualValue = actualHigh,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            isHigh = true
+        )
+    }
+
+    fun renderLowErrorGraph(
+        context: Context,
+        nwsPoints: List<EvolutionPoint>,
+        meteoPoints: List<EvolutionPoint>,
+        actualLow: Int?,
+        widthPx: Int,
+        heightPx: Int
+    ): Bitmap {
+        return renderErrorGraph(
             context = context,
             nwsPoints = nwsPoints,
             meteoPoints = meteoPoints,
@@ -92,8 +138,7 @@ object ForecastEvolutionRenderer {
             return points
                 .filter { tempFor(it) != null }
                 .groupBy { point ->
-                    val timeBucket = point.fetchedAt / bucketMillis
-                    point.daysAhead to timeBucket
+                    point.fetchedAt / bucketMillis
                 }
                 .mapNotNull { (_, bucketPoints) -> bucketPoints.maxByOrNull { it.fetchedAt } }
         }
@@ -156,18 +201,11 @@ object ForecastEvolutionRenderer {
         val graphWidth = graphRight - graphLeft
         val graphHeight = graphBottom - graphTop
 
-        // Get unique days for X-axis (sorted by daysAhead descending, so 7d is left)
-        val allDays = (nwsSeries + meteoSeries)
-            .map { it.daysAhead }
-            .distinct()
-            .sortedDescending()
-
-        if (allDays.isEmpty()) return bitmap
-
-        val minDay = allDays.minOrNull() ?: 1
-        val maxDay = allDays.maxOrNull() ?: 7
-        val dayRange = (maxDay - minDay).coerceAtLeast(1)
-        val isSingleDayDataset = allDays.size == 1
+        val allTimes = (nwsSeries + meteoSeries).map { it.fetchedAt }
+        if (allTimes.isEmpty()) return bitmap
+        val minTime = allTimes.minOrNull() ?: return bitmap
+        val maxTime = allTimes.maxOrNull() ?: return bitmap
+        val isSingleTimeDataset = minTime == maxTime
 
         // Paints
         val nwsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -229,13 +267,11 @@ object ForecastEvolutionRenderer {
             canvas.drawText(label, graphLeft - dpToPx(context, 6f), y + dpToPx(context, 4f), yLabelPaint)
         }
 
-        // Draw X-axis labels (days ahead)
-        allDays.forEach { day ->
-            val x = getDayX(day, graphLeft, graphWidth, maxDay, dayRange, isSingleDayDataset)
-            val label = "${day}d"
+        val timeTicks = buildTimeTicks(minTime, maxTime)
+        timeTicks.forEach { tick ->
+            val x = getTimeX(tick, graphLeft, graphWidth, minTime, maxTime, isSingleTimeDataset)
+            val label = formatTimeLabel(tick, minTime, maxTime)
             canvas.drawText(label, x, heightPx - dpToPx(context, 8f), labelPaint)
-
-            // Vertical grid line
             canvas.drawLine(x, graphTop, x, graphBottom, gridPaint)
         }
 
@@ -244,26 +280,13 @@ object ForecastEvolutionRenderer {
             return graphBottom - graphHeight * (temp - minTemp) / tempRange
         }
 
-        // Helper function to get X position for a point
         fun getX(point: EvolutionPoint): Float {
-            // Group points by daysAhead, then distribute within that day's column
-            val sameDayPoints = (nwsSeries + meteoSeries)
-                .filter { it.daysAhead == point.daysAhead }
-                .sortedBy { it.fetchedAt }
-            val indexInDay = sameDayPoints.indexOfFirst { it.fetchedAt == point.fetchedAt }
-            val totalInDay = sameDayPoints.size.coerceAtLeast(1)
-
-            val dayX = getDayX(point.daysAhead, graphLeft, graphWidth, maxDay, dayRange, isSingleDayDataset)
-            val offset = if (totalInDay > 1) {
-                (indexInDay - (totalInDay - 1) / 2f) * dpToPx(context, 8f) / totalInDay
-            } else 0f
-
-            return dayX + offset
+            return getTimeX(point.fetchedAt, graphLeft, graphWidth, minTime, maxTime, isSingleTimeDataset)
         }
 
         // Draw NWS curve
         if (nwsSeries.isNotEmpty()) {
-            val sortedNws = nwsSeries.sortedBy { it.daysAhead }
+            val sortedNws = nwsSeries.sortedBy { it.fetchedAt }
             val path = Path()
             var lastPoint: PathPoint? = null
 
@@ -298,7 +321,7 @@ object ForecastEvolutionRenderer {
 
         // Draw Open-Meteo curve
         if (meteoSeries.isNotEmpty()) {
-            val sortedMeteo = meteoSeries.sortedBy { it.daysAhead }
+            val sortedMeteo = meteoSeries.sortedBy { it.fetchedAt }
             val path = Path()
             var lastPoint: PathPoint? = null
 
@@ -343,6 +366,183 @@ object ForecastEvolutionRenderer {
         return bitmap
     }
 
+    private fun renderErrorGraph(
+        context: Context,
+        nwsPoints: List<EvolutionPoint>,
+        meteoPoints: List<EvolutionPoint>,
+        actualValue: Int?,
+        widthPx: Int,
+        heightPx: Int,
+        isHigh: Boolean
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.TRANSPARENT)
+
+        if (actualValue == null || (nwsPoints.isEmpty() && meteoPoints.isEmpty())) {
+            return bitmap
+        }
+
+        fun tempFor(point: EvolutionPoint): Int? {
+            return if (isHigh) point.highTemp else point.lowTemp
+        }
+
+        fun bucketize(points: List<EvolutionPoint>): List<EvolutionPoint> {
+            val bucketMillis = SNAPSHOT_BUCKET_HOURS * MILLIS_PER_HOUR
+            return points
+                .filter { tempFor(it) != null }
+                .groupBy { point ->
+                    point.fetchedAt / bucketMillis
+                }
+                .mapNotNull { (_, bucketPoints) -> bucketPoints.maxByOrNull { it.fetchedAt } }
+        }
+
+        val nwsSeries = bucketize(nwsPoints)
+        val meteoSeries = bucketize(meteoPoints)
+        val allSeries = nwsSeries + meteoSeries
+        if (allSeries.isEmpty()) return bitmap
+
+        val errorSamples = allSeries.mapNotNull { point ->
+            tempFor(point)?.let { temp ->
+                ErrorSample(
+                    error = temp - actualValue,
+                    daysAhead = point.daysAhead,
+                    fetchedAt = point.fetchedAt,
+                    source = point.source
+                )
+            }
+        }
+        if (errorSamples.isEmpty()) return bitmap
+
+        val maxAbsError = errorSamples.maxOf { abs(it.error) }.toFloat()
+        val yBound = maxOf(3f, ceil(maxAbsError) + 1f)
+        val minError = -yBound
+        val maxError = yBound
+        val errorRange = maxError - minError
+
+        val paddingLeft = dpToPx(context, 40f)
+        val paddingRight = dpToPx(context, 16f)
+        val paddingTop = dpToPx(context, 24f)
+        val paddingBottom = dpToPx(context, 32f)
+
+        val graphLeft = paddingLeft
+        val graphRight = widthPx - paddingRight
+        val graphTop = paddingTop
+        val graphBottom = heightPx - paddingBottom
+        val graphWidth = graphRight - graphLeft
+        val graphHeight = graphBottom - graphTop
+
+        val allTimes = errorSamples.map { it.fetchedAt }
+        if (allTimes.isEmpty()) return bitmap
+        val minTime = allTimes.minOrNull() ?: return bitmap
+        val maxTime = allTimes.maxOrNull() ?: return bitmap
+        val isSingleTimeDataset = minTime == maxTime
+
+        val nwsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(NWS_COLOR)
+            strokeWidth = dpToPx(context, 2.5f)
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val meteoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(METEO_COLOR)
+            strokeWidth = dpToPx(context, 2.5f)
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(GRID_COLOR)
+            strokeWidth = dpToPx(context, 1f)
+            style = Paint.Style.STROKE
+        }
+        val zeroPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(ACTUAL_COLOR)
+            strokeWidth = dpToPx(context, 2f)
+            style = Paint.Style.STROKE
+            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
+        }
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(LABEL_COLOR)
+            textSize = dpToPx(context, 13f)
+            textAlign = Paint.Align.CENTER
+        }
+        val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(LABEL_COLOR)
+            textSize = dpToPx(context, 13f)
+            textAlign = Paint.Align.RIGHT
+        }
+        val zeroLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor(ACTUAL_COLOR)
+            textSize = dpToPx(context, 13f)
+            textAlign = Paint.Align.LEFT
+        }
+
+        fun getY(error: Float): Float {
+            return graphBottom - graphHeight * (error - minError) / errorRange
+        }
+
+        for (i in 0..4) {
+            val errorValue = minError + (errorRange * i / 4f)
+            val y = getY(errorValue)
+            canvas.drawLine(graphLeft, y, graphRight, y, gridPaint)
+            val label = if (errorValue > 0f) {
+                "+${errorValue.toInt()}°"
+            } else {
+                "${errorValue.toInt()}°"
+            }
+            canvas.drawText(label, graphLeft - dpToPx(context, 6f), y + dpToPx(context, 4f), yLabelPaint)
+        }
+
+        val timeTicks = buildTimeTicks(minTime, maxTime)
+        timeTicks.forEach { tick ->
+            val x = getTimeX(tick, graphLeft, graphWidth, minTime, maxTime, isSingleTimeDataset)
+            canvas.drawText(formatTimeLabel(tick, minTime, maxTime), x, heightPx - dpToPx(context, 8f), labelPaint)
+            canvas.drawLine(x, graphTop, x, graphBottom, gridPaint)
+        }
+
+        val zeroY = getY(0f)
+        canvas.drawLine(graphLeft, zeroY, graphRight, zeroY, zeroPaint)
+        canvas.drawText("0°", graphRight + dpToPx(context, 6f), zeroY + dpToPx(context, 4f), zeroLabelPaint)
+
+        fun getX(sample: ErrorSample): Float {
+            return getTimeX(sample.fetchedAt, graphLeft, graphWidth, minTime, maxTime, isSingleTimeDataset)
+        }
+
+        fun drawSeries(series: List<ErrorSample>, paint: Paint) {
+            if (series.isEmpty()) return
+            val sortedByTime = series.sortedBy { it.fetchedAt }
+            val path = Path()
+            var lastPoint: PathPoint? = null
+
+            sortedByTime.forEach { sample ->
+                val x = getX(sample)
+                val y = getY(sample.error.toFloat())
+                if (lastPoint == null) {
+                    path.moveTo(x, y)
+                } else {
+                    val controlX = (lastPoint!!.x + x) / 2f
+                    path.quadTo(controlX, lastPoint!!.y, x, y)
+                }
+                lastPoint = PathPoint(x, y)
+            }
+            canvas.drawPath(path, paint)
+
+            val originalStyle = paint.style
+            paint.style = Paint.Style.FILL
+            sortedByTime.forEach { sample ->
+                canvas.drawCircle(getX(sample), getY(sample.error.toFloat()), dpToPx(context, 3f), paint)
+            }
+            paint.style = originalStyle
+        }
+
+        drawSeries(errorSamples.filter { it.source == "NWS" }, nwsPaint)
+        drawSeries(errorSamples.filter { it.source == "OPEN_METEO" }, meteoPaint)
+
+        return bitmap
+    }
+
     private fun dpToPx(context: Context, dp: Float): Float {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
@@ -351,19 +551,36 @@ object ForecastEvolutionRenderer {
         )
     }
 
-    private fun getDayX(
-        day: Int,
+    private fun getTimeX(
+        timestampMillis: Long,
         graphLeft: Float,
         graphWidth: Float,
-        maxDay: Int,
-        dayRange: Int,
-        isSingleDayDataset: Boolean
+        minTime: Long,
+        maxTime: Long,
+        isSingleTimeDataset: Boolean
     ): Float {
-        return if (isSingleDayDataset) {
+        return if (isSingleTimeDataset) {
             graphLeft + graphWidth / 2f
         } else {
-            graphLeft + graphWidth * (maxDay - day) / dayRange
+            graphLeft + graphWidth * (timestampMillis - minTime).toFloat() / (maxTime - minTime).toFloat()
         }
+    }
+
+    private fun buildTimeTicks(minTime: Long, maxTime: Long): List<Long> {
+        if (minTime == maxTime) return listOf(minTime)
+        val divisions = 4
+        return (0..divisions).map { idx ->
+            minTime + ((maxTime - minTime) * idx / divisions)
+        }
+    }
+
+    private fun formatTimeLabel(timestampMillis: Long, minTime: Long, maxTime: Long): String {
+        val zone = ZoneId.systemDefault()
+        val instant = Instant.ofEpochMilli(timestampMillis)
+        val minDate = Instant.ofEpochMilli(minTime).atZone(zone).toLocalDate()
+        val maxDate = Instant.ofEpochMilli(maxTime).atZone(zone).toLocalDate()
+        val formatter = if (minDate == maxDate) TIME_FORMATTER else DATETIME_FORMATTER
+        return formatter.format(instant.atZone(zone))
     }
 
     private fun renderSinglePointBarGraph(
@@ -488,4 +705,5 @@ object ForecastEvolutionRenderer {
     // Track last point manually since Path doesn't expose it directly
     private data class PathPoint(val x: Float, val y: Float)
     private data class ForecastSample(val temp: Int, val daysAhead: Int, val source: String)
+    private data class ErrorSample(val error: Int, val daysAhead: Int, val fetchedAt: Long, val source: String)
 }
