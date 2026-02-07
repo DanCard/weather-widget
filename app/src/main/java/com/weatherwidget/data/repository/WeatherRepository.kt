@@ -499,9 +499,11 @@ class WeatherRepository @Inject constructor(
 
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
+        val conditionSourceByDate = mutableMapOf<String, String>()
         val stationByDate = mutableMapOf<String, String>()  // Track which station provided data
         val highSourceByDate = mutableMapOf<String, String>()
         val lowSourceByDate = mutableMapOf<String, String>()
+        val todayForecastPeriods = mutableListOf<NwsApi.ForecastPeriod>()
 
         // Fetch last 7 days of actual observations if observation stations are available
         // Include today (daysAgo=0) to get today's actual high/low when it's evening
@@ -528,6 +530,7 @@ class WeatherRepository @Inject constructor(
                         highSourceByDate[dateStr] = "OBS:${observationData.third}"
                         lowSourceByDate[dateStr] = "OBS:${observationData.third}"
                         conditionByDate[dateStr] = observationData.fourth // Use calculated condition
+                        conditionSourceByDate[dateStr] = "OBS:${observationData.third}"
                         Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third}")
                     }
                 }
@@ -543,6 +546,9 @@ class WeatherRepository @Inject constructor(
                 Log.w(TAG, "Failed to parse startTime ${period.startTime}, skipping period index=$index name=${period.name}")
                 return@forEachIndexed
             }
+            if (date == todayStr) {
+                todayForecastPeriods += period
+            }
             val current = weatherByDate[date] ?: (null to null)
 
             Log.d(TAG, "  Period $index: ${period.name} isDaytime=${period.isDaytime} temp=${period.temperature} startTime=${period.startTime} -> date=$date")
@@ -553,6 +559,7 @@ class WeatherRepository @Inject constructor(
                 // Only use forecast condition if we don't already have an observation
                 if (conditionByDate[date] == null) {
                     conditionByDate[date] = period.shortForecast
+                    conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                 }
             } else {
                 weatherByDate[date] = current.first to period.temperature
@@ -560,8 +567,26 @@ class WeatherRepository @Inject constructor(
                 // Ensure partial days have a condition (use night if day is missing/no observation)
                 if (conditionByDate[date] == null) {
                     conditionByDate[date] = period.shortForecast
+                    conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                 }
             }
+        }
+
+        val firstTodayPeriod = todayForecastPeriods.firstOrNull()
+        if (firstTodayPeriod != null && !firstTodayPeriod.isDaytime) {
+            val previousCondition = conditionByDate[todayStr]
+            val previousConditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
+            conditionByDate[todayStr] = firstTodayPeriod.shortForecast
+            conditionSourceByDate[todayStr] = "FCST_ACTIVE:${firstTodayPeriod.name}@${firstTodayPeriod.startTime}"
+            appLogDao.insert(
+                AppLogEntity(
+                    tag = "NWS_TODAY_CONDITION_OVERRIDE",
+                    message =
+                        "date=$todayStr firstPeriod=${firstTodayPeriod.name}@${firstTodayPeriod.startTime} " +
+                            "isDaytime=${firstTodayPeriod.isDaytime} condition ${previousCondition ?: "null"}->${firstTodayPeriod.shortForecast} " +
+                            "source $previousConditionSource->${conditionSourceByDate[todayStr]}"
+                )
+            )
         }
 
         Log.d(TAG, "fetchFromNws: Parsed ${weatherByDate.size} days")
@@ -572,11 +597,19 @@ class WeatherRepository @Inject constructor(
             val currentLow = todayTemps.second
             val highSource = highSourceByDate[todayStr] ?: "UNKNOWN"
             val lowSource = lowSourceByDate[todayStr] ?: "UNKNOWN"
+            val condition = conditionByDate[todayStr] ?: "Unknown"
+            val conditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
+            val firstTodayPeriodSummary = firstTodayPeriod?.let {
+                val dayFlag = if (it.isDaytime) "D" else "N"
+                "${it.name}@${it.startTime}[$dayFlag]=${it.shortForecast}"
+            } ?: "none"
 
             appLogDao.insert(
                 AppLogEntity(
                     tag = "NWS_TODAY_SOURCE",
-                    message = "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource)"
+                    message =
+                        "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource) " +
+                            "condition=$condition ($conditionSource) firstTodayPeriod=$firstTodayPeriodSummary"
                 )
             )
 
@@ -589,7 +622,11 @@ class WeatherRepository @Inject constructor(
             )
 
             val changed = previous != null &&
-                (previous.highTemp != currentHigh || previous.lowTemp != currentLow)
+                (
+                    previous.highTemp != currentHigh ||
+                        previous.lowTemp != currentLow ||
+                        previous.condition != condition
+                    )
             if (changed) {
                 val previousFetched = Instant.ofEpochMilli(previous.fetchedAt)
                     .atZone(ZoneId.systemDefault())
@@ -597,7 +634,9 @@ class WeatherRepository @Inject constructor(
                 appLogDao.insert(
                     AppLogEntity(
                         tag = "NWS_TODAY_TRANSITION",
-                        message = "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow prevFetched=$previousFetched"
+                        message =
+                            "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow " +
+                                "condition ${previous.condition}->$condition prevFetched=$previousFetched"
                     )
                 )
             }

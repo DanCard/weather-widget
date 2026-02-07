@@ -102,6 +102,32 @@ class WeatherHistoryConditionTest {
     }
 
     @Test
+    fun `fetchFromNws uses tonight forecast condition when todays first period is nighttime`() = runTest {
+        val lat = 37.422
+        val lon = -122.0841
+        val today = LocalDate.now()
+        val todayStr = today.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = today.plusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "forecast", "stations")
+        coEvery { nwsApi.getGridPoint(lat, lon) } returns gridPoint
+        coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+        coEvery { nwsApi.getObservations(any(), any(), any()) } returns listOf(
+            NwsApi.Observation("${todayStr}T12:00:00Z", 20.0f, "Clear")
+        )
+        coEvery { nwsApi.getForecast(any()) } returns listOf(
+            NwsApi.ForecastPeriod("Tonight", "${todayStr}T18:00:00-08:00", 47, "F", "Areas Of Fog", false),
+            NwsApi.ForecastPeriod("Saturday", "${tomorrowStr}T06:00:00-08:00", 64, "F", "Mostly Sunny", true)
+        )
+        coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+
+        val result = repository.fetchFromNws(lat, lon, "Location")
+        val data = result.find { it.date == todayStr }
+
+        assertEquals("Areas Of Fog", data?.condition)
+    }
+
+    @Test
     fun `fetchFromNws assigns malformed startTime periods to parsed ISO date prefix`() = runTest {
         val lat = 37.422
         val lon = -122.0841
