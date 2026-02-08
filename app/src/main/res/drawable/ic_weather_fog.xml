@@ -3,7 +3,28 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+
+    <!-- Layer 1: Back/Top - Most distant and faint -->
     <path
-        android:fillColor="#90A4AE"
-        android:pathData="M1.5,14.5c0,-3.87 3.13,-7 7,-7c0.57,0 1.12,0.07 1.66,0.19C11.09,4.89 13.88,3 17,3c3.87,0 7,3.13 7,7c0,0.36 -0.03,0.72 -0.08,1.06C23.95,11.02 24,10.96 24,10.91c0,-0.02 -0.01,-0.04 -0.01,-0.06h-0.03c-0.34,3.22 -3.07,5.72 -6.4,5.72H8.5C4.63,16.56 1.5,13.43 1.5,9.56V14.5zM4,17h16v2H4V17zM4,20h16v2H4V20z"/>
+        android:fillColor="#B0BEC5"
+        android:fillAlpha="0.25"
+        android:pathData="M0,12 Q3,9 6,12 T12,12 T18,12 T24,12 V24 H0 Z"/>
+
+    <!-- Layer 2: Mid-High -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:fillAlpha="0.45"
+        android:pathData="M0,15 Q4,13 8,15 T16,15 T24,15 V24 H0 Z"/>
+
+    <!-- Layer 3: Mid-Low -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:fillAlpha="0.65"
+        android:pathData="M0,18 Q3,16 6,18 T12,18 T18,18 T24,18 V24 H0 Z"/>
+
+    <!-- Layer 4: Front/Bottom - Densest -->
+    <path
+        android:fillColor="#B0BEC5"
+        android:fillAlpha="0.85"
+        android:pathData="M0,21 Q5,19 10,21 T20,21 T24,21 V24 H0 Z"/>
 </vector>
