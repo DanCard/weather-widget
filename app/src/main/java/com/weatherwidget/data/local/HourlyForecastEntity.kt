@@ -15,5 +15,6 @@ data class HourlyForecastEntity(
     val temperature: Float,        // Temperature in Fahrenheit
     val condition: String,         // Weather condition (e.g., "Cloudy", "Rain")
     val source: String,            // "NWS" or "OPEN_METEO"
+    val precipProbability: Int? = null,  // Precipitation probability percentage (0-100)
     val fetchedAt: Long            // When this data was fetched
 )

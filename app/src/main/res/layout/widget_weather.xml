@@ -449,6 +449,16 @@
             android:textColor="#AAFFFFFF"
             android:visibility="visible" />
 
+        <TextView
+            android:id="@+id/precip_probability"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text=""
+            android:textSize="26sp"
+            android:textColor="#AA5AC8FA"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <!-- API Source indicator - rendered last for touch priority, positioned in top-right corner -->

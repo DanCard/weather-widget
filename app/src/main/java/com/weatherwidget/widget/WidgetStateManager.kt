@@ -20,8 +20,9 @@ enum class ApiPreference {
 }
 
 enum class ViewMode {
-    DAILY,    // Default: shows daily forecast bars
-    HOURLY    // Alternative: shows hourly temperature curve
+    DAILY,          // Default: shows daily forecast bars
+    HOURLY,         // Alternative: shows hourly temperature curve
+    PRECIPITATION   // Hourly precipitation probability graph
 }
 
 @Singleton
@@ -126,10 +127,23 @@ class WidgetStateManager @Inject constructor(
 
     fun toggleViewMode(widgetId: Int): ViewMode {
         val currentMode = getViewMode(widgetId)
-        val newMode = if (currentMode == ViewMode.DAILY) ViewMode.HOURLY else ViewMode.DAILY
+        val newMode = when (currentMode) {
+            ViewMode.DAILY -> ViewMode.HOURLY
+            else -> ViewMode.DAILY  // From HOURLY or PRECIPITATION, go back to DAILY
+        }
         setViewMode(widgetId, newMode)
         // Reset hourly offset when entering hourly mode
         if (newMode == ViewMode.HOURLY) {
+            setHourlyOffset(widgetId, 0)
+        }
+        return newMode
+    }
+
+    fun togglePrecipitationMode(widgetId: Int): ViewMode {
+        val currentMode = getViewMode(widgetId)
+        val newMode = if (currentMode == ViewMode.PRECIPITATION) ViewMode.DAILY else ViewMode.PRECIPITATION
+        setViewMode(widgetId, newMode)
+        if (newMode == ViewMode.PRECIPITATION) {
             setHourlyOffset(widgetId, 0)
         }
         return newMode

@@ -120,10 +120,12 @@ class NwsApi @Inject constructor(
             val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
             val shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: ""
             val isDaytime = obj["isDaytime"]?.jsonPrimitive?.content?.toBoolean() ?: true
+            val precipProbability = obj["probabilityOfPrecipitation"]?.jsonObject
+                ?.get("value")?.jsonPrimitive?.content?.toIntOrNull()
 
             Log.d(
                 TAG,
-                "getForecast[$index]: name=$name start=$startTime end=$endTime tempRaw=$tempRaw tempRounded=$temperature unit=$temperatureUnit isDaytime=$isDaytime short=$shortForecast"
+                "getForecast[$index]: name=$name start=$startTime end=$endTime tempRaw=$tempRaw tempRounded=$temperature unit=$temperatureUnit isDaytime=$isDaytime short=$shortForecast pop=$precipProbability"
             )
 
             ForecastPeriod(
@@ -132,7 +134,8 @@ class NwsApi @Inject constructor(
                 temperature = temperature,
                 temperatureUnit = temperatureUnit,
                 shortForecast = shortForecast,
-                isDaytime = isDaytime
+                isDaytime = isDaytime,
+                precipProbability = precipProbability
             )
         }
     }
@@ -154,6 +157,8 @@ class NwsApi @Inject constructor(
             val temperature = obj["temperature"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
             val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
             val shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "Unknown"
+            val precipProbability = obj["probabilityOfPrecipitation"]?.jsonObject
+                ?.get("value")?.jsonPrimitive?.content?.toIntOrNull()
 
             // Convert to Fahrenheit if needed (NWS usually returns F)
             val tempF = if (temperatureUnit == "C") {
@@ -165,7 +170,8 @@ class NwsApi @Inject constructor(
             HourlyForecastPeriod(
                 startTime = startTime,
                 temperature = tempF,
-                shortForecast = shortForecast
+                shortForecast = shortForecast,
+                precipProbability = precipProbability
             )
         }
     }
@@ -184,7 +190,8 @@ class NwsApi @Inject constructor(
         val temperature: Int,
         val temperatureUnit: String,
         val shortForecast: String,
-        val isDaytime: Boolean
+        val isDaytime: Boolean,
+        val precipProbability: Int? = null
     )
 
     data class Observation(
@@ -196,6 +203,7 @@ class NwsApi @Inject constructor(
     data class HourlyForecastPeriod(
         val startTime: String,  // ISO 8601 format: "2026-02-01T10:00:00-08:00"
         val temperature: Float,   // Fahrenheit
-        val shortForecast: String
+        val shortForecast: String,
+        val precipProbability: Int? = null
     )
 }

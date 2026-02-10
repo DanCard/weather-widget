@@ -26,8 +26,8 @@ class OpenMeteoApi @Inject constructor(
         val response: String = httpClient.get("$BASE_URL/forecast") {
             parameter("latitude", lat)
             parameter("longitude", lon)
-            parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code")
-            parameter("hourly", "temperature_2m,weather_code")
+            parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max")
+            parameter("hourly", "temperature_2m,weather_code,precipitation_probability")
             parameter("current", "temperature_2m,weather_code")
             parameter("temperature_unit", "fahrenheit")
             parameter("timezone", "auto")
@@ -53,13 +53,17 @@ class OpenMeteoApi @Inject constructor(
         val weatherCodes = daily?.get("weather_code")?.jsonArray?.map {
             it.jsonPrimitive.content.toIntOrNull() ?: 0
         } ?: emptyList()
+        val precipProbs = daily?.get("precipitation_probability_max")?.jsonArray?.map {
+            it.jsonPrimitive.content.toIntOrNull()
+        } ?: emptyList()
 
         val dailyForecasts = dates.mapIndexed { index, date ->
             DailyForecast(
                 date = date,
                 highTemp = maxTemps.getOrNull(index) ?: 0,
                 lowTemp = minTemps.getOrNull(index) ?: 0,
-                weatherCode = weatherCodes.getOrNull(index) ?: 0
+                weatherCode = weatherCodes.getOrNull(index) ?: 0,
+                precipProbability = precipProbs.getOrNull(index)
             )
         }
 
@@ -72,6 +76,9 @@ class OpenMeteoApi @Inject constructor(
         val hourlyCodes = hourly?.get("weather_code")?.jsonArray?.map {
             it.jsonPrimitive.content.toIntOrNull() ?: 0
         } ?: emptyList()
+        val hourlyPrecipProbs = hourly?.get("precipitation_probability")?.jsonArray?.map {
+            it.jsonPrimitive.content.toIntOrNull()
+        } ?: emptyList()
 
         val hourlyForecasts = hourlyTimes.mapIndexedNotNull { index, time ->
             val temp = hourlyTemps.getOrNull(index)
@@ -80,7 +87,8 @@ class OpenMeteoApi @Inject constructor(
                 HourlyForecast(
                     dateTime = time,
                     temperature = temp,
-                    weatherCode = code
+                    weatherCode = code,
+                    precipProbability = hourlyPrecipProbs.getOrNull(index)
                 )
             } else null
         }
@@ -155,12 +163,14 @@ class OpenMeteoApi @Inject constructor(
         val date: String,
         val highTemp: Int,
         val lowTemp: Int,
-        val weatherCode: Int
+        val weatherCode: Int,
+        val precipProbability: Int? = null
     )
 
     data class HourlyForecast(
         val dateTime: String,  // ISO 8601 format: "2024-01-15T14:00"
         val temperature: Float,
-        val weatherCode: Int
+        val weatherCode: Int,
+        val precipProbability: Int? = null
     )
 }

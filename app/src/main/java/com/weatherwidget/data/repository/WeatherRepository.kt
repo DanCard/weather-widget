@@ -500,6 +500,7 @@ class WeatherRepository @Inject constructor(
         val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
         val conditionByDate = mutableMapOf<String, String>()
         val conditionSourceByDate = mutableMapOf<String, String>()
+        val precipByDate = mutableMapOf<String, Int>()  // Max precipitation probability per day
         val stationByDate = mutableMapOf<String, String>()  // Track which station provided data
         val highSourceByDate = mutableMapOf<String, String>()
         val lowSourceByDate = mutableMapOf<String, String>()
@@ -523,15 +524,20 @@ class WeatherRepository @Inject constructor(
                 observationDeferreds.forEach { deferred ->
                     val (date, observationData) = deferred.await()
                     val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    
+
                     if (observationData != null) {
                         weatherByDate[dateStr] = observationData.first to observationData.second
                         stationByDate[dateStr] = observationData.third  // Track station ID
                         highSourceByDate[dateStr] = "OBS:${observationData.third}"
                         lowSourceByDate[dateStr] = "OBS:${observationData.third}"
-                        conditionByDate[dateStr] = observationData.fourth // Use calculated condition
-                        conditionSourceByDate[dateStr] = "OBS:${observationData.third}"
-                        Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third}")
+                        // For today, skip observation condition — the NWS daily forecast
+                        // shortForecast (e.g. "Partly Sunny then Rain") is a better whole-day
+                        // summary than the cloud-cover-only observation score.
+                        if (date != today) {
+                            conditionByDate[dateStr] = observationData.fourth
+                            conditionSourceByDate[dateStr] = "OBS:${observationData.third}"
+                        }
+                        Log.d(TAG, "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third} conditionSet=${date != today}")
                     }
                 }
             }
@@ -552,6 +558,12 @@ class WeatherRepository @Inject constructor(
             val current = weatherByDate[date] ?: (null to null)
 
             Log.d(TAG, "  Period $index: ${period.name} isDaytime=${period.isDaytime} temp=${period.temperature} startTime=${period.startTime} -> date=$date")
+
+            // Track max precipitation probability across day and night periods
+            val pop = period.precipProbability
+            if (pop != null && pop > (precipByDate[date] ?: 0)) {
+                precipByDate[date] = pop
+            }
 
             if (period.isDaytime) {
                 weatherByDate[date] = period.temperature to current.second
@@ -655,6 +667,7 @@ class WeatherRepository @Inject constructor(
                 isActual = LocalDate.parse(date).isBefore(LocalDate.now()),
                 source = "NWS",
                 stationId = stationByDate[date],
+                precipProbability = precipByDate[date],
                 isClimateNormal = false
             )
         }
@@ -797,6 +810,15 @@ class WeatherRepository @Inject constructor(
                         } catch (e: Exception) { true }
                     }.ifEmpty { observations }
 
+                    // Check for precipitation in any observation during the day
+                    val precipObservations = daylightObservations.filter { obs ->
+                        val desc = obs.textDescription.lowercase()
+                        desc.contains("rain") || desc.contains("drizzle") ||
+                            desc.contains("shower") || desc.contains("storm") ||
+                            desc.contains("thunder") || desc.contains("snow") ||
+                            desc.contains("sleet") || desc.contains("freezing")
+                    }
+
                     val cloudScores = daylightObservations.map { obs ->
                         val desc = obs.textDescription.lowercase()
                         when {
@@ -810,7 +832,17 @@ class WeatherRepository @Inject constructor(
                     }
 
                     val averageCloudScore = if (cloudScores.isNotEmpty()) cloudScores.average() else 50.0
-                    val finalCondition = when {
+
+                    // Precipitation overrides cloud-only condition
+                    val finalCondition = if (precipObservations.isNotEmpty()) {
+                        val desc = precipObservations.first().textDescription.lowercase()
+                        when {
+                            desc.contains("thunder") || desc.contains("storm") -> "Thunderstorm"
+                            desc.contains("snow") || desc.contains("blizzard") -> "Snow"
+                            desc.contains("sleet") || desc.contains("freezing") -> "Freezing Rain"
+                            else -> "Rain"
+                        }
+                    } else when {
                         averageCloudScore <= 15 -> "Sunny"
                         averageCloudScore <= 35 -> "Mostly Sunny (25%)"
                         averageCloudScore <= 65 -> "Partly Cloudy (50%)"
@@ -869,6 +901,7 @@ class WeatherRepository @Inject constructor(
                 condition = openMeteoApi.weatherCodeToCondition(daily.weatherCode),
                 isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
                 source = "Open-Meteo",
+                precipProbability = daily.precipProbability,
                 isClimateNormal = false
             )
         }
@@ -887,6 +920,7 @@ class WeatherRepository @Inject constructor(
                 temperature = hourly.temperature,
                 condition = openMeteoApi.weatherCodeToCondition(hourly.weatherCode),
                 source = "OPEN_METEO",
+                precipProbability = hourly.precipProbability,
                 fetchedAt = System.currentTimeMillis()
             )
         }
@@ -917,6 +951,7 @@ class WeatherRepository @Inject constructor(
                 temperature = hourly.temperature.toFloat(),
                 condition = hourly.shortForecast,
                 source = "NWS",
+                precipProbability = hourly.precipProbability,
                 fetchedAt = System.currentTimeMillis()
             )
         }

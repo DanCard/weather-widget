@@ -11,6 +11,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Important Guidelines
 
 - **Never clear app data** (`adb shell pm clear`) without explicit user consent. Cached data is valuable for testing and debugging.
+- **Debugging workflow**: When investigating widget bugs, proactively pull device logs (`adb logcat`), grab the database from the device (`adb pull`), query the DB, and capture screenshots — don't just read source code.
+- **Screenshots**: `adb` can prepend warning text to PNG output, making the file unreadable. Always convert to JPG before reading:
+  ```bash
+  adb exec-out screencap -p > /tmp/screenshot.png && convert /tmp/screenshot.png /tmp/screenshot.jpg
+  ```
+  Then read `/tmp/screenshot.jpg` (not the PNG).
 
 ## Project Overview
 

@@ -23,5 +23,6 @@ data class WeatherEntity(
     val isClimateNormal: Boolean = false,
     val source: String = "Unknown",
     val stationId: String? = null,  // NWS observation station ID (e.g., "KSFO") - only for actual observations
+    val precipProbability: Int? = null,  // Precipitation probability percentage (0-100) from forecast
     val fetchedAt: Long = System.currentTimeMillis()
 )
