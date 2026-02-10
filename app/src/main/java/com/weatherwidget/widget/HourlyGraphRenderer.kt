@@ -22,6 +22,78 @@ object HourlyGraphRenderer {
         val showLabel: Boolean = true  // Only at intervals
     )
 
+    // Temperature-to-color thresholds
+    private const val COLD_THRESHOLD = 50f
+    private const val MILD_TEMP = 70f
+    private const val HOT_THRESHOLD = 90f
+
+    private val COLOR_COLD = Color.parseColor("#5AC8FA")      // Blue
+    private val COLOR_MILD = Color.parseColor("#E8A24E")      // Golden amber
+    private val COLOR_HOT = Color.parseColor("#FF6B35")       // Warm orange
+
+    private fun tempToColor(temp: Float): Int {
+        return when {
+            temp <= COLD_THRESHOLD -> COLOR_COLD
+            temp >= HOT_THRESHOLD -> COLOR_HOT
+            temp <= MILD_TEMP -> blendColors(COLOR_COLD, COLOR_MILD, (temp - COLD_THRESHOLD) / (MILD_TEMP - COLD_THRESHOLD))
+            else -> blendColors(COLOR_MILD, COLOR_HOT, (temp - MILD_TEMP) / (HOT_THRESHOLD - MILD_TEMP))
+        }
+    }
+
+    private fun blendColors(c1: Int, c2: Int, fraction: Float): Int {
+        val f = fraction.coerceIn(0f, 1f)
+        val r = (Color.red(c1) * (1 - f) + Color.red(c2) * f).toInt()
+        val g = (Color.green(c1) * (1 - f) + Color.green(c2) * f).toInt()
+        val b = (Color.blue(c1) * (1 - f) + Color.blue(c2) * f).toInt()
+        return Color.rgb(r, g, b)
+    }
+
+    private fun withAlpha(color: Int, alpha: Int): Int {
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
+    /**
+     * Build a vertical LinearGradient that maps Y positions to temperature colors.
+     * graphTop = maxTemp, graphBottom = minTemp.
+     */
+    private fun buildTempGradient(
+        graphTop: Float, graphBottom: Float,
+        minTemp: Float, maxTemp: Float, tempRange: Float,
+        alphaTop: Int = 255, alphaBottom: Int = 255
+    ): LinearGradient {
+        // Map temperature thresholds to gradient positions (0.0 = graphTop/maxTemp, 1.0 = graphBottom/minTemp)
+        fun tempToPos(t: Float): Float = ((maxTemp - t) / tempRange).coerceIn(0f, 1f)
+
+        val stops = mutableListOf<Pair<Float, Int>>()
+
+        // Always include endpoints
+        stops.add(0f to tempToColor(maxTemp))
+        stops.add(1f to tempToColor(minTemp))
+
+        // Add intermediate stops at key thresholds if they fall within the temp range
+        for (t in listOf(HOT_THRESHOLD, MILD_TEMP, COLD_THRESHOLD)) {
+            if (t > minTemp && t < maxTemp) {
+                stops.add(tempToPos(t) to tempToColor(t))
+            }
+        }
+
+        // Sort by position and deduplicate
+        stops.sortBy { it.first }
+        val unique = stops.distinctBy { "%.4f".format(it.first) }
+
+        val positions = unique.map { it.first }.toFloatArray()
+        val colorsWithAlpha = unique.map { (pos, color) ->
+            val alpha = (alphaTop + (alphaBottom - alphaTop) * pos).toInt().coerceIn(0, 255)
+            withAlpha(color, alpha)
+        }.toIntArray()
+
+        return LinearGradient(
+            0f, graphTop, 0f, graphBottom,
+            colorsWithAlpha, positions,
+            Shader.TileMode.CLAMP
+        )
+    }
+
     fun renderGraph(
         context: Context,
         hours: List<HourData>,
@@ -60,25 +132,21 @@ object HourlyGraphRenderer {
 
         // --- Paints ---
 
-        // Main curve: scale stroke width with widget height
+        // Main curve: scale stroke width with widget height, colored by temperature
         val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#5AC8FA")
             strokeWidth = dpToPx(context, curveStrokeDp)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
+            shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
         }
 
-        // Gradient fill under curve
+        // Gradient fill under curve: same temperature colors but fading to transparent at bottom
         val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            shader = LinearGradient(
-                0f, graphTop, 0f, graphBottom,
-                Color.parseColor("#445AC8FA"),  // 27% alpha blue at top
-                Color.parseColor("#005AC8FA"),  // 0% alpha at bottom
-                Shader.TileMode.CLAMP
-            )
+            shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange,
+                alphaTop = 68, alphaBottom = 0)  // 27% alpha at top, 0% at bottom
         }
 
         // Current-time vertical line
@@ -245,7 +313,7 @@ object HourlyGraphRenderer {
                 val labelY = heightPx - dpToPx(context, 1f)
                 val textWidth = hourLabelTextPaint.measureText(hour.label)
                 val clampedX = x.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                
+
                 canvas.drawText(hour.label, clampedX, labelY, hourLabelTextPaint)
                 lastHourLabelX = x
 

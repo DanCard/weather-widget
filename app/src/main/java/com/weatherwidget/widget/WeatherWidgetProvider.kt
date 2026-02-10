@@ -267,6 +267,25 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
                 }
             }
+            ACTION_SET_VIEW -> {
+                val appWidgetId = intent.getIntExtra(
+                    AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID
+                )
+                val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: ""
+                Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName")
+                if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                    val pendingResult = goAsync()
+                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                        try {
+                            val targetMode = try { ViewMode.valueOf(targetViewName) } catch (_: Exception) { ViewMode.DAILY }
+                            handleSetViewDirect(context, appWidgetId, targetMode)
+                        } finally {
+                            pendingResult.finish()
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -399,15 +418,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         // Update widget with appropriate view
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
+        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+        val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
+            ?.precipProbability
         if (viewMode == ViewMode.PRECIPITATION) {
-            // Get today's precip probability for the top-left display
-            val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-            val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-            val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
-                ?.precipProbability
             updateWidgetWithPrecipData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
         } else {
-            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
         }
     }
 
@@ -445,13 +463,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
             Log.d(TAG, "handleToggleApiDirect: ${viewMode.name} mode - Got ${hourlyForecasts.size} hourly forecasts from $startTime to $endTime")
+            val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, newSource)
+                ?.precipProbability
             if (viewMode == ViewMode.PRECIPITATION) {
-                val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, newSource)
-                    ?.precipProbability
                 updateWidgetWithPrecipData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             } else {
-                updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+                updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             }
         } else {
             // Daily mode: get daily data
@@ -502,14 +520,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val endTime = roundedCenter.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
+            val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+            val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
+                ?.precipProbability
             if (viewMode == ViewMode.PRECIPITATION) {
-                val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-                val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
-                    ?.precipProbability
                 updateWidgetWithPrecipData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             } else {
-                updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime)
+                updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             }
         } else {
             // Daily mode: get daily data
@@ -557,7 +575,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val endTime = now.plusHours(16).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
-            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now)
+            val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+            val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
+                ?.precipProbability
+            updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayPrecip)
         } else {
             // Switched to daily mode: fetch daily data
             val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
@@ -618,6 +640,63 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
             updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+        }
+    }
+
+    private suspend fun handleSetViewDirect(context: Context, appWidgetId: Int, targetMode: ViewMode) {
+        val stateManager = WidgetStateManager(context)
+        stateManager.setViewMode(appWidgetId, targetMode)
+        if (targetMode == ViewMode.HOURLY || targetMode == ViewMode.PRECIPITATION) {
+            stateManager.setHourlyOffset(appWidgetId, 0)
+        }
+        Log.d(TAG, "handleSetViewDirect: Set to $targetMode for widget $appWidgetId")
+
+        val database = WeatherDatabase.getDatabase(context)
+        val weatherDao = database.weatherDao()
+        val hourlyDao = database.hourlyForecastDao()
+        val snapshotDao = database.forecastSnapshotDao()
+
+        val latestWeather = weatherDao.getLatestWeather()
+        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+
+        when (targetMode) {
+            ViewMode.HOURLY -> {
+                val now = java.time.LocalDateTime.now()
+                val startTime = now.minusHours(8).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val endTime = now.plusHours(16).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+                val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+                val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
+                    ?.precipProbability
+                updateWidgetWithHourlyData(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayPrecip)
+            }
+            ViewMode.PRECIPITATION -> {
+                val now = java.time.LocalDateTime.now()
+                val startTime = now.minusHours(8).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val endTime = now.plusHours(16).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+                val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+                val todayPrecip = weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource)
+                    ?.precipProbability
+                updateWidgetWithPrecipData(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayPrecip)
+            }
+            ViewMode.DAILY -> {
+                val historyStart = java.time.LocalDate.now().minusDays(30).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                val twoWeeks = java.time.LocalDate.now().plusDays(14).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                val weatherList = weatherDao.getWeatherRange(historyStart, twoWeeks, lat, lon)
+                val forecastSnapshots = snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                    .groupBy { it.targetDate }
+                val now = java.time.LocalDateTime.now()
+                val hourlyStart = now.minusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val hourlyEnd = now.plusHours(3).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
+                updateWidgetWithData(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+            }
         }
     }
 
@@ -687,6 +766,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
         const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
         const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
+        const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
+        const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
         private const val TAG = "WeatherWidgetProvider"
         private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
@@ -1551,8 +1632,29 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             // Setup navigation buttons
             setupNavigationButtons(context, views, appWidgetId, stateManager)
 
-            // Setup current temp click to toggle view
-            setupCurrentTempToggle(context, views, appWidgetId)
+            // In precipitation mode: current temp → hourly graph, precip % → daily forecast
+            val goHourlyIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_SET_VIEW
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_TARGET_VIEW, ViewMode.HOURLY.name)
+            }
+            val goHourlyPending = PendingIntent.getBroadcast(
+                context, appWidgetId * 2 + 200, goHourlyIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.current_temp, goHourlyPending)
+            views.setOnClickPendingIntent(R.id.current_temp_zone, goHourlyPending)
+
+            val goDailyIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_SET_VIEW
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
+            }
+            val goDailyPending = PendingIntent.getBroadcast(
+                context, appWidgetId * 2 + 300, goDailyIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            views.setOnClickPendingIntent(R.id.precip_probability, goDailyPending)
 
             // Get current display source
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)

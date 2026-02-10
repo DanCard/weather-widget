@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
+import com.weatherwidget.R
 import java.time.LocalDateTime
 import kotlin.math.abs
 
@@ -370,6 +371,78 @@ object PrecipitationGraphRenderer {
             val lineBottom = lineTop + lineHeight
             canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
             canvas.drawText("NOW", nowX, lineTop - dpToPx(context, 2f), nowLabelTextPaint)
+        }
+
+        // Raindrop icon placed in the emptiest region of the graph
+        val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)
+        if (rainDrawable != null && points.size >= 3) {
+            val iconSizePx = dpToPx(context, 20f).toInt()
+            val windowSize = (points.size / 5).coerceIn(3, 6)
+            val iconGap = dpToPx(context, 2f)
+            var iconPlaced = false
+
+            // Strategy 1: Find lowest-precipitation window → place icon ABOVE curve
+            var lowStart = 0
+            var lowAvg = Float.MAX_VALUE
+            for (start in 0..points.size - windowSize) {
+                val avg = (start until start + windowSize).map { probs[it].toFloat() }.average().toFloat()
+                if (avg < lowAvg) {
+                    lowAvg = avg
+                    lowStart = start
+                }
+            }
+
+            val lowCenter = lowStart + windowSize / 2
+            val lowX = points[lowCenter].first
+            val lowCurveY = points[lowCenter].second
+            val aboveCenterY = graphTop + (lowCurveY - graphTop) / 2f
+            val aboveBounds = RectF(
+                lowX - iconSizePx / 2f, aboveCenterY - iconSizePx / 2f,
+                lowX + iconSizePx / 2f, aboveCenterY + iconSizePx / 2f
+            )
+            if (aboveBounds.top >= 0f &&
+                aboveBounds.bottom < lowCurveY - iconGap &&
+                !drawnLabelBounds.any { RectF.intersects(it, aboveBounds) }) {
+                rainDrawable.alpha = 100
+                rainDrawable.setBounds(
+                    aboveBounds.left.toInt(), aboveBounds.top.toInt(),
+                    aboveBounds.right.toInt(), aboveBounds.bottom.toInt()
+                )
+                rainDrawable.draw(canvas)
+                iconPlaced = true
+            }
+
+            // Strategy 2: Find highest-precipitation window → place icon BELOW curve
+            if (!iconPlaced) {
+                var highStart = 0
+                var highAvg = -1f
+                for (start in 0..points.size - windowSize) {
+                    val avg = (start until start + windowSize).map { probs[it].toFloat() }.average().toFloat()
+                    if (avg > highAvg) {
+                        highAvg = avg
+                        highStart = start
+                    }
+                }
+
+                val highCenter = highStart + windowSize / 2
+                val highX = points[highCenter].first
+                val highCurveY = points[highCenter].second
+                val belowCenterY = highCurveY + (graphBottom - highCurveY) / 2f
+                val belowBounds = RectF(
+                    highX - iconSizePx / 2f, belowCenterY - iconSizePx / 2f,
+                    highX + iconSizePx / 2f, belowCenterY + iconSizePx / 2f
+                )
+                if (belowBounds.top > highCurveY + iconGap &&
+                    belowBounds.bottom <= graphBottom &&
+                    !drawnLabelBounds.any { RectF.intersects(it, belowBounds) }) {
+                    rainDrawable.alpha = 100
+                    rainDrawable.setBounds(
+                        belowBounds.left.toInt(), belowBounds.top.toInt(),
+                        belowBounds.right.toInt(), belowBounds.bottom.toInt()
+                    )
+                    rainDrawable.draw(canvas)
+                }
+            }
         }
 
         return bitmap
