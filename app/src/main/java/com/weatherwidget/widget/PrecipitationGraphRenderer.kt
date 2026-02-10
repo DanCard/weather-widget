@@ -110,59 +110,24 @@ object PrecipitationGraphRenderer {
             points.add(x to y)
         }
 
-        val curvePath = Path()
-        val fillPath = Path()
-        if (points.isNotEmpty()) {
-            curvePath.moveTo(points[0].first, points[0].second)
-            fillPath.moveTo(points[0].first, points[0].second)
-
-            if (points.size > 1) {
-                val tangents = points.indices.map { i ->
-                    when (i) {
-                        0 -> Pair(
-                            (points[1].first - points[0].first) * 0.5f,
-                            (points[1].second - points[0].second) * 0.5f
-                        )
-                        points.size - 1 -> Pair(
-                            (points[i].first - points[i - 1].first) * 0.5f,
-                            (points[i].second - points[i - 1].second) * 0.5f
-                        )
-                        else -> Pair(
-                            (points[i + 1].first - points[i - 1].first) * 0.5f,
-                            (points[i + 1].second - points[i - 1].second) * 0.5f
-                        )
-                    }
-                }
-
-                for (i in 0 until points.size - 1) {
-                    val cp1x = points[i].first + tangents[i].first / 3f
-                    val cp1y = points[i].second + tangents[i].second / 3f
-                    val cp2x = points[i + 1].first - tangents[i + 1].first / 3f
-                    val cp2y = points[i + 1].second - tangents[i + 1].second / 3f
-                    curvePath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
-                    fillPath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
-                }
-            }
-
-            fillPath.lineTo(points.last().first, graphBottom)
-            fillPath.lineTo(points.first().first, graphBottom)
-            fillPath.close()
-        }
+        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
 
         canvas.drawPath(fillPath, gradientPaint)
         canvas.drawPath(curvePath, curvePaint)
 
         // --- Draw labels and current-time indicator ---
-        var lastHourLabelX = -1000f
         val minHourLabelSpacing = dpToPx(context, 28f)
 
         // Track NOW x-position
         val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
-        val nowX: Float? = if (currentHourIndex != -1) {
-            val minutesOffset = java.time.Duration.between(hours[currentHourIndex].dateTime, currentTime).toMinutes()
-            val baseX = points[currentHourIndex].first
-            baseX + (minutesOffset / 60f) * hourWidth
-        } else null
+        val nowX = GraphRenderUtils.computeNowX(
+            items = hours,
+            points = points,
+            currentTime = currentTime,
+            hourWidth = hourWidth,
+            isCurrentHour = { it.isCurrentHour },
+            dateTimeOf = { it.dateTime }
+        )
 
         val probs = hours.map { it.precipProbability.coerceIn(0, 100) }
         Log.d("PrecipGraph", "probs=${probs.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
@@ -264,7 +229,6 @@ object PrecipitationGraphRenderer {
         }
 
         val drawnLabelBounds = mutableListOf<RectF>()
-        val shiftStep = dpToPx(context, 10f)
         val aboveGap = dpToPx(context, 4f)
         val belowGap = dpToPx(context, 14f)
         val maxLabels = when {
@@ -351,27 +315,28 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        hours.forEachIndexed { index, hour ->
-            val centerX = points[index].first
+        GraphRenderUtils.drawHourLabels(
+            canvas = canvas,
+            items = hours,
+            points = points,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            minHourLabelSpacing = minHourLabelSpacing,
+            hourLabelTextPaint = hourLabelTextPaint,
+            dpToPx = { dpToPx(context, it) },
+            showLabel = { it.showLabel },
+            labelText = { it.label }
+        )
 
-            // Hour labels at bottom
-            if (hour.showLabel && (centerX - lastHourLabelX >= minHourLabelSpacing)) {
-                val labelY = heightPx - dpToPx(context, 1f)
-                val textWidth = hourLabelTextPaint.measureText(hour.label)
-                val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                canvas.drawText(hour.label, clampedX, labelY, hourLabelTextPaint)
-                lastHourLabelX = centerX
-            }
-        }
-
-        // Current time indicator
-        if (nowX != null) {
-            val lineHeight = graphHeight * 0.6f
-            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-            val lineBottom = lineTop + lineHeight
-            canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
-            canvas.drawText("NOW", nowX, lineTop - dpToPx(context, 2f), nowLabelTextPaint)
-        }
+        GraphRenderUtils.drawNowIndicator(
+            canvas = canvas,
+            nowX = nowX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            currentTimePaint = currentTimePaint,
+            nowLabelTextPaint = nowLabelTextPaint,
+            dpToPx = { dpToPx(context, it) }
+        )
 
         // Raindrop icon placed in the emptiest region of the graph
         val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)

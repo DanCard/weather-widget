@@ -181,8 +181,6 @@ object HourlyTemperatureGraphRenderer {
         }
 
         // --- Build curve path & gradient fill path ---
-        val curvePath = Path()
-        val fillPath = Path()
         val points = mutableListOf<Pair<Float, Float>>() // x,y for each hour
 
         // Compute all data points first
@@ -192,61 +190,24 @@ object HourlyTemperatureGraphRenderer {
             points.add(x to y)
         }
 
-        if (points.isNotEmpty()) {
-            curvePath.moveTo(points[0].first, points[0].second)
-            fillPath.moveTo(points[0].first, points[0].second)
-
-            if (points.size == 1) {
-                // Single point — nothing to connect
-            } else {
-                // Catmull-Rom tangents for smooth cubic bezier curves
-                val tangents = points.indices.map { i ->
-                    when (i) {
-                        0 -> Pair(
-                            (points[1].first - points[0].first) * 0.5f,
-                            (points[1].second - points[0].second) * 0.5f
-                        )
-                        points.size - 1 -> Pair(
-                            (points[i].first - points[i - 1].first) * 0.5f,
-                            (points[i].second - points[i - 1].second) * 0.5f
-                        )
-                        else -> Pair(
-                            (points[i + 1].first - points[i - 1].first) * 0.5f,
-                            (points[i + 1].second - points[i - 1].second) * 0.5f
-                        )
-                    }
-                }
-
-                for (i in 0 until points.size - 1) {
-                    val cp1x = points[i].first + tangents[i].first / 3f
-                    val cp1y = points[i].second + tangents[i].second / 3f
-                    val cp2x = points[i + 1].first - tangents[i + 1].first / 3f
-                    val cp2y = points[i + 1].second - tangents[i + 1].second / 3f
-                    curvePath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
-                    fillPath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
-                }
-            }
-
-            // Close fill path along the bottom
-            fillPath.lineTo(points.last().first, graphBottom)
-            fillPath.lineTo(points.first().first, graphBottom)
-            fillPath.close()
-        }
+        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
 
         // Draw gradient fill, then curve on top
         canvas.drawPath(fillPath, gradientPaint)
         canvas.drawPath(curvePath, curvePaint)
 
         // --- Draw labels, icons, current-time indicator ---
-        var lastHourLabelX = -1000f
         val minHourLabelSpacing = dpToPx(context, 28f)
 
         // Compute NOW x-position early (needed for label proximity suppression)
-        val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
-        val nowX: Float? = if (currentHourIndex != -1) {
-            val minutesOffset = java.time.Duration.between(hours[currentHourIndex].dateTime, currentTime).toMinutes()
-            points[currentHourIndex].first + (minutesOffset / 60f) * hourWidth
-        } else null
+        val nowX = GraphRenderUtils.computeNowX(
+            items = hours,
+            points = points,
+            currentTime = currentTime,
+            hourWidth = hourWidth,
+            isCurrentHour = { it.isCurrentHour },
+            dateTimeOf = { it.dateTime }
+        )
 
         // Key temperature labels — priority-ordered list (first drawn wins collisions)
         val dailyHighIndex = hours.indices.maxByOrNull { hours[it].temperature } ?: -1
@@ -304,60 +265,56 @@ object HourlyTemperatureGraphRenderer {
             }
         }
 
-        hours.forEachIndexed { index, hour ->
-            val x = points[index].first
-            val y = points[index].second
+        GraphRenderUtils.drawHourLabels(
+            canvas = canvas,
+            items = hours,
+            points = points,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            minHourLabelSpacing = minHourLabelSpacing,
+            hourLabelTextPaint = hourLabelTextPaint,
+            dpToPx = { dpToPx(context, it) },
+            showLabel = { it.showLabel },
+            labelText = { it.label }
+        ) { index, clampedX ->
+            val hour = hours[index]
+            if (hour.iconRes != null) {
+                val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
+                if (drawable != null) {
+                    val iconY = graphBottom + iconTopPad
+                    val iconX = clampedX - iconSize / 2f
 
-            // Hour labels at bottom, with weather icons aligned above
-            if (hour.showLabel && (x - lastHourLabelX >= minHourLabelSpacing)) {
-                val labelY = heightPx - dpToPx(context, 1f)
-                val textWidth = hourLabelTextPaint.measureText(hour.label)
-                val clampedX = x.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                    drawable.setBounds(
+                        iconX.toInt(),
+                        iconY.toInt(),
+                        (iconX + iconSize).toInt(),
+                        (iconY + iconSize).toInt()
+                    )
 
-                canvas.drawText(hour.label, clampedX, labelY, hourLabelTextPaint)
-                lastHourLabelX = x
-
-                // Weather icon above hour label
-                if (hour.iconRes != null) {
-                    val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
-                    if (drawable != null) {
-                        val iconY = graphBottom + iconTopPad
-                        val iconX = clampedX - iconSize / 2f
-
-                        drawable.setBounds(
-                            iconX.toInt(),
-                            iconY.toInt(),
-                            (iconX + iconSize).toInt(),
-                            (iconY + iconSize).toInt()
-                        )
-
-                        // Rain/storm/mixed icons keep native vector colors (grey cloud + blue rain)
-                        if (!hour.isRainy && !hour.isMixed) {
-                            val iconTint = when {
-                                hour.isNight -> Color.parseColor("#BBBBBB")
-                                hour.isSunny -> Color.parseColor("#FFD60A")
-                                else -> Color.parseColor("#BBBBBB")
-                            }
-                            drawable.setTint(iconTint)
+                    // Rain/storm/mixed icons keep native vector colors (grey cloud + blue rain)
+                    if (!hour.isRainy && !hour.isMixed) {
+                        val iconTint = when {
+                            hour.isNight -> Color.parseColor("#BBBBBB")
+                            hour.isSunny -> Color.parseColor("#FFD60A")
+                            else -> Color.parseColor("#BBBBBB")
                         }
-
-                        drawable.draw(canvas)
+                        drawable.setTint(iconTint)
                     }
+
+                    drawable.draw(canvas)
                 }
             }
         }
 
-        // Current time indicator: dashed line + "NOW" label (reuses precomputed nowX)
-        if (nowX != null) {
-            // Dashed vertical line (60% of graph height, centered)
-            val lineHeight = graphHeight * 0.6f
-            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-            val lineBottom = lineTop + lineHeight
-            canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
-
-            // "NOW" label just above the dashed line
-            canvas.drawText("NOW", nowX, lineTop - dpToPx(context, 2f), nowLabelTextPaint)
-        }
+        GraphRenderUtils.drawNowIndicator(
+            canvas = canvas,
+            nowX = nowX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            currentTimePaint = currentTimePaint,
+            nowLabelTextPaint = nowLabelTextPaint,
+            dpToPx = { dpToPx(context, it) }
+        )
 
         return bitmap
     }
