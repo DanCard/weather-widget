@@ -7,7 +7,7 @@ import android.util.TypedValue
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-object HourlyGraphRenderer {
+object HourlyTemperatureGraphRenderer {
 
     data class HourData(
         val dateTime: LocalDateTime,

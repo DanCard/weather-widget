@@ -1586,7 +1586,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
 
                 // Render hourly graph
-                val bitmap = HourlyGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now)
+                val bitmap = HourlyTemperatureGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now)
                 views.setImageViewBitmap(R.id.graph_view, bitmap)
             } else {
                 views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -1884,8 +1884,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             centerTime: LocalDateTime,
             numColumns: Int,
             displaySource: String
-        ): List<HourlyGraphRenderer.HourData> {
-            val hours = mutableListOf<HourlyGraphRenderer.HourData>()
+        ): List<HourlyTemperatureGraphRenderer.HourData> {
+            val hours = mutableListOf<HourlyTemperatureGraphRenderer.HourData>()
             val now = LocalDateTime.now()
 
             // Group by dateTime and prefer the selected source, fallback to generic gap
@@ -1952,7 +1952,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         iconRes == R.drawable.ic_weather_mostly_clear
 
                     hours.add(
-                        HourlyGraphRenderer.HourData(
+                        HourlyTemperatureGraphRenderer.HourData(
                             dateTime = currentHour,
                             temperature = forecast.temperature,
                             label = formatHourLabel(currentHour),

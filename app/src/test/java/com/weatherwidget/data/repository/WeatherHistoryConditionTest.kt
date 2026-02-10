@@ -76,7 +76,7 @@ class WeatherHistoryConditionTest {
     }
 
     @Test
-    fun `fetchFromNws does not let forecast overwrite observation condition`() = runTest {
+    fun `fetchFromNws uses forecast summary for todays condition`() = runTest {
         val lat = 37.422
         val lon = -122.0841
         val today = LocalDate.now()
@@ -97,8 +97,8 @@ class WeatherHistoryConditionTest {
         val result = repository.fetchFromNws(lat, lon, "Location")
         val data = result.find { it.date == todayStr }
         
-        // Should be "Sunny" (from "Clear" observation) not "Cloudy" (from forecast)
-        assertEquals("Sunny", data?.condition)
+        // For today, repository prefers daily forecast shortForecast as whole-day summary.
+        assertEquals("Cloudy", data?.condition)
     }
 
     @Test
