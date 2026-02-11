@@ -168,19 +168,13 @@ object PrecipitationGraphRenderer {
             if (prominence >= 2) addCandidate(index, 1)
         }
 
-        // Priority 2: Current hour and edge anchors so early/late context is preserved.
-        addCandidate(currentHourIndex, 2)
+        // Priority 2: Edge anchors so early/late context is preserved.
         addCandidate(0, 2)
         addCandidate(hours.lastIndex, 2)
 
         // Priority 3: Interval labels from the underlying timeline.
         hours.forEachIndexed { index, hour ->
             if (hour.showLabel) addCandidate(index, 3)
-        }
-
-        // Priority 4: Any high rain-chance point.
-        probs.forEachIndexed { index, prob ->
-            if (prob >= 50) addCandidate(index, 4)
         }
 
         val sortedCandidates = candidateMap.entries
@@ -202,9 +196,6 @@ object PrecipitationGraphRenderer {
         localMinima.forEach { idx -> 
             if (probs[idx] < 60 && localProminence(probs, idx) >= 4) mandatoryIndices.add(idx) 
         }
-
-        // Explicitly request the end of graph label
-        mandatoryIndices.add(hours.lastIndex)
 
         val orderedCandidates = sortedCandidates.sortedWith(
             compareBy<LabelCandidate> { if (it.index in mandatoryIndices) 0 else 1 }
@@ -242,6 +233,9 @@ object PrecipitationGraphRenderer {
         for (candidate in orderedCandidates) {
             val isMandatory = candidate.index in mandatoryIndices
             if (!isMandatory && labelsPlaced >= maxLabels) break
+
+            // Skip non-mandatory labels too close to an already-placed label
+            if (!isMandatory && labeledIndices.any { abs(it - candidate.index) <= 2 }) continue
 
             // Skip interval labels unless they fill a very large gap (7+ hours) between placed labels
             if (candidate.priority == 3) {
