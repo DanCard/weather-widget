@@ -332,6 +332,12 @@ override fun onAppWidgetOptionsChanged(...) {
 - `Generic_Foldable_API36`
 - `Medium_Phone_API_36`
 
+### Emulator Resize Troubleshooting
+- On Pixel/Nexus Launcher emulators, resizing from the left edge can "bounce back" when the widget is on the top row or near constrained cells.
+- Symptom: Launcher shows resize handles, but drag snaps back and `onAppWidgetOptionsChanged` may not fire.
+- Workaround: Move the widget down one row (or to an area with more free cells), then resize.
+- This is launcher placement behavior (emulator-specific), not necessarily a widget rendering bug.
+
 ### Testing Checklist
 - [ ] Widget displays on different sizes
 - [ ] Navigation arrows work (left/right)

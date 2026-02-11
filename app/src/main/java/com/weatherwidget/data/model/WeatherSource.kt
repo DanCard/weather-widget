@@ -14,12 +14,12 @@ enum class WeatherSource(
     NWS(
         id = "NWS",
         displayName = "NWS",
-        shortDisplayName = "N",
+        shortDisplayName = "NWS",
     ),
     OPEN_METEO(
         id = "OPEN_METEO",
         displayName = "Open-Meteo",
-        shortDisplayName = "M",
+        shortDisplayName = "Meteo",
     ),
     GENERIC_GAP(
         id = "Generic",

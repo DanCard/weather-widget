@@ -161,10 +161,24 @@ cleanup() {
 # Set trap to ensure cleanup on exit
 trap cleanup EXIT INT TERM
 
-# Check if emulator is already running
+# Check if emulator is already running (ignore physical devices like Samsung)
 echo ""
 echo -e "${BLUE}Checking for existing emulators...${NC}"
-EXISTING_EMU=$($ADB_BIN devices | grep "emulator-" | cut -f1 | head -1)
+# Filter for emulator-* only, ignore physical devices
+EXISTING_EMU=$($ADB_BIN devices | grep "emulator-" | grep "device$" | cut -f1 | head -1)
+
+# Show all connected devices for info
+echo "All connected devices:"
+$ADB_BIN devices | grep -v "List of devices" | grep "device$" | while read -r line; do
+    device=$(echo "$line" | cut -f1)
+    model=$($ADB_BIN -s "$device" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+    if echo "$device" | grep -q "^emulator-"; then
+        echo -e "  ${GREEN}✓ $device ($model) - emulator${NC}"
+    else
+        echo -e "  ${YELLOW}✗ $device ($model) - physical device (ignored)${NC}"
+    fi
+done
+echo ""
 
 if [ -n "$EXISTING_EMU" ]; then
     echo -e "${YELLOW}Found running emulator: $EXISTING_EMU${NC}"
@@ -261,7 +275,43 @@ echo ""
 
 cd "$PROJECT_DIR"
 
-# Build gradle command
+# Check for multiple devices - filter to emulator only
+echo ""
+echo -e "${BLUE}Checking connected devices...${NC}"
+ALL_DEVICES=$($ADB_BIN devices | grep -v "List of devices" | grep "device$" | cut -f1)
+EMULATOR_DEVICES=$(echo "$ALL_DEVICES" | grep "^emulator-" | head -1)
+
+if [ -n "$EMULATOR_SERIAL" ]; then
+    # We already have an emulator from earlier (started by this script or existing)
+    echo -e "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC}"
+    export ANDROID_SERIAL="$EMULATOR_SERIAL"
+elif [ -n "$EMULATOR_DEVICES" ]; then
+    # Use first emulator found
+    EMULATOR_SERIAL="$EMULATOR_DEVICES"
+    echo -e "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC}"
+    export ANDROID_SERIAL="$EMULATOR_SERIAL"
+else
+    echo -e "${RED}Error: No emulator found${NC}"
+    echo "Connected devices:"
+    $ADB_BIN devices
+    echo ""
+    echo "Please connect an emulator or start one with this script."
+    exit 1
+fi
+
+# Verify we're not targeting a physical Samsung device
+DEVICE_MODEL=$($ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
+DEVICE_BRAND=$($ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
+echo -e "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC}"
+
+if echo "$DEVICE_MODEL $DEVICE_BRAND" | grep -qi "samsung"; then
+    echo -e "${RED}Error: Target device appears to be a Samsung physical device${NC}"
+    echo "This script is configured to run tests on emulator only."
+    echo "Please disconnect your Samsung device or specify an emulator."
+    exit 1
+fi
+
+# Build gradle command - use ANDROID_SERIAL to target specific device
 GRADLE_CMD=":app:connectedDebugAndroidTest"
 if [ -n "$TEST_CLASS" ]; then
     GRADLE_CMD="$GRADLE_CMD -Pandroid.testInstrumentationRunnerArguments.class=$TEST_CLASS"

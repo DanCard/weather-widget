@@ -477,14 +477,16 @@
     <!-- API Source indicator - rendered last for touch priority, positioned in top-right corner -->
     <FrameLayout
         android:id="@+id/api_source_container"
-        android:layout_width="64dp"
+        android:layout_width="wrap_content"
         android:layout_height="48dp"
         android:layout_gravity="top|end"
         android:layout_marginTop="-4dp"
-        android:layout_marginEnd="-4dp"
+        android:layout_marginEnd="10dp"
         android:background="@android:color/transparent"
         android:clickable="true"
-        android:focusable="true">
+        android:focusable="true"
+        android:paddingStart="8dp"
+        android:paddingEnd="6dp">
 
         <TextView
             android:id="@+id/api_source"
@@ -492,7 +494,6 @@
             android:layout_height="wrap_content"
             android:layout_gravity="top|end"
             android:layout_marginTop="4dp"
-            android:layout_marginEnd="4dp"
             android:text="NWS"
             android:textSize="11sp"
             android:textColor="#AAFFFFFF"
