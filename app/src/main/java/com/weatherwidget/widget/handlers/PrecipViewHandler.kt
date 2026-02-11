@@ -102,6 +102,7 @@ object PrecipViewHandler {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         views.setOnClickPendingIntent(R.id.precip_probability, goDailyPending)
+        views.setOnClickPendingIntent(R.id.precip_touch_zone, goDailyPending)
 
         // Get current display source
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)

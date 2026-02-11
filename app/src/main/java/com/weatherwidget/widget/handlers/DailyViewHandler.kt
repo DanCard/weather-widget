@@ -267,6 +267,7 @@ object DailyViewHandler : WidgetViewHandler {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
+        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
     }
 
     private fun setupApiToggle(
