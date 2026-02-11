@@ -229,6 +229,7 @@ object PrecipitationGraphRenderer {
         }
 
         val drawnLabelBounds = mutableListOf<RectF>()
+        val labeledIndices = mutableSetOf<Int>()
         val aboveGap = dpToPx(context, 4f)
         val belowGap = dpToPx(context, 14f)
         val maxLabels = when {
@@ -241,6 +242,17 @@ object PrecipitationGraphRenderer {
         for (candidate in orderedCandidates) {
             val isMandatory = candidate.index in mandatoryIndices
             if (!isMandatory && labelsPlaced >= maxLabels) break
+
+            // Skip interval labels unless they fill a very large gap (7+ hours) between placed labels
+            if (candidate.priority == 3) {
+                val nearestLeft = labeledIndices.filter { it < candidate.index }.maxOrNull() ?: -1
+                val nearestRight = labeledIndices.filter { it > candidate.index }.minOrNull() ?: (hours.size + 1)
+                if (nearestRight - nearestLeft < 7) {
+                    Log.d("PrecipGraph", "SKIPPED interval label at idx=${candidate.index} (${hours[candidate.index].label}): gap=${nearestRight - nearestLeft} too small")
+                    continue
+                }
+            }
+
             val index = candidate.index
             val centerX = points[index].first
             val y = points[index].second
@@ -310,6 +322,7 @@ object PrecipitationGraphRenderer {
                 Log.d("PrecipGraph", "PLACED label: ${labelText} at hour=${hours[index].label}(idx=$index) reason=$reason above=$placeAbove dx=$dx")
                 canvas.drawText(labelText, x, baselineY, percentLabelPaint)
                 drawnLabelBounds.add(bounds)
+                labeledIndices.add(index)
                 labelsPlaced++
                 break
             }
