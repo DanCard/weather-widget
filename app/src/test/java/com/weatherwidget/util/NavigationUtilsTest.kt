@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class NavigationUtilsTest {
-
     @Test
     fun testGetDayOffsets_Narrow() {
         // 1 column: [0]

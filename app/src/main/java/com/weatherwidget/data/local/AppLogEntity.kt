@@ -1,9 +1,9 @@
 package com.weatherwidget.data.local
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
 import androidx.room.Dao
+import androidx.room.Entity
 import androidx.room.Insert
+import androidx.room.PrimaryKey
 import androidx.room.Query
 import java.time.Instant
 import java.time.ZoneId
@@ -15,12 +15,13 @@ data class AppLogEntity(
     val timestamp: Long = System.currentTimeMillis(),
     val tag: String,
     val message: String,
-    val level: String = "INFO"
+    val level: String = "INFO",
 ) {
     fun getFormattedTime(): String {
         val instant = Instant.ofEpochMilli(timestamp)
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-            .withZone(ZoneId.systemDefault())
+        val formatter =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+                .withZone(ZoneId.systemDefault())
         return formatter.format(instant)
     }
 }

@@ -11,7 +11,6 @@ import com.weatherwidget.stats.DailyAccuracy
 import kotlin.math.abs
 
 class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolder>() {
-
     private var items = listOf<DailyAccuracy>()
 
     fun setItems(newItems: List<DailyAccuracy>) {
@@ -19,13 +18,20 @@ class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolde
         notifyDataSetChanged()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_daily_accuracy, parent, false)
+    override fun onCreateViewHolder(
+        parent: ViewGroup,
+        viewType: Int,
+    ): ViewHolder {
+        val view =
+            LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_daily_accuracy, parent, false)
         return ViewHolder(view)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+    override fun onBindViewHolder(
+        holder: ViewHolder,
+        position: Int,
+    ) {
         holder.bind(items[position])
     }
 
@@ -50,11 +56,13 @@ class DailyAccuracyAdapter : RecyclerView.Adapter<DailyAccuracyAdapter.ViewHolde
 
             // Color code the error based on magnitude
             val maxError = maxOf(abs(item.highError), abs(item.lowError))
-            errorText.setTextColor(when {
-                maxError <= 2 -> Color.parseColor("#34C759")  // Green
-                maxError <= 5 -> Color.parseColor("#FFCC00")  // Yellow
-                else -> Color.parseColor("#FF3B30")           // Red
-            })
+            errorText.setTextColor(
+                when {
+                    maxError <= 2 -> Color.parseColor("#34C759") // Green
+                    maxError <= 5 -> Color.parseColor("#FFCC00") // Yellow
+                    else -> Color.parseColor("#FF3B30") // Red
+                },
+            )
         }
     }
 }

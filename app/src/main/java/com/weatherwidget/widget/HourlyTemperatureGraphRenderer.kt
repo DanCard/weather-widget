@@ -5,21 +5,19 @@ import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 object HourlyTemperatureGraphRenderer {
-
     data class HourData(
         val dateTime: LocalDateTime,
         val temperature: Float,
-        val label: String,           // "12a", "1p", "2p"
+        val label: String, // "12a", "1p", "2p"
         val iconRes: Int? = null,
         val isNight: Boolean = false,
         val isSunny: Boolean = false,
         val isRainy: Boolean = false,
         val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
-        val showLabel: Boolean = true  // Only at intervals
+        val showLabel: Boolean = true, // Only at intervals
     )
 
     // Temperature-to-color thresholds
@@ -27,9 +25,9 @@ object HourlyTemperatureGraphRenderer {
     private const val MILD_TEMP = 70f
     private const val HOT_THRESHOLD = 90f
 
-    private val COLOR_COLD = Color.parseColor("#5AC8FA")      // Blue
-    private val COLOR_MILD = Color.parseColor("#E8A24E")      // Golden amber
-    private val COLOR_HOT = Color.parseColor("#FF6B35")       // Warm orange
+    private val COLOR_COLD = Color.parseColor("#5AC8FA") // Blue
+    private val COLOR_MILD = Color.parseColor("#E8A24E") // Golden amber
+    private val COLOR_HOT = Color.parseColor("#FF6B35") // Warm orange
 
     private fun tempToColor(temp: Float): Int {
         return when {
@@ -40,7 +38,11 @@ object HourlyTemperatureGraphRenderer {
         }
     }
 
-    private fun blendColors(c1: Int, c2: Int, fraction: Float): Int {
+    private fun blendColors(
+        c1: Int,
+        c2: Int,
+        fraction: Float,
+    ): Int {
         val f = fraction.coerceIn(0f, 1f)
         val r = (Color.red(c1) * (1 - f) + Color.red(c2) * f).toInt()
         val g = (Color.green(c1) * (1 - f) + Color.green(c2) * f).toInt()
@@ -48,7 +50,10 @@ object HourlyTemperatureGraphRenderer {
         return Color.rgb(r, g, b)
     }
 
-    private fun withAlpha(color: Int, alpha: Int): Int {
+    private fun withAlpha(
+        color: Int,
+        alpha: Int,
+    ): Int {
         return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
@@ -57,9 +62,13 @@ object HourlyTemperatureGraphRenderer {
      * graphTop = maxTemp, graphBottom = minTemp.
      */
     private fun buildTempGradient(
-        graphTop: Float, graphBottom: Float,
-        minTemp: Float, maxTemp: Float, tempRange: Float,
-        alphaTop: Int = 255, alphaBottom: Int = 255
+        graphTop: Float,
+        graphBottom: Float,
+        minTemp: Float,
+        maxTemp: Float,
+        tempRange: Float,
+        alphaTop: Int = 255,
+        alphaBottom: Int = 255,
     ): LinearGradient {
         // Map temperature thresholds to gradient positions (0.0 = graphTop/maxTemp, 1.0 = graphBottom/minTemp)
         fun tempToPos(t: Float): Float = ((maxTemp - t) / tempRange).coerceIn(0f, 1f)
@@ -82,15 +91,20 @@ object HourlyTemperatureGraphRenderer {
         val unique = stops.distinctBy { "%.4f".format(it.first) }
 
         val positions = unique.map { it.first }.toFloatArray()
-        val colorsWithAlpha = unique.map { (pos, color) ->
-            val alpha = (alphaTop + (alphaBottom - alphaTop) * pos).toInt().coerceIn(0, 255)
-            withAlpha(color, alpha)
-        }.toIntArray()
+        val colorsWithAlpha =
+            unique.map { (pos, color) ->
+                val alpha = (alphaTop + (alphaBottom - alphaTop) * pos).toInt().coerceIn(0, 255)
+                withAlpha(color, alpha)
+            }.toIntArray()
 
         return LinearGradient(
-            0f, graphTop, 0f, graphBottom,
-            colorsWithAlpha, positions,
-            Shader.TileMode.CLAMP
+            0f,
+            graphTop,
+            0f,
+            graphBottom,
+            colorsWithAlpha,
+            positions,
+            Shader.TileMode.CLAMP,
         )
     }
 
@@ -99,7 +113,7 @@ object HourlyTemperatureGraphRenderer {
         hours: List<HourData>,
         widthPx: Int,
         heightPx: Int,
-        currentTime: LocalDateTime
+        currentTime: LocalDateTime,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -117,8 +131,8 @@ object HourlyTemperatureGraphRenderer {
 
         // Layout zones (top to bottom):
         // [current temp/icon] [temp labels above curve] [graph area] [temp labels below] [icons] [hour labels]
-        val topPadding = dpToPx(context, 12f)       // Space for current temp and weather icon
-        val iconSizeDp = 16f                         // Larger icons (was 8dp)
+        val topPadding = dpToPx(context, 12f) // Space for current temp and weather icon
+        val iconSizeDp = 16f // Larger icons (was 8dp)
         val iconSize = dpToPx(context, iconSizeDp).toInt()
         val labelHeight = dpToPx(context, 10f)
         val iconTopPad = dpToPx(context, 2f)
@@ -134,51 +148,65 @@ object HourlyTemperatureGraphRenderer {
 
         // Main curve: scale stroke width with widget height, colored by temperature
         val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
-        val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            strokeWidth = dpToPx(context, curveStrokeDp)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-            shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
-        }
+        val curvePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                strokeWidth = dpToPx(context, curveStrokeDp)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
+            }
 
         // Gradient fill under curve: same temperature colors but fading to transparent at bottom
-        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange,
-                alphaTop = 68, alphaBottom = 0)  // 27% alpha at top, 0% at bottom
-        }
+        val gradientPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                shader =
+                    buildTempGradient(
+                        graphTop,
+                        graphBottom,
+                        minTemp,
+                        maxTemp,
+                        tempRange,
+                        alphaTop = 68,
+                        alphaBottom = 0,
+                    ) // 27% alpha at top, 0% at bottom
+            }
 
         // Current-time vertical line
-        val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF9F0A")
-            strokeWidth = dpToPx(context, 0.5f)
-            style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
-        }
+        val currentTimePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FF9F0A")
+                strokeWidth = dpToPx(context, 0.5f)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
+            }
 
-        val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 13.0f)
-            textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
-        }
+        val hourLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#99FFFFFF")
+                textSize = dpToPx(context, 13.0f)
+                textAlign = Paint.Align.CENTER
+                setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
+            }
 
-        val tempLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 13.0f)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-        }
+        val tempLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFFFFF")
+                textSize = dpToPx(context, 13.0f)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+            }
 
-        val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#BBFF9F0A")  // ~73% alpha for lighter feel
-            textSize = dpToPx(context, 11.0f)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
-        }
+        val nowLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#BBFF9F0A") // ~73% alpha for lighter feel
+                textSize = dpToPx(context, 11.0f)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
+            }
 
         // --- Build curve path & gradient fill path ---
         val points = mutableListOf<Pair<Float, Float>>() // x,y for each hour
@@ -200,14 +228,15 @@ object HourlyTemperatureGraphRenderer {
         val minHourLabelSpacing = dpToPx(context, 28f)
 
         // Compute NOW x-position early (needed for label proximity suppression)
-        val nowX = GraphRenderUtils.computeNowX(
-            items = hours,
-            points = points,
-            currentTime = currentTime,
-            hourWidth = hourWidth,
-            isCurrentHour = { it.isCurrentHour },
-            dateTimeOf = { it.dateTime }
-        )
+        val nowX =
+            GraphRenderUtils.computeNowX(
+                items = hours,
+                points = points,
+                currentTime = currentTime,
+                hourWidth = hourWidth,
+                isCurrentHour = { it.isCurrentHour },
+                dateTimeOf = { it.dateTime },
+            )
 
         // Key temperature labels — priority-ordered list (first drawn wins collisions)
         val dailyHighIndex = hours.indices.maxByOrNull { hours[it].temperature } ?: -1
@@ -222,7 +251,10 @@ object HourlyTemperatureGraphRenderer {
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
-        Log.d("HourlyGraph", "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) hours[dailyHighIndex].temperature else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) hours[dailyLowIndex].temperature else "N/A"}), nowX=$nowX, hourWidth=$hourWidth")
+        Log.d(
+            "HourlyGraph",
+            "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) hours[dailyHighIndex].temperature else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) hours[dailyLowIndex].temperature else "N/A"}), nowX=$nowX, hourWidth=$hourWidth",
+        )
 
         for (idx in specialIndices) {
             val sx = points[idx].first
@@ -238,23 +270,25 @@ object HourlyTemperatureGraphRenderer {
             val labelY = if (drawBelow) sy + dpToPx(context, 14f) else sy - dpToPx(context, 4f)
 
             // Build bounding rect for overlap detection
-            val bounds = RectF(
-                clampedX - textWidth / 2f,
-                labelY - textHeight,
-                clampedX + textWidth / 2f,
-                labelY
-            )
+            val bounds =
+                RectF(
+                    clampedX - textWidth / 2f,
+                    labelY - textHeight,
+                    clampedX + textWidth / 2f,
+                    labelY,
+                )
 
             // Skip if overlaps any already-drawn label
             val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
 
-            val roleName = when (idx) {
-                dailyLowIndex -> "LOW"
-                dailyHighIndex -> "HIGH"
-                0 -> "START"
-                hours.size - 1 -> "END"
-                else -> "OTHER"
-            }
+            val roleName =
+                when (idx) {
+                    dailyLowIndex -> "LOW"
+                    dailyHighIndex -> "HIGH"
+                    0 -> "START"
+                    hours.size - 1 -> "END"
+                    else -> "OTHER"
+                }
 
             if (!overlaps) {
                 canvas.drawText(label, clampedX, labelY, tempLabelTextPaint)
@@ -275,7 +309,7 @@ object HourlyTemperatureGraphRenderer {
             hourLabelTextPaint = hourLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
             showLabel = { it.showLabel },
-            labelText = { it.label }
+            labelText = { it.label },
         ) { index, clampedX ->
             val hour = hours[index]
             if (hour.iconRes != null) {
@@ -288,16 +322,17 @@ object HourlyTemperatureGraphRenderer {
                         iconX.toInt(),
                         iconY.toInt(),
                         (iconX + iconSize).toInt(),
-                        (iconY + iconSize).toInt()
+                        (iconY + iconSize).toInt(),
                     )
 
                     // Rain/storm/mixed icons keep native vector colors (grey cloud + blue rain)
                     if (!hour.isRainy && !hour.isMixed) {
-                        val iconTint = when {
-                            hour.isNight -> Color.parseColor("#BBBBBB")
-                            hour.isSunny -> Color.parseColor("#FFD60A")
-                            else -> Color.parseColor("#BBBBBB")
-                        }
+                        val iconTint =
+                            when {
+                                hour.isNight -> Color.parseColor("#BBBBBB")
+                                hour.isSunny -> Color.parseColor("#FFD60A")
+                                else -> Color.parseColor("#BBBBBB")
+                            }
                         drawable.setTint(iconTint)
                     }
 
@@ -313,17 +348,20 @@ object HourlyTemperatureGraphRenderer {
             graphHeight = graphHeight,
             currentTimePaint = currentTimePaint,
             nowLabelTextPaint = nowLabelTextPaint,
-            dpToPx = { dpToPx(context, it) }
+            dpToPx = { dpToPx(context, it) },
         )
 
         return bitmap
     }
 
-    private fun dpToPx(context: Context, dp: Float): Float {
+    private fun dpToPx(
+        context: Context,
+        dp: Float,
+    ): Float {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dp,
-            context.resources.displayMetrics
+            context.resources.displayMetrics,
         )
     }
 }

@@ -7,10 +7,9 @@ import java.time.Duration
 import java.time.LocalDateTime
 
 internal object GraphRenderUtils {
-
     fun buildSmoothCurveAndFillPaths(
         points: List<Pair<Float, Float>>,
-        graphBottom: Float
+        graphBottom: Float,
     ): Pair<Path, Path> {
         val curvePath = Path()
         val fillPath = Path()
@@ -20,24 +19,28 @@ internal object GraphRenderUtils {
             fillPath.moveTo(points[0].first, points[0].second)
 
             if (points.size > 1) {
-                val tangents = points.indices.map { i ->
-                    when (i) {
-                        0 -> Pair(
-                            (points[1].first - points[0].first) * 0.5f,
-                            (points[1].second - points[0].second) * 0.5f
-                        )
+                val tangents =
+                    points.indices.map { i ->
+                        when (i) {
+                            0 ->
+                                Pair(
+                                    (points[1].first - points[0].first) * 0.5f,
+                                    (points[1].second - points[0].second) * 0.5f,
+                                )
 
-                        points.size - 1 -> Pair(
-                            (points[i].first - points[i - 1].first) * 0.5f,
-                            (points[i].second - points[i - 1].second) * 0.5f
-                        )
+                            points.size - 1 ->
+                                Pair(
+                                    (points[i].first - points[i - 1].first) * 0.5f,
+                                    (points[i].second - points[i - 1].second) * 0.5f,
+                                )
 
-                        else -> Pair(
-                            (points[i + 1].first - points[i - 1].first) * 0.5f,
-                            (points[i + 1].second - points[i - 1].second) * 0.5f
-                        )
+                            else ->
+                                Pair(
+                                    (points[i + 1].first - points[i - 1].first) * 0.5f,
+                                    (points[i + 1].second - points[i - 1].second) * 0.5f,
+                                )
+                        }
                     }
-                }
 
                 for (i in 0 until points.size - 1) {
                     val cp1x = points[i].first + tangents[i].first / 3f
@@ -63,7 +66,7 @@ internal object GraphRenderUtils {
         currentTime: LocalDateTime,
         hourWidth: Float,
         isCurrentHour: (T) -> Boolean,
-        dateTimeOf: (T) -> LocalDateTime
+        dateTimeOf: (T) -> LocalDateTime,
     ): Float? {
         val currentHourIndex = items.indexOfFirst(isCurrentHour)
         if (currentHourIndex == -1 || currentHourIndex !in points.indices) return null
@@ -83,7 +86,7 @@ internal object GraphRenderUtils {
         dpToPx: (Float) -> Float,
         showLabel: (T) -> Boolean,
         labelText: (T) -> String,
-        onLabelDrawn: ((index: Int, clampedX: Float) -> Unit)? = null
+        onLabelDrawn: ((index: Int, clampedX: Float) -> Unit)? = null,
     ) {
         var lastHourLabelX = -1000f
 
@@ -108,7 +111,7 @@ internal object GraphRenderUtils {
         graphHeight: Float,
         currentTimePaint: Paint,
         nowLabelTextPaint: Paint,
-        dpToPx: (Float) -> Float
+        dpToPx: (Float) -> Float,
     ) {
         if (nowX == null) return
 

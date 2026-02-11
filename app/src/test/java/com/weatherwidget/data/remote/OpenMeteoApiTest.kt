@@ -12,12 +12,15 @@ import org.junit.Before
 import org.junit.Test
 
 class OpenMeteoApiTest {
-
     private lateinit var json: Json
 
     @Before
     fun setup() {
-        json = Json { ignoreUnknownKeys = true; isLenient = true }
+        json =
+            Json {
+                ignoreUnknownKeys = true
+                isLenient = true
+            }
     }
 
     private fun createMockClient(responseJson: String): HttpClient {
@@ -27,7 +30,7 @@ class OpenMeteoApiTest {
                     respond(
                         content = responseJson,
                         status = HttpStatusCode.OK,
-                        headers = headersOf(HttpHeaders.ContentType, "application/json")
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
                     )
                 }
             }
@@ -38,60 +41,64 @@ class OpenMeteoApiTest {
     }
 
     @Test
-    fun `getForecast parses daily temperatures correctly`() = runTest {
-        val responseJson = """
-            {
-                "current": {
-                    "temperature_2m": 65.5,
-                    "weather_code": 0
-                },
-                "daily": {
-                    "time": ["2026-01-27", "2026-01-28", "2026-01-29"],
-                    "temperature_2m_max": [70.0, 72.5, 68.0],
-                    "temperature_2m_min": [45.0, 48.5, 42.0],
-                    "weather_code": [0, 1, 3]
+    fun `getForecast parses daily temperatures correctly`() =
+        runTest {
+            val responseJson =
+                """
+                {
+                    "current": {
+                        "temperature_2m": 65.5,
+                        "weather_code": 0
+                    },
+                    "daily": {
+                        "time": ["2026-01-27", "2026-01-28", "2026-01-29"],
+                        "temperature_2m_max": [70.0, 72.5, 68.0],
+                        "temperature_2m_min": [45.0, 48.5, 42.0],
+                        "weather_code": [0, 1, 3]
+                    }
                 }
-            }
-        """.trimIndent()
+                """.trimIndent()
 
-        val client = createMockClient(responseJson)
-        val api = OpenMeteoApi(client, json)
+            val client = createMockClient(responseJson)
+            val api = OpenMeteoApi(client, json)
 
-        val forecast = api.getForecast(37.42, -122.08)
+            val forecast = api.getForecast(37.42, -122.08)
 
-        assertEquals(3, forecast.daily.size)
-        assertEquals(66, forecast.currentTemp) // 65.5 rounds to 66
+            assertEquals(3, forecast.daily.size)
+            assertEquals(66, forecast.currentTemp) // 65.5 rounds to 66
 
-        assertEquals("2026-01-27", forecast.daily[0].date)
-        assertEquals(70, forecast.daily[0].highTemp)
-        assertEquals(45, forecast.daily[0].lowTemp)
+            assertEquals("2026-01-27", forecast.daily[0].date)
+            assertEquals(70, forecast.daily[0].highTemp)
+            assertEquals(45, forecast.daily[0].lowTemp)
 
-        assertEquals("2026-01-28", forecast.daily[1].date)
-        assertEquals(73, forecast.daily[1].highTemp) // 72.5 rounds to 73
-        assertEquals(49, forecast.daily[1].lowTemp) // 48.5 rounds to 49
-    }
+            assertEquals("2026-01-28", forecast.daily[1].date)
+            assertEquals(73, forecast.daily[1].highTemp) // 72.5 rounds to 73
+            assertEquals(49, forecast.daily[1].lowTemp) // 48.5 rounds to 49
+        }
 
     @Test
-    fun `getForecast handles missing current temperature`() = runTest {
-        val responseJson = """
-            {
-                "daily": {
-                    "time": ["2026-01-28"],
-                    "temperature_2m_max": [70.0],
-                    "temperature_2m_min": [45.0],
-                    "weather_code": [0]
+    fun `getForecast handles missing current temperature`() =
+        runTest {
+            val responseJson =
+                """
+                {
+                    "daily": {
+                        "time": ["2026-01-28"],
+                        "temperature_2m_max": [70.0],
+                        "temperature_2m_min": [45.0],
+                        "weather_code": [0]
+                    }
                 }
-            }
-        """.trimIndent()
+                """.trimIndent()
 
-        val client = createMockClient(responseJson)
-        val api = OpenMeteoApi(client, json)
+            val client = createMockClient(responseJson)
+            val api = OpenMeteoApi(client, json)
 
-        val forecast = api.getForecast(37.42, -122.08)
+            val forecast = api.getForecast(37.42, -122.08)
 
-        assertNull(forecast.currentTemp)
-        assertEquals(1, forecast.daily.size)
-    }
+            assertNull(forecast.currentTemp)
+            assertEquals(1, forecast.daily.size)
+        }
 
     @Test
     fun `weatherCodeToCondition returns correct conditions`() {

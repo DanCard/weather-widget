@@ -27,40 +27,41 @@ import java.util.concurrent.TimeUnit
  */
 @RequiresApi(Build.VERSION_CODES.O)
 class OpportunisticUpdateJobService : JobService() {
-
     private var job: Job? = null
 
     override fun onStartJob(params: JobParameters): Boolean {
         Log.d(TAG, "Opportunistic update job started")
 
-        job = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Check if we have recent hourly data for interpolation
-                if (DataFreshness.hasRecentHourlyData(applicationContext)) {
-                    Log.d(TAG, "Triggering UI-only update from opportunistic job")
+        job =
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    // Check if we have recent hourly data for interpolation
+                    if (DataFreshness.hasRecentHourlyData(applicationContext)) {
+                        Log.d(TAG, "Triggering UI-only update from opportunistic job")
 
-                    // Trigger UI-only update (no network fetch)
-                    val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                        .setInputData(
-                            Data.Builder()
-                                .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                        // Trigger UI-only update (no network fetch)
+                        val workRequest =
+                            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                                .setInputData(
+                                    Data.Builder()
+                                        .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                                        .build(),
+                                )
+                                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                                 .build()
-                        )
-                        .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                        .build()
 
-                    WorkManager.getInstance(applicationContext).enqueueUniqueWork(
-                        WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
-                        androidx.work.ExistingWorkPolicy.REPLACE,
-                        workRequest
-                    )
-                } else {
-                    Log.d(TAG, "No recent hourly data, skipping opportunistic update")
+                        WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+                            WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
+                            androidx.work.ExistingWorkPolicy.REPLACE,
+                            workRequest,
+                        )
+                    } else {
+                        Log.d(TAG, "No recent hourly data, skipping opportunistic update")
+                    }
+                } finally {
+                    jobFinished(params, false)
                 }
-            } finally {
-                jobFinished(params, false)
             }
-        }
 
         return true // Job is running asynchronously
     }
@@ -87,17 +88,18 @@ class OpportunisticUpdateJobService : JobService() {
             val jobScheduler = context.getSystemService(Context.JOB_SCHEDULER_SERVICE) as JobScheduler
             val componentName = ComponentName(context, OpportunisticUpdateJobService::class.java)
 
-            val jobInfo = JobInfo.Builder(JOB_ID, componentName)
-                // Run every 30 minutes, but only when device is already awake
-                .setPeriodic(TimeUnit.MINUTES.toMillis(30))
-                // Don't require charging or idle - run opportunistically
-                .setRequiresCharging(false)
-                .setRequiresDeviceIdle(false)
-                // Require any network for potential future use
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
-                // Persist across reboots
-                .setPersisted(true)
-                .build()
+            val jobInfo =
+                JobInfo.Builder(JOB_ID, componentName)
+                    // Run every 30 minutes, but only when device is already awake
+                    .setPeriodic(TimeUnit.MINUTES.toMillis(30))
+                    // Don't require charging or idle - run opportunistically
+                    .setRequiresCharging(false)
+                    .setRequiresDeviceIdle(false)
+                    // Require any network for potential future use
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_NONE)
+                    // Persist across reboots
+                    .setPersisted(true)
+                    .build()
 
             val result = jobScheduler.schedule(jobInfo)
             if (result == JobScheduler.RESULT_SUCCESS) {

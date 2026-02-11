@@ -1,12 +1,10 @@
 package com.weatherwidget.util
 
+import com.weatherwidget.R
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import com.weatherwidget.R
-import java.time.LocalDateTime
 
 class WeatherIconMapperTest {
-
     @Test
     fun testGetIconResource_ClearDay() {
         val res = WeatherIconMapper.getIconResource("Clear", isNight = false)

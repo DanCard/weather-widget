@@ -9,18 +9,17 @@ import java.time.LocalDateTime
 import kotlin.math.abs
 
 object PrecipitationGraphRenderer {
-
     data class PrecipHourData(
         val dateTime: LocalDateTime,
-        val precipProbability: Int,   // 0-100
-        val label: String,            // "12a", "1p", "2p"
+        val precipProbability: Int, // 0-100
+        val label: String, // "12a", "1p", "2p"
         val isCurrentHour: Boolean = false,
-        val showLabel: Boolean = true
+        val showLabel: Boolean = true,
     )
 
     private data class LabelCandidate(
         val index: Int,
-        val priority: Int
+        val priority: Int,
     )
 
     fun renderGraph(
@@ -28,7 +27,7 @@ object PrecipitationGraphRenderer {
         hours: List<PrecipHourData>,
         widthPx: Int,
         heightPx: Int,
-        currentTime: LocalDateTime
+        currentTime: LocalDateTime,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -52,54 +51,64 @@ object PrecipitationGraphRenderer {
         // --- Paints ---
 
         val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
-        val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#5AC8FA")
-            strokeWidth = dpToPx(context, curveStrokeDp)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
+        val curvePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#5AC8FA")
+                strokeWidth = dpToPx(context, curveStrokeDp)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
 
-        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-            shader = LinearGradient(
-                0f, graphTop, 0f, graphBottom,
-                Color.parseColor("#445AC8FA"),
-                Color.parseColor("#005AC8FA"),
-                Shader.TileMode.CLAMP
-            )
-        }
+        val gradientPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                shader =
+                    LinearGradient(
+                        0f,
+                        graphTop,
+                        0f,
+                        graphBottom,
+                        Color.parseColor("#445AC8FA"),
+                        Color.parseColor("#005AC8FA"),
+                        Shader.TileMode.CLAMP,
+                    )
+            }
 
         // Current-time vertical line
-        val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF9F0A")
-            strokeWidth = dpToPx(context, 0.5f)
-            style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
-        }
+        val currentTimePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FF9F0A")
+                strokeWidth = dpToPx(context, 0.5f)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
+            }
 
-        val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 13.0f)
-            textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
-        }
+        val hourLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#99FFFFFF")
+                textSize = dpToPx(context, 13.0f)
+                textAlign = Paint.Align.CENTER
+                setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
+            }
 
-        val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 11.0f)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-        }
+        val percentLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFFFFF")
+                textSize = dpToPx(context, 11.0f)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+            }
 
-        val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#BBFF9F0A")
-            textSize = dpToPx(context, 11.0f)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
-        }
+        val nowLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#BBFF9F0A")
+                textSize = dpToPx(context, 11.0f)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
+            }
 
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
@@ -120,14 +129,15 @@ object PrecipitationGraphRenderer {
 
         // Track NOW x-position
         val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
-        val nowX = GraphRenderUtils.computeNowX(
-            items = hours,
-            points = points,
-            currentTime = currentTime,
-            hourWidth = hourWidth,
-            isCurrentHour = { it.isCurrentHour },
-            dateTimeOf = { it.dateTime }
-        )
+        val nowX =
+            GraphRenderUtils.computeNowX(
+                items = hours,
+                points = points,
+                currentTime = currentTime,
+                hourWidth = hourWidth,
+                isCurrentHour = { it.isCurrentHour },
+                dateTimeOf = { it.dateTime },
+            )
 
         val probs = hours.map { it.precipProbability.coerceIn(0, 100) }
         Log.d("PrecipGraph", "probs=${probs.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
@@ -138,11 +148,21 @@ object PrecipitationGraphRenderer {
         val globalMinIndex = probs.indices.minByOrNull { probs[it] } ?: -1
         val firstPositive = probs.indexOfFirst { it > 0 }
         val firstLabeledPositive = hours.indexOfFirst { it.showLabel && it.precipProbability > 0 }
-        Log.d("PrecipGraph", "globalMax=$globalMaxIndex(${probs.getOrNull(globalMaxIndex)}%), globalMin=$globalMinIndex(${probs.getOrNull(globalMinIndex)}%), firstPos=$firstPositive, firstLabeledPos=$firstLabeledPositive")
+        Log.d(
+            "PrecipGraph",
+            "globalMax=$globalMaxIndex(${probs.getOrNull(
+                globalMaxIndex,
+            )}%), globalMin=$globalMinIndex(${probs.getOrNull(
+                globalMinIndex,
+            )}%), firstPos=$firstPositive, firstLabeledPos=$firstLabeledPositive",
+        )
 
         val candidateMap = mutableMapOf<Int, Int>()
 
-        fun addCandidate(index: Int, priority: Int) {
+        fun addCandidate(
+            index: Int,
+            priority: Int,
+        ) {
             if (index !in probs.indices || probs[index] <= 0) return
             val existing = candidateMap[index]
             if (existing == null || priority < existing) {
@@ -177,57 +197,61 @@ object PrecipitationGraphRenderer {
             if (hour.showLabel) addCandidate(index, 3)
         }
 
-        val sortedCandidates = candidateMap.entries
-            .map { LabelCandidate(it.key, it.value) }
-            .sortedWith(compareBy<LabelCandidate> { it.priority }.thenBy { -probs[it.index] })
+        val sortedCandidates =
+            candidateMap.entries
+                .map { LabelCandidate(it.key, it.value) }
+                .sortedWith(compareBy<LabelCandidate> { it.priority }.thenBy { -probs[it.index] })
 
         // Treat extrema as mandatory labels so important peaks/valleys survive de-cluttering.
         val mandatoryIndices = mutableSetOf<Int>()
         if (globalMaxIndex in probs.indices && probs[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
         if (globalMinIndex in probs.indices && probs[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
-        
+
         // Peaks: must have reasonable prominence (e.g. >= 8%) to be mandatory
-        localMaxima.forEach { idx -> 
-            if (localProminence(probs, idx) >= 8) mandatoryIndices.add(idx) 
+        localMaxima.forEach { idx ->
+            if (localProminence(probs, idx) >= 8) mandatoryIndices.add(idx)
         }
-        
-        // Valleys: only mandatory if they represent a dip to "low" probability (< 60%) 
+
+        // Valleys: only mandatory if they represent a dip to "low" probability (< 60%)
         // AND have reasonable prominence (>= 4%)
-        localMinima.forEach { idx -> 
-            if (probs[idx] < 60 && localProminence(probs, idx) >= 4) mandatoryIndices.add(idx) 
+        localMinima.forEach { idx ->
+            if (probs[idx] < 60 && localProminence(probs, idx) >= 4) mandatoryIndices.add(idx)
         }
 
-        val orderedCandidates = sortedCandidates.sortedWith(
-            compareBy<LabelCandidate> { if (it.index in mandatoryIndices) 0 else 1 }
-                .thenBy { it.priority }
-                .thenBy { -probs[it.index] }
-        )
-
-        val nowLabelBounds = if (nowX != null) {
-            val lineHeight = graphHeight * 0.6f
-            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-            val nowText = "NOW"
-            val nowTextWidth = nowLabelTextPaint.measureText(nowText)
-            val nowTextHeight = nowLabelTextPaint.textSize
-            RectF(
-                nowX - nowTextWidth / 2f,
-                lineTop - dpToPx(context, 2f) - nowTextHeight,
-                nowX + nowTextWidth / 2f,
-                lineTop - dpToPx(context, 2f)
+        val orderedCandidates =
+            sortedCandidates.sortedWith(
+                compareBy<LabelCandidate> { if (it.index in mandatoryIndices) 0 else 1 }
+                    .thenBy { it.priority }
+                    .thenBy { -probs[it.index] },
             )
-        } else {
-            null
-        }
+
+        val nowLabelBounds =
+            if (nowX != null) {
+                val lineHeight = graphHeight * 0.6f
+                val lineTop = graphTop + (graphHeight - lineHeight) / 2f
+                val nowText = "NOW"
+                val nowTextWidth = nowLabelTextPaint.measureText(nowText)
+                val nowTextHeight = nowLabelTextPaint.textSize
+                RectF(
+                    nowX - nowTextWidth / 2f,
+                    lineTop - dpToPx(context, 2f) - nowTextHeight,
+                    nowX + nowTextWidth / 2f,
+                    lineTop - dpToPx(context, 2f),
+                )
+            } else {
+                null
+            }
 
         val drawnLabelBounds = mutableListOf<RectF>()
         val labeledIndices = mutableSetOf<Int>()
         val aboveGap = dpToPx(context, 4f)
         val belowGap = dpToPx(context, 14f)
-        val maxLabels = when {
-            widthPx >= 1100 -> 11
-            widthPx >= 800 -> 9
-            else -> 7
-        }
+        val maxLabels =
+            when {
+                widthPx >= 1100 -> 11
+                widthPx >= 800 -> 9
+                else -> 7
+            }
         var labelsPlaced = 0
 
         for (candidate in orderedCandidates) {
@@ -242,7 +266,10 @@ object PrecipitationGraphRenderer {
                 val nearestLeft = labeledIndices.filter { it < candidate.index }.maxOrNull() ?: -1
                 val nearestRight = labeledIndices.filter { it > candidate.index }.minOrNull() ?: (hours.size + 1)
                 if (nearestRight - nearestLeft < 7) {
-                    Log.d("PrecipGraph", "SKIPPED interval label at idx=${candidate.index} (${hours[candidate.index].label}): gap=${nearestRight - nearestLeft} too small")
+                    Log.d(
+                        "PrecipGraph",
+                        "SKIPPED interval label at idx=${candidate.index} (${hours[candidate.index].label}): gap=${nearestRight - nearestLeft} too small",
+                    )
                     continue
                 }
             }
@@ -253,7 +280,7 @@ object PrecipitationGraphRenderer {
             val prob = probs[index]
             if (prob <= 0) continue
 
-            val labelText = "${prob}%"
+            val labelText = "$prob%"
             val textWidth = percentLabelPaint.measureText(labelText)
             val textHeight = percentLabelPaint.textSize
 
@@ -261,33 +288,39 @@ object PrecipitationGraphRenderer {
             val isValley = index in localMinima || index == globalMinIndex
             val isEarlyAnchor = index == firstPositive || index == firstLabeledPositive
 
-            val attempts = when {
-                isEarlyAnchor -> listOf(
-                    Pair(0f, true),
-                    Pair(0f, false)
-                )
-                isPeak -> listOf(
-                    Pair(0f, true)
-                )
-                isValley -> listOf(
-                    Pair(0f, false)
-                )
-                else -> listOf(
-                    Pair(0f, true),
-                    Pair(0f, false)
-                )
-            }
+            val attempts =
+                when {
+                    isEarlyAnchor ->
+                        listOf(
+                            Pair(0f, true),
+                            Pair(0f, false),
+                        )
+                    isPeak ->
+                        listOf(
+                            Pair(0f, true),
+                        )
+                    isValley ->
+                        listOf(
+                            Pair(0f, false),
+                        )
+                    else ->
+                        listOf(
+                            Pair(0f, true),
+                            Pair(0f, false),
+                        )
+                }
 
             Log.d("PrecipGraph", "Attempting label for idx=$index (${hours[index].label}) prob=$prob% isPeak=$isPeak")
             for ((dx, placeAbove) in attempts) {
                 val x = (centerX + dx).coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
                 val baselineY = if (placeAbove) y - aboveGap else y + belowGap
-                val bounds = RectF(
-                    x - textWidth / 2f,
-                    baselineY - textHeight,
-                    x + textWidth / 2f,
-                    baselineY
-                )
+                val bounds =
+                    RectF(
+                        x - textWidth / 2f,
+                        baselineY - textHeight,
+                        x + textWidth / 2f,
+                        baselineY,
+                    )
 
                 // Relaxed vertical bounds: allow drawing in the top padding area (above graphTop), just stay on screen.
                 val inVerticalBounds = bounds.top >= 0f && bounds.bottom <= (graphBottom - dpToPx(context, 2f))
@@ -303,17 +336,21 @@ object PrecipitationGraphRenderer {
                     continue
                 }
 
-                val reason = when {
-                    isMandatory -> "mandatory"
-                    isPeak -> "peak"
-                    isValley -> "valley"
-                    isEarlyAnchor -> "earlyAnchor"
-                    candidate.priority == 2 -> "currentHour/edge"
-                    candidate.priority == 3 -> "interval"
-                    candidate.priority == 4 -> "highProb"
-                    else -> "pri=${candidate.priority}"
-                }
-                Log.d("PrecipGraph", "PLACED label: ${labelText} at hour=${hours[index].label}(idx=$index) reason=$reason above=$placeAbove dx=$dx")
+                val reason =
+                    when {
+                        isMandatory -> "mandatory"
+                        isPeak -> "peak"
+                        isValley -> "valley"
+                        isEarlyAnchor -> "earlyAnchor"
+                        candidate.priority == 2 -> "currentHour/edge"
+                        candidate.priority == 3 -> "interval"
+                        candidate.priority == 4 -> "highProb"
+                        else -> "pri=${candidate.priority}"
+                    }
+                Log.d(
+                    "PrecipGraph",
+                    "PLACED label: $labelText at hour=${hours[index].label}(idx=$index) reason=$reason above=$placeAbove dx=$dx",
+                )
                 canvas.drawText(labelText, x, baselineY, percentLabelPaint)
                 drawnLabelBounds.add(bounds)
                 labeledIndices.add(index)
@@ -332,7 +369,7 @@ object PrecipitationGraphRenderer {
             hourLabelTextPaint = hourLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
             showLabel = { it.showLabel },
-            labelText = { it.label }
+            labelText = { it.label },
         )
 
         GraphRenderUtils.drawNowIndicator(
@@ -342,7 +379,7 @@ object PrecipitationGraphRenderer {
             graphHeight = graphHeight,
             currentTimePaint = currentTimePaint,
             nowLabelTextPaint = nowLabelTextPaint,
-            dpToPx = { dpToPx(context, it) }
+            dpToPx = { dpToPx(context, it) },
         )
 
         // Raindrop icon placed in the emptiest region of the graph
@@ -368,17 +405,23 @@ object PrecipitationGraphRenderer {
             val lowX = points[lowCenter].first
             val lowCurveY = points[lowCenter].second
             val aboveCenterY = graphTop + (lowCurveY - graphTop) / 2f
-            val aboveBounds = RectF(
-                lowX - iconSizePx / 2f, aboveCenterY - iconSizePx / 2f,
-                lowX + iconSizePx / 2f, aboveCenterY + iconSizePx / 2f
-            )
+            val aboveBounds =
+                RectF(
+                    lowX - iconSizePx / 2f,
+                    aboveCenterY - iconSizePx / 2f,
+                    lowX + iconSizePx / 2f,
+                    aboveCenterY + iconSizePx / 2f,
+                )
             if (aboveBounds.top >= 0f &&
                 aboveBounds.bottom < lowCurveY - iconGap &&
-                !drawnLabelBounds.any { RectF.intersects(it, aboveBounds) }) {
+                !drawnLabelBounds.any { RectF.intersects(it, aboveBounds) }
+            ) {
                 rainDrawable.alpha = 100
                 rainDrawable.setBounds(
-                    aboveBounds.left.toInt(), aboveBounds.top.toInt(),
-                    aboveBounds.right.toInt(), aboveBounds.bottom.toInt()
+                    aboveBounds.left.toInt(),
+                    aboveBounds.top.toInt(),
+                    aboveBounds.right.toInt(),
+                    aboveBounds.bottom.toInt(),
                 )
                 rainDrawable.draw(canvas)
                 iconPlaced = true
@@ -400,17 +443,23 @@ object PrecipitationGraphRenderer {
                 val highX = points[highCenter].first
                 val highCurveY = points[highCenter].second
                 val belowCenterY = highCurveY + (graphBottom - highCurveY) / 2f
-                val belowBounds = RectF(
-                    highX - iconSizePx / 2f, belowCenterY - iconSizePx / 2f,
-                    highX + iconSizePx / 2f, belowCenterY + iconSizePx / 2f
-                )
+                val belowBounds =
+                    RectF(
+                        highX - iconSizePx / 2f,
+                        belowCenterY - iconSizePx / 2f,
+                        highX + iconSizePx / 2f,
+                        belowCenterY + iconSizePx / 2f,
+                    )
                 if (belowBounds.top > highCurveY + iconGap &&
                     belowBounds.bottom <= graphBottom &&
-                    !drawnLabelBounds.any { RectF.intersects(it, belowBounds) }) {
+                    !drawnLabelBounds.any { RectF.intersects(it, belowBounds) }
+                ) {
                     rainDrawable.alpha = 100
                     rainDrawable.setBounds(
-                        belowBounds.left.toInt(), belowBounds.top.toInt(),
-                        belowBounds.right.toInt(), belowBounds.bottom.toInt()
+                        belowBounds.left.toInt(),
+                        belowBounds.top.toInt(),
+                        belowBounds.right.toInt(),
+                        belowBounds.bottom.toInt(),
                     )
                     rainDrawable.draw(canvas)
                 }
@@ -420,7 +469,10 @@ object PrecipitationGraphRenderer {
         return bitmap
     }
 
-    private fun findLocalExtremaIndices(values: List<Int>, isMax: Boolean): Set<Int> {
+    private fun findLocalExtremaIndices(
+        values: List<Int>,
+        isMax: Boolean,
+    ): Set<Int> {
         if (values.size < 3) return emptySet()
 
         return (1 until values.lastIndex).filter { i ->
@@ -435,7 +487,10 @@ object PrecipitationGraphRenderer {
         }.toSet()
     }
 
-    private fun localProminence(values: List<Int>, index: Int): Int {
+    private fun localProminence(
+        values: List<Int>,
+        index: Int,
+    ): Int {
         if (index <= 0 || index >= values.lastIndex) return 0
         val current = values[index]
         val prev = values[index - 1]
@@ -443,11 +498,14 @@ object PrecipitationGraphRenderer {
         return maxOf(abs(current - prev), abs(current - next))
     }
 
-    private fun dpToPx(context: Context, dp: Float): Float {
+    private fun dpToPx(
+        context: Context,
+        dp: Float,
+    ): Float {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dp,
-            context.resources.displayMetrics
+            context.resources.displayMetrics,
         )
     }
 }

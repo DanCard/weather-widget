@@ -9,7 +9,6 @@ import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.util.TemperatureInterpolator
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -19,7 +18,6 @@ import java.time.format.DateTimeFormatter
  * without forcing device wakeups. Updates piggyback on other system activity.
  */
 class UIUpdateScheduler(private val context: Context) {
-
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     private val interpolator = TemperatureInterpolator()
 
@@ -59,11 +57,12 @@ class UIUpdateScheduler(private val context: Context) {
             val currentTemp = hourlyForecasts.find { it.dateTime == currentHourStr }?.temperature
             val nextTemp = hourlyForecasts.find { it.dateTime == nextHourStr }?.temperature
 
-            val tempDifference = if (currentTemp != null && nextTemp != null) {
-                Math.abs(nextTemp - currentTemp).toInt()
-            } else {
-                2 // Default to moderate change rate
-            }
+            val tempDifference =
+                if (currentTemp != null && nextTemp != null) {
+                    Math.abs(nextTemp - currentTemp).toInt()
+                } else {
+                    2 // Default to moderate change rate
+                }
 
             // Calculate next update time based on temperature change rate
             val nextUpdateTime = interpolator.getNextUpdateTime(now, tempDifference)
@@ -77,8 +76,11 @@ class UIUpdateScheduler(private val context: Context) {
                 Log.d(TAG, "Capped delay to 15 mins for UI responsiveness")
             }
 
-            Log.d(TAG, "Scheduling next UI update in ${delayMillis / 1000 / 60} minutes " +
-                    "(tempDiff=$tempDifference, nextUpdate=$nextUpdateTime)")
+            Log.d(
+                TAG,
+                "Scheduling next UI update in ${delayMillis / 1000 / 60} minutes " +
+                    "(tempDiff=$tempDifference, nextUpdate=$nextUpdateTime)",
+            )
 
             scheduleUpdate(delayMillis.coerceAtLeast(60 * 1000L)) // Minimum 1 minute
         } catch (e: Exception) {
@@ -93,12 +95,13 @@ class UIUpdateScheduler(private val context: Context) {
      */
     private fun scheduleUpdate(delayMillis: Long) {
         val intent = Intent(context, UIUpdateReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            UI_UPDATE_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                UI_UPDATE_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
 
         val triggerAtMillis = System.currentTimeMillis() + delayMillis
 
@@ -108,13 +111,13 @@ class UIUpdateScheduler(private val context: Context) {
             alarmManager.setAndAllowWhileIdle(
                 AlarmManager.RTC,
                 triggerAtMillis,
-                pendingIntent
+                pendingIntent,
             )
         } else {
             alarmManager.set(
                 AlarmManager.RTC,
                 triggerAtMillis,
-                pendingIntent
+                pendingIntent,
             )
         }
 
@@ -126,12 +129,13 @@ class UIUpdateScheduler(private val context: Context) {
      */
     fun cancelScheduledUpdates() {
         val intent = Intent(context, UIUpdateReceiver::class.java)
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            UI_UPDATE_REQUEST_CODE,
-            intent,
-            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE
-        )
+        val pendingIntent =
+            PendingIntent.getBroadcast(
+                context,
+                UI_UPDATE_REQUEST_CODE,
+                intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            )
 
         pendingIntent?.let {
             alarmManager.cancel(it)

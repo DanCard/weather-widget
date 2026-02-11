@@ -11,7 +11,6 @@ import java.time.temporal.ChronoUnit
  * Utilities for checking data freshness and determining when background fetches are needed.
  */
 object DataFreshness {
-
     private const val TAG = "DataFreshness"
     private const val STALENESS_THRESHOLD_MINUTES = 30L
 
@@ -32,15 +31,19 @@ object DataFreshness {
                 return true
             }
 
-            val fetchedAt = java.time.Instant.ofEpochMilli(latestWeather.fetchedAt)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDateTime()
+            val fetchedAt =
+                java.time.Instant.ofEpochMilli(latestWeather.fetchedAt)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime()
             val now = LocalDateTime.now()
             val minutesSinceFetch = ChronoUnit.MINUTES.between(fetchedAt, now)
 
             val isStale = minutesSinceFetch > STALENESS_THRESHOLD_MINUTES
-            Log.d(TAG, "Data fetched $minutesSinceFetch minutes ago, stale=$isStale " +
-                    "(threshold=$STALENESS_THRESHOLD_MINUTES min)")
+            Log.d(
+                TAG,
+                "Data fetched $minutesSinceFetch minutes ago, stale=$isStale " +
+                    "(threshold=$STALENESS_THRESHOLD_MINUTES min)",
+            )
 
             isStale
         } catch (e: Exception) {
@@ -66,9 +69,10 @@ object DataFreshness {
                 return null
             }
 
-            val fetchedAt = java.time.Instant.ofEpochMilli(latestWeather.fetchedAt)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDateTime()
+            val fetchedAt =
+                java.time.Instant.ofEpochMilli(latestWeather.fetchedAt)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime()
             val now = LocalDateTime.now()
             ChronoUnit.MINUTES.between(fetchedAt, now)
         } catch (e: Exception) {

@@ -21,7 +21,6 @@ import java.util.Locale
 
 @AndroidEntryPoint
 class ConfigActivity : AppCompatActivity() {
-
     private var appWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,7 +31,7 @@ class ConfigActivity : AppCompatActivity() {
 
         appWidgetId = intent?.extras?.getInt(
             AppWidgetManager.EXTRA_APPWIDGET_ID,
-            AppWidgetManager.INVALID_APPWIDGET_ID
+            AppWidgetManager.INVALID_APPWIDGET_ID,
         ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
@@ -65,13 +64,13 @@ class ConfigActivity : AppCompatActivity() {
     private fun requestLocationPermission() {
         if (ActivityCompat.checkSelfPermission(
                 this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(
                 this,
                 arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                LOCATION_PERMISSION_REQUEST
+                LOCATION_PERMISSION_REQUEST,
             )
         } else {
             getCurrentLocation()
@@ -81,7 +80,7 @@ class ConfigActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
-        grantResults: IntArray
+        grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == LOCATION_PERMISSION_REQUEST) {
@@ -96,7 +95,7 @@ class ConfigActivity : AppCompatActivity() {
     private fun getCurrentLocation() {
         if (ActivityCompat.checkSelfPermission(
                 this,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             return
@@ -116,6 +115,7 @@ class ConfigActivity : AppCompatActivity() {
     private fun saveZipCodeLocation(zipCode: String) {
         try {
             val geocoder = Geocoder(this, Locale.getDefault())
+
             @Suppress("DEPRECATION")
             val addresses = geocoder.getFromLocationName(zipCode, 1)
             if (!addresses.isNullOrEmpty()) {
@@ -129,7 +129,10 @@ class ConfigActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveLocation(lat: Double, lon: Double) {
+    private fun saveLocation(
+        lat: Double,
+        lon: Double,
+    ) {
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
         prefs.edit()
             .putFloat("${KEY_LAT_PREFIX}$appWidgetId", lat.toFloat())

@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
@@ -14,9 +13,9 @@ import androidx.lifecycle.lifecycleScope
 import com.weatherwidget.R
 import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.AccuracyDisplayMode
-import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.ApiPreference
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -26,7 +25,6 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class SettingsActivity : AppCompatActivity() {
-
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
 
@@ -60,7 +58,7 @@ class SettingsActivity : AppCompatActivity() {
                         latestWeather.locationLon,
                         latestWeather.locationName,
                         forceRefresh = true,
-                        networkAllowed = true
+                        networkAllowed = true,
                     )
                     android.util.Log.d("SettingsActivity", "Background weather refresh complete")
                 }
@@ -79,25 +77,27 @@ class SettingsActivity : AppCompatActivity() {
 
         // Set current selection
         val currentMode = widgetStateManager.getAccuracyDisplayMode()
-        val selectedId = when (currentMode) {
-            AccuracyDisplayMode.NONE -> R.id.radio_none
-            AccuracyDisplayMode.ACCURACY_DOT -> R.id.radio_accuracy_dot
-            AccuracyDisplayMode.FORECAST_BAR -> R.id.radio_forecast_bar
-            AccuracyDisplayMode.SIDE_BY_SIDE -> R.id.radio_side_by_side
-            AccuracyDisplayMode.DIFFERENCE -> R.id.radio_difference
-        }
+        val selectedId =
+            when (currentMode) {
+                AccuracyDisplayMode.NONE -> R.id.radio_none
+                AccuracyDisplayMode.ACCURACY_DOT -> R.id.radio_accuracy_dot
+                AccuracyDisplayMode.FORECAST_BAR -> R.id.radio_forecast_bar
+                AccuracyDisplayMode.SIDE_BY_SIDE -> R.id.radio_side_by_side
+                AccuracyDisplayMode.DIFFERENCE -> R.id.radio_difference
+            }
         accuracyGroup.check(selectedId)
 
         // Listen for changes
         accuracyGroup.setOnCheckedChangeListener { _, checkedId ->
-            val mode = when (checkedId) {
-                R.id.radio_none -> AccuracyDisplayMode.NONE
-                R.id.radio_accuracy_dot -> AccuracyDisplayMode.ACCURACY_DOT
-                R.id.radio_forecast_bar -> AccuracyDisplayMode.FORECAST_BAR
-                R.id.radio_side_by_side -> AccuracyDisplayMode.SIDE_BY_SIDE
-                R.id.radio_difference -> AccuracyDisplayMode.DIFFERENCE
-                else -> AccuracyDisplayMode.FORECAST_BAR
-            }
+            val mode =
+                when (checkedId) {
+                    R.id.radio_none -> AccuracyDisplayMode.NONE
+                    R.id.radio_accuracy_dot -> AccuracyDisplayMode.ACCURACY_DOT
+                    R.id.radio_forecast_bar -> AccuracyDisplayMode.FORECAST_BAR
+                    R.id.radio_side_by_side -> AccuracyDisplayMode.SIDE_BY_SIDE
+                    R.id.radio_difference -> AccuracyDisplayMode.DIFFERENCE
+                    else -> AccuracyDisplayMode.FORECAST_BAR
+                }
             widgetStateManager.setAccuracyDisplayMode(mode)
         }
 
@@ -106,21 +106,23 @@ class SettingsActivity : AppCompatActivity() {
 
         // Set current selection
         val currentApiPref = widgetStateManager.getApiPreference()
-        val selectedApiId = when (currentApiPref) {
-            ApiPreference.ALTERNATE -> R.id.radio_api_alternate
-            ApiPreference.PREFER_NWS -> R.id.radio_api_nws
-            ApiPreference.PREFER_OPENMETEO -> R.id.radio_api_openmeteo
-        }
+        val selectedApiId =
+            when (currentApiPref) {
+                ApiPreference.ALTERNATE -> R.id.radio_api_alternate
+                ApiPreference.PREFER_NWS -> R.id.radio_api_nws
+                ApiPreference.PREFER_OPENMETEO -> R.id.radio_api_openmeteo
+            }
         apiGroup.check(selectedApiId)
 
         // Listen for changes
         apiGroup.setOnCheckedChangeListener { _, checkedId ->
-            val preference = when (checkedId) {
-                R.id.radio_api_alternate -> ApiPreference.ALTERNATE
-                R.id.radio_api_nws -> ApiPreference.PREFER_NWS
-                R.id.radio_api_openmeteo -> ApiPreference.PREFER_OPENMETEO
-                else -> ApiPreference.ALTERNATE
-            }
+            val preference =
+                when (checkedId) {
+                    R.id.radio_api_alternate -> ApiPreference.ALTERNATE
+                    R.id.radio_api_nws -> ApiPreference.PREFER_NWS
+                    R.id.radio_api_openmeteo -> ApiPreference.PREFER_OPENMETEO
+                    else -> ApiPreference.ALTERNATE
+                }
             widgetStateManager.setApiPreference(preference)
         }
 
@@ -196,16 +198,17 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
 
-        val logText = buildString {
-            append("API LOG (${entries.size} entries) - Scroll down/right to see all\n")
-            entries.forEach { entry ->
-                val status = if (entry.success) "✓" else "✗"
-                val error = if (!entry.success && entry.errorMessage != null) " ERR:${entry.errorMessage}" else ""
-                val loc = if (entry.location.isNotEmpty()) " ${entry.location}" else ""
+        val logText =
+            buildString {
+                append("API LOG (${entries.size} entries) - Scroll down/right to see all\n")
+                entries.forEach { entry ->
+                    val status = if (entry.success) "✓" else "✗"
+                    val error = if (!entry.success && entry.errorMessage != null) " ERR:${entry.errorMessage}" else ""
+                    val loc = if (entry.location.isNotEmpty()) " ${entry.location}" else ""
 
-                append("${entry.getFormattedTime()} ${entry.apiName.padEnd(11)} $status ${entry.durationMs}ms$loc$error\n")
+                    append("${entry.getFormattedTime()} ${entry.apiName.padEnd(11)} $status ${entry.durationMs}ms$loc$error\n")
+                }
             }
-        }
 
         textView.text = logText
     }
@@ -229,46 +232,48 @@ class SettingsActivity : AppCompatActivity() {
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
 
                 // Check if we have any data at all
-                val hasAnyData = (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||
-                                 (comparison.meteoStats?.totalForecasts ?: 0) > 0
+                val hasAnyData =
+                    (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||
+                        (comparison.meteoStats?.totalForecasts ?: 0) > 0
 
-                val statsText = if (!hasAnyData) {
-                    buildString {
-                        append("No historical forecast data available yet.\n\n")
-                        append("Forecast snapshots are being saved daily.\n")
-                        append("Check back tomorrow to see your first accuracy data point!\n\n")
-                        append("Timeline:\n")
-                        append("  • Tomorrow: First accuracy comparison\n")
-                        append("  • 7 days: Meaningful statistics\n")
-                        append("  • 30 days: Full statistics available")
-                    }
-                } else {
-                    buildString {
-                        append("Last 30 Days Accuracy:\n\n")
-
-                        if (comparison.nwsStats != null && comparison.nwsStats.totalForecasts > 0) {
-                            val stats = comparison.nwsStats
-                            append("NWS:\n")
-                            append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
-                            append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
-                            append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
-                            append("  • Forecasts: %d\n\n".format(stats.totalForecasts))
-                        } else {
-                            append("NWS: No data yet\n\n")
+                val statsText =
+                    if (!hasAnyData) {
+                        buildString {
+                            append("No historical forecast data available yet.\n\n")
+                            append("Forecast snapshots are being saved daily.\n")
+                            append("Check back tomorrow to see your first accuracy data point!\n\n")
+                            append("Timeline:\n")
+                            append("  • Tomorrow: First accuracy comparison\n")
+                            append("  • 7 days: Meaningful statistics\n")
+                            append("  • 30 days: Full statistics available")
                         }
+                    } else {
+                        buildString {
+                            append("Last 30 Days Accuracy:\n\n")
 
-                        if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
-                            val stats = comparison.meteoStats
-                            append("Open-Meteo:\n")
-                            append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
-                            append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
-                            append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
-                            append("  • Forecasts: %d\n".format(stats.totalForecasts))
-                        } else {
-                            append("Open-Meteo: No data yet")
+                            if (comparison.nwsStats != null && comparison.nwsStats.totalForecasts > 0) {
+                                val stats = comparison.nwsStats
+                                append("NWS:\n")
+                                append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
+                                append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
+                                append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
+                                append("  • Forecasts: %d\n\n".format(stats.totalForecasts))
+                            } else {
+                                append("NWS: No data yet\n\n")
+                            }
+
+                            if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
+                                val stats = comparison.meteoStats
+                                append("Open-Meteo:\n")
+                                append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
+                                append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
+                                append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
+                                append("  • Forecasts: %d\n".format(stats.totalForecasts))
+                            } else {
+                                append("Open-Meteo: No data yet")
+                            }
                         }
                     }
-                }
 
                 textView.text = statsText
             } catch (e: Exception) {
@@ -281,7 +286,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun formatBias(bias: Double): String {
         val absBias = kotlin.math.abs(bias)
         return when {
-            absBias < 0.5 -> ""  // Don't show negligible bias
+            absBias < 0.5 -> "" // Don't show negligible bias
             bias > 0 -> " (forecasts %.1f° low)".format(absBias)
             else -> " (forecasts %.1f° high)".format(absBias)
         }

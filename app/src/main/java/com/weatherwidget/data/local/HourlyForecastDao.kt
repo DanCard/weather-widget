@@ -4,23 +4,25 @@ import androidx.room.*
 
 @Dao
 interface HourlyForecastDao {
-
-    @Query("""
+    @Query(
+        """
         SELECT * FROM hourly_forecasts
         WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         AND dateTime >= :startDateTime
         AND dateTime <= :endDateTime
         ORDER BY dateTime ASC
-    """)
+    """,
+    )
     suspend fun getHourlyForecasts(
         startDateTime: String,
         endDateTime: String,
         lat: Double,
-        lon: Double
+        lon: Double,
     ): List<HourlyForecastEntity>
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM hourly_forecasts
         WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
@@ -28,13 +30,14 @@ interface HourlyForecastDao {
         AND dateTime <= :endDateTime
         AND source = :source
         ORDER BY dateTime ASC
-    """)
+    """,
+    )
     suspend fun getHourlyForecastsBySource(
         startDateTime: String,
         endDateTime: String,
         lat: Double,
         lon: Double,
-        source: String
+        source: String,
     ): List<HourlyForecastEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

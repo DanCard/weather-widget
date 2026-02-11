@@ -4,6 +4,24 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.ktlint)
+}
+
+ktlint {
+    version.set("1.2.1")
+    android.set(true)
+    outputToConsole.set(true)
+    filter {
+        exclude("**/generated/**")
+        exclude("**/build/**")
+    }
+    // EditorConfig settings for Kotlin files
+    additionalEditorconfig.set(
+        mapOf(
+            "ktlint_standard_no-wildcard-imports" to "disabled",
+            "ktlint_standard_max-line-length" to "disabled",
+        ),
+    )
 }
 
 android {
@@ -25,7 +43,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }

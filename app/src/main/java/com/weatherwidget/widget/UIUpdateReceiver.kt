@@ -16,24 +16,27 @@ import kotlinx.coroutines.launch
  * Receives scheduled UI update alarms and triggers UI-only widget refresh.
  */
 class UIUpdateReceiver : BroadcastReceiver() {
-
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         Log.d(TAG, "UI update alarm triggered")
 
         // Trigger UI-only update (no network fetch)
-        val workRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-            .setInputData(
-                Data.Builder()
-                    .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
-                    .build()
-            )
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
+        val workRequest =
+            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInputData(
+                    Data.Builder()
+                        .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                        .build(),
+                )
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .build()
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui",
             androidx.work.ExistingWorkPolicy.REPLACE,
-            workRequest
+            workRequest,
         )
         Log.d(TAG, "UI-only update enqueued")
 

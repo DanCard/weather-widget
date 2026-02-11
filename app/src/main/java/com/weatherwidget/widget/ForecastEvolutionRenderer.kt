@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.*
 import android.util.TypedValue
+import com.weatherwidget.data.model.WeatherSource
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -15,20 +16,20 @@ object ForecastEvolutionRenderer {
     private const val MILLIS_PER_HOUR = 60L * 60L * 1000L
 
     data class EvolutionPoint(
-        val forecastDate: String,      // When forecast was made
-        val fetchedAt: Long,           // Exact fetch time
-        val daysAhead: Int,            // How many days ahead this forecast was for
+        val forecastDate: String, // When forecast was made
+        val fetchedAt: Long, // Exact fetch time
+        val daysAhead: Int, // How many days ahead this forecast was for
         val highTemp: Int?,
         val lowTemp: Int?,
-        val source: String             // "NWS" or "OPEN_METEO"
+        val source: WeatherSource,
     )
 
     // Colors
-    private const val NWS_COLOR = "#5AC8FA"       // Blue
-    private const val METEO_COLOR = "#34C759"     // Green
-    private const val ACTUAL_COLOR = "#FF9F0A"    // Orange
-    private const val LABEL_COLOR = "#AAAAAA"     // Gray
-    private const val GRID_COLOR = "#333333"      // Dark gray
+    private const val NWS_COLOR = "#5AC8FA" // Blue
+    private const val METEO_COLOR = "#34C759" // Green
+    private const val ACTUAL_COLOR = "#FF9F0A" // Orange
+    private const val LABEL_COLOR = "#AAAAAA" // Gray
+    private const val GRID_COLOR = "#333333" // Dark gray
     private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
     private val DATETIME_FORMATTER = DateTimeFormatter.ofPattern("M/d h a", Locale.getDefault())
 
@@ -38,7 +39,7 @@ object ForecastEvolutionRenderer {
         meteoPoints: List<EvolutionPoint>,
         actualHigh: Int?,
         widthPx: Int,
-        heightPx: Int
+        heightPx: Int,
     ): Bitmap {
         return renderGraph(
             context = context,
@@ -47,7 +48,7 @@ object ForecastEvolutionRenderer {
             actualValue = actualHigh,
             widthPx = widthPx,
             heightPx = heightPx,
-            isHigh = true
+            isHigh = true,
         )
     }
 
@@ -57,7 +58,7 @@ object ForecastEvolutionRenderer {
         meteoPoints: List<EvolutionPoint>,
         actualLow: Int?,
         widthPx: Int,
-        heightPx: Int
+        heightPx: Int,
     ): Bitmap {
         return renderGraph(
             context = context,
@@ -66,7 +67,7 @@ object ForecastEvolutionRenderer {
             actualValue = actualLow,
             widthPx = widthPx,
             heightPx = heightPx,
-            isHigh = false
+            isHigh = false,
         )
     }
 
@@ -76,7 +77,7 @@ object ForecastEvolutionRenderer {
         meteoPoints: List<EvolutionPoint>,
         actualHigh: Int?,
         widthPx: Int,
-        heightPx: Int
+        heightPx: Int,
     ): Bitmap {
         return renderErrorGraph(
             context = context,
@@ -85,7 +86,7 @@ object ForecastEvolutionRenderer {
             actualValue = actualHigh,
             widthPx = widthPx,
             heightPx = heightPx,
-            isHigh = true
+            isHigh = true,
         )
     }
 
@@ -95,7 +96,7 @@ object ForecastEvolutionRenderer {
         meteoPoints: List<EvolutionPoint>,
         actualLow: Int?,
         widthPx: Int,
-        heightPx: Int
+        heightPx: Int,
     ): Bitmap {
         return renderErrorGraph(
             context = context,
@@ -104,7 +105,7 @@ object ForecastEvolutionRenderer {
             actualValue = actualLow,
             widthPx = widthPx,
             heightPx = heightPx,
-            isHigh = false
+            isHigh = false,
         )
     }
 
@@ -115,7 +116,7 @@ object ForecastEvolutionRenderer {
         actualValue: Int?,
         widthPx: Int,
         heightPx: Int,
-        isHigh: Boolean
+        isHigh: Boolean,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -162,16 +163,17 @@ object ForecastEvolutionRenderer {
 
         if (allTemps.isEmpty()) return bitmap
 
-        val forecastSamples = (nwsSeries + meteoSeries).mapNotNull { point ->
-            val temp = tempFor(point)
-            temp?.let {
-                ForecastSample(
-                    temp = it,
-                    daysAhead = point.daysAhead,
-                    source = point.source
-                )
+        val forecastSamples =
+            (nwsSeries + meteoSeries).mapNotNull { point ->
+                val temp = tempFor(point)
+                temp?.let {
+                    ForecastSample(
+                        temp = it,
+                        daysAhead = point.daysAhead,
+                        source = point.source,
+                    )
+                }
             }
-        }
 
         if (forecastSamples.size == 1) {
             return renderSinglePointBarGraph(
@@ -180,18 +182,18 @@ object ForecastEvolutionRenderer {
                 heightPx = heightPx,
                 sample = forecastSamples.first(),
                 actualValue = actualValue,
-                isHigh = isHigh
+                isHigh = isHigh,
             )
         }
 
         val minTemp = allTemps.minOrNull()?.toFloat() ?: 0f
         val maxTemp = allTemps.maxOrNull()?.toFloat() ?: 100f
-        val tempRange = (maxTemp - minTemp).coerceAtLeast(5f)  // Minimum 5 degree range
+        val tempRange = (maxTemp - minTemp).coerceAtLeast(5f) // Minimum 5 degree range
 
         // Layout constants
-        val paddingLeft = dpToPx(context, 40f)   // Space for Y-axis labels
+        val paddingLeft = dpToPx(context, 40f) // Space for Y-axis labels
         val paddingRight = dpToPx(context, 16f)
-        val paddingTop = dpToPx(context, 24f)    // Space for title
+        val paddingTop = dpToPx(context, 24f) // Space for title
         val paddingBottom = dpToPx(context, 32f) // Space for X-axis labels
 
         val graphLeft = paddingLeft
@@ -208,52 +210,59 @@ object ForecastEvolutionRenderer {
         val isSingleTimeDataset = minTime == maxTime
 
         // Paints
-        val nwsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(NWS_COLOR)
-            strokeWidth = dpToPx(context, 2.5f)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
+        val nwsPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(NWS_COLOR)
+                strokeWidth = dpToPx(context, 2.5f)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
 
-        val meteoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(METEO_COLOR)
-            strokeWidth = dpToPx(context, 2.5f)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
+        val meteoPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(METEO_COLOR)
+                strokeWidth = dpToPx(context, 2.5f)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
 
-        val actualPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(ACTUAL_COLOR)
-            strokeWidth = dpToPx(context, 2f)
-            style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
-        }
+        val actualPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(ACTUAL_COLOR)
+                strokeWidth = dpToPx(context, 2f)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
+            }
 
-        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(GRID_COLOR)
-            strokeWidth = dpToPx(context, 1f)
-            style = Paint.Style.STROKE
-        }
+        val gridPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(GRID_COLOR)
+                strokeWidth = dpToPx(context, 1f)
+                style = Paint.Style.STROKE
+            }
 
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 13.0f)
-            textAlign = Paint.Align.CENTER
-        }
+        val labelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(LABEL_COLOR)
+                textSize = dpToPx(context, 13.0f)
+                textAlign = Paint.Align.CENTER
+            }
 
-        val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 13.0f)
-            textAlign = Paint.Align.RIGHT
-        }
+        val yLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(LABEL_COLOR)
+                textSize = dpToPx(context, 13.0f)
+                textAlign = Paint.Align.RIGHT
+            }
 
-        val actualLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(ACTUAL_COLOR)
-            textSize = dpToPx(context, 14.5f)
-            textAlign = Paint.Align.LEFT
-        }
+        val actualLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(ACTUAL_COLOR)
+                textSize = dpToPx(context, 14.5f)
+                textAlign = Paint.Align.LEFT
+            }
 
         // Draw grid lines (horizontal)
         val gridSteps = 4
@@ -373,7 +382,7 @@ object ForecastEvolutionRenderer {
         actualValue: Int?,
         widthPx: Int,
         heightPx: Int,
-        isHigh: Boolean
+        isHigh: Boolean,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -402,16 +411,17 @@ object ForecastEvolutionRenderer {
         val allSeries = nwsSeries + meteoSeries
         if (allSeries.isEmpty()) return bitmap
 
-        val errorSamples = allSeries.mapNotNull { point ->
-            tempFor(point)?.let { temp ->
-                ErrorSample(
-                    error = temp - actualValue,
-                    daysAhead = point.daysAhead,
-                    fetchedAt = point.fetchedAt,
-                    source = point.source
-                )
+        val errorSamples =
+            allSeries.mapNotNull { point ->
+                tempFor(point)?.let { temp ->
+                    ErrorSample(
+                        error = temp - actualValue,
+                        daysAhead = point.daysAhead,
+                        fetchedAt = point.fetchedAt,
+                        source = point.source,
+                    )
+                }
             }
-        }
         if (errorSamples.isEmpty()) return bitmap
 
         val maxAbsError = errorSamples.maxOf { abs(it.error) }.toFloat()
@@ -438,46 +448,53 @@ object ForecastEvolutionRenderer {
         val maxTime = allTimes.maxOrNull() ?: return bitmap
         val isSingleTimeDataset = minTime == maxTime
 
-        val nwsPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(NWS_COLOR)
-            strokeWidth = dpToPx(context, 2.5f)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        val meteoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(METEO_COLOR)
-            strokeWidth = dpToPx(context, 2.5f)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(GRID_COLOR)
-            strokeWidth = dpToPx(context, 1f)
-            style = Paint.Style.STROKE
-        }
-        val zeroPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(ACTUAL_COLOR)
-            strokeWidth = dpToPx(context, 2f)
-            style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
-        }
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 13f)
-            textAlign = Paint.Align.CENTER
-        }
-        val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 13f)
-            textAlign = Paint.Align.RIGHT
-        }
-        val zeroLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(ACTUAL_COLOR)
-            textSize = dpToPx(context, 13f)
-            textAlign = Paint.Align.LEFT
-        }
+        val nwsPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(NWS_COLOR)
+                strokeWidth = dpToPx(context, 2.5f)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+        val meteoPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(METEO_COLOR)
+                strokeWidth = dpToPx(context, 2.5f)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+        val gridPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(GRID_COLOR)
+                strokeWidth = dpToPx(context, 1f)
+                style = Paint.Style.STROKE
+            }
+        val zeroPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(ACTUAL_COLOR)
+                strokeWidth = dpToPx(context, 2f)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
+            }
+        val labelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(LABEL_COLOR)
+                textSize = dpToPx(context, 13f)
+                textAlign = Paint.Align.CENTER
+            }
+        val yLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(LABEL_COLOR)
+                textSize = dpToPx(context, 13f)
+                textAlign = Paint.Align.RIGHT
+            }
+        val zeroLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(ACTUAL_COLOR)
+                textSize = dpToPx(context, 13f)
+                textAlign = Paint.Align.LEFT
+            }
 
         fun getY(error: Float): Float {
             return graphBottom - graphHeight * (error - minError) / errorRange
@@ -487,11 +504,12 @@ object ForecastEvolutionRenderer {
             val errorValue = minError + (errorRange * i / 4f)
             val y = getY(errorValue)
             canvas.drawLine(graphLeft, y, graphRight, y, gridPaint)
-            val label = if (errorValue > 0f) {
-                "+${errorValue.toInt()}°"
-            } else {
-                "${errorValue.toInt()}°"
-            }
+            val label =
+                if (errorValue > 0f) {
+                    "+${errorValue.toInt()}°"
+                } else {
+                    "${errorValue.toInt()}°"
+                }
             canvas.drawText(label, graphLeft - dpToPx(context, 6f), y + dpToPx(context, 4f), yLabelPaint)
         }
 
@@ -510,7 +528,10 @@ object ForecastEvolutionRenderer {
             return getTimeX(sample.fetchedAt, graphLeft, graphWidth, minTime, maxTime, isSingleTimeDataset)
         }
 
-        fun drawSeries(series: List<ErrorSample>, paint: Paint) {
+        fun drawSeries(
+            series: List<ErrorSample>,
+            paint: Paint,
+        ) {
             if (series.isEmpty()) return
             val sortedByTime = series.sortedBy { it.fetchedAt }
             val path = Path()
@@ -537,17 +558,20 @@ object ForecastEvolutionRenderer {
             paint.style = originalStyle
         }
 
-        drawSeries(errorSamples.filter { it.source == "NWS" }, nwsPaint)
-        drawSeries(errorSamples.filter { it.source == "OPEN_METEO" }, meteoPaint)
+        drawSeries(errorSamples.filter { it.source == WeatherSource.NWS }, nwsPaint)
+        drawSeries(errorSamples.filter { it.source == WeatherSource.OPEN_METEO }, meteoPaint)
 
         return bitmap
     }
 
-    private fun dpToPx(context: Context, dp: Float): Float {
+    private fun dpToPx(
+        context: Context,
+        dp: Float,
+    ): Float {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dp,
-            context.resources.displayMetrics
+            context.resources.displayMetrics,
         )
     }
 
@@ -557,7 +581,7 @@ object ForecastEvolutionRenderer {
         graphWidth: Float,
         minTime: Long,
         maxTime: Long,
-        isSingleTimeDataset: Boolean
+        isSingleTimeDataset: Boolean,
     ): Float {
         return if (isSingleTimeDataset) {
             graphLeft + graphWidth / 2f
@@ -566,7 +590,10 @@ object ForecastEvolutionRenderer {
         }
     }
 
-    private fun buildTimeTicks(minTime: Long, maxTime: Long): List<Long> {
+    private fun buildTimeTicks(
+        minTime: Long,
+        maxTime: Long,
+    ): List<Long> {
         if (minTime == maxTime) return listOf(minTime)
         val divisions = 4
         return (0..divisions).map { idx ->
@@ -574,7 +601,11 @@ object ForecastEvolutionRenderer {
         }
     }
 
-    private fun formatTimeLabel(timestampMillis: Long, minTime: Long, maxTime: Long): String {
+    private fun formatTimeLabel(
+        timestampMillis: Long,
+        minTime: Long,
+        maxTime: Long,
+    ): String {
         val zone = ZoneId.systemDefault()
         val instant = Instant.ofEpochMilli(timestampMillis)
         val minDate = Instant.ofEpochMilli(minTime).atZone(zone).toLocalDate()
@@ -589,7 +620,7 @@ object ForecastEvolutionRenderer {
         heightPx: Int,
         sample: ForecastSample,
         actualValue: Int?,
-        isHigh: Boolean
+        isHigh: Boolean,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -618,55 +649,64 @@ object ForecastEvolutionRenderer {
             return graphBottom - graphHeight * (temp - minTemp) / tempRange
         }
 
-        val sourceColor = if (sample.source == "NWS") NWS_COLOR else METEO_COLOR
+        val sourceColor = if (sample.source == WeatherSource.NWS) NWS_COLOR else METEO_COLOR
 
-        val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(GRID_COLOR)
-            style = Paint.Style.STROKE
-            strokeWidth = dpToPx(context, 1f)
-        }
-        val yLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 12f)
-            textAlign = Paint.Align.RIGHT
-        }
-        val forecastBarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(sourceColor)
-            style = Paint.Style.STROKE
-            strokeWidth = dpToPx(context, 5f)
-            strokeCap = Paint.Cap.ROUND
-        }
-        val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(sourceColor)
-            style = Paint.Style.FILL
-        }
-        val markerOutlinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFFFF")
-            style = Paint.Style.STROKE
-            strokeWidth = dpToPx(context, 1.5f)
-        }
-        val actualLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(ACTUAL_COLOR)
-            style = Paint.Style.STROKE
-            strokeWidth = dpToPx(context, 2f)
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
-        }
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(LABEL_COLOR)
-            textSize = dpToPx(context, 12f)
-            textAlign = Paint.Align.CENTER
-        }
-        val forecastLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(sourceColor)
-            textSize = dpToPx(context, 14f)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        }
-        val actualLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor(ACTUAL_COLOR)
-            textSize = dpToPx(context, 12f)
-            textAlign = Paint.Align.LEFT
-        }
+        val gridPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(GRID_COLOR)
+                style = Paint.Style.STROKE
+                strokeWidth = dpToPx(context, 1f)
+            }
+        val yLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(LABEL_COLOR)
+                textSize = dpToPx(context, 12f)
+                textAlign = Paint.Align.RIGHT
+            }
+        val forecastBarPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(sourceColor)
+                style = Paint.Style.STROKE
+                strokeWidth = dpToPx(context, 5f)
+                strokeCap = Paint.Cap.ROUND
+            }
+        val markerPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(sourceColor)
+                style = Paint.Style.FILL
+            }
+        val markerOutlinePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFFFFF")
+                style = Paint.Style.STROKE
+                strokeWidth = dpToPx(context, 1.5f)
+            }
+        val actualLinePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(ACTUAL_COLOR)
+                style = Paint.Style.STROKE
+                strokeWidth = dpToPx(context, 2f)
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 6f), dpToPx(context, 4f)), 0f)
+            }
+        val titlePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(LABEL_COLOR)
+                textSize = dpToPx(context, 12f)
+                textAlign = Paint.Align.CENTER
+            }
+        val forecastLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(sourceColor)
+                textSize = dpToPx(context, 14f)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+        val actualLabelPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(ACTUAL_COLOR)
+                textSize = dpToPx(context, 12f)
+                textAlign = Paint.Align.LEFT
+            }
 
         val maxLabel = String.format("%.0f°", maxTemp)
         val minLabel = String.format("%.0f°", minTemp)
@@ -679,7 +719,7 @@ object ForecastEvolutionRenderer {
         if (actualValue != null) {
             val actualY = getY(actualValue.toFloat())
             canvas.drawLine(graphLeft, actualY, graphRight, actualY, actualLinePaint)
-            canvas.drawText("Actual ${actualValue}°", graphRight + dpToPx(context, 6f), actualY + dpToPx(context, 4f), actualLabelPaint)
+            canvas.drawText("Actual $actualValue°", graphRight + dpToPx(context, 6f), actualY + dpToPx(context, 4f), actualLabelPaint)
         }
 
         val markerX = graphLeft + graphWidth / 2f
@@ -688,14 +728,15 @@ object ForecastEvolutionRenderer {
 
         val title = if (isHigh) "Single High Forecast" else "Single Low Forecast"
         canvas.drawText(title, widthPx / 2f, dpToPx(context, 16f), titlePaint)
-        val sourceLabel = if (sample.source == "NWS") "NWS" else "Open-Meteo"
+        val sourceLabel = sample.source.displayName
         val error = actualValue?.let { it - sample.temp }
-        val diffText = if (error != null) {
-            val sign = if (error >= 0) "+" else ""
-            "  Diff ${sign}${error}°"
-        } else {
-            ""
-        }
+        val diffText =
+            if (error != null) {
+                val sign = if (error >= 0) "+" else ""
+                "  Diff ${sign}$error°"
+            } else {
+                ""
+            }
         val forecastLabel = "$sourceLabel ${sample.temp}°  (${sample.daysAhead}d)$diffText"
         canvas.drawText(forecastLabel, markerX, forecastY - dpToPx(context, 10f), forecastLabelPaint)
 
@@ -704,6 +745,8 @@ object ForecastEvolutionRenderer {
 
     // Track last point manually since Path doesn't expose it directly
     private data class PathPoint(val x: Float, val y: Float)
-    private data class ForecastSample(val temp: Int, val daysAhead: Int, val source: String)
-    private data class ErrorSample(val error: Int, val daysAhead: Int, val fetchedAt: Long, val source: String)
+
+    private data class ForecastSample(val temp: Int, val daysAhead: Int, val source: WeatherSource)
+
+    private data class ErrorSample(val error: Int, val daysAhead: Int, val fetchedAt: Long, val source: WeatherSource)
 }

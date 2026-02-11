@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.util.TemperatureInterpolator
@@ -21,7 +22,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class WeatherGapTest {
-
     private lateinit var context: Context
     private lateinit var weatherDao: WeatherDao
     private lateinit var forecastSnapshotDao: ForecastSnapshotDao
@@ -56,71 +56,91 @@ class WeatherGapTest {
         apiLogger = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
 
-        repository = WeatherRepository(
-            context,
-            weatherDao,
-            forecastSnapshotDao,
-            hourlyForecastDao,
-            appLogDao,
-            nwsApi,
-            openMeteoApi,
-            widgetStateManager,
-            apiLogger,
-            temperatureInterpolator
-        )
+        repository =
+            WeatherRepository(
+                context,
+                weatherDao,
+                forecastSnapshotDao,
+                hourlyForecastDao,
+                appLogDao,
+                nwsApi,
+                openMeteoApi,
+                widgetStateManager,
+                apiLogger,
+                temperatureInterpolator,
+            )
     }
 
     @Test
-    fun `getCachedDataBySource merges provider data with generic gap data`() = runTest {
-        val nwsData = listOf(
-            createWeatherEntity(today, 70, 50, "NWS")
-        )
-        val gapData = listOf(
-            createWeatherEntity(today, 65, 45, WidgetStateManager.SOURCE_GENERIC_GAP, isClimateNormal = true),
-            createWeatherEntity(tomorrow, 66, 46, WidgetStateManager.SOURCE_GENERIC_GAP, isClimateNormal = true)
-        )
+    fun `getCachedDataBySource merges provider data with generic gap data`() =
+        runTest {
+            val nwsData =
+                listOf(
+                    createWeatherEntity(today, 70, 50, "NWS"),
+                )
+            val gapData =
+                listOf(
+                    createWeatherEntity(today, 65, 45, WidgetStateManager.SOURCE_GENERIC_GAP, isClimateNormal = true),
+                    createWeatherEntity(tomorrow, 66, 46, WidgetStateManager.SOURCE_GENERIC_GAP, isClimateNormal = true),
+                )
 
-        coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, "NWS") } returns nwsData
-        coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, WidgetStateManager.SOURCE_GENERIC_GAP) } returns gapData
+            coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, "NWS") } returns nwsData
+            coEvery {
+                weatherDao.getWeatherRangeBySource(
+                    any(),
+                    any(),
+                    testLat,
+                    testLon,
+                    WidgetStateManager.SOURCE_GENERIC_GAP,
+                )
+            } returns gapData
 
-        val result = repository.getCachedDataBySource(testLat, testLon, "NWS")
+            val result = repository.getCachedDataBySource(testLat, testLon, WeatherSource.NWS)
 
-        assertEquals(2, result.size)
-        // Today should be NWS data (preferred)
-        assertEquals("NWS", result.find { it.date == today }?.source)
-        assertEquals(70, result.find { it.date == today }?.highTemp)
-        
-        // Tomorrow should be GENERIC_GAP data
-        assertEquals(WidgetStateManager.SOURCE_GENERIC_GAP, result.find { it.date == tomorrow }?.source)
-        assertEquals(66, result.find { it.date == tomorrow }?.highTemp)
-    }
+            assertEquals(2, result.size)
+            // Today should be NWS data (preferred)
+            assertEquals("NWS", result.find { it.date == today }?.source)
+            assertEquals(70, result.find { it.date == today }?.highTemp)
+
+            // Tomorrow should be GENERIC_GAP data
+            assertEquals(WidgetStateManager.SOURCE_GENERIC_GAP, result.find { it.date == tomorrow }?.source)
+            assertEquals(66, result.find { it.date == tomorrow }?.highTemp)
+        }
 
     @Test
-    fun `getForecastForDateBySource falls back to generic gap`() = runTest {
-        val targetDate = tomorrow
-        val gapSnapshot = com.weatherwidget.data.local.ForecastSnapshotEntity(
-            targetDate = targetDate,
-            forecastDate = today,
-            locationLat = testLat,
-            locationLon = testLon,
-            highTemp = 66,
-            lowTemp = 46,
-            condition = "Climate Avg",
-            source = WidgetStateManager.SOURCE_GENERIC_GAP,
-            fetchedAt = System.currentTimeMillis()
-        )
+    fun `getForecastForDateBySource falls back to generic gap`() =
+        runTest {
+            val targetDate = tomorrow
+            val gapSnapshot =
+                com.weatherwidget.data.local.ForecastSnapshotEntity(
+                    targetDate = targetDate,
+                    forecastDate = today,
+                    locationLat = testLat,
+                    locationLon = testLon,
+                    highTemp = 66,
+                    lowTemp = 46,
+                    condition = "Climate Avg",
+                    source = WidgetStateManager.SOURCE_GENERIC_GAP,
+                    fetchedAt = System.currentTimeMillis(),
+                )
 
-        // Return only gap snapshot
-        coEvery { forecastSnapshotDao.getForecastsInRange(targetDate, targetDate, testLat, testLon) } returns listOf(gapSnapshot)
+            // Return only gap snapshot
+            coEvery { forecastSnapshotDao.getForecastsInRange(targetDate, targetDate, testLat, testLon) } returns listOf(gapSnapshot)
 
-        val result = repository.getForecastForDateBySource(targetDate, testLat, testLon, "NWS")
+            val result = repository.getForecastForDateBySource(targetDate, testLat, testLon, WeatherSource.NWS)
 
-        assertNotNull(result)
-        assertEquals(WidgetStateManager.SOURCE_GENERIC_GAP, result?.source)
-        assertEquals(66, result?.highTemp)
-    }
+            assertNotNull(result)
+            assertEquals(WidgetStateManager.SOURCE_GENERIC_GAP, result?.source)
+            assertEquals(66, result?.highTemp)
+        }
 
-    private fun createWeatherEntity(date: String, high: Int, low: Int, source: String, isClimateNormal: Boolean = false) = WeatherEntity(
+    private fun createWeatherEntity(
+        date: String,
+        high: Int,
+        low: Int,
+        source: String,
+        isClimateNormal: Boolean = false,
+    ) = WeatherEntity(
         date = date,
         locationLat = testLat,
         locationLon = testLon,
@@ -133,6 +153,6 @@ class WeatherGapTest {
         source = source,
         isClimateNormal = isClimateNormal,
         stationId = null,
-        fetchedAt = System.currentTimeMillis()
+        fetchedAt = System.currentTimeMillis(),
     )
 }

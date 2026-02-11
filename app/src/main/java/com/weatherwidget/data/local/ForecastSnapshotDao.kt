@@ -4,18 +4,24 @@ import androidx.room.*
 
 @Dao
 interface ForecastSnapshotDao {
-
-    @Query("""
+    @Query(
+        """
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY forecastDate DESC, fetchedAt DESC
         LIMIT 1
-    """)
-    suspend fun getForecastForDate(targetDate: String, lat: Double, lon: Double): ForecastSnapshotEntity?
+    """,
+    )
+    suspend fun getForecastForDate(
+        targetDate: String,
+        lat: Double,
+        lon: Double,
+    ): ForecastSnapshotEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
@@ -23,15 +29,17 @@ interface ForecastSnapshotDao {
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY fetchedAt DESC
         LIMIT 1
-    """)
+    """,
+    )
     suspend fun getSpecificForecast(
         targetDate: String,
         forecastDate: String,
         lat: Double,
-        lon: Double
+        lon: Double,
     ): ForecastSnapshotEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND forecastDate = :forecastDate
@@ -40,28 +48,31 @@ interface ForecastSnapshotDao {
         AND source = :source
         ORDER BY fetchedAt DESC
         LIMIT 1
-    """)
+    """,
+    )
     suspend fun getForecastForDateBySource(
         targetDate: String,
         forecastDate: String,
         lat: Double,
         lon: Double,
-        source: String
+        source: String,
     ): ForecastSnapshotEntity?
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM forecast_snapshots
         WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         AND targetDate >= :startDate
         AND targetDate <= :endDate
         ORDER BY targetDate ASC, forecastDate DESC
-    """)
+    """,
+    )
     suspend fun getForecastsInRange(
         startDate: String,
         endDate: String,
         lat: Double,
-        lon: Double
+        lon: Double,
     ): List<ForecastSnapshotEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -73,16 +84,18 @@ interface ForecastSnapshotDao {
     @Query("DELETE FROM forecast_snapshots WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldSnapshots(cutoffTime: Long)
 
-    @Query("""
+    @Query(
+        """
         SELECT * FROM forecast_snapshots
         WHERE targetDate = :targetDate
         AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY forecastDate ASC, fetchedAt ASC
-    """)
+    """,
+    )
     suspend fun getForecastEvolution(
         targetDate: String,
         lat: Double,
-        lon: Double
+        lon: Double,
     ): List<ForecastSnapshotEntity>
 }

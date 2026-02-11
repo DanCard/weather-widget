@@ -3,7 +3,10 @@ package com.weatherwidget.widget
 import android.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import org.junit.Assert.*
+import com.weatherwidget.data.model.WeatherSource
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -17,49 +20,50 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class DailyForecastGraphRendererTest {
-
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
     fun renderGraph_withForecastBarMode_showsBlueForecastLine() {
         // Create test data with historical day that has forecast comparison
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
-                label = "Sat",
-                high = 65,
-                low = 45,
-                isToday = false,
-                isPast = true,  // Historical day
-                forecastHigh = 63,  // What was predicted
-                forecastLow = 47,
-                forecastSource = "OPEN_METEO",
-                accuracyMode = AccuracyDisplayMode.FORECAST_BAR
-            ),
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-02",
-                label = "Today",
-                high = 68,
-                low = 48,
-                isToday = true,
-                isPast = false
-            ),
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-03",
-                label = "Mon",
-                high = 70,
-                low = 50,
-                isToday = false,
-                isPast = false
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-01",
+                    label = "Sat",
+                    high = 65,
+                    low = 45,
+                    isToday = false,
+                    isPast = true, // Historical day
+                    forecastHigh = 63, // What was predicted
+                    forecastLow = 47,
+                    forecastSource = WeatherSource.OPEN_METEO,
+                    accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-02",
+                    label = "Today",
+                    high = 68,
+                    low = 48,
+                    isToday = true,
+                    isPast = false,
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-03",
+                    label = "Mon",
+                    high = 70,
+                    low = 50,
+                    isToday = false,
+                    isPast = false,
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 300,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 300,
+                heightPx = 200,
+            )
 
         // Verify bitmap was created
         assertNotNull(bitmap)
@@ -85,41 +89,43 @@ class DailyForecastGraphRendererTest {
 
         assertTrue(
             "Expected to find blue forecast bar (#5AC8FA) in historical day column",
-            foundBluePixel
+            foundBluePixel,
         )
     }
 
     @Test
     fun renderGraph_withoutForecastData_noBlueLineInHistory() {
         // Create test data with historical day but NO forecast comparison
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
-                label = "Sat",
-                high = 65,
-                low = 45,
-                isToday = false,
-                isPast = true,
-                forecastHigh = null,  // No forecast data
-                forecastLow = null,
-                accuracyMode = AccuracyDisplayMode.FORECAST_BAR
-            ),
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-02",
-                label = "Today",
-                high = 68,
-                low = 48,
-                isToday = true,
-                isPast = false
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-01",
+                    label = "Sat",
+                    high = 65,
+                    low = 45,
+                    isToday = false,
+                    isPast = true,
+                    forecastHigh = null, // No forecast data
+                    forecastLow = null,
+                    accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-02",
+                    label = "Today",
+                    high = 68,
+                    low = 48,
+                    isToday = true,
+                    isPast = false,
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 300,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 300,
+                heightPx = 200,
+            )
 
         assertNotNull(bitmap)
 
@@ -132,7 +138,7 @@ class DailyForecastGraphRendererTest {
         var foundBlue = false
 
         // Scan the first third of the bitmap
-        val startX = bitmap.width / 6  // Center of first day
+        val startX = bitmap.width / 6 // Center of first day
         val endX = bitmap.width / 3
 
         for (x in startX until endX) {
@@ -150,27 +156,29 @@ class DailyForecastGraphRendererTest {
     @Test
     fun renderGraph_withAccuracyModeNone_noForecastLine() {
         // Even with forecast data, if mode is NONE, no forecast line should appear
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
-                label = "Sat",
-                high = 65,
-                low = 45,
-                isToday = false,
-                isPast = true,
-                forecastHigh = 63,
-                forecastLow = 47,
-                forecastSource = "OPEN_METEO",
-                accuracyMode = AccuracyDisplayMode.NONE  // Mode is NONE
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-01",
+                    label = "Sat",
+                    high = 65,
+                    low = 45,
+                    isToday = false,
+                    isPast = true,
+                    forecastHigh = 63,
+                    forecastLow = 47,
+                    forecastSource = WeatherSource.OPEN_METEO,
+                    accuracyMode = AccuracyDisplayMode.NONE, // Mode is NONE
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 200,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 200,
+                heightPx = 200,
+            )
 
         assertNotNull(bitmap)
 
@@ -191,29 +199,31 @@ class DailyForecastGraphRendererTest {
         // So blue count should be minimal (possibly from anti-aliasing only)
         assertTrue(
             "With NONE mode, past day should use yellow bar, not blue. Found $bluePixelCount blue pixels",
-            bluePixelCount < 100  // Allow some for anti-aliasing
+            bluePixelCount < 100, // Allow some for anti-aliasing
         )
     }
 
     @Test
     fun renderGraph_todayShowsOrangeBar() {
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-02",
-                label = "Today",
-                high = 68,
-                low = 48,
-                isToday = true,
-                isPast = false
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-02",
+                    label = "Today",
+                    high = 68,
+                    low = 48,
+                    isToday = true,
+                    isPast = false,
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 200,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 200,
+                heightPx = 200,
+            )
 
         assertNotNull(bitmap)
 
@@ -236,23 +246,25 @@ class DailyForecastGraphRendererTest {
 
     @Test
     fun renderGraph_futureShowsBlueBar() {
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-03",
-                label = "Mon",
-                high = 70,
-                low = 50,
-                isToday = false,
-                isPast = false  // Future day
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-03",
+                    label = "Mon",
+                    high = 70,
+                    low = 50,
+                    isToday = false,
+                    isPast = false, // Future day
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 200,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 200,
+                heightPx = 200,
+            )
 
         assertNotNull(bitmap)
 
@@ -275,23 +287,25 @@ class DailyForecastGraphRendererTest {
 
     @Test
     fun renderGraph_historyShowsYellowBar() {
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
-                label = "Sat",
-                high = 65,
-                low = 45,
-                isToday = false,
-                isPast = true  // Historical day
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-01",
+                    label = "Sat",
+                    high = 65,
+                    low = 45,
+                    isToday = false,
+                    isPast = true, // Historical day
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 200,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 200,
+                heightPx = 200,
+            )
 
         assertNotNull(bitmap)
 
@@ -315,31 +329,33 @@ class DailyForecastGraphRendererTest {
     @Test
     fun renderGraph_withPartialData_rendersWithoutCrash() {
         // Test data with partial temperatures (high only, low only)
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-04",
-                label = "HighOnly",
-                high = 70,
-                low = null, // Missing low
-                isToday = false,
-                isPast = false
-            ),
-            DailyForecastGraphRenderer.DayData(
-                date = "2026-02-05",
-                label = "LowOnly",
-                high = null, // Missing high
-                low = 50,
-                isToday = false,
-                isPast = false
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-04",
+                    label = "HighOnly",
+                    high = 70,
+                    low = null, // Missing low
+                    isToday = false,
+                    isPast = false,
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-05",
+                    label = "LowOnly",
+                    high = null, // Missing high
+                    low = 50,
+                    isToday = false,
+                    isPast = false,
+                ),
             )
-        )
 
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 200,
-            heightPx = 200
-        )
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 200,
+                heightPx = 200,
+            )
 
         assertNotNull(bitmap)
         assertEquals(200, bitmap.width)
