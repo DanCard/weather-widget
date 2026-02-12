@@ -74,6 +74,7 @@ Thumbs.db
 screenshots/
 backups/
 logs/
+temp/
 
 # Python cache
 __pycache__/
