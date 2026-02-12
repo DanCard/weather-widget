@@ -18,6 +18,7 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
+import java.time.LocalTime
 import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -67,15 +68,19 @@ object DailyViewHandler : WidgetViewHandler {
         val dateOffset = stateManager.getDateOffset(appWidgetId)
         val accuracyMode = stateManager.getAccuracyDisplayMode()
 
+        val isEveningMode = NavigationUtils.isEveningMode()
         Log.d(
             TAG,
-            "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, weatherCount=${weatherList.size}",
+            "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
+                "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}",
         )
 
         // Setup current temp click to toggle view mode
         setupCurrentTempToggle(context, views, appWidgetId)
 
         val today = LocalDate.now()
+        // In evening mode at offset 0, we want to show today as leftmost with forecast comparison
+        // We keep centerDate as today, but use adjusted day offsets that start from 0 instead of -1
         val centerDate = today.plusDays(dateOffset.toLong())
 
         // Get the current display source for this widget
@@ -161,7 +166,8 @@ object DailyViewHandler : WidgetViewHandler {
             }.keys
 
         // Set up navigation click handlers with available dates and widget width
-        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns)
+        // In evening mode, skip history in navigation bounds
+        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)
 
         // Use graph mode for 2+ rows
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
@@ -173,6 +179,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_day_zones, View.VISIBLE)
 
             // Build day data for graph with offset
+            // In evening mode, skip history to show today with forecast comparison
             val days =
                 buildDayDataList(
                     centerDate,
@@ -182,6 +189,8 @@ object DailyViewHandler : WidgetViewHandler {
                     numColumns,
                     accuracyMode,
                     displaySource,
+                    isEveningMode,
+                    hourlyForecasts,
                 )
 
             // Use actual widget dimensions for bitmap to match ImageView size
@@ -195,17 +204,37 @@ object DailyViewHandler : WidgetViewHandler {
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
             // Setup per-day click handlers for graph mode
-            setupGraphDayClickHandlers(context, views, appWidgetId, days, lat, lon, displaySource)
+            // In evening mode at offset 0, today is shown as leftmost but should behave like future day
+            setupGraphDayClickHandlers(
+                context,
+                views,
+                appWidgetId,
+                days,
+                lat,
+                lon,
+                displaySource,
+                isEveningMode && dateOffset == 0,
+            )
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
             // Text mode - set visibility and populate
-            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, numColumns)
+            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, numColumns, isEveningMode)
 
             // Setup per-day click handlers for text mode
-            setupTextDayClickHandlers(context, views, appWidgetId, visibleDates, lat, lon, displaySource)
+            // In evening mode at offset 0, today is the leftmost day (day1)
+            setupTextDayClickHandlers(
+                context,
+                views,
+                appWidgetId,
+                visibleDates,
+                lat,
+                lon,
+                displaySource,
+                isEveningMode && dateOffset == 0,
+            )
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -307,6 +336,7 @@ object DailyViewHandler : WidgetViewHandler {
         stateManager: WidgetStateManager,
         availableDates: Set<String> = emptySet(),
         numColumns: Int = 3,
+        isEveningMode: Boolean = false,
     ) {
         // Left arrow
         val leftIntent =
@@ -349,14 +379,21 @@ object DailyViewHandler : WidgetViewHandler {
         val minDate = sortedDates.firstOrNull()
         val maxDate = sortedDates.lastOrNull()
 
-        val minOffset = NavigationUtils.getMinOffset(numColumns)
-        val maxOffset = NavigationUtils.getMaxOffset(numColumns)
+        // In evening mode at offset 0, we skip history (today is leftmost, can't go to yesterday)
+        val skipHistory = isEveningMode && currentOffset == 0
+        val minOffset = NavigationUtils.getMinOffset(numColumns, skipHistory)
+        val maxOffset = NavigationUtils.getMaxOffset(numColumns, skipHistory)
 
-        val newLeftmost = currentCenterDate.minusDays(1).plusDays(minOffset.toLong())
-        val canLeft = minDate != null && !minDate.isAfter(newLeftmost)
+        // For left navigation: calculate what the new leftmost day would be
+        val newCenterDateLeft = currentCenterDate.minusDays(1)
+        val newLeftmostDay = newCenterDateLeft.plusDays(minOffset.toLong())
+        // Allow left nav if there's data to show (even in evening mode, user can go back to history)
+        val canLeft = minDate != null && !minDate.isAfter(newLeftmostDay)
 
-        val newRightmost = currentCenterDate.plusDays(1).plusDays(maxOffset.toLong())
-        val canRight = maxDate != null && !maxDate.isBefore(newRightmost)
+        // For right navigation: calculate what the new rightmost day would be
+        val newCenterDateRight = currentCenterDate.plusDays(1)
+        val newRightmostDay = newCenterDateRight.plusDays(maxOffset.toLong())
+        val canRight = maxDate != null && !maxDate.isBefore(newRightmostDay)
 
         views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
         views.setViewVisibility(R.id.nav_left_zone, if (canLeft) View.VISIBLE else View.GONE)
@@ -372,10 +409,17 @@ object DailyViewHandler : WidgetViewHandler {
         numColumns: Int,
         accuracyMode: AccuracyDisplayMode,
         displaySource: WeatherSource,
+        isEveningMode: Boolean,
+        hourlyForecasts: List<HourlyForecastEntity>,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
 
-        val dayOffsets = NavigationUtils.getDayOffsets(numColumns)
+        // In evening mode at the default offset (centerDate == today), skip history
+        // This shows today as leftmost with forecast comparison bar
+        val skipHistory = isEveningMode && centerDate == today
+        val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
+        Log.d(TAG, "buildDayDataList: centerDate=$centerDate, today=$today, isEveningMode=$isEveningMode, " +
+            "skipHistory=$skipHistory, dayOffsets=$dayOffsets")
 
         dayOffsets.forEach { offset ->
             val date = centerDate.plusDays(offset)
@@ -399,7 +443,20 @@ object DailyViewHandler : WidgetViewHandler {
                 }
 
             val isPastDate = date.isBefore(today)
-            val showComparison = isPastDate && forecast != null && accuracyMode != AccuracyDisplayMode.NONE
+            val isToday = date == today
+
+            // Show forecast comparison for:
+            // 1. Past dates (normal history mode)
+            // 2. Today in evening mode at default offset (show what was predicted vs estimated actuals)
+            val showComparison = (isPastDate || (isToday && skipHistory)) &&
+                forecast != null && accuracyMode != AccuracyDisplayMode.NONE
+
+            // In evening mode for today at default offset, estimate actuals from hourly data
+            val (actualHigh, actualLow) = if (isToday && skipHistory && hourlyForecasts.isNotEmpty()) {
+                estimateTodayActualsFromHourly(hourlyForecasts, today, displaySource, weather)
+            } else {
+                weather.highTemp to weather.lowTemp
+            }
 
             val iconRes = WeatherIconMapper.getIconResource(weather.condition)
             val isSunny =
@@ -418,13 +475,13 @@ object DailyViewHandler : WidgetViewHandler {
                 DailyForecastGraphRenderer.DayData(
                     date = dateStr,
                     label = label,
-                    high = weather.highTemp,
-                    low = weather.lowTemp,
+                    high = actualHigh,
+                    low = actualLow,
                     iconRes = iconRes,
                     isSunny = isSunny,
                     isRainy = isRainy,
                     isMixed = isMixed,
-                    isToday = date == today,
+                    isToday = isToday,
                     isPast = isPastDate,
                     isClimateNormal = weather.isClimateNormal,
                     forecastHigh = if (showComparison) forecast?.highTemp else null,
@@ -438,19 +495,62 @@ object DailyViewHandler : WidgetViewHandler {
         return days
     }
 
+    /**
+     * Estimates today's actual high/low from hourly forecast data.
+     * Uses observed hourly data up to current time for actuals,
+     * and remaining forecast for the rest of the day.
+     */
+    private fun estimateTodayActualsFromHourly(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        today: LocalDate,
+        displaySource: WeatherSource,
+        fallbackWeather: WeatherEntity,
+    ): Pair<Int?, Int?> {
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val now = LocalDateTime.now()
+
+        // Filter hourly forecasts for today from the display source
+        val todayHourly = hourlyForecasts.filter {
+            it.dateTime.startsWith(todayStr) &&
+                (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
+        }
+
+        if (todayHourly.isEmpty()) {
+            return fallbackWeather.highTemp to fallbackWeather.lowTemp
+        }
+
+        // Get all temperatures for today
+        val temps = todayHourly.map { it.temperature }
+        if (temps.isEmpty()) {
+            return fallbackWeather.highTemp to fallbackWeather.lowTemp
+        }
+
+        // For estimation, use the full day's hourly data (both past and future hours)
+        // This gives us the best estimate of what the day's actual high/low will be
+        val estimatedHigh = temps.maxOrNull()?.toInt()
+        val estimatedLow = temps.minOrNull()?.toInt()
+
+        return estimatedHigh to estimatedLow
+    }
+
     private fun updateTextMode(
         views: RemoteViews,
         centerDate: LocalDate,
         today: LocalDate,
         weatherByDate: Map<String, WeatherEntity>,
         numColumns: Int,
+        isEveningMode: Boolean = false,
     ): List<Pair<Int, String>> {
-        val day1Date = centerDate.minusDays(1)
-        val day2Date = centerDate
-        val day3Date = centerDate.plusDays(1)
-        val day4Date = centerDate.plusDays(2)
-        val day5Date = centerDate.plusDays(3)
-        val day6Date = centerDate.plusDays(4)
+        // In evening mode at default offset, shift to show today as leftmost
+        val skipHistory = isEveningMode && centerDate == today
+        val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
+
+        val day1Date = effectiveCenter.minusDays(1)
+        val day2Date = effectiveCenter
+        val day3Date = effectiveCenter.plusDays(1)
+        val day4Date = effectiveCenter.plusDays(2)
+        val day5Date = effectiveCenter.plusDays(3)
+        val day6Date = effectiveCenter.plusDays(4)
 
         val day1Str = day1Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val day2Str = day2Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -651,6 +751,7 @@ object DailyViewHandler : WidgetViewHandler {
         lat: Double,
         lon: Double,
         displaySource: WeatherSource,
+        isEveningModeAtOffset0: Boolean = false,
     ) {
         val containerIds =
             listOf(
@@ -667,8 +768,10 @@ object DailyViewHandler : WidgetViewHandler {
         visibleDays.forEachIndexed { index, (dayIndex, dateStr) ->
             val containerId = containerIds[dayIndex - 1]
 
+            // In evening mode at offset 0, all visible days are today+future
+            // So they should all open Settings, not ForecastHistoryActivity
             val intent =
-                if (index < midpoint) {
+                if (index < midpoint && !isEveningModeAtOffset0) {
                     Intent(context, ForecastHistoryActivity::class.java).apply {
                         putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
                         putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
@@ -698,6 +801,7 @@ object DailyViewHandler : WidgetViewHandler {
         lat: Double,
         lon: Double,
         displaySource: WeatherSource,
+        isEveningModeAtOffset0: Boolean = false,
     ) {
         val zoneIds =
             listOf(
@@ -717,8 +821,10 @@ object DailyViewHandler : WidgetViewHandler {
 
             val dateStr = dayData.date
 
+            // In evening mode at offset 0, all visible days are today+future
+            // So they should all open Settings, not ForecastHistoryActivity
             val intent =
-                if (index < midpoint) {
+                if (index < midpoint && !isEveningModeAtOffset0) {
                     Intent(context, ForecastHistoryActivity::class.java).apply {
                         putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
                         putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)

@@ -7,8 +7,10 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
@@ -74,6 +76,14 @@ class UIUpdateScheduler(private val context: Context) {
             if (delayMillis > maxDelay) {
                 delayMillis = maxDelay
                 Log.d(TAG, "Capped delay to 15 mins for UI responsiveness")
+            }
+
+            // Check if we need to schedule an update for evening mode transition (6 PM)
+            // This ensures the widget switches from showing yesterday+today to today+forecast
+            val eveningModeDelay = getTimeUntilEveningMode()
+            if (eveningModeDelay in 1..delayMillis) {
+                delayMillis = eveningModeDelay
+                Log.d(TAG, "Scheduling update for evening mode transition at 6 PM")
             }
 
             Log.d(
@@ -142,6 +152,27 @@ class UIUpdateScheduler(private val context: Context) {
             it.cancel()
             Log.d(TAG, "Canceled scheduled UI updates")
         }
+    }
+
+    /**
+     * Calculates milliseconds until 6 PM (evening mode start).
+     * Returns 0 if already in evening mode, or negative if before 6 PM today
+     * and 6 PM has already passed (shouldn't happen with normal logic).
+     */
+    private fun getTimeUntilEveningMode(): Long {
+        val now = LocalDateTime.now()
+        val currentHour = now.hour
+
+        // If already in evening mode (6 PM or later), no need to schedule for today
+        if (currentHour >= NavigationUtils.EVENING_MODE_START_HOUR) {
+            // Schedule for 6 PM tomorrow
+            val tomorrow6pm = now.plusDays(1).withHour(18).withMinute(0).withSecond(0)
+            return java.time.Duration.between(now, tomorrow6pm).toMillis()
+        }
+
+        // Schedule for 6 PM today
+        val today6pm = now.withHour(18).withMinute(0).withSecond(0)
+        return java.time.Duration.between(now, today6pm).toMillis()
     }
 
     companion object {
