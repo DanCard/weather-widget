@@ -8,6 +8,7 @@
 #   ./scripts/run-emulator-tests.sh -q                 # Run headless (quiet/no window)
 #   ./scripts/run-emulator-tests.sh -e EMULATOR_NAME   # Use specific emulator
 #   ./scripts/run-emulator-tests.sh -c CLASS_NAME      # Run specific test class
+#   ./scripts/run-emulator-tests.sh -u                 # Allow Gradle to uninstall test APKs after run
 #   ./scripts/run-emulator-tests.sh -h                 # Show help
 #
 
@@ -20,6 +21,12 @@ DEFAULT_EMULATOR="Generic_Foldable_API36"
 EMU_TIMEOUT=120  # Seconds to wait for emulator boot
 TEST_TIMEOUT=300 # Seconds for tests to complete
 VISIBLE_MODE=true  # Run emulator with GUI window (default)
+PROGRESS_PID=""
+DEBUG_LOG="/tmp/run-emulator-tests-debug-$(date +%Y%m%d-%H%M%S).log"
+
+debug_log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -34,13 +41,15 @@ TEST_CLASS=""
 SHOW_HELP=false
 
 KEEP_EMULATOR=true  # Default: keep emulator running
+LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
 
-while getopts "e:c:qsh" opt; do
+while getopts "e:c:qsuh" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG" ;;
         c) TEST_CLASS="$OPTARG" ;;
         q) VISIBLE_MODE=false ;;
         s) KEEP_EMULATOR=false ;;
+        u) LEAVE_APKS_INSTALLED=false ;;
         h) SHOW_HELP=true ;;
         *) SHOW_HELP=true ;;
     esac
@@ -54,14 +63,15 @@ if [ "$SHOW_HELP" = true ]; then
     echo ""
     echo "Options:"
     echo "  -q             Run headless (no GUI window, default: visible)"
-    echo "  -s             Shutdown emulator after tests (default: keep running)"
+    echo "  -s             Shutdown emulator after tests if this script started it"
+    echo "  -u             Allow APK uninstall after tests (default: preserve installed APKs)"
     echo "  -e EMULATOR    Use specific emulator (default: $DEFAULT_EMULATOR)"
     echo "  -c CLASS       Run specific test class (e.g., com.weatherwidget.WidgetSizeCalculatorTest)"
     echo "  -h             Show this help"
     echo ""
     echo "Examples:"
     echo "  $(basename "$0")                              # Run tests, keep emulator running"
-    echo "  $(basename "$0") -s                           # Run tests, shutdown after"
+    echo "  $(basename "$0") -s                           # Shutdown only if script launched emulator"
     echo "  $(basename "$0") -qs                          # Headless CI mode, shutdown after"
     echo "  $(basename "$0") -e Medium_Phone_API_36      # Use phone emulator"
     echo "  $(basename "$0") -c WidgetSizeCalculatorTest # Run specific test class"
@@ -104,6 +114,7 @@ if [ ! -f "$ADB_BIN" ]; then
 fi
 
 echo -e "${BLUE}Using Android SDK: $SDK_ROOT${NC}"
+debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
 if [ -z "$EMULATOR_NAME" ]; then
@@ -132,30 +143,50 @@ echo -e "${BLUE}Selected emulator: $EMULATOR_NAME${NC}"
 
 # Function to cleanup emulator
 cleanup() {
-    # Skip cleanup if -k flag was used
-    if [ "$KEEP_EMULATOR" = true ]; then
+    debug_log "cleanup start: KEEP_EMULATOR=$KEEP_EMULATOR USE_EXISTING=${USE_EXISTING:-unset} EMULATOR_SERIAL=${EMULATOR_SERIAL:-unset} PROGRESS_PID=${PROGRESS_PID:-unset}"
+
+    # Stop progress monitor if running
+    if [ -n "${PROGRESS_PID:-}" ]; then
+        debug_log "cleanup: kill progress monitor pid=$PROGRESS_PID"
+        kill "$PROGRESS_PID" 2>/dev/null || true
+        wait "$PROGRESS_PID" 2>/dev/null || true
+        debug_log "cleanup: progress monitor stop wait complete"
+    fi
+
+    # Always preserve emulators that were already running before this script.
+    if [ "${USE_EXISTING:-false}" = true ]; then
+        debug_log "cleanup: preserve existing emulator"
         echo ""
-        echo -e "${YELLOW}Keeping emulator running (use -k flag)${NC}"
+        echo -e "${YELLOW}Keeping existing emulator running (was already active before test run)${NC}"
         echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
+        debug_log "cleanup end: preserved existing emulator"
         return
     fi
-    
-    # Skip cleanup if we used an existing emulator
-    if [ "$USE_EXISTING" = true ]; then
+
+    # Keep launched emulator unless -s requested.
+    if [ "$KEEP_EMULATOR" = true ]; then
+        debug_log "cleanup: preserve launched emulator (no -s)"
         echo ""
-        echo -e "${YELLOW}Shutting down existing emulator...${NC}"
-    else
-        echo ""
-        echo -e "${YELLOW}Cleaning up emulator...${NC}"
+        echo -e "${YELLOW}Keeping emulator running (default; use -s to shut down after tests)${NC}"
+        echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
+        debug_log "cleanup end: preserved launched emulator"
+        return
     fi
+
+    echo ""
+    echo -e "${YELLOW}Cleaning up emulator started by script...${NC}"
+    debug_log "cleanup: shutting down emulator started by script"
     
-    # Try graceful shutdown first
-    $ADB_BIN emu kill 2>/dev/null || true
+    # Try graceful shutdown first (bounded wait so Ctrl-C/exit can't hang here)
+    timeout 10s "$ADB_BIN" emu kill >/dev/null 2>&1 || true
+    debug_log "cleanup: adb emu kill complete/timeout"
     
     # Kill any remaining emulator processes for this AVD
     pkill -f "emulator.*-avd.*$EMULATOR_NAME" 2>/dev/null || true
+    debug_log "cleanup: pkill fallback complete"
     
     echo -e "${GREEN}Emulator shutdown complete${NC}"
+    debug_log "cleanup end: emulator shutdown complete"
 }
 
 # Set trap to ensure cleanup on exit
@@ -185,7 +216,7 @@ if [ -n "$EXISTING_EMU" ]; then
     if [ "$KEEP_EMULATOR" = true ]; then
         echo "Will keep emulator running after tests (default)"
     else
-        echo "Will shut down emulator after tests (-s flag)"
+        echo "Existing emulator will still be kept running; -s only affects emulators launched by this script"
     fi
     USE_EXISTING=true
     EMULATOR_SERIAL="$EXISTING_EMU"
@@ -326,6 +357,16 @@ TEST_SUCCESS=false
 
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
+# Keep tested/test APKs installed unless explicitly opted out.
+# This helps preserve widget state on launchers that react poorly to package uninstall/reinstall cycles.
+GRADLE_APK_PRESERVE_ARG=""
+if [ "$LEAVE_APKS_INSTALLED" = true ]; then
+    GRADLE_APK_PRESERVE_ARG="-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true"
+    echo -e "${YELLOW}APK preservation: enabled (default)${NC}"
+else
+    echo -e "${YELLOW}APK preservation: disabled (-u), Gradle may uninstall APKs after run${NC}"
+fi
+
 # Function to show test names as they complete
 show_progress() {
     local logfile=$1
@@ -336,7 +377,9 @@ show_progress() {
             local total_lines=$(wc -l < "$logfile")
             if [ "$total_lines" -gt "$last_line" ]; then
                 # Extract and display new test results
-                sed -n "$((last_line + 1)),${total_lines}p" "$logfile" | while read -r line; do
+                local new_lines
+                new_lines=$(sed -n "$((last_line + 1)),${total_lines}p" "$logfile")
+                while IFS= read -r line; do
                     # Gradle test output format: "ClassName > testMethod PASSED/FAILED"
                     # or "ClassName.testMethod PASSED/FAILED"
                     if echo "$line" | grep -qE ">.*PASSED|PASSED"; then
@@ -357,7 +400,7 @@ show_progress() {
                             echo -e "${RED}  ✗ ${test_name}${NC}"
                         fi
                     fi
-                done
+                done <<< "$new_lines"
                 last_line=$total_lines
             fi
         fi
@@ -372,53 +415,85 @@ echo ""
 # Start progress monitor in background
 show_progress /tmp/test_results.log &
 PROGRESS_PID=$!
-
-# Kill progress monitor on exit
-trap "kill $PROGRESS_PID 2>/dev/null || true" EXIT
+debug_log "progress monitor started pid=$PROGRESS_PID"
 
 if timeout $TEST_TIMEOUT \
-    bash -c "./gradlew $GRADLE_CMD --info 2>&1 | tee /tmp/test_results.log"; then
+    bash -c "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --info 2>&1 | tee /tmp/test_results.log"; then
     TEST_SUCCESS=true
 fi
 
 # Kill progress monitor
 kill $PROGRESS_PID 2>/dev/null || true
-trap - EXIT
+wait "$PROGRESS_PID" 2>/dev/null || true
+debug_log "progress monitor stop requested after test run"
 
 TEST_END=$(date +%s)
 TEST_DURATION=$((TEST_END - TEST_START))
 
-# Parse test results from log
+# Parse test results (prefer XML summary from Android test output)
+TOTAL=0
 PASSED=0
 FAILED=0
-if [ -f /tmp/test_results.log ]; then
-    PASSED=$(grep "PASSED" /tmp/test_results.log 2>/dev/null | wc -l | tr -d ' ')
-    FAILED=$(grep "FAILED" /tmp/test_results.log 2>/dev/null | wc -l | tr -d ' ')
+ERRORS=0
+SKIPPED=0
+
+RESULTS_DIR="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
+LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
+
+if [ -n "$LATEST_REPORT_XML" ]; then
+    TESTSUITE_LINE=$(grep -m1 '<testsuite ' "$LATEST_REPORT_XML" || true)
+    if [ -n "$TESTSUITE_LINE" ]; then
+        TOTAL=$(echo "$TESTSUITE_LINE" | sed -n 's/.* tests="\([0-9]\+\)".*/\1/p')
+        FAILED=$(echo "$TESTSUITE_LINE" | sed -n 's/.* failures="\([0-9]\+\)".*/\1/p')
+        ERRORS=$(echo "$TESTSUITE_LINE" | sed -n 's/.* errors="\([0-9]\+\)".*/\1/p')
+        SKIPPED=$(echo "$TESTSUITE_LINE" | sed -n 's/.* skipped="\([0-9]\+\)".*/\1/p')
+
+        TOTAL=${TOTAL:-0}
+        FAILED=${FAILED:-0}
+        ERRORS=${ERRORS:-0}
+        SKIPPED=${SKIPPED:-0}
+        PASSED=$((TOTAL - FAILED - ERRORS - SKIPPED))
+        if [ "$PASSED" -lt 0 ]; then
+            PASSED=0
+        fi
+    fi
+fi
+
+# Fallback to log parsing when XML summary is unavailable
+if [ "$TOTAL" -eq 0 ] && [ -f /tmp/test_results.log ]; then
+    PASSED=$(grep " PASSED" /tmp/test_results.log 2>/dev/null | wc -l | tr -d ' ')
+    FAILED=$(grep " FAILED" /tmp/test_results.log 2>/dev/null | wc -l | tr -d ' ')
+    ERRORS=0
+    SKIPPED=0
+    TOTAL=$((PASSED + FAILED))
 fi
 
 # Show results
 echo ""
-echo -e "${BLUE}============================================${NC}"
 echo -e "${BLUE}  Test Summary${NC}"
-echo -e "${BLUE}============================================${NC}"
-echo ""
-
-if [ "$FAILED" -eq 0 ] && [ "$PASSED" -gt 0 ]; then
+if [ "$TOTAL" -gt 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
     echo -e "${GREEN}  ✓ All tests passed${NC}"
-elif [ "$FAILED" -gt 0 ]; then
+elif [ "$FAILED" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
     echo -e "${RED}  ✗ Some tests failed${NC}"
 else
     echo -e "${YELLOW}  ⚠ No test results found${NC}"
 fi
 
-echo ""
+echo -e "  ${BLUE}Total:   $TOTAL${NC}"
 echo -e "  ${GREEN}Passed:  $PASSED${NC}"
 if [ "$FAILED" -gt 0 ]; then
     echo -e "  ${RED}Failed:  $FAILED${NC}"
 fi
-echo ""
+if [ "$ERRORS" -gt 0 ]; then
+    echo -e "  ${RED}Errors:  $ERRORS${NC}"
+fi
+if [ "$SKIPPED" -gt 0 ]; then
+    echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
+fi
 echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
 echo -e "${BLUE}============================================${NC}"
+echo -e "${BLUE}Debug log: $DEBUG_LOG${NC}"
+debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
 # Show failed test names if any
 if [ "$FAILED" -gt 0 ] && [ -f /tmp/test_results.log ]; then

@@ -320,6 +320,24 @@ override fun onAppWidgetOptionsChanged(...) {
 - Stores diagnostic logs for fetches, merges, and cleanup events
 - Used for quick auditing in debug flows
 
+## Device Identification
+
+When working with multiple connected devices, **always verify device identity** using manufacturer/model properties rather than assuming based on device ID format:
+
+```bash
+# List connected devices
+adb devices
+
+# Verify device identity (CRITICAL - do not assume based on ID format)
+adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.model"
+```
+
+**Example from this project:**
+- `2A191FDH300PPW` - Appears like Samsung ID, but is actually **Google Pixel 7 Pro**
+- `RFCT71FR9NT` - Appears like Pixel ID, but is actually **Samsung SM-F936U1**
+
+**Lesson:** Device ID formats are unreliable for identification. Always verify with `getprop` before assuming which physical device corresponds to which ID.
+
 ## Testing the Widget
 
 ### Manual Testing
@@ -331,6 +349,11 @@ override fun onAppWidgetOptionsChanged(...) {
 ### Available Emulators
 - `Generic_Foldable_API36`
 - `Medium_Phone_API_36`
+
+### Emulator Test Script Behavior (Important)
+- When running `./scripts/run-emulator-tests.sh` interactively, **do not** pass `-s` by default.
+- Assume the user wants the emulator to remain running after tests unless they explicitly request shutdown.
+- Use `-s` only for explicit user request or CI-style cleanup runs.
 
 ### Emulator Resize Troubleshooting
 - On Pixel/Nexus Launcher emulators, resizing from the left edge can "bounce back" when the widget is on the top row or near constrained cells.

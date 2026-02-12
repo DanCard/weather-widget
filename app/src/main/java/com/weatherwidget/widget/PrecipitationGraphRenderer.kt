@@ -22,6 +22,24 @@ object PrecipitationGraphRenderer {
         val priority: Int,
     )
 
+    internal data class PlacementRect(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+    ) {
+        fun intersects(other: PlacementRect): Boolean {
+            return left < other.right && other.left < right && top < other.bottom && other.top < bottom
+        }
+    }
+
+    internal data class EndLabelPlacement(
+        val x: Float,
+        val baselineY: Float,
+        val usedFallback: Boolean,
+        val bounds: PlacementRect,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<PrecipHourData>,
@@ -382,6 +400,40 @@ object PrecipitationGraphRenderer {
             dpToPx = { dpToPx(context, it) },
         )
 
+        // Draw end-of-graph label (right edge) for the final precipitation probability.
+        // Keep it inside bounds and avoid overlaps with existing labels/NOW marker.
+        if (hours.isNotEmpty()) {
+            val lastIndex = hours.lastIndex
+            val endProb = probs[lastIndex]
+            val endLabelText = "$endProb%"
+            val textWidth = percentLabelPaint.measureText(endLabelText)
+            val textHeight = percentLabelPaint.textSize
+            val placement =
+                computeEndLabelPlacement(
+                    textWidth = textWidth,
+                    textHeight = textHeight,
+                    widthPx = widthPx,
+                    graphBottom = graphBottom,
+                    pointY = points[lastIndex].second,
+                    aboveGap = aboveGap,
+                    belowGap = belowGap,
+                    rightPadding = dpToPx(context, 8f),
+                    verticalInset = dpToPx(context, 2f),
+                    existingBounds = drawnLabelBounds.map { it.toPlacementRect() },
+                    nowBounds = nowLabelBounds?.toPlacementRect(),
+                )
+
+            if (placement != null) {
+                canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
+                drawnLabelBounds.add(placement.bounds.toRectF())
+                val mode = if (placement.usedFallback) "fallback" else "preferred"
+                // Below used in test.  Do not delete!
+                Log.d("PrecipGraph", "PLACED end label: $endLabelText at right edge ($mode)")
+            } else {
+                Log.d("PrecipGraph", "SKIPPED end label: $endLabelText no available non-overlapping slot")
+            }
+        }
+
         // Raindrop icon placed in the emptiest region of the graph
         val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)
         if (rainDrawable != null && points.size >= 3) {
@@ -496,6 +548,64 @@ object PrecipitationGraphRenderer {
         val prev = values[index - 1]
         val next = values[index + 1]
         return maxOf(abs(current - prev), abs(current - next))
+    }
+
+    internal fun computeEndLabelPlacement(
+        textWidth: Float,
+        textHeight: Float,
+        widthPx: Int,
+        graphBottom: Float,
+        pointY: Float,
+        aboveGap: Float,
+        belowGap: Float,
+        rightPadding: Float,
+        verticalInset: Float,
+        existingBounds: List<PlacementRect>,
+        nowBounds: PlacementRect?,
+    ): EndLabelPlacement? {
+        val minX = textWidth / 2f
+        val maxX = widthPx - rightPadding - textWidth / 2f
+        val labelX = maxX.coerceAtLeast(minX)
+
+        val safeTop = textHeight + verticalInset
+        val safeBottom = graphBottom - verticalInset
+        val preferredBaselineY = (pointY - aboveGap).coerceAtMost(safeBottom).coerceAtLeast(safeTop)
+        val fallbackBaselineY = (pointY + belowGap).coerceAtMost(safeBottom).coerceAtLeast(safeTop)
+
+        fun makeBounds(baselineY: Float): PlacementRect {
+            return PlacementRect(
+                left = labelX - textWidth / 2f,
+                top = baselineY - textHeight,
+                right = labelX + textWidth / 2f,
+                bottom = baselineY,
+            )
+        }
+
+        fun isClear(bounds: PlacementRect): Boolean {
+            val overlapsExisting = existingBounds.any { it.intersects(bounds) }
+            val overlapsNow = nowBounds?.intersects(bounds) == true
+            return !overlapsExisting && !overlapsNow
+        }
+
+        val preferredBounds = makeBounds(preferredBaselineY)
+        if (isClear(preferredBounds)) {
+            return EndLabelPlacement(labelX, preferredBaselineY, usedFallback = false, bounds = preferredBounds)
+        }
+
+        val fallbackBounds = makeBounds(fallbackBaselineY)
+        if (isClear(fallbackBounds)) {
+            return EndLabelPlacement(labelX, fallbackBaselineY, usedFallback = true, bounds = fallbackBounds)
+        }
+
+        return null
+    }
+
+    private fun RectF.toPlacementRect(): PlacementRect {
+        return PlacementRect(left, top, right, bottom)
+    }
+
+    private fun PlacementRect.toRectF(): RectF {
+        return RectF(left, top, right, bottom)
     }
 
     private fun dpToPx(

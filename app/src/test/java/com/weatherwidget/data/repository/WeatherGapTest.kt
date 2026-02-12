@@ -80,8 +80,8 @@ class WeatherGapTest {
                 )
             val gapData =
                 listOf(
-                    createWeatherEntity(today, 65, 45, WidgetStateManager.SOURCE_GENERIC_GAP, isClimateNormal = true),
-                    createWeatherEntity(tomorrow, 66, 46, WidgetStateManager.SOURCE_GENERIC_GAP, isClimateNormal = true),
+                    createWeatherEntity(today, 65, 45, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
+                    createWeatherEntity(tomorrow, 66, 46, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
                 )
 
             coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, "NWS") } returns nwsData
@@ -91,7 +91,7 @@ class WeatherGapTest {
                     any(),
                     testLat,
                     testLon,
-                    WidgetStateManager.SOURCE_GENERIC_GAP,
+                    WeatherSource.GENERIC_GAP.id,
                 )
             } returns gapData
 
@@ -103,7 +103,7 @@ class WeatherGapTest {
             assertEquals(70, result.find { it.date == today }?.highTemp)
 
             // Tomorrow should be GENERIC_GAP data
-            assertEquals(WidgetStateManager.SOURCE_GENERIC_GAP, result.find { it.date == tomorrow }?.source)
+            assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.date == tomorrow }?.source)
             assertEquals(66, result.find { it.date == tomorrow }?.highTemp)
         }
 
@@ -120,7 +120,7 @@ class WeatherGapTest {
                     highTemp = 66,
                     lowTemp = 46,
                     condition = "Climate Avg",
-                    source = WidgetStateManager.SOURCE_GENERIC_GAP,
+                    source = WeatherSource.GENERIC_GAP.id,
                     fetchedAt = System.currentTimeMillis(),
                 )
 
@@ -130,7 +130,7 @@ class WeatherGapTest {
             val result = repository.getForecastForDateBySource(targetDate, testLat, testLon, WeatherSource.NWS)
 
             assertNotNull(result)
-            assertEquals(WidgetStateManager.SOURCE_GENERIC_GAP, result?.source)
+            assertEquals(WeatherSource.GENERIC_GAP.id, result?.source)
             assertEquals(66, result?.highTemp)
         }
 

@@ -256,8 +256,9 @@ object DailyForecastGraphRenderer {
                     graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
                 }
 
+            val lowTemp = day.low
             val lowY =
-                day.low?.let {
+                lowTemp?.let {
                     graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
                 }
 
@@ -296,17 +297,14 @@ object DailyForecastGraphRenderer {
                 val lowTempY = iconY + iconSize + tempLabelHeight + dpToPx(context, 1f)
 
                 // Draw Low Temp Label
-                if (day.low != null) {
-                    val lowLabel =
-                        formatTempWithForecast(
-                            day.low,
-                            day.forecastLow,
-                            day.forecastSource,
-                            day.accuracyMode,
-                        )
-
-                    canvas.drawText(lowLabel, centerX, lowTempY, tempTextPaint)
-                }
+                val lowLabel =
+                    formatTempWithForecast(
+                        lowTemp,
+                        day.forecastLow,
+                        day.forecastSource,
+                        day.accuracyMode,
+                    )
+                canvas.drawText(lowLabel, centerX, lowTempY, tempTextPaint)
             } else {
                 // Fallback
             }
