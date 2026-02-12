@@ -109,8 +109,8 @@ class WidgetStateManager
         }
 
         fun getApiPreference(): ApiPreference {
-            val ordinal = prefs.getInt(KEY_API_PREFERENCE, ApiPreference.ALTERNATE.ordinal)
-            return ApiPreference.entries.getOrElse(ordinal) { ApiPreference.ALTERNATE }
+            val ordinal = prefs.getInt(KEY_API_PREFERENCE, ApiPreference.PREFER_NWS.ordinal)
+            return ApiPreference.entries.getOrElse(ordinal) { ApiPreference.PREFER_NWS }
         }
 
         fun setApiPreference(preference: ApiPreference) {
