@@ -380,24 +380,39 @@ show_progress() {
                 local new_lines
                 new_lines=$(sed -n "$((last_line + 1)),${total_lines}p" "$logfile")
                 while IFS= read -r line; do
-                    # Gradle test output format: "ClassName > testMethod PASSED/FAILED"
-                    # or "ClassName.testMethod PASSED/FAILED"
-                    if echo "$line" | grep -qE ">.*PASSED|PASSED"; then
-                        # Extract test name from various formats
-                        local test_name=$(echo "$line" | sed -n 's/.*> \([^ ]*\).*/\1/p')
-                        if [ -z "$test_name" ]; then
-                            test_name=$(echo "$line" | grep -oE "[a-zA-Z0-9_]+Test\.\w+" | head -1)
+                    # Connected test output format: "INFO: Execute com.package.Class.methodName: PASSED"
+                    if echo "$line" | grep -qE "^INFO: Execute .*: (PASSED|FAILED|SKIPPED)"; then
+                        local status=$(echo "$line" | grep -oE "(PASSED|FAILED|SKIPPED)")
+                        # Extract "com.package.Class.methodName" part
+                        local test_full=$(echo "$line" | sed -n "s/INFO: Execute \(.*\): .*/\1/p")
+                        
+                        if [ -n "$test_full" ]; then
+                            # Split into class and method (last dot separates them)
+                            local method_part="${test_full##*.}"
+                            local class_full="${test_full%.*}"
+                            local simple_class="${class_full##*.}"
+                            
+                            case "$status" in
+                                PASSED)  echo -e "${GREEN}  ✓ ${simple_class} > ${method_part}${NC}" ;;
+                                FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
+                                SKIPPED) echo -e "${YELLOW}  - ${simple_class} > ${method_part} (SKIPPED)${NC}" ;;
+                            esac
                         fi
-                        if [ -n "$test_name" ]; then
-                            echo -e "${GREEN}  ✓ ${test_name}${NC}"
-                        fi
-                    elif echo "$line" | grep -qE ">.*FAILED|FAILED"; then
-                        local test_name=$(echo "$line" | sed -n 's/.*> \([^ ]*\).*/\1/p')
-                        if [ -z "$test_name" ]; then
-                            test_name=$(echo "$line" | grep -oE "[a-zA-Z0-9_]+Test\.\w+" | head -1)
-                        fi
-                        if [ -n "$test_name" ]; then
-                            echo -e "${RED}  ✗ ${test_name}${NC}"
+                    # Fallback for standard Gradle test output: "Class > Method PASSED"
+                    elif echo "$line" | grep -qE " > .* (PASSED|FAILED|SKIPPED)"; then
+                        local status=$(echo "$line" | grep -oE "(PASSED|FAILED|SKIPPED)")
+                        local test_full=$(echo "$line" | sed -n "s/ \(PASSED\|FAILED\|SKIPPED\).*//p" | sed 's/.*:app:connectedDebugAndroidTest //')
+                        
+                        if [ -n "$test_full" ]; then
+                            local class_part=$(echo "$test_full" | cut -d'>' -f1 | sed 's/ //g')
+                            local method_part=$(echo "$test_full" | cut -d'>' -f2 | sed 's/ //g')
+                            local simple_class="${class_part##*.}"
+                            
+                            case "$status" in
+                                PASSED)  echo -e "${GREEN}  ✓ ${simple_class} > ${method_part}${NC}" ;;
+                                FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
+                                SKIPPED) echo -e "${YELLOW}  - ${simple_class} > ${method_part} (SKIPPED)${NC}" ;;
+                            esac
                         fi
                     fi
                 done <<< "$new_lines"
@@ -538,7 +553,14 @@ debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$E
 if [ "$FAILED" -gt 0 ] && [ -f /tmp/test_results.log ]; then
     echo ""
     echo -e "${RED}Failed tests:${NC}"
-    grep "FAILED" /tmp/test_results.log | sed 's/^/  /' | head -20
+    # Match both "INFO: Execute Class.method: FAILED" and "Class > method FAILED"
+    grep " FAILED" /tmp/test_results.log | while read -r line; do
+        if echo "$line" | grep -q "INFO: Execute"; then
+            echo "$line" | sed -n "s/INFO: Execute \(.*\): .*/\1/p" | sed 's/^/  ✗ /'
+        else
+            echo "$line" | sed 's/.*:app:connectedDebugAndroidTest //' | sed 's/ FAILED.*//' | sed 's/^/  ✗ /'
+        fi
+    done | head -20
 fi
 
 # Return appropriate exit code

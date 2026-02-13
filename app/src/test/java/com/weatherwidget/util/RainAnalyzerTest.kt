@@ -82,13 +82,13 @@ class RainAnalyzerTest {
 
     @Test
     fun `analyzeDay ignores rain condition text when probability is low`() {
-        // NWS often reports "Slight Chance Rain Showers" with low probability (18%)
+        // NWS often reports "Slight Chance Rain Showers" with low probability (18% or 30%)
         val date = LocalDate.of(2024, 6, 15)
         val forecasts = listOf(
             createForecast("2024-06-15T08:00", "Mostly Cloudy", 0),
             createForecast("2024-06-15T16:00", "Slight Chance Rain Showers", 18),
-            createForecast("2024-06-15T17:00", "Slight Chance Rain Showers", 18),
-            createForecast("2024-06-15T18:00", "Slight Chance Rain Showers", 18),
+            createForecast("2024-06-15T17:00", "Slight Chance Rain Showers", 30),
+            createForecast("2024-06-15T18:00", "Slight Chance Rain Showers", 39),
             createForecast("2024-06-15T20:00", "Clear", 0),
         )
 
@@ -96,6 +96,19 @@ class RainAnalyzerTest {
 
         assertFalse(result.hasRain)
         assertNull(result.summary)
+    }
+
+    @Test
+    fun `analyzeDay detects rain at new 40 percent threshold`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T12:00", "Cloudy", 40),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+
+        assertTrue(result.hasRain)
+        assertEquals("12pm", result.summary)
     }
 
     @Test
@@ -129,7 +142,7 @@ class RainAnalyzerTest {
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
-        // 22 hours with prob >= 30 (hours 2-23), which is >= 18
+        // 22 hours with prob >= 40 (hours 2-23), which is >= 18
         assertEquals("All day", result.summary)
     }
 

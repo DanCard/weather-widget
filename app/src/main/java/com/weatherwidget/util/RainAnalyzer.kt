@@ -11,7 +11,7 @@ import java.time.format.DateTimeFormatter
  */
 object RainAnalyzer {
 
-    private const val RAIN_PROBABILITY_THRESHOLD = 30
+    private const val RAIN_PROBABILITY_THRESHOLD = 40
 
     /**
      * Represents a continuous period of rain.
