@@ -130,9 +130,12 @@ object PrecipitationGraphRenderer {
 
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
-        hours.forEachIndexed { index, hour ->
+        val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
+        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = 3)
+
+        hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2f
-            val prob = hour.precipProbability.coerceIn(0, 100)
+            val prob = smoothedProbs[index]
             val y = graphBottom - graphHeight * (prob / 100f)
             points.add(x to y)
         }
@@ -276,27 +279,21 @@ object PrecipitationGraphRenderer {
             val isMandatory = candidate.index in mandatoryIndices
             if (!isMandatory && labelsPlaced >= maxLabels) break
 
-            // Skip non-mandatory labels too close to an already-placed label
-            if (!isMandatory && labeledIndices.any { abs(it - candidate.index) <= 2 }) continue
-
-            // Skip interval labels unless they fill a very large gap (7+ hours) between placed labels
-            if (candidate.priority == 3) {
-                val nearestLeft = labeledIndices.filter { it < candidate.index }.maxOrNull() ?: -1
-                val nearestRight = labeledIndices.filter { it > candidate.index }.minOrNull() ?: (hours.size + 1)
-                if (nearestRight - nearestLeft < 7) {
-                    Log.d(
-                        "PrecipGraph",
-                        "SKIPPED interval label at idx=${candidate.index} (${hours[candidate.index].label}): gap=${nearestRight - nearestLeft} too small",
-                    )
-                    continue
-                }
-            }
-
             val index = candidate.index
-            val centerX = points[index].first
-            val y = points[index].second
             val prob = probs[index]
             if (prob <= 0) continue
+
+            // Skip non-mandatory labels too close to an already-placed label (time spacing)
+            if (!isMandatory && labeledIndices.any { abs(it - index) <= 2 }) continue
+
+            // VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours
+            if (labeledIndices.any { probs[it] == prob && abs(it - index) <= 5 }) {
+                Log.d("PrecipGraph", "SKIPPED redundant value label: $prob% at idx=$index")
+                continue
+            }
+
+            val centerX = points[index].first
+            val y = points[index].second
 
             val labelText = "$prob%"
             val textWidth = percentLabelPaint.measureText(labelText)
@@ -405,32 +402,38 @@ object PrecipitationGraphRenderer {
         if (hours.isNotEmpty()) {
             val lastIndex = hours.lastIndex
             val endProb = probs[lastIndex]
-            val endLabelText = "$endProb%"
-            val textWidth = percentLabelPaint.measureText(endLabelText)
-            val textHeight = percentLabelPaint.textSize
-            val placement =
-                computeEndLabelPlacement(
-                    textWidth = textWidth,
-                    textHeight = textHeight,
-                    widthPx = widthPx,
-                    graphBottom = graphBottom,
-                    pointY = points[lastIndex].second,
-                    aboveGap = aboveGap,
-                    belowGap = belowGap,
-                    rightPadding = dpToPx(context, 8f),
-                    verticalInset = dpToPx(context, 2f),
-                    existingBounds = drawnLabelBounds.map { it.toPlacementRect() },
-                    nowBounds = nowLabelBounds?.toPlacementRect(),
-                )
 
-            if (placement != null) {
-                canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
-                drawnLabelBounds.add(placement.bounds.toRectF())
-                val mode = if (placement.usedFallback) "fallback" else "preferred"
-                // Below used in test.  Do not delete!
-                Log.d("PrecipGraph", "PLACED end label: $endLabelText at right edge ($mode)")
+            // Value De-duplication: Skip if we already labeled this exact % within 5 hours
+            if (labeledIndices.any { probs[it] == endProb && abs(it - lastIndex) <= 5 }) {
+                Log.d("PrecipGraph", "SKIPPED redundant end label: $endProb% (already labeled nearby)")
             } else {
-                Log.d("PrecipGraph", "SKIPPED end label: $endLabelText no available non-overlapping slot")
+                val endLabelText = "$endProb%"
+                val textWidth = percentLabelPaint.measureText(endLabelText)
+                val textHeight = percentLabelPaint.textSize
+                val placement =
+                    computeEndLabelPlacement(
+                        textWidth = textWidth,
+                        textHeight = textHeight,
+                        widthPx = widthPx,
+                        graphBottom = graphBottom,
+                        pointY = points[lastIndex].second,
+                        aboveGap = aboveGap,
+                        belowGap = belowGap,
+                        rightPadding = dpToPx(context, 8f),
+                        verticalInset = dpToPx(context, 2f),
+                        existingBounds = drawnLabelBounds.map { it.toPlacementRect() },
+                        nowBounds = nowLabelBounds?.toPlacementRect(),
+                    )
+
+                if (placement != null) {
+                    canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
+                    drawnLabelBounds.add(placement.bounds.toRectF())
+                    val mode = if (placement.usedFallback) "fallback" else "preferred"
+                    // Below used in test.  Do not delete!
+                    Log.d("PrecipGraph", "PLACED end label: $endLabelText at right edge ($mode)")
+                } else {
+                    Log.d("PrecipGraph", "SKIPPED end label: $endLabelText no available non-overlapping slot")
+                }
             }
         }
 
@@ -527,16 +530,36 @@ object PrecipitationGraphRenderer {
     ): Set<Int> {
         if (values.size < 3) return emptySet()
 
-        return (1 until values.lastIndex).filter { i ->
+        val extrema = mutableSetOf<Int>()
+        var i = 1
+        while (i < values.lastIndex) {
             val current = values[i]
             val prev = values[i - 1]
-            val next = values[i + 1]
-            if (isMax) {
-                (current > prev && current >= next) || (current >= prev && current > next)
-            } else {
-                (current < prev && current <= next) || (current <= prev && current < next)
+            
+            val isPotential = if (isMax) current > prev else current < prev
+            
+            if (isPotential) {
+                // We found the start of a potential peak/valley. 
+                // Find how long this plateau lasts.
+                var j = i
+                while (j < values.lastIndex && values[j + 1] == current) {
+                    j++
+                }
+                
+                // Now check the exit condition of the plateau
+                if (j < values.lastIndex) {
+                    val next = values[j + 1]
+                    val isExtremum = if (isMax) next < current else next > current
+                    if (isExtremum) {
+                        // Mark the middle (or first) of the plateau as the extremum
+                        extrema.add(i + (j - i) / 2)
+                    }
+                }
+                i = j // Skip to end of plateau
             }
-        }.toSet()
+            i++
+        }
+        return extrema
     }
 
     private fun localProminence(

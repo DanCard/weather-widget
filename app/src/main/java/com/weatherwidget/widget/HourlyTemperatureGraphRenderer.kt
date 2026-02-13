@@ -210,11 +210,13 @@ object HourlyTemperatureGraphRenderer {
 
         // --- Build curve path & gradient fill path ---
         val points = mutableListOf<Pair<Float, Float>>() // x,y for each hour
+        val rawTemps = hours.map { it.temperature }
+        val smoothedTemps = GraphRenderUtils.smoothValues(rawTemps, iterations = 3)
 
         // Compute all data points first
-        hours.forEachIndexed { index, hour ->
+        hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2
-            val y = graphTop + graphHeight * (1 - (hour.temperature - minTemp) / tempRange)
+            val y = graphTop + graphHeight * (1 - (smoothedTemps[index] - minTemp) / tempRange)
             points.add(x to y)
         }
 
