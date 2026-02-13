@@ -19,6 +19,8 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 /**
  * Handler for the precipitation view mode.
@@ -106,7 +108,13 @@ object PrecipViewHandler {
 
         // Get current display source
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-        views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)
+        val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+        val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
+            displaySource.shortDisplayName
+        } else {
+            "$dayName • ${displaySource.shortDisplayName}"
+        }
+        views.setTextViewText(R.id.api_source, sourceIndicator)
 
         // Set weather icon
         val now = LocalDateTime.now()
@@ -330,7 +338,10 @@ object PrecipViewHandler {
     private fun formatHourLabel(time: LocalDateTime): String {
         val hour = time.hour
         return when {
-            hour == 0 -> "12a"
+            hour == 0 -> {
+                val day = time.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                "$day 12a"
+            }
             hour < 12 -> "${hour}a"
             hour == 12 -> "12p"
             else -> "${hour - 12}p"

@@ -336,7 +336,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 AppWidgetManager.INVALID_APPWIDGET_ID,
             )
         val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: ""
-        Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName")
+        val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
+        Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName, offset=$targetOffset")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
@@ -347,7 +348,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         } catch (_: Exception) {
                             ViewMode.DAILY
                         }
-                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode)
+                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset)
                 } finally {
                     pendingResult.finish()
                 }
@@ -434,6 +435,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
         const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
+        const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
         private const val TAG = "WeatherWidgetProvider"
 

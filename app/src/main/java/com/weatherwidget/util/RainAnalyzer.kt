@@ -182,17 +182,8 @@ object RainAnalyzer {
     private fun generateSummary(windows: List<RainWindow>, actualRainHourCount: Int): String {
         if (windows.isEmpty()) return ""
 
-        // "All day" only when rain covers most of a full day (18+ hours out of 24)
-        if (actualRainHourCount >= 18) {
-            return "All day"
-        }
-
-        // Format each window
-        val windowStrings = windows.map { window ->
-            formatTimeWindow(window.startHour, window.endHour)
-        }
-
-        return windowStrings.joinToString(", ")
+        val firstWindow = windows.first()
+        return formatHour(firstWindow.startHour)
     }
 
     private fun formatTimeWindow(start: LocalDateTime, end: LocalDateTime): String {

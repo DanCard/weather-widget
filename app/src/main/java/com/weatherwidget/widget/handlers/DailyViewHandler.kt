@@ -27,6 +27,8 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.Duration
+import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -44,6 +46,9 @@ object DailyViewHandler : WidgetViewHandler {
     private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
     private const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
     private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
+    private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
+    private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
+    private const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
 
     override fun canHandle(
         stateManager: WidgetStateManager,
@@ -813,27 +818,42 @@ object DailyViewHandler : WidgetViewHandler {
         visibleDays.forEachIndexed { index, (dayIndex, dateStr) ->
             val containerId = containerIds[dayIndex - 1]
 
-            // In evening mode at offset 0, all visible days are today+future
-            // So they should all open Settings, not ForecastHistoryActivity
-            val intent =
-                if (index < midpoint && !isEveningModeAtOffset0) {
-                    Intent(context, ForecastHistoryActivity::class.java).apply {
-                        putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
-                        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-                    }
-                } else {
-                    Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
-                }
+            val targetDay = LocalDate.parse(dateStr)
+            val today = LocalDate.now()
+            val isHistory = targetDay.isBefore(today)
 
-            val pendingIntent =
+            val pendingIntent = if (isHistory) {
+                val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+                    putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+                    putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                    putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                    putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+                }
                 PendingIntent.getActivity(
                     context,
                     appWidgetId * 100 + dayIndex,
                     intent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 )
+            } else {
+                val targetDay = LocalDate.parse(dateStr)
+                val now = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
+                val targetCenter = targetDay.atTime(8, 0)
+                val offset = Duration.between(now, targetCenter).toHours().toInt()
+
+                val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                    action = ACTION_SET_VIEW
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
+                    putExtra(EXTRA_HOURLY_OFFSET, offset)
+                }
+                PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId * 100 + 20 + dayIndex, // Use 20+ offset for future
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            }
             views.setOnClickPendingIntent(containerId, pendingIntent)
         }
     }
@@ -865,28 +885,42 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(zoneId, View.VISIBLE)
 
             val dateStr = dayData.date
+            val targetDay = LocalDate.parse(dateStr)
+            val today = LocalDate.now()
+            val isHistory = targetDay.isBefore(today)
 
-            // In evening mode at offset 0, all visible days are today+future
-            // So they should all open Settings, not ForecastHistoryActivity
-            val intent =
-                if (index < midpoint && !isEveningModeAtOffset0) {
-                    Intent(context, ForecastHistoryActivity::class.java).apply {
-                        putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
-                        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-                    }
-                } else {
-                    Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
+            val pendingIntent = if (isHistory) {
+                val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+                    putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+                    putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                    putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                    putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
                 }
-
-            val pendingIntent =
                 PendingIntent.getActivity(
                     context,
                     appWidgetId * 100 + 50 + index,
                     intent,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 )
+            } else {
+                val targetDay = LocalDate.parse(dateStr)
+                val now = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
+                val targetCenter = targetDay.atTime(8, 0)
+                val offset = Duration.between(now, targetCenter).toHours().toInt()
+
+                val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                    action = ACTION_SET_VIEW
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
+                    putExtra(EXTRA_HOURLY_OFFSET, offset)
+                }
+                PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId * 100 + 70 + index, // Use 70+ base for future
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            }
             views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
 
