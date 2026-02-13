@@ -24,6 +24,8 @@ import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -51,6 +53,8 @@ class WeatherRepository
         private val temperatureInterpolator: TemperatureInterpolator,
     ) {
         internal data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+        private val syncMutex = Mutex()
 
         private val prefs: SharedPreferences by lazy {
             context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE)
@@ -97,59 +101,72 @@ class WeatherRepository
                     return Result.success(cached)
                 }
 
-                // Global rate limit for network fetches (even if forced, unless it's a very long time)
-                // This prevents bursts from multiple workers starting at once
-                val timeSinceLastFetch = now - lastNetworkFetchTime
-                if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && cached.isNotEmpty()) {
-                    val reason = if (forceRefresh) "forced refresh" else "stale data"
-                    appLogDao.insert(
-                        AppLogEntity(tag = "NET_RATE_LIMIT", message = "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago"),
-                    )
-                    Log.w(
-                        TAG,
-                        "getWeatherData: Rate limiting network fetch ($reason). Last fetch was only ${timeSinceLastFetch}ms ago. Returning cache.",
-                    )
-                    return Result.success(cached)
+                // Serialize network fetches to prevent parallel redundant bursts
+                syncMutex.withLock {
+                    // Re-check cache after acquiring lock - another thread might have just finished the fetch
+                    val freshCached = getCachedData(lat, lon)
+                    if (!forceRefresh && freshCached.isNotEmpty()) {
+                        val latestFetch = freshCached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
+                        if ((System.currentTimeMillis() - latestFetch) < 30L * 60 * 1000) {
+                            Log.d(TAG, "getWeatherData: Found fresh data after acquiring lock, skipping fetch")
+                            return Result.success(freshCached)
+                        }
+                    }
+
+                    // Global rate limit for network fetches (even if forced, unless it's a very long time)
+                    // This prevents bursts from multiple workers starting at once
+                    val timeSinceLastFetch = System.currentTimeMillis() - lastNetworkFetchTime
+                    if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && freshCached.isNotEmpty()) {
+                        val reason = if (forceRefresh) "forced refresh" else "stale data"
+                        appLogDao.insert(
+                            AppLogEntity(tag = "NET_RATE_LIMIT", message = "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago"),
+                        )
+                        Log.w(
+                            TAG,
+                            "getWeatherData: Rate limiting network fetch ($reason). Last fetch was only ${timeSinceLastFetch}ms ago. Returning cache.",
+                        )
+                        return Result.success(freshCached)
+                    }
+
+                    // Set rate limit timestamp to prevent concurrent bursts, but save the
+                    // previous value so we can restore it if the fetch fails entirely.
+                    val previousFetchTime = lastNetworkFetchTime
+                    lastNetworkFetchTime = System.currentTimeMillis()
+                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_START", message = "Forcing fetch: force=$forceRefresh"))
+                    val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
+
+                    // If both APIs returned nothing, reset the rate limit so we can retry sooner
+                    if (nwsWeather == null && meteoWeather == null) {
+                        lastNetworkFetchTime = previousFetchTime
+                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_FAIL", message = "Both APIs returned null, rate limit reset"))
+                    }
+
+                    // Save both APIs' data, merging with existing to preserve non-zero values
+                    if (nwsWeather != null) {
+                        val merged = mergeWithExisting(nwsWeather, lat, lon)
+                        weatherDao.insertAll(merged)
+                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "NWS: Got ${nwsWeather.size} entries"))
+                    }
+                    if (meteoWeather != null) {
+                        val merged = mergeWithExisting(meteoWeather, lat, lon)
+                        weatherDao.insertAll(merged)
+                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "Meteo: Got ${meteoWeather.size} entries"))
+                    }
+
+                    // Fetch and save generic gap data once to cover any gaps in either API
+                    val lastNwsDate = nwsWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
+                    val lastMeteoDate = meteoWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
+                    val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate).minOrNull() ?: LocalDate.now()
+
+                    val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
+                    if (gapWeather.isNotEmpty()) {
+                        weatherDao.insertAll(gapWeather)
+                    }
+
+                    cleanOldData()
+                    // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
+                    Result.success(getCachedData(lat, lon))
                 }
-
-                // Set rate limit timestamp to prevent concurrent bursts, but save the
-                // previous value so we can restore it if the fetch fails entirely.
-                val previousFetchTime = lastNetworkFetchTime
-                lastNetworkFetchTime = now
-                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_START", message = "Forcing fetch: force=$forceRefresh"))
-                val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
-
-                // If both APIs returned nothing, reset the rate limit so we can retry sooner
-                if (nwsWeather == null && meteoWeather == null) {
-                    lastNetworkFetchTime = previousFetchTime
-                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_FAIL", message = "Both APIs returned null, rate limit reset"))
-                }
-
-                // Save both APIs' data, merging with existing to preserve non-zero values
-                if (nwsWeather != null) {
-                    val merged = mergeWithExisting(nwsWeather, lat, lon)
-                    weatherDao.insertAll(merged)
-                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "NWS: Got ${nwsWeather.size} entries"))
-                }
-                if (meteoWeather != null) {
-                    val merged = mergeWithExisting(meteoWeather, lat, lon)
-                    weatherDao.insertAll(merged)
-                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "Meteo: Got ${meteoWeather.size} entries"))
-                }
-
-                // Fetch and save generic gap data once to cover any gaps in either API
-                val lastNwsDate = nwsWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
-                val lastMeteoDate = meteoWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
-                val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate).minOrNull() ?: LocalDate.now()
-
-                val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
-                if (gapWeather.isNotEmpty()) {
-                    weatherDao.insertAll(gapWeather)
-                }
-
-                cleanOldData()
-                // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
-                Result.success(getCachedData(lat, lon))
             } catch (e: Exception) {
                 // Reset rate limit so failed fetches don't block retries
                 lastNetworkFetchTime = 0L
@@ -548,6 +565,7 @@ class WeatherRepository
                 try {
                     if (gridPoint.observationStationsUrl != null) {
                         val stationsUrl = gridPoint.observationStationsUrl!!
+                        appLogDao.insert(AppLogEntity(tag = "OBS_BATCH_START", message = "Fetching 8 days of history from $stationsUrl"))
 
                         // Fetch all 8 days in parallel
                         val observationDeferreds =
@@ -559,11 +577,13 @@ class WeatherRepository
                                 }
                             }
 
+                        var successCount = 0
                         observationDeferreds.forEach { deferred ->
                             val (date, observationData) = deferred.await()
                             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
                             if (observationData != null) {
+                                successCount++
                                 weatherByDate[dateStr] = observationData.first to observationData.second
                                 stationByDate[dateStr] = observationData.third // Track station ID
                                 highSourceByDate[dateStr] = "OBS:${observationData.third}"
@@ -581,9 +601,11 @@ class WeatherRepository
                                 )
                             }
                         }
+                        appLogDao.insert(AppLogEntity(tag = "OBS_BATCH_SUCCESS", message = "Got $successCount/8 days of history"))
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "fetchFromNws: Failed to fetch historical observations: ${e.message}")
+                    appLogDao.insert(AppLogEntity(tag = "OBS_BATCH_ERROR", message = "Error: ${e.message}", level = "ERROR"))
                 }
 
                 // NWS returns periods with startTime - extract date from there
@@ -847,6 +869,7 @@ class WeatherRepository
 
                         apiLogger.logApiCall("NWS-Obs", true, null, stationId, durationMs)
                         Log.i(TAG, "fetchDayObservations: SUCCESS - Got ${observations.size} observations from $stationId for $date")
+                        appLogDao.insert(AppLogEntity(tag = "OBS_DAY_SUCCESS", message = "$date: Got ${observations.size} from $stationId"))
 
                         // Calculate high/low from observations (convert C to F) using Float math for precision
                         val temps: List<Int> =
