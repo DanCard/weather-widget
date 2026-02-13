@@ -464,7 +464,13 @@ object DailyViewHandler : WidgetViewHandler {
                 weather.highTemp to weather.lowTemp
             }
 
-            val iconRes = WeatherIconMapper.getIconResource(weather.condition)
+            // Use current hour condition for Today to match the main widget icon
+            val effectiveCondition = if (isToday) {
+                getCurrentHourCondition(hourlyForecasts, displaySource) ?: weather.condition
+            } else {
+                weather.condition
+            }
+            val iconRes = WeatherIconMapper.getIconResource(effectiveCondition)
             val isSunny =
                 iconRes == R.drawable.ic_weather_clear ||
                     iconRes == R.drawable.ic_weather_partly_cloudy ||
@@ -669,6 +675,9 @@ object DailyViewHandler : WidgetViewHandler {
                 getLabelForDate(day1Date),
                 weatherByDate[day1Str],
                 rainSummary1,
+                isToday = day1Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
             )
         }
         if (hasDay2) {
@@ -682,6 +691,9 @@ object DailyViewHandler : WidgetViewHandler {
                 getLabelForDate(day2Date),
                 weatherByDate[day2Str],
                 rainSummary2,
+                isToday = day2Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
             )
         }
         if (hasDay3) {
@@ -695,6 +707,9 @@ object DailyViewHandler : WidgetViewHandler {
                 getLabelForDate(day3Date),
                 weatherByDate[day3Str],
                 rainSummary3,
+                isToday = day3Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
             )
         }
         if (hasDay4) {
@@ -708,6 +723,9 @@ object DailyViewHandler : WidgetViewHandler {
                 getLabelForDate(day4Date),
                 weatherByDate[day4Str],
                 rainSummary4,
+                isToday = day4Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
             )
         }
         if (hasDay5) {
@@ -721,6 +739,9 @@ object DailyViewHandler : WidgetViewHandler {
                 getLabelForDate(day5Date),
                 weatherByDate[day5Str],
                 rainSummary5,
+                isToday = day5Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
             )
         }
         if (hasDay6) {
@@ -734,6 +755,9 @@ object DailyViewHandler : WidgetViewHandler {
                 getLabelForDate(day6Date),
                 weatherByDate[day6Str],
                 rainSummary6,
+                isToday = day6Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
             )
         }
 
@@ -757,10 +781,18 @@ object DailyViewHandler : WidgetViewHandler {
         label: String,
         weather: WeatherEntity?,
         rainSummary: String?,
+        isToday: Boolean = false,
+        hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
+        displaySource: WeatherSource = WeatherSource.NWS,
     ) {
         views.setTextViewText(labelId, label)
 
-        val iconRes = WeatherIconMapper.getIconResource(weather?.condition)
+        val condition = if (isToday && weather != null) {
+            getCurrentHourCondition(hourlyForecasts, displaySource) ?: weather.condition
+        } else {
+            weather?.condition
+        }
+        val iconRes = WeatherIconMapper.getIconResource(condition)
         views.setImageViewResource(iconId, iconRes)
 
         val isSunny =
