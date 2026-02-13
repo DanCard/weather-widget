@@ -22,6 +22,7 @@ object DailyForecastGraphRenderer {
         val forecastLow: Int? = null, // Single forecast
         val forecastSource: WeatherSource? = null,
         val accuracyMode: AccuracyDisplayMode = AccuracyDisplayMode.NONE,
+        val rainSummary: String? = null, // e.g. "2pm-5pm", "All day"
     )
 
     fun renderGraph(
@@ -205,6 +206,14 @@ object DailyForecastGraphRenderer {
                 textAlign = Paint.Align.CENTER
             }
 
+        // Rain summary text paint - small blue text below temp
+        val rainTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#5AC8FA")
+                textSize = dpToPx(context, 9f * scaleFactor)
+                textAlign = Paint.Align.CENTER
+            }
+
         // Forecast bar paint (blue line showing what was predicted for past days)
         val forecastBarPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -305,6 +314,12 @@ object DailyForecastGraphRenderer {
                         day.accuracyMode,
                     )
                 canvas.drawText(lowLabel, centerX, lowTempY, tempTextPaint)
+
+                // Draw rain summary if available
+                if (!day.rainSummary.isNullOrEmpty()) {
+                    val rainTextY = lowTempY + dpToPx(context, 10f * scaleFactor)
+                    canvas.drawText("☔ ${day.rainSummary}", centerX, rainTextY, rainTextPaint)
+                }
             } else {
                 // Fallback
             }

@@ -141,9 +141,9 @@ class WeatherWidgetWorker
                 val database = WeatherDatabase.getDatabase(context)
                 val hourlyDao = database.hourlyForecastDao()
                 val now = LocalDateTime.now()
-                // Extended range for hourly view: 24 hours past to 24 hours future
+                // Extended range for hourly view and rain analysis: 24h past to 60h future (today + 2 days)
                 val startTime = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val endTime = now.plusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val endTime = now.plusHours(60).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch hourly forecasts", e)

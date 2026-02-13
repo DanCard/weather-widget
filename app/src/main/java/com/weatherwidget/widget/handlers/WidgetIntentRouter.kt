@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.Dispatchers
@@ -127,9 +128,9 @@ object WidgetIntentRouter {
                 .groupBy { it.targetDate }
 
         val now = LocalDateTime.now()
-        val hourStart = now.minusHours(2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        val hourEnd = now.plusHours(2).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourStart, hourEnd, lat, lon)
+        val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
         withContext(Dispatchers.Main) {
             DailyViewHandler.updateWidget(
@@ -266,8 +267,8 @@ object WidgetIntentRouter {
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             withContext(Dispatchers.Main) {
@@ -323,8 +324,8 @@ object WidgetIntentRouter {
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             withContext(Dispatchers.Main) {
@@ -378,8 +379,8 @@ object WidgetIntentRouter {
                 snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             withContext(Dispatchers.Main) {
@@ -455,8 +456,8 @@ object WidgetIntentRouter {
                     snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
                         .groupBy { it.targetDate }
                 val now = LocalDateTime.now()
-                val hourlyStart = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val hourlyEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
                 withContext(Dispatchers.Main) {
@@ -524,8 +525,8 @@ object WidgetIntentRouter {
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             withContext(Dispatchers.Main) {

@@ -408,17 +408,56 @@ show_progress() {
     done
 }
 
-# Use tee to show output on console AND save to log
 echo -e "${BLUE}Starting tests...${NC}"
 echo ""
+
+# Truncate log so show_progress doesn't see stale content
+: > /tmp/test_results.log
 
 # Start progress monitor in background
 show_progress /tmp/test_results.log &
 PROGRESS_PID=$!
 debug_log "progress monitor started pid=$PROGRESS_PID"
 
-if timeout $TEST_TIMEOUT \
-    bash -c "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --info 2>&1 | tee /tmp/test_results.log"; then
+# Run gradle in background via script(1) for line-buffered output.
+# script creates a pseudo-terminal so Gradle flushes each line immediately,
+# letting show_progress display checkmarks in real time.
+# shellcheck disable=SC2086
+script -qfc "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --info" \
+    /tmp/test_results.log > /dev/null 2>&1 &
+GRADLE_PID=$!
+debug_log "gradle started via script(1) pid=$GRADLE_PID"
+
+# Poll for build completion or timeout.
+# Gradle's JVM sometimes hangs after BUILD SUCCESSFUL (daemon threads, ADB cleanup),
+# so we detect completion from output rather than waiting for process exit.
+WAIT_ELAPSED=0
+while kill -0 $GRADLE_PID 2>/dev/null; do
+    if [ $WAIT_ELAPSED -ge $TEST_TIMEOUT ]; then
+        echo -e "${RED}Test timeout after ${TEST_TIMEOUT}s${NC}"
+        debug_log "timeout after ${TEST_TIMEOUT}s"
+        break
+    fi
+    if grep -q "BUILD SUCCESSFUL\|BUILD FAILED" /tmp/test_results.log 2>/dev/null; then
+        debug_log "detected build completion in output"
+        sleep 2  # Brief grace period for final output flush
+        break
+    fi
+    sleep 1
+    WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
+done
+
+# Kill gradle if still running (it often hangs after build completes)
+if kill -0 $GRADLE_PID 2>/dev/null; then
+    debug_log "killing gradle pid=$GRADLE_PID (post-build or timeout)"
+    kill $GRADLE_PID 2>/dev/null || true
+    sleep 1
+    kill -9 $GRADLE_PID 2>/dev/null || true
+fi
+wait $GRADLE_PID 2>/dev/null || true
+
+# Determine success from build output (exit code unreliable since we may have killed the process)
+if grep -q "BUILD SUCCESSFUL" /tmp/test_results.log 2>/dev/null; then
     TEST_SUCCESS=true
 fi
 

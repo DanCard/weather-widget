@@ -183,3 +183,13 @@ Alternatively, use ADB to open the widget picker:
 ```bash
 adb shell am start -a android.appwidget.action.APPWIDGET_PICK
 ```
+
+## Running Instrumented Tests
+
+**NEVER run `./gradlew connectedDebugAndroidTest` directly** — it targets all connected devices, including physical ones. Installing the test APK on a physical device removes all widgets from the home screen (they must be manually re-added).
+
+Always use the emulator-only script:
+```bash
+./scripts/run-emulator-tests.sh                                        # all tests
+./scripts/run-emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest  # specific class
+```

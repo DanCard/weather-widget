@@ -89,10 +89,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     logToDb(context, appLogDao, "WIDGET_UPDATE", "Updating with ${weatherList.size} weather entries")
 
-                    // Get hourly forecasts for interpolation
+                    // Get hourly forecasts for interpolation and rain analysis
                     val now = LocalDateTime.now()
-                    val hourlyStart = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                    val hourlyEnd = now.plusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                     val hourlyForecasts =
                         hourlyDao.getHourlyForecasts(
                             hourlyStart,
@@ -420,6 +420,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+        /** Hours of past hourly data to query — covers yesterday's actuals for rain analysis. */
+        const val HOURLY_LOOKBACK_HOURS = 24L
+        /** Hours of future hourly data to query — covers today + 2 days for rain analysis. */
+        const val HOURLY_LOOKAHEAD_HOURS = 60L
         const val WORK_NAME = "weather_widget_update"
         const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"

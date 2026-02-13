@@ -88,6 +88,16 @@
                 android:text="--°"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day1_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Day 2 (Today) - Always visible -->
@@ -133,6 +143,16 @@
                 android:text="--°"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day2_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Day 3 (Tomorrow) -->
@@ -179,6 +199,16 @@
                 android:text="--°"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day3_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Day 4 -->
@@ -225,6 +255,16 @@
                 android:text="--°"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day4_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Day 5 -->
@@ -271,6 +311,16 @@
                 android:text="--°"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day5_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- Day 6 -->
@@ -317,6 +367,16 @@
                 android:text="--°"
                 android:textSize="18sp"
                 android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day6_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
         </LinearLayout>
 
     </LinearLayout>

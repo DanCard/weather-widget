@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.util.NavigationUtils
+import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
@@ -221,7 +222,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
             // Text mode - set visibility and populate
-            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, numColumns, isEveningMode)
+            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, isEveningMode)
 
             // Setup per-day click handlers for text mode
             // In evening mode at offset 0, today is the leftmost day (day1)
@@ -471,6 +472,14 @@ object DailyViewHandler : WidgetViewHandler {
                     iconRes == R.drawable.ic_weather_partly_cloudy ||
                     iconRes == R.drawable.ic_weather_mostly_clear
 
+            // Get rain summary for the next 2 days only — further out the icon suffices
+            val isNearTerm = !isPastDate && !date.isAfter(today.plusDays(2))
+            val rainSummary = if (isNearTerm) {
+                RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, LocalDateTime.now())
+            } else {
+                null
+            }
+
             days.add(
                 DailyForecastGraphRenderer.DayData(
                     date = dateStr,
@@ -488,6 +497,7 @@ object DailyViewHandler : WidgetViewHandler {
                     forecastLow = if (showComparison) forecast?.lowTemp else null,
                     forecastSource = if (showComparison) displaySource else null,
                     accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE,
+                    rainSummary = rainSummary,
                 ),
             )
         }
@@ -538,7 +548,9 @@ object DailyViewHandler : WidgetViewHandler {
         centerDate: LocalDate,
         today: LocalDate,
         weatherByDate: Map<String, WeatherEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         numColumns: Int,
+        displaySource: WeatherSource,
         isEveningMode: Boolean = false,
     ): List<Pair<Int, String>> {
         // In evening mode at default offset, shift to show today as leftmost
@@ -630,6 +642,17 @@ object DailyViewHandler : WidgetViewHandler {
             }
         }
 
+        // Compute rain summaries for the next 2 days only — further out the icon suffices
+        val now = LocalDateTime.now()
+        val nearTermLimit = today.plusDays(2)
+        fun isNearTerm(date: LocalDate) = !date.isBefore(today) && !date.isAfter(nearTermLimit)
+        val rainSummary1 = if (hasDay1 && isNearTerm(day1Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day1Date, displaySource.id, now) else null
+        val rainSummary2 = if (hasDay2 && isNearTerm(day2Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day2Date, displaySource.id, now) else null
+        val rainSummary3 = if (hasDay3 && isNearTerm(day3Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day3Date, displaySource.id, now) else null
+        val rainSummary4 = if (hasDay4 && isNearTerm(day4Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day4Date, displaySource.id, now) else null
+        val rainSummary5 = if (hasDay5 && isNearTerm(day5Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day5Date, displaySource.id, now) else null
+        val rainSummary6 = if (hasDay6 && isNearTerm(day6Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day6Date, displaySource.id, now) else null
+
         if (hasDay1) {
             populateDay(
                 views,
@@ -637,8 +660,10 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day1_icon,
                 R.id.day1_high,
                 R.id.day1_low,
+                R.id.day1_rain,
                 getLabelForDate(day1Date),
                 weatherByDate[day1Str],
+                rainSummary1,
             )
         }
         if (hasDay2) {
@@ -648,8 +673,10 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day2_icon,
                 R.id.day2_high,
                 R.id.day2_low,
+                R.id.day2_rain,
                 getLabelForDate(day2Date),
                 weatherByDate[day2Str],
+                rainSummary2,
             )
         }
         if (hasDay3) {
@@ -659,8 +686,10 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day3_icon,
                 R.id.day3_high,
                 R.id.day3_low,
+                R.id.day3_rain,
                 getLabelForDate(day3Date),
                 weatherByDate[day3Str],
+                rainSummary3,
             )
         }
         if (hasDay4) {
@@ -670,8 +699,10 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day4_icon,
                 R.id.day4_high,
                 R.id.day4_low,
+                R.id.day4_rain,
                 getLabelForDate(day4Date),
                 weatherByDate[day4Str],
+                rainSummary4,
             )
         }
         if (hasDay5) {
@@ -681,8 +712,10 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day5_icon,
                 R.id.day5_high,
                 R.id.day5_low,
+                R.id.day5_rain,
                 getLabelForDate(day5Date),
                 weatherByDate[day5Str],
+                rainSummary5,
             )
         }
         if (hasDay6) {
@@ -692,8 +725,10 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day6_icon,
                 R.id.day6_high,
                 R.id.day6_low,
+                R.id.day6_rain,
                 getLabelForDate(day6Date),
                 weatherByDate[day6Str],
+                rainSummary6,
             )
         }
 
@@ -713,8 +748,10 @@ object DailyViewHandler : WidgetViewHandler {
         iconId: Int,
         highId: Int,
         lowId: Int,
+        rainId: Int,
         label: String,
         weather: WeatherEntity?,
+        rainSummary: String?,
     ) {
         views.setTextViewText(labelId, label)
 
@@ -741,6 +778,14 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(iconId, View.VISIBLE)
         views.setTextViewText(highId, weather?.highTemp?.let { "$it°" } ?: "--°")
         views.setTextViewText(lowId, weather?.lowTemp?.let { "$it°" } ?: "--°")
+
+        // Show rain timing if available
+        if (!rainSummary.isNullOrEmpty()) {
+            views.setTextViewText(rainId, "☔ $rainSummary")
+            views.setViewVisibility(rainId, View.VISIBLE)
+        } else {
+            views.setViewVisibility(rainId, View.GONE)
+        }
     }
 
     private fun setupTextDayClickHandlers(
