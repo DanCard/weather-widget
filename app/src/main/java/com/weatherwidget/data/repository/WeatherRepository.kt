@@ -133,7 +133,10 @@ class WeatherRepository
                     val previousFetchTime = lastNetworkFetchTime
                     lastNetworkFetchTime = System.currentTimeMillis()
                     appLogDao.insert(AppLogEntity(tag = "NET_FETCH_START", message = "Forcing fetch: force=$forceRefresh"))
+                    val fetchStart = System.currentTimeMillis()
                     val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
+                    val fetchDuration = System.currentTimeMillis() - fetchStart
+                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_DONE", message = "APIs returned in ${fetchDuration}ms. NWS=${nwsWeather?.size ?: "null"}, Meteo=${meteoWeather?.size ?: "null"}"))
 
                     // If both APIs returned nothing, reset the rate limit so we can retry sooner
                     if (nwsWeather == null && meteoWeather == null) {
@@ -145,12 +148,12 @@ class WeatherRepository
                     if (nwsWeather != null) {
                         val merged = mergeWithExisting(nwsWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "NWS: Got ${nwsWeather.size} entries"))
+                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "NWS: Saved ${merged.size} entries (raw=${nwsWeather.size})"))
                     }
                     if (meteoWeather != null) {
                         val merged = mergeWithExisting(meteoWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "Meteo: Got ${meteoWeather.size} entries"))
+                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "Meteo: Saved ${merged.size} entries (raw=${meteoWeather.size})"))
                     }
 
                     // Fetch and save generic gap data once to cover any gaps in either API
@@ -158,19 +161,25 @@ class WeatherRepository
                     val lastMeteoDate = meteoWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
                     val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate).minOrNull() ?: LocalDate.now()
 
+                    val gapStart = System.currentTimeMillis()
                     val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
                     if (gapWeather.isNotEmpty()) {
                         weatherDao.insertAll(gapWeather)
                     }
+                    val gapDuration = System.currentTimeMillis() - gapStart
 
                     cleanOldData()
+                    val totalEntries = getCachedData(lat, lon)
+                    val totalDuration = System.currentTimeMillis() - fetchStart
+                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_COMPLETE", message = "Total ${totalDuration}ms. gap=${gapDuration}ms/${gapWeather.size} entries. DB now has ${totalEntries.size} entries"))
                     // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
-                    Result.success(getCachedData(lat, lon))
+                    Result.success(totalEntries)
                 }
             } catch (e: Exception) {
                 // Reset rate limit so failed fetches don't block retries
                 lastNetworkFetchTime = 0L
-                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_ERROR", message = "Exception: ${e.message}, rate limit reset"))
+                val stackSummary = e.stackTrace.take(3).joinToString(" <- ") { "${it.fileName}:${it.lineNumber}" }
+                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_ERROR", message = "${e.javaClass.simpleName}: ${e.message} [$stackSummary], rate limit reset"))
                 Log.e(TAG, "getWeatherData: Fetch failed, rate limit reset", e)
                 val cached = getCachedData(lat, lon)
                 if (cached.isNotEmpty()) {
@@ -441,8 +450,13 @@ class WeatherRepository
                 val meteoResult = meteoDeferred.await()
 
                 // Save snapshots from both APIs (if available)
-                nwsResult?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
-                meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
+                try {
+                    nwsResult?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
+                    meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
+                } catch (e: Exception) {
+                    Log.e(TAG, "fetchFromBothApis: saveForecastSnapshot failed: ${e.message}", e)
+                    // Don't let snapshot failure kill the whole fetch
+                }
 
                 // If both failed, throw an exception
                 if (nwsResult == null && meteoResult == null) {
