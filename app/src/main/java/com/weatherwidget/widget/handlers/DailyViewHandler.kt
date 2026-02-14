@@ -565,7 +565,7 @@ object DailyViewHandler : WidgetViewHandler {
         numColumns: Int,
         displaySource: WeatherSource,
         isEveningMode: Boolean = false,
-    ): List<Pair<Int, String>> {
+    ): List<Triple<Int, String, Boolean>> {  // dayIndex, dateStr, hasRainForecast
         // In evening mode at default offset, shift to show today as leftmost
         val skipHistory = isEveningMode && centerDate == today
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
@@ -798,14 +798,14 @@ object DailyViewHandler : WidgetViewHandler {
             )
         }
 
-        val visibleDays = mutableListOf<Pair<Int, String>>()
-        if (hasDay1) visibleDays.add(1 to day1Str)
-        if (hasDay2) visibleDays.add(2 to day2Str)
-        if (hasDay3) visibleDays.add(3 to day3Str)
-        if (hasDay4) visibleDays.add(4 to day4Str)
-        if (hasDay5) visibleDays.add(5 to day5Str)
-        if (hasDay6) visibleDays.add(6 to day6Str)
-        if (hasDay7) visibleDays.add(7 to day7Str)
+        val visibleDays = mutableListOf<Triple<Int, String, Boolean>>()
+        if (hasDay1) visibleDays.add(Triple(1, day1Str, rainSummary1 != null))
+        if (hasDay2) visibleDays.add(Triple(2, day2Str, rainSummary2 != null))
+        if (hasDay3) visibleDays.add(Triple(3, day3Str, rainSummary3 != null))
+        if (hasDay4) visibleDays.add(Triple(4, day4Str, rainSummary4 != null))
+        if (hasDay5) visibleDays.add(Triple(5, day5Str, rainSummary5 != null))
+        if (hasDay6) visibleDays.add(Triple(6, day6Str, rainSummary6 != null))
+        if (hasDay7) visibleDays.add(Triple(7, day7Str, rainSummary7 != null))
         return visibleDays
     }
 
@@ -867,7 +867,7 @@ object DailyViewHandler : WidgetViewHandler {
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
-        visibleDays: List<Pair<Int, String>>,
+        visibleDays: List<Triple<Int, String, Boolean>>,  // dayIndex, dateStr, hasRainForecast
         lat: Double,
         lon: Double,
         displaySource: WeatherSource,
@@ -886,7 +886,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         val midpoint = visibleDays.size / 2
 
-        visibleDays.forEachIndexed { index, (dayIndex, dateStr) ->
+        visibleDays.forEachIndexed { index, (dayIndex, dateStr, hasRainForecast) ->
             val containerId = containerIds[dayIndex - 1]
 
             val targetDay = LocalDate.parse(dateStr)
@@ -901,7 +901,15 @@ object DailyViewHandler : WidgetViewHandler {
                 putExtra("index", dayIndex)
             }
 
-            if (isHistory) {
+            // Determine action: history view vs precipitation view
+            // Today without rain forecast → show history (since precip view would be empty)
+            // Today with rain → show precipitation
+            // Future days → always show precipitation (relevant for planning)
+            // Past days → always show history
+            val isToday = targetDay == today
+            val showHistory = isHistory || (isToday && !hasRainForecast)
+
+            if (showHistory) {
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
                 intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
