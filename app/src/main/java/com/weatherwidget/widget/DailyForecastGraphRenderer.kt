@@ -84,10 +84,12 @@ object DailyForecastGraphRenderer {
         val dayLabelHeight = dpToPx(context, baseDayLabelSize) // Fixed size, no height scaling
         val tempLabelHeight = dpToPx(context, baseTempLabelSize * heightScaleFactor)
 
-        // Log font sizing info
+        // Log font and layout sizing info
         android.util.Log.d(
             "TemperatureGraph",
-            "Widget: ${widthPx}px × ${heightPx}px (${widthDp.toInt()}dp × ${heightDp.toInt()}dp) | heightScaleFactor=$heightScaleFactor | baseDayLabel=$baseDayLabelSize, finalDayLabel=${baseDayLabelSize * heightScaleFactor}dp",
+            "Widget: ${widthPx}px × ${heightPx}px (${widthDp.toInt()}dp × ${heightDp.toInt()}dp) | " +
+                "horizontalPadding=${horizontalPadding}px, dayWidth=${(widthPx - 2 * horizontalPadding) / days.size}px | " +
+                "heightScaleFactor=$heightScaleFactor | baseDayLabel=$baseDayLabelSize, finalDayLabel=${baseDayLabelSize * heightScaleFactor}dp",
         )
 
         // Stack Height: Low Temp Label + Icon + Padding (Space attached to the BAR)

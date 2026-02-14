@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.HourlyViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
@@ -208,6 +209,59 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_TOGGLE_VIEW -> handleToggleViewAction(context, intent)
             ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
+            ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
+        }
+    }
+
+    private fun handleDayClickAction(
+        context: Context,
+        intent: Intent,
+    ) {
+        val appWidgetId =
+            intent.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID,
+            )
+        val dateStr = intent.getStringExtra("date") ?: ""
+        val isHistory = intent.getBooleanExtra("isHistory", false)
+        val index = intent.getIntExtra("index", -1)
+
+        Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, index=$index")
+
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val database = WeatherDatabase.getDatabase(context)
+                logToDb(context, database.appLogDao(), "CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory")
+
+                if (isHistory) {
+                    val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
+                    val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
+                    val source = intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE) ?: ""
+
+                    val historyIntent = Intent(context, ForecastHistoryActivity::class.java).apply {
+                        putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+                        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(historyIntent)
+                } else {
+                    // Future day click was already setup with ACTION_SET_VIEW extras
+                    val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
+                    val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
+                    val targetMode =
+                        try {
+                            ViewMode.valueOf(targetViewName)
+                        } catch (_: Exception) {
+                            ViewMode.PRECIPITATION
+                        }
+                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset)
+                }
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 
@@ -434,6 +488,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
         const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
         const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
+        const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"

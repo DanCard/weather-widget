@@ -379,6 +379,62 @@
                 android:visibility="gone" />
         </LinearLayout>
 
+        <!-- Day 7 -->
+        <LinearLayout
+            android:id="@+id/day7_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/day7_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Day"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <ImageView
+                android:id="@+id/day7_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="2dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone"
+                android:tint="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day7_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="22sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day7_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day7_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
+        </LinearLayout>
+
     </LinearLayout>
 
     <!-- Graph view (for 2+ row height) -->
@@ -443,6 +499,14 @@
 
         <FrameLayout
             android:id="@+id/graph_day6_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day7_zone"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"

@@ -47,6 +47,7 @@ object DailyViewHandler : WidgetViewHandler {
     private const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
     private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
     private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
+    private const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
     private const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
 
@@ -200,7 +201,11 @@ object DailyViewHandler : WidgetViewHandler {
                 )
 
             // Use actual widget dimensions for bitmap to match ImageView size
-            val widthDp = dimensions.widthDp - 24
+            // The graph touch zones are inset by 40dp (8dp root padding + 32dp margin)
+            // The graph_view ImageView has 4dp margin + 8dp root padding = 12dp start.
+            // To align with touch zones at 40dp, the bitmap needs 28dp internal padding on each side.
+            // (W - 24) - 2 * 28 = W - 80.
+            val widthDp = (dimensions.widthDp - 80).coerceAtLeast(40)
             val heightDp = dimensions.heightDp - 16
 
             val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
@@ -574,6 +579,7 @@ object DailyViewHandler : WidgetViewHandler {
         val day4Date = effectiveCenter.plusDays(2)
         val day5Date = effectiveCenter.plusDays(3)
         val day6Date = effectiveCenter.plusDays(4)
+        val day7Date = effectiveCenter.plusDays(5)
 
         val day1Str = day1Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val day2Str = day2Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -581,6 +587,7 @@ object DailyViewHandler : WidgetViewHandler {
         val day4Str = day4Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val day6Str = day6Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val day7Str = day7Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         fun hasCompleteData(dateStr: String): Boolean {
             val weather = weatherByDate[dateStr] ?: return false
@@ -593,15 +600,26 @@ object DailyViewHandler : WidgetViewHandler {
         val hasDay4 = hasCompleteData(day4Str)
         val hasDay5 = hasCompleteData(day5Str)
         val hasDay6 = hasCompleteData(day6Str)
+        val hasDay7 = hasCompleteData(day7Str)
 
         when {
-            numColumns >= 6 -> {
+            numColumns >= 7 -> {
                 views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day6_container, if (hasDay6) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day7_container, if (hasDay7) View.VISIBLE else View.GONE)
+            }
+            numColumns == 6 -> {
+                views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day6_container, if (hasDay6) View.VISIBLE else View.GONE)
+                views.setViewVisibility(R.id.day7_container, View.GONE)
             }
             numColumns == 5 -> {
                 views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
@@ -610,6 +628,7 @@ object DailyViewHandler : WidgetViewHandler {
                 views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day6_container, View.GONE)
+                views.setViewVisibility(R.id.day7_container, View.GONE)
             }
             numColumns == 4 -> {
                 views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
@@ -618,6 +637,7 @@ object DailyViewHandler : WidgetViewHandler {
                 views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.day5_container, View.GONE)
                 views.setViewVisibility(R.id.day6_container, View.GONE)
+                views.setViewVisibility(R.id.day7_container, View.GONE)
             }
             numColumns == 3 -> {
                 views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
@@ -626,6 +646,7 @@ object DailyViewHandler : WidgetViewHandler {
                 views.setViewVisibility(R.id.day4_container, View.GONE)
                 views.setViewVisibility(R.id.day5_container, View.GONE)
                 views.setViewVisibility(R.id.day6_container, View.GONE)
+                views.setViewVisibility(R.id.day7_container, View.GONE)
             }
             numColumns == 2 -> {
                 views.setViewVisibility(R.id.day1_container, View.GONE)
@@ -634,6 +655,7 @@ object DailyViewHandler : WidgetViewHandler {
                 views.setViewVisibility(R.id.day4_container, View.GONE)
                 views.setViewVisibility(R.id.day5_container, View.GONE)
                 views.setViewVisibility(R.id.day6_container, View.GONE)
+                views.setViewVisibility(R.id.day7_container, View.GONE)
             }
             else -> {
                 views.setViewVisibility(R.id.day1_container, View.GONE)
@@ -642,6 +664,7 @@ object DailyViewHandler : WidgetViewHandler {
                 views.setViewVisibility(R.id.day4_container, View.GONE)
                 views.setViewVisibility(R.id.day5_container, View.GONE)
                 views.setViewVisibility(R.id.day6_container, View.GONE)
+                views.setViewVisibility(R.id.day7_container, View.GONE)
             }
         }
 
@@ -663,6 +686,7 @@ object DailyViewHandler : WidgetViewHandler {
         val rainSummary4 = if (hasDay4 && isNearTerm(day4Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day4Date, displaySource.id, now) else null
         val rainSummary5 = if (hasDay5 && isNearTerm(day5Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day5Date, displaySource.id, now) else null
         val rainSummary6 = if (hasDay6 && isNearTerm(day6Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day6Date, displaySource.id, now) else null
+        val rainSummary7 = if (hasDay7 && isNearTerm(day7Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day7Date, displaySource.id, now) else null
 
         if (hasDay1) {
             populateDay(
@@ -760,6 +784,22 @@ object DailyViewHandler : WidgetViewHandler {
                 displaySource = displaySource,
             )
         }
+        if (hasDay7) {
+            populateDay(
+                views,
+                R.id.day7_label,
+                R.id.day7_icon,
+                R.id.day7_high,
+                R.id.day7_low,
+                R.id.day7_rain,
+                getLabelForDate(day7Date),
+                weatherByDate[day7Str],
+                rainSummary7,
+                isToday = day7Date == today,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
+            )
+        }
 
         val visibleDays = mutableListOf<Pair<Int, String>>()
         if (hasDay1) visibleDays.add(1 to day1Str)
@@ -768,6 +808,7 @@ object DailyViewHandler : WidgetViewHandler {
         if (hasDay4) visibleDays.add(4 to day4Str)
         if (hasDay5) visibleDays.add(5 to day5Str)
         if (hasDay6) visibleDays.add(6 to day6Str)
+        if (hasDay7) visibleDays.add(7 to day7Str)
         return visibleDays
     }
 
@@ -843,6 +884,7 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day4_container,
                 R.id.day5_container,
                 R.id.day6_container,
+                R.id.day7_container,
             )
 
         val midpoint = visibleDays.size / 2
@@ -854,38 +896,33 @@ object DailyViewHandler : WidgetViewHandler {
             val today = LocalDate.now()
             val isHistory = targetDay.isBefore(today)
 
-            val pendingIntent = if (isHistory) {
-                val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
-                    putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
-                    putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                    putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                    putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-                }
-                PendingIntent.getActivity(
-                    context,
-                    appWidgetId * 100 + dayIndex,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
+            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_DAY_CLICK
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra("date", dateStr)
+                putExtra("isHistory", isHistory)
+                putExtra("index", dayIndex)
+            }
+
+            if (isHistory) {
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
             } else {
-                val targetDay = LocalDate.parse(dateStr)
                 val now = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
                 val targetCenter = targetDay.atTime(8, 0)
                 val offset = Duration.between(now, targetCenter).toHours().toInt()
 
-                val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = ACTION_SET_VIEW
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
-                    putExtra(EXTRA_HOURLY_OFFSET, offset)
-                }
-                PendingIntent.getBroadcast(
-                    context,
-                    appWidgetId * 100 + 20 + dayIndex, // Use 20+ offset for future
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
+                intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
+                intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
             }
+
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 100 + dayIndex,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
             views.setOnClickPendingIntent(containerId, pendingIntent)
         }
     }
@@ -908,6 +945,7 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.graph_day4_zone,
                 R.id.graph_day5_zone,
                 R.id.graph_day6_zone,
+                R.id.graph_day7_zone,
             )
 
         val midpoint = days.size / 2
@@ -921,38 +959,33 @@ object DailyViewHandler : WidgetViewHandler {
             val today = LocalDate.now()
             val isHistory = targetDay.isBefore(today)
 
-            val pendingIntent = if (isHistory) {
-                val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
-                    putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
-                    putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                    putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                    putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-                }
-                PendingIntent.getActivity(
-                    context,
-                    appWidgetId * 100 + 50 + index,
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
+            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_DAY_CLICK
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra("date", dateStr)
+                putExtra("isHistory", isHistory)
+                putExtra("index", index + 1)
+            }
+
+            if (isHistory) {
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
             } else {
-                val targetDay = LocalDate.parse(dateStr)
                 val now = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
                 val targetCenter = targetDay.atTime(8, 0)
                 val offset = Duration.between(now, targetCenter).toHours().toInt()
 
-                val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = ACTION_SET_VIEW
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
-                    putExtra(EXTRA_HOURLY_OFFSET, offset)
-                }
-                PendingIntent.getBroadcast(
-                    context,
-                    appWidgetId * 100 + 70 + index, // Use 70+ base for future
-                    intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
+                intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
+                intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
             }
+
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 100 + 50 + index,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
             views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
 
