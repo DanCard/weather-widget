@@ -906,6 +906,8 @@ object DailyViewHandler : WidgetViewHandler {
             // Any day with rain → show precipitation
             // Past days → always show history
             val showHistory = isHistory || !hasRainForecast
+            
+            Log.d(TAG, "Text click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, showHistory=$showHistory")
 
             if (showHistory) {
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
@@ -968,6 +970,8 @@ object DailyViewHandler : WidgetViewHandler {
             // Past days → always show history
             val hasRainForecast = !dayData.rainSummary.isNullOrEmpty()
             val showHistory = isHistory || !hasRainForecast
+            
+            Log.d(TAG, "Graph click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, rainSummary=${dayData.rainSummary}, showHistory=$showHistory")
 
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_DAY_CLICK
