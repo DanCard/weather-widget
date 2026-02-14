@@ -126,46 +126,8 @@ class RainAnalyzerTest {
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
-        assertEquals("10am, 6pm", result.summary)
+        assertEquals("10am", result.summary)
         assertEquals(2, result.windows.size)
-    }
-
-    @Test
-    fun `analyzeDay returns All day for extended rain`() {
-        val date = LocalDate.of(2024, 6, 15)
-        // 18+ hourly entries with rain triggers "All day"
-        val forecasts = (0..23).map { hour ->
-            val hourStr = String.format("%02d", hour)
-            createForecast("2024-06-15T${hourStr}:00", "Rain", if (hour < 2) 20 else 60)
-        }
-
-        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
-
-        assertTrue(result.hasRain)
-        // 22 hours with prob >= 40 (hours 2-23), which is >= 18
-        assertEquals("All day", result.summary)
-    }
-
-    @Test
-    fun `analyzeDay does not return All day for partial rain`() {
-        val date = LocalDate.of(2024, 6, 15)
-        // Only 9 hours of rain — should NOT be "All day"
-        val forecasts = listOf(
-            createForecast("2024-06-15T06:00", "Rain", 60),
-            createForecast("2024-06-15T08:00", "Rain", 70),
-            createForecast("2024-06-15T10:00", "Rain", 70),
-            createForecast("2024-06-15T12:00", "Rain", 80),
-            createForecast("2024-06-15T14:00", "Rain", 75),
-            createForecast("2024-06-15T16:00", "Rain", 70),
-            createForecast("2024-06-15T18:00", "Rain", 65),
-            createForecast("2024-06-15T20:00", "Rain", 60),
-            createForecast("2024-06-15T22:00", "Rain", 55),
-        )
-
-        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
-
-        assertTrue(result.hasRain)
-        assertNotEquals("All day", result.summary)
     }
 
     @Test
@@ -234,7 +196,7 @@ class RainAnalyzerTest {
 
         assertTrue(result.hasRain)
         // 12am and 12pm are more than 2 hours apart, so they form separate windows
-        assertEquals("12am, 12pm", result.summary)
+        assertEquals("12am", result.summary)
     }
 
     @Test

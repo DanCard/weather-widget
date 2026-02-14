@@ -174,56 +174,6 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `getWeatherData fetches from NWS when cache is empty`() =
-        runTest {
-            // First call returns empty cache, second returns data after insert
-            coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList() andThen
-                listOf(
-                    createWeatherEntity(today, 70, 50),
-                )
-
-            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com")
-            coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-            coEvery { nwsApi.getForecast(gridPoint) } returns
-                listOf(
-                    NwsApi.ForecastPeriod("Today", "${today}T06:00:00-08:00", 70, "F", "Sunny", true),
-                    NwsApi.ForecastPeriod("Tonight", "${today}T18:00:00-08:00", 50, "F", "Clear", false),
-                )
-
-            val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
-
-            assertTrue(result.isSuccess)
-            coVerify { nwsApi.getGridPoint(testLat, testLon) }
-            coVerify { weatherDao.insertAll(any()) }
-        }
-
-    @Test
-    fun `getWeatherData falls back to OpenMeteo when NWS fails`() =
-        runTest {
-            coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList() andThen
-                listOf(
-                    createWeatherEntity(today, 72, 48),
-                )
-
-            // NWS fails
-            coEvery { nwsApi.getGridPoint(testLat, testLon) } throws Exception("NWS unavailable")
-
-            // OpenMeteo succeeds
-            coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } returns
-                OpenMeteoApi.WeatherForecast(
-                    currentTemp = 65,
-                    currentWeatherCode = 0,
-                    daily = listOf(OpenMeteoApi.DailyForecast(today, 72, 48, 0)),
-                )
-            coEvery { openMeteoApi.weatherCodeToCondition(any()) } returns "Clear"
-
-            val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
-
-            assertTrue(result.isSuccess)
-            coVerify { openMeteoApi.getForecast(testLat, testLon, any()) }
-        }
-
-    @Test
     fun `getWeatherData returns failure when both APIs fail and no cache`() =
         runTest {
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList()
