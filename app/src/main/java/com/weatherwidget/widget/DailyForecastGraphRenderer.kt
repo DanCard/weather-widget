@@ -320,7 +320,7 @@ object DailyForecastGraphRenderer {
                 // Draw rain summary if available
                 if (!day.rainSummary.isNullOrEmpty()) {
                     val rainTextY = lowTempY + dpToPx(context, 10f * scaleFactor)
-                    canvas.drawText("☔ ${day.rainSummary}", centerX, rainTextY, rainTextPaint)
+                    canvas.drawText("💧 ${day.rainSummary}", centerX, rainTextY, rainTextPaint)
                 }
             } else {
                 // Fallback
