@@ -225,16 +225,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val dateStr = intent.getStringExtra("date") ?: ""
         val isHistory = intent.getBooleanExtra("isHistory", false)
         val index = intent.getIntExtra("index", -1)
+        val showHistory = intent.getBooleanExtra("showHistory", isHistory) // Default to isHistory for backward compat
 
-        Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, index=$index")
+        Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index")
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val database = WeatherDatabase.getDatabase(context)
-                logToDb(context, database.appLogDao(), "CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory")
+                logToDb(context, database.appLogDao(), "CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
 
-                if (isHistory) {
+                if (showHistory) {
                     val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
                     val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
                     val source = intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE) ?: ""
