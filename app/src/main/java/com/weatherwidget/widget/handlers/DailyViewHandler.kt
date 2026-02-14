@@ -201,11 +201,9 @@ object DailyViewHandler : WidgetViewHandler {
                 )
 
             // Use actual widget dimensions for bitmap to match ImageView size
-            // The graph touch zones are inset by 40dp (8dp root padding + 32dp margin)
-            // The graph_view ImageView has 4dp margin + 8dp root padding = 12dp start.
-            // To align with touch zones at 40dp, the bitmap needs 28dp internal padding on each side.
-            // (W - 24) - 2 * 28 = W - 80.
-            val widthDp = (dimensions.widthDp - 80).coerceAtLeast(40)
+            // Reverted to full width (W-24) to remove side padding.
+            // Touch zones in widget_weather.xml are adjusted to match (4dp margins).
+            val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
 
             val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)

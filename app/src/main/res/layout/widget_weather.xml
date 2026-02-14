@@ -452,8 +452,8 @@
         android:id="@+id/graph_day_zones"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginStart="32dp"
-        android:layout_marginEnd="32dp"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
         android:orientation="horizontal"
         android:visibility="gone">
 
@@ -517,7 +517,7 @@
     <!-- Left navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
-        android:layout_width="32dp"
+        android:layout_width="20dp"
         android:layout_height="match_parent"
         android:layout_gravity="start|center_vertical"
         android:background="@android:color/transparent"
@@ -527,7 +527,7 @@
     <!-- Right navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_right_zone"
-        android:layout_width="32dp"
+        android:layout_width="20dp"
         android:layout_height="match_parent"
         android:layout_gravity="end|center_vertical"
         android:background="@android:color/transparent"

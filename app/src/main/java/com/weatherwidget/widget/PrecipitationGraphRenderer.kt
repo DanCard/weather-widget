@@ -128,6 +128,14 @@ object PrecipitationGraphRenderer {
                 setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
             }
 
+        val dayLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#88FFFFFF")
+                textSize = dpToPx(context, 10.0f)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            }
+
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
@@ -386,6 +394,19 @@ object PrecipitationGraphRenderer {
             showLabel = { it.showLabel },
             labelText = { it.label },
         )
+
+        // Draw day of week indicators at midnight
+        hours.forEachIndexed { index, hour ->
+            if (hour.dateTime.hour == 0) {
+                val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                val centerX = points[index].first
+                val textWidth = dayLabelTextPaint.measureText(dayText)
+                val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                // Draw day label slightly above the hour label
+                val dayY = heightPx - dpToPx(context, 14f)
+                canvas.drawText(dayText, clampedX, dayY, dayLabelTextPaint)
+            }
+        }
 
         GraphRenderUtils.drawNowIndicator(
             canvas = canvas,
