@@ -962,6 +962,13 @@ object DailyViewHandler : WidgetViewHandler {
             val today = LocalDate.now()
             val isHistory = targetDay.isBefore(today)
 
+            // Determine action: history view vs precipitation view
+            // Any day without rain forecast → show history
+            // Any day with rain → show precipitation
+            // Past days → always show history
+            val hasRainForecast = !dayData.rainSummary.isNullOrEmpty()
+            val showHistory = isHistory || !hasRainForecast
+
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_DAY_CLICK
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -970,7 +977,7 @@ object DailyViewHandler : WidgetViewHandler {
                 putExtra("index", index + 1)
             }
 
-            if (isHistory) {
+            if (showHistory) {
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
                 intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
