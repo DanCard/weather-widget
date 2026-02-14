@@ -1,5 +1,15 @@
 # Weather Widget - Key Learnings
 
+###############################################################################
+# !!! CRITICAL SAFETY WARNING !!!
+# NEVER run 'connectedDebugAndroidTest' or any command that uninstalls/reinstalls
+# the app on PHYSICAL DEVICES:
+#   - Pixel 7 Pro (2A191FDH300PPW)
+#   - Samsung (RFCT71FR9NT)
+# DOING SO WILL DELETE ALL HOME SCREEN WIDGETS AND DATA.
+# Always isolate the emulator (e.g., -s emulator-5554) for instrumented tests.
+###############################################################################
+
 ## Rate Limiter Bug (2026-02-05)
 - `WeatherRepository.lastNetworkFetchTime` was set BEFORE the fetch, so failed fetches blocked retries
 - Fixed: save previous value, restore on failure (both null-result and exception cases)

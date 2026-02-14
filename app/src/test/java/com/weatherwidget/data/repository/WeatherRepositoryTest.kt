@@ -319,6 +319,34 @@ class WeatherRepositoryTest {
             assertTrue("Rate limit should be set after successful fetch", storedTime >= beforeFetch)
         }
 
+    @Test
+    fun `fetchFromNws prioritizes hourly precip probability for daily POP`() =
+        runTest {
+            // Setup
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
+            coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
+            
+            // Daily forecast has 14% (e.g. Saturday Night)
+            coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
+                NwsApi.ForecastPeriod("Saturday Night", "${today}T18:00:00-08:00", 60, "F", "Cloudy", false, 14)
+            )
+            
+            // Hourly forecast for the same day has max 5%
+            coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
+                NwsApi.HourlyForecastPeriod("${today}T18:00:00-08:00", 60f, "Cloudy", 2),
+                NwsApi.HourlyForecastPeriod("${today}T21:00:00-08:00", 58f, "Cloudy", 5),
+                NwsApi.HourlyForecastPeriod("${today}T23:00:00-08:00", 56f, "Cloudy", 4)
+            )
+
+            // Act - call the internal method directly to test its parsing logic
+            val result = repository.fetchFromNws(testLat, testLon, testLocationName)
+
+            // Assert
+            val todayEntry = result.find { it.date == today }
+            assertNotNull("Should have entry for today", todayEntry)
+            assertEquals("Daily POP should match the max from hourly data (5%), not the period POP (14%)", 5, todayEntry?.precipProbability)
+        }
+
     private fun createWeatherEntity(
         date: String,
         high: Int,

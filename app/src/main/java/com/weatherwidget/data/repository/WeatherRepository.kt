@@ -555,6 +555,30 @@ class WeatherRepository
                 val conditionByDate = mutableMapOf<String, String>()
                 val conditionSourceByDate = mutableMapOf<String, String>()
                 val precipByDate = mutableMapOf<String, Int>() // Max precipitation probability per day
+
+                // Initialize precip probability from hourly data for precise calendar-day matching.
+                // This prevents "Saturday Night" periods (which often include Sunday morning) from
+                // incorrectly inflating Saturday's daily POP display.
+                if (hourlyForecast.isNotEmpty()) {
+                    hourlyForecast.forEach { hourly ->
+                        val date =
+                            try {
+                                java.time.ZonedDateTime.parse(hourly.startTime)
+                                    .toLocalDate()
+                                    .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        if (date != null) {
+                            val pop = hourly.precipProbability ?: 0
+                            if (pop > (precipByDate[date] ?: 0)) {
+                                precipByDate[date] = pop
+                            }
+                        }
+                    }
+                    Log.d(TAG, "fetchFromNws: Initialized precipByDate for ${precipByDate.size} days from hourly data")
+                }
+
                 val stationByDate = mutableMapOf<String, String>() // Track which station provided data
                 val highSourceByDate = mutableMapOf<String, String>()
                 val lowSourceByDate = mutableMapOf<String, String>()
@@ -628,7 +652,9 @@ class WeatherRepository
 
                     // Track max precipitation probability across day and night periods
                     val pop = period.precipProbability
-                    if (pop != null && pop > (precipByDate[date] ?: 0)) {
+                    // Use daily period POP as a fallback ONLY if we don't have hourly data for this date.
+                    // If we have hourly data, it's more accurate for calendar-day boundaries.
+                    if (pop != null && !precipByDate.containsKey(date)) {
                         precipByDate[date] = pop
                     }
 
