@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -84,13 +85,9 @@ object WidgetIntentRouter {
         val weatherByDate = filteredWeatherList.associateBy { it.date }
 
         val today = LocalDate.now()
-        val currentCenterDate = today.plusDays(currentOffset.toLong())
-
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val (numColumns, _) = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
-
-        val minOffset = com.weatherwidget.util.NavigationUtils.getMinOffset(numColumns)
-        val maxOffset = com.weatherwidget.util.NavigationUtils.getMaxOffset(numColumns)
+        val isEveningMode = NavigationUtils.isEveningMode()
 
         val availableDates =
             weatherByDate.filter { (_, weather) ->
@@ -102,10 +99,22 @@ object WidgetIntentRouter {
 
         val canNavigate =
             if (isLeft) {
-                val newLeftmost = currentCenterDate.minusDays(1).plusDays(minOffset.toLong())
+                val (newLeftmost, _) =
+                    NavigationUtils.getVisibleDateRange(
+                        today = today,
+                        dateOffset = currentOffset - 1,
+                        numColumns = numColumns,
+                        isEveningMode = isEveningMode,
+                    )
                 minDate != null && !minDate.isAfter(newLeftmost)
             } else {
-                val newRightmost = currentCenterDate.plusDays(1).plusDays(maxOffset.toLong())
+                val (_, newRightmost) =
+                    NavigationUtils.getVisibleDateRange(
+                        today = today,
+                        dateOffset = currentOffset + 1,
+                        numColumns = numColumns,
+                        isEveningMode = isEveningMode,
+                    )
                 maxDate != null && !maxDate.isBefore(newRightmost)
             }
 

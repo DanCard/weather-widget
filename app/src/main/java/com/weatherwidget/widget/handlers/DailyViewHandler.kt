@@ -86,9 +86,8 @@ object DailyViewHandler : WidgetViewHandler {
         setupCurrentTempToggle(context, views, appWidgetId)
 
         val today = LocalDate.now()
-        // In evening mode at offset 0, we want to show today as leftmost with forecast comparison
-        // We keep centerDate as today, but use adjusted day offsets that start from 0 instead of -1
-        val centerDate = today.plusDays(dateOffset.toLong())
+        val skipHistory = NavigationUtils.shouldSkipHistory(isEveningMode, dateOffset)
+        val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, isEveningMode)
 
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -174,7 +173,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Set up navigation click handlers with available dates and widget width
         // In evening mode, skip history in navigation bounds
-        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)
+            setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)
 
         // Use graph mode for 2+ rows
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
@@ -197,6 +196,7 @@ object DailyViewHandler : WidgetViewHandler {
                     accuracyMode,
                     displaySource,
                     isEveningMode,
+                    skipHistory,
                     hourlyForecasts,
                 )
 
@@ -221,7 +221,7 @@ object DailyViewHandler : WidgetViewHandler {
                 lat,
                 lon,
                 displaySource,
-                isEveningMode && dateOffset == 0,
+                skipHistory,
             )
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -229,7 +229,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
             // Text mode - set visibility and populate
-            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, isEveningMode)
+            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, skipHistory)
 
             // Setup per-day click handlers for text mode
             // In evening mode at offset 0, today is the leftmost day (day1)
@@ -241,7 +241,7 @@ object DailyViewHandler : WidgetViewHandler {
                 lat,
                 lon,
                 displaySource,
-                isEveningMode && dateOffset == 0,
+                skipHistory,
             )
         }
 
@@ -381,27 +381,27 @@ object DailyViewHandler : WidgetViewHandler {
         // Check if navigation would reveal new data
         val today = LocalDate.now()
         val currentOffset = stateManager.getDateOffset(appWidgetId)
-        val currentCenterDate = today.plusDays(currentOffset.toLong())
-
         val sortedDates = availableDates.map { LocalDate.parse(it) }.sorted()
         val minDate = sortedDates.firstOrNull()
         val maxDate = sortedDates.lastOrNull()
 
-        // In evening mode at offset 0, we skip history (today is leftmost, can't go to yesterday)
-        val skipHistory = isEveningMode && currentOffset == 0
-        val minOffset = NavigationUtils.getMinOffset(numColumns, skipHistory)
-        val maxOffset = NavigationUtils.getMaxOffset(numColumns, skipHistory)
+        val (leftmostAfterLeft, _) =
+            NavigationUtils.getVisibleDateRange(
+                today = today,
+                dateOffset = currentOffset - 1,
+                numColumns = numColumns,
+                isEveningMode = isEveningMode,
+            )
+        val (_, rightmostAfterRight) =
+            NavigationUtils.getVisibleDateRange(
+                today = today,
+                dateOffset = currentOffset + 1,
+                numColumns = numColumns,
+                isEveningMode = isEveningMode,
+            )
 
-        // For left navigation: calculate what the new leftmost day would be
-        val newCenterDateLeft = currentCenterDate.minusDays(1)
-        val newLeftmostDay = newCenterDateLeft.plusDays(minOffset.toLong())
-        // Allow left nav if there's data to show (even in evening mode, user can go back to history)
-        val canLeft = minDate != null && !minDate.isAfter(newLeftmostDay)
-
-        // For right navigation: calculate what the new rightmost day would be
-        val newCenterDateRight = currentCenterDate.plusDays(1)
-        val newRightmostDay = newCenterDateRight.plusDays(maxOffset.toLong())
-        val canRight = maxDate != null && !maxDate.isBefore(newRightmostDay)
+        val canLeft = minDate != null && !minDate.isAfter(leftmostAfterLeft)
+        val canRight = maxDate != null && !maxDate.isBefore(rightmostAfterRight)
 
         views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
         views.setViewVisibility(R.id.nav_left_zone, if (canLeft) View.VISIBLE else View.GONE)
@@ -418,13 +418,11 @@ object DailyViewHandler : WidgetViewHandler {
         accuracyMode: AccuracyDisplayMode,
         displaySource: WeatherSource,
         isEveningMode: Boolean,
+        skipHistory: Boolean,
         hourlyForecasts: List<HourlyForecastEntity>,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
 
-        // In evening mode at the default offset (centerDate == today), skip history
-        // This shows today as leftmost with forecast comparison bar
-        val skipHistory = isEveningMode && centerDate == today
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
         Log.d(TAG, "buildDayDataList: centerDate=$centerDate, today=$today, isEveningMode=$isEveningMode, " +
             "skipHistory=$skipHistory, dayOffsets=$dayOffsets")
@@ -440,9 +438,15 @@ object DailyViewHandler : WidgetViewHandler {
 
             val forecasts = forecastSnapshots[dateStr] ?: emptyList()
 
+            // Snapshot groups may contain many rows for the same source/day.
+            // Always use the latest by fetchedAt to keep comparison stable.
             val forecast =
-                forecasts.find { it.source == displaySource.id }
-                    ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
+                forecasts
+                    .filter { it.source == displaySource.id }
+                    .maxByOrNull { it.fetchedAt }
+                    ?: forecasts
+                        .filter { it.source == WeatherSource.GENERIC_GAP.id }
+                        .maxByOrNull { it.fetchedAt }
 
             val label =
                 when {
@@ -455,12 +459,12 @@ object DailyViewHandler : WidgetViewHandler {
 
             // Show forecast comparison for:
             // 1. Past dates (normal history mode)
-            // 2. Today in evening mode at default offset (show what was predicted vs estimated actuals)
-            val showComparison = (isPastDate || (isToday && skipHistory)) &&
+            // 2. Today in evening mode (show what was predicted vs estimated actuals)
+            val showComparison = (isPastDate || (isToday && isEveningMode)) &&
                 forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
-            // In evening mode for today at default offset, estimate actuals from hourly data
-            val (actualHigh, actualLow) = if (isToday && skipHistory && hourlyForecasts.isNotEmpty()) {
+            // In evening mode for today, estimate actuals from hourly data.
+            val (actualHigh, actualLow) = if (isToday && isEveningMode && hourlyForecasts.isNotEmpty()) {
                 estimateTodayActualsFromHourly(hourlyForecasts, today, displaySource, weather)
             } else {
                 weather.highTemp to weather.lowTemp
@@ -563,10 +567,8 @@ object DailyViewHandler : WidgetViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         numColumns: Int,
         displaySource: WeatherSource,
-        isEveningMode: Boolean = false,
+        skipHistory: Boolean = false,
     ): List<Triple<Int, String, Boolean>> {  // dayIndex, dateStr, hasRainForecast
-        // In evening mode at default offset, shift to show today as leftmost
-        val skipHistory = isEveningMode && centerDate == today
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
 
         val day1Date = effectiveCenter.minusDays(1)
