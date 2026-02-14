@@ -201,8 +201,7 @@ object DailyViewHandler : WidgetViewHandler {
                 )
 
             // Use actual widget dimensions for bitmap to match ImageView size
-            // Reverted to full width (W-24) to remove side padding.
-            // Touch zones in widget_weather.xml are adjusted to match (4dp margins).
+            // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
 

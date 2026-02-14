@@ -517,7 +517,7 @@
     <!-- Left navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
-        android:layout_width="20dp"
+        android:layout_width="32dp"
         android:layout_height="match_parent"
         android:layout_gravity="start|center_vertical"
         android:background="@android:color/transparent"
@@ -527,7 +527,7 @@
     <!-- Right navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_right_zone"
-        android:layout_width="20dp"
+        android:layout_width="32dp"
         android:layout_height="match_parent"
         android:layout_gravity="end|center_vertical"
         android:background="@android:color/transparent"

@@ -140,6 +140,7 @@ object HourlyViewHandler {
             val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
 
             // Use actual widget dimensions for bitmap
+            // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
 
