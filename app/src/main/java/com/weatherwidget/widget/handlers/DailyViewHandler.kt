@@ -485,9 +485,8 @@ object DailyViewHandler : WidgetViewHandler {
                     iconRes == R.drawable.ic_weather_partly_cloudy ||
                     iconRes == R.drawable.ic_weather_mostly_clear
 
-            // Get rain summary for the next 2 days only — further out the icon suffices
-            val isNearTerm = !isPastDate && !date.isAfter(today.plusDays(2))
-            val rainSummary = if (isNearTerm) {
+            // Get rain summary for all future days (determines click behavior)
+            val rainSummary = if (!isPastDate) {
                 RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, LocalDateTime.now())
             } else {
                 null
@@ -673,17 +672,18 @@ object DailyViewHandler : WidgetViewHandler {
             }
         }
 
-        // Compute rain summaries for the next 2 days only — further out the icon suffices
+        // Check rain forecast for all days (for click behavior)
+        // But only display rain text for near-term days (today + 2 days)
         val now = LocalDateTime.now()
         val nearTermLimit = today.plusDays(2)
         fun isNearTerm(date: LocalDate) = !date.isBefore(today) && !date.isAfter(nearTermLimit)
-        val rainSummary1 = if (hasDay1 && isNearTerm(day1Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day1Date, displaySource.id, now) else null
-        val rainSummary2 = if (hasDay2 && isNearTerm(day2Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day2Date, displaySource.id, now) else null
-        val rainSummary3 = if (hasDay3 && isNearTerm(day3Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day3Date, displaySource.id, now) else null
-        val rainSummary4 = if (hasDay4 && isNearTerm(day4Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day4Date, displaySource.id, now) else null
-        val rainSummary5 = if (hasDay5 && isNearTerm(day5Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day5Date, displaySource.id, now) else null
-        val rainSummary6 = if (hasDay6 && isNearTerm(day6Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day6Date, displaySource.id, now) else null
-        val rainSummary7 = if (hasDay7 && isNearTerm(day7Date)) RainAnalyzer.getRainSummary(hourlyForecasts, day7Date, displaySource.id, now) else null
+        val rainSummary1 = if (hasDay1) RainAnalyzer.getRainSummary(hourlyForecasts, day1Date, displaySource.id, now) else null
+        val rainSummary2 = if (hasDay2) RainAnalyzer.getRainSummary(hourlyForecasts, day2Date, displaySource.id, now) else null
+        val rainSummary3 = if (hasDay3) RainAnalyzer.getRainSummary(hourlyForecasts, day3Date, displaySource.id, now) else null
+        val rainSummary4 = if (hasDay4) RainAnalyzer.getRainSummary(hourlyForecasts, day4Date, displaySource.id, now) else null
+        val rainSummary5 = if (hasDay5) RainAnalyzer.getRainSummary(hourlyForecasts, day5Date, displaySource.id, now) else null
+        val rainSummary6 = if (hasDay6) RainAnalyzer.getRainSummary(hourlyForecasts, day6Date, displaySource.id, now) else null
+        val rainSummary7 = if (hasDay7) RainAnalyzer.getRainSummary(hourlyForecasts, day7Date, displaySource.id, now) else null
 
         if (hasDay1) {
             populateDay(
@@ -902,12 +902,10 @@ object DailyViewHandler : WidgetViewHandler {
             }
 
             // Determine action: history view vs precipitation view
-            // Today without rain forecast → show history (since precip view would be empty)
-            // Today with rain → show precipitation
-            // Future days → always show precipitation (relevant for planning)
+            // Any day without rain forecast → show history
+            // Any day with rain → show precipitation
             // Past days → always show history
-            val isToday = targetDay == today
-            val showHistory = isHistory || (isToday && !hasRainForecast)
+            val showHistory = isHistory || !hasRainForecast
 
             if (showHistory) {
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
