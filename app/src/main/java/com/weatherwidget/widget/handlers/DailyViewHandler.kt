@@ -798,6 +798,18 @@ object DailyViewHandler : WidgetViewHandler {
             )
         }
 
+        // Determine first day with rain (only show rain indicator for first occurrence)
+        val firstRainDay = when {
+            rainSummary1 != null -> 1
+            rainSummary2 != null -> 2
+            rainSummary3 != null -> 3
+            rainSummary4 != null -> 4
+            rainSummary5 != null -> 5
+            rainSummary6 != null -> 6
+            rainSummary7 != null -> 7
+            else -> -1
+        }
+        
         val visibleDays = mutableListOf<Triple<Int, String, Boolean>>()
         if (hasDay1) visibleDays.add(Triple(1, day1Str, rainSummary1 != null))
         if (hasDay2) visibleDays.add(Triple(2, day2Str, rainSummary2 != null))
@@ -806,6 +818,16 @@ object DailyViewHandler : WidgetViewHandler {
         if (hasDay5) visibleDays.add(Triple(5, day5Str, rainSummary5 != null))
         if (hasDay6) visibleDays.add(Triple(6, day6Str, rainSummary6 != null))
         if (hasDay7) visibleDays.add(Triple(7, day7Str, rainSummary7 != null))
+        
+        // Update rain visibility - only show for first rainy day
+        if (hasDay1) populateDayRain(views, R.id.day1_rain, rainSummary1, firstRainDay == 1)
+        if (hasDay2) populateDayRain(views, R.id.day2_rain, rainSummary2, firstRainDay == 2)
+        if (hasDay3) populateDayRain(views, R.id.day3_rain, rainSummary3, firstRainDay == 3)
+        if (hasDay4) populateDayRain(views, R.id.day4_rain, rainSummary4, firstRainDay == 4)
+        if (hasDay5) populateDayRain(views, R.id.day5_rain, rainSummary5, firstRainDay == 5)
+        if (hasDay6) populateDayRain(views, R.id.day6_rain, rainSummary6, firstRainDay == 6)
+        if (hasDay7) populateDayRain(views, R.id.day7_rain, rainSummary7, firstRainDay == 7)
+        
         return visibleDays
     }
 
@@ -854,9 +876,17 @@ object DailyViewHandler : WidgetViewHandler {
         views.setTextViewText(highId, weather?.highTemp?.let { "$it°" } ?: "--°")
         views.setTextViewText(lowId, weather?.lowTemp?.let { "$it°" } ?: "--°")
 
-        // Show rain timing if available
-        if (!rainSummary.isNullOrEmpty()) {
-            views.setTextViewText(rainId, "☔ $rainSummary")
+        // Rain display handled separately by populateDayRain to show only first occurrence
+    }
+    
+    private fun populateDayRain(
+        views: RemoteViews,
+        rainId: Int,
+        rainSummary: String?,
+        showRain: Boolean,
+    ) {
+        if (showRain && !rainSummary.isNullOrEmpty()) {
+            views.setTextViewText(rainId, "💧 $rainSummary")
             views.setViewVisibility(rainId, View.VISIBLE)
         } else {
             views.setViewVisibility(rainId, View.GONE)

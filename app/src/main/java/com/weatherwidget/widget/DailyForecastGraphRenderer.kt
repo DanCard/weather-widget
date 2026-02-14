@@ -252,6 +252,9 @@ object DailyForecastGraphRenderer {
                     )
             }
 
+        // Track if we've already shown the first rain indicator
+        var firstRainShown = false
+        
         // Draw each day
         days.forEachIndexed { index, day ->
             val centerX = horizontalPadding + dayWidth * index + dayWidth / 2
@@ -317,10 +320,12 @@ object DailyForecastGraphRenderer {
                     )
                 canvas.drawText(lowLabel, centerX, lowTempY, tempTextPaint)
 
-                // Draw rain summary if available
-                if (!day.rainSummary.isNullOrEmpty()) {
+                // Draw rain summary only for the first day with rain
+                // (intent is to show when rain will start, not all rainy days)
+                if (!day.rainSummary.isNullOrEmpty() && !firstRainShown) {
                     val rainTextY = lowTempY + dpToPx(context, 10f * scaleFactor)
                     canvas.drawText("💧 ${day.rainSummary}", centerX, rainTextY, rainTextPaint)
+                    firstRainShown = true
                 }
             } else {
                 // Fallback
