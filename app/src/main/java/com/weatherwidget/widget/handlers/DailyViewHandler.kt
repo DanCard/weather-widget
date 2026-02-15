@@ -32,6 +32,7 @@ import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.min
 
 /**
  * Handler for the daily forecast view mode.
@@ -206,9 +207,16 @@ object DailyViewHandler : WidgetViewHandler {
             val heightDp = dimensions.heightDp - 16
 
             val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
+            val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
+            val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
+            val bitmapScale =
+                min(
+                    widthPx.toFloat() / rawWidthPx.toFloat(),
+                    heightPx.toFloat() / rawHeightPx.toFloat(),
+                )
 
             // Render graph
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx)
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx, bitmapScale)
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
             // Setup per-day click handlers for graph mode

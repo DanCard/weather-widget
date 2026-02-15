@@ -21,6 +21,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.min
 
 /**
  * Handler for the precipitation view mode.
@@ -172,9 +173,16 @@ object PrecipViewHandler {
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
             val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
+            val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
+            val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
+            val bitmapScale =
+                min(
+                    widthPx.toFloat() / rawWidthPx.toFloat(),
+                    heightPx.toFloat() / rawHeightPx.toFloat(),
+                )
 
             // Render precipitation graph
-            val bitmap = PrecipitationGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now)
+            val bitmap = PrecipitationGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale)
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)

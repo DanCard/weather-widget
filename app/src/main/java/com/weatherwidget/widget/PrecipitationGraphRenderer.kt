@@ -9,6 +9,8 @@ import java.time.LocalDateTime
 import kotlin.math.abs
 
 object PrecipitationGraphRenderer {
+    private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+
     data class PrecipHourData(
         val dateTime: LocalDateTime,
         val precipProbability: Int, // 0-100
@@ -46,6 +48,7 @@ object PrecipitationGraphRenderer {
         widthPx: Int,
         heightPx: Int,
         currentTime: LocalDateTime,
+        bitmapScale: Float = 1f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -131,7 +134,8 @@ object PrecipitationGraphRenderer {
         val dayLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#88FFFFFF")
-                textSize = dpToPx(context, 10.0f)
+                val dayLabelScale = bitmapScale.coerceIn(0.5f, 1f)
+                textSize = dpToPx(context, 10.0f * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             }

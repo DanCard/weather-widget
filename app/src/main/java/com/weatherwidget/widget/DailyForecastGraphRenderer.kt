@@ -6,6 +6,8 @@ import android.util.TypedValue
 import com.weatherwidget.data.model.WeatherSource
 
 object DailyForecastGraphRenderer {
+    private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+
     data class DayData(
         val date: String, // ISO date string (e.g. "2024-01-15")
         val label: String,
@@ -31,6 +33,7 @@ object DailyForecastGraphRenderer {
         days: List<DayData>,
         widthPx: Int,
         heightPx: Int,
+        bitmapScale: Float = 1f,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -82,7 +85,8 @@ object DailyForecastGraphRenderer {
         val iconSize = dpToPx(context, iconSizeDp).toInt()
 
         // Calculate layout height components
-        val dayLabelHeight = dpToPx(context, baseDayLabelSize) // Fixed size, no height scaling
+        val dayLabelScale = bitmapScale.coerceIn(0.5f, 1f)
+        val dayLabelHeight = dpToPx(context, baseDayLabelSize * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER)
         val tempLabelHeight = dpToPx(context, baseTempLabelSize * heightScaleFactor)
 
         // Log font and layout sizing info
@@ -90,7 +94,7 @@ object DailyForecastGraphRenderer {
             "TemperatureGraph",
             "Widget: ${widthPx}px × ${heightPx}px (${widthDp.toInt()}dp × ${heightDp.toInt()}dp) | " +
                 "horizontalPadding=${horizontalPadding}px, dayWidth=${(widthPx - 2 * horizontalPadding) / days.size}px | " +
-                "heightScaleFactor=$heightScaleFactor | baseDayLabel=$baseDayLabelSize, finalDayLabel=${baseDayLabelSize * heightScaleFactor}dp",
+                "heightScaleFactor=$heightScaleFactor | baseDayLabel=$baseDayLabelSize, finalDayLabel=${baseDayLabelSize * dayLabelScale}dp",
         )
 
         // Stack Height: Low Temp Label + Icon + Padding (Space attached to the BAR)
@@ -166,7 +170,7 @@ object DailyForecastGraphRenderer {
                 strokeCap = Paint.Cap.BUTT
             }
 
-        val dayLabelTextSize = dpToPx(context, baseDayLabelSize) // Fixed size, no height scaling
+        val dayLabelTextSize = dpToPx(context, baseDayLabelSize * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER)
         val tempLabelTextSize = dpToPx(context, baseTempLabelSize * heightScaleFactor)
 
         android.util.Log.d(
@@ -177,7 +181,7 @@ object DailyForecastGraphRenderer {
         val textPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#AAAAAA")
-                textSize = dayLabelTextSize // Day labels - scaled with height
+                textSize = dayLabelTextSize
                 textAlign = Paint.Align.CENTER
             }
 
