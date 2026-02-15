@@ -80,6 +80,31 @@ class PrecipitationGraphRendererTest {
         assertEquals(114f, placement.baselineY, 0.001f)
     }
 
+    // --- bilateralProminence tests ---
+
+    @Test
+    fun `bilateralProminence returns high value for true valley`() {
+        // True valley: 80, 50, 85 → left diff=30, right diff=35 → min=30
+        val values = listOf(80, 50, 85)
+        val result = PrecipitationGraphRenderer.bilateralProminence(values, 1)
+        assertEquals(30, result)
+    }
+
+    @Test
+    fun `bilateralProminence returns low value for one-sided valley`() {
+        // One-sided valley on monotonic slope: 31, 32, 50 → left diff=1, right diff=18 → min=1
+        val values = listOf(31, 32, 50)
+        val result = PrecipitationGraphRenderer.bilateralProminence(values, 1)
+        assertEquals(1, result)
+    }
+
+    @Test
+    fun `bilateralProminence returns 0 for edge indices`() {
+        val values = listOf(10, 20, 30, 40)
+        assertEquals(0, PrecipitationGraphRenderer.bilateralProminence(values, 0))
+        assertEquals(0, PrecipitationGraphRenderer.bilateralProminence(values, 3))
+    }
+
     @Test
     fun `computeEndLabelPlacement returns null when preferred and fallback overlap`() {
         val preferredBounds =

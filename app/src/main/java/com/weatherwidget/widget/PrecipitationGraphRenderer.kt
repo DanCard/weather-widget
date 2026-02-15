@@ -207,14 +207,16 @@ object PrecipitationGraphRenderer {
         addCandidate(globalMaxIndex, 0)
         addCandidate(globalMinIndex, 0)
 
-        // Priority 1: Local extrema
+        // Priority 1: Local extrema (must stand out on BOTH sides)
         localMaxima.forEach { index ->
-            val prominence = localProminence(probs, index)
-            if (prominence >= 2) addCandidate(index, 1)
+            if (localProminence(probs, index) >= 2 && bilateralProminence(probs, index) >= 3) {
+                addCandidate(index, 1)
+            }
         }
         localMinima.forEach { index ->
-            val prominence = localProminence(probs, index)
-            if (prominence >= 2) addCandidate(index, 1)
+            if (localProminence(probs, index) >= 2 && bilateralProminence(probs, index) >= 3) {
+                addCandidate(index, 1)
+            }
         }
 
         // Priority 2: Edge anchors so early/late context is preserved.
@@ -236,15 +238,19 @@ object PrecipitationGraphRenderer {
         if (globalMaxIndex in probs.indices && probs[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
         if (globalMinIndex in probs.indices && probs[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
 
-        // Peaks: must have reasonable prominence (e.g. >= 8%) to be mandatory
+        // Peaks: must have reasonable prominence on BOTH sides to be mandatory
         localMaxima.forEach { idx ->
-            if (localProminence(probs, idx) >= 8) mandatoryIndices.add(idx)
+            if (localProminence(probs, idx) >= 8 && bilateralProminence(probs, idx) >= 5) {
+                mandatoryIndices.add(idx)
+            }
         }
 
         // Valleys: only mandatory if they represent a dip to "low" probability (< 60%)
-        // AND have reasonable prominence (>= 4%)
+        // AND have reasonable prominence on BOTH sides
         localMinima.forEach { idx ->
-            if (probs[idx] < 60 && localProminence(probs, idx) >= 4) mandatoryIndices.add(idx)
+            if (probs[idx] < 60 && localProminence(probs, idx) >= 4 && bilateralProminence(probs, idx) >= 5) {
+                mandatoryIndices.add(idx)
+            }
         }
 
         val orderedCandidates =
@@ -297,6 +303,12 @@ object PrecipitationGraphRenderer {
             // VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours
             if (labeledIndices.any { probs[it] == prob && abs(it - index) <= 5 }) {
                 Log.d("PrecipGraph", "SKIPPED redundant value label: $prob% at idx=$index")
+                continue
+            }
+
+            // VALUE SEPARATION: skip non-mandatory labels too close in value to nearby placed labels
+            if (!isMandatory && labeledIndices.any { abs(it - index) <= 6 && abs(probs[it] - prob) < 15 }) {
+                Log.d("PrecipGraph", "SKIPPED low-separation label: $prob% at idx=$index")
                 continue
             }
 
@@ -592,6 +604,22 @@ object PrecipitationGraphRenderer {
         val prev = values[index - 1]
         val next = values[index + 1]
         return maxOf(abs(current - prev), abs(current - next))
+    }
+
+    /**
+     * Returns the SMALLER of the two side-differences: minOf(|current - prev|, |current - next|).
+     * A true peak/valley must stand out on BOTH sides; one-sided prominences on monotonic
+     * stretches will return a low value.
+     */
+    internal fun bilateralProminence(
+        values: List<Int>,
+        index: Int,
+    ): Int {
+        if (index <= 0 || index >= values.lastIndex) return 0
+        val current = values[index]
+        val prev = values[index - 1]
+        val next = values[index + 1]
+        return minOf(abs(current - prev), abs(current - next))
     }
 
     internal fun computeEndLabelPlacement(
