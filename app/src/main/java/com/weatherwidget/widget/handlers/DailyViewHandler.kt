@@ -514,6 +514,7 @@ object DailyViewHandler : WidgetViewHandler {
                     forecastSource = if (showComparison) displaySource else null,
                     accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE,
                     rainSummary = rainSummary,
+                    dailyPrecipProbability = weather.precipProbability,
                 ),
             )
         }
@@ -813,13 +814,13 @@ object DailyViewHandler : WidgetViewHandler {
         }
         
         val visibleDays = mutableListOf<Triple<Int, String, Boolean>>()
-        if (hasDay1) visibleDays.add(Triple(1, day1Str, rainSummary1 != null))
-        if (hasDay2) visibleDays.add(Triple(2, day2Str, rainSummary2 != null))
-        if (hasDay3) visibleDays.add(Triple(3, day3Str, rainSummary3 != null))
-        if (hasDay4) visibleDays.add(Triple(4, day4Str, rainSummary4 != null))
-        if (hasDay5) visibleDays.add(Triple(5, day5Str, rainSummary5 != null))
-        if (hasDay6) visibleDays.add(Triple(6, day6Str, rainSummary6 != null))
-        if (hasDay7) visibleDays.add(Triple(7, day7Str, rainSummary7 != null))
+        if (hasDay1) visibleDays.add(Triple(1, day1Str, DayClickHelper.hasRainForecast(rainSummary1, weatherByDate[day1Str]?.precipProbability)))
+        if (hasDay2) visibleDays.add(Triple(2, day2Str, DayClickHelper.hasRainForecast(rainSummary2, weatherByDate[day2Str]?.precipProbability)))
+        if (hasDay3) visibleDays.add(Triple(3, day3Str, DayClickHelper.hasRainForecast(rainSummary3, weatherByDate[day3Str]?.precipProbability)))
+        if (hasDay4) visibleDays.add(Triple(4, day4Str, DayClickHelper.hasRainForecast(rainSummary4, weatherByDate[day4Str]?.precipProbability)))
+        if (hasDay5) visibleDays.add(Triple(5, day5Str, DayClickHelper.hasRainForecast(rainSummary5, weatherByDate[day5Str]?.precipProbability)))
+        if (hasDay6) visibleDays.add(Triple(6, day6Str, DayClickHelper.hasRainForecast(rainSummary6, weatherByDate[day6Str]?.precipProbability)))
+        if (hasDay7) visibleDays.add(Triple(7, day7Str, DayClickHelper.hasRainForecast(rainSummary7, weatherByDate[day7Str]?.precipProbability)))
         
         // Update rain visibility - only show for first rainy day
         if (hasDay1) populateDayRain(views, R.id.day1_rain, rainSummary1, firstRainDay == 1)
@@ -926,11 +927,12 @@ object DailyViewHandler : WidgetViewHandler {
             val isHistory = targetDay.isBefore(today)
 
             // Determine action: history view vs precipitation view
-            // Any day without rain forecast → show history
-            // Any day with rain → show precipitation
             // Past days → always show history
-            val showHistory = isHistory || !hasRainForecast
-            
+            // Today/future with rain → show precipitation graph
+            // Today/future without rain → show history
+            val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
+            val showHistory = !navigateToPrecip
+
             Log.d(TAG, "Text click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, showHistory=$showHistory")
 
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -947,9 +949,7 @@ object DailyViewHandler : WidgetViewHandler {
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
                 intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
             } else {
-                val now = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
-                val targetCenter = targetDay.atTime(8, 0)
-                val offset = Duration.between(now, targetCenter).toHours().toInt()
+                val offset = DayClickHelper.calculatePrecipitationOffset(LocalDateTime.now(), targetDay)
 
                 intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
                 intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
@@ -998,13 +998,14 @@ object DailyViewHandler : WidgetViewHandler {
             val isHistory = targetDay.isBefore(today)
 
             // Determine action: history view vs precipitation view
-            // Any day without rain forecast → show history
-            // Any day with rain → show precipitation
             // Past days → always show history
-            val hasRainForecast = !dayData.rainSummary.isNullOrEmpty()
-            val showHistory = isHistory || !hasRainForecast
-            
-            Log.d(TAG, "Graph click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, rainSummary=${dayData.rainSummary}, showHistory=$showHistory")
+            // Today/future with rain → show precipitation graph
+            // Today/future without rain → show history
+            val hasRainForecast = DayClickHelper.hasRainForecast(dayData.rainSummary, dayData.dailyPrecipProbability)
+            val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
+            val showHistory = !navigateToPrecip
+
+            Log.d(TAG, "Graph click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, rainSummary=${dayData.rainSummary}, dailyPrecip=${dayData.dailyPrecipProbability}, showHistory=$showHistory")
 
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_DAY_CLICK
@@ -1020,9 +1021,7 @@ object DailyViewHandler : WidgetViewHandler {
                 intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
                 intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
             } else {
-                val now = LocalDateTime.now().truncatedTo(ChronoUnit.HOURS)
-                val targetCenter = targetDay.atTime(8, 0)
-                val offset = Duration.between(now, targetCenter).toHours().toInt()
+                val offset = DayClickHelper.calculatePrecipitationOffset(LocalDateTime.now(), targetDay)
 
                 intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
                 intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
