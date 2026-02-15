@@ -61,7 +61,7 @@ class RainAnalyzerTest {
 
         assertTrue(result.hasRain)
         assertNotNull(result.summary)
-        assertEquals("2pm", result.summary)
+        assertEquals("2pm–4pm", result.summary)
         assertEquals(1, result.windows.size)
     }
 
@@ -126,7 +126,7 @@ class RainAnalyzerTest {
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
-        assertEquals("10am", result.summary)
+        assertEquals("10am, 6pm", result.summary)
         assertEquals(2, result.windows.size)
     }
 
@@ -196,7 +196,7 @@ class RainAnalyzerTest {
 
         assertTrue(result.hasRain)
         // 12am and 12pm are more than 2 hours apart, so they form separate windows
-        assertEquals("12am", result.summary)
+        assertEquals("12am, 12pm", result.summary)
     }
 
     @Test
@@ -243,5 +243,50 @@ class RainAnalyzerTest {
 
         assertFalse(result.hasRain)
         assertNull(result.summary)
+    }
+
+    @Test
+    fun `summary shows single hour for one-hour rain window`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T15:00", "Rain", 60),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+
+        assertEquals("3pm", result.summary)
+    }
+
+    @Test
+    fun `summary shows range for multi-hour rain window`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T09:00", "Rain", 50),
+            createForecast("2024-06-15T10:00", "Rain", 60),
+            createForecast("2024-06-15T11:00", "Rain", 55),
+            createForecast("2024-06-15T12:00", "Rain", 45),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+
+        assertEquals("9am–12pm", result.summary)
+        assertEquals(1, result.windows.size)
+    }
+
+    @Test
+    fun `summary shows start times for multiple rain windows`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T08:00", "Rain", 60),
+            createForecast("2024-06-15T09:00", "Rain", 50),
+            createForecast("2024-06-15T15:00", "Rain", 70),
+            createForecast("2024-06-15T16:00", "Rain", 65),
+            createForecast("2024-06-15T21:00", "Rain", 45),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+
+        assertEquals("8am, 3pm, 9pm", result.summary)
+        assertEquals(3, result.windows.size)
     }
 }

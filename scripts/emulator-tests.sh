@@ -4,12 +4,12 @@
 # Automatically launches emulator, runs tests, and shuts down
 #
 # Usage:
-#   ./scripts/run-emulator-tests.sh                    # Use default emulator (visible GUI)
-#   ./scripts/run-emulator-tests.sh -q                 # Run headless (quiet/no window)
-#   ./scripts/run-emulator-tests.sh -e EMULATOR_NAME   # Use specific emulator
-#   ./scripts/run-emulator-tests.sh -c CLASS_NAME      # Run specific test class
-#   ./scripts/run-emulator-tests.sh -u                 # Allow Gradle to uninstall test APKs after run
-#   ./scripts/run-emulator-tests.sh -h                 # Show help
+#   ./scripts/emulator-tests.sh                    # Use default emulator (visible GUI)
+#   ./scripts/emulator-tests.sh -q                 # Run headless (quiet/no window)
+#   ./scripts/emulator-tests.sh -e EMULATOR_NAME   # Use specific emulator
+#   ./scripts/emulator-tests.sh -c CLASS_NAME      # Run specific test class
+#   ./scripts/emulator-tests.sh -u                 # Allow Gradle to uninstall test APKs after run
+#   ./scripts/emulator-tests.sh -h                 # Show help
 #
 
 set -e  # Exit on error
@@ -40,15 +40,13 @@ EMULATOR_NAME=""
 TEST_CLASS=""
 SHOW_HELP=false
 
-KEEP_EMULATOR=true  # Default: keep emulator running
 LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
 
-while getopts "e:c:qsuh" opt; do
+while getopts "e:c:quh" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG" ;;
         c) TEST_CLASS="$OPTARG" ;;
         q) VISIBLE_MODE=false ;;
-        s) KEEP_EMULATOR=false ;;
         u) LEAVE_APKS_INSTALLED=false ;;
         h) SHOW_HELP=true ;;
         *) SHOW_HELP=true ;;
@@ -63,7 +61,6 @@ if [ "$SHOW_HELP" = true ]; then
     echo ""
     echo "Options:"
     echo "  -q             Run headless (no GUI window, default: visible)"
-    echo "  -s             Shutdown emulator after tests if this script started it"
     echo "  -u             Allow APK uninstall after tests (default: preserve installed APKs)"
     echo "  -e EMULATOR    Use specific emulator (default: $DEFAULT_EMULATOR)"
     echo "  -c CLASS       Run specific test class (e.g., com.weatherwidget.WidgetSizeCalculatorTest)"
@@ -71,8 +68,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo ""
     echo "Examples:"
     echo "  $(basename "$0")                              # Run tests, keep emulator running"
-    echo "  $(basename "$0") -s                           # Shutdown only if script launched emulator"
-    echo "  $(basename "$0") -qs                          # Headless CI mode, shutdown after"
+    echo "  $(basename "$0") -q                           # Headless mode (no GUI window)"
     echo "  $(basename "$0") -e Medium_Phone_API_36      # Use phone emulator"
     echo "  $(basename "$0") -c WidgetSizeCalculatorTest # Run specific test class"
     exit 0
@@ -118,7 +114,6 @@ debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
 if [ -z "$EMULATOR_NAME" ]; then
-    echo ""
     echo -e "${YELLOW}Available emulators:${NC}"
     $EMU_BIN -list-avds | while read -r avd; do
         if [ "$avd" = "$DEFAULT_EMULATOR" ]; then
@@ -127,7 +122,6 @@ if [ -z "$EMULATOR_NAME" ]; then
             echo "    $avd"
         fi
     done
-    echo ""
     
     EMULATOR_NAME="$DEFAULT_EMULATOR"
     
@@ -143,7 +137,7 @@ echo -e "${BLUE}Selected emulator: $EMULATOR_NAME${NC}"
 
 # Function to cleanup emulator
 cleanup() {
-    debug_log "cleanup start: KEEP_EMULATOR=$KEEP_EMULATOR USE_EXISTING=${USE_EXISTING:-unset} EMULATOR_SERIAL=${EMULATOR_SERIAL:-unset} PROGRESS_PID=${PROGRESS_PID:-unset}"
+    debug_log "cleanup start: USE_EXISTING=${USE_EXISTING:-unset} EMULATOR_SERIAL=${EMULATOR_SERIAL:-unset} PROGRESS_PID=${PROGRESS_PID:-unset}"
 
     # Stop progress monitor if running
     if [ -n "${PROGRESS_PID:-}" ]; then
@@ -153,53 +147,23 @@ cleanup() {
         debug_log "cleanup: progress monitor stop wait complete"
     fi
 
-    # Always preserve emulators that were already running before this script.
-    if [ "${USE_EXISTING:-false}" = true ]; then
-        debug_log "cleanup: preserve existing emulator"
-        echo ""
-        echo -e "${YELLOW}Keeping existing emulator running (was already active before test run)${NC}"
+    # Always keep emulator running (avoids re-launch overhead on next run)
+    if [ -n "${EMULATOR_SERIAL:-}" ]; then
+        echo -e "${YELLOW}Keeping emulator running${NC}"
         echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
-        debug_log "cleanup end: preserved existing emulator"
-        return
     fi
-
-    # Keep launched emulator unless -s requested.
-    if [ "$KEEP_EMULATOR" = true ]; then
-        debug_log "cleanup: preserve launched emulator (no -s)"
-        echo ""
-        echo -e "${YELLOW}Keeping emulator running (default; use -s to shut down after tests)${NC}"
-        echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
-        debug_log "cleanup end: preserved launched emulator"
-        return
-    fi
-
-    echo ""
-    echo -e "${YELLOW}Cleaning up emulator started by script...${NC}"
-    debug_log "cleanup: shutting down emulator started by script"
-    
-    # Try graceful shutdown first (bounded wait so Ctrl-C/exit can't hang here)
-    timeout 10s "$ADB_BIN" emu kill >/dev/null 2>&1 || true
-    debug_log "cleanup: adb emu kill complete/timeout"
-    
-    # Kill any remaining emulator processes for this AVD
-    pkill -f "emulator.*-avd.*$EMULATOR_NAME" 2>/dev/null || true
-    debug_log "cleanup: pkill fallback complete"
-    
-    echo -e "${GREEN}Emulator shutdown complete${NC}"
-    debug_log "cleanup end: emulator shutdown complete"
+    debug_log "cleanup end"
 }
 
 # Set trap to ensure cleanup on exit
 trap cleanup EXIT INT TERM
 
 # Check if emulator is already running (ignore physical devices like Samsung)
-echo ""
-echo -e "${BLUE}Checking for existing emulators...${NC}"
+echo -en "${BLUE}Checking for existing emulators...${NC}\t"
 # Filter for emulator-* only, ignore physical devices
 EXISTING_EMU=$($ADB_BIN devices | grep "emulator-" | grep "device$" | cut -f1 | head -1)
 
 # Show all connected devices for info
-echo "All connected devices:"
 $ADB_BIN devices | grep -v "List of devices" | grep "device$" | while read -r line; do
     device=$(echo "$line" | cut -f1)
     model=$($ADB_BIN -s "$device" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
@@ -209,15 +173,9 @@ $ADB_BIN devices | grep -v "List of devices" | grep "device$" | while read -r li
         echo -e "  ${YELLOW}✗ $device ($model) - physical device (ignored)${NC}"
     fi
 done
-echo ""
 
 if [ -n "$EXISTING_EMU" ]; then
-    echo -e "${YELLOW}Found running emulator: $EXISTING_EMU${NC}"
-    if [ "$KEEP_EMULATOR" = true ]; then
-        echo "Will keep emulator running after tests (default)"
-    else
-        echo "Existing emulator will still be kept running; -s only affects emulators launched by this script"
-    fi
+    echo -en "${YELLOW}Found running emulator: $EXISTING_EMU${NC} \t"
     USE_EXISTING=true
     EMULATOR_SERIAL="$EXISTING_EMU"
 else
@@ -226,9 +184,7 @@ fi
 
 # Start emulator if needed
 if [ "$USE_EXISTING" = false ]; then
-    echo ""
-    echo -e "${BLUE}Starting emulator...${NC}"
-    echo "This may take 30-60 seconds..."
+    echo -e "${BLUE}Starting emulator...${NC} \t This may take 30-60 seconds..."
     
     # Build emulator launch options
     EMU_FLAGS="-gpu swiftshader_indirect -no-boot-anim"
@@ -251,7 +207,6 @@ if [ "$USE_EXISTING" = false ]; then
     echo "Emulator PID: $EMU_PID"
     
     # Wait for device to appear
-    echo ""
     echo -e "${YELLOW}Waiting for device to boot...${NC}"
     
     START_TIME=$(date +%s)
@@ -277,14 +232,12 @@ if [ "$USE_EXISTING" = false ]; then
     done
     
     if [ "$DEVICE_READY" = false ]; then
-        echo ""
         echo -e "${RED}Error: Emulator failed to boot within ${EMU_TIMEOUT} seconds${NC}"
         echo "Check log: tail -f /tmp/emulator_${EMULATOR_NAME}.log"
         exit 1
     fi
     
-    echo ""
-    echo -e "${GREEN}Emulator ready: $EMULATOR_SERIAL${NC}"
+    echo -en "${GREEN}Emulator ready: $EMULATOR_SERIAL${NC}\t"
     
     # Additional wait for system stability
     echo "Waiting for system services..."
@@ -292,23 +245,17 @@ if [ "$USE_EXISTING" = false ]; then
 fi
 
 # Show device info
-echo ""
-echo -e "${BLUE}Device info:${NC}"
+echo -en "${BLUE}Device info:${NC} \t"
 $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null || echo "  Model: Unknown"
 $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Android: Unknown"
 
 # Run tests
-echo ""
-echo -e "${BLUE}============================================${NC}"
-echo -e "${BLUE}  Running Instrumented Tests${NC}"
-echo -e "${BLUE}============================================${NC}"
-echo ""
+echo -en "${BLUE}  Running Instrumented Tests${NC} \t"
 
 cd "$PROJECT_DIR"
 
 # Check for multiple devices - filter to emulator only
-echo ""
-echo -e "${BLUE}Checking connected devices...${NC}"
+echo -en "${BLUE}Checking connected devices...${NC} \t"
 ALL_DEVICES=$($ADB_BIN devices | grep -v "List of devices" | grep "device$" | cut -f1)
 EMULATOR_DEVICES=$(echo "$ALL_DEVICES" | grep "^emulator-" | head -1)
 
@@ -333,14 +280,7 @@ fi
 # Verify we're not targeting a physical Samsung device
 DEVICE_MODEL=$($ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
 DEVICE_BRAND=$($ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
-echo -e "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC}"
-
-if echo "$DEVICE_MODEL $DEVICE_BRAND" | grep -qi "samsung"; then
-    echo -e "${RED}Error: Target device appears to be a Samsung physical device${NC}"
-    echo "This script is configured to run tests on emulator only."
-    echo "Please disconnect your Samsung device or specify an emulator."
-    exit 1
-fi
+echo -en "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC} \t"
 
 # Build gradle command - use ANDROID_SERIAL to target specific device
 GRADLE_CMD=":app:connectedDebugAndroidTest"
@@ -348,7 +288,7 @@ if [ -n "$TEST_CLASS" ]; then
     GRADLE_CMD="$GRADLE_CMD -Pandroid.testInstrumentationRunnerArguments.class=$TEST_CLASS"
     echo -e "${YELLOW}Running test class: $TEST_CLASS${NC}"
 else
-    echo -e "${YELLOW}Running all instrumented tests${NC}"
+    echo -en "${YELLOW}Running all instrumented tests${NC} \t"
 fi
 
 # Run tests with timeout - show output in real-time
@@ -381,17 +321,15 @@ show_progress() {
                 new_lines=$(sed -n "$((last_line + 1)),${total_lines}p" "$logfile")
                 while IFS= read -r line; do
                     # Connected test output format: "INFO: Execute com.package.Class.methodName: PASSED"
-                    if echo "$line" | grep -qE "^INFO: Execute .*: (PASSED|FAILED|SKIPPED)"; then
+                    if echo "$line" | grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)"; then
                         local status=$(echo "$line" | grep -oE "(PASSED|FAILED|SKIPPED)")
-                        # Extract "com.package.Class.methodName" part
-                        local test_full=$(echo "$line" | sed -n "s/INFO: Execute \(.*\): .*/\1/p")
-                        
+                        local test_full=$(echo "$line" | sed -n "s/.*INFO: Execute \(.*\): .*/\1/p")
+
                         if [ -n "$test_full" ]; then
-                            # Split into class and method (last dot separates them)
                             local method_part="${test_full##*.}"
                             local class_full="${test_full%.*}"
                             local simple_class="${class_full##*.}"
-                            
+
                             case "$status" in
                                 PASSED)  echo -e "${GREEN}  ✓ ${simple_class} > ${method_part}${NC}" ;;
                                 FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
@@ -402,12 +340,12 @@ show_progress() {
                     elif echo "$line" | grep -qE " > .* (PASSED|FAILED|SKIPPED)"; then
                         local status=$(echo "$line" | grep -oE "(PASSED|FAILED|SKIPPED)")
                         local test_full=$(echo "$line" | sed -n "s/ \(PASSED\|FAILED\|SKIPPED\).*//p" | sed 's/.*:app:connectedDebugAndroidTest //')
-                        
+
                         if [ -n "$test_full" ]; then
                             local class_part=$(echo "$test_full" | cut -d'>' -f1 | sed 's/ //g')
                             local method_part=$(echo "$test_full" | cut -d'>' -f2 | sed 's/ //g')
                             local simple_class="${class_part##*.}"
-                            
+
                             case "$status" in
                                 PASSED)  echo -e "${GREEN}  ✓ ${simple_class} > ${method_part}${NC}" ;;
                                 FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
@@ -424,7 +362,6 @@ show_progress() {
 }
 
 echo -e "${BLUE}Starting tests...${NC}"
-echo ""
 
 # Truncate log so show_progress doesn't see stale content
 : > /tmp/test_results.log
@@ -438,7 +375,7 @@ debug_log "progress monitor started pid=$PROGRESS_PID"
 # script creates a pseudo-terminal so Gradle flushes each line immediately,
 # letting show_progress display checkmarks in real time.
 # shellcheck disable=SC2086
-script -qfc "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --info" \
+script -qfc "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --console=plain --info" \
     /tmp/test_results.log > /dev/null 2>&1 &
 GRADLE_PID=$!
 debug_log "gradle started via script(1) pid=$GRADLE_PID"
@@ -492,7 +429,10 @@ ERRORS=0
 SKIPPED=0
 
 RESULTS_DIR="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
-LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
+LATEST_REPORT_XML=""
+if [ "$TEST_SUCCESS" = true ]; then
+    LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
+fi
 
 if [ -n "$LATEST_REPORT_XML" ]; then
     TESTSUITE_LINE=$(grep -m1 '<testsuite ' "$LATEST_REPORT_XML" || true)
@@ -513,22 +453,25 @@ if [ -n "$LATEST_REPORT_XML" ]; then
     fi
 fi
 
-# Fallback to log parsing when XML summary is unavailable
-if [ "$TOTAL" -eq 0 ] && [ -f /tmp/test_results.log ]; then
-    PASSED=$(grep " PASSED" /tmp/test_results.log 2>/dev/null | wc -l | tr -d ' ')
-    FAILED=$(grep " FAILED" /tmp/test_results.log 2>/dev/null | wc -l | tr -d ' ')
+# Fallback to log parsing when XML summary is unavailable (only if build succeeded)
+if [ "$TOTAL" -eq 0 ] && [ "$TEST_SUCCESS" = true ] && [ -f /tmp/test_results.log ]; then
+    PASSED=$(grep -c "INFO: Execute .*: PASSED\| > .* PASSED" /tmp/test_results.log 2>/dev/null || echo 0)
+    FAILED=$(grep -c "INFO: Execute .*: FAILED\| > .* FAILED" /tmp/test_results.log 2>/dev/null || echo 0)
     ERRORS=0
     SKIPPED=0
     TOTAL=$((PASSED + FAILED))
 fi
 
 # Show results
-echo ""
-echo -e "${BLUE}  Test Summary${NC}"
-if [ "$TOTAL" -gt 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+echo -en "${BLUE}  Test Summary:${NC} \t"
+if [ "$TEST_SUCCESS" = false ]; then
+    if [ "$TOTAL" -eq 0 ]; then
+        echo -e "${RED}  ✗ Build failed (tests did not run)${NC}"
+    else
+        echo -e "${RED}  ✗ Some tests failed${NC}"
+    fi
+elif [ "$TOTAL" -gt 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
     echo -e "${GREEN}  ✓ All tests passed${NC}"
-elif [ "$FAILED" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
-    echo -e "${RED}  ✗ Some tests failed${NC}"
 else
     echo -e "${YELLOW}  ⚠ No test results found${NC}"
 fi
@@ -545,18 +488,27 @@ if [ "$SKIPPED" -gt 0 ]; then
     echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
 fi
 echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
-echo -e "${BLUE}============================================${NC}"
-echo -e "${BLUE}Debug log: $DEBUG_LOG${NC}"
+echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
+
+# Show build errors (compile failures, etc.) when tests never ran
+if [ "$TEST_SUCCESS" = false ] && [ "$TOTAL" -eq 0 ] && [ -f /tmp/test_results.log ]; then
+    COMPILE_ERRORS=$(grep "^e: " /tmp/test_results.log 2>/dev/null | head -20)
+    if [ -n "$COMPILE_ERRORS" ]; then
+        echo -e "${RED}Compile errors:${NC}"
+        echo "$COMPILE_ERRORS" | while IFS= read -r line; do
+            echo -e "  ${RED}$line${NC}"
+        done
+    fi
+fi
 
 # Show failed test names if any
 if [ "$FAILED" -gt 0 ] && [ -f /tmp/test_results.log ]; then
-    echo ""
     echo -e "${RED}Failed tests:${NC}"
     # Match both "INFO: Execute Class.method: FAILED" and "Class > method FAILED"
     grep " FAILED" /tmp/test_results.log | while read -r line; do
         if echo "$line" | grep -q "INFO: Execute"; then
-            echo "$line" | sed -n "s/INFO: Execute \(.*\): .*/\1/p" | sed 's/^/  ✗ /'
+            echo "$line" | sed -n "s/.*INFO: Execute \(.*\): .*/\1/p" | sed 's/^/  ✗ /'
         else
             echo "$line" | sed 's/.*:app:connectedDebugAndroidTest //' | sed 's/ FAILED.*//' | sed 's/^/  ✗ /'
         fi

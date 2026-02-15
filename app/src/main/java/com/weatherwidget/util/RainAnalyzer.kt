@@ -20,7 +20,6 @@ object RainAnalyzer {
         val startHour: LocalDateTime,
         val endHour: LocalDateTime,
         val maxProbability: Int,
-        val isAllDay: Boolean = false,
     )
 
     /**
@@ -29,7 +28,7 @@ object RainAnalyzer {
     data class RainForecast(
         val hasRain: Boolean,
         val windows: List<RainWindow>,
-        val summary: String?, // "2pm-5pm", "10am-2pm, 6pm-8pm", "All day", etc.
+        val summary: String?, // "2pm", "2pm–5pm", "10am, 6pm"
     )
 
     /**
@@ -84,8 +83,7 @@ object RainAnalyzer {
         // Group continuous rain periods into windows
         val windows = buildRainWindows(futureRainHours)
 
-        // Generate summary string (use actual rain entry count, not window spans)
-        val summary = generateSummary(windows, futureRainHours.size)
+        val summary = generateSummary(windows)
 
         return RainForecast(hasRain = true, windows = windows, summary = summary)
     }
@@ -179,15 +177,23 @@ object RainAnalyzer {
         return windows
     }
 
-    private fun generateSummary(windows: List<RainWindow>, actualRainHourCount: Int): String {
+    private fun generateSummary(windows: List<RainWindow>): String {
         if (windows.isEmpty()) return ""
 
-        val firstWindow = windows.first()
-        return formatHour(firstWindow.startHour)
+        return if (windows.size == 1) {
+            formatTimeWindow(windows.first().startHour, windows.first().endHour)
+        } else {
+            // Multiple windows: show start times separated by comma
+            windows.joinToString(", ") { formatHour(it.startHour) }
+        }
     }
 
     private fun formatTimeWindow(start: LocalDateTime, end: LocalDateTime): String {
-        return formatHour(start)
+        return if (start == end) {
+            formatHour(start)
+        } else {
+            "${formatHour(start)}–${formatHour(end)}"
+        }
     }
 
     private fun formatHour(dateTime: LocalDateTime): String {

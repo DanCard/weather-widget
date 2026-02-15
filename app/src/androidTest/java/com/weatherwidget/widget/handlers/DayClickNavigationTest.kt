@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -212,18 +213,21 @@ class DayClickNavigationTest {
         val todayStr = today.toString()
         val now = LocalDateTime.now()
 
+        val lat = WeatherWidgetWorker.DEFAULT_LAT
+        val lon = WeatherWidgetWorker.DEFAULT_LON
+
         runBlocking {
             val weatherDao = database.weatherDao()
             val hourlyDao = database.hourlyForecastDao()
 
-            val todayWeather = weatherDao.getWeatherForDate(todayStr)
-            val dailyPrecipProb = todayWeather.firstOrNull()?.precipProbability
+            val todayWeather = weatherDao.getWeatherForDate(todayStr, lat, lon)
+            val dailyPrecipProb = todayWeather?.precipProbability
 
             val hourlyStart = now.minusHours(24).toString()
             val hourlyEnd = now.plusHours(60).toString()
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd)
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
-            val source = todayWeather.firstOrNull()?.source ?: "NWS"
+            val source = todayWeather?.source ?: "NWS"
             val rainSummary = RainAnalyzer.getRainSummary(hourlyForecasts, today, source, now)
 
             // The production code should use BOTH rainSummary AND dailyPrecipProb

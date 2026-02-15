@@ -10,7 +10,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Running unit tests...${NC}"
+echo -en "${BLUE}Running unit tests...${NC} \t"
 
 FORCE_FLAG=""
 if [[ "$1" == "--force" ]]; then
@@ -20,7 +20,9 @@ fi
 
 # Run gradle and strip blank lines from the output for a compact view
 # --console=rich forces colors even when piping through grep
-./gradlew :app:test $FORCE_FLAG --console=rich | grep --line-buffered -vE '^\s*$'
+#./gradlew :app:test $FORCE_FLAG --console=rich | grep --line-buffered -vE '^\s*$'
+#./gradlew :app:test $FORCE_FLAG --console=rich | grep -vE '^\s*$'
+./gradlew :app:test $FORCE_FLAG
 
 EXIT_CODE=${PIPESTATUS[0]}
 
@@ -59,24 +61,18 @@ if [ -d "$RESULTS_DIR" ]; then
     PASSED=$((TOTAL - FAILED - ERRORS - SKIPPED))
 fi
 
-echo ""
-echo -e "${BLUE}============================================${NC}"
-echo -e "${BLUE}  Unit Test Summary${NC}"
-echo -e "${BLUE}============================================${NC}"
+# echo -e "${BLUE}Unit Test Summary${NC}"
 
 if [ "$TOTAL" -gt 0 ]; then
     if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
-        echo -e "${GREEN}  ✓ All $TOTAL tests passed${NC}"
+        echo -en "${GREEN}✓ All $TOTAL tests passed${NC} \t"
     else
         echo -e "${RED}  ✗ $FAILED tests failed, $ERRORS errors${NC}"
-        echo ""
         echo -e "${RED}Failed tests:${NC}"
         for ft in "${FAILED_TESTS[@]}"; do
             echo -e "  ${RED}✗ $ft${NC}"
         done
     fi
-    
-    echo ""
     echo -e "  Total:   $TOTAL"
     echo -e "  ${GREEN}Passed:  $PASSED${NC}"
     if [ "$FAILED" -gt 0 ]; then
@@ -91,6 +87,5 @@ if [ "$TOTAL" -gt 0 ]; then
 else
     echo -e "${YELLOW}  ⚠ No test results found${NC}"
 fi
-echo -e "${BLUE}============================================${NC}"
 
 exit $EXIT_CODE
