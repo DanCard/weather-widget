@@ -44,7 +44,10 @@ object NavigationUtils {
         dateOffset: Int,
         isEveningMode: Boolean,
     ): LocalDate {
-        return if (isEveningMode && dateOffset < 0) {
+        return if (isEveningMode && dateOffset != 0) {
+            // Evening mode at offset 0 uses skipHistory to shift the window forward by 1 day
+            // (showing today+6 instead of yesterday+5). Non-zero offsets don't use skipHistory,
+            // so we shift the center by +1 to keep each offset step moving exactly 1 day.
             today.plusDays(dateOffset.toLong() + 1L)
         } else {
             today.plusDays(dateOffset.toLong())

@@ -1,7 +1,9 @@
 package com.weatherwidget.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
+import java.time.LocalDate
 
 class NavigationUtilsTest {
     @Test
@@ -49,5 +51,41 @@ class NavigationUtilsTest {
         assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L), NavigationUtils.getDayOffsets(10))
         assertEquals(-1, NavigationUtils.getMinOffset(10))
         assertEquals(5, NavigationUtils.getMaxOffset(10))
+    }
+
+    @Test
+    fun testEveningMode_eachOffsetStepShowsDifferentRange() {
+        val today = LocalDate.of(2026, 2, 14)
+        val numColumns = 9 // 7 visible days
+
+        // Each offset step should produce a distinct visible range
+        for (offset in -3..3) {
+            val range = NavigationUtils.getVisibleDateRange(today, offset, numColumns, isEveningMode = true)
+            val nextRange = NavigationUtils.getVisibleDateRange(today, offset + 1, numColumns, isEveningMode = true)
+            assertNotEquals(
+                "offset=$offset and offset=${offset + 1} should show different ranges",
+                range,
+                nextRange,
+            )
+            // Each step should shift by exactly 1 day
+            assertEquals(
+                "offset=$offset to ${offset + 1}: leftmost should shift by 1 day",
+                range.first.plusDays(1),
+                nextRange.first,
+            )
+            assertEquals(
+                "offset=$offset to ${offset + 1}: rightmost should shift by 1 day",
+                range.second.plusDays(1),
+                nextRange.second,
+            )
+        }
+    }
+
+    @Test
+    fun testEveningMode_offset0_showsTodayFirst() {
+        val today = LocalDate.of(2026, 2, 14)
+        // Evening mode offset=0 should start from today (not yesterday)
+        val range = NavigationUtils.getVisibleDateRange(today, 0, 9, isEveningMode = true)
+        assertEquals(today, range.first)
     }
 }

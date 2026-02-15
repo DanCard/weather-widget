@@ -41,6 +41,9 @@ object WidgetIntentRouter {
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
 
+        val direction = if (isLeft) "LEFT" else "RIGHT"
+        Log.d(TAG, "handleNavigation: widget=$appWidgetId, direction=$direction, viewMode=$viewMode")
+
         if (viewMode == com.weatherwidget.widget.ViewMode.HOURLY ||
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
@@ -97,28 +100,34 @@ object WidgetIntentRouter {
         val minDate = availableDates.firstOrNull()
         val maxDate = availableDates.lastOrNull()
 
-        val canNavigate =
-            if (isLeft) {
-                val (newLeftmost, _) =
-                    NavigationUtils.getVisibleDateRange(
-                        today = today,
-                        dateOffset = currentOffset - 1,
-                        numColumns = numColumns,
-                        isEveningMode = isEveningMode,
-                    )
-                minDate != null && !minDate.isAfter(newLeftmost)
-            } else {
-                val (_, newRightmost) =
-                    NavigationUtils.getVisibleDateRange(
-                        today = today,
-                        dateOffset = currentOffset + 1,
-                        numColumns = numColumns,
-                        isEveningMode = isEveningMode,
-                    )
-                maxDate != null && !maxDate.isBefore(newRightmost)
-            }
+        val canNavigate: Boolean
+        val navDebug: String
+        if (isLeft) {
+            val (newLeftmost, _) =
+                NavigationUtils.getVisibleDateRange(
+                    today = today,
+                    dateOffset = currentOffset - 1,
+                    numColumns = numColumns,
+                    isEveningMode = isEveningMode,
+                )
+            canNavigate = minDate != null && !minDate.isAfter(newLeftmost)
+            navDebug = "LEFT: newLeftmost=$newLeftmost, minDate=$minDate"
+        } else {
+            val (_, newRightmost) =
+                NavigationUtils.getVisibleDateRange(
+                    today = today,
+                    dateOffset = currentOffset + 1,
+                    numColumns = numColumns,
+                    isEveningMode = isEveningMode,
+                )
+            canNavigate = maxDate != null && !maxDate.isBefore(newRightmost)
+            navDebug = "RIGHT: newRightmost=$newRightmost, maxDate=$maxDate"
+        }
 
-        Log.d(TAG, "handleDailyNavigation: widgetId=$appWidgetId, canNavigate=$canNavigate")
+        Log.d(TAG, "handleDailyNavigation: widget=$appWidgetId, offset=$currentOffset, " +
+            "cols=$numColumns, evening=$isEveningMode, source=${displaySource.id}, " +
+            "dates=${availableDates.size}(${minDate}..${maxDate}), " +
+            "$navDebug, canNavigate=$canNavigate")
 
         if (!canNavigate) {
             return
