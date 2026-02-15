@@ -60,8 +60,7 @@ class RainAnalyzerTest {
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
-        assertNotNull(result.summary)
-        assertEquals("2pm–4pm", result.summary)
+        assertEquals("2pm", result.summary)  // Start hour only, no range
         assertEquals(1, result.windows.size)
     }
 
@@ -88,7 +87,7 @@ class RainAnalyzerTest {
             createForecast("2024-06-15T08:00", "Mostly Cloudy", 0),
             createForecast("2024-06-15T16:00", "Slight Chance Rain Showers", 18),
             createForecast("2024-06-15T17:00", "Slight Chance Rain Showers", 30),
-            createForecast("2024-06-15T18:00", "Slight Chance Rain Showers", 39),
+            createForecast("2024-06-15T18:00", "Slight Chance Rain Showers", 49),
             createForecast("2024-06-15T20:00", "Clear", 0),
         )
 
@@ -99,16 +98,30 @@ class RainAnalyzerTest {
     }
 
     @Test
-    fun `analyzeDay detects rain at new 40 percent threshold`() {
+    fun `analyzeDay detects rain at 50 percent threshold`() {
         val date = LocalDate.of(2024, 6, 15)
         val forecasts = listOf(
-            createForecast("2024-06-15T12:00", "Cloudy", 40),
+            createForecast("2024-06-15T12:00", "Cloudy", 50),
         )
 
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
         assertEquals("12pm", result.summary)
+    }
+
+    @Test
+    fun `analyzeDay ignores rain below 50 percent threshold`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T12:00", "Cloudy", 49),
+            createForecast("2024-06-15T14:00", "Cloudy", 40),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+
+        assertFalse(result.hasRain)
+        assertNull(result.summary)
     }
 
     @Test
@@ -119,14 +132,14 @@ class RainAnalyzerTest {
             createForecast("2024-06-15T10:00", "Rain", 50),  // Morning rain
             createForecast("2024-06-15T11:00", "Rain", 60),
             createForecast("2024-06-15T14:00", "Clear", 0),  // Break
-            createForecast("2024-06-15T18:00", "Showers", 40), // Evening rain
-            createForecast("2024-06-15T19:00", "Showers", 45),
+            createForecast("2024-06-15T18:00", "Showers", 55), // Evening rain
+            createForecast("2024-06-15T19:00", "Showers", 60),
         )
 
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
-        assertEquals("10am, 6pm", result.summary)
+        assertEquals("10am", result.summary)  // Only first window start
         assertEquals(2, result.windows.size)
     }
 
@@ -195,8 +208,8 @@ class RainAnalyzerTest {
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
         assertTrue(result.hasRain)
-        // 12am and 12pm are more than 2 hours apart, so they form separate windows
-        assertEquals("12am, 12pm", result.summary)
+        // Summary only shows start of first window
+        assertEquals("12am", result.summary)
     }
 
     @Test
@@ -211,22 +224,24 @@ class RainAnalyzerTest {
 
         assertTrue(result.hasRain)
         assertEquals(2, result.windows.size)
+        assertEquals("10am", result.summary)  // Start of first window
     }
 
     @Test
     fun `analyzeDay filters out past rain`() {
         val date = LocalDate.of(2024, 6, 15)
         val forecasts = listOf(
-            createForecast("2024-06-15T08:00", "Rain", 60),  // Past rain
+            createForecast("2024-06-15T00:00", "Rain", 60),  // Past rain (midnight)
             createForecast("2024-06-15T14:00", "Rain", 70),  // Future rain
         )
 
-        // At 12:00, only 14:00 rain should be counted
+        // At 12:00, only 14:00 rain should be counted as a window.
+        // 12am rain is 14 hours before 2pm — gap > 12h — genuine new start
         val noon = LocalDateTime.of(2024, 6, 15, 12, 0)
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = noon)
 
         assertTrue(result.hasRain)
-        assertEquals("2pm", result.summary)  // Only 2pm, not 8am
+        assertEquals("2pm", result.summary)
     }
 
     @Test
@@ -246,47 +261,194 @@ class RainAnalyzerTest {
     }
 
     @Test
-    fun `summary shows single hour for one-hour rain window`() {
+    fun `analyzeDay suppresses imminent rain within 2 hours`() {
         val date = LocalDate.of(2024, 6, 15)
         val forecasts = listOf(
-            createForecast("2024-06-15T15:00", "Rain", 60),
+            createForecast("2024-06-15T13:00", "Rain", 70),  // 1 hour away — suppressed
+            createForecast("2024-06-15T13:30", "Rain", 60),  // 1.5 hours away — suppressed
         )
 
-        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+        val noon = LocalDateTime.of(2024, 6, 15, 12, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = noon)
 
-        assertEquals("3pm", result.summary)
+        assertFalse(result.hasRain)
+        assertNull(result.summary)
     }
 
     @Test
-    fun `summary shows range for multi-hour rain window`() {
+    fun `analyzeDay shows rain at exactly 2 hours out`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T14:00", "Rain", 70),  // Exactly 2 hours away — shown
+        )
+
+        val noon = LocalDateTime.of(2024, 6, 15, 12, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = noon)
+
+        assertTrue(result.hasRain)
+        assertEquals("2pm", result.summary)
+    }
+
+    @Test
+    fun `analyzeDay suppresses later rain when imminent rain makes it a continuation`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T13:00", "Rain", 70),  // 1 hour away — suppressed by imminent filter
+            createForecast("2024-06-15T18:00", "Rain", 60),  // 6 hours away — but only 5h after 1pm rain
+        )
+
+        // 1pm rain is imminent (suppressed from window). 6pm rain: most recent prior rain is 1pm.
+        // Gap = 5 hours < 12h → it's a continuation → summary suppressed
+        val noon = LocalDateTime.of(2024, 6, 15, 12, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = noon)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed — 6pm is continuation of 1pm rain
+    }
+
+    @Test
+    fun `analyzeDay shows later rain when no recent prior rain`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T18:00", "Rain", 60),  // 6 hours away, no prior rain at all
+        )
+
+        val noon = LocalDateTime.of(2024, 6, 15, 12, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = noon)
+
+        assertTrue(result.hasRain)
+        assertEquals("6pm", result.summary)  // Shown — no prior rain
+    }
+
+    @Test
+    fun `summary shows only start hour for multi-hour rain window`() {
         val date = LocalDate.of(2024, 6, 15)
         val forecasts = listOf(
             createForecast("2024-06-15T09:00", "Rain", 50),
             createForecast("2024-06-15T10:00", "Rain", 60),
             createForecast("2024-06-15T11:00", "Rain", 55),
-            createForecast("2024-06-15T12:00", "Rain", 45),
+            createForecast("2024-06-15T12:00", "Rain", 50),
         )
 
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
-        assertEquals("9am–12pm", result.summary)
+        assertEquals("9am", result.summary)  // Just start, no range
         assertEquals(1, result.windows.size)
     }
 
     @Test
-    fun `summary shows start times for multiple rain windows`() {
+    fun `summary shows only first window start for multiple rain windows`() {
         val date = LocalDate.of(2024, 6, 15)
         val forecasts = listOf(
             createForecast("2024-06-15T08:00", "Rain", 60),
             createForecast("2024-06-15T09:00", "Rain", 50),
             createForecast("2024-06-15T15:00", "Rain", 70),
             createForecast("2024-06-15T16:00", "Rain", 65),
-            createForecast("2024-06-15T21:00", "Rain", 45),
+            createForecast("2024-06-15T21:00", "Rain", 55),
         )
 
         val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
 
-        assertEquals("8am, 3pm, 9pm", result.summary)
+        assertEquals("8am", result.summary)  // Only first window start
         assertEquals(3, result.windows.size)
+    }
+
+    // --- Dry gap suppression tests ---
+
+    @Test
+    fun `summary suppressed when rain is continuation of recent rain`() {
+        val date = LocalDate.of(2024, 6, 15)
+        // Rain at 9am (past), then again at 12pm (future, 2h from now).
+        // Gap = 3h, well under 12h threshold → continuation
+        val forecasts = listOf(
+            createForecast("2024-06-15T09:00", "Rain", 60),
+            createForecast("2024-06-15T12:00", "Rain", 70),
+        )
+
+        val now = LocalDateTime.of(2024, 6, 15, 10, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = now)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed — it's a continuation
+    }
+
+    @Test
+    fun `summary suppressed when overnight gap is under 12 hours`() {
+        // Rain ending at 10pm, resuming at 4am — 6 hour overnight gap < 12h
+        val tomorrow = LocalDate.of(2024, 6, 16)
+        val forecasts = listOf(
+            createForecast("2024-06-15T22:00", "Rain", 60),  // Last night
+            createForecast("2024-06-16T04:00", "Rain", 70),  // Early morning
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, tomorrow, now = testNow)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed — same multi-day rain pattern
+    }
+
+    @Test
+    fun `summary shown when rain starts after 12 hour dry gap`() {
+        val date = LocalDate.of(2024, 6, 15)
+        // Rain at midnight, then again at 2pm — 14h gap, above 12h threshold
+        val forecasts = listOf(
+            createForecast("2024-06-15T00:00", "Rain", 60),
+            createForecast("2024-06-15T14:00", "Rain", 70),
+        )
+
+        val now = LocalDateTime.of(2024, 6, 15, 11, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = now)
+
+        assertTrue(result.hasRain)
+        assertEquals("2pm", result.summary)  // Shown — genuine new start after long dry spell
+    }
+
+    @Test
+    fun `summary suppressed for cross-day continuation`() {
+        // Today has rain at 11pm, tomorrow starts with rain at 4am
+        // Only 5h gap — continuation of the same weather pattern
+        val tomorrow = LocalDate.of(2024, 6, 16)
+        val forecasts = listOf(
+            createForecast("2024-06-15T23:00", "Rain", 70),
+            createForecast("2024-06-16T04:00", "Rain", 80),
+            createForecast("2024-06-16T05:00", "Rain", 75),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, tomorrow, now = testNow)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed — continuation from today
+    }
+
+    @Test
+    fun `summary shown for tomorrow when today rain ended early`() {
+        // Today had rain at 6am, tomorrow has rain at 8pm — gap is 38 hours
+        val tomorrow = LocalDate.of(2024, 6, 16)
+        val forecasts = listOf(
+            createForecast("2024-06-15T06:00", "Rain", 60),  // Today's early rain
+            createForecast("2024-06-16T20:00", "Rain", 70),  // Tomorrow's evening rain
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, tomorrow, now = testNow)
+
+        assertTrue(result.hasRain)
+        assertEquals("8pm", result.summary)  // Shown — long dry gap
+    }
+
+    @Test
+    fun `rain window extends through midnight`() {
+        val date = LocalDate.of(2024, 6, 15)
+        val forecasts = listOf(
+            createForecast("2024-06-15T21:00", "Rain", 70),
+            createForecast("2024-06-15T22:00", "Rain", 75),
+            createForecast("2024-06-15T23:00", "Rain", 80),
+            createForecast("2024-06-16T00:00", "Rain", 82),
+        )
+
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = testNow)
+
+        assertTrue(result.hasRain)
+        assertEquals("9pm", result.summary)  // Start of the window
+        assertEquals(1, result.windows.size)
     }
 }

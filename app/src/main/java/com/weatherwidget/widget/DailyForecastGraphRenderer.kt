@@ -24,7 +24,7 @@ object DailyForecastGraphRenderer {
         val forecastLow: Int? = null, // Single forecast
         val forecastSource: WeatherSource? = null,
         val accuracyMode: AccuracyDisplayMode = AccuracyDisplayMode.NONE,
-        val rainSummary: String? = null, // e.g. "2pm", "2pm–5pm", "10am, 6pm"
+        val rainSummary: String? = null, // e.g. "2pm" — start of first rain window
         val dailyPrecipProbability: Int? = null, // From WeatherEntity, used for click routing
     )
 

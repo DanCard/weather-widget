@@ -11,7 +11,9 @@ import java.time.format.DateTimeFormatter
  */
 object RainAnalyzer {
 
-    private const val RAIN_PROBABILITY_THRESHOLD = 40
+    private const val RAIN_PROBABILITY_THRESHOLD = 50
+    private const val IMMINENT_RAIN_HOURS = 2L
+    private const val DRY_GAP_HOURS = 12L  // Rain must have stopped for 12+ hours to count as a new "start"
 
     /**
      * Represents a continuous period of rain.
@@ -28,7 +30,7 @@ object RainAnalyzer {
     data class RainForecast(
         val hasRain: Boolean,
         val windows: List<RainWindow>,
-        val summary: String?, // "2pm", "2pm–5pm", "10am, 6pm"
+        val summary: String?, // e.g. "2pm" — only shown when rain is genuinely starting (dry gap before)
     )
 
     /**
@@ -50,9 +52,13 @@ object RainAnalyzer {
         val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
         Log.d("RainAnalyzer", "Analyzing $dateStr, source=$source, total forecasts=${hourlyForecasts.size}")
 
-        // Filter to the target date and optionally by source
+        // Filter to the target date and optionally by source.
+        // Also include midnight (00:00) of the next day so rain windows that
+        // span midnight aren't truncated at 11pm.
+        val nextDateStr = date.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val midnightPrefix = "${nextDateStr}T00:00"
         val dayForecasts = hourlyForecasts.filter { forecast ->
-            forecast.dateTime.startsWith(dateStr) &&
+            (forecast.dateTime.startsWith(dateStr) || forecast.dateTime.startsWith(midnightPrefix)) &&
                 (source == null || forecast.source == source)
         }.sortedBy { it.dateTime }
 
@@ -71,9 +77,13 @@ object RainAnalyzer {
             return RainForecast(hasRain = false, windows = emptyList(), summary = null)
         }
 
-        // Filter out past rain - only keep future rain hours
-        val futureRainHours = rainHours.filter { parseHour(it.dateTime).isAfter(now) }
-        Log.d("RainAnalyzer", "Future rain hours: ${futureRainHours.size}")
+        // Filter out past rain and imminent rain (within 2 hours) to reduce noise
+        val futureRainHours = rainHours.filter {
+            val hour = parseHour(it.dateTime)
+            hour.isAfter(now) &&
+                java.time.Duration.between(now, hour).toHours() >= IMMINENT_RAIN_HOURS
+        }
+        Log.d("RainAnalyzer", "Future rain hours (excluding imminent): ${futureRainHours.size}")
 
         if (futureRainHours.isEmpty()) {
             // All rain is in the past
@@ -83,7 +93,16 @@ object RainAnalyzer {
         // Group continuous rain periods into windows
         val windows = buildRainWindows(futureRainHours)
 
-        val summary = generateSummary(windows)
+        // Only show summary if rain is genuinely "starting" — i.e., there's been
+        // a dry gap of at least DRY_GAP_HOURS before the first window.
+        // Look backward in the full forecast data (across all dates) for recent rain.
+        val firstWindowStart = windows.first().startHour
+        val summary = if (hasDryGapBefore(hourlyForecasts, source, firstWindowStart)) {
+            generateSummary(windows)
+        } else {
+            Log.d("RainAnalyzer", "Suppressing summary: rain continuation (no dry gap before ${formatHour(firstWindowStart)})")
+            null
+        }
 
         return RainForecast(hasRain = true, windows = windows, summary = summary)
     }
@@ -179,21 +198,38 @@ object RainAnalyzer {
 
     private fun generateSummary(windows: List<RainWindow>): String {
         if (windows.isEmpty()) return ""
-
-        return if (windows.size == 1) {
-            formatTimeWindow(windows.first().startHour, windows.first().endHour)
-        } else {
-            // Multiple windows: show start times separated by comma
-            windows.joinToString(", ") { formatHour(it.startHour) }
-        }
+        // Only show the start hour of the first window — answer "when does rain start?"
+        return formatHour(windows.first().startHour)
     }
 
-    private fun formatTimeWindow(start: LocalDateTime, end: LocalDateTime): String {
-        return if (start == end) {
-            formatHour(start)
-        } else {
-            "${formatHour(start)}–${formatHour(end)}"
+    /**
+     * Checks whether there's been a dry gap of at least [DRY_GAP_HOURS] before [windowStart].
+     * Looks backward across all dates in the forecast data to detect continuations.
+     */
+    private fun hasDryGapBefore(
+        allForecasts: List<HourlyForecastEntity>,
+        source: String?,
+        windowStart: LocalDateTime,
+    ): Boolean {
+        // Find the most recent rain hour before windowStart from all available data
+        val cutoff = windowStart.minusHours(DRY_GAP_HOURS)
+        val recentRainBeforeWindow = allForecasts
+            .filter { forecast ->
+                (source == null || forecast.source == source) && isRainHour(forecast)
+            }
+            .mapNotNull { forecast ->
+                val hour = parseHour(forecast.dateTime)
+                if (hour.isBefore(windowStart)) hour else null
+            }
+            .maxOrNull()  // Most recent rain hour before the window
+
+        if (recentRainBeforeWindow == null) {
+            // No prior rain at all — this is a genuine new start
+            return true
         }
+
+        // If the most recent prior rain is before the cutoff, there's been a dry gap
+        return recentRainBeforeWindow.isBefore(cutoff)
     }
 
     private fun formatHour(dateTime: LocalDateTime): String {

@@ -20,9 +20,9 @@ fi
 
 # Run gradle and strip blank lines from the output for a compact view
 # --console=rich forces colors even when piping through grep
-#./gradlew :app:test $FORCE_FLAG --console=rich | grep --line-buffered -vE '^\s*$'
+./gradlew :app:test $FORCE_FLAG --console=rich | grep --line-buffered -vE '^\s*$'
 #./gradlew :app:test $FORCE_FLAG --console=rich | grep -vE '^\s*$'
-./gradlew :app:test $FORCE_FLAG
+#./gradlew :app:test $FORCE_FLAG
 
 EXIT_CODE=${PIPESTATUS[0]}
 

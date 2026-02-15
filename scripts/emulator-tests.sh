@@ -109,17 +109,17 @@ if [ ! -f "$ADB_BIN" ]; then
     exit 1
 fi
 
-echo -e "${BLUE}Using Android SDK: $SDK_ROOT${NC}"
+echo -en "${BLUE}Using Android SDK: $SDK_ROOT${NC} \t"
 debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
 if [ -z "$EMULATOR_NAME" ]; then
-    echo -e "${YELLOW}Available emulators:${NC}"
+    echo -en "${YELLOW}Available emulators:${NC} \t"
     $EMU_BIN -list-avds | while read -r avd; do
         if [ "$avd" = "$DEFAULT_EMULATOR" ]; then
-            echo "  * $avd (default)"
+            echo -n " * $avd (default) \t"
         else
-            echo "    $avd"
+            echo -n "   $avd \t"
         fi
     done
     
@@ -250,7 +250,7 @@ $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null || ech
 $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Android: Unknown"
 
 # Run tests
-echo -en "${BLUE}  Running Instrumented Tests${NC} \t"
+echo -en "${BLUE}Running Instrumented Tests${NC} \t"
 
 cd "$PROJECT_DIR"
 
@@ -261,12 +261,12 @@ EMULATOR_DEVICES=$(echo "$ALL_DEVICES" | grep "^emulator-" | head -1)
 
 if [ -n "$EMULATOR_SERIAL" ]; then
     # We already have an emulator from earlier (started by this script or existing)
-    echo -e "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC}"
+    echo -en "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC} \t"
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 elif [ -n "$EMULATOR_DEVICES" ]; then
     # Use first emulator found
     EMULATOR_SERIAL="$EMULATOR_DEVICES"
-    echo -e "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC}"
+    echo -en "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC} \t"
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 else
     echo -e "${RED}Error: No emulator found${NC}"

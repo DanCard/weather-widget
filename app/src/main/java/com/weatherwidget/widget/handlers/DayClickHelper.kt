@@ -26,9 +26,9 @@ object DayClickHelper {
      * The widget shows daily precipProbability next to current temp (e.g., "16%").
      * When this is visible, clicking the day should navigate to the precipitation
      * graph so the user can see the hourly breakdown — even if no single hour
-     * exceeds the 40% RainAnalyzer threshold.
+     * exceeds the 50% RainAnalyzer threshold.
      *
-     * @param rainSummary the RainAnalyzer summary (non-null when hourly rain >= 40%)
+     * @param rainSummary the RainAnalyzer summary (non-null when rain is starting after a dry gap)
      * @param dailyPrecipProbability the daily precipitation probability from WeatherEntity
      * @return true if any rain indication exists
      */

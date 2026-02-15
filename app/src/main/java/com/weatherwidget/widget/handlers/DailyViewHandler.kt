@@ -199,6 +199,8 @@ object DailyViewHandler : WidgetViewHandler {
                     isEveningMode,
                     skipHistory,
                     hourlyForecasts,
+                    stateManager,
+                    appWidgetId,
                 )
 
             // Use actual widget dimensions for bitmap to match ImageView size
@@ -237,7 +239,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
             // Text mode - set visibility and populate
-            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, skipHistory)
+            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, skipHistory, stateManager, appWidgetId)
 
             // Setup per-day click handlers for text mode
             // In evening mode at offset 0, today is the leftmost day (day1)
@@ -428,6 +430,8 @@ object DailyViewHandler : WidgetViewHandler {
         isEveningMode: Boolean,
         skipHistory: Boolean,
         hourlyForecasts: List<HourlyForecastEntity>,
+        stateManager: WidgetStateManager? = null,
+        appWidgetId: Int = 0,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
 
@@ -498,10 +502,22 @@ object DailyViewHandler : WidgetViewHandler {
                     iconRes == R.drawable.ic_weather_mostly_clear
 
             // Get rain summary for all future days (determines click behavior)
-            val rainSummary = if (!isPastDate) {
+            // Suppress today's rain if already shown once this day
+            val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val rawRainSummary = if (!isPastDate) {
                 RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, LocalDateTime.now())
             } else {
                 null
+            }
+            val rainSummary = if (isToday && rawRainSummary != null && stateManager != null) {
+                if (stateManager.wasRainShownToday(appWidgetId, todayStr)) {
+                    null
+                } else {
+                    stateManager.markRainShown(appWidgetId, todayStr)
+                    rawRainSummary
+                }
+            } else {
+                rawRainSummary
             }
 
             days.add(
@@ -577,6 +593,8 @@ object DailyViewHandler : WidgetViewHandler {
         numColumns: Int,
         displaySource: WeatherSource,
         skipHistory: Boolean = false,
+        stateManager: WidgetStateManager? = null,
+        appWidgetId: Int = 0,
     ): List<Triple<Int, String, Boolean>> {  // dayIndex, dateStr, hasRainForecast
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
 
@@ -688,9 +706,19 @@ object DailyViewHandler : WidgetViewHandler {
         val now = LocalDateTime.now()
         val nearTermLimit = today.plusDays(2)
         fun isNearTerm(date: LocalDate) = !date.isBefore(today) && !date.isAfter(nearTermLimit)
-        val rainSummary1 = if (hasDay1) RainAnalyzer.getRainSummary(hourlyForecasts, day1Date, displaySource.id, now) else null
-        val rainSummary2 = if (hasDay2) RainAnalyzer.getRainSummary(hourlyForecasts, day2Date, displaySource.id, now) else null
-        val rainSummary3 = if (hasDay3) RainAnalyzer.getRainSummary(hourlyForecasts, day3Date, displaySource.id, now) else null
+        // Suppress today's rain summary if already shown once this day
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        fun suppressIfAlreadyShown(date: LocalDate, summary: String?): String? {
+            if (date != today || stateManager == null) return summary
+            if (summary == null) return null
+            if (stateManager.wasRainShownToday(appWidgetId, todayStr)) return null
+            stateManager.markRainShown(appWidgetId, todayStr)
+            return summary
+        }
+
+        val rainSummary1 = suppressIfAlreadyShown(day1Date, if (hasDay1) RainAnalyzer.getRainSummary(hourlyForecasts, day1Date, displaySource.id, now) else null)
+        val rainSummary2 = suppressIfAlreadyShown(day2Date, if (hasDay2) RainAnalyzer.getRainSummary(hourlyForecasts, day2Date, displaySource.id, now) else null)
+        val rainSummary3 = suppressIfAlreadyShown(day3Date, if (hasDay3) RainAnalyzer.getRainSummary(hourlyForecasts, day3Date, displaySource.id, now) else null)
         val rainSummary4 = if (hasDay4) RainAnalyzer.getRainSummary(hourlyForecasts, day4Date, displaySource.id, now) else null
         val rainSummary5 = if (hasDay5) RainAnalyzer.getRainSummary(hourlyForecasts, day5Date, displaySource.id, now) else null
         val rainSummary6 = if (hasDay6) RainAnalyzer.getRainSummary(hourlyForecasts, day6Date, displaySource.id, now) else null

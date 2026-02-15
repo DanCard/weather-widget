@@ -40,6 +40,7 @@ class WidgetStateManager
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
+            private const val KEY_RAIN_SHOWN_DATE_PREFIX = "widget_rain_shown_date_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
@@ -123,7 +124,23 @@ class WidgetStateManager
                 .remove("$KEY_DISPLAY_SOURCE_PREFIX$widgetId")
                 .remove("$KEY_VIEW_MODE_PREFIX$widgetId")
                 .remove("$KEY_HOURLY_OFFSET_PREFIX$widgetId")
+                .remove("$KEY_RAIN_SHOWN_DATE_PREFIX$widgetId")
                 .apply()
+        }
+
+        /**
+         * Returns true if rain summary has already been shown for this widget today.
+         * Prevents noisy repeated rain messages on every widget refresh.
+         */
+        fun wasRainShownToday(widgetId: Int, today: String): Boolean {
+            return prefs.getString("$KEY_RAIN_SHOWN_DATE_PREFIX$widgetId", null) == today
+        }
+
+        /**
+         * Records that rain summary was shown for this widget today.
+         */
+        fun markRainShown(widgetId: Int, today: String) {
+            prefs.edit().putString("$KEY_RAIN_SHOWN_DATE_PREFIX$widgetId", today).apply()
         }
 
         // View mode management
