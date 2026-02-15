@@ -352,16 +352,23 @@ object HourlyTemperatureGraphRenderer {
         }
 
         // Draw day of week indicators at midnight
+        val dayY = heightPx - dpToPx(context, 14f)
         hours.forEachIndexed { index, hour ->
             if (hour.dateTime.hour == 0) {
                 val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
                 val centerX = points[index].first
                 val textWidth = dayLabelTextPaint.measureText(dayText)
                 val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                // Draw day label slightly above the hour label
-                val dayY = heightPx - dpToPx(context, 14f)
                 canvas.drawText(dayText, clampedX, dayY, dayLabelTextPaint)
             }
+        }
+
+        // Draw leading day label if the first hour's day has no midnight boundary visible
+        if (hours.isNotEmpty() && hours.first().dateTime.hour != 0) {
+            val dayText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+            val textWidth = dayLabelTextPaint.measureText(dayText)
+            val x = textWidth / 2f
+            canvas.drawText(dayText, x, dayY, dayLabelTextPaint)
         }
 
         GraphRenderUtils.drawNowIndicator(
