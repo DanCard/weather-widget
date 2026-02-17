@@ -103,6 +103,9 @@ The project follows a **pure function extraction** philosophy to maximize testab
 - **Local Extrema Labeling (2026-02-17)**: 
     - Added logic to detect and label significant local peaks/valleys in the hourly graph.
     - **Priority Change**: Local Extrema are now drawn *before* Start/End labels to prevent less informative labels (like the graph start point) from overlapping and hiding significant local dips.
+- **Daily Forecast UI (2026-02-17)**: 
+    - Replaced "Today" label with the abbreviated day name (e.g., "Tue") for consistency.
+    - Highlighted the current day's label and temperature values with a bright light orange (`#FFEACC`) to make it distinct.
 
 ### API & Data Characteristics
 - **Data Types**: NWS returns integer temperatures; Open-Meteo returns decimals.

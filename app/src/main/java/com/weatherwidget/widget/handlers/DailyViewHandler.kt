@@ -460,11 +460,7 @@ object DailyViewHandler : WidgetViewHandler {
                         .filter { it.source == WeatherSource.GENERIC_GAP.id }
                         .maxByOrNull { it.fetchedAt }
 
-            val label =
-                when {
-                    date == today -> "Today"
-                    else -> date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-                }
+            val label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 
             val isPastDate = date.isBefore(today)
             val isToday = date == today
@@ -694,11 +690,7 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         fun getLabelForDate(date: LocalDate): String {
-            return if (date == today) {
-                "Today"
-            } else {
-                date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            }
+            return date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         }
 
         // Check rain forecast for all days (for click behavior)

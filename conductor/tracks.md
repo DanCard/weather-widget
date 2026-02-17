@@ -5,3 +5,4 @@ This file tracks the various work tracks for the project.
 | ID | Title | Status | Link |
 |----|-------|--------|------|
 | T-LAB-01 | Fix missing 6am min temperature label | Done | [plan](./tracks/T-LAB-01/plan.md) |
+| T-UI-02 | Change 'Today' label to day name and highlight | Done | [plan](./tracks/T-UI-02/plan.md) |

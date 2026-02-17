@@ -185,11 +185,28 @@ object DailyForecastGraphRenderer {
                 textAlign = Paint.Align.CENTER
             }
 
+        // Highlight today's label with orange tint and bold text
+        val todayTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFEACC") // Very Light Orange (averaged with white)
+                textSize = dayLabelTextSize
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            }
+
         val tempTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#FFFFFF")
-                textSize = tempLabelTextSize // Temp labels - scaled with height
+                textSize = tempLabelTextSize
                 textAlign = Paint.Align.CENTER
+            }
+
+        val todayTempTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFEACC") // Very Light Orange (averaged with white)
+                textSize = tempLabelTextSize
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
 
         // Accuracy dot colors
@@ -267,7 +284,8 @@ object DailyForecastGraphRenderer {
             // 1. Draw Day Label (Fixed at absolute Bottom)
             val dayLabelY = heightPx - 3f // Experiment: move up 3 pixels
 
-            canvas.drawText(day.label, centerX, dayLabelY, textPaint)
+            val labelPaint = if (day.isToday) todayTextPaint else textPaint
+            canvas.drawText(day.label, centerX, dayLabelY, labelPaint)
 
             // Calculate Y positions first
             val highY =
@@ -323,7 +341,8 @@ object DailyForecastGraphRenderer {
                         day.forecastSource,
                         day.accuracyMode,
                     )
-                canvas.drawText(lowLabel, centerX, lowTempY, tempTextPaint)
+                val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
+                canvas.drawText(lowLabel, centerX, lowTempY, tempPaint)
 
                 // Draw rain summary only for the first day with rain
                 // (intent is to show when rain will start, not all rainy days)
@@ -398,11 +417,12 @@ object DailyForecastGraphRenderer {
                     )
                 // If we have a Y position, use it. Otherwise (shouldn't happen here), skip.
                 highY?.let { y ->
+                    val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
                     canvas.drawText(
                         highLabel,
                         centerX,
                         y - dpToPx(context, 6f * scaleFactor),
-                        tempTextPaint,
+                        tempPaint,
                     )
                 }
             }
