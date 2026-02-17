@@ -349,6 +349,17 @@ object PrecipitationGraphRenderer {
             val isValley = index in localMinima || index == globalMinIndex
             val isEarlyAnchor = index == firstPositive || index == firstLabeledPositive
 
+            // Detect "dip regions": the point sits in a trough where notably higher
+            // values exist within ±3 hours on BOTH sides.  Even if this exact index
+            // isn't the strict local minimum, the visual curve dips here.
+            val dipWindow = 3
+            val dipLeft = (index - dipWindow).coerceAtLeast(0)
+            val dipRight = (index + dipWindow).coerceAtMost(probs.lastIndex)
+            val leftMax = (dipLeft until index).maxOfOrNull { probs[it] } ?: prob
+            val rightMax = ((index + 1)..dipRight).maxOfOrNull { probs[it] } ?: prob
+            val isSoftDip = !isValley && !isPeak &&
+                leftMax > prob + 5 && rightMax > prob + 5
+
             val attempts =
                 when {
                     isEarlyAnchor ->
@@ -363,6 +374,11 @@ object PrecipitationGraphRenderer {
                     isValley ->
                         listOf(
                             Pair(0f, false),
+                        )
+                    isSoftDip ->
+                        listOf(
+                            Pair(0f, false),
+                            Pair(0f, true),
                         )
                     else ->
                         listOf(
