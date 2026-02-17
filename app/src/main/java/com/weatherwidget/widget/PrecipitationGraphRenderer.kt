@@ -7,6 +7,7 @@ import android.util.TypedValue
 import com.weatherwidget.R
 import java.time.LocalDateTime
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 object PrecipitationGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
@@ -22,6 +23,19 @@ object PrecipitationGraphRenderer {
     private data class LabelCandidate(
         val index: Int,
         val priority: Int,
+    )
+
+    data class LabelPlacementDebug(
+        val index: Int,
+        val hourLabel: String,
+        val probability: Int,
+        val placedAbove: Boolean,
+        val reason: String,
+        val isPeak: Boolean,
+        val isValley: Boolean,
+        val isSoftDip: Boolean,
+        val elevatedPeakRuleApplied: Boolean,
+        val dipBelowRuleApplied: Boolean,
     )
 
     internal data class PlacementRect(
@@ -50,6 +64,7 @@ object PrecipitationGraphRenderer {
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
         onDebugLog: ((String) -> Unit)? = null,
+        onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -174,21 +189,37 @@ object PrecipitationGraphRenderer {
             )
 
         val probs = hours.map { it.precipProbability.coerceIn(0, 100) }
+        val labelSignal = smoothedProbs.map { it.roundToInt().coerceIn(0, 100) }
         Log.d("PrecipGraph", "probs=${probs.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
-        val localMaxima = findLocalExtremaIndices(probs, isMax = true)
-        val localMinima = findLocalExtremaIndices(probs, isMax = false)
+        Log.d("PrecipGraph", "signal=${labelSignal.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
+        val localMaxima = findLocalExtremaIndices(labelSignal, isMax = true)
+        val localMinima = findLocalExtremaIndices(labelSignal, isMax = false)
         Log.d("PrecipGraph", "localMaxima=$localMaxima, localMinima=$localMinima")
-        val globalMaxIndex = probs.indices.maxByOrNull { probs[it] } ?: -1
-        val globalMinIndex = probs.indices.minByOrNull { probs[it] } ?: -1
+        val globalMaxIndex = labelSignal.indices.maxByOrNull { labelSignal[it] } ?: -1
+        val globalMinIndex = labelSignal.indices.minByOrNull { labelSignal[it] } ?: -1
         val firstPositive = probs.indexOfFirst { it > 0 }
         val firstLabeledPositive = hours.indexOfFirst { it.showLabel && it.precipProbability > 0 }
+
+        // Soft dip candidates catch broad troughs/plateaus that don't always register as
+        // strict local minima but are still visually important (for example a midday dip).
+        val softDipCandidates =
+            labelSignal.indices.filter { idx ->
+                val prob = labelSignal[idx]
+                if (prob <= 0 || prob > 65) return@filter false
+                val left = (idx - 5).coerceAtLeast(0)
+                val right = (idx + 5).coerceAtMost(probs.lastIndex)
+                if (left == idx || right == idx) return@filter false
+                val leftMax = (left until idx).maxOfOrNull { labelSignal[it] } ?: prob
+                val rightMax = ((idx + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
+                leftMax >= prob + 8 && rightMax >= prob + 8
+            }
         Log.d(
             "PrecipGraph",
-            "globalMax=$globalMaxIndex(${probs.getOrNull(
+            "globalMax=$globalMaxIndex(${labelSignal.getOrNull(
                 globalMaxIndex,
-            )}%), globalMin=$globalMinIndex(${probs.getOrNull(
+            )}%), globalMin=$globalMinIndex(${labelSignal.getOrNull(
                 globalMinIndex,
-            )}%), firstPos=$firstPositive, firstLabeledPos=$firstLabeledPositive",
+            )}%), firstPos=$firstPositive, firstLabeledPos=$firstLabeledPositive, softDips=$softDipCandidates",
         )
 
         val candidateMap = mutableMapOf<Int, Int>()
@@ -212,25 +243,32 @@ object PrecipitationGraphRenderer {
         addCandidate(globalMaxIndex, 0)
         addCandidate(globalMinIndex, 0)
 
-        // Priority 1: Local extrema (must stand out on BOTH sides)
+        // Priority 1: Local extrema.
+        // Keep strict one-step prominence, but also allow broad prominence so
+        // visually meaningful smoothed peaks (for example around 5am) are not dropped.
         localMaxima.forEach { index ->
-            if (localProminence(probs, index) >= 2 && bilateralProminence(probs, index) >= 3) {
+            val sharp = localProminence(labelSignal, index) >= 2 && bilateralProminence(labelSignal, index) >= 3
+            val broad = peakBilateralProminence(labelSignal, index, radius = 4) >= 12
+            if (sharp || broad) {
                 addCandidate(index, 1)
             }
         }
         localMinima.forEach { index ->
-            if (localProminence(probs, index) >= 2 && bilateralProminence(probs, index) >= 3) {
+            if (localProminence(labelSignal, index) >= 2 && bilateralProminence(labelSignal, index) >= 3) {
                 addCandidate(index, 1)
             }
+        }
+        softDipCandidates.forEach { index ->
+            addCandidate(index, 1)
         }
 
         // Priority 2: Edge anchors so early/late context is preserved.
         addCandidate(0, 2)
         addCandidate(hours.lastIndex, 2)
 
-        // Priority 3: Interval labels from the underlying timeline.
+        // Priority 5: Interval labels from the underlying timeline (lowest priority).
         hours.forEachIndexed { index, hour ->
-            if (hour.showLabel) addCandidate(index, 3)
+            if (hour.showLabel) addCandidate(index, 5)
         }
 
         val sortedCandidates =
@@ -240,12 +278,13 @@ object PrecipitationGraphRenderer {
 
         // Treat extrema as mandatory labels so important peaks/valleys survive de-cluttering.
         val mandatoryIndices = mutableSetOf<Int>()
-        if (globalMaxIndex in probs.indices && probs[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
-        if (globalMinIndex in probs.indices && probs[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
+        if (globalMaxIndex in labelSignal.indices && labelSignal[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
+        if (globalMinIndex in labelSignal.indices && labelSignal[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
 
         // Peaks: must have reasonable prominence on BOTH sides to be mandatory
         localMaxima.forEach { idx ->
-            if (localProminence(probs, idx) >= 8 && bilateralProminence(probs, idx) >= 5) {
+            val broadPeakProminence = peakBilateralProminence(labelSignal, idx, radius = 4)
+            if (broadPeakProminence >= 14) {
                 mandatoryIndices.add(idx)
             }
         }
@@ -253,14 +292,33 @@ object PrecipitationGraphRenderer {
         // Valleys: only mandatory if they represent a dip to "low" probability (< 60%)
         // AND have reasonable prominence on BOTH sides
         localMinima.forEach { idx ->
-            if (probs[idx] < 60 && localProminence(probs, idx) >= 4 && bilateralProminence(probs, idx) >= 5) {
+            val broadValleyProminence = valleyBilateralProminence(labelSignal, idx, radius = 4)
+            if (labelSignal[idx] < 60 && broadValleyProminence >= 8) {
+                mandatoryIndices.add(idx)
+            }
+        }
+        softDipCandidates.forEach { idx ->
+            val prob = labelSignal[idx]
+            val left = (idx - 5).coerceAtLeast(0)
+            val right = (idx + 5).coerceAtMost(probs.lastIndex)
+            val leftMax = (left until idx).maxOfOrNull { labelSignal[it] } ?: prob
+            val rightMax = ((idx + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
+            val hasNearbyLowDipMandatory =
+                mandatoryIndices.any { existingIdx ->
+                    abs(existingIdx - idx) <= 3 && abs(labelSignal[existingIdx] - prob) <= 8
+                }
+            if (prob < 60 && leftMax >= prob + 10 && rightMax >= prob + 10 && !hasNearbyLowDipMandatory) {
                 mandatoryIndices.add(idx)
             }
         }
 
+        val isPeakMandatory: (Int) -> Boolean = { idx -> idx == globalMaxIndex || idx in localMaxima }
+        val isValleyMandatory: (Int) -> Boolean = { idx -> idx == globalMinIndex || idx in localMinima }
+
         // Thin out clustered mandatory labels: when multiple mandatory labels are within
-        // 4 hours of each other, keep only the most important one (global extrema win).
-        // This prevents noisy oscillations from flooding the graph with labels.
+        // 4 hours of each other, prefer the most important label of the SAME type.
+        // Keep meaningful peak+valley pairs (for example a midday dip between highs)
+        // so local dips are not lost just because they are near a global extremum.
         val thinnedMandatory = mutableSetOf<Int>()
         for (idx in mandatoryIndices.sorted()) {
             val nearbyPlaced = thinnedMandatory.filter { abs(it - idx) <= 5 }
@@ -268,17 +326,74 @@ object PrecipitationGraphRenderer {
                 thinnedMandatory.add(idx)
             } else {
                 val isGlobal = idx == globalMaxIndex || idx == globalMinIndex
-                val nearbyHasGlobal = nearbyPlaced.any { it == globalMaxIndex || it == globalMinIndex }
-                if (isGlobal && !nearbyHasGlobal) {
-                    // This global extremum replaces nearby non-global mandatory labels
-                    nearbyPlaced.forEach { thinnedMandatory.remove(it) }
+                val sameTypeNearby =
+                    nearbyPlaced.filter {
+                        (isPeakMandatory(idx) && isPeakMandatory(it)) ||
+                            (isValleyMandatory(idx) && isValleyMandatory(it))
+                    }
+                val sameTypeHasGlobal = sameTypeNearby.any { it == globalMaxIndex || it == globalMinIndex }
+
+                if (sameTypeNearby.isEmpty()) {
                     thinnedMandatory.add(idx)
+                } else if (isGlobal && !sameTypeHasGlobal) {
+                    // Global extrema can replace nearby same-type non-global labels.
+                    sameTypeNearby.forEach { thinnedMandatory.remove(it) }
+                    thinnedMandatory.add(idx)
+                } else if (sameTypeHasGlobal) {
+                    // Keep existing same-type global label; skip this one.
+                } else {
+                    // Same-type non-global already exists nearby; keep the stronger extremum.
+                    val strongestExisting =
+                        sameTypeNearby.maxByOrNull { existingIdx ->
+                            if (isPeakMandatory(existingIdx)) labelSignal[existingIdx] else 100 - labelSignal[existingIdx]
+                        }
+                    if (strongestExisting != null) {
+                        val existingScore =
+                            if (isPeakMandatory(strongestExisting)) {
+                                labelSignal[strongestExisting]
+                            } else {
+                                100 - labelSignal[strongestExisting]
+                            }
+                        val newScore =
+                            if (isPeakMandatory(idx)) {
+                                labelSignal[idx]
+                            } else {
+                                100 - labelSignal[idx]
+                            }
+                        if (newScore > existingScore) {
+                            thinnedMandatory.remove(strongestExisting)
+                            thinnedMandatory.add(idx)
+                        }
+                    }
                 }
-                // Otherwise skip: existing nearby mandatory label already covers this area
             }
         }
         mandatoryIndices.clear()
         mandatoryIndices.addAll(thinnedMandatory)
+
+        // Remove shoulder peaks that sit immediately next to a deeper mandatory valley.
+        // Example: 56% followed by 40% one hour later should keep the valley label, not both.
+        val shoulderPeaksToDrop = mutableSetOf<Int>()
+        mandatoryIndices.forEach { idx ->
+            val isGlobalPeak = idx == globalMaxIndex
+            val isPeak = idx in localMaxima || isGlobalPeak
+            if (!isPeak || isGlobalPeak) return@forEach
+
+            val nearbyMandatoryValley =
+                mandatoryIndices.firstOrNull { other ->
+                    other != idx &&
+                        (other == globalMinIndex || other in localMinima) &&
+                        abs(other - idx) <= 1
+                }
+            if (nearbyMandatoryValley != null) {
+                val peakProb = labelSignal[idx]
+                val valleyProb = labelSignal[nearbyMandatoryValley]
+                if (peakProb <= 65 && peakProb - valleyProb <= 20) {
+                    shoulderPeaksToDrop.add(idx)
+                }
+            }
+        }
+        mandatoryIndices.removeAll(shoulderPeaksToDrop)
 
         val orderedCandidates =
             sortedCandidates.sortedWith(
@@ -321,20 +436,26 @@ object PrecipitationGraphRenderer {
             if (!isMandatory && labelsPlaced >= maxLabels) break
 
             val index = candidate.index
-            val prob = probs[index]
+            val prob = labelSignal[index]
             if (prob <= 0) continue
+
+            // Interval labels are now true fallback-only labels.
+            // Once we already have a few stronger labels (extrema/anchors/edges),
+            // skip interval candidates to avoid clutter like arbitrary mid-curve points.
+            val isIntervalCandidate = candidate.priority >= 5
+            if (!isMandatory && isIntervalCandidate && labelsPlaced >= 3) continue
 
             // Skip non-mandatory labels too close to an already-placed label (time spacing)
             if (!isMandatory && labeledIndices.any { abs(it - index) <= 2 }) continue
 
             // VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours
-            if (labeledIndices.any { probs[it] == prob && abs(it - index) <= 5 }) {
+            if (labeledIndices.any { labelSignal[it] == prob && abs(it - index) <= 5 }) {
                 Log.d("PrecipGraph", "SKIPPED redundant value label: $prob% at idx=$index")
                 continue
             }
 
             // VALUE SEPARATION: skip non-mandatory labels too close in value to nearby placed labels
-            if (!isMandatory && labeledIndices.any { abs(it - index) <= 6 && abs(probs[it] - prob) < 15 }) {
+            if (!isMandatory && labeledIndices.any { abs(it - index) <= 6 && abs(labelSignal[it] - prob) < 15 }) {
                 Log.d("PrecipGraph", "SKIPPED low-separation label: $prob% at idx=$index")
                 continue
             }
@@ -349,25 +470,29 @@ object PrecipitationGraphRenderer {
             val dipWindow = 5
             val dipLeft = (index - dipWindow).coerceAtLeast(0)
             val dipRight = (index + dipWindow).coerceAtMost(probs.lastIndex)
-            val leftMax = (dipLeft until index).maxOfOrNull { probs[it] } ?: prob
-            val rightMax = ((index + 1)..dipRight).maxOfOrNull { probs[it] } ?: prob
+            val signalAtIndex = labelSignal[index]
+            val leftMax = (dipLeft until index).maxOfOrNull { labelSignal[it] } ?: signalAtIndex
+            val rightMax = ((index + 1)..dipRight).maxOfOrNull { labelSignal[it] } ?: signalAtIndex
             val isSoftDip = !isValley && !isPeak &&
-                leftMax > prob + 5 && rightMax > prob + 5
+                leftMax > signalAtIndex + 5 && rightMax > signalAtIndex + 5
 
             // For peaks/valleys, use parabolic interpolation to shift the label
             // toward the visual apex of the smoothed curve.  The Bezier spline's
             // actual extremum sits between data points when slopes are asymmetric.
-            // For soft dips, center on the actual minimum within the dip window.
+            // For soft dips, center on the middle of the minimum run within the dip window.
+            // This keeps labels visually centered on broad/flat troughs (for example 45% plateaus).
             val softDipMinIdx = if (isSoftDip) {
-                (dipLeft..dipRight).minByOrNull { probs[it] } ?: index
+                val minVal = (dipLeft..dipRight).minOf { labelSignal[it] }
+                val minIndices = (dipLeft..dipRight).filter { labelSignal[it] == minVal }
+                minIndices[minIndices.size / 2]
             } else {
                 -1
             }
 
             // Plateau centering: if the label sits on a flat run of identical values,
             // shift to the center of that plateau so it aligns with the visual peak/trough.
-            val plateauStart = (index downTo 0).takeWhile { probs[it] == prob }.last()
-            val plateauEnd = (index..probs.lastIndex).takeWhile { probs[it] == prob }.last()
+            val plateauStart = (index downTo 0).takeWhile { labelSignal[it] == prob }.lastOrNull() ?: index
+            val plateauEnd = (index..labelSignal.lastIndex).takeWhile { labelSignal[it] == prob }.lastOrNull() ?: index
             val onPlateau = plateauEnd - plateauStart >= 2
             val plateauCenterIdx = if (onPlateau) (plateauStart + plateauEnd) / 2 else index
 
@@ -411,14 +536,64 @@ object PrecipitationGraphRenderer {
 
             // Favor the center: high probability (>50%) labels go below the curve,
             // low probability (≤50%) labels go above.  Fallback to the other side.
-            val preferBelow = prob > 50
+            // De-clutter rule: if a peak has lower candidate labels on BOTH sides nearby,
+            // prefer placing the peak on top of the curve so the cluster is easier to scan.
+            val crowdWindow = 6
+            val nearbyLowerCandidates =
+                candidateMap.keys.filter { candidateIdx ->
+                    candidateIdx != index &&
+                        abs(candidateIdx - index) <= crowdWindow &&
+                        labelSignal[candidateIdx] <= prob - 10
+                }
+            val hasLowerLeftNeighbor = nearbyLowerCandidates.any { it < index }
+            val hasLowerRightNeighbor = nearbyLowerCandidates.any { it > index }
+            val shouldElevatePeakLabel =
+                isPeak &&
+                    prob in 55..85 &&
+                    hasLowerLeftNeighbor &&
+                    hasLowerRightNeighbor
+            // Centerline dip rule: if a dip sits near the graph's vertical midpoint,
+            // prefer placing its label below the line so it reads as "under the dip".
+            val graphMidY = (graphTop + graphBottom) / 2f
+            val isNearGraphCenter = abs(y - graphMidY) <= graphHeight * 0.2f
+            val shouldPlaceDipBelow =
+                (isValley || isSoftDip) &&
+                    isNearGraphCenter
+            val isNearRightEdge = index >= probs.lastIndex - 1
+            val isTrendingDownAtRightEdge =
+                index > 0 &&
+                    points[index].second > points[index - 1].second + 0.5f
+            val isTrendingUpAtRightEdge =
+                index > 0 &&
+                    points[index].second < points[index - 1].second - 0.5f
+            val isNearGraphTop = y <= graphTop + graphHeight * 0.2f
+            val shouldPlaceRightEdgeBelow =
+                isNearRightEdge &&
+                    isNearGraphCenter &&
+                    isTrendingDownAtRightEdge
+            val shouldPlaceRightEdgeAbove =
+                isNearRightEdge &&
+                    isTrendingUpAtRightEdge &&
+                    !isNearGraphTop
+
+            val preferBelow =
+                when {
+                    shouldElevatePeakLabel -> false
+                    shouldPlaceDipBelow -> true
+                    shouldPlaceRightEdgeBelow -> true
+                    shouldPlaceRightEdgeAbove -> false
+                    else -> prob > 50
+                }
             val attempts =
                 listOf(
                     Pair(0f, !preferBelow),
                     Pair(0f, preferBelow),
                 )
 
-            Log.d("PrecipGraph", "Attempting label for idx=$index (${hours[index].label}) prob=$prob% isPeak=$isPeak")
+            Log.d(
+                "PrecipGraph",
+                "Attempting label for idx=$index (${hours[index].label}) prob=$prob% isPeak=$isPeak elevatePeak=$shouldElevatePeakLabel dipBelow=$shouldPlaceDipBelow rightEdgeBelow=$shouldPlaceRightEdgeBelow rightEdgeAbove=$shouldPlaceRightEdgeAbove",
+            )
             for ((dx, placeAbove) in attempts) {
                 val x = (centerX + dx).coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
                 val baselineY = if (placeAbove) y - aboveGap else y + belowGap
@@ -451,13 +626,27 @@ object PrecipitationGraphRenderer {
                         isValley -> "valley"
                         isEarlyAnchor -> "earlyAnchor"
                         candidate.priority == 2 -> "currentHour/edge"
-                        candidate.priority == 3 -> "interval"
                         candidate.priority == 4 -> "highProb"
+                        candidate.priority == 5 -> "interval"
                         else -> "pri=${candidate.priority}"
                     }
                 Log.d(
                     "PrecipGraph",
                     "PLACED label: $labelText at hour=${hours[index].label}(idx=$index) reason=$reason above=$placeAbove dx=$dx",
+                )
+                onLabelPlaced?.invoke(
+                    LabelPlacementDebug(
+                        index = index,
+                        hourLabel = hours[index].label,
+                        probability = prob,
+                        placedAbove = placeAbove,
+                        reason = reason,
+                        isPeak = isPeak,
+                        isValley = isValley,
+                        isSoftDip = isSoftDip,
+                        elevatedPeakRuleApplied = shouldElevatePeakLabel,
+                        dipBelowRuleApplied = shouldPlaceDipBelow,
+                    ),
                 )
                 canvas.drawText(labelText, x, baselineY, percentLabelPaint)
                 drawnLabelBounds.add(bounds)
@@ -521,31 +710,39 @@ object PrecipitationGraphRenderer {
         // Keep it inside bounds and avoid overlaps with existing labels/NOW marker.
         if (hours.isNotEmpty()) {
             val lastIndex = hours.lastIndex
-            val endProb = probs[lastIndex]
+            val endProb = labelSignal[lastIndex]
 
             // Proximity check: skip if any label already placed within 3 hours of the end
             if (labeledIndices.any { abs(it - lastIndex) <= 3 }) {
                 Log.d("PrecipGraph", "SKIPPED end label: $endProb% (existing label within 3 hours)")
             // Value De-duplication: Skip if we already labeled this exact % within 5 hours
-            } else if (labeledIndices.any { probs[it] == endProb && abs(it - lastIndex) <= 5 }) {
+            } else if (labeledIndices.any { labelSignal[it] == endProb && abs(it - lastIndex) <= 5 }) {
                 Log.d("PrecipGraph", "SKIPPED redundant end label: $endProb% (already labeled nearby)")
             } else {
                 val endLabelText = "$endProb%"
                 val textWidth = percentLabelPaint.measureText(endLabelText)
                 val textHeight = percentLabelPaint.textSize
+                val endPointY = points[lastIndex].second
+                val graphMidY = (graphTop + graphBottom) / 2f
+                val isNearGraphCenter = abs(endPointY - graphMidY) <= graphHeight * 0.2f
+                val isTrendingDownAtEnd =
+                    lastIndex > 0 &&
+                        points[lastIndex].second > points[lastIndex - 1].second + 0.5f
+                val preferEndLabelBelow = isNearGraphCenter && isTrendingDownAtEnd
                 val placement =
                     computeEndLabelPlacement(
                         textWidth = textWidth,
                         textHeight = textHeight,
                         widthPx = widthPx,
                         graphBottom = graphBottom,
-                        pointY = points[lastIndex].second,
+                        pointY = endPointY,
                         aboveGap = aboveGap,
                         belowGap = belowGap,
                         rightPadding = dpToPx(context, 8f),
                         verticalInset = dpToPx(context, 2f),
                         existingBounds = drawnLabelBounds.map { it.toPlacementRect() },
                         nowBounds = nowLabelBounds?.toPlacementRect(),
+                        preferBelow = preferEndLabelBelow,
                     )
 
                 if (placement != null) {
@@ -714,6 +911,34 @@ object PrecipitationGraphRenderer {
         return minOf(abs(current - prev), abs(current - next))
     }
 
+    private fun peakBilateralProminence(
+        values: List<Int>,
+        index: Int,
+        radius: Int,
+    ): Int {
+        if (index <= 0 || index >= values.lastIndex) return 0
+        val leftStart = (index - radius).coerceAtLeast(0)
+        val rightEnd = (index + radius).coerceAtMost(values.lastIndex)
+        if (leftStart == index || rightEnd == index) return 0
+        val leftMin = (leftStart until index).minOfOrNull { values[it] } ?: values[index]
+        val rightMin = ((index + 1)..rightEnd).minOfOrNull { values[it] } ?: values[index]
+        return minOf(values[index] - leftMin, values[index] - rightMin)
+    }
+
+    private fun valleyBilateralProminence(
+        values: List<Int>,
+        index: Int,
+        radius: Int,
+    ): Int {
+        if (index <= 0 || index >= values.lastIndex) return 0
+        val leftStart = (index - radius).coerceAtLeast(0)
+        val rightEnd = (index + radius).coerceAtMost(values.lastIndex)
+        if (leftStart == index || rightEnd == index) return 0
+        val leftMax = (leftStart until index).maxOfOrNull { values[it] } ?: values[index]
+        val rightMax = ((index + 1)..rightEnd).maxOfOrNull { values[it] } ?: values[index]
+        return minOf(leftMax - values[index], rightMax - values[index])
+    }
+
     internal fun computeEndLabelPlacement(
         textWidth: Float,
         textHeight: Float,
@@ -726,6 +951,7 @@ object PrecipitationGraphRenderer {
         verticalInset: Float,
         existingBounds: List<PlacementRect>,
         nowBounds: PlacementRect?,
+        preferBelow: Boolean = false,
     ): EndLabelPlacement? {
         val minX = textWidth / 2f
         val maxX = widthPx - rightPadding - textWidth / 2f
@@ -733,14 +959,19 @@ object PrecipitationGraphRenderer {
 
         val safeTop = textHeight + verticalInset
         val safeBottom = graphBottom - verticalInset
-        val preferredBaselineY = (pointY - aboveGap).coerceAtMost(safeBottom).coerceAtLeast(safeTop)
-        val fallbackBaselineY = (pointY + belowGap).coerceAtMost(safeBottom).coerceAtLeast(safeTop)
+        val aboveBaselineY = (pointY - aboveGap).coerceAtMost(safeBottom).coerceAtLeast(safeTop)
+        val belowBaselineY = (pointY + belowGap).coerceAtMost(safeBottom).coerceAtLeast(safeTop)
+        val preferredBaselineY = if (preferBelow) belowBaselineY else aboveBaselineY
+        val fallbackBaselineY = if (preferBelow) aboveBaselineY else belowBaselineY
 
-        fun makeBounds(baselineY: Float): PlacementRect {
+        fun makeBounds(
+            x: Float,
+            baselineY: Float,
+        ): PlacementRect {
             return PlacementRect(
-                left = labelX - textWidth / 2f,
+                left = x - textWidth / 2f,
                 top = baselineY - textHeight,
-                right = labelX + textWidth / 2f,
+                right = x + textWidth / 2f,
                 bottom = baselineY,
             )
         }
@@ -751,14 +982,30 @@ object PrecipitationGraphRenderer {
             return !overlapsExisting && !overlapsNow
         }
 
-        val preferredBounds = makeBounds(preferredBaselineY)
-        if (isClear(preferredBounds)) {
-            return EndLabelPlacement(labelX, preferredBaselineY, usedFallback = false, bounds = preferredBounds)
+        // When below is preferred, allow a few small left nudges before giving up and moving above.
+        // This keeps right-edge labels under a descending centerline tail even when the exact edge spot is crowded.
+        val preferredXOffsets =
+            if (preferBelow) {
+                listOf(0f, -textWidth * 0.6f, -textWidth * 1.2f)
+            } else {
+                listOf(0f)
+            }
+
+        preferredXOffsets.forEachIndexed { offsetIndex, offset ->
+            val candidateX = (labelX + offset).coerceIn(minX, maxX)
+            val preferredBounds = makeBounds(candidateX, preferredBaselineY)
+            if (isClear(preferredBounds)) {
+                val usedFallback = offsetIndex > 0
+                return EndLabelPlacement(candidateX, preferredBaselineY, usedFallback = usedFallback, bounds = preferredBounds)
+            }
         }
 
-        val fallbackBounds = makeBounds(fallbackBaselineY)
-        if (isClear(fallbackBounds)) {
-            return EndLabelPlacement(labelX, fallbackBaselineY, usedFallback = true, bounds = fallbackBounds)
+        preferredXOffsets.forEach { offset ->
+            val candidateX = (labelX + offset).coerceIn(minX, maxX)
+            val fallbackBounds = makeBounds(candidateX, fallbackBaselineY)
+            if (isClear(fallbackBounds)) {
+                return EndLabelPlacement(candidateX, fallbackBaselineY, usedFallback = true, bounds = fallbackBounds)
+            }
         }
 
         return null

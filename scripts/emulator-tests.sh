@@ -109,17 +109,17 @@ if [ ! -f "$ADB_BIN" ]; then
     exit 1
 fi
 
-echo -en "${BLUE}Using Android SDK: $SDK_ROOT${NC} \t"
+echo -en "${BLUE}Using Android SDK: $SDK_ROOT${NC} "
 debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
 if [ -z "$EMULATOR_NAME" ]; then
-    echo -en "${YELLOW}Available emulators:${NC} \t"
+    echo -en "${YELLOW}Available emulators:${NC} "
     $EMU_BIN -list-avds | while read -r avd; do
         if [ "$avd" = "$DEFAULT_EMULATOR" ]; then
-            echo -n " * $avd (default) \t"
+            echo -n " * $avd (default) "
         else
-            echo -n "   $avd \t"
+            echo -n "   $avd "
         fi
     done
     
