@@ -256,12 +256,62 @@ object HourlyTemperatureGraphRenderer {
         val dailyHighIndex = smoothedTemps.indices.maxByOrNull { smoothedTemps[it] } ?: -1
         val dailyLowIndex = smoothedTemps.indices.minByOrNull { smoothedTemps[it] } ?: -1
 
-        // Priority order: low (1) → high (2) → start (3) → end (4)
+        // Find local extrema (peaks and valleys) that are significant enough to label
+        // A local extremum is defined as a point where the slope changes sign
+        // We handle plateaus by checking across the flat region
+        fun findLocalExtremaIndices(): List<Int> {
+            val extrema = mutableListOf<Int>()
+            if (smoothedTemps.size < 3) return extrema
+
+            var i = 1
+            while (i < smoothedTemps.size - 1) {
+                val current = smoothedTemps[i]
+                val prev = smoothedTemps[i - 1]
+                
+                // If strictly greater/less than neighbors
+                if (current > prev && current > smoothedTemps[i + 1]) {
+                    extrema.add(i) // Local Max
+                } else if (current < prev && current < smoothedTemps[i + 1]) {
+                    extrema.add(i) // Local Min
+                } 
+                // Handle plateau start: flat region begins
+                else if (current == smoothedTemps[i + 1] && current != prev) {
+                    // Find end of plateau
+                    var j = i + 1
+                    while (j < smoothedTemps.size - 1 && smoothedTemps[j] == current) {
+                        j++
+                    }
+                    // Check if it's a peak or valley
+                    val next = smoothedTemps[j]
+                    if (j < smoothedTemps.size) {
+                        if (current > prev && current > next) {
+                            // Plateau Peak
+                            extrema.add((i + j) / 2) 
+                        } else if (current < prev && current < next) {
+                            // Plateau Valley
+                            extrema.add((i + j) / 2)
+                        }
+                    }
+                    i = j - 1 // Skip to end of plateau
+                }
+                i++
+            }
+            return extrema
+        }
+
+        val localExtrema = findLocalExtremaIndices()
+
+        // Priority order: low (1) → high (2) → start (3) → end (4) → local extrema (5)
         val specialIndices = mutableListOf<Int>()
         if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
         if (0 !in specialIndices) specialIndices.add(0)
         if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
+        
+        // Add local extrema if not already present (lower priority, so added last)
+        localExtrema.forEach { idx ->
+            if (idx !in specialIndices) specialIndices.add(idx)
+        }
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
@@ -270,6 +320,15 @@ object HourlyTemperatureGraphRenderer {
             "HourlyGraph",
             "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) "%.1f".format(smoothedTemps[dailyHighIndex]) else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) "%.1f".format(smoothedTemps[dailyLowIndex]) else "N/A"}), hours=${hours.map { "%.0f".format(it.temperature) }}",
         )
+
+        // TEMPORARY: Log to DB for Samsung device debugging
+        try {
+            val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
+            val msg = "RENDER: special=$specialIndices min/max=$dailyLowIndex/$dailyHighIndex smoothed=${smoothedTemps.take(8).map { "%.1f".format(it) }}..."
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                db.appLogDao().insert(com.weatherwidget.data.local.AppLogEntity(tag = "HourlyGraphDebug", message = msg))
+            }
+        } catch (e: Exception) { Log.e("HourlyGraph", "Failed to log", e) }
 
         // For min/max, find center of consecutive points at the same value
         fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
@@ -327,6 +386,16 @@ object HourlyTemperatureGraphRenderer {
                     hours.size - 1 -> "END"
                     else -> "OTHER"
                 }
+
+            // TEMPORARY: Log rendering decisions to DB
+            try {
+                val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
+                val status = if (!overlaps) "DRAWN" else "SKIPPED"
+                val msg = "$status $roleName idx=$idx val=${"%.1f".format(smoothedTemps[idx])} x=${"%.1f".format(clampedX)} y=${"%.1f".format(labelY)}"
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    db.appLogDao().insert(com.weatherwidget.data.local.AppLogEntity(tag = "HourlyGraphDebug", message = msg))
+                }
+            } catch (e: Exception) { }
 
             // Below two logs are used by HourlyTemperatureGraphLabelTest instrumented tests
             if (!overlaps) {
