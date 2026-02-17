@@ -262,7 +262,7 @@ object PrecipitationGraphRenderer {
         // This prevents noisy oscillations from flooding the graph with labels.
         val thinnedMandatory = mutableSetOf<Int>()
         for (idx in mandatoryIndices.sorted()) {
-            val nearbyPlaced = thinnedMandatory.filter { abs(it - idx) <= 4 }
+            val nearbyPlaced = thinnedMandatory.filter { abs(it - idx) <= 5 }
             if (nearbyPlaced.isEmpty()) {
                 thinnedMandatory.add(idx)
             } else {
@@ -338,21 +338,14 @@ object PrecipitationGraphRenderer {
                 continue
             }
 
-            val centerX = points[index].first
-            val y = points[index].second
-
-            val labelText = "$prob%"
-            val textWidth = percentLabelPaint.measureText(labelText)
-            val textHeight = percentLabelPaint.textSize
-
             val isPeak = index in localMaxima || index == globalMaxIndex
             val isValley = index in localMinima || index == globalMinIndex
             val isEarlyAnchor = index == firstPositive || index == firstLabeledPositive
 
             // Detect "dip regions": the point sits in a trough where notably higher
-            // values exist within ±3 hours on BOTH sides.  Even if this exact index
+            // values exist within ±5 hours on BOTH sides.  Even if this exact index
             // isn't the strict local minimum, the visual curve dips here.
-            val dipWindow = 3
+            val dipWindow = 5
             val dipLeft = (index - dipWindow).coerceAtLeast(0)
             val dipRight = (index + dipWindow).coerceAtMost(probs.lastIndex)
             val leftMax = (dipLeft until index).maxOfOrNull { probs[it] } ?: prob
@@ -360,32 +353,69 @@ object PrecipitationGraphRenderer {
             val isSoftDip = !isValley && !isPeak &&
                 leftMax > prob + 5 && rightMax > prob + 5
 
-            val attempts =
+            // For peaks/valleys, use parabolic interpolation to shift the label
+            // toward the visual apex of the smoothed curve.  The Bezier spline's
+            // actual extremum sits between data points when slopes are asymmetric.
+            // For soft dips, center on the actual minimum within the dip window.
+            val softDipMinIdx = if (isSoftDip) {
+                (dipLeft..dipRight).minByOrNull { probs[it] } ?: index
+            } else {
+                -1
+            }
+
+            // Plateau centering: if the label sits on a flat run of identical values,
+            // shift to the center of that plateau so it aligns with the visual peak/trough.
+            val plateauStart = (index downTo 0).takeWhile { probs[it] == prob }.last()
+            val plateauEnd = (index..probs.lastIndex).takeWhile { probs[it] == prob }.last()
+            val onPlateau = plateauEnd - plateauStart >= 2
+            val plateauCenterIdx = if (onPlateau) (plateauStart + plateauEnd) / 2 else index
+
+            val anchorIdx =
                 when {
-                    isEarlyAnchor ->
-                        listOf(
-                            Pair(0f, true),
-                            Pair(0f, false),
-                        )
-                    isPeak ->
-                        listOf(
-                            Pair(0f, true),
-                        )
-                    isValley ->
-                        listOf(
-                            Pair(0f, false),
-                        )
-                    isSoftDip ->
-                        listOf(
-                            Pair(0f, false),
-                            Pair(0f, true),
-                        )
-                    else ->
-                        listOf(
-                            Pair(0f, true),
-                            Pair(0f, false),
-                        )
+                    isSoftDip -> softDipMinIdx
+                    onPlateau -> plateauCenterIdx
+                    else -> index
                 }
+            val centerX =
+                if ((isSoftDip || isPeak || isValley) && anchorIdx > 0 && anchorIdx < smoothedProbs.lastIndex) {
+                    val fLeft = smoothedProbs[anchorIdx - 1]
+                    val fCenter = smoothedProbs[anchorIdx]
+                    val fRight = smoothedProbs[anchorIdx + 1]
+                    val denom = fLeft - 2f * fCenter + fRight
+                    if (abs(denom) > 0.01f) {
+                        val shift = (fLeft - fRight) / (2f * denom) * hourWidth
+                        (points[anchorIdx].first + shift).coerceIn(
+                            points[anchorIdx - 1].first,
+                            points[anchorIdx + 1].first,
+                        )
+                    } else {
+                        points[anchorIdx].first
+                    }
+                } else if (onPlateau) {
+                    points[plateauCenterIdx].first
+                } else {
+                    points[index].first
+                }
+            // Use the minimum point's y for soft dips so the label clears the curve
+            val y =
+                when {
+                    isSoftDip -> points[softDipMinIdx].second
+                    onPlateau -> points[plateauCenterIdx].second
+                    else -> points[index].second
+                }
+
+            val labelText = "$prob%"
+            val textWidth = percentLabelPaint.measureText(labelText)
+            val textHeight = percentLabelPaint.textSize
+
+            // Favor the center: high probability (>50%) labels go below the curve,
+            // low probability (≤50%) labels go above.  Fallback to the other side.
+            val preferBelow = prob > 50
+            val attempts =
+                listOf(
+                    Pair(0f, !preferBelow),
+                    Pair(0f, preferBelow),
+                )
 
             Log.d("PrecipGraph", "Attempting label for idx=$index (${hours[index].label}) prob=$prob% isPeak=$isPeak")
             for ((dx, placeAbove) in attempts) {
@@ -449,10 +479,11 @@ object PrecipitationGraphRenderer {
             labelText = { it.label },
         )
 
-        // Draw day of week indicators at midnight
+        // Draw day of week indicators at 8am (start of the "active" day)
+        val dayLabelHour = 8
         val dayY = heightPx - dpToPx(context, 14f)
         hours.forEachIndexed { index, hour ->
-            if (hour.dateTime.hour == 0) {
+            if (hour.dateTime.hour == dayLabelHour) {
                 val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
                 val centerX = points[index].first
                 val textWidth = dayLabelTextPaint.measureText(dayText)
@@ -461,12 +492,18 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        // Draw leading day label if the first hour's day has no midnight boundary visible
-        if (hours.isNotEmpty() && hours.first().dateTime.hour != 0) {
-            val dayText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-            val textWidth = dayLabelTextPaint.measureText(dayText)
-            val x = textWidth / 2f
-            canvas.drawText(dayText, x, dayY, dayLabelTextPaint)
+        // Draw leading day label only if 8am for the same day isn't already in the data
+        if (hours.isNotEmpty() && hours.first().dateTime.hour != dayLabelHour) {
+            val firstDate = hours.first().dateTime.toLocalDate()
+            val sameDayAnchorExists = hours.any {
+                it.dateTime.hour == dayLabelHour && it.dateTime.toLocalDate() == firstDate
+            }
+            if (!sameDayAnchorExists) {
+                val dayText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                val textWidth = dayLabelTextPaint.measureText(dayText)
+                val x = textWidth / 2f
+                canvas.drawText(dayText, x, dayY, dayLabelTextPaint)
+            }
         }
 
         GraphRenderUtils.drawNowIndicator(
@@ -485,8 +522,11 @@ object PrecipitationGraphRenderer {
             val lastIndex = hours.lastIndex
             val endProb = probs[lastIndex]
 
+            // Proximity check: skip if any label already placed within 3 hours of the end
+            if (labeledIndices.any { abs(it - lastIndex) <= 3 }) {
+                Log.d("PrecipGraph", "SKIPPED end label: $endProb% (existing label within 3 hours)")
             // Value De-duplication: Skip if we already labeled this exact % within 5 hours
-            if (labeledIndices.any { probs[it] == endProb && abs(it - lastIndex) <= 5 }) {
+            } else if (labeledIndices.any { probs[it] == endProb && abs(it - lastIndex) <= 5 }) {
                 Log.d("PrecipGraph", "SKIPPED redundant end label: $endProb% (already labeled nearby)")
             } else {
                 val endLabelText = "$endProb%"

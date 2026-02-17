@@ -147,7 +147,7 @@ internal object GraphRenderUtils {
     ): List<Float> {
         if (values.size < 3 || iterations <= 0) return values
         var current = values
-        
+
         repeat(iterations) {
             val smoothed = mutableListOf<Float>()
             for (i in current.indices) {
@@ -159,6 +159,7 @@ internal object GraphRenderUtils {
             }
             current = smoothed
         }
+
         return current
     }
 }

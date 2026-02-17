@@ -355,10 +355,11 @@ object HourlyTemperatureGraphRenderer {
             }
         }
 
-        // Draw day of week indicators at midnight
+        // Draw day of week indicators at 8am (start of the "active" day)
+        val dayLabelHour = 8
         val dayY = heightPx - dpToPx(context, 14f)
         hours.forEachIndexed { index, hour ->
-            if (hour.dateTime.hour == 0) {
+            if (hour.dateTime.hour == dayLabelHour) {
                 val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
                 val centerX = points[index].first
                 val textWidth = dayLabelTextPaint.measureText(dayText)
@@ -367,12 +368,18 @@ object HourlyTemperatureGraphRenderer {
             }
         }
 
-        // Draw leading day label if the first hour's day has no midnight boundary visible
-        if (hours.isNotEmpty() && hours.first().dateTime.hour != 0) {
-            val dayText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-            val textWidth = dayLabelTextPaint.measureText(dayText)
-            val x = textWidth / 2f
-            canvas.drawText(dayText, x, dayY, dayLabelTextPaint)
+        // Draw leading day label only if 8am for the same day isn't already in the data
+        if (hours.isNotEmpty() && hours.first().dateTime.hour != dayLabelHour) {
+            val firstDate = hours.first().dateTime.toLocalDate()
+            val sameDayAnchorExists = hours.any {
+                it.dateTime.hour == dayLabelHour && it.dateTime.toLocalDate() == firstDate
+            }
+            if (!sameDayAnchorExists) {
+                val dayText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                val textWidth = dayLabelTextPaint.measureText(dayText)
+                val x = textWidth / 2f
+                canvas.drawText(dayText, x, dayY, dayLabelTextPaint)
+            }
         }
 
         GraphRenderUtils.drawNowIndicator(
