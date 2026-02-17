@@ -1,5 +1,6 @@
 package com.weatherwidget.data.local
 
+import android.util.Log
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
@@ -42,4 +43,18 @@ interface AppLogDao {
 
     @Query("SELECT COUNT(*) FROM app_logs")
     suspend fun getCount(): Int
+}
+
+/** Log to both the app_logs DB table and logcat in one call. */
+suspend fun AppLogDao.log(tag: String, message: String, level: String = "INFO") {
+    try {
+        insert(AppLogEntity(tag = tag, message = message, level = level))
+    } catch (e: Exception) {
+        Log.e("AppLog", "Failed to log to DB: $e")
+    }
+    when (level) {
+        "ERROR" -> Log.e(tag, message)
+        "WARN" -> Log.w(tag, message)
+        else -> Log.d(tag, message)
+    }
 }

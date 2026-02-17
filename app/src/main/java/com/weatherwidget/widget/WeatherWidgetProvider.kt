@@ -10,7 +10,7 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
-import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
@@ -66,11 +66,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
-                    logToDb(context, appLogDao, "WIDGET_UPDATE", "DB is empty, showing loading")
+                    appLogDao.log("WIDGET_UPDATE", "DB is empty, showing loading")
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetLoading(context, appWidgetManager, appWidgetId)
                     }
-                    Log.d(TAG, "onUpdate: No data in DB, showing loading and triggering fetch")
                     triggerImmediateUpdate(context)
                 } else {
                     // We have some data, refresh all widgets from cache immediately
@@ -88,7 +87,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         snapshotDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
                             .groupBy { it.targetDate }
 
-                    logToDb(context, appLogDao, "WIDGET_UPDATE", "Updating with ${weatherList.size} weather entries")
+                    appLogDao.log("WIDGET_UPDATE", "Updating with ${weatherList.size} weather entries")
 
                     // Get hourly forecasts for interpolation and rain analysis
                     val now = LocalDateTime.now()
@@ -124,24 +123,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                 schedulePeriodicUpdate(context)
             } catch (e: Exception) {
-                logToDb(context, database.appLogDao(), "WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}")
-                Log.e(TAG, "onUpdate: Error during update", e)
+                database.appLogDao().log("WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
             } finally {
                 pendingResult.finish()
             }
-        }
-    }
-
-    private suspend fun logToDb(
-        context: Context,
-        appLogDao: com.weatherwidget.data.local.AppLogDao,
-        tag: String,
-        message: String,
-    ) {
-        try {
-            appLogDao.insert(AppLogEntity(tag = tag, message = message))
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to log to DB", e)
         }
     }
 
@@ -233,7 +218,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val database = WeatherDatabase.getDatabase(context)
-                logToDb(context, database.appLogDao(), "CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
+                database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
 
                 if (showHistory) {
                     val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)

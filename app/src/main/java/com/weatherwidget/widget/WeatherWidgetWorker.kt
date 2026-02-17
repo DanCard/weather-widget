@@ -10,7 +10,7 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
@@ -40,8 +40,8 @@ class WeatherWidgetWorker
             val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val isPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
 
-            logToDb("SYNC_START", "uiOnly=$uiOnlyRefresh, force=$forceRefresh, battery=$batteryLevel%, plugged=$isPlugged")
-            Log.d(TAG, "doWork: Starting weather fetch (uiOnly=$uiOnlyRefresh, force=$forceRefresh)")
+            val lastFetchAge = (System.currentTimeMillis() - weatherRepository.lastNetworkFetchTimeMs) / 1000
+            appLogDao.log("SYNC_START", "uiOnly=$uiOnlyRefresh, force=$forceRefresh, battery=$batteryLevel%, plugged=$isPlugged, lastFetch=${lastFetchAge}s ago")
 
             // Reset toggle states only on full refresh (not UI-only refresh)
             if (!uiOnlyRefresh) {
@@ -72,10 +72,7 @@ class WeatherWidgetWorker
                         // Fetch hourly forecasts for interpolation
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
 
-                        logToDb(
-                            "SYNC_SUCCESS",
-                            "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}",
-                        )
+                        appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}")
 
                         updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
                         if (!uiOnlyRefresh) {
@@ -87,26 +84,13 @@ class WeatherWidgetWorker
                         Result.success()
                     },
                     onFailure = { e ->
-                        logToDb("SYNC_FAILURE", "Repository failed: ${e.message}")
-                        Log.e(TAG, "doWork: Failed to get weather", e)
+                        appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
                         Result.retry()
                     },
                 )
             } catch (e: Exception) {
-                logToDb("SYNC_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}")
-                Log.e(TAG, "doWork: Exception", e)
+                appLogDao.log("SYNC_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
                 Result.retry()
-            }
-        }
-
-        private suspend fun logToDb(
-            tag: String,
-            message: String,
-        ) {
-            try {
-                appLogDao.insert(AppLogEntity(tag = tag, message = message))
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to log to DB", e)
             }
         }
 

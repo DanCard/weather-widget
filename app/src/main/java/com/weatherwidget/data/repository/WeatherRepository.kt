@@ -8,7 +8,7 @@ import android.os.BatteryManager
 import android.util.Log
 import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -74,6 +74,9 @@ class WeatherRepository
             get() = prefs.getLong("last_network_fetch_time", 0L)
             set(value) = prefs.edit().putLong("last_network_fetch_time", value).apply()
 
+        /** Expose rate limiter state for diagnostics (e.g., SYNC_START logging). */
+        val lastNetworkFetchTimeMs: Long get() = lastNetworkFetchTime
+
         suspend fun getWeatherData(
             lat: Double,
             lon: Double,
@@ -118,42 +121,30 @@ class WeatherRepository
                     val timeSinceLastFetch = System.currentTimeMillis() - lastNetworkFetchTime
                     if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && freshCached.isNotEmpty()) {
                         val reason = if (forceRefresh) "forced refresh" else "stale data"
-                        appLogDao.insert(
-                            AppLogEntity(tag = "NET_RATE_LIMIT", message = "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago"),
-                        )
-                        Log.w(
-                            TAG,
-                            "getWeatherData: Rate limiting network fetch ($reason). Last fetch was only ${timeSinceLastFetch}ms ago. Returning cache.",
-                        )
+                        appLogDao.log("NET_RATE_LIMIT", "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago, lastNetworkFetchTime=$lastNetworkFetchTime", "WARN")
                         return Result.success(freshCached)
                     }
 
-                    // Set rate limit timestamp to prevent concurrent bursts, but save the
-                    // previous value so we can restore it if the fetch fails entirely.
-                    val previousFetchTime = lastNetworkFetchTime
-                    lastNetworkFetchTime = System.currentTimeMillis()
-                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_START", message = "Forcing fetch: force=$forceRefresh"))
+                    appLogDao.log("NET_FETCH_START", "Forcing fetch: force=$forceRefresh")
                     val fetchStart = System.currentTimeMillis()
                     val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
                     val fetchDuration = System.currentTimeMillis() - fetchStart
-                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_DONE", message = "APIs returned in ${fetchDuration}ms. NWS=${nwsWeather?.size ?: "null"}, Meteo=${meteoWeather?.size ?: "null"}"))
+                    appLogDao.log("NET_FETCH_DONE", "APIs returned in ${fetchDuration}ms. NWS=${nwsWeather?.size ?: "null"}, Meteo=${meteoWeather?.size ?: "null"}")
 
-                    // If both APIs returned nothing, reset the rate limit so we can retry sooner
                     if (nwsWeather == null && meteoWeather == null) {
-                        lastNetworkFetchTime = previousFetchTime
-                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_FAIL", message = "Both APIs returned null, rate limit reset"))
+                        appLogDao.log("NET_FETCH_FAIL", "Both APIs returned null", "WARN")
                     }
 
                     // Save both APIs' data, merging with existing to preserve non-zero values
                     if (nwsWeather != null) {
                         val merged = mergeWithExisting(nwsWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "NWS: Saved ${merged.size} entries (raw=${nwsWeather.size})"))
+                        appLogDao.log("NET_FETCH_SUCCESS", "NWS: Saved ${merged.size} entries (raw=${nwsWeather.size})")
                     }
                     if (meteoWeather != null) {
                         val merged = mergeWithExisting(meteoWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.insert(AppLogEntity(tag = "NET_FETCH_SUCCESS", message = "Meteo: Saved ${merged.size} entries (raw=${meteoWeather.size})"))
+                        appLogDao.log("NET_FETCH_SUCCESS", "Meteo: Saved ${merged.size} entries (raw=${meteoWeather.size})")
                     }
 
                     // Fetch and save generic gap data once to cover any gaps in either API
@@ -171,16 +162,18 @@ class WeatherRepository
                     cleanOldData()
                     val totalEntries = getCachedData(lat, lon)
                     val totalDuration = System.currentTimeMillis() - fetchStart
-                    appLogDao.insert(AppLogEntity(tag = "NET_FETCH_COMPLETE", message = "Total ${totalDuration}ms. gap=${gapDuration}ms/${gapWeather.size} entries. DB now has ${totalEntries.size} entries"))
+                    // Set rate limit only after successful fetch — prevents stale timestamps
+                    // from persisting if the process dies mid-fetch (e.g., reinstall, force-stop).
+                    // syncMutex handles in-process burst prevention.
+                    lastNetworkFetchTime = System.currentTimeMillis()
+                    appLogDao.log("NET_FETCH_COMPLETE", "Total ${totalDuration}ms. gap=${gapDuration}ms/${gapWeather.size} entries. DB now has ${totalEntries.size} entries")
                     // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
                     Result.success(totalEntries)
                 }
             } catch (e: Exception) {
-                // Reset rate limit so failed fetches don't block retries
                 lastNetworkFetchTime = 0L
                 val stackSummary = e.stackTrace.take(3).joinToString(" <- ") { "${it.fileName}:${it.lineNumber}" }
-                appLogDao.insert(AppLogEntity(tag = "NET_FETCH_ERROR", message = "${e.javaClass.simpleName}: ${e.message} [$stackSummary], rate limit reset"))
-                Log.e(TAG, "getWeatherData: Fetch failed, rate limit reset", e)
+                appLogDao.log("NET_FETCH_ERROR", "${e.javaClass.simpleName}: ${e.message} [$stackSummary], rate limit reset", "ERROR")
                 val cached = getCachedData(lat, lon)
                 if (cached.isNotEmpty()) {
                     Result.success(cached)
@@ -258,16 +251,7 @@ class WeatherRepository
 
             if (snapshots.isNotEmpty()) {
                 forecastSnapshotDao.insertAll(snapshots)
-                appLogDao.insert(
-                    AppLogEntity(
-                        tag = "SNAPSHOT_SAVE",
-                        message = "Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}",
-                    ),
-                )
-                Log.d(
-                    TAG,
-                    "saveForecastSnapshot: Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}",
-                )
+                appLogDao.log("SNAPSHOT_SAVE", "Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}")
             }
         }
 
@@ -378,12 +362,7 @@ class WeatherRepository
                                         .atZone(java.time.ZoneId.systemDefault())
                                         .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
 
-                                appLogDao.insert(
-                                    AppLogEntity(
-                                        tag = "MERGE_CONFLICT",
-                                        message = "[$sourceId] $date: Preserving ACTUAL record from $existingTime over new FORECAST",
-                                    ),
-                                )
+                                appLogDao.log("MERGE_CONFLICT", "[$sourceId] $date: Preserving ACTUAL record from $existingTime over new FORECAST", "WARN")
                                 // Prioritize keeping the existing ACTUAL record if the new one is just a forecast
                                 existing.copy(
                                     highTemp = new.highTemp ?: existing.highTemp,
@@ -603,7 +582,7 @@ class WeatherRepository
                 try {
                     if (gridPoint.observationStationsUrl != null) {
                         val stationsUrl = gridPoint.observationStationsUrl!!
-                        appLogDao.insert(AppLogEntity(tag = "OBS_BATCH_START", message = "Fetching 8 days of history from $stationsUrl"))
+                        appLogDao.log("OBS_BATCH_START", "Fetching 8 days of history from $stationsUrl")
 
                         // Fetch all 8 days in parallel
                         val observationDeferreds =
@@ -639,11 +618,10 @@ class WeatherRepository
                                 )
                             }
                         }
-                        appLogDao.insert(AppLogEntity(tag = "OBS_BATCH_SUCCESS", message = "Got $successCount/8 days of history"))
+                        appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/8 days of history")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "fetchFromNws: Failed to fetch historical observations: ${e.message}")
-                    appLogDao.insert(AppLogEntity(tag = "OBS_BATCH_ERROR", message = "Error: ${e.message}", level = "ERROR"))
+                    appLogDao.log("OBS_BATCH_ERROR", "Error: ${e.message}", "ERROR")
                 }
 
                 // NWS returns periods with startTime - extract date from there
@@ -697,14 +675,11 @@ class WeatherRepository
                     val previousConditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
                     conditionByDate[todayStr] = firstTodayPeriod.shortForecast
                     conditionSourceByDate[todayStr] = "FCST_ACTIVE:${firstTodayPeriod.name}@${firstTodayPeriod.startTime}"
-                    appLogDao.insert(
-                        AppLogEntity(
-                            tag = "NWS_TODAY_CONDITION_OVERRIDE",
-                            message =
-                                "date=$todayStr firstPeriod=${firstTodayPeriod.name}@${firstTodayPeriod.startTime} " +
-                                    "isDaytime=${firstTodayPeriod.isDaytime} condition ${previousCondition ?: "null"}->${firstTodayPeriod.shortForecast} " +
-                                    "source $previousConditionSource->${conditionSourceByDate[todayStr]}",
-                        ),
+                    appLogDao.log(
+                        "NWS_TODAY_CONDITION_OVERRIDE",
+                        "date=$todayStr firstPeriod=${firstTodayPeriod.name}@${firstTodayPeriod.startTime} " +
+                            "isDaytime=${firstTodayPeriod.isDaytime} condition ${previousCondition ?: "null"}->${firstTodayPeriod.shortForecast} " +
+                            "source $previousConditionSource->${conditionSourceByDate[todayStr]}",
                     )
                 }
 
@@ -724,13 +699,10 @@ class WeatherRepository
                             "${it.name}@${it.startTime}[$dayFlag]=${it.shortForecast}"
                         } ?: "none"
 
-                    appLogDao.insert(
-                        AppLogEntity(
-                            tag = "NWS_TODAY_SOURCE",
-                            message =
-                                "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource) " +
-                                    "condition=$condition ($conditionSource) firstTodayPeriod=$firstTodayPeriodSummary",
-                        ),
+                    appLogDao.log(
+                        "NWS_TODAY_SOURCE",
+                        "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource) " +
+                            "condition=$condition ($conditionSource) firstTodayPeriod=$firstTodayPeriodSummary",
                     )
 
                     val previous =
@@ -754,13 +726,10 @@ class WeatherRepository
                             Instant.ofEpochMilli(previous.fetchedAt)
                                 .atZone(ZoneId.systemDefault())
                                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-                        appLogDao.insert(
-                            AppLogEntity(
-                                tag = "NWS_TODAY_TRANSITION",
-                                message =
-                                    "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow " +
-                                        "condition ${previous.condition}->$condition prevFetched=$previousFetched",
-                            ),
+                        appLogDao.log(
+                            "NWS_TODAY_TRANSITION",
+                            "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow " +
+                                "condition ${previous.condition}->$condition prevFetched=$previousFetched",
                         )
                     }
                 }
@@ -789,7 +758,7 @@ class WeatherRepository
             forecast: List<NwsApi.ForecastPeriod>,
         ) {
             if (forecast.isEmpty()) {
-                appLogDao.insert(AppLogEntity(tag = "NWS_PERIOD_SUMMARY", message = "periods=0 url=$forecastUrl"))
+                appLogDao.log("NWS_PERIOD_SUMMARY", "periods=0 url=$forecastUrl", "WARN")
                 return
             }
 
@@ -802,12 +771,7 @@ class WeatherRepository
                     }
                     .joinToString("; ")
 
-            appLogDao.insert(
-                AppLogEntity(
-                    tag = "NWS_PERIOD_SUMMARY",
-                    message = "periods=${forecast.size} url=$forecastUrl first8=$compact",
-                ),
-            )
+            appLogDao.log("NWS_PERIOD_SUMMARY", "periods=${forecast.size} url=$forecastUrl first8=$compact")
         }
 
         private fun extractNwsForecastDate(startTime: String): String? {
@@ -908,8 +872,7 @@ class WeatherRepository
                         }
 
                         apiLogger.logApiCall("NWS-Obs", true, null, stationId, durationMs)
-                        Log.i(TAG, "fetchDayObservations: SUCCESS - Got ${observations.size} observations from $stationId for $date")
-                        appLogDao.insert(AppLogEntity(tag = "OBS_DAY_SUCCESS", message = "$date: Got ${observations.size} from $stationId"))
+                        appLogDao.log("OBS_DAY_SUCCESS", "$date: Got ${observations.size} from $stationId")
 
                         // Calculate high/low from observations (convert C to F) using Float math for precision
                         val temps: List<Int> =
@@ -1173,23 +1136,10 @@ class WeatherRepository
 
                 if (oldWeather > 0) {
                     val cutoffDate = Instant.ofEpochMilli(cutoff).atZone(ZoneId.systemDefault()).toLocalDate()
-                    appLogDao.insert(
-                        AppLogEntity(
-                            tag = "DB_CLEANUP",
-                            message = "Cleaned records older than $cutoffDate ($cutoff). Removed approx $oldWeather weather entries.",
-                            level = "INFO",
-                        ),
-                    )
+                    appLogDao.log("DB_CLEANUP", "Cleaned records older than $cutoffDate ($cutoff). Removed approx $oldWeather weather entries.")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "cleanOldData: Failed to audit cleanup: ${e.message}")
-                appLogDao.insert(
-                    AppLogEntity(
-                        tag = "DB_CLEANUP_ERROR",
-                        message = "Cleanup failed: ${e.message}",
-                        level = "ERROR",
-                    ),
-                )
+                appLogDao.log("DB_CLEANUP_ERROR", "Cleanup failed: ${e.message}", "ERROR")
             }
         }
 
