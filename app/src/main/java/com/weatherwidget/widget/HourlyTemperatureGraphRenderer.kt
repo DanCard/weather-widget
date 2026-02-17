@@ -223,7 +223,7 @@ object HourlyTemperatureGraphRenderer {
         // --- Build curve path & gradient fill path ---
         val points = mutableListOf<Pair<Float, Float>>() // x,y for each hour
         val rawTemps = hours.map { it.temperature }
-        val smoothedTemps = GraphRenderUtils.smoothValues(rawTemps, iterations = 3)
+        val smoothedTemps = GraphRenderUtils.smoothValues(rawTemps, iterations = 1)
 
         // Compute all data points first
         hours.forEachIndexed { index, _ ->
@@ -252,9 +252,9 @@ object HourlyTemperatureGraphRenderer {
                 dateTimeOf = { it.dateTime },
             )
 
-        // Key temperature labels — priority-ordered list (first drawn wins collisions)
-        val dailyHighIndex = hours.indices.maxByOrNull { hours[it].temperature } ?: -1
-        val dailyLowIndex = hours.indices.minByOrNull { hours[it].temperature } ?: -1
+        // Key temperature labels — find min/max from the data used to draw the curve
+        val dailyHighIndex = smoothedTemps.indices.maxByOrNull { smoothedTemps[it] } ?: -1
+        val dailyLowIndex = smoothedTemps.indices.minByOrNull { smoothedTemps[it] } ?: -1
 
         // Priority order: low (1) → high (2) → start (3) → end (4)
         val specialIndices = mutableListOf<Int>()
@@ -265,23 +265,47 @@ object HourlyTemperatureGraphRenderer {
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
+        // Below log is used by HourlyTemperatureGraphLabelTest instrumented tests
         Log.d(
             "HourlyGraph",
-            "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) hours[dailyHighIndex].temperature else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) hours[dailyLowIndex].temperature else "N/A"}), nowX=$nowX, hourWidth=$hourWidth",
+            "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) "%.1f".format(smoothedTemps[dailyHighIndex]) else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) "%.1f".format(smoothedTemps[dailyLowIndex]) else "N/A"}), hours=${hours.map { "%.0f".format(it.temperature) }}",
         )
 
+        // For min/max, find center of consecutive points at the same value
+        fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
+            val value = smoothedTemps[anchorIdx]
+            var first = anchorIdx
+            var last = anchorIdx
+            while (first > 0 && smoothedTemps[first - 1] == value) first--
+            while (last < smoothedTemps.lastIndex && smoothedTemps[last + 1] == value) last++
+            val cx = (points[first].first + points[last].first) / 2f
+            val cy = (points[first].second + points[last].second) / 2f
+            return cx to cy
+        }
+
         for (idx in specialIndices) {
-            val sx = points[idx].first
-            val sy = points[idx].second
-            val label = String.format("%.0f°", hours[idx].temperature)
+            val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) {
+                centerOfRun(idx)
+            } else {
+                points[idx].first to points[idx].second
+            }
+            val label = String.format("%.0f°", smoothedTemps[idx])
             val textWidth = tempLabelTextPaint.measureText(label)
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Smart placement: draw label toward center of graph
-            val graphCenter = graphTop + graphHeight / 2f
-            val drawBelow = sy < graphCenter
-            val labelY = if (drawBelow) sy + dpToPx(context, 14f) else sy - dpToPx(context, 4f)
+            // Smart placement: for start/end use curve direction, but force above if label would overflow graph
+            val belowLabelY = sy + textHeight + dpToPx(context, 3f)
+            val aboveLabelY = sy - dpToPx(context, 5f)
+            val drawBelow = when {
+                idx == 0 || idx == hours.size - 1 -> {
+                    val neighborY = if (idx == 0) points[1].second else points[points.size - 2].second
+                    val curveDescending = neighborY < sy
+                    curveDescending && belowLabelY <= graphBottom
+                }
+                else -> sy < graphTop + graphHeight / 2f
+            }
+            val labelY = if (drawBelow) belowLabelY else aboveLabelY
 
             // Build bounding rect for overlap detection
             val bounds =
@@ -304,6 +328,7 @@ object HourlyTemperatureGraphRenderer {
                     else -> "OTHER"
                 }
 
+            // Below two logs are used by HourlyTemperatureGraphLabelTest instrumented tests
             if (!overlaps) {
                 canvas.drawText(label, clampedX, labelY, tempLabelTextPaint)
                 drawnLabelBounds.add(bounds)

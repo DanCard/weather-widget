@@ -103,6 +103,8 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - `HourlyForecastEntity.kt` - Database entity for hourly temperature data
 - `TemperatureInterpolator.kt` - Interpolates current temp between hourly data points
 - `TemperatureGraphRenderer.kt` - Renders graphical temperature bars with scaling fonts
+- `HourlyTemperatureGraphRenderer.kt` - Renders hourly temperature curve with min/max/start/end labels
+- `GraphRenderUtils.kt` - Shared graph utilities (smoothing, bezier curves, hour labels, now indicator)
 - `StatisticsActivity.kt` - Detailed accuracy breakdown UI
 
 ## Data Retention
@@ -186,10 +188,13 @@ adb shell am start -a android.appwidget.action.APPWIDGET_PICK
 
 ## Running Instrumented Tests
 
-**NEVER run `./gradlew connectedDebugAndroidTest` directly** — it targets all connected devices, including physical ones. Installing the test APK on a physical device removes all widgets from the home screen (they must be manually re-added).
+The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test APK uninstall (which would remove all widget instances from the home screen). Do not remove this property.
 
-Always use the emulator-only script:
 ```bash
-./scripts/run-emulator-tests.sh                                        # all tests
-./scripts/run-emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest  # specific class
+# Run on all connected devices (emulator + physical)
+./gradlew connectedDebugAndroidTest
+
+# Emulator-only
+./scripts/emulator-tests.sh                                        # all tests
+./scripts/emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest  # specific class
 ```

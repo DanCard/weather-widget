@@ -93,13 +93,16 @@ app/src/main/java/com/weatherwidget/
 │   ├── TemperatureInterpolator.kt
 │   ├── NavigationUtils.kt
 │   ├── WeatherIconMapper.kt
+│   ├── RainAnalyzer.kt
 │   └── SunPositionUtils.kt
 └── widget/                 # Widget core components
     ├── WeatherWidgetProvider.kt    # Main widget lifecycle
     ├── WeatherWidgetWorker.kt      # Background data fetch
     ├── WidgetStateManager.kt       # Per-widget state persistence
     ├── DailyForecastGraphRenderer.kt # Daily view graph rendering
-    ├── HourlyGraphRenderer.kt      # Hourly view graph rendering
+    ├── HourlyTemperatureGraphRenderer.kt # Hourly view temp curve with min/max labels
+    ├── PrecipitationGraphRenderer.kt # Hourly precipitation graph
+    ├── GraphRenderUtils.kt          # Shared graph utilities (smoothing, bezier, labels)
     ├── ForecastEvolutionRenderer.kt # Forecast history graphs
     ├── UIUpdateScheduler.kt        # AlarmManager-based UI updates
     ├── UIUpdateReceiver.kt
@@ -350,8 +353,19 @@ adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.
 - `Generic_Foldable_API36`
 - `Medium_Phone_API_36`
 
-### Emulator Test Script Behavior (Important)
-- When running `./scripts/run-emulator-tests.sh` interactively, **do not** pass `-s` by default.
+### Instrumented Tests
+The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test APK uninstall (which would remove all widget instances from the home screen). Do not remove this property.
+
+```bash
+# Run on all connected devices (emulator + physical)
+./gradlew connectedDebugAndroidTest
+
+# Emulator-only
+./scripts/emulator-tests.sh                                        # all tests
+./scripts/emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest  # specific class
+```
+
+- When running `./scripts/emulator-tests.sh` interactively, **do not** pass `-s` by default.
 - Assume the user wants the emulator to remain running after tests unless they explicitly request shutdown.
 - Use `-s` only for explicit user request or CI-style cleanup runs.
 
