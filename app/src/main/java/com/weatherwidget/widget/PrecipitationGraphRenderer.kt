@@ -159,7 +159,7 @@ object PrecipitationGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = 3)
+        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = 1)
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2f
@@ -224,6 +224,17 @@ object PrecipitationGraphRenderer {
 
         val candidateMap = mutableMapOf<Int, Int>()
 
+        // Find "steps": indices where there's a significant increase from the previous hour,
+        // even if it leads to a plateau rather than a peak.
+        val steps = mutableListOf<Int>()
+        for (i in 1 until labelSignal.size) {
+            val increase = labelSignal[i] - labelSignal[i - 1]
+            if (increase >= 12) {
+                // If this is the start of a plateau, label the start of it.
+                steps.add(i)
+            }
+        }
+
         fun addCandidate(
             index: Int,
             priority: Int,
@@ -239,16 +250,19 @@ object PrecipitationGraphRenderer {
         addCandidate(firstPositive, -1)
         addCandidate(firstLabeledPositive, -1)
 
-        // Priority 0: Global extrema
+        // Priority 0: Global extrema and significant steps
         addCandidate(globalMaxIndex, 0)
         addCandidate(globalMinIndex, 0)
+        steps.forEach { index ->
+            addCandidate(index, 0) // Steps are as important as global extrema for visual context
+        }
 
         // Priority 1: Local extrema.
         // Keep strict one-step prominence, but also allow broad prominence so
         // visually meaningful smoothed peaks (for example around 5am) are not dropped.
         localMaxima.forEach { index ->
             val sharp = localProminence(labelSignal, index) >= 2 && bilateralProminence(labelSignal, index) >= 3
-            val broad = peakBilateralProminence(labelSignal, index, radius = 4) >= 12
+            val broad = peakBilateralProminence(labelSignal, index, radius = 4) >= 8
             if (sharp || broad) {
                 addCandidate(index, 1)
             }
@@ -280,11 +294,14 @@ object PrecipitationGraphRenderer {
         val mandatoryIndices = mutableSetOf<Int>()
         if (globalMaxIndex in labelSignal.indices && labelSignal[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
         if (globalMinIndex in labelSignal.indices && labelSignal[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
+        steps.forEach { idx ->
+            if (labelSignal[idx] > 0) mandatoryIndices.add(idx)
+        }
 
         // Peaks: must have reasonable prominence on BOTH sides to be mandatory
         localMaxima.forEach { idx ->
             val broadPeakProminence = peakBilateralProminence(labelSignal, idx, radius = 4)
-            if (broadPeakProminence >= 14) {
+            if (broadPeakProminence >= 10) {
                 mandatoryIndices.add(idx)
             }
         }
@@ -312,7 +329,7 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        val isPeakMandatory: (Int) -> Boolean = { idx -> idx == globalMaxIndex || idx in localMaxima }
+        val isPeakMandatory: (Int) -> Boolean = { idx -> idx == globalMaxIndex || idx in localMaxima || idx in steps }
         val isValleyMandatory: (Int) -> Boolean = { idx -> idx == globalMinIndex || idx in localMinima }
 
         // Thin out clustered mandatory labels: when multiple mandatory labels are within
@@ -331,9 +348,15 @@ object PrecipitationGraphRenderer {
                         (isPeakMandatory(idx) && isPeakMandatory(it)) ||
                             (isValleyMandatory(idx) && isValleyMandatory(it))
                     }
+                // Steps (rapid increases) are special: they mark the beginning of a plateau or rise.
+                // If this is a step and we already have a peak nearby, keep the step anyway 
+                // unless it's the EXACT same index (which shouldn't happen) or a very similar step.
+                val isStep = idx in steps
+                val nearbyStep = nearbyPlaced.any { it in steps }
+                
                 val sameTypeHasGlobal = sameTypeNearby.any { it == globalMaxIndex || it == globalMinIndex }
 
-                if (sameTypeNearby.isEmpty()) {
+                if (sameTypeNearby.isEmpty() || (isStep && !nearbyStep)) {
                     thinnedMandatory.add(idx)
                 } else if (isGlobal && !sameTypeHasGlobal) {
                     // Global extrema can replace nearby same-type non-global labels.
@@ -376,7 +399,8 @@ object PrecipitationGraphRenderer {
         val shoulderPeaksToDrop = mutableSetOf<Int>()
         mandatoryIndices.forEach { idx ->
             val isGlobalPeak = idx == globalMaxIndex
-            val isPeak = idx in localMaxima || isGlobalPeak
+            val isStep = idx in steps
+            val isPeak = (idx in localMaxima || isGlobalPeak) && !isStep
             if (!isPeak || isGlobalPeak) return@forEach
 
             val nearbyMandatoryValley =
@@ -448,8 +472,9 @@ object PrecipitationGraphRenderer {
             // Skip non-mandatory labels too close to an already-placed label (time spacing)
             if (!isMandatory && labeledIndices.any { abs(it - index) <= 2 }) continue
 
-            // VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours
-            if (labeledIndices.any { labelSignal[it] == prob && abs(it - index) <= 5 }) {
+            // VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours.
+            // However, always allow mandatory labels (important peaks/valleys) to bypass this.
+            if (!isMandatory && labeledIndices.any { labelSignal[it] == prob && abs(it - index) <= 5 }) {
                 Log.d("PrecipGraph", "SKIPPED redundant value label: $prob% at idx=$index")
                 continue
             }
