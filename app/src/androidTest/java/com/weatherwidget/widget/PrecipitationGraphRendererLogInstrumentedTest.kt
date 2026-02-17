@@ -1,13 +1,10 @@
 package com.weatherwidget.widget
 
-import android.os.ParcelFileDescriptor
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.time.LocalDateTime
 
 @RunWith(AndroidJUnit4::class)
@@ -17,7 +14,7 @@ class PrecipitationGraphRendererLogInstrumentedTest {
 
     @Test
     fun renderGraph_logsEndLabelPlacement() {
-        runShellCommand("logcat -c")
+        // No need to clear logcat anymore
 
         val start = LocalDateTime.now().minusHours(24)
         val hours =
@@ -37,32 +34,23 @@ class PrecipitationGraphRendererLogInstrumentedTest {
                 )
             }
 
+        val debugLogs = mutableListOf<String>()
+
         PrecipitationGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
             heightPx = 320,
             currentTime = LocalDateTime.now(),
+            onDebugLog = { debugLogs.add(it) }
         )
 
-        val precipLogs = runShellCommand("logcat -d -s PrecipGraph:D *:S")
+        // Check the callback logs instead of logcat
+        val logFound = debugLogs.any { it.contains("PLACED end label: 0%") }
+        
         assertTrue(
-            "Expected end label placement log in PrecipGraph, but did not find it.\nLogs:\n$precipLogs",
-            precipLogs.contains("PLACED end label: 0%"),
+            "Expected end label placement log in PrecipGraph, but did not find it.\nCaptured logs: $debugLogs",
+            logFound,
         )
-    }
-
-    private fun runShellCommand(command: String): String {
-        val parcelFileDescriptor = instrumentation.uiAutomation.executeShellCommand(command)
-        return ParcelFileDescriptor.AutoCloseInputStream(parcelFileDescriptor).use { input ->
-            BufferedReader(InputStreamReader(input)).use { reader ->
-                buildString {
-                    while (true) {
-                        val line = reader.readLine() ?: break
-                        appendLine(line)
-                    }
-                }
-            }
-        }
     }
 }

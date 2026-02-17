@@ -49,6 +49,7 @@ object PrecipitationGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
+        onDebugLog: ((String) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -552,7 +553,9 @@ object PrecipitationGraphRenderer {
                     drawnLabelBounds.add(placement.bounds.toRectF())
                     val mode = if (placement.usedFallback) "fallback" else "preferred"
                     // Below used in test.  Do not delete!
-                    Log.d("PrecipGraph", "PLACED end label: $endLabelText at right edge ($mode)")
+                    val logMsg = "PLACED end label: $endLabelText at right edge ($mode)"
+                    Log.d("PrecipGraph", logMsg)
+                    onDebugLog?.invoke(logMsg)
                 } else {
                     Log.d("PrecipGraph", "SKIPPED end label: $endLabelText no available non-overlapping slot")
                 }
