@@ -117,6 +117,7 @@ object HourlyTemperatureGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
+        onLabelDrawn: ((String) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -301,20 +302,6 @@ object HourlyTemperatureGraphRenderer {
 
         val localExtrema = findLocalExtremaIndices()
 
-        // Priority order: low (1) → high (2) → start (3) → end (4) → local extrema (5)
-        val specialIndices = mutableListOf<Int>()
-        if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
-        if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
-        if (0 !in specialIndices) specialIndices.add(0)
-        if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
-        
-        // Add local extrema if not already present (lower priority, so added last)
-        localExtrema.forEach { idx ->
-            if (idx !in specialIndices) specialIndices.add(idx)
-        }
-
-        val drawnLabelBounds = mutableListOf<RectF>()
-
         // Priority order: low (1) → high (2) → local extrema (3) → start (4) → end (5)
         val specialIndices = mutableListOf<Int>()
         if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
@@ -398,8 +385,10 @@ object HourlyTemperatureGraphRenderer {
                 canvas.drawText(label, clampedX, labelY, tempLabelTextPaint)
                 drawnLabelBounds.add(bounds)
                 Log.d("HourlyGraph", "  DRAWN $roleName idx=$idx temp=${hours[idx].temperature} x=$clampedX y=$labelY bounds=$bounds")
+                onLabelDrawn?.invoke("DRAWN $roleName val=${String.format("%.0f", smoothedTemps[idx])}")
             } else {
                 Log.d("HourlyGraph", "  SKIPPED $roleName idx=$idx temp=${hours[idx].temperature} overlaps=$overlaps bounds=$bounds")
+                onLabelDrawn?.invoke("SKIPPED $roleName val=${String.format("%.0f", smoothedTemps[idx])}")
             }
         }
 
