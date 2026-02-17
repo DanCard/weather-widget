@@ -302,11 +302,11 @@ object HourlyTemperatureGraphRenderer {
 
         val localExtrema = findLocalExtremaIndices()
 
-        // Priority order: low (1) → high (2) → local extrema (3) → start (4) → end (5)
+        // Priority order: low (1) -> high (2) -> local extrema (3) -> start (4) -> end (5)
         val specialIndices = mutableListOf<Int>()
         if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
-        
+
         // Add local extrema (peaks/valleys) before start/end to prioritize significant features
         localExtrema.forEach { idx ->
             if (idx !in specialIndices) specialIndices.add(idx)
@@ -346,17 +346,13 @@ object HourlyTemperatureGraphRenderer {
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Smart placement: for start/end use curve direction, but force above if label would overflow graph
+            // Smart placement: draw label toward center of graph
+            // High temps (top half) -> Draw Below
+            // Low temps (bottom half) -> Draw Above
+            val drawBelow = sy < graphTop + graphHeight / 2f
+            
             val belowLabelY = sy + textHeight + dpToPx(context, 3f)
             val aboveLabelY = sy - dpToPx(context, 5f)
-            val drawBelow = when {
-                idx == 0 || idx == hours.size - 1 -> {
-                    val neighborY = if (idx == 0) points[1].second else points[points.size - 2].second
-                    val curveDescending = neighborY < sy
-                    curveDescending && belowLabelY <= graphBottom
-                }
-                else -> sy < graphTop + graphHeight / 2f
-            }
             val labelY = if (drawBelow) belowLabelY else aboveLabelY
 
             // Build bounding rect for overlap detection
