@@ -100,7 +100,9 @@ The project follows a **pure function extraction** philosophy to maximize testab
     - Applied 3 iterations of a weighted moving average to "melt" stair-step data plateaus from NWS.
     - Used monotone-aware tangents in `GraphRenderUtils` to prevent spline overshoots.
     - Added value de-duplication: skips labeling if a similar value was already labeled within the last 5 hours.
-- **Local Extrema Labeling (2026-02-17)**: Added logic to detect and label significant local peaks and valleys (not just global min/max) in the hourly temperature graph, improving readability for fluctuating forecasts.
+- **Local Extrema Labeling (2026-02-17)**: 
+    - Added logic to detect and label significant local peaks/valleys in the hourly graph.
+    - **Priority Change**: Local Extrema are now drawn *before* Start/End labels to prevent less informative labels (like the graph start point) from overlapping and hiding significant local dips.
 
 ### API & Data Characteristics
 - **Data Types**: NWS returns integer temperatures; Open-Meteo returns decimals.

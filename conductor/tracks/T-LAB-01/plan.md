@@ -20,20 +20,18 @@ The hourly temperature graph is missing a label for a local minimum occurring ar
 - [x] Verify fix (Unit test `LocalExtremaTest.kt` confirms detection of the 6am dip)
 
 ## Investigation Phase 2 (Issue Persists)
-The user reports the label is still missing on the Samsung device. Since `Log.d` is not persisted to the DB, we cannot see *why* it was skipped (e.g., collision vs not detected).
-
-1.  **Instrument Logging**: Add temporary `AppLogDao` logging to `HourlyTemperatureGraphRenderer` to record:
-    -   Calculated `smoothedTemps`
-    -   Identified `localExtrema` indices
-    -   For each label: position (x,y), bounds, and collision result (DRAWN/SKIPPED).
-2.  **Deploy & Capture**: Install on Samsung, let it render, then pull the DB.
-3.  **Analyze**: Determine if the label was:
-    -   Not found in `localExtrema` (logic issue with specific data?)
-    -   Found but skipped due to collision (with what?)
-    -   Found and "drawn" but off-screen?
+- [x] Add temporary DB logging to Renderer
+- [x] Pull logs from Samsung device
+- [x] **Analyze**:
+    -   Logs show `SKIPPED OTHER idx=3`.
+    -   Collision with `DRAWN START idx=0`.
+    -   Root Cause: Start label (priority 3) overlaps with Local Min (priority 5).
+- [x] **Fix**: Change priority order. Draw Local Extrema *before* Start/End labels.
+    -   New Order: Global Low -> Global High -> Local Extrema -> Start -> End.
+- [x] Remove temporary logging.
+- [ ] Verify fix.
 
 ## Implementation Plan Phase 2
-- [ ] Add temporary DB logging to Renderer
-- [ ] Pull logs from Samsung device
-- [ ] Fix root cause (likely collision with Start/End or existing label)
-- [ ] Remove temporary logging
+- [ ] Adjust priority in `HourlyTemperatureGraphRenderer.kt`
+- [ ] Remove debug logging
+- [ ] Verify on device

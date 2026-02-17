@@ -315,20 +315,26 @@ object HourlyTemperatureGraphRenderer {
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
+        // Priority order: low (1) → high (2) → local extrema (3) → start (4) → end (5)
+        val specialIndices = mutableListOf<Int>()
+        if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
+        if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
+        
+        // Add local extrema (peaks/valleys) before start/end to prioritize significant features
+        localExtrema.forEach { idx ->
+            if (idx !in specialIndices) specialIndices.add(idx)
+        }
+
+        if (0 !in specialIndices) specialIndices.add(0)
+        if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
+
+        val drawnLabelBounds = mutableListOf<RectF>()
+
         // Below log is used by HourlyTemperatureGraphLabelTest instrumented tests
         Log.d(
             "HourlyGraph",
             "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) "%.1f".format(smoothedTemps[dailyHighIndex]) else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) "%.1f".format(smoothedTemps[dailyLowIndex]) else "N/A"}), hours=${hours.map { "%.0f".format(it.temperature) }}",
         )
-
-        // TEMPORARY: Log to DB for Samsung device debugging
-        try {
-            val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
-            val msg = "RENDER: special=$specialIndices min/max=$dailyLowIndex/$dailyHighIndex smoothed=${smoothedTemps.take(8).map { "%.1f".format(it) }}..."
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                db.appLogDao().insert(com.weatherwidget.data.local.AppLogEntity(tag = "HourlyGraphDebug", message = msg))
-            }
-        } catch (e: Exception) { Log.e("HourlyGraph", "Failed to log", e) }
 
         // For min/max, find center of consecutive points at the same value
         fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
@@ -386,16 +392,6 @@ object HourlyTemperatureGraphRenderer {
                     hours.size - 1 -> "END"
                     else -> "OTHER"
                 }
-
-            // TEMPORARY: Log rendering decisions to DB
-            try {
-                val db = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context)
-                val status = if (!overlaps) "DRAWN" else "SKIPPED"
-                val msg = "$status $roleName idx=$idx val=${"%.1f".format(smoothedTemps[idx])} x=${"%.1f".format(clampedX)} y=${"%.1f".format(labelY)}"
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    db.appLogDao().insert(com.weatherwidget.data.local.AppLogEntity(tag = "HourlyGraphDebug", message = msg))
-                }
-            } catch (e: Exception) { }
 
             // Below two logs are used by HourlyTemperatureGraphLabelTest instrumented tests
             if (!overlaps) {
