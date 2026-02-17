@@ -257,6 +257,28 @@ object PrecipitationGraphRenderer {
             }
         }
 
+        // Thin out clustered mandatory labels: when multiple mandatory labels are within
+        // 4 hours of each other, keep only the most important one (global extrema win).
+        // This prevents noisy oscillations from flooding the graph with labels.
+        val thinnedMandatory = mutableSetOf<Int>()
+        for (idx in mandatoryIndices.sorted()) {
+            val nearbyPlaced = thinnedMandatory.filter { abs(it - idx) <= 4 }
+            if (nearbyPlaced.isEmpty()) {
+                thinnedMandatory.add(idx)
+            } else {
+                val isGlobal = idx == globalMaxIndex || idx == globalMinIndex
+                val nearbyHasGlobal = nearbyPlaced.any { it == globalMaxIndex || it == globalMinIndex }
+                if (isGlobal && !nearbyHasGlobal) {
+                    // This global extremum replaces nearby non-global mandatory labels
+                    nearbyPlaced.forEach { thinnedMandatory.remove(it) }
+                    thinnedMandatory.add(idx)
+                }
+                // Otherwise skip: existing nearby mandatory label already covers this area
+            }
+        }
+        mandatoryIndices.clear()
+        mandatoryIndices.addAll(thinnedMandatory)
+
         val orderedCandidates =
             sortedCandidates.sortedWith(
                 compareBy<LabelCandidate> { if (it.index in mandatoryIndices) 0 else 1 }
