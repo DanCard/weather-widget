@@ -451,4 +451,69 @@ class RainAnalyzerTest {
         assertEquals("9pm", result.summary)  // Start of the window
         assertEquals(1, result.windows.size)
     }
+
+    // --- New Sensitivity and Late-Night Suppression Tests ---
+
+    @Test
+    fun `summary suppressed when currently raining (low probability)`() {
+        val date = LocalDate.of(2024, 6, 15)
+        // Now (10am) it is raining with 10% probability (isAnyRainHour = true).
+        // Future rain at 2pm with 70% probability (isRainHour = true).
+        // Gap is only 4h < 12h → continuation → summary suppressed.
+        val forecasts = listOf(
+            createForecast("2024-06-15T10:00", "Rain", 10),  // Current light rain
+            createForecast("2024-06-15T14:00", "Rain", 70),  // Future heavy rain
+        )
+
+        val now = LocalDateTime.of(2024, 6, 15, 10, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, date, now = now)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed because we are already raining
+    }
+
+    @Test
+    fun `summary suppressed for Today late night rain (11pm)`() {
+        val today = LocalDate.of(2024, 6, 15)
+        // Rain starts at 11pm (23:00) — unhelpful timing for "Today" label.
+        val forecasts = listOf(
+            createForecast("2024-06-15T23:00", "Rain", 70),
+        )
+
+        val now = LocalDateTime.of(2024, 6, 15, 10, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, today, now = now)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed for Today (late night)
+    }
+
+    @Test
+    fun `summary suppressed for Today early morning rain (4am)`() {
+        val today = LocalDate.of(2024, 6, 15)
+        // Rain starts at 4am (04:00) — also unhelpful timing for "Today" label.
+        val forecasts = listOf(
+            createForecast("2024-06-15T04:00", "Rain", 70),
+        )
+
+        val now = LocalDateTime.of(2024, 6, 15, 0, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, today, now = now)
+
+        assertTrue(result.hasRain)
+        assertNull(result.summary)  // Suppressed for Today (early morning)
+    }
+
+    @Test
+    fun `summary NOT suppressed for Today daytime rain (8am)`() {
+        val today = LocalDate.of(2024, 6, 15)
+        // Rain starts at 8am (08:00) — helpful daytime timing.
+        val forecasts = listOf(
+            createForecast("2024-06-15T08:00", "Rain", 70),
+        )
+
+        val now = LocalDateTime.of(2024, 6, 15, 5, 0)
+        val result = RainAnalyzer.analyzeDay(forecasts, today, now = now)
+
+        assertTrue(result.hasRain)
+        assertEquals("8am", result.summary)  // Shown — daytime start
+    }
 }

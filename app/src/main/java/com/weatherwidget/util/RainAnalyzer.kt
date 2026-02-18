@@ -97,6 +97,15 @@ object RainAnalyzer {
         // a dry gap of at least DRY_GAP_HOURS before the first window.
         // Look backward in the full forecast data (across all dates) for recent rain.
         val firstWindowStart = windows.first().startHour
+
+        // Suppress "Today" summary if it starts at unhelpful late-night hours (11pm-5am)
+        val isToday = date == now.toLocalDate()
+        val isLateNight = firstWindowStart.hour >= 23 || firstWindowStart.hour < 5
+        if (isToday && isLateNight) {
+            Log.d("RainAnalyzer", "Suppressing summary for Today: late-night start at ${formatHour(firstWindowStart)}")
+            return RainForecast(hasRain = true, windows = windows, summary = null)
+        }
+
         val summary = if (hasDryGapBefore(hourlyForecasts, source, firstWindowStart)) {
             generateSummary(windows)
         } else {
@@ -141,6 +150,22 @@ object RainAnalyzer {
         }
 
         // Fall back to condition text only when probability is not reported
+        val condition = forecast.condition?.lowercase() ?: return false
+        return condition.contains("rain") ||
+            condition.contains("drizzle") ||
+            condition.contains("shower") ||
+            condition.contains("thunder") ||
+            condition.contains("storm")
+    }
+
+    /**
+     * More sensitive check for ANY rain (used for dry gap detection to suppress
+     * "next rain" summaries when it is already raining, even lightly).
+     */
+    private fun isAnyRainHour(forecast: HourlyForecastEntity): Boolean {
+        if (forecast.precipProbability != null) {
+            return forecast.precipProbability > 0
+        }
         val condition = forecast.condition?.lowercase() ?: return false
         return condition.contains("rain") ||
             condition.contains("drizzle") ||
@@ -215,7 +240,7 @@ object RainAnalyzer {
         val cutoff = windowStart.minusHours(DRY_GAP_HOURS)
         val recentRainBeforeWindow = allForecasts
             .filter { forecast ->
-                (source == null || forecast.source == source) && isRainHour(forecast)
+                (source == null || forecast.source == source) && isAnyRainHour(forecast)
             }
             .mapNotNull { forecast ->
                 val hour = parseHour(forecast.dateTime)
