@@ -343,6 +343,10 @@ adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.
 
 ## Testing the Widget
 
+### Emulator Inspection Preference
+- User phrase mapping: when the user says "look at emulator", assume the emulator is already running.
+- Default inspection actions: take a screenshot and/or inspect runtime logs with `adb logcat`.
+
 ### Manual Testing
 1. Build and install: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug`
 2. On device/emulator: Long-press home screen → "Widgets"

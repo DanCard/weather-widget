@@ -75,11 +75,12 @@ class DayClickNavigationTest {
     @Test
     fun todayWithDailyPrecip_butNoHourlyRain_navigatesToPrecipitation() {
         val today = LocalDate.now()
-        val now = LocalDateTime.now()
+        // Use fixed time to avoid past-hour filtering issues
+        val now = today.atTime(10, 0)
         val todayStr = today.toString()
 
         // Hourly data: no hour exceeds 40% (matches real device data)
-        val futureHour = now.plusHours(3).withMinute(0).withSecond(0).withNano(0)
+        val futureHour = now.plusHours(3)
         val forecasts = listOf(
             createForecast(
                 String.format("%sT%02d:00", todayStr, futureHour.hour),
@@ -124,10 +125,11 @@ class DayClickNavigationTest {
     @Test
     fun todayWithHighHourlyRain_navigatesToPrecipitation() {
         val today = LocalDate.now()
-        val now = LocalDateTime.now()
+        // Use fixed time to avoid past-hour filtering issues in late-night test runs
+        val now = today.atTime(10, 0)
         val todayStr = today.toString()
 
-        val futureHour = now.plusHours(3).withMinute(0).withSecond(0).withNano(0)
+        val futureHour = now.plusHours(5)
         val forecasts = listOf(
             createForecast(
                 String.format("%sT%02d:00", todayStr, futureHour.hour),
@@ -156,10 +158,11 @@ class DayClickNavigationTest {
     @Test
     fun todayWithNoRain_staysInDailyMode() {
         val today = LocalDate.now()
-        val now = LocalDateTime.now()
+        // Use fixed time to avoid past-hour filtering issues
+        val now = today.atTime(10, 0)
         val todayStr = today.toString()
 
-        val futureHour = now.plusHours(3).withMinute(0).withSecond(0).withNano(0)
+        val futureHour = now.plusHours(3)
         val forecasts = listOf(
             createForecast(
                 String.format("%sT%02d:00", todayStr, futureHour.hour),
@@ -182,8 +185,8 @@ class DayClickNavigationTest {
 
     @Test
     fun handleSetView_setsPrecipitationModeAndOffset() {
-        val now = LocalDateTime.now()
         val today = LocalDate.now()
+        val now = today.atTime(10, 0)
         // For today, the offset should now be 0
         val expectedOffset = DayClickHelper.calculatePrecipitationOffset(now, today)
         assertEquals("Offset for today should be 0", 0, expectedOffset)
@@ -239,7 +242,7 @@ class DayClickNavigationTest {
         val database = WeatherDatabase.getDatabase(context)
         val today = LocalDate.now()
         val todayStr = today.toString()
-        val now = LocalDateTime.now()
+        val now = today.atTime(10, 0)
 
         val lat = WeatherWidgetWorker.DEFAULT_LAT
         val lon = WeatherWidgetWorker.DEFAULT_LON

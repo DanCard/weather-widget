@@ -250,12 +250,11 @@ $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null || ech
 $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Android: Unknown"
 
 # Run tests
-echo -en "${BLUE}Running Instrumented Tests${NC} \t"
 
 cd "$PROJECT_DIR"
 
 # Check for multiple devices - filter to emulator only
-echo -en "${BLUE}Checking connected devices...${NC} \t"
+# echo -en "${BLUE}Checking connected devices...${NC} \t"
 ALL_DEVICES=$($ADB_BIN devices | grep -v "List of devices" | grep "device$" | cut -f1)
 EMULATOR_DEVICES=$(echo "$ALL_DEVICES" | grep "^emulator-" | head -1)
 

@@ -553,12 +553,10 @@ object PrecipitationGraphRenderer {
 
             val shouldPlaceRightEdgeBelow =
                 isNearRightEdge &&
-                    isNearGraphCenter &&
                     isTrendingDownAtRightEdge
             val shouldPlaceRightEdgeAbove =
                 isNearRightEdge &&
-                    isTrendingUpAtRightEdge &&
-                    !isNearGraphTop
+                    isTrendingUpAtRightEdge
             val shouldPlacePeakAbove =
                 isPeak &&
                     !isNearGraphTop
@@ -602,11 +600,11 @@ object PrecipitationGraphRenderer {
                 continue
             }
 
-            val attempts =
-                listOf(
-                    Pair(0f, preferBelow),
-                    Pair(0f, !preferBelow),
-                )
+            val attempts = if (preferBelow) {
+                listOf(Pair(0f, false), Pair(0f, true)) // Try BELOW, then ABOVE
+            } else {
+                listOf(Pair(0f, true), Pair(0f, false)) // Try ABOVE, then BELOW
+            }
 
             Log.d(
                 "PrecipGraph",
@@ -648,10 +646,8 @@ object PrecipitationGraphRenderer {
                         candidate.priority == 5 -> "interval"
                         else -> "pri=${candidate.priority}"
                     }
-                Log.d(
-                    "PrecipGraph",
-                    "PLACED label: $labelText at hour=${hours[index].label}(idx=$index) reason=$reason above=$placeAbove dx=$dx",
-                )
+                val logMsg = "PLACED label: $labelText at hour=${hours[index].label}(idx=$index) reason=$reason above=$placeAbove dx=$dx"
+                Log.d("PrecipGraph", logMsg)
                 onLabelPlaced?.invoke(
                     LabelPlacementDebug(
                         index = index,
@@ -743,11 +739,10 @@ object PrecipitationGraphRenderer {
                 val textHeight = percentLabelPaint.textSize
                 val endPointY = points[lastIndex].second
                 val graphMidY = (graphTop + graphBottom) / 2f
-                val isNearGraphCenter = abs(endPointY - graphMidY) <= graphHeight * 0.2f
                 val isTrendingDownAtEnd =
                     lastIndex > 0 &&
                         points[lastIndex].second > points[lastIndex - 1].second + 0.5f
-                val preferEndLabelBelow = isNearGraphCenter && isTrendingDownAtEnd
+                val preferEndLabelBelow = isTrendingDownAtEnd || endProb > 50
                 val placement =
                     computeEndLabelPlacement(
                         textWidth = textWidth,
@@ -764,15 +759,17 @@ object PrecipitationGraphRenderer {
                         preferBelow = preferEndLabelBelow,
                     )
 
-                if (placement != null) {
-                    canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
-                    drawnLabelBounds.add(placement.bounds.toRectF())
-                    val mode = if (placement.usedFallback) "fallback" else "preferred"
-                    // Below used in test.  Do not delete!
-                    val logMsg = "PLACED end label: $endLabelText at right edge ($mode)"
-                    Log.d("PrecipGraph", logMsg)
-                    onDebugLog?.invoke(logMsg)
-                } else {
+                                if (placement != null) {
+                                    canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
+                                    drawnLabelBounds.add(placement.bounds.toRectF())
+                                    val mode = if (placement.usedFallback) "fallback" else "preferred"
+                                    val side = if (placement.baselineY < endPointY) "above" else "below"
+                                    // Below used in test.  Do not delete!
+                                    val logMsg = "PLACED end label: $endLabelText at right edge ($mode, $side)"
+                                    Log.d("PrecipGraph", logMsg)
+                                    onDebugLog?.invoke(logMsg)
+                                }
+                 else {
                     Log.d("PrecipGraph", "SKIPPED end label: $endLabelText no available non-overlapping slot")
                 }
             }

@@ -8,6 +8,7 @@ import java.time.LocalDateTime
 
 object HourlyTemperatureGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+    private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2f
 
     data class HourData(
         val dateTime: LocalDateTime,
@@ -302,13 +303,45 @@ object HourlyTemperatureGraphRenderer {
 
         val localExtrema = findLocalExtremaIndices()
 
+        fun nearestDifferentValue(
+            fromIndex: Int,
+            step: Int,
+        ): Float? {
+            var cursor = fromIndex + step
+            while (cursor in smoothedTemps.indices) {
+                if (smoothedTemps[cursor] != smoothedTemps[fromIndex]) return smoothedTemps[cursor]
+                cursor += step
+            }
+            return null
+        }
+
+        fun bilateralExtremaProminence(index: Int): Float {
+            val current = smoothedTemps[index]
+            val left = nearestDifferentValue(index, -1) ?: return 0f
+            val right = nearestDifferentValue(index, 1) ?: return 0f
+
+            val isPeak = current >= left && current >= right
+            val isValley = current <= left && current <= right
+            if (!isPeak && !isValley) return 0f
+
+            val leftDelta = if (isPeak) current - left else left - current
+            val rightDelta = if (isPeak) current - right else right - current
+            return minOf(leftDelta, rightDelta)
+        }
+
+        val significantLocalExtrema =
+            localExtrema.filter { index ->
+                bilateralExtremaProminence(index) >= MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES
+            }
+
         // Priority order: low (1) -> high (2) -> local extrema (3) -> start (4) -> end (5)
         val specialIndices = mutableListOf<Int>()
         if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
 
-        // Add local extrema (peaks/valleys) before start/end to prioritize significant features
-        localExtrema.forEach { idx ->
+        // Add significant local extrema (peaks/valleys) before start/end.
+        // Tiny humps/dips are filtered by bilateral prominence.
+        significantLocalExtrema.forEach { idx ->
             if (idx !in specialIndices) specialIndices.add(idx)
         }
 
@@ -320,7 +353,7 @@ object HourlyTemperatureGraphRenderer {
         // Below log is used by HourlyTemperatureGraphLabelTest instrumented tests
         Log.d(
             "HourlyGraph",
-            "=== Label drawing: specialIndices=$specialIndices, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) "%.1f".format(smoothedTemps[dailyHighIndex]) else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) "%.1f".format(smoothedTemps[dailyLowIndex]) else "N/A"}), hours=${hours.map { "%.0f".format(it.temperature) }}",
+            "=== Label drawing: specialIndices=$specialIndices, localExtrema=$localExtrema, significantExtrema=$significantLocalExtrema, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) "%.1f".format(smoothedTemps[dailyHighIndex]) else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) "%.1f".format(smoothedTemps[dailyLowIndex]) else "N/A"}), hours=${hours.map { "%.0f".format(it.temperature) }}",
         )
 
         // For min/max, find center of consecutive points at the same value
