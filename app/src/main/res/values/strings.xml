@@ -34,7 +34,7 @@
     <string name="accuracy_statistics_description">30-day accuracy summary for both weather sources</string>
     <string name="view_detailed_statistics">View Detailed Statistics</string>
     <string name="statistics">Statistics</string>
-    <string name="forecast_history">Forecast History</string>
+    <string name="forecast_history">History of Forecasts for </string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>
     <string name="forecast_mode_error">Mode: Error</string>
     <string name="forecast_evolution_high_title">High Temperature Evolution</string>

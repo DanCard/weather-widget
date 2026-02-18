@@ -10,39 +10,48 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="16dp">
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
 
         <ImageButton
             android:id="@+id/back_button"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:src="@drawable/ic_chevron_left"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/back" />
 
-        <LinearLayout
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/forecast_history"
+            android:textSize="18sp"
+            android:textColor="@color/widget_text_primary"
+            android:textStyle="bold"
+            android:layout_marginStart="4dp" />
+
+        <TextView
+            android:id="@+id/date_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_text_primary" />
+
+        <TextView
+            android:id="@+id/actual_temps_text"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/forecast_history"
-                android:textSize="22sp"
-                android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/date_subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:textColor="@color/widget_text_primary" />
-        </LinearLayout>
+            android:layout_marginStart="8dp"
+            android:textSize="18sp"
+            android:textColor="@color/widget_text_primary"
+            android:textStyle="bold"
+            android:gravity="end"
+            android:visibility="gone" />
     </LinearLayout>
 
     <ScrollView
@@ -60,139 +69,128 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
                 android:background="@drawable/bg_surface_card"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp">
-
-                <TextView
-                    android:id="@+id/actual_temps_text"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="20sp"
-                    android:textColor="@color/widget_text_primary"
-                    android:textStyle="bold"
-                    android:layout_marginBottom="6dp"
-                    android:visibility="gone" />
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="4dp">
 
                 <TextView
                     android:id="@+id/snapshot_summary_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="13sp"
-                    android:textColor="@color/widget_text_secondary" />
+                    android:textSize="16sp"
+                    android:textColor="@color/widget_text_secondary"
+                    android:layout_marginEnd="16dp" />
+
+                <LinearLayout
+                    android:id="@+id/legend_container"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="horizontal"
+                    android:gravity="center">
+
+                    <LinearLayout
+                        android:id="@+id/legend_nws_group"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginEnd="20dp">
+
+                        <View
+                            android:layout_width="14dp"
+                            android:layout_height="3dp"
+                            android:background="#5AC8FA" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="NWS"
+                            android:textSize="17sp"
+                            android:textColor="#5AC8FA"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/legend_meteo_group"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginEnd="20dp">
+
+                        <View
+                            android:layout_width="14dp"
+                            android:layout_height="3dp"
+                            android:background="#34C759" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OM"
+                            android:textSize="17sp"
+                            android:textColor="#34C759"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/legend_actual_group"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:layout_width="14dp"
+                            android:layout_height="3dp"
+                            android:background="#FF9F0A" />
+
+                        <TextView
+                            android:id="@+id/legend_actual_text"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Act"
+                            android:textSize="17sp"
+                            android:textColor="#FF9F0A"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <Button
+                    android:id="@+id/graph_mode_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:background="@drawable/rounded_button_gray"
+                    android:minHeight="32dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:text="@string/forecast_mode_evolution"
+                    android:textAllCaps="false"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:layout_marginStart="16dp" />
             </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/legend_container"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:padding="12dp"
-                android:background="@drawable/bg_surface_card"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp">
-
-                <LinearLayout
-                    android:id="@+id/legend_nws_group"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginEnd="16dp">
-
-                    <View
-                        android:layout_width="14dp"
-                        android:layout_height="3dp"
-                        android:background="#5AC8FA" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="NWS"
-                        android:textSize="12sp"
-                        android:textColor="#5AC8FA"
-                        android:layout_marginStart="6dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/legend_meteo_group"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:layout_marginEnd="16dp">
-
-                    <View
-                        android:layout_width="14dp"
-                        android:layout_height="3dp"
-                        android:background="#34C759" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Open-Meteo"
-                        android:textSize="12sp"
-                        android:textColor="#34C759"
-                        android:layout_marginStart="6dp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/legend_actual_group"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <View
-                        android:layout_width="14dp"
-                        android:layout_height="3dp"
-                        android:background="#FF9F0A" />
-
-                    <TextView
-                        android:id="@+id/legend_actual_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Actual"
-                        android:textSize="12sp"
-                        android:textColor="#FF9F0A"
-                        android:layout_marginStart="6dp" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/graph_mode_button"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp"
-                android:background="@drawable/rounded_button_gray"
-                android:minHeight="42dp"
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
-                android:text="@string/forecast_mode_evolution"
-                android:textAllCaps="false"
-                android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
 
             <TextView
                 android:id="@+id/no_data_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="8dp"
                 android:background="@drawable/bg_surface_card"
                 android:gravity="center"
-                android:padding="16dp"
+                android:padding="12dp"
                 android:textColor="@color/widget_text_primary"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
 
@@ -201,22 +199,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="12dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_graph_card"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="12dp">
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="6dp">
 
                 <TextView
                     android:id="@+id/high_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="High Temperature"
-                    android:textSize="15sp"
+                    android:textSize="18sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"
                     android:layout_marginStart="4dp"
-                    android:layout_marginBottom="8dp" />
+                    android:layout_marginBottom="2dp" />
 
                 <ImageView
                     android:id="@+id/high_temp_graph"
@@ -232,22 +230,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="12dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_graph_card"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:layout_marginBottom="8dp">
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="6dp">
 
                 <TextView
                     android:id="@+id/low_graph_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Low Temperature"
-                    android:textSize="15sp"
+                    android:textSize="18sp"
                     android:textColor="@color/widget_text_primary"
                     android:textStyle="bold"
                     android:layout_marginStart="4dp"
-                    android:layout_marginBottom="8dp" />
+                    android:layout_marginBottom="2dp" />
 
                 <ImageView
                     android:id="@+id/low_temp_graph"

@@ -241,7 +241,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         // Get screen dimensions for bitmap size
         val displayMetrics = resources.displayMetrics
-        val width = displayMetrics.widthPixels - dpToPx(64) // Card + inner padding
+        val width = displayMetrics.widthPixels - dpToPx(44) // Card (12*2) + padding (6*2) + img margin (4*2)
         val height = dpToPx(220) // Match ImageView height
 
         highTitle.text =
