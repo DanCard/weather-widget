@@ -221,39 +221,10 @@ object PrecipitationGraphRenderer {
             )}%), firstPos=$firstPositive, firstLabeledPos=$firstLabeledPositive, softDips=$softDipCandidates",
         )
 
-        val candidateMap = mutableMapOf<Int, Int>()
-
-        // Find "steps": indices where there's a significant increase from the previous hour,
-        // even if it leads to a plateau rather than a peak.
-        val steps = mutableListOf<Int>()
-        for (i in 1 until labelSignal.size) {
-            val increase = labelSignal[i] - labelSignal[i - 1]
-            if (increase >= 12) {
-                // If this is the start of a plateau, label the start of it.
-                steps.add(i)
-            }
-        }
-        val morningIndices =
-            hours.indices.filter { idx ->
-                val hourOfDay = hours[idx].dateTime.hour
-                hourOfDay in 4..7 && labelSignal[idx] > 0
-            }
-        val morningHighIndex =
-            if (morningIndices.isNotEmpty()) {
-                val morningMax = morningIndices.maxOf { labelSignal[it] }
-                // Prefer the earliest shoulder in the morning high band so it does not
-                // collide with later same-morning highs (for example 9a global peaks).
-                morningIndices.firstOrNull { labelSignal[it] >= morningMax - 2 } ?: morningIndices.first()
-            } else {
-                -1
-            }
-        val shouldForceMorningHigh =
-            morningHighIndex in labelSignal.indices &&
-                globalMaxIndex in labelSignal.indices &&
-                labelSignal[morningHighIndex] >= labelSignal[globalMaxIndex] - 10 &&
-                localMaxima.none { hours[it].dateTime.hour in 4..7 }
-
-        fun addCandidate(
+                val candidateMap = mutableMapOf<Int, Int>()
+        
+                fun addCandidate(
+        
             index: Int,
             priority: Int,
         ) {
@@ -268,15 +239,9 @@ object PrecipitationGraphRenderer {
         addCandidate(firstPositive, -1)
         addCandidate(firstLabeledPositive, -1)
 
-        // Priority 0: Global extrema and significant steps
+        // Priority 0: Global extrema
         addCandidate(globalMaxIndex, 0)
         addCandidate(globalMinIndex, 0)
-        steps.forEach { index ->
-            addCandidate(index, 0) // Steps are as important as global extrema for visual context
-        }
-        if (shouldForceMorningHigh) {
-            addCandidate(morningHighIndex, 0)
-        }
 
         // Priority 1: Local extrema.
         // Mirror hourly temperature behavior: every local peak/valley is considered
@@ -312,12 +277,6 @@ object PrecipitationGraphRenderer {
         }
         if (globalMaxIndex in labelSignal.indices && labelSignal[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
         if (globalMinIndex in labelSignal.indices && labelSignal[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
-        steps.forEach { idx ->
-            if (labelSignal[idx] > 0) mandatoryIndices.add(idx)
-        }
-        if (shouldForceMorningHigh) {
-            mandatoryIndices.add(morningHighIndex)
-        }
 
         // Peaks: must have reasonable prominence on BOTH sides to be mandatory
         localMaxima.forEach { idx ->
@@ -351,7 +310,7 @@ object PrecipitationGraphRenderer {
         }
 
         val isPeakMandatory: (Int) -> Boolean = { idx ->
-            idx == globalMaxIndex || idx in localMaxima || idx in steps || (shouldForceMorningHigh && idx == morningHighIndex)
+            idx == globalMaxIndex || idx in localMaxima
         }
         val isValleyMandatory: (Int) -> Boolean = { idx -> idx == globalMinIndex || idx in localMinima }
 
@@ -376,11 +335,9 @@ object PrecipitationGraphRenderer {
                 (isValleyMandatory(idx) && isValleyMandatory(it))
             }
             
-            val isStep = idx in steps
-            val nearbyStep = nearbyPlaced.any { it in steps }
             val sameTypeHasGlobal = sameTypeNearby.any { it == globalMaxIndex || it == globalMinIndex }
 
-            if (sameTypeNearby.isEmpty() || (isStep && !nearbyStep)) {
+            if (sameTypeNearby.isEmpty()) {
                 thinnedMandatory.add(idx)
             } else if (isGlobal && !sameTypeHasGlobal) {
                 // Global extrema can replace nearby same-type non-global labels.
@@ -408,17 +365,13 @@ object PrecipitationGraphRenderer {
         
         mandatoryIndices.clear()
         mandatoryIndices.addAll(thinnedMandatory)
-        if (shouldForceMorningHigh) {
-            mandatoryIndices.add(morningHighIndex)
-        }
 
         // Remove shoulder peaks that sit immediately next to a deeper mandatory valley.
         // Example: 56% followed by 40% one hour later should keep the valley label, not both.
         val shoulderPeaksToDrop = mutableSetOf<Int>()
         mandatoryIndices.forEach { idx ->
             val isGlobalPeak = idx == globalMaxIndex
-            val isStep = idx in steps
-            val isPeak = (idx in localMaxima || isGlobalPeak) && !isStep
+            val isPeak = idx in localMaxima || isGlobalPeak
             if (!isPeak || isGlobalPeak) return@forEach
 
             val nearbyMandatoryValley =

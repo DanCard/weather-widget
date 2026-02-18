@@ -58,12 +58,18 @@ class SamsungDataFailTest {
         )
 
         // Find a label in the 4 AM to 7 AM range (the plateau at 91%).
+        // After removing the 'Morning High' rule, this plateau should NOT be labeled
+        // unless it's a mathematical peak.
         val plateauLabel = placements.find { it.index in 4..7 }
         
-        assertNotNull(
-            "Expected a label in the 4am-7am plateau (91%) to satisfy the '5am peak' request. Placements=${placements.map { "${it.hourLabel}=${it.probability}% (idx=${it.index})" }}",
+        org.junit.Assert.assertNull(
+            "Expected NO label in the 4am-7am plateau (91%) after removing 'Morning High' rule. Placements=${placements.map { "${it.hourLabel}=${it.probability}% (idx=${it.index})" }}",
             plateauLabel
         )
+
+        // The next label should be the 9am peak (idx=9)
+        val peakLabel = placements.find { it.index == 9 }
+        assertNotNull("9am peak should still be labeled", peakLabel)
     }
 
     private fun formatHour(hour24: Int): String {

@@ -184,7 +184,9 @@ class DayClickNavigationTest {
     fun handleSetView_setsPrecipitationModeAndOffset() {
         val now = LocalDateTime.now()
         val today = LocalDate.now()
+        // For today, the offset should now be 0
         val expectedOffset = DayClickHelper.calculatePrecipitationOffset(now, today)
+        assertEquals("Offset for today should be 0", 0, expectedOffset)
 
         runBlocking {
             try {
@@ -199,6 +201,32 @@ class DayClickNavigationTest {
 
         assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(testWidgetId))
         assertEquals(expectedOffset, stateManager.getHourlyOffset(testWidgetId))
+    }
+
+    @Test
+    fun handleSetView_setsTomorrowOffsetCorrectly() {
+        val today = LocalDate.now()
+        val tomorrow = today.plusDays(1)
+        // Set "now" to 10 AM today
+        val now = today.atTime(10, 0)
+        
+        // Offset to 8 AM tomorrow should be 22 hours
+        val expectedOffset = DayClickHelper.calculatePrecipitationOffset(now, tomorrow)
+        assertEquals(22, expectedOffset)
+
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleSetView(
+                    context,
+                    testWidgetId,
+                    ViewMode.PRECIPITATION,
+                    expectedOffset,
+                )
+            } catch (_: Exception) {}
+        }
+
+        assertEquals(ViewMode.PRECIPITATION, stateManager.getViewMode(testWidgetId))
+        assertEquals(22, stateManager.getHourlyOffset(testWidgetId))
     }
 
     // ── Verify that the current production code path uses hasRainForecast ──

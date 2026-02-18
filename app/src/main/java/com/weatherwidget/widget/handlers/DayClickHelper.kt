@@ -49,13 +49,25 @@ object DayClickHelper {
 
     /**
      * Calculates the hourly offset for centering the precipitation graph on a target day.
-     * The graph centers on 8 AM of the target day, relative to the current hour.
+     *
+     * For TODAY:
+     * Returns 0 to center the graph on the current hour.
+     * The graph shows (center - 8h) to (center + 16h), which results in
+     * exactly 8 hours of history and 16 hours of forecast relative to "now".
+     *
+     * For FUTURE days:
+     * Returns the offset required to center the graph on 8 AM of the target day.
      *
      * @param now the current date-time (will be truncated to the hour)
      * @param targetDay the day being clicked
-     * @return hours between the current hour and 8 AM on targetDay (negative if past 8 AM)
+     * @return hours between the current hour and the target center point
      */
     fun calculatePrecipitationOffset(now: LocalDateTime, targetDay: LocalDate): Int {
+        val today = now.toLocalDate()
+        if (targetDay == today) {
+            return 0
+        }
+
         val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
         val targetCenter = targetDay.atTime(8, 0)
         return Duration.between(truncatedNow, targetCenter).toHours().toInt()

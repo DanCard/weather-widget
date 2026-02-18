@@ -109,7 +109,7 @@ if [ ! -f "$ADB_BIN" ]; then
     exit 1
 fi
 
-echo -en "${BLUE}Using Android SDK: $SDK_ROOT${NC} "
+echo -en "\t ${BLUE}$SDK_ROOT${NC} "
 debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
