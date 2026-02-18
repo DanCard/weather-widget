@@ -111,6 +111,17 @@ object HourlyTemperatureGraphRenderer {
         )
     }
 
+    data class LabelPlacementDebug(
+        val index: Int,
+        val role: String,
+        val temperature: Float,
+        val rawTemperature: Float,
+        val x: Float,
+        val y: Float,
+        val placedAbove: Boolean,
+        val reason: String = "",
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<HourData>,
@@ -118,7 +129,7 @@ object HourlyTemperatureGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
-        onLabelDrawn: ((String) -> Unit)? = null,
+        onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -368,6 +379,22 @@ object HourlyTemperatureGraphRenderer {
             return cx to cy
         }
 
+        fun isLocalMax(index: Int): Boolean {
+            if (index <= 0 || index >= smoothedTemps.lastIndex) return false
+            val current = smoothedTemps[index]
+            val prev = smoothedTemps[index - 1]
+            val next = smoothedTemps[index + 1]
+            return (current >= prev && current > next) || (current > prev && current >= next)
+        }
+
+        fun isLocalMin(index: Int): Boolean {
+            if (index <= 0 || index >= smoothedTemps.lastIndex) return false
+            val current = smoothedTemps[index]
+            val prev = smoothedTemps[index - 1]
+            val next = smoothedTemps[index + 1]
+            return (current <= prev && current < next) || (current < prev && current <= next)
+        }
+
         for (idx in specialIndices) {
             val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) {
                 centerOfRun(idx)
@@ -379,26 +406,57 @@ object HourlyTemperatureGraphRenderer {
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Smart placement: draw label toward center of graph
-            // High temps (top half) -> Draw Below
-            // Low temps (bottom half) -> Draw Above
-            val drawBelow = sy < graphTop + graphHeight / 2f
-            
-            val belowLabelY = sy + textHeight + dpToPx(context, 3f)
-            val aboveLabelY = sy - dpToPx(context, 5f)
-            val labelY = if (drawBelow) belowLabelY else aboveLabelY
+            // Smart placement:
+            // Peaks (maxima) -> Prefer ABOVE
+            // Valleys (minima) -> Prefer BELOW
+            // Others (start/end/mid) -> Prefer toward center of graph
+            val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && isLocalMax(idx)))
+            val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && isLocalMin(idx)))
 
-            // Build bounding rect for overlap detection
-            val bounds =
-                RectF(
-                    clampedX - textWidth / 2f,
-                    labelY - textHeight,
-                    clampedX + textWidth / 2f,
-                    labelY,
-                )
+            val preferBelowHeuristic = sy < graphTop + graphHeight / 2f
+            val preferBelow =
+                when {
+                    isPeak -> false
+                    isValley -> true
+                    else -> preferBelowHeuristic
+                }
 
-            // Skip if overlaps any already-drawn label
-            val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+            val attempts = if (preferBelow) listOf(true, false) else listOf(false, true)
+            var placedLabelY = 0f
+            var placedBounds: RectF? = null
+            var finalDrawBelow = false
+
+            for (drawBelow in attempts) {
+                val belowLabelY = sy + textHeight + dpToPx(context, 3f)
+                val aboveLabelY = sy - dpToPx(context, 5f)
+                val candidateY = if (drawBelow) belowLabelY else aboveLabelY
+
+                val bounds =
+                    RectF(
+                        clampedX - textWidth / 2f,
+                        candidateY - textHeight,
+                        clampedX + textWidth / 2f,
+                        candidateY,
+                    )
+
+                // Check bounds: ensure label is completely on bitmap
+                val inVerticalBounds = bounds.top >= 0f && bounds.bottom <= heightPx
+                if (!inVerticalBounds) {
+                    Log.d("HourlyGraph", "  REJECTED (idx=$idx side=${if (drawBelow) "BELOW" else "ABOVE"}): Out of bitmap bounds $bounds")
+                    continue
+                }
+
+                // Skip if overlaps any already-drawn label
+                val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                if (!overlaps) {
+                    placedLabelY = candidateY
+                    placedBounds = bounds
+                    finalDrawBelow = drawBelow
+                    break
+                } else {
+                    Log.d("HourlyGraph", "  REJECTED (idx=$idx side=${if (drawBelow) "BELOW" else "ABOVE"}): Overlap detected at $bounds")
+                }
+            }
 
             val roleName =
                 when (idx) {
@@ -410,14 +468,23 @@ object HourlyTemperatureGraphRenderer {
                 }
 
             // Below two logs are used by HourlyTemperatureGraphLabelTest instrumented tests
-            if (!overlaps) {
-                canvas.drawText(label, clampedX, labelY, tempLabelTextPaint)
-                drawnLabelBounds.add(bounds)
-                Log.d("HourlyGraph", "  DRAWN $roleName idx=$idx temp=${hours[idx].temperature} x=$clampedX y=$labelY bounds=$bounds")
-                onLabelDrawn?.invoke("DRAWN $roleName val=${String.format("%.0f", smoothedTemps[idx])}")
+            if (placedBounds != null) {
+                canvas.drawText(label, clampedX, placedLabelY, tempLabelTextPaint)
+                drawnLabelBounds.add(placedBounds)
+                Log.d("HourlyGraph", "  DRAWN $roleName idx=$idx temp=${hours[idx].temperature} x=$clampedX y=$placedLabelY bounds=$placedBounds")
+                onLabelPlaced?.invoke(
+                    LabelPlacementDebug(
+                        index = idx,
+                        role = roleName,
+                        temperature = smoothedTemps[idx],
+                        rawTemperature = hours[idx].temperature,
+                        x = clampedX,
+                        y = placedLabelY,
+                        placedAbove = !finalDrawBelow,
+                    ),
+                )
             } else {
-                Log.d("HourlyGraph", "  SKIPPED $roleName idx=$idx temp=${hours[idx].temperature} overlaps=$overlaps bounds=$bounds")
-                onLabelDrawn?.invoke("SKIPPED $roleName val=${String.format("%.0f", smoothedTemps[idx])}")
+                Log.d("HourlyGraph", "  SKIPPED $roleName idx=$idx temp=${hours[idx].temperature}")
             }
         }
 

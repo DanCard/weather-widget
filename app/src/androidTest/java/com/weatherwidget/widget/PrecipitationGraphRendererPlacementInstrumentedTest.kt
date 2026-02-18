@@ -122,6 +122,72 @@ class PrecipitationGraphRendererPlacementInstrumentedTest {
         )
     }
 
+    @Test
+    fun highRainPeak_isPlacedAbove_whenEnoughRoom() {
+        val start = LocalDateTime.of(2026, 2, 17, 10, 0)
+        // Longer peak plateau at 88% to resist double smoothing
+        val probs = listOf(20, 20, 20, 88, 88, 88, 88, 88, 20, 20, 20)
+        val hours = probs.mapIndexed { i, p ->
+            val dt = start.plusHours(i.toLong())
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = dt,
+                precipProbability = p,
+                label = formatHour(dt.hour),
+                isCurrentHour = false,
+                showLabel = true,
+            )
+        }
+
+        val placements = mutableListOf<PrecipitationGraphRenderer.LabelPlacementDebug>()
+        // Tall bitmap (500px) provides plenty of room
+        PrecipitationGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 500,
+            currentTime = start,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val peak88 = placements.find { it.probability == 88 }
+        assertNotNull("Expected 88% peak to be labeled. Placements=$placements", peak88)
+        assertTrue("88% peak should be ABOVE if room exists. Placement=$peak88", peak88!!.placedAbove)
+    }
+
+    @Test
+    fun highRainPeak_fallsBackBelow_whenNoRoomAbove() {
+        val start = LocalDateTime.of(2026, 2, 17, 10, 0)
+        // Longer peak plateau at 98%
+        val probs = listOf(0, 0, 0, 98, 98, 98, 98, 98, 0, 0, 0)
+        val hours = probs.mapIndexed { i, p ->
+            val dt = start.plusHours(i.toLong())
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = dt,
+                precipProbability = p,
+                label = formatHour(dt.hour),
+                isCurrentHour = false,
+                showLabel = true,
+            )
+        }
+
+        val placements = mutableListOf<PrecipitationGraphRenderer.LabelPlacementDebug>()
+        // 150px height is still short enough to block ABOVE for a 98% peak,
+        // but gives enough room for the BELOW fallback.
+        PrecipitationGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 150,
+            currentTime = start,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val peak98 = placements.find { it.probability == 98 }
+        assertNotNull("Expected 98% peak to be labeled. Placements=$placements", peak98)
+        // Should fall back to BELOW because top edge is too close
+        assertFalse("98% peak should fall back BELOW if no room ABOVE. Placement=$peak98", peak98!!.placedAbove)
+    }
+
     private fun renderClusterScenario(): List<PrecipitationGraphRenderer.LabelPlacementDebug> {
         val start = LocalDateTime.of(2026, 2, 17, 10, 0)
         val probs =

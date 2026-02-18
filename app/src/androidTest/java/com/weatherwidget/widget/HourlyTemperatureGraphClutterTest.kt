@@ -49,6 +49,7 @@ class HourlyTemperatureGraphClutterTest {
         // but it's only 1 degree and likely not worth labeling.
         val temps = listOf(55f, 56f, 58f, 60f, 60f, 61f, 60f, 60f, 58f, 56f, 54f)
         val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -56,12 +57,11 @@ class HourlyTemperatureGraphClutterTest {
             widthPx = 1000, // Wide enough to avoid overlap skipping
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
         )
 
-        val logs = getHourlyGraphLogs()
         // We expect it to NOT be drawn as "OTHER" (which is the role for local extrema)
-        // However, currently it IS drawn. This test should FAIL if my hypothesis is correct.
-        assertFalse("Expected minor 1° hump NOT to be drawn\nLogs:\n$logs", logs.contains("DRAWN OTHER idx=5"))
+        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == "OTHER" && it.index == 5 })
     }
 
     private fun getHourlyGraphLogs(): String {

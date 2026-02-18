@@ -557,16 +557,18 @@ object PrecipitationGraphRenderer {
             val shouldPlaceRightEdgeAbove =
                 isNearRightEdge &&
                     isTrendingUpAtRightEdge
+
             val shouldPlacePeakAbove =
-                isPeak &&
-                    !isNearGraphTop
+                isPeak
+            val shouldPlaceValleyBelow =
+                isValley || isSoftDip
 
             val preferBelow =
                 when {
                     shouldPlaceFirstLabelBelow -> true
                     shouldPlacePeakAbove -> false
                     shouldElevatePeakLabel -> false
-                    shouldPlaceDipBelow -> true
+                    shouldPlaceValleyBelow -> true
                     shouldPlaceRightEdgeBelow -> true
                     shouldPlaceRightEdgeAbove -> false
                     else -> prob > 50

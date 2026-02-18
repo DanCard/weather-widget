@@ -33,7 +33,7 @@ class HourlyGraphLabelTest {
             createHour(now.plusHours(8), 47.0f)
         )
 
-        val drawnLabels = mutableListOf<String>()
+        val drawnLabels = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -41,7 +41,7 @@ class HourlyGraphLabelTest {
             widthPx = 1080, // Typical width
             heightPx = 400, // Typical height
             currentTime = now,
-            onLabelDrawn = { drawnLabels.add(it) }
+            onLabelPlaced = { drawnLabels.add(it) }
         )
 
         println("Labels: $drawnLabels")
@@ -51,7 +51,7 @@ class HourlyGraphLabelTest {
         // Given priority change, Local Min (44) MUST be drawn.
 
         // Check for 44
-        val drawn44 = drawnLabels.any { it.contains("DRAWN") && it.contains("val=44") }
+        val drawn44 = drawnLabels.any { it.temperature.toInt() == 44 }
         assertTrue("Local minimum (44) should be drawn. Actual: $drawnLabels", drawn44)
     }
 

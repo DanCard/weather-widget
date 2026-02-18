@@ -50,6 +50,7 @@ class HourlyTemperatureGraphLabelTest {
     fun lowLabel_isDrawnAtMinimumTemperature() {
         val temps = listOf(50f, 48f, 46f, 44f, 44f, 46f, 48f, 50f)
         val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -57,16 +58,17 @@ class HourlyTemperatureGraphLabelTest {
             widthPx = 700,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
         )
 
-        val logs = getHourlyGraphLogs()
-        assertTrue("Expected LOW label to be drawn at 44°\nLogs:\n$logs", logs.contains("DRAWN LOW") && logs.contains("temp=44.0"))
+        assertTrue("Expected LOW label to be drawn at 44°", placements.any { it.role == "LOW" && it.rawTemperature == 44f })
     }
 
     @Test
     fun highLabel_isDrawnAtMaximumTemperature() {
         val temps = listOf(44f, 46f, 48f, 51f, 51f, 49f, 47f, 44f)
         val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -74,10 +76,10 @@ class HourlyTemperatureGraphLabelTest {
             widthPx = 700,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
         )
 
-        val logs = getHourlyGraphLogs()
-        assertTrue("Expected HIGH label to be drawn at 51°\nLogs:\n$logs", logs.contains("DRAWN HIGH") && logs.contains("temp=51.0"))
+        assertTrue("Expected HIGH label to be drawn at 51°", placements.any { it.role == "HIGH" && it.rawTemperature == 51f })
     }
 
     @Test
@@ -85,6 +87,7 @@ class HourlyTemperatureGraphLabelTest {
         // Two consecutive 39° points at idx 6 and 7; label should center between them
         val temps = listOf(50f, 48f, 46f, 44f, 42f, 40f, 39f, 39f, 40f, 42f)
         val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -92,19 +95,14 @@ class HourlyTemperatureGraphLabelTest {
             widthPx = 700,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
         )
 
-        val logs = getHourlyGraphLogs()
-
-        // Extract LOW label x position
-        val lowLine = logs.lines().find { it.contains("DRAWN LOW") }
-        assertTrue("Expected LOW label to be drawn\nLogs:\n$logs", lowLine != null)
+        val lowPlacement = placements.find { it.role == "LOW" }
+        assertTrue("Expected LOW label to be drawn", lowPlacement != null)
 
         // With 10 points at 700px width, indices 6-7 are in the right portion of the graph.
-        // Use space-prefixed regex to avoid matching "idx=6" instead of the actual "x=..." field.
-        val xMatch = Regex(" x=([\\d.]+)").find(lowLine!!)
-        assertTrue("Expected x position in LOW log\nLine: $lowLine", xMatch != null)
-        val x = xMatch!!.groupValues[1].toFloat()
+        val x = lowPlacement!!.x
         assertTrue(
             "LOW label x=$x should be in right half of graph (past 350px of 700px)",
             x > 350f,
@@ -112,11 +110,12 @@ class HourlyTemperatureGraphLabelTest {
     }
 
     @Test
-    fun overlappingEndLabel_isSkipped() {
-        // Low near end of graph — END label should overlap with LOW and be skipped.
-        // Use narrow width (200px) so adjacent labels' bounding boxes overlap.
+    fun smartPlacement_avoidsOverlap_byTryingOtherSide() {
+        // Low near end of graph — previously END label would overlap with LOW and be skipped.
+        // Now, they can take opposite sides (one BELOW, one ABOVE) and both be drawn.
         val temps = listOf(50f, 48f, 46f, 44f, 42f, 41f, 40f, 39f, 39f, 40f)
         val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -124,11 +123,11 @@ class HourlyTemperatureGraphLabelTest {
             widthPx = 200,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
         )
 
-        val logs = getHourlyGraphLogs()
-        assertTrue("Expected LOW to be drawn\nLogs:\n$logs", logs.contains("DRAWN LOW"))
-        assertTrue("Expected END to be skipped due to overlap\nLogs:\n$logs", logs.contains("SKIPPED END"))
+        assertTrue("Expected LOW to be drawn", placements.any { it.role == "LOW" })
+        assertTrue("Expected END to be drawn (found other side)", placements.any { it.role == "END" })
     }
 
     @Test
@@ -136,6 +135,7 @@ class HourlyTemperatureGraphLabelTest {
         // Clear separation: low in middle, high later, start and end far apart
         val temps = listOf(55f, 50f, 45f, 40f, 45f, 50f, 60f, 65f, 70f, 68f, 65f, 60f)
         val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
 
         HourlyTemperatureGraphRenderer.renderGraph(
             context = context,
@@ -143,13 +143,79 @@ class HourlyTemperatureGraphLabelTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
         )
 
-        val logs = getHourlyGraphLogs()
-        assertTrue("Expected LOW to be drawn\nLogs:\n$logs", logs.contains("DRAWN LOW"))
-        assertTrue("Expected HIGH to be drawn\nLogs:\n$logs", logs.contains("DRAWN HIGH"))
-        assertTrue("Expected START to be drawn\nLogs:\n$logs", logs.contains("DRAWN START"))
-        assertTrue("Expected END to be drawn\nLogs:\n$logs", logs.contains("DRAWN END"))
+        assertTrue("Expected LOW to be drawn", placements.any { it.role == "LOW" })
+        assertTrue("Expected HIGH to be drawn", placements.any { it.role == "HIGH" })
+        assertTrue("Expected START to be drawn", placements.any { it.role == "START" })
+        assertTrue("Expected END to be drawn", placements.any { it.role == "END" })
+    }
+
+    @Test
+    fun highPeakLabel_isDrawnAbove_whenEnoughRoom() {
+        // High peak at 88 in range [40, 100]. High is at 88% of range.
+        val temps = listOf(40f, 50f, 60f, 70f, 88f, 70f, 60f, 40f)
+        val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+
+        // Use tall bitmap (400px) to ensure room above (12dp padding = 36-48px)
+        HourlyTemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 400,
+            currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
+        )
+
+        val highPlacement = placements.find { it.role == "HIGH" }
+        assertTrue("Expected HIGH label to be drawn", highPlacement != null)
+        assertTrue("Expected HIGH label to be placed ABOVE peak", highPlacement!!.placedAbove)
+    }
+
+    @Test
+    fun lowValleyLabel_isDrawnBelow_whenEnoughRoom() {
+        // Low valley at 12 in range [0, 100].
+        val temps = listOf(80f, 60f, 40f, 12f, 40f, 60f, 80f, 90f)
+        val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+
+        HourlyTemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 400,
+            currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
+        )
+
+        val lowPlacement = placements.find { it.role == "LOW" }
+        assertTrue("Expected LOW label to be drawn", lowPlacement != null)
+        assertFalse("Expected LOW label to be placed BELOW valley", lowPlacement!!.placedAbove)
+    }
+
+    @Test
+    fun peakLabel_fallsBackBelow_whenNoRoomAbove() {
+        // Peak at 98 in range [0, 100]. Very close to top edge.
+        val temps = listOf(0f, 50f, 98f, 50f, 0f)
+        val hours = buildHours(temps)
+        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+
+        // Use short bitmap (150px) to force off-screen if ABOVE
+        HourlyTemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 150,
+            currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
+            onLabelPlaced = { placements.add(it) }
+        )
+
+        val highPlacement = placements.find { it.role == "HIGH" }
+        assertTrue("Expected HIGH label to be drawn", highPlacement != null)
+        // Should fall back to BELOW because ABOVE is off-screen
+        assertFalse("Expected HIGH label to fall back BELOW when no room ABOVE", highPlacement!!.placedAbove)
     }
 
     private fun getHourlyGraphLogs(): String {
