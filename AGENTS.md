@@ -390,19 +390,13 @@ The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test 
 
 ## Git Conventions
 
-### Commit Message Format
-```
-Summary line
-
-• First detail point
-• Second detail point
-• Third detail point
-```
-
-- Use detailed commit messages with bullet points
-- Explain "why" not just "what"
-- Reference files when specific changes are notable
-- **Include all changes** when committing (modified files and untracked files including `learning/`, `plans/`, etc.)
+### Commit Message Strategy
+- **Foundation**: Use the technical "Summary of Changes" provided at the end of a task as the verbatim foundation for the commit message body.
+- **Format**:
+    - **First Line**: A concise, high-level summary (under 72 characters) in the imperative mood (e.g., "Improve graph label placement...").
+    - **Body**: The detailed summary, adjusted for plain-text (e.g., converting Markdown headers to bullet points or capitalized sections).
+- **Content**: Always explain the "why" and "how" (technical rationale) in addition to the "what."
+- **Scope**: Include all related changes (code, tests, documentation, and `plans/`).
 
 ## Architecture Reference
 
