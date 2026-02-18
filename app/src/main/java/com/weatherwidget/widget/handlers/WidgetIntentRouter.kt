@@ -319,8 +319,13 @@ object WidgetIntentRouter {
 
         if (newMode == com.weatherwidget.widget.ViewMode.HOURLY) {
             val now = LocalDateTime.now()
-            val startTime = now.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = now.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val offset = stateManager.getHourlyOffset(appWidgetId)
+            val centerTime = now.plusHours(offset.toLong())
+            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+            val startTime = roundedCenter.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = roundedCenter.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -330,7 +335,7 @@ object WidgetIntentRouter {
                     ?.precipProbability
 
             withContext(Dispatchers.Main) {
-                HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayPrecip)
+                HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             }
         } else {
             val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -376,8 +381,13 @@ object WidgetIntentRouter {
 
         if (newMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
             val now = LocalDateTime.now()
-            val startTime = now.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = now.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val offset = stateManager.getHourlyOffset(appWidgetId)
+            val centerTime = now.plusHours(offset.toLong())
+            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+            val startTime = roundedCenter.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = roundedCenter.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
 
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -387,7 +397,7 @@ object WidgetIntentRouter {
                     ?.precipProbability
 
             withContext(Dispatchers.Main) {
-                PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, now, todayPrecip)
+                PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             }
         } else {
             val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -421,8 +431,9 @@ object WidgetIntentRouter {
         if (targetMode == com.weatherwidget.widget.ViewMode.HOURLY ||
             targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
-            val offset = if (targetOffset != Int.MIN_VALUE) targetOffset else 0
-            stateManager.setHourlyOffset(appWidgetId, offset)
+            if (targetOffset != Int.MIN_VALUE) {
+                stateManager.setHourlyOffset(appWidgetId, targetOffset)
+            }
         }
         Log.d(TAG, "handleSetView: Set to $targetMode with offset $targetOffset for widget $appWidgetId")
 
