@@ -154,6 +154,7 @@ internal object GraphRenderUtils {
                 val prev = if (i > 0) current[i - 1] else current[i]
                 val curr = current[i]
                 val next = if (i < current.lastIndex) current[i + 1] else current[i]
+                
                 // Weighted average: 25% prev, 50% current, 25% next
                 smoothed.add(prev * 0.25f + curr * 0.5f + next * 0.25f)
             }
