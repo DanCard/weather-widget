@@ -86,9 +86,15 @@ class DayClickHelperTest {
     // ── calculatePrecipitationOffset ──
 
     @Test
-    fun `offset centers on 8am when current time is midnight`() {
+    fun `offset is zero for today regardless of time`() {
         val now = LocalDateTime.of(2024, 6, 15, 0, 0)
-        assertEquals(8, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 15)))
+        assertEquals(0, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 15)))
+        
+        val now2 = LocalDateTime.of(2024, 6, 15, 14, 0)
+        assertEquals(0, DayClickHelper.calculatePrecipitationOffset(now2, LocalDate.of(2024, 6, 15)))
+        
+        val now3 = LocalDateTime.of(2024, 6, 15, 10, 45)
+        assertEquals(0, DayClickHelper.calculatePrecipitationOffset(now3, LocalDate.of(2024, 6, 15)))
     }
 
     @Test
@@ -98,21 +104,16 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `offset is negative when past 8am`() {
+    fun `offset remains calculated for future days`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(-6, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 15)))
+        // Tomorrow 8am is 18 hours from today 2pm
+        assertEquals(18, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
     fun `offset is positive for tomorrow`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
         assertEquals(18, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
-    }
-
-    @Test
-    fun `offset truncates minutes from current time`() {
-        val now = LocalDateTime.of(2024, 6, 15, 10, 45)
-        assertEquals(-2, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 15)))
     }
 
     // ── End-to-end: daily precip + hourly data drive click decision ──

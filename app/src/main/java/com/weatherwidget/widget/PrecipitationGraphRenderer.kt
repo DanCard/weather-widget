@@ -443,23 +443,6 @@ object PrecipitationGraphRenderer {
             val isIntervalCandidate = candidate.priority >= 5
             if (!isMandatory && isIntervalCandidate && labelsPlaced >= 3) continue
 
-            // Skip non-mandatory labels too close to an already-placed label (time spacing)
-            if (!isMandatory && labeledIndices.any { abs(it - index) <= 2 }) continue
-
-            // VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours.
-            // However, always allow mandatory labels (important peaks/valleys) to bypass this.
-            val isFeatureLabel = isPeak || isValley || isEarlyAnchor
-            if (!isMandatory && !isFeatureLabel && labeledIndices.any { labelSignal[it] == prob && abs(it - index) <= 5 }) {
-                Log.d("PrecipGraph", "SKIPPED redundant value label: $prob% at idx=$index")
-                continue
-            }
-
-            // VALUE SEPARATION: skip non-mandatory labels too close in value to nearby placed labels
-            if (!isMandatory && !isFeatureLabel && labeledIndices.any { abs(it - index) <= 6 && abs(labelSignal[it] - prob) < 15 }) {
-                Log.d("PrecipGraph", "SKIPPED low-separation label: $prob% at idx=$index")
-                continue
-            }
-
             // Detect "dip regions": the point sits in a trough where notably higher
             // values exist within ±5 hours on BOTH sides.  Even if this exact index
             // isn't the strict local minimum, the visual curve dips here.
@@ -590,10 +573,39 @@ object PrecipitationGraphRenderer {
                     shouldPlaceRightEdgeAbove -> false
                     else -> prob > 50
                 }
+
+            // --- DE-CLUTTER & PLATEAU DE-DUPLICATION ---
+            
+            // 1. ABSOLUTE SKIP: Never place two labels at the exact same anchor point (e.g. same plateau center)
+            if (labeledIndices.contains(anchorIdx)) {
+                Log.d("PrecipGraph", "SKIPPED: Anchor point $anchorIdx already labeled")
+                continue
+            }
+
+            // 2. PROXIMITY SKIP: Skip non-mandatory labels too close to an already-placed label (time spacing)
+            if (!isMandatory && labeledIndices.any { abs(it - anchorIdx) <= 2 }) {
+                Log.d("PrecipGraph", "SKIPPED: Proximity to existing labels for idx=$index (anchor=$anchorIdx)")
+                continue
+            }
+
+            // 3. VALUE DE-DUPLICATION: Skip if we already labeled this exact % within 5 hours.
+            // However, always allow mandatory labels (important peaks/valleys) to bypass this.
+            val isFeatureLabel = isPeak || isValley || isEarlyAnchor
+            if (!isMandatory && !isFeatureLabel && labeledIndices.any { labelSignal[it] == prob && abs(it - anchorIdx) <= 5 }) {
+                Log.d("PrecipGraph", "SKIPPED redundant value label: $prob% at idx=$index")
+                continue
+            }
+
+            // 4. VALUE SEPARATION: skip non-mandatory labels too close in value to nearby placed labels
+            if (!isMandatory && !isFeatureLabel && labeledIndices.any { abs(it - anchorIdx) <= 6 && abs(labelSignal[it] - prob) < 15 }) {
+                Log.d("PrecipGraph", "SKIPPED low-separation label: $prob% at idx=$index")
+                continue
+            }
+
             val attempts =
                 listOf(
-                    Pair(0f, !preferBelow),
                     Pair(0f, preferBelow),
+                    Pair(0f, !preferBelow),
                 )
 
             Log.d(
@@ -657,7 +669,7 @@ object PrecipitationGraphRenderer {
                 )
                 canvas.drawText(labelText, x, baselineY, percentLabelPaint)
                 drawnLabelBounds.add(bounds)
-                labeledIndices.add(index)
+                labeledIndices.add(anchorIdx)
                 labelsPlaced++
                 break
             }
