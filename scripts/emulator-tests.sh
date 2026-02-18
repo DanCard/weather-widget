@@ -109,7 +109,7 @@ if [ ! -f "$ADB_BIN" ]; then
     exit 1
 fi
 
-echo -en "  ${BLUE}$SDK_ROOT${NC} "
+echo -en "${BLUE}$SDK_ROOT${NC} "
 debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
@@ -133,7 +133,7 @@ if [ -z "$EMULATOR_NAME" ]; then
     fi
 fi
 
-echo -e "${BLUE}Selected emulator: $EMULATOR_NAME${NC}"
+echo -e "${BLUE}Selected: $EMULATOR_NAME${NC}"
 
 # Function to cleanup emulator
 cleanup() {
@@ -159,7 +159,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Check if emulator is already running (ignore physical devices like Samsung)
-echo -en "${BLUE}Checking for existing emulators...${NC}\t"
+echo -en "${BLUE}Existing emulators:${NC} "
 # Filter for emulator-* only, ignore physical devices
 EXISTING_EMU=$($ADB_BIN devices | grep "emulator-" | grep "device$" | cut -f1 | head -1)
 
@@ -175,7 +175,7 @@ $ADB_BIN devices | grep -v "List of devices" | grep "device$" | while read -r li
 done
 
 if [ -n "$EXISTING_EMU" ]; then
-    echo -en "${YELLOW}Found running emulator: $EXISTING_EMU${NC} \t"
+    echo -en "${YELLOW}Active: $EXISTING_EMU${NC} \t"
     USE_EXISTING=true
     EMULATOR_SERIAL="$EXISTING_EMU"
 else
@@ -245,9 +245,10 @@ if [ "$USE_EXISTING" = false ]; then
 fi
 
 # Show device info
-echo -en "${BLUE}Device info:${NC} \t"
-$ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null || echo "  Model: Unknown"
-$ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Android: Unknown"
+MODEL=$($ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
+echo -en "${BLUE}Device info: product model:${NC} ${MODEL:-Unknown}   Android build version: "
+$ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
+
 
 # Run tests
 
@@ -260,12 +261,12 @@ EMULATOR_DEVICES=$(echo "$ALL_DEVICES" | grep "^emulator-" | head -1)
 
 if [ -n "$EMULATOR_SERIAL" ]; then
     # We already have an emulator from earlier (started by this script or existing)
-    echo -en "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC} \t"
+    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC} "
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 elif [ -n "$EMULATOR_DEVICES" ]; then
     # Use first emulator found
     EMULATOR_SERIAL="$EMULATOR_DEVICES"
-    echo -en "${GREEN}Targeting emulator: $EMULATOR_SERIAL${NC} \t"
+    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC} "
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 else
     echo -e "${RED}Error: No emulator found${NC}"
