@@ -60,10 +60,123 @@ class WidgetStateManagerTest {
     fun `togglePrecipitationMode from DAILY to PRECIPITATION resets offset`() {
         val widgetId = 1
         every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.DAILY.ordinal
-        
+
         stateManager.togglePrecipitationMode(widgetId)
-        
+
         verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.PRECIPITATION.ordinal) }
         verify { editor.putInt("widget_hourly_offset_$widgetId", 0) }
+    }
+
+    // --- Zoom level tests ---
+
+    @Test
+    fun `getZoomLevel defaults to WIDE`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.WIDE.ordinal
+
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(widgetId))
+    }
+
+    @Test
+    fun `cycleZoomLevel toggles WIDE to NARROW`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.WIDE.ordinal
+
+        val result = stateManager.cycleZoomLevel(widgetId)
+
+        assertEquals(ZoomLevel.NARROW, result)
+        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.NARROW.ordinal) }
+    }
+
+    @Test
+    fun `cycleZoomLevel toggles NARROW back to WIDE`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+
+        val result = stateManager.cycleZoomLevel(widgetId)
+
+        assertEquals(ZoomLevel.WIDE, result)
+        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+    }
+
+    @Test
+    fun `getNavJump returns zoom-appropriate value`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.WIDE.ordinal
+        assertEquals(6, stateManager.getNavJump(widgetId))
+
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+        assertEquals(2, stateManager.getNavJump(widgetId))
+    }
+
+    @Test
+    fun `navigateHourlyRight uses zoom-aware nav jump`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_hourly_offset_$widgetId", any()) } returns 0
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+
+        val result = stateManager.navigateHourlyRight(widgetId)
+
+        assertEquals(2, result)
+        verify { editor.putInt("widget_hourly_offset_$widgetId", 2) }
+    }
+
+    @Test
+    fun `navigateHourlyLeft uses zoom-aware nav jump`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_hourly_offset_$widgetId", any()) } returns 6
+        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+
+        val result = stateManager.navigateHourlyLeft(widgetId)
+
+        assertEquals(4, result)
+        verify { editor.putInt("widget_hourly_offset_$widgetId", 4) }
+    }
+
+    @Test
+    fun `toggleViewMode to DAILY resets zoom to WIDE`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.HOURLY.ordinal
+
+        stateManager.toggleViewMode(widgetId)
+
+        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.DAILY.ordinal) }
+        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+    }
+
+    @Test
+    fun `togglePrecipitationMode to DAILY resets zoom to WIDE`() {
+        val widgetId = 1
+        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.PRECIPITATION.ordinal
+
+        stateManager.togglePrecipitationMode(widgetId)
+
+        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.DAILY.ordinal) }
+        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+    }
+
+    @Test
+    fun `clearWidgetState removes zoom level`() {
+        val widgetId = 1
+        every { prefs.all } returns emptyMap<String, Any>()
+
+        stateManager.clearWidgetState(widgetId)
+
+        verify { editor.remove("widget_zoom_level_$widgetId") }
+    }
+
+    @Test
+    fun `ZoomLevel enum has correct parameters`() {
+        assertEquals(8L, ZoomLevel.WIDE.backHours)
+        assertEquals(16L, ZoomLevel.WIDE.forwardHours)
+        assertEquals(6, ZoomLevel.WIDE.navJump)
+        assertEquals(4, ZoomLevel.WIDE.labelInterval)
+        assertEquals(2, ZoomLevel.WIDE.precipSmoothIterations)
+
+        assertEquals(2L, ZoomLevel.NARROW.backHours)
+        assertEquals(3L, ZoomLevel.NARROW.forwardHours)
+        assertEquals(2, ZoomLevel.NARROW.navJump)
+        assertEquals(1, ZoomLevel.NARROW.labelInterval)
+        assertEquals(0, ZoomLevel.NARROW.precipSmoothIterations)
     }
 }

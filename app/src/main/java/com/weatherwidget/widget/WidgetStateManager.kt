@@ -26,6 +26,17 @@ enum class ViewMode {
     PRECIPITATION, // Hourly precipitation probability graph
 }
 
+enum class ZoomLevel(
+    val backHours: Long,
+    val forwardHours: Long,
+    val navJump: Int,
+    val labelInterval: Int,
+    val precipSmoothIterations: Int,
+) {
+    WIDE(backHours = 8, forwardHours = 16, navJump = 6, labelInterval = 4, precipSmoothIterations = 2),
+    NARROW(backHours = 2, forwardHours = 3, navJump = 2, labelInterval = 1, precipSmoothIterations = 0),
+}
+
 @Singleton
 class WidgetStateManager
     @Inject
@@ -41,12 +52,13 @@ class WidgetStateManager
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
             private const val KEY_RAIN_SHOWN_DATE_PREFIX = "widget_rain_shown_date_"
+            private const val KEY_ZOOM_LEVEL_PREFIX = "widget_zoom_level_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
             const val MIN_HOURLY_OFFSET = -8 // Allow scrolling to see 16h of history (8h default + 8h scroll)
             const val MAX_HOURLY_OFFSET = 96 // Allow navigating up to 4 days into the future
-            const val HOURLY_NAV_JUMP = 6 // Navigate in 6-hour chunks
+            const val HOURLY_NAV_JUMP = 6 // Navigate in 6-hour chunks (default, use getNavJump for zoom-aware)
 
             @Deprecated("Use WeatherSource.NWS.displayName instead", ReplaceWith("WeatherSource.NWS.displayName"))
             const val SOURCE_NWS = "NWS"
@@ -125,6 +137,7 @@ class WidgetStateManager
                 .remove("$KEY_VIEW_MODE_PREFIX$widgetId")
                 .remove("$KEY_HOURLY_OFFSET_PREFIX$widgetId")
                 .remove("$KEY_RAIN_SHOWN_DATE_PREFIX$widgetId")
+                .remove("$KEY_ZOOM_LEVEL_PREFIX$widgetId")
                 .apply()
         }
 
@@ -168,6 +181,10 @@ class WidgetStateManager
             if (newMode == ViewMode.HOURLY && currentMode == ViewMode.DAILY) {
                 setHourlyOffset(widgetId, 0)
             }
+            // Reset zoom when switching back to DAILY
+            if (newMode == ViewMode.DAILY) {
+                setZoomLevel(widgetId, ZoomLevel.WIDE)
+            }
             return newMode
         }
 
@@ -178,6 +195,10 @@ class WidgetStateManager
             // Reset hourly offset only when entering precipitation mode FROM DAILY
             if (newMode == ViewMode.PRECIPITATION && currentMode == ViewMode.DAILY) {
                 setHourlyOffset(widgetId, 0)
+            }
+            // Reset zoom when switching back to DAILY
+            if (newMode == ViewMode.DAILY) {
+                setZoomLevel(widgetId, ZoomLevel.WIDE)
             }
             return newMode
         }
@@ -197,14 +218,16 @@ class WidgetStateManager
 
         fun navigateHourlyLeft(widgetId: Int): Int {
             val currentOffset = getHourlyOffset(widgetId)
-            val newOffset = (currentOffset - HOURLY_NAV_JUMP).coerceAtLeast(MIN_HOURLY_OFFSET)
+            val jump = getNavJump(widgetId)
+            val newOffset = (currentOffset - jump).coerceAtLeast(MIN_HOURLY_OFFSET)
             setHourlyOffset(widgetId, newOffset)
             return newOffset
         }
 
         fun navigateHourlyRight(widgetId: Int): Int {
             val currentOffset = getHourlyOffset(widgetId)
-            val newOffset = (currentOffset + HOURLY_NAV_JUMP).coerceAtMost(MAX_HOURLY_OFFSET)
+            val jump = getNavJump(widgetId)
+            val newOffset = (currentOffset + jump).coerceAtMost(MAX_HOURLY_OFFSET)
             setHourlyOffset(widgetId, newOffset)
             return newOffset
         }
@@ -215,6 +238,30 @@ class WidgetStateManager
 
         fun canNavigateHourlyRight(widgetId: Int): Boolean {
             return getHourlyOffset(widgetId) < MAX_HOURLY_OFFSET
+        }
+
+        // Zoom level management
+        fun getZoomLevel(widgetId: Int): ZoomLevel {
+            val ordinal = prefs.getInt("$KEY_ZOOM_LEVEL_PREFIX$widgetId", ZoomLevel.WIDE.ordinal)
+            return ZoomLevel.entries.getOrElse(ordinal) { ZoomLevel.WIDE }
+        }
+
+        fun setZoomLevel(widgetId: Int, zoom: ZoomLevel) {
+            prefs.edit().putInt("$KEY_ZOOM_LEVEL_PREFIX$widgetId", zoom.ordinal).apply()
+        }
+
+        fun cycleZoomLevel(widgetId: Int): ZoomLevel {
+            val current = getZoomLevel(widgetId)
+            val next = when (current) {
+                ZoomLevel.WIDE -> ZoomLevel.NARROW
+                ZoomLevel.NARROW -> ZoomLevel.WIDE
+            }
+            setZoomLevel(widgetId, next)
+            return next
+        }
+
+        fun getNavJump(widgetId: Int): Int {
+            return getZoomLevel(widgetId).navJump
         }
 
         /**

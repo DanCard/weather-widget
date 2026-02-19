@@ -36,6 +36,7 @@ object HourlyViewHandler {
     private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
     private const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
     private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
+    private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
 
     /**
      * Update widget with hourly temperature data.
@@ -57,19 +58,21 @@ object HourlyViewHandler {
 
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
-        // Hourly mode: hide graph day zones, keep settings click on graph_view
+        // Hourly mode: hide graph day zones, set tap on graph to cycle zoom
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
-        // Set tap to open settings on graph_view
-        val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
-        val settingsPendingIntent =
-            PendingIntent.getActivity(
-                context,
-                0,
-                settingsIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
+        // Set tap to cycle zoom on graph_view
+        val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = ACTION_CYCLE_ZOOM
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+        val zoomPendingIntent = PendingIntent.getBroadcast(
+            context,
+            appWidgetId * 2 + 400,
+            zoomIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
 
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
@@ -138,7 +141,8 @@ object HourlyViewHandler {
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
             // Build hour data list for graph
-            val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
+            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
 
             // Use actual widget dimensions for bitmap
             // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
@@ -302,6 +306,7 @@ object HourlyViewHandler {
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
+        zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
     ): List<HourlyTemperatureGraphRenderer.HourData> {
         val hours = mutableListOf<HourlyTemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
@@ -319,10 +324,10 @@ object HourlyViewHandler {
         // Round to nearest hour
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(8)
-        val endHour = alignedCenter.plusHours(16)
+        val startHour = alignedCenter.minusHours(zoom.backHours)
+        val endHour = alignedCenter.plusHours(zoom.forwardHours)
 
-        val labelInterval = 4
+        val labelInterval = zoom.labelInterval
 
         var currentHour = startHour
         var hourIndex = 0

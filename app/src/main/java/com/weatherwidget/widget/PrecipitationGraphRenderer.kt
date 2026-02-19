@@ -64,6 +64,8 @@ object PrecipitationGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
+        smoothIterations: Int = 2,
+        hourLabelSpacingDp: Float = 28f,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
@@ -160,7 +162,7 @@ object PrecipitationGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = 2)
+        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = smoothIterations)
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2f
@@ -175,7 +177,7 @@ object PrecipitationGraphRenderer {
         canvas.drawPath(curvePath, curvePaint)
 
         // --- Draw labels and current-time indicator ---
-        val minHourLabelSpacing = dpToPx(context, 28f)
+        val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
 
         // Track NOW x-position
         val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
@@ -441,7 +443,8 @@ object PrecipitationGraphRenderer {
             // Once we already have a few stronger labels (extrema/anchors/edges),
             // skip interval candidates to avoid clutter like arbitrary mid-curve points.
             val isIntervalCandidate = candidate.priority >= 5
-            if (!isMandatory && isIntervalCandidate && labelsPlaced >= 3) continue
+            val intervalCap = if (hours.size <= 8) 5 else 3
+            if (!isMandatory && isIntervalCandidate && labelsPlaced >= intervalCap) continue
 
             // Detect "dip regions": the point sits in a trough where notably higher
             // values exist within ±5 hours on BOTH sides.  Even if this exact index
@@ -583,7 +586,8 @@ object PrecipitationGraphRenderer {
             }
 
             // 2. PROXIMITY SKIP: Skip non-mandatory labels too close to an already-placed label (time spacing)
-            if (!isMandatory && labeledIndices.any { abs(it - anchorIdx) <= 2 }) {
+            val proximityThreshold = if (hours.size <= 8) 1 else 2
+            if (!isMandatory && labeledIndices.any { abs(it - anchorIdx) <= proximityThreshold }) {
                 Log.d("PrecipGraph", "SKIPPED: Proximity to existing labels for idx=$index (anchor=$anchorIdx)")
                 continue
             }
@@ -597,7 +601,8 @@ object PrecipitationGraphRenderer {
             }
 
             // 4. VALUE SEPARATION: skip non-mandatory labels too close in value to nearby placed labels
-            if (!isMandatory && !isFeatureLabel && labeledIndices.any { abs(it - anchorIdx) <= 6 && abs(labelSignal[it] - prob) < 15 }) {
+            val valueSepWindow = if (hours.size <= 8) 1 else 6
+            if (!isMandatory && !isFeatureLabel && labeledIndices.any { abs(it - anchorIdx) <= valueSepWindow && abs(labelSignal[it] - prob) < 15 }) {
                 Log.d("PrecipGraph", "SKIPPED low-separation label: $prob% at idx=$index")
                 continue
             }

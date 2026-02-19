@@ -35,6 +35,7 @@ object PrecipViewHandler {
     private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
     private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
     private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
+    private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
 
     /**
@@ -60,16 +61,18 @@ object PrecipViewHandler {
         // Hide graph day zones (not used in precipitation mode)
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
-        // Set tap to open settings on graph_view
-        val settingsIntent = Intent(context, com.weatherwidget.ui.SettingsActivity::class.java)
-        val settingsPendingIntent =
-            PendingIntent.getActivity(
-                context,
-                0,
-                settingsIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.graph_view, settingsPendingIntent)
+        // Set tap to cycle zoom on graph_view
+        val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = ACTION_CYCLE_ZOOM
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+        val zoomPendingIntent = PendingIntent.getBroadcast(
+            context,
+            appWidgetId * 2 + 400,
+            zoomIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
 
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
@@ -166,7 +169,8 @@ object PrecipViewHandler {
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
             // Build precipitation hour data list
-            val hours = buildPrecipHourDataList(hourlyForecasts, centerTime, numColumns, displaySource)
+            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val hours = buildPrecipHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
 
             // Use actual widget dimensions for bitmap
             // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
@@ -182,7 +186,8 @@ object PrecipViewHandler {
                 )
 
             // Render precipitation graph
-            val bitmap = PrecipitationGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale)
+            val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
+            val bitmap = PrecipitationGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale, smoothIterations = zoom.precipSmoothIterations, hourLabelSpacingDp = hourLabelSpacingDp)
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -293,6 +298,7 @@ object PrecipViewHandler {
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
+        zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
     ): List<PrecipitationGraphRenderer.PrecipHourData> {
         val hours = mutableListOf<PrecipitationGraphRenderer.PrecipHourData>()
         val now = LocalDateTime.now()
@@ -306,13 +312,13 @@ object PrecipViewHandler {
                     preferred ?: gap ?: entry.value.firstOrNull()
                 }
 
-        // Same time window as hourly graph: 8h back + 16h forward
+        // Time window based on zoom level
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(8)
-        val endHour = alignedCenter.plusHours(16)
+        val startHour = alignedCenter.minusHours(zoom.backHours)
+        val endHour = alignedCenter.plusHours(zoom.forwardHours)
 
-        val labelInterval = 4
+        val labelInterval = zoom.labelInterval
         var currentHour = startHour
         var hourIndex = 0
 

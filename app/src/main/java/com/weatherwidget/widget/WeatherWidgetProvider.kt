@@ -193,6 +193,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_TOGGLE_API -> handleToggleApiAction(context, intent)
             ACTION_TOGGLE_VIEW -> handleToggleViewAction(context, intent)
             ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
+            ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
         }
@@ -366,6 +367,28 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    private fun handleCycleZoomAction(
+        context: Context,
+        intent: Intent,
+    ) {
+        val appWidgetId =
+            intent.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID,
+            )
+        Log.d(TAG, "onReceive: Cycle Zoom action for widget $appWidgetId")
+        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            val pendingResult = goAsync()
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    WidgetIntentRouter.handleCycleZoom(context, appWidgetId)
+                } finally {
+                    pendingResult.finish()
+                }
+            }
+        }
+    }
+
     private fun handleSetViewAction(
         context: Context,
         intent: Intent,
@@ -474,6 +497,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
         const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
         const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
+        const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
         const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
