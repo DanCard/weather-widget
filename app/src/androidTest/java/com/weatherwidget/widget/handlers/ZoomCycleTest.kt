@@ -1,14 +1,19 @@
 package com.weatherwidget.widget.handlers
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -128,6 +133,55 @@ class ZoomCycleTest {
     }
 
     @Test
+    fun handleCycleZoom_withOffset_recentersOnZoomIn() {
+        stateManager.setHourlyOffset(testWidgetId, 0)
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+
+        // Simulate tapping zone 8 (center = 0 + (-7 + 2*8) = +9 hours)
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 9)
+            } catch (_: Exception) {}
+        }
+        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
+    }
+
+    @Test
+    fun handleCycleZoom_withoutOffset_keepsCurrentOffset() {
+        stateManager.setHourlyOffset(testWidgetId, 5)
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+
+        // Zoom in without offset (e.g. from NARROW back out)
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = null)
+            } catch (_: Exception) {}
+        }
+        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        // Offset unchanged
+        assertEquals(5, stateManager.getHourlyOffset(testWidgetId))
+    }
+
+    @Test
+    fun handleCycleZoom_zoomOut_ignoresOffset() {
+        // Start in NARROW zoom
+        stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        stateManager.setHourlyOffset(testWidgetId, 9)
+
+        // Zoom out — offset param should be ignored since we're going NARROW→WIDE
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
+            } catch (_: Exception) {}
+        }
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        // Offset should remain 9, not changed to 0
+        assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
+    }
+
+    @Test
     fun navJump_scalesWithZoom() {
         // WIDE: 6h jumps
         assertEquals(6, stateManager.getNavJump(testWidgetId))
@@ -164,5 +218,109 @@ class ZoomCycleTest {
 
         stateManager.clearWidgetState(testWidgetId)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+    }
+
+    // --- Integration tests: zone intent round-trip ---
+
+    /**
+     * Simulates the full zone tap flow:
+     * 1. Build intent the same way setupZoomTapZones does (using zoneIndexToOffset)
+     * 2. Extract the extra the same way handleCycleZoomAction does
+     * 3. Pass through handleCycleZoom
+     * 4. Verify final state
+     */
+    @Test
+    fun zoneIntentRoundTrip_allZones_producesCorrectOffsets() {
+        val baseOffset = 0
+        stateManager.setHourlyOffset(testWidgetId, baseOffset)
+
+        // WIDE view spans -8..+16 from baseOffset; 12 zones of 2h each
+        // Zone centers: -7, -5, -3, -1, +1, +3, +5, +7, +9, +11, +13, +15
+        val expectedOffsets = listOf(-7, -5, -3, -1, 1, 3, 5, 7, 9, 11, 13, 15)
+
+        for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
+            // Reset to WIDE zoom for each zone test
+            stateManager.clearWidgetState(testWidgetId)
+            stateManager.setViewMode(testWidgetId, ViewMode.HOURLY)
+            stateManager.setHourlyOffset(testWidgetId, baseOffset)
+            assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+
+            // Step 1: Build intent (same as setupZoomTapZones)
+            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, baseOffset)
+            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
+                putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+            }
+
+            // Step 2: Extract extra (same as handleCycleZoomAction)
+            val extractedOffset = if (intent.hasExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET)) {
+                intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
+            } else {
+                null
+            }
+
+            // Step 3: Pass through router
+            runBlocking {
+                try {
+                    WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
+                } catch (_: Exception) {}
+            }
+
+            // Step 4: Verify
+            assertEquals("Zone $zoneIndex should zoom to NARROW", ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+            assertEquals("Zone $zoneIndex offset", expectedOffsets[zoneIndex], stateManager.getHourlyOffset(testWidgetId))
+        }
+    }
+
+    @Test
+    fun zoneIntentRoundTrip_withNonZeroBaseOffset_addsCorrectly() {
+        val baseOffset = 6  // User has navigated 6h forward
+        stateManager.setHourlyOffset(testWidgetId, baseOffset)
+
+        // Tap zone 0 (leftmost): should center on baseOffset + (-7) = -1
+        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset)
+        val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
+            putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+        }
+
+        val extractedOffset = intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
+
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
+            } catch (_: Exception) {}
+        }
+
+        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(-1, stateManager.getHourlyOffset(testWidgetId))
+    }
+
+    @Test
+    fun zoneIntentRoundTrip_narrowZoomOut_noOffsetExtra() {
+        // Start in NARROW
+        stateManager.cycleZoomLevel(testWidgetId)
+        stateManager.setHourlyOffset(testWidgetId, 9)
+
+        // Build intent without EXTRA_ZOOM_CENTER_OFFSET (same as NARROW tap)
+        val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
+        }
+
+        // Extract: should be null since no extra
+        assertFalse(intent.hasExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET))
+        val extractedOffset: Int? = null
+
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
+            } catch (_: Exception) {}
+        }
+
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
+        assertEquals(9, stateManager.getHourlyOffset(testWidgetId))  // Preserved
     }
 }

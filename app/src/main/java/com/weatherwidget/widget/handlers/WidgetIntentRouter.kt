@@ -236,10 +236,21 @@ object WidgetIntentRouter {
     suspend fun handleCycleZoom(
         context: Context,
         appWidgetId: Int,
+        zoomCenterOffset: Int? = null,
     ) {
         val stateManager = WidgetStateManager(context)
+        val oldZoom = stateManager.getZoomLevel(appWidgetId)
         val newZoom = stateManager.cycleZoomLevel(appWidgetId)
-        Log.d(TAG, "handleCycleZoom: Cycled to $newZoom for widget $appWidgetId")
+
+        // When zooming IN (WIDE→NARROW) and a center offset was provided, re-center
+        if (oldZoom == com.weatherwidget.widget.ZoomLevel.WIDE &&
+            newZoom == com.weatherwidget.widget.ZoomLevel.NARROW &&
+            zoomCenterOffset != null
+        ) {
+            stateManager.setHourlyOffset(appWidgetId, zoomCenterOffset)
+            Log.d(TAG, "handleCycleZoom: Re-centered to offset $zoomCenterOffset for widget $appWidgetId")
+        }
+        Log.d(TAG, "handleCycleZoom: Cycled $oldZoom→$newZoom for widget $appWidgetId")
 
         val database = WeatherDatabase.getDatabase(context)
         val hourlyDao = database.hourlyForecastDao()

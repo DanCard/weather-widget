@@ -184,6 +184,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
             views.setViewVisibility(R.id.graph_day_zones, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
 
             // Build day data for graph with offset
             // In evening mode, skip history to show today with forecast comparison
@@ -237,6 +238,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
 
             // Text mode - set visibility and populate
             val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, skipHistory, stateManager, appWidgetId)

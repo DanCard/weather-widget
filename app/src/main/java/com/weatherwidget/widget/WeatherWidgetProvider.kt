@@ -376,12 +376,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 AppWidgetManager.EXTRA_APPWIDGET_ID,
                 AppWidgetManager.INVALID_APPWIDGET_ID,
             )
-        Log.d(TAG, "onReceive: Cycle Zoom action for widget $appWidgetId")
+        val zoomCenterOffset = if (intent.hasExtra(EXTRA_ZOOM_CENTER_OFFSET)) {
+            intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
+        } else {
+            null
+        }
+        Log.d(TAG, "onReceive: Cycle Zoom action for widget $appWidgetId, centerOffset=$zoomCenterOffset")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    WidgetIntentRouter.handleCycleZoom(context, appWidgetId)
+                    WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset)
                 } finally {
                     pendingResult.finish()
                 }
@@ -502,6 +507,19 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
+        const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
+        const val HOUR_ZONE_COUNT = 12
+
+        /**
+         * Calculate the hourly offset that a zone's center represents.
+         * WIDE view spans 24h (-8 to +16 from current offset), split into 12 zones of 2h each.
+         * @param zoneIndex 0-based zone index (0..11, left to right)
+         * @param currentHourlyOffset the widget's current hourly offset
+         * @return the offset to center on when zooming into this zone
+         */
+        fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int): Int {
+            return currentHourlyOffset + (-7 + 2 * zoneIndex)
+        }
         private const val TAG = "WeatherWidgetProvider"
 
         /**

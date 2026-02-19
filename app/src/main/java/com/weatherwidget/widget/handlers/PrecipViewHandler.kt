@@ -61,18 +61,10 @@ object PrecipViewHandler {
         // Hide graph day zones (not used in precipitation mode)
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
-        // Set tap to cycle zoom on graph_view
-        val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_CYCLE_ZOOM
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        }
-        val zoomPendingIntent = PendingIntent.getBroadcast(
-            context,
-            appWidgetId * 2 + 400,
-            zoomIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
+        // Set up zoom tap zones
+        val zoom = stateManager.getZoomLevel(appWidgetId)
+        val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+        setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
 
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
@@ -169,7 +161,6 @@ object PrecipViewHandler {
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
             // Build precipitation hour data list
-            val zoom = stateManager.getZoomLevel(appWidgetId)
             val hours = buildPrecipHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
 
             // Use actual widget dimensions for bitmap
@@ -217,6 +208,55 @@ object PrecipViewHandler {
                     ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
                     ?: forecasts.firstOrNull()
             }?.condition
+    }
+
+    private val HOUR_ZONE_IDS = listOf(
+        R.id.graph_hour_zone_0, R.id.graph_hour_zone_1, R.id.graph_hour_zone_2,
+        R.id.graph_hour_zone_3, R.id.graph_hour_zone_4, R.id.graph_hour_zone_5,
+        R.id.graph_hour_zone_6, R.id.graph_hour_zone_7, R.id.graph_hour_zone_8,
+        R.id.graph_hour_zone_9, R.id.graph_hour_zone_10, R.id.graph_hour_zone_11,
+    )
+
+    private fun setupZoomTapZones(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+        hourlyOffset: Int,
+    ) {
+        if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE) {
+            views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
+            views.setOnClickPendingIntent(R.id.graph_view, null)
+
+            HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
+                val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset)
+                val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                    action = ACTION_CYCLE_ZOOM
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+                }
+                val pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId * 100 + 500 + i,
+                    zoomIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+                views.setOnClickPendingIntent(zoneId, pendingIntent)
+            }
+        } else {
+            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_CYCLE_ZOOM
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val zoomPendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId * 2 + 400,
+                zoomIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
+        }
     }
 
     private fun setupNavigationButtons(

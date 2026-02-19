@@ -514,6 +514,101 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Graph hour touch zones (for per-zone click handling in hourly/precip graph mode) -->
+    <LinearLayout
+        android:id="@+id/graph_hour_zones"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_0"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_4"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_5"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_6"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_7"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_8"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_9"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_10"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_hour_zone_11"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent" />
+    </LinearLayout>
+
     <!-- Left navigation touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
