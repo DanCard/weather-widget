@@ -8,7 +8,7 @@ import java.time.LocalDateTime
 
 object HourlyTemperatureGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
-    private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2f
+    private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 1.5f
 
     data class HourData(
         val dateTime: LocalDateTime,
@@ -198,10 +198,12 @@ object HourlyTemperatureGraphRenderer {
                 pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
             }
 
+        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+
         val hourLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#99FFFFFF")
-                textSize = dpToPx(context, 13.0f)
+                textSize = dpToPx(context, 19.5f * labelScale)
                 textAlign = Paint.Align.CENTER
                 setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
             }
@@ -209,7 +211,7 @@ object HourlyTemperatureGraphRenderer {
         val tempLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#FFFFFF")
-                textSize = dpToPx(context, 13.0f)
+                textSize = dpToPx(context, 19.5f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
                 setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
@@ -218,7 +220,7 @@ object HourlyTemperatureGraphRenderer {
         val nowLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#BBFF9F0A") // ~73% alpha for lighter feel
-                textSize = dpToPx(context, 11.0f)
+                textSize = dpToPx(context, 16.5f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
                 setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
@@ -252,7 +254,7 @@ object HourlyTemperatureGraphRenderer {
         canvas.drawPath(curvePath, curvePaint)
 
         // --- Draw labels, icons, current-time indicator ---
-        val minHourLabelSpacing = dpToPx(context, 28f)
+        val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
 
         // Compute NOW x-position early (needed for label proximity suppression)
         val nowX =
@@ -314,29 +316,27 @@ object HourlyTemperatureGraphRenderer {
 
         val localExtrema = findLocalExtremaIndices()
 
-        fun nearestDifferentValue(
-            fromIndex: Int,
-            step: Int,
-        ): Float? {
-            var cursor = fromIndex + step
-            while (cursor in smoothedTemps.indices) {
-                if (smoothedTemps[cursor] != smoothedTemps[fromIndex]) return smoothedTemps[cursor]
-                cursor += step
-            }
-            return null
-        }
-
         fun bilateralExtremaProminence(index: Int): Float {
             val current = smoothedTemps[index]
-            val left = nearestDifferentValue(index, -1) ?: return 0f
-            val right = nearestDifferentValue(index, 1) ?: return 0f
+            val localExtremaSet = localExtrema.toSet()
 
-            val isPeak = current >= left && current >= right
-            val isValley = current <= left && current <= right
-            if (!isPeak && !isValley) return 0f
+            // Scan outward finding max delta until we hit another extremum
+            fun maxDeltaInDirection(step: Int): Float {
+                var maxDelta = 0f
+                var cursor = index + step
+                while (cursor in smoothedTemps.indices) {
+                    val delta = Math.abs(smoothedTemps[cursor] - current)
+                    if (delta > maxDelta) maxDelta = delta
+                    // Stop at the next local extremum (trend reversal point)
+                    if (cursor != index + step && cursor in localExtremaSet) break
+                    cursor += step
+                }
+                return maxDelta
+            }
 
-            val leftDelta = if (isPeak) current - left else left - current
-            val rightDelta = if (isPeak) current - right else right - current
+            val leftDelta = maxDeltaInDirection(-1)
+            val rightDelta = maxDeltaInDirection(1)
+            if (leftDelta == 0f || rightDelta == 0f) return 0f
             return minOf(leftDelta, rightDelta)
         }
 
@@ -352,8 +352,16 @@ object HourlyTemperatureGraphRenderer {
 
         // Add significant local extrema (peaks/valleys) before start/end.
         // Tiny humps/dips are filtered by bilateral prominence.
+        // Skip extrema whose rounded label duplicates an already-included nearby index.
         significantLocalExtrema.forEach { idx ->
-            if (idx !in specialIndices) specialIndices.add(idx)
+            if (idx !in specialIndices) {
+                val label = String.format("%.0f", smoothedTemps[idx])
+                val duplicatesNearby = specialIndices.any { existing ->
+                    Math.abs(idx - existing) <= 3 &&
+                        String.format("%.0f", smoothedTemps[existing]) == label
+                }
+                if (!duplicatesNearby) specialIndices.add(idx)
+            }
         }
 
         if (0 !in specialIndices) specialIndices.add(0)
