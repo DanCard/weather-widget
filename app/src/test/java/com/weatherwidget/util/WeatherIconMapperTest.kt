@@ -51,7 +51,7 @@ class WeatherIconMapperTest {
     @Test
     fun testGetIconResource_MostlyCloudy75Percent() {
         val res = WeatherIconMapper.getIconResource("Mostly Cloudy (75%)", isNight = false)
-        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
     }
 
     @Test

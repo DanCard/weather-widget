@@ -22,7 +22,10 @@ object WeatherIconMapper {
             lowerCondition.contains(
                 "fog",
             ) || lowerCondition.contains("mist") || lowerCondition.contains("haze") -> R.drawable.ic_weather_fog
-            lowerCondition.contains("(75%)") || lowerCondition.contains("mostly cloudy") || lowerCondition.contains("broken") -> {
+            lowerCondition.contains("(75%)") || lowerCondition.contains("mostly cloudy") -> {
+                if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+            }
+            lowerCondition.contains("broken") -> {
                 if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_mostly_cloudy
             }
             lowerCondition.contains("(25%)") || lowerCondition.contains("mostly clear") || lowerCondition.contains("mostly sunny") || lowerCondition.contains("partly sunny") -> {

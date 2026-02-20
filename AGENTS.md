@@ -342,6 +342,13 @@ adb devices
 adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.model"
 ```
 
+### ADB Path Reliability
+- Before assuming `adb` is unavailable, run `which adb`.
+- If `adb` is not found in non-interactive shells, use the absolute path:
+  - `/home/dcar/.Android/Sdk/platform-tools/adb`
+- For one-off commands, you can also prepend:
+  - `PATH="$PATH:/home/dcar/.Android/Sdk/platform-tools"`
+
 **Example from this project:**
 - `2A191FDH300PPW` - Appears like Samsung ID, but is actually **Google Pixel 7 Pro**
 - `RFCT71FR9NT` - Appears like Pixel ID, but is actually **Samsung SM-F936U1**
