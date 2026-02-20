@@ -13,6 +13,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.HourlyTemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -170,8 +171,7 @@ object HourlyViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
     ): String? {
-        val now = LocalDateTime.now()
-        val currentHourKey = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val currentHourKey = WeatherTimeUtils.toHourlyForecastKey(LocalDateTime.now())
 
         return hourlyForecasts
             .filter { it.dateTime == currentHourKey }
@@ -397,15 +397,18 @@ object HourlyViewHandler {
                 val iconRes = WeatherIconMapper.getIconResource(forecast.condition, isNight)
                 val isSunny =
                     iconRes == R.drawable.ic_weather_clear ||
-                        iconRes == R.drawable.ic_weather_partly_cloudy ||
-                        iconRes == R.drawable.ic_weather_mostly_clear
+                        iconRes == R.drawable.ic_weather_mostly_clear ||
+                        iconRes == R.drawable.ic_weather_night
                 val isRainy =
                     iconRes == R.drawable.ic_weather_rain ||
-                        iconRes == R.drawable.ic_weather_storm
+                        iconRes == R.drawable.ic_weather_storm ||
+                        iconRes == R.drawable.ic_weather_snow
                 val isMixed =
                     iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                        iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
                         iconRes == R.drawable.ic_weather_partly_cloudy ||
-                        iconRes == R.drawable.ic_weather_mostly_clear
+                        iconRes == R.drawable.ic_weather_partly_cloudy_night ||
+                        iconRes == R.drawable.ic_weather_fog_cloudy
 
                 hours.add(
                     HourlyTemperatureGraphRenderer.HourData(

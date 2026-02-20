@@ -33,12 +33,16 @@ This file provides guidance to AI agents working on this repository.
 
 ## Build Commands
 
+### Gradle JDK Usage
+- Use plain `./gradlew ...` by default.
+- Only prefix with `JAVA_HOME=...` when there is an actual JDK mismatch/error in the current shell session.
+
 ```bash
 # Build debug APK
-JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew assembleDebug
+./gradlew assembleDebug
 
 # Install to device/emulator
-JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug
+./gradlew installDebug
 
 # Build release
 ./gradlew assembleRelease
@@ -54,6 +58,9 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug
 
 # Run specific test method
 ./gradlew test --tests "com.weatherwidget.util.TemperatureInterpolatorTest.getInterpolatedTemperature returns null for empty list"
+
+# Fallback only when the shell has a JDK mismatch
+JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew test
 ```
 
 ## Project Structure
@@ -363,6 +370,12 @@ The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test 
 ```bash
 # Run on all connected devices (emulator + physical)
 ./gradlew connectedDebugAndroidTest
+
+# Filter to a specific instrumented test class (connected tests do NOT support --tests)
+./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.weatherwidget.widget.HourlyTemperatureGraphLabelTest
+
+# Filter to a specific instrumented test method
+./gradlew connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.weatherwidget.widget.HourlyTemperatureGraphLabelTest#highLabel_isDrawnAtMaximumTemperature
 
 # Emulator-only
 ./scripts/emulator-tests.sh                                        # all tests

@@ -19,6 +19,7 @@ import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.util.WeatherTimeUtils
 import java.time.LocalTime
 import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.DailyForecastGraphRenderer
@@ -28,7 +29,6 @@ import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.Duration
-import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -267,8 +267,7 @@ object DailyViewHandler : WidgetViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
     ): String? {
-        val now = LocalDateTime.now()
-        val currentHourKey = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val currentHourKey = WeatherTimeUtils.toHourlyForecastKey(LocalDateTime.now())
 
         val currentHourForecast =
             hourlyForecasts
@@ -489,15 +488,18 @@ object DailyViewHandler : WidgetViewHandler {
             val iconRes = WeatherIconMapper.getIconResource(effectiveCondition)
             val isSunny =
                 iconRes == R.drawable.ic_weather_clear ||
-                    iconRes == R.drawable.ic_weather_partly_cloudy ||
-                    iconRes == R.drawable.ic_weather_mostly_clear
+                    iconRes == R.drawable.ic_weather_mostly_clear ||
+                    iconRes == R.drawable.ic_weather_night
             val isRainy =
                 iconRes == R.drawable.ic_weather_rain ||
-                    iconRes == R.drawable.ic_weather_storm
+                    iconRes == R.drawable.ic_weather_storm ||
+                    iconRes == R.drawable.ic_weather_snow
             val isMixed =
                 iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                    iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
                     iconRes == R.drawable.ic_weather_partly_cloudy ||
-                    iconRes == R.drawable.ic_weather_mostly_clear
+                    iconRes == R.drawable.ic_weather_partly_cloudy_night ||
+                    iconRes == R.drawable.ic_weather_fog_cloudy
 
             // Get rain summary for all future days (determines click behavior)
             // Suppress today's rain if already shown once this day
@@ -890,15 +892,18 @@ object DailyViewHandler : WidgetViewHandler {
 
         val isSunny =
             iconRes == R.drawable.ic_weather_clear ||
-                iconRes == R.drawable.ic_weather_partly_cloudy ||
-                iconRes == R.drawable.ic_weather_mostly_clear
+                iconRes == R.drawable.ic_weather_mostly_clear ||
+                iconRes == R.drawable.ic_weather_night
         val isRainy =
             iconRes == R.drawable.ic_weather_rain ||
-                iconRes == R.drawable.ic_weather_storm
+                iconRes == R.drawable.ic_weather_storm ||
+                iconRes == R.drawable.ic_weather_snow
         val isMixed =
             iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
                 iconRes == R.drawable.ic_weather_partly_cloudy ||
-                iconRes == R.drawable.ic_weather_mostly_clear
+                iconRes == R.drawable.ic_weather_partly_cloudy_night ||
+                iconRes == R.drawable.ic_weather_fog_cloudy
 
         if (!isRainy && !isMixed) {
             val tintColor = if (isSunny) android.graphics.Color.parseColor("#FFD60A") else android.graphics.Color.parseColor("#AAAAAA")

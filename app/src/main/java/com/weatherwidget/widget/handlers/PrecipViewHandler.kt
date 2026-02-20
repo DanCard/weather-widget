@@ -13,6 +13,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -198,8 +199,7 @@ object PrecipViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
     ): String? {
-        val now = LocalDateTime.now()
-        val currentHourKey = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val currentHourKey = WeatherTimeUtils.toHourlyForecastKey(LocalDateTime.now())
 
         return hourlyForecasts
             .filter { it.dateTime == currentHourKey }

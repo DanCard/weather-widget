@@ -256,7 +256,7 @@ object HourlyTemperatureGraphRenderer {
         // --- Draw labels, icons, current-time indicator ---
         val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
 
-        // Compute NOW x-position early (needed for label proximity suppression)
+        // Compute NOW x-position early
         val nowX =
             GraphRenderUtils.computeNowX(
                 items = hours,
@@ -267,13 +267,57 @@ object HourlyTemperatureGraphRenderer {
                 dateTimeOf = { it.dateTime },
             )
 
-        // Key temperature labels — find min/max from the data used to draw the curve
+        // 1. Draw Hour Labels and Icons FIRST so they are behind temperature labels
+        val drawnIconBounds = mutableListOf<RectF>()
+        GraphRenderUtils.drawHourLabels(
+            canvas = canvas,
+            items = hours,
+            points = points,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            minHourLabelSpacing = minHourLabelSpacing,
+            hourLabelTextPaint = hourLabelTextPaint,
+            dpToPx = { dpToPx(context, it) },
+            showLabel = { it.showLabel },
+            labelText = { it.label },
+        ) { index, clampedX ->
+            val hour = hours[index]
+            if (hour.iconRes != null) {
+                val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
+                if (drawable != null) {
+                    val iconY = graphBottom + iconTopPad
+                    val iconX = clampedX - iconSize / 2f
+                    val iconRect = RectF(iconX, iconY, iconX + iconSize, iconY + iconSize)
+                    drawnIconBounds.add(iconRect)
+
+                    drawable.setBounds(
+                        iconRect.left.toInt(),
+                        iconRect.top.toInt(),
+                        iconRect.right.toInt(),
+                        iconRect.bottom.toInt(),
+                    )
+
+                    // Rain/storm/mixed icons keep native vector colors (grey cloud + blue rain)
+                    if (!hour.isRainy && !hour.isMixed) {
+                        val iconTint =
+                            when {
+                                hour.isNight -> Color.parseColor("#BBBBBB")
+                                hour.isSunny -> Color.parseColor("#FFD60A")
+                                else -> Color.parseColor("#BBBBBB")
+                            }
+                        drawable.setTint(iconTint)
+                    }
+
+                    drawable.draw(canvas)
+                }
+            }
+        }
+
+        // 2. Key temperature labels — find min/max from the data used to draw the curve
         val dailyHighIndex = smoothedTemps.indices.maxByOrNull { smoothedTemps[it] } ?: -1
         val dailyLowIndex = smoothedTemps.indices.minByOrNull { smoothedTemps[it] } ?: -1
 
         // Find local extrema (peaks and valleys) that are significant enough to label
-        // A local extremum is defined as a point where the slope changes sign
-        // We handle plateaus by checking across the flat region
         fun findLocalExtremaIndices(): List<Int> {
             val extrema = mutableListOf<Int>()
             if (smoothedTemps.size < 3) return extrema
@@ -283,31 +327,21 @@ object HourlyTemperatureGraphRenderer {
                 val current = smoothedTemps[i]
                 val prev = smoothedTemps[i - 1]
                 
-                // If strictly greater/less than neighbors
                 if (current > prev && current > smoothedTemps[i + 1]) {
                     extrema.add(i) // Local Max
                 } else if (current < prev && current < smoothedTemps[i + 1]) {
                     extrema.add(i) // Local Min
-                } 
-                // Handle plateau start: flat region begins
-                else if (current == smoothedTemps[i + 1] && current != prev) {
-                    // Find end of plateau
+                } else if (current == smoothedTemps[i + 1] && current != prev) {
                     var j = i + 1
                     while (j < smoothedTemps.size - 1 && smoothedTemps[j] == current) {
                         j++
                     }
-                    // Check if it's a peak or valley
                     val next = smoothedTemps[j]
                     if (j < smoothedTemps.size) {
-                        if (current > prev && current > next) {
-                            // Plateau Peak
-                            extrema.add((i + j) / 2) 
-                        } else if (current < prev && current < next) {
-                            // Plateau Valley
-                            extrema.add((i + j) / 2)
-                        }
+                        if (current > prev && current > next) extrema.add((i + j) / 2) 
+                        else if (current < prev && current < next) extrema.add((i + j) / 2)
                     }
-                    i = j - 1 // Skip to end of plateau
+                    i = j - 1
                 }
                 i++
             }
@@ -320,14 +354,12 @@ object HourlyTemperatureGraphRenderer {
             val current = smoothedTemps[index]
             val localExtremaSet = localExtrema.toSet()
 
-            // Scan outward finding max delta until we hit another extremum
             fun maxDeltaInDirection(step: Int): Float {
                 var maxDelta = 0f
                 var cursor = index + step
                 while (cursor in smoothedTemps.indices) {
                     val delta = Math.abs(smoothedTemps[cursor] - current)
                     if (delta > maxDelta) maxDelta = delta
-                    // Stop at the next local extremum (trend reversal point)
                     if (cursor != index + step && cursor in localExtremaSet) break
                     cursor += step
                 }
@@ -350,15 +382,12 @@ object HourlyTemperatureGraphRenderer {
         if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
 
-        // Add significant local extrema (peaks/valleys) before start/end.
-        // Tiny humps/dips are filtered by bilateral prominence.
-        // Skip extrema whose rounded label duplicates an already-included nearby index.
         significantLocalExtrema.forEach { idx ->
             if (idx !in specialIndices) {
-                val label = String.format("%.0f", smoothedTemps[idx])
+                val labelText = String.format("%.0f", smoothedTemps[idx])
                 val duplicatesNearby = specialIndices.any { existing ->
                     Math.abs(idx - existing) <= 3 &&
-                        String.format("%.0f", smoothedTemps[existing]) == label
+                        String.format("%.0f", smoothedTemps[existing]) == labelText
                 }
                 if (!duplicatesNearby) specialIndices.add(idx)
             }
@@ -368,12 +397,6 @@ object HourlyTemperatureGraphRenderer {
         if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
 
         val drawnLabelBounds = mutableListOf<RectF>()
-
-        // Below log is used by HourlyTemperatureGraphLabelTest instrumented tests
-        Log.d(
-            "HourlyGraph",
-            "=== Label drawing: specialIndices=$specialIndices, localExtrema=$localExtrema, significantExtrema=$significantLocalExtrema, dailyHighIdx=$dailyHighIndex (${if (dailyHighIndex >= 0) "%.1f".format(smoothedTemps[dailyHighIndex]) else "N/A"}), dailyLowIdx=$dailyLowIndex (${if (dailyLowIndex >= 0) "%.1f".format(smoothedTemps[dailyLowIndex]) else "N/A"}), hours=${hours.map { "%.0f".format(it.temperature) }}",
-        )
 
         // For min/max, find center of consecutive points at the same value
         fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
@@ -414,10 +437,6 @@ object HourlyTemperatureGraphRenderer {
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Smart placement:
-            // Peaks (maxima) -> Prefer ABOVE
-            // Valleys (minima) -> Prefer BELOW
-            // Others (start/end/mid) -> Prefer toward center of graph
             val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && isLocalMax(idx)))
             val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && isLocalMin(idx)))
 
@@ -447,94 +466,46 @@ object HourlyTemperatureGraphRenderer {
                         candidateY,
                     )
 
-                // Check bounds: ensure label is completely on bitmap
                 val inVerticalBounds = bounds.top >= 0f && bounds.bottom <= heightPx
-                if (!inVerticalBounds) {
-                    Log.d("HourlyGraph", "  REJECTED (idx=$idx side=${if (drawBelow) "BELOW" else "ABOVE"}): Out of bitmap bounds $bounds")
-                    continue
-                }
+                if (!inVerticalBounds) continue
 
-                // Skip if overlaps any already-drawn label
-                val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
-                if (!overlaps) {
+                // Skip if overlaps any already-drawn label OR ICON
+                val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                
+                if (!overlapsLabel && !overlapsIcon) {
                     placedLabelY = candidateY
                     placedBounds = bounds
                     finalDrawBelow = drawBelow
                     break
-                } else {
-                    Log.d("HourlyGraph", "  REJECTED (idx=$idx side=${if (drawBelow) "BELOW" else "ABOVE"}): Overlap detected at $bounds")
                 }
             }
 
-            val roleName =
-                when (idx) {
-                    dailyLowIndex -> "LOW"
-                    dailyHighIndex -> "HIGH"
-                    0 -> "START"
-                    hours.size - 1 -> "END"
-                    else -> "OTHER"
-                }
-
-            // Below two logs are used by HourlyTemperatureGraphLabelTest instrumented tests
             if (placedBounds != null) {
                 canvas.drawText(label, clampedX, placedLabelY, tempLabelTextPaint)
                 drawnLabelBounds.add(placedBounds)
-                Log.d("HourlyGraph", "  DRAWN $roleName idx=$idx temp=${hours[idx].temperature} x=$clampedX y=$placedLabelY bounds=$placedBounds")
+
+                val role =
+                    when {
+                        idx == dailyLowIndex -> "LOW"
+                        idx == dailyHighIndex -> "HIGH"
+                        idx == 0 -> "START"
+                        idx == hours.lastIndex -> "END"
+                        else -> "LOCAL"
+                    }
+
                 onLabelPlaced?.invoke(
                     LabelPlacementDebug(
                         index = idx,
-                        role = roleName,
+                        role = role,
                         temperature = smoothedTemps[idx],
                         rawTemperature = hours[idx].temperature,
                         x = clampedX,
                         y = placedLabelY,
                         placedAbove = !finalDrawBelow,
+                        reason = if (finalDrawBelow) "below" else "above",
                     ),
                 )
-            } else {
-                Log.d("HourlyGraph", "  SKIPPED $roleName idx=$idx temp=${hours[idx].temperature}")
-            }
-        }
-
-        GraphRenderUtils.drawHourLabels(
-            canvas = canvas,
-            items = hours,
-            points = points,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            minHourLabelSpacing = minHourLabelSpacing,
-            hourLabelTextPaint = hourLabelTextPaint,
-            dpToPx = { dpToPx(context, it) },
-            showLabel = { it.showLabel },
-            labelText = { it.label },
-        ) { index, clampedX ->
-            val hour = hours[index]
-            if (hour.iconRes != null) {
-                val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
-                if (drawable != null) {
-                    val iconY = graphBottom + iconTopPad
-                    val iconX = clampedX - iconSize / 2f
-
-                    drawable.setBounds(
-                        iconX.toInt(),
-                        iconY.toInt(),
-                        (iconX + iconSize).toInt(),
-                        (iconY + iconSize).toInt(),
-                    )
-
-                    // Rain/storm/mixed icons keep native vector colors (grey cloud + blue rain)
-                    if (!hour.isRainy && !hour.isMixed) {
-                        val iconTint =
-                            when {
-                                hour.isNight -> Color.parseColor("#BBBBBB")
-                                hour.isSunny -> Color.parseColor("#FFD60A")
-                                else -> Color.parseColor("#BBBBBB")
-                            }
-                        drawable.setTint(iconTint)
-                    }
-
-                    drawable.draw(canvas)
-                }
             }
         }
 
