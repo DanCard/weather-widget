@@ -22,7 +22,6 @@ class PrecipitationGraphRendererTest {
                 rightPadding = 8f,
                 verticalInset = 2f,
                 existingBounds = emptyList(),
-                nowBounds = null,
             )
 
         assertNotNull(placement)
@@ -44,7 +43,6 @@ class PrecipitationGraphRendererTest {
                 rightPadding = 8f,
                 verticalInset = 2f,
                 existingBounds = emptyList(),
-                nowBounds = null,
             )
 
         assertNotNull(placement)
@@ -73,7 +71,6 @@ class PrecipitationGraphRendererTest {
                 rightPadding = 8f,
                 verticalInset = 2f,
                 existingBounds = listOf(preferredBounds),
-                nowBounds = null,
             )
 
         assertNotNull(placement)
@@ -196,7 +193,6 @@ class PrecipitationGraphRendererTest {
                 rightPadding = 8f,
                 verticalInset = 2f,
                 existingBounds = listOf(preferredBounds, fallbackBounds),
-                nowBounds = null,
             )
 
         assertNull(placement)

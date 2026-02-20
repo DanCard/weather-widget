@@ -162,7 +162,15 @@ object PrecipitationGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = smoothIterations)
+        val maxRawProb = rawProbs.maxOrNull() ?: 0f
+        
+        // Skip smoothing if max probability is very low (e.g. < 10%) to prevent
+        // "melting" away the only visible peak in the graph.
+        val effectiveIterations = if (maxRawProb < 10f) 0 else smoothIterations
+        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = effectiveIterations)
+        val maxSmoothedProb = smoothedProbs.maxOrNull() ?: 0f
+
+        Log.d("PrecipGraph", "maxRawProb=$maxRawProb, maxSmoothedProb=$maxSmoothedProb, iterations=$smoothIterations, effective=$effectiveIterations")
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2f
@@ -399,23 +407,6 @@ object PrecipitationGraphRenderer {
                     .thenBy { -labelSignal[it.index] },
             )
 
-        val nowLabelBounds =
-            if (nowX != null) {
-                val lineHeight = graphHeight * 0.6f
-                val lineTop = graphTop + (graphHeight - lineHeight) / 2f
-                val nowText = "NOW"
-                val nowTextWidth = nowLabelTextPaint.measureText(nowText)
-                val nowTextHeight = nowLabelTextPaint.textSize
-                RectF(
-                    nowX - nowTextWidth / 2f,
-                    lineTop - dpToPx(context, 2f) - nowTextHeight,
-                    nowX + nowTextWidth / 2f,
-                    lineTop - dpToPx(context, 2f),
-                )
-            } else {
-                null
-            }
-
         val drawnLabelBounds = mutableListOf<RectF>()
         val labeledIndices = mutableSetOf<Int>()
         val aboveGap = dpToPx(context, 4f)
@@ -631,15 +622,30 @@ object PrecipitationGraphRenderer {
                 // Relaxed vertical bounds: allow drawing in the top padding area (above graphTop), just stay on screen.
                 val inVerticalBounds = bounds.top >= 0f && bounds.bottom <= (graphBottom - dpToPx(context, 2f))
                 if (!inVerticalBounds) {
-                    Log.d("PrecipGraph", "  REJECTED ($dx, $placeAbove): Out of vertical bounds $bounds")
+                    Log.d("PrecipGraph", "  REJECTED ($dx, $placeAbove): Out of vertical bounds $bounds (graphBottom=$graphBottom)")
                     continue
                 }
 
                 val overlapsExisting = drawnLabelBounds.any { RectF.intersects(it, bounds) }
-                val overlapsNow = nowLabelBounds != null && RectF.intersects(nowLabelBounds, bounds)
-                if (overlapsExisting || overlapsNow) {
-                    Log.d("PrecipGraph", "  REJECTED ($dx, $placeAbove): Overlap existing=$overlapsExisting now=$overlapsNow")
-                    continue
+                
+                // For mandatory labels (like the only peak of the day), allow a TINY overlap 
+                // if it helps the label appear. 15% of height is usually safe.
+                val overlapAllowed = isMandatory
+                val overlapThreshold = if (overlapAllowed) textHeight * 0.15f else 0f
+                
+                if (overlapsExisting) {
+                    // Check if overlap is within allowed threshold
+                    val actualExistingOverlap = drawnLabelBounds.maxOfOrNull { existing ->
+                        val intersect = RectF()
+                        if (intersect.setIntersect(existing, bounds)) intersect.height() else 0f
+                    } ?: 0f
+                    
+                    if (actualExistingOverlap > overlapThreshold) {
+                        Log.d("PrecipGraph", "  REJECTED ($dx, $placeAbove): Overlap existing=$overlapsExisting (overlap=$actualExistingOverlap > threshold=$overlapThreshold)")
+                        continue
+                    } else {
+                        Log.d("PrecipGraph", "  ACCEPTED with minor overlap ($dx, $placeAbove): overlap=$actualExistingOverlap <= threshold=$overlapThreshold")
+                    }
                 }
 
                 val reason =
@@ -762,7 +768,6 @@ object PrecipitationGraphRenderer {
                         rightPadding = dpToPx(context, 8f),
                         verticalInset = dpToPx(context, 2f),
                         existingBounds = drawnLabelBounds.map { it.toPlacementRect() },
-                        nowBounds = nowLabelBounds?.toPlacementRect(),
                         preferBelow = preferEndLabelBelow,
                     )
 
@@ -973,7 +978,6 @@ object PrecipitationGraphRenderer {
         rightPadding: Float,
         verticalInset: Float,
         existingBounds: List<PlacementRect>,
-        nowBounds: PlacementRect?,
         preferBelow: Boolean = false,
     ): EndLabelPlacement? {
         val minX = textWidth / 2f
@@ -1000,9 +1004,7 @@ object PrecipitationGraphRenderer {
         }
 
         fun isClear(bounds: PlacementRect): Boolean {
-            val overlapsExisting = existingBounds.any { it.intersects(bounds) }
-            val overlapsNow = nowBounds?.intersects(bounds) == true
-            return !overlapsExisting && !overlapsNow
+            return existingBounds.none { it.intersects(bounds) }
         }
 
         // When below is preferred, allow a few small left nudges before giving up and moving above.
