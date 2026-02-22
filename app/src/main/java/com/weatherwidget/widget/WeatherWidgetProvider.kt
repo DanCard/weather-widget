@@ -231,6 +231,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
                         putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
                         putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source)
+                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     context.startActivity(historyIntent)

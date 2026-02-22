@@ -37,10 +37,17 @@
     <string name="forecast_history">History of Forecasts for </string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>
     <string name="forecast_mode_error">Mode: Error</string>
+    <string name="forecast_mode_hourly">Mode: Hourly</string>
     <string name="forecast_evolution_high_title">High Temperature Evolution</string>
     <string name="forecast_evolution_low_title">Low Temperature Evolution</string>
     <string name="forecast_error_high_title">High Temperature Error</string>
     <string name="forecast_error_low_title">Low Temperature Error</string>
+    <string name="forecast_show_hourly">Hourly Temperature Forecast</string>
+    <string name="forecast_show_evolution">Back to Forecast History</string>
+    <string name="forecast_hourly_title">Hourly Temperature Forecast</string>
+    <string name="forecast_hourly_subtitle">Hourly Detail</string>
+    <string name="forecast_hourly_no_data">No hourly temperature forecast available for this date.</string>
+    <string name="forecast_hourly_legend">Now</string>
     <string name="forecast_error_requires_actuals">Error view is available after actual temperatures are recorded for this day.</string>
     <string name="legend_actual">Actual</string>
     <string name="legend_zero_error">Zero Error</string>

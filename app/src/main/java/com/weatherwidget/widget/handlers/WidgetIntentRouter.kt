@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.util.NavigationUtils
@@ -488,6 +489,7 @@ object WidgetIntentRouter {
         targetMode: com.weatherwidget.widget.ViewMode,
         targetOffset: Int = Int.MIN_VALUE,
     ) {
+        val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, targetMode)
         if (targetMode == com.weatherwidget.widget.ViewMode.HOURLY ||
@@ -497,7 +499,7 @@ object WidgetIntentRouter {
                 stateManager.setHourlyOffset(appWidgetId, targetOffset)
             }
         }
-        Log.d(TAG, "handleSetView: Set to $targetMode with offset $targetOffset for widget $appWidgetId")
+        Log.d(TAG, "handleSetView: start mode=$targetMode offset=$targetOffset widget=$appWidgetId")
 
         val database = WeatherDatabase.getDatabase(context)
         val weatherDao = database.weatherDao()
@@ -532,6 +534,7 @@ object WidgetIntentRouter {
                 withContext(Dispatchers.Main) {
                     HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 }
+                Log.d(TAG, "handleSetView: hourly update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
             com.weatherwidget.widget.ViewMode.PRECIPITATION -> {
                 val now = LocalDateTime.now()
@@ -552,6 +555,7 @@ object WidgetIntentRouter {
                 withContext(Dispatchers.Main) {
                     PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 }
+                Log.d(TAG, "handleSetView: precip update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
             com.weatherwidget.widget.ViewMode.DAILY -> {
                 val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -568,6 +572,7 @@ object WidgetIntentRouter {
                 withContext(Dispatchers.Main) {
                     DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
                 }
+                Log.d(TAG, "handleSetView: daily update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
         }
     }
