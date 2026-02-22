@@ -1,6 +1,8 @@
 package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.RainAnalyzer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -226,5 +228,29 @@ class DayClickHelperTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 4)
         assertTrue(hasRain)
         assertTrue(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
+    }
+
+    @Test
+    fun `integration forward-looking today precip suppresses navigation when only past rain exists`() {
+        val now = LocalDateTime.of(2026, 2, 22, 10, 0)
+        val forecasts = listOf(
+            createForecast("2026-02-22T09:00", precipProb = 26),
+            createForecast("2026-02-22T10:00", precipProb = 0),
+            createForecast("2026-02-22T11:00", precipProb = 0),
+        )
+
+        val todayForwardLookingPrecip =
+            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = 4,
+                now = now,
+            )
+
+        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = todayForwardLookingPrecip)
+
+        assertNull(todayForwardLookingPrecip)
+        assertFalse(hasRain)
+        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = false, hasRainForecast = hasRain))
     }
 }

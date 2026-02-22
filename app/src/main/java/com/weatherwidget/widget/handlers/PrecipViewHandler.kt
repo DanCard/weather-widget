@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
@@ -145,9 +146,17 @@ object PrecipViewHandler {
             views.setViewVisibility(R.id.current_temp, View.GONE)
         }
 
+        val headerPrecipProbability =
+            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
+                fallbackDailyProbability = precipProbability,
+                now = now,
+            )
+
         // Show precipitation probability next to current temp
-        if (precipProbability != null && precipProbability > 0) {
-            views.setTextViewText(R.id.precip_probability, "$precipProbability%")
+        if (headerPrecipProbability != null && headerPrecipProbability > 0) {
+            views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)

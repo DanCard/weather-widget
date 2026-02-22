@@ -14,6 +14,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.util.SunPositionUtils
@@ -155,7 +156,13 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Show precipitation probability next to current temp when rain is expected
         val todayWeather = weatherByDate[todayStr]
-        val precipProb = todayWeather?.precipProbability
+        val precipProb =
+            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
+                fallbackDailyProbability = todayWeather?.precipProbability,
+                now = now,
+            )
         if (precipProb != null && precipProb > 0) {
             views.setTextViewText(R.id.precip_probability, "$precipProb%")
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
@@ -202,6 +209,7 @@ object DailyViewHandler : WidgetViewHandler {
                     hourlyForecasts,
                     stateManager,
                     appWidgetId,
+                    precipProb,
                 )
 
             // Use actual widget dimensions for bitmap to match ImageView size
@@ -241,7 +249,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
 
             // Text mode - set visibility and populate
-            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, skipHistory, stateManager, appWidgetId)
+            val visibleDates = updateTextMode(views, centerDate, today, weatherByDate, hourlyForecasts, numColumns, displaySource, skipHistory, stateManager, appWidgetId, precipProb)
 
             // Setup per-day click handlers for text mode
             // In evening mode at offset 0, today is the leftmost day (day1)
@@ -433,6 +441,7 @@ object DailyViewHandler : WidgetViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
+        todayForwardLookingPrecipProbability: Int? = null,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
 
@@ -538,7 +547,7 @@ object DailyViewHandler : WidgetViewHandler {
                     forecastSource = if (showComparison) displaySource else null,
                     accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE,
                     rainSummary = rainSummary,
-                    dailyPrecipProbability = weather.precipProbability,
+                    dailyPrecipProbability = if (isToday) todayForwardLookingPrecipProbability else weather.precipProbability,
                 ),
             )
         }
@@ -595,6 +604,7 @@ object DailyViewHandler : WidgetViewHandler {
         skipHistory: Boolean = false,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
+        todayForwardLookingPrecipProbability: Int? = null,
     ): List<Triple<Int, String, Boolean>> {  // dayIndex, dateStr, hasRainForecast
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
 
@@ -846,13 +856,17 @@ object DailyViewHandler : WidgetViewHandler {
         }
         
         val visibleDays = mutableListOf<Triple<Int, String, Boolean>>()
-        if (hasDay1) visibleDays.add(Triple(1, day1Str, DayClickHelper.hasRainForecast(rainSummary1, weatherByDate[day1Str]?.precipProbability)))
-        if (hasDay2) visibleDays.add(Triple(2, day2Str, DayClickHelper.hasRainForecast(rainSummary2, weatherByDate[day2Str]?.precipProbability)))
-        if (hasDay3) visibleDays.add(Triple(3, day3Str, DayClickHelper.hasRainForecast(rainSummary3, weatherByDate[day3Str]?.precipProbability)))
-        if (hasDay4) visibleDays.add(Triple(4, day4Str, DayClickHelper.hasRainForecast(rainSummary4, weatherByDate[day4Str]?.precipProbability)))
-        if (hasDay5) visibleDays.add(Triple(5, day5Str, DayClickHelper.hasRainForecast(rainSummary5, weatherByDate[day5Str]?.precipProbability)))
-        if (hasDay6) visibleDays.add(Triple(6, day6Str, DayClickHelper.hasRainForecast(rainSummary6, weatherByDate[day6Str]?.precipProbability)))
-        if (hasDay7) visibleDays.add(Triple(7, day7Str, DayClickHelper.hasRainForecast(rainSummary7, weatherByDate[day7Str]?.precipProbability)))
+        fun clickPrecip(date: LocalDate, dateStr: String): Int? {
+            return if (date == today) todayForwardLookingPrecipProbability else weatherByDate[dateStr]?.precipProbability
+        }
+
+        if (hasDay1) visibleDays.add(Triple(1, day1Str, DayClickHelper.hasRainForecast(rainSummary1, clickPrecip(day1Date, day1Str))))
+        if (hasDay2) visibleDays.add(Triple(2, day2Str, DayClickHelper.hasRainForecast(rainSummary2, clickPrecip(day2Date, day2Str))))
+        if (hasDay3) visibleDays.add(Triple(3, day3Str, DayClickHelper.hasRainForecast(rainSummary3, clickPrecip(day3Date, day3Str))))
+        if (hasDay4) visibleDays.add(Triple(4, day4Str, DayClickHelper.hasRainForecast(rainSummary4, clickPrecip(day4Date, day4Str))))
+        if (hasDay5) visibleDays.add(Triple(5, day5Str, DayClickHelper.hasRainForecast(rainSummary5, clickPrecip(day5Date, day5Str))))
+        if (hasDay6) visibleDays.add(Triple(6, day6Str, DayClickHelper.hasRainForecast(rainSummary6, clickPrecip(day6Date, day6Str))))
+        if (hasDay7) visibleDays.add(Triple(7, day7Str, DayClickHelper.hasRainForecast(rainSummary7, clickPrecip(day7Date, day7Str))))
         
         // Update rain visibility - only show for first rainy day
         if (hasDay1) populateDayRain(views, R.id.day1_rain, rainSummary1, firstRainDay == 1)
