@@ -46,11 +46,33 @@ class ForecastHistoryActivity : AppCompatActivity() {
         const val EXTRA_LON = "longitude"
         const val EXTRA_SOURCE = "source"
         private const val TAG = "ForecastHistoryActivity"
+
+        /**
+         * Determines whether clicking the mode button should launch hourly view
+         * (true) or toggle graph mode (false).
+         */
+        fun shouldLaunchHourly(hasDate: Boolean, snapshotsEmpty: Boolean): Boolean =
+            hasDate && snapshotsEmpty
+
+        /**
+         * Determines the button label mode: HOURLY when no history exists,
+         * or the current graph mode (EVOLUTION/ERROR) when history exists.
+         */
+        fun resolveButtonMode(snapshotsEmpty: Boolean, graphMode: GraphMode): ButtonMode =
+            if (snapshotsEmpty) ButtonMode.HOURLY
+            else if (graphMode == GraphMode.EVOLUTION) ButtonMode.EVOLUTION
+            else ButtonMode.ERROR
     }
 
-    private enum class GraphMode {
+    enum class GraphMode {
         EVOLUTION,
         ERROR,
+    }
+
+    enum class ButtonMode {
+        EVOLUTION,
+        ERROR,
+        HOURLY,
     }
 
     private var graphMode = GraphMode.EVOLUTION
@@ -80,8 +102,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
         graphModeButton.setOnClickListener {
             val date = cachedDate
-            if (date != null && !date.isBefore(LocalDate.now())) {
-                launchWidgetHourlyMode(date)
+            if (shouldLaunchHourly(date != null, cachedSnapshots.isEmpty())) {
+                launchWidgetHourlyMode(date!!)
                 return@setOnClickListener
             }
 
@@ -305,23 +327,25 @@ class ForecastHistoryActivity : AppCompatActivity() {
             highCard.visibility = View.GONE
             lowCard.visibility = View.GONE
         }
+        updateModeUi()
     }
 
     private fun updateModeUi() {
         val modeButton = findViewById<Button>(R.id.graph_mode_button)
         val actualLegendText = findViewById<TextView>(R.id.legend_actual_text)
-        val isPastDate = cachedDate?.isBefore(LocalDate.now()) == true
-        if (isPastDate) {
-            if (graphMode == GraphMode.EVOLUTION) {
+        when (resolveButtonMode(cachedSnapshots.isEmpty(), graphMode)) {
+            ButtonMode.EVOLUTION -> {
                 modeButton.text = getString(R.string.forecast_mode_evolution)
                 actualLegendText.text = getString(R.string.legend_actual)
-            } else {
+            }
+            ButtonMode.ERROR -> {
                 modeButton.text = getString(R.string.forecast_mode_error)
                 actualLegendText.text = getString(R.string.legend_zero_error)
             }
-        } else {
-            modeButton.text = getString(R.string.forecast_show_hourly)
-            actualLegendText.text = getString(R.string.legend_actual)
+            ButtonMode.HOURLY -> {
+                modeButton.text = getString(R.string.forecast_show_hourly)
+                actualLegendText.text = getString(R.string.legend_actual)
+            }
         }
     }
 
