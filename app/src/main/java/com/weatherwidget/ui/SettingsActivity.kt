@@ -2,25 +2,37 @@ package com.weatherwidget.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.weatherwidget.R
-import com.weatherwidget.data.ApiLogger
-import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.stats.AccuracyCalculator
-import com.weatherwidget.widget.AccuracyDisplayMode
-import com.weatherwidget.widget.ApiPreference
-import com.weatherwidget.widget.WidgetStateManager
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+import com.weatherwidget.R
+import com.weatherwidget.data.ApiLogger
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.widget.AccuracyDisplayMode
+import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetStateManager
+
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -34,38 +46,11 @@ class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
 
-    @Inject
-    lateinit var weatherRepository: WeatherRepository
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
         setupViews()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Trigger background refresh so data is fresh when user returns to widget
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val database = WeatherDatabase.getDatabase(this@SettingsActivity)
-                val latestWeather = database.weatherDao().getLatestWeather()
-                if (latestWeather != null) {
-                    android.util.Log.d("SettingsActivity", "Triggering background weather refresh")
-                    weatherRepository.getWeatherData(
-                        latestWeather.locationLat,
-                        latestWeather.locationLon,
-                        latestWeather.locationName,
-                        forceRefresh = true,
-                        networkAllowed = true,
-                    )
-                    android.util.Log.d("SettingsActivity", "Background weather refresh complete")
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("SettingsActivity", "Background refresh failed: ${e.message}")
-            }
-        }
     }
 
     private fun setupViews() {
@@ -101,31 +86,29 @@ class SettingsActivity : AppCompatActivity() {
             widgetStateManager.setAccuracyDisplayMode(mode)
         }
 
-        // API Preference RadioGroup
-        val apiGroup = findViewById<RadioGroup>(R.id.api_preference_group)
+        // API Sources ordered checkable list
+        setupApiSourcesList()
 
-        // Set current selection
-        val currentApiPref = widgetStateManager.getApiPreference()
-        val selectedApiId =
-            when (currentApiPref) {
-                ApiPreference.ALTERNATE -> R.id.radio_api_alternate
-                ApiPreference.PREFER_NWS -> R.id.radio_api_nws
-                ApiPreference.PREFER_OPENMETEO -> R.id.radio_api_openmeteo
-                ApiPreference.PREFER_WEATHERAPI -> R.id.radio_api_weatherapi
-            }
-        apiGroup.check(selectedApiId)
-
-        // Listen for changes
-        apiGroup.setOnCheckedChangeListener { _, checkedId ->
-            val preference =
-                when (checkedId) {
-                    R.id.radio_api_alternate -> ApiPreference.ALTERNATE
-                    R.id.radio_api_nws -> ApiPreference.PREFER_NWS
-                    R.id.radio_api_openmeteo -> ApiPreference.PREFER_OPENMETEO
-                    R.id.radio_api_weatherapi -> ApiPreference.PREFER_WEATHERAPI
-                    else -> ApiPreference.ALTERNATE
-                }
-            widgetStateManager.setApiPreference(preference)
+        // Manual refresh
+        val refreshNowButton = findViewById<Button>(R.id.refresh_now_button)
+        val refreshStatusText = findViewById<TextView>(R.id.refresh_status_text)
+        refreshStatusText.text = getString(R.string.refresh_status_ready)
+        refreshNowButton.setOnClickListener {
+            val workRequest =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .build(),
+                    )
+                    .build()
+            WorkManager.getInstance(this).enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
+                ExistingWorkPolicy.REPLACE,
+                workRequest,
+            )
+            refreshStatusText.text = getString(R.string.refresh_status_enqueued)
+            Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
         }
 
         // API Diagnostics
@@ -189,6 +172,97 @@ class SettingsActivity : AppCompatActivity() {
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()
+        }
+    }
+
+    /** All configurable weather sources (excludes GENERIC_GAP). */
+    private val allSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
+
+    private fun sourceDescription(source: WeatherSource): String = when (source) {
+        WeatherSource.NWS -> getString(R.string.api_source_nws_desc)
+        WeatherSource.OPEN_METEO -> getString(R.string.api_source_openmeteo_desc)
+        WeatherSource.WEATHER_API -> getString(R.string.api_source_weatherapi_desc)
+        else -> ""
+    }
+
+    /**
+     * Builds the ordered, checkable API source list in the container.
+     * Each row has a checkbox (enable/disable), source name + description, and up/down arrows.
+     */
+    private fun setupApiSourcesList() {
+        val container = findViewById<LinearLayout>(R.id.api_sources_container)
+        rebuildSourceRows(container)
+    }
+
+    private fun rebuildSourceRows(container: LinearLayout) {
+        container.removeAllViews()
+        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+
+        // Build full ordered list: visible sources first (in order), then hidden sources
+        val hiddenSources = allSources.filter { it !in visibleSources }
+        val orderedSources = visibleSources + hiddenSources
+
+        for ((index, source) in orderedSources.withIndex()) {
+            val row = LayoutInflater.from(this).inflate(R.layout.item_api_source, container, false)
+
+            val checkbox = row.findViewById<CheckBox>(R.id.source_checkbox)
+            val nameView = row.findViewById<TextView>(R.id.source_name)
+            val descView = row.findViewById<TextView>(R.id.source_description)
+            val upButton = row.findViewById<ImageButton>(R.id.move_up_button)
+            val downButton = row.findViewById<ImageButton>(R.id.move_down_button)
+
+            val isVisible = source in visibleSources
+            checkbox.isChecked = isVisible
+            nameView.text = source.displayName
+            descView.text = sourceDescription(source)
+
+            // Dim hidden sources
+            row.alpha = if (isVisible) 1.0f else 0.5f
+
+            // Up/down only meaningful for visible sources
+            upButton.visibility = if (isVisible && visibleSources.indexOf(source) > 0) View.VISIBLE else View.INVISIBLE
+            downButton.visibility = if (isVisible && visibleSources.indexOf(source) < visibleSources.size - 1) View.VISIBLE else View.INVISIBLE
+
+            checkbox.setOnCheckedChangeListener { _, isChecked ->
+                val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
+                if (isChecked) {
+                    if (source !in current) current.add(source)
+                } else {
+                    if (current.size <= 1) {
+                        // Prevent unchecking the last source
+                        checkbox.isChecked = true
+                        Toast.makeText(this, getString(R.string.must_keep_one_source), Toast.LENGTH_SHORT).show()
+                        return@setOnCheckedChangeListener
+                    }
+                    current.remove(source)
+                }
+                widgetStateManager.setVisibleSourcesOrder(current)
+                rebuildSourceRows(container)
+            }
+
+            upButton.setOnClickListener {
+                val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
+                val pos = current.indexOf(source)
+                if (pos > 0) {
+                    current[pos] = current[pos - 1]
+                    current[pos - 1] = source
+                    widgetStateManager.setVisibleSourcesOrder(current)
+                    rebuildSourceRows(container)
+                }
+            }
+
+            downButton.setOnClickListener {
+                val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
+                val pos = current.indexOf(source)
+                if (pos < current.size - 1) {
+                    current[pos] = current[pos + 1]
+                    current[pos + 1] = source
+                    widgetStateManager.setVisibleSourcesOrder(current)
+                    rebuildSourceRows(container)
+                }
+            }
+
+            container.addView(row)
         }
     }
 

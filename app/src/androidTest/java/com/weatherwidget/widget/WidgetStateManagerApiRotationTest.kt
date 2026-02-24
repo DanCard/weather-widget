@@ -25,16 +25,32 @@ class WidgetStateManagerApiRotationTest {
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        stateManager.setApiPreference(ApiPreference.PREFER_NWS)
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO),
+        )
     }
 
     @Test
-    fun toggleDisplaySource_rotatesNwsToOpenMeteoToWeatherApi() {
-        stateManager.setApiPreference(ApiPreference.PREFER_NWS)
+    fun toggleDisplaySource_rotatesNwsToWapiToOpenMeteo() {
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API),
+        )
         stateManager.resetToggleState(testWidgetId)
 
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals(WeatherSource.OPEN_METEO, stateManager.toggleDisplaySource(testWidgetId))
+        assertEquals(WeatherSource.WEATHER_API, stateManager.toggleDisplaySource(testWidgetId))
+        assertEquals(WeatherSource.NWS, stateManager.toggleDisplaySource(testWidgetId))
+    }
+
+    @Test
+    fun toggleDisplaySource_skipsHiddenSources() {
+        stateManager.setVisibleSourcesOrder(
+            listOf(WeatherSource.NWS, WeatherSource.WEATHER_API),
+        )
+        stateManager.resetToggleState(testWidgetId)
+
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
         assertEquals(WeatherSource.WEATHER_API, stateManager.toggleDisplaySource(testWidgetId))
         assertEquals(WeatherSource.NWS, stateManager.toggleDisplaySource(testWidgetId))
     }

@@ -429,9 +429,13 @@ FAILED=0
 ERRORS=0
 SKIPPED=0
 
+# When the build failed (compile error etc.), tests never ran — stale XML would
+# give misleading counts.  Only parse XML when tests actually executed.
 RESULTS_DIR="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
 LATEST_REPORT_XML=""
-LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
+if [ "$TEST_SUCCESS" = true ]; then
+    LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
+fi
 
 if [ -n "$LATEST_REPORT_XML" ]; then
     TESTSUITE_LINE=$(grep -m1 '<testsuite ' "$LATEST_REPORT_XML" || true)
@@ -490,8 +494,8 @@ echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
 echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
-# Show build errors (compile failures, etc.) when tests never ran
-if [ "$TEST_SUCCESS" = false ] && [ "$TOTAL" -eq 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
+# Show build errors (compile failures, etc.) when build failed
+if [ "$TEST_SUCCESS" = false ] && [ -f "$TEST_RESULTS_LOG" ]; then
     BUILD_FAILURE_HEAD=$(awk '
         BEGIN { in_block=0; count=0 }
         /^FAILURE: Build failed with an exception\./ { in_block=1 }

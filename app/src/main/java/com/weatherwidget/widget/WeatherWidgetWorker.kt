@@ -158,7 +158,10 @@ class WeatherWidgetWorker
         }
 
         private fun scheduleNextUpdate() {
-            val intervalMinutes = getUpdateIntervalMinutes()
+            val intervalMinutes = getUpdateIntervalMinutes() ?: run {
+                Log.d(TAG, "BATTERY_SAVE: Below 50%, skipping scheduled update")
+                return
+            }
 
             val constraints =
                 Constraints.Builder()
@@ -178,7 +181,7 @@ class WeatherWidgetWorker
             )
         }
 
-        private fun getUpdateIntervalMinutes(): Long {
+        private fun getUpdateIntervalMinutes(): Long? {
             val batteryStatus: Intent? =
                 IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
                     context.registerReceiver(null, filter)
@@ -189,8 +192,6 @@ class WeatherWidgetWorker
                 status == BatteryManager.BATTERY_STATUS_CHARGING ||
                     status == BatteryManager.BATTERY_STATUS_FULL
 
-            if (isCharging) return 60
-
             val level =
                 batteryStatus?.let { intent ->
                     val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
@@ -198,11 +199,7 @@ class WeatherWidgetWorker
                     level * 100 / scale
                 } ?: 100
 
-            return when {
-                level > 50 -> 120
-                level > 20 -> 240
-                else -> 480
-            }
+            return BatteryFetchStrategy.computeFetchInterval(isCharging, level)
         }
 
         private fun getLocationName(

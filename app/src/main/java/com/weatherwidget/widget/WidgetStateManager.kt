@@ -14,13 +14,6 @@ enum class AccuracyDisplayMode {
     DIFFERENCE, // Show "72° (+4)"
 }
 
-enum class ApiPreference {
-    ALTERNATE, // Pseudo-random initial source, changes daily
-    PREFER_NWS, // Default to NWS, toggle switches to Open-Meteo
-    PREFER_OPENMETEO, // Default to Open-Meteo, toggle switches to NWS
-    PREFER_WEATHERAPI, // Default to WeatherAPI, toggle switches to NWS
-}
-
 enum class ViewMode {
     DAILY, // Default: shows daily forecast bars
     HOURLY, // Alternative: shows hourly temperature curve
@@ -49,6 +42,9 @@ class WidgetStateManager
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"
             private const val KEY_ACCURACY_DISPLAY = "accuracy_display_mode"
             private const val KEY_API_PREFERENCE = "api_preference"
+            private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
+            private const val KEY_MIGRATION_DONE = "api_pref_migrated"
+            private const val DEFAULT_VISIBLE_SOURCES = "NWS,WEATHER_API,OPEN_METEO"
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
@@ -127,13 +123,60 @@ class WidgetStateManager
             prefs.edit().putInt(KEY_ACCURACY_DISPLAY, mode.ordinal).apply()
         }
 
-        fun getApiPreference(): ApiPreference {
-            val ordinal = prefs.getInt(KEY_API_PREFERENCE, ApiPreference.PREFER_NWS.ordinal)
-            return ApiPreference.entries.getOrElse(ordinal) { ApiPreference.PREFER_NWS }
+        /**
+         * Returns the ordered list of visible weather sources.
+         * Sources in this list are shown in the widget toggle cycle (in order).
+         * Sources NOT in this list are hidden from the toggle but still fetch when charging.
+         */
+        fun getVisibleSourcesOrder(): List<WeatherSource> {
+            migrateApiPreferenceIfNeeded()
+            val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, DEFAULT_VISIBLE_SOURCES) ?: DEFAULT_VISIBLE_SOURCES
+            val sources = raw.split(",")
+                .mapNotNull { id ->
+                    try { WeatherSource.valueOf(id.trim()) } catch (_: Exception) {
+                        WeatherSource.entries.find { it.id == id.trim() || it.name == id.trim() }
+                    }
+                }
+                .filter { it != WeatherSource.GENERIC_GAP }
+                .distinct()
+            return sources.ifEmpty { listOf(WeatherSource.NWS) }
         }
 
-        fun setApiPreference(preference: ApiPreference) {
-            prefs.edit().putInt(KEY_API_PREFERENCE, preference.ordinal).apply()
+        fun setVisibleSourcesOrder(sources: List<WeatherSource>) {
+            val csv = sources.filter { it != WeatherSource.GENERIC_GAP }.joinToString(",") { it.name }
+            prefs.edit().putString(KEY_VISIBLE_SOURCES_ORDER, csv).apply()
+            // Reset all widget toggle states so they start at position 0 of the new order
+            resetAllToggleStates()
+        }
+
+        fun isSourceVisible(source: WeatherSource): Boolean {
+            return source in getVisibleSourcesOrder()
+        }
+
+        /**
+         * One-time migration from old api_preference int (ordinal of the removed ApiPreference enum)
+         * to the new visible_sources_order string.
+         * Ordinals: 0=ALTERNATE, 1=PREFER_NWS, 2=PREFER_OPENMETEO, 3=PREFER_WEATHERAPI
+         */
+        private fun migrateApiPreferenceIfNeeded() {
+            if (prefs.getBoolean(KEY_MIGRATION_DONE, false)) return
+            if (!prefs.contains(KEY_API_PREFERENCE)) {
+                prefs.edit().putBoolean(KEY_MIGRATION_DONE, true).apply()
+                return
+            }
+
+            val oldOrdinal = prefs.getInt(KEY_API_PREFERENCE, 1)
+            val newOrder = when (oldOrdinal) {
+                1 -> "NWS,OPEN_METEO,WEATHER_API"       // PREFER_NWS
+                2 -> "OPEN_METEO,WEATHER_API,NWS"        // PREFER_OPENMETEO
+                3 -> "WEATHER_API,NWS,OPEN_METEO"        // PREFER_WEATHERAPI
+                else -> DEFAULT_VISIBLE_SOURCES           // ALTERNATE (0) or unknown
+            }
+            prefs.edit()
+                .putString(KEY_VISIBLE_SOURCES_ORDER, newOrder)
+                .putBoolean(KEY_MIGRATION_DONE, true)
+                .remove(KEY_API_PREFERENCE)
+                .apply()
         }
 
         fun clearWidgetState(widgetId: Int) {
@@ -271,45 +314,13 @@ class WidgetStateManager
         }
 
         /**
-         * Gets the current display source for a widget based on preference and toggle state.
+         * Gets the current display source for a widget based on visible sources order and toggle state.
          * Returns the WeatherSource enum.
          */
         fun getCurrentDisplaySource(widgetId: Int): WeatherSource {
-            val preference = getApiPreference()
+            val visibleSources = getVisibleSourcesOrder()
             val toggleStep = getDisplaySourceToggleStep(widgetId)
-
-            return when (preference) {
-                ApiPreference.PREFER_NWS -> sourceForStep(
-                    toggleStep,
-                    listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API),
-                )
-                ApiPreference.PREFER_OPENMETEO -> sourceForStep(
-                    toggleStep,
-                    listOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.NWS),
-                )
-                ApiPreference.PREFER_WEATHERAPI -> sourceForStep(
-                    toggleStep,
-                    listOf(WeatherSource.WEATHER_API, WeatherSource.NWS, WeatherSource.OPEN_METEO),
-                )
-                ApiPreference.ALTERNATE -> {
-                    // Pseudo-random initial source: changes daily, varies by widget
-                    val daysSinceEpoch = (System.currentTimeMillis() / (1000 * 60 * 60 * 24)).toInt()
-                    val defaultSource =
-                        when ((daysSinceEpoch + widgetId) % 3) {
-                            0 -> WeatherSource.NWS
-                            1 -> WeatherSource.OPEN_METEO
-                            else -> WeatherSource.WEATHER_API
-                        }
-                    val sequence =
-                        when (defaultSource) {
-                            WeatherSource.NWS -> listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
-                            WeatherSource.OPEN_METEO -> listOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.NWS)
-                            WeatherSource.WEATHER_API -> listOf(WeatherSource.WEATHER_API, WeatherSource.NWS, WeatherSource.OPEN_METEO)
-                            else -> listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
-                        }
-                    sourceForStep(toggleStep, sequence)
-                }
-            }
+            return sourceForStep(toggleStep, visibleSources)
         }
 
         /**

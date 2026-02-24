@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.util.NavigationUtils
+import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -78,6 +79,7 @@ object WidgetIntentRouter {
         val hourlyDao = database.hourlyForecastDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -192,6 +194,7 @@ object WidgetIntentRouter {
         val weatherDao = database.weatherDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -263,6 +266,7 @@ object WidgetIntentRouter {
         val weatherDao = database.weatherDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -311,6 +315,7 @@ object WidgetIntentRouter {
         val hourlyDao = database.hourlyForecastDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -384,6 +389,7 @@ object WidgetIntentRouter {
         val snapshotDao = database.forecastSnapshotDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -471,6 +477,14 @@ object WidgetIntentRouter {
         )
     }
 
+    private fun refreshIfStale(context: Context, latestFetchedAt: Long?) {
+        if (BatteryFetchStrategy.shouldRefreshStaleData(latestFetchedAt, System.currentTimeMillis())) {
+            val ageMin = (System.currentTimeMillis() - (latestFetchedAt ?: 0L)) / 1000 / 60
+            Log.d(TAG, "STALE_REFRESH: Data is ${ageMin}min old, enqueueing refresh on user interaction")
+            enqueueForcedRefresh(context)
+        }
+    }
+
     /**
      * Handle precipitation mode toggle action.
      */
@@ -488,6 +502,7 @@ object WidgetIntentRouter {
         val snapshotDao = database.forecastSnapshotDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -559,6 +574,7 @@ object WidgetIntentRouter {
         val snapshotDao = database.forecastSnapshotDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -647,6 +663,7 @@ object WidgetIntentRouter {
         val hourlyDao = database.hourlyForecastDao()
 
         val latestWeather = weatherDao.getLatestWeather()
+        refreshIfStale(context, latestWeather?.fetchedAt)
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 

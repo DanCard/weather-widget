@@ -30,6 +30,7 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.MonthDay
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -65,6 +66,8 @@ class WeatherRepository
         companion object {
             private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
+            private const val HISTORICAL_NORMALS_START_YEAR = 1991
+            private const val HISTORICAL_NORMALS_END_YEAR = 2020
         }
 
         // Toggle between APIs - alternate fairly between both
@@ -157,11 +160,20 @@ class WeatherRepository
                         appLogDao.log("NET_FETCH_SUCCESS", "WeatherAPI: Saved ${merged.size} entries (raw=${weatherApiWeather.size})")
                     }
 
-                    // Fetch and save generic gap data once to cover any gaps in either API
+                    // Fetch and save generic gap data once to cover any gaps in either API.
+                    // If any provider is missing entirely, start gap fill at today so source-specific
+                    // views (especially short-horizon WeatherAPI) still have fallback coverage.
                     val lastNwsDate = nwsWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
                     val lastMeteoDate = meteoWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
                     val lastWeatherApiDate = weatherApiWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
-                    val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate, lastWeatherApiDate).minOrNull() ?: LocalDate.now()
+                    val missingAnySource =
+                        nwsWeather.isNullOrEmpty() ||
+                            meteoWeather.isNullOrEmpty() ||
+                            weatherApiWeather.isNullOrEmpty()
+                    val fallbackGapStartAnchor = if (missingAnySource) LocalDate.now().minusDays(1) else null
+                    val lastDateForGap =
+                        listOfNotNull(lastNwsDate, lastMeteoDate, lastWeatherApiDate, fallbackGapStartAnchor)
+                            .minOrNull() ?: LocalDate.now()
 
                     val gapStart = System.currentTimeMillis()
                     val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
@@ -397,77 +409,94 @@ class WeatherRepository
          * Fetches weather from both APIs concurrently and saves snapshots from both sources.
          * Returns both APIs' data (NWS first, Open-Meteo second) for storage.
          */
+        /**
+         * Determines whether a given source should be fetched right now.
+         * Visible sources always fetch. Hidden sources only fetch when charging
+         * (to preserve accuracy tracking data without wasting battery).
+         */
+        private fun shouldFetchSource(source: WeatherSource): Boolean {
+            if (widgetStateManager.isSourceVisible(source)) return true
+            val charging = isDevicePluggedIn()
+            if (!charging) {
+                Log.d(TAG, "HIDDEN_FETCH_SKIP: ${source.id} is hidden and device is not charging")
+            }
+            return charging
+        }
+
         private suspend fun fetchFromBothApis(
             lat: Double,
             lon: Double,
             locationName: String,
         ): Triple<List<WeatherEntity>?, List<WeatherEntity>?, List<WeatherEntity>?> =
             coroutineScope {
-                // Try both APIs concurrently
-                val nwsDeferred =
-                    async {
-                        try {
-                            val startTime = System.currentTimeMillis()
-                            val result = fetchFromNws(lat, lon, locationName)
-                            val duration = System.currentTimeMillis() - startTime
-                            apiLogger.logApiCall("NWS", true, null, locationName, duration)
-                            Log.d(TAG, "fetchFromBothApis: NWS succeeded")
-                            result
-                        } catch (e: Exception) {
-                            Log.d(TAG, "fetchFromBothApis: NWS failed: ${e.message}")
-                            apiLogger.logApiCall("NWS", false, e.message ?: "Unknown error", locationName)
-                            null
-                        }
+                val fetchNws = shouldFetchSource(WeatherSource.NWS)
+                val fetchMeteo = shouldFetchSource(WeatherSource.OPEN_METEO)
+                val fetchWapi = shouldFetchSource(WeatherSource.WEATHER_API)
+
+                val nwsDeferred = if (fetchNws) async {
+                    try {
+                        val startTime = System.currentTimeMillis()
+                        val result = fetchFromNws(lat, lon, locationName)
+                        val duration = System.currentTimeMillis() - startTime
+                        apiLogger.logApiCall("NWS", true, null, locationName, duration)
+                        Log.d(TAG, "fetchFromBothApis: NWS succeeded")
+                        result
+                    } catch (e: Exception) {
+                        Log.d(TAG, "fetchFromBothApis: NWS failed: ${e.message}")
+                        apiLogger.logApiCall("NWS", false, e.message ?: "Unknown error", locationName)
+                        null
                     }
+                } else null
 
-                val meteoDeferred =
-                    async {
-                        try {
-                            val startTime = System.currentTimeMillis()
-                            val result = fetchFromOpenMeteo(lat, lon, locationName, days = 14)
-                            val duration = System.currentTimeMillis() - startTime
-                            apiLogger.logApiCall("Open-Meteo", true, null, locationName, duration)
-                            Log.d(TAG, "fetchFromBothApis: Open-Meteo succeeded")
-                            result
-                        } catch (e: Exception) {
-                            Log.d(TAG, "fetchFromBothApis: Open-Meteo failed: ${e.message}")
-                            apiLogger.logApiCall("Open-Meteo", false, e.message ?: "Unknown error", locationName)
-                            null
-                        }
+                val meteoDeferred = if (fetchMeteo) async {
+                    try {
+                        val startTime = System.currentTimeMillis()
+                        val result = fetchFromOpenMeteo(lat, lon, locationName, days = 14)
+                        val duration = System.currentTimeMillis() - startTime
+                        apiLogger.logApiCall("Open-Meteo", true, null, locationName, duration)
+                        Log.d(TAG, "fetchFromBothApis: Open-Meteo succeeded")
+                        result
+                    } catch (e: Exception) {
+                        Log.d(TAG, "fetchFromBothApis: Open-Meteo failed: ${e.message}")
+                        apiLogger.logApiCall("Open-Meteo", false, e.message ?: "Unknown error", locationName)
+                        null
                     }
+                } else null
 
-                val weatherApiDeferred =
-                    async {
-                        try {
-                            val startTime = System.currentTimeMillis()
-                            val result = fetchFromWeatherApi(lat, lon, locationName, days = 14)
-                            val duration = System.currentTimeMillis() - startTime
-                            apiLogger.logApiCall("WeatherAPI", true, null, locationName, duration)
-                            Log.d(TAG, "fetchFromBothApis: WeatherAPI succeeded")
-                            result
-                        } catch (e: Exception) {
-                            Log.d(TAG, "fetchFromBothApis: WeatherAPI failed: ${e.message}")
-                            apiLogger.logApiCall("WeatherAPI", false, e.message ?: "Unknown error", locationName)
-                            null
-                        }
+                val weatherApiDeferred = if (fetchWapi) async {
+                    try {
+                        val startTime = System.currentTimeMillis()
+                        val result = fetchFromWeatherApi(lat, lon, locationName, days = 14)
+                        val duration = System.currentTimeMillis() - startTime
+                        apiLogger.logApiCall("WeatherAPI", true, null, locationName, duration)
+                        Log.d(TAG, "fetchFromBothApis: WeatherAPI succeeded")
+                        result
+                    } catch (e: Exception) {
+                        Log.d(TAG, "fetchFromBothApis: WeatherAPI failed: ${e.message}")
+                        apiLogger.logApiCall("WeatherAPI", false, e.message ?: "Unknown error", locationName)
+                        null
                     }
+                } else null
 
-                val nwsResult = nwsDeferred.await()
-                val meteoResult = meteoDeferred.await()
-                val weatherApiResult = weatherApiDeferred.await()
+                val nwsResult = nwsDeferred?.await()
+                val meteoResult = meteoDeferred?.await()
+                val weatherApiResult = weatherApiDeferred?.await()
 
-                // Save snapshots from both APIs (if available)
+                // Save snapshots from all fetched APIs
                 try {
                     nwsResult?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
                     meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
                     weatherApiResult?.let { saveForecastSnapshot(it, lat, lon, "WEATHER_API") }
                 } catch (e: Exception) {
                     Log.e(TAG, "fetchFromBothApis: saveForecastSnapshot failed: ${e.message}", e)
-                    // Don't let snapshot failure kill the whole fetch
                 }
 
-                // If all failed, throw an exception
+                // If all attempted APIs failed (or none were attempted), throw
                 if (nwsResult == null && meteoResult == null && weatherApiResult == null) {
+                    if (!fetchNws && !fetchMeteo && !fetchWapi) {
+                        Log.e(TAG, "fetchFromBothApis: All sources hidden and not charging")
+                        throw Exception("All sources hidden and device not charging")
+                    }
                     Log.e(TAG, "fetchFromBothApis: All APIs failed")
                     throw Exception("All APIs failed")
                 }
@@ -515,26 +544,74 @@ class WeatherRepository
                 val endDateStr = targetDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 Log.d(TAG, "fetchClimateNormalsGap: Fetching climate normals from $startDateStr to $endDateStr for $source")
 
-                val climateData = openMeteoApi.getClimateForecast(lat, lon, startDateStr, endDateStr)
-                climateData.map { daily ->
-                    WeatherEntity(
-                        date = daily.date,
-                        locationLat = lat,
-                        locationLon = lon,
-                        locationName = locationName,
-                        highTemp = daily.highTemp,
-                        lowTemp = daily.lowTemp,
-                        currentTemp = null,
-                        condition = "Climate Avg",
-                        isActual = false,
-                        isClimateNormal = true,
-                        source = WeatherSource.GENERIC_GAP.id,
-                    )
+                val normalsByMonthDay = getHistoricalNormalsByMonthDay(lat, lon)
+                if (normalsByMonthDay.isEmpty()) {
+                    return emptyList()
                 }
+
+                val results = mutableListOf<WeatherEntity>()
+                var cursor = startDate
+                while (!cursor.isAfter(targetDate)) {
+                    val monthDay = MonthDay.from(cursor)
+                    val normal = normalsByMonthDay[monthDay]
+                    if (normal != null) {
+                        results.add(
+                            WeatherEntity(
+                                date = cursor.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                locationLat = lat,
+                                locationLon = lon,
+                                locationName = locationName,
+                                highTemp = normal.first,
+                                lowTemp = normal.second,
+                                currentTemp = null,
+                                condition = "Historical Avg",
+                                isActual = false,
+                                isClimateNormal = true,
+                                source = WeatherSource.GENERIC_GAP.id,
+                            ),
+                        )
+                    }
+                    cursor = cursor.plusDays(1)
+                }
+
+                results
             } catch (e: Exception) {
                 Log.e(TAG, "fetchClimateNormalsGap: Failed to fetch climate normals: ${e.message}")
                 emptyList()
             }
+        }
+
+        private suspend fun getHistoricalNormalsByMonthDay(
+            lat: Double,
+            lon: Double,
+        ): Map<MonthDay, Pair<Int, Int>> {
+            val baselineStart = LocalDate.of(HISTORICAL_NORMALS_START_YEAR, 1, 1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val baselineEnd = LocalDate.of(HISTORICAL_NORMALS_END_YEAR, 12, 31).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            Log.d(
+                TAG,
+                "fetchClimateNormalsGap: Fetching historical archive baseline $baselineStart to $baselineEnd",
+            )
+
+            val historical =
+                openMeteoApi.getHistoricalArchiveForecast(
+                    lat = lat,
+                    lon = lon,
+                    startDate = baselineStart,
+                    endDate = baselineEnd,
+                )
+            if (historical.isEmpty()) return emptyMap()
+
+            return historical
+                .mapNotNull { day ->
+                    val parsed = runCatching { LocalDate.parse(day.date) }.getOrNull() ?: return@mapNotNull null
+                    MonthDay.from(parsed) to day
+                }
+                .groupBy { it.first }
+                .mapValues { (_, entries) ->
+                    val avgHigh = entries.map { it.second.highTemp }.average().roundToInt()
+                    val avgLow = entries.map { it.second.lowTemp }.average().roundToInt()
+                    avgHigh to avgLow
+                }
         }
 
         internal suspend fun fetchFromNws(

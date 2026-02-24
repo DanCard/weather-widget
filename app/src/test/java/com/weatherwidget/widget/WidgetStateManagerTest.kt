@@ -175,13 +175,14 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `toggleDisplaySource cycles through all three sources for prefer nws`() {
+    fun `toggleDisplaySource cycles through visible sources in order`() {
         val widgetId = 1
-        every { prefs.getInt("api_preference", any()) } returns ApiPreference.PREFER_NWS.ordinal
+        // Already migrated, visible sources set
+        every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
         every { prefs.contains("widget_display_source_$widgetId") } returns true
         var storedStep = 0
         every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
-        every { editor.putInt("widget_display_source_$widgetId", any()) } returns editor
         every { editor.putInt("widget_display_source_$widgetId", any()) } answers {
             storedStep = secondArg()
             editor
@@ -199,9 +200,36 @@ class WidgetStateManagerTest {
     }
 
     @Test
+    fun `toggleDisplaySource cycles only visible sources when some hidden`() {
+        val widgetId = 1
+        every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,WEATHER_API"
+        every { prefs.contains("widget_display_source_$widgetId") } returns true
+        var storedStep = 0
+        every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
+        every { editor.putInt("widget_display_source_$widgetId", any()) } answers {
+            storedStep = secondArg()
+            editor
+        }
+
+        val first = stateManager.getCurrentDisplaySource(widgetId)
+        val second = stateManager.toggleDisplaySource(widgetId)
+        val third = stateManager.toggleDisplaySource(widgetId)
+
+        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, first)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.WEATHER_API, second)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, third) // wraps around
+    }
+
+    @Test
     fun `getCurrentDisplaySource migrates legacy boolean toggle state`() {
         val widgetId = 1
-        every { prefs.getInt("api_preference", any()) } returns ApiPreference.PREFER_NWS.ordinal
+        // Migration not done yet, old api_preference exists (ordinal 1 = PREFER_NWS)
+        every { prefs.getBoolean("api_pref_migrated", false) } returns false
+        every { prefs.contains("api_preference") } returns true
+        every { prefs.getInt("api_preference", any()) } returns 1 // PREFER_NWS ordinal
+        // After migration writes new pref, subsequent read should return it
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
         every { prefs.contains("widget_display_source_$widgetId") } returns false
         every { prefs.getBoolean("widget_display_source_$widgetId", false) } returns true
 

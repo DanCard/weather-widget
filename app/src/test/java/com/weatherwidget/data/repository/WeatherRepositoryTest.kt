@@ -75,6 +75,9 @@ class WeatherRepositoryTest {
             )
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
+
+        // By default, all sources are visible (so shouldFetchSource returns true)
+        every { widgetStateManager.isSourceVisible(any()) } returns true
     }
 
     @Test
