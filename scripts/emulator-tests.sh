@@ -458,8 +458,8 @@ fi
 
 # Fallback to log parsing when XML summary is unavailable
 if [ "$TOTAL" -eq 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
-    PASSED=$(grep -c "INFO: Execute .*: PASSED\| > .* PASSED" "$TEST_RESULTS_LOG" 2>/dev/null || echo 0)
-    FAILED=$(grep -c "INFO: Execute .*: FAILED\| > .* FAILED" "$TEST_RESULTS_LOG" 2>/dev/null || echo 0)
+    PASSED=$(grep -c "INFO: Execute .*: PASSED\| > .* PASSED" "$TEST_RESULTS_LOG" 2>/dev/null) || PASSED=0
+    FAILED=$(grep -c "INFO: Execute .*: FAILED\| > .* FAILED" "$TEST_RESULTS_LOG" 2>/dev/null) || FAILED=0
     ERRORS=0
     SKIPPED=0
     TOTAL=$((PASSED + FAILED))

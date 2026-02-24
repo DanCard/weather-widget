@@ -49,7 +49,7 @@ class WeatherHistoryConditionTest {
 
             val result = repository.fetchDayObservations(stationsUrl, date)
 
-            assertEquals("Sunny", result?.fourth)
+            assertEquals("Sunny", result?.condition)
         }
 
     @Test
@@ -69,7 +69,7 @@ class WeatherHistoryConditionTest {
 
             val result = repository.fetchDayObservations("url", date)
 
-            assertEquals("Mostly Sunny (25%)", result?.fourth)
+            assertEquals("Mostly Sunny (25%)", result?.condition)
         }
 
     @Test
@@ -85,7 +85,7 @@ class WeatherHistoryConditionTest {
 
             val result = repository.fetchDayObservations("url", date)
 
-            assertEquals("Sunny", result?.fourth)
+            assertEquals("Sunny", result?.condition)
         }
 
     @Test

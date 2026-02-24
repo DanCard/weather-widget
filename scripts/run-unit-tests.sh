@@ -18,6 +18,10 @@ if [[ "$1" == "--force" ]]; then
     echo -e "${YELLOW}Forcing tests to rerun...${NC}"
 fi
 
+# Delete old test results so we never parse stale XML from a previous run
+RESULTS_DIR="app/build/test-results/testDebugUnitTest"
+rm -rf "$RESULTS_DIR"
+
 # Run gradle and strip blank lines from the output for a compact view
 # --console=rich forces colors even when piping through grep
 ./gradlew :app:test $FORCE_FLAG --console=rich | grep --line-buffered -vE '^\s*$'
@@ -33,8 +37,6 @@ FAILED=0
 ERRORS=0
 SKIPPED=0
 FAILED_TESTS=()
-
-RESULTS_DIR="app/build/test-results/testDebugUnitTest"
 
 if [ -d "$RESULTS_DIR" ]; then
     for xml in "$RESULTS_DIR"/TEST-*.xml; do
@@ -85,7 +87,11 @@ if [ "$TOTAL" -gt 0 ]; then
         echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
     fi
 else
-    echo -e "${YELLOW}  ⚠ No test results found${NC}"
+    if [ "$EXIT_CODE" -ne 0 ]; then
+        echo -e "${RED}✗ Build failed (no test results produced)${NC}"
+    else
+        echo -e "${YELLOW}  ⚠ No test results found${NC}"
+    fi
 fi
 
 exit $EXIT_CODE

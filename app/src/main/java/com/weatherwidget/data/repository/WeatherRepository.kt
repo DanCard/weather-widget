@@ -55,7 +55,12 @@ class WeatherRepository
         private val apiLogger: ApiLogger,
         private val temperatureInterpolator: TemperatureInterpolator,
     ) {
-        internal data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+        internal data class ObservationResult(
+            val highTemp: Int,
+            val lowTemp: Int,
+            val stationId: String,
+            val condition: String,
+        )
 
         private val syncMutex = Mutex()
 
@@ -68,10 +73,11 @@ class WeatherRepository
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
             private const val HISTORICAL_NORMALS_START_YEAR = 1991
             private const val HISTORICAL_NORMALS_END_YEAR = 2020
+            private const val MAX_OBSERVATION_STATION_RETRIES = 5
+            private const val OBSERVATION_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
+            private const val DAYS_OF_HISTORY = 8
+            private const val NWS_PERIOD_SUMMARY_COUNT = 8
         }
-
-        // Toggle between APIs - alternate fairly between both
-        private var useOpenMeteoFirst = false
 
         // Rate limiting for network fetches to prevent bursts.
         // Persisted in SharedPreferences to survive process restarts.
@@ -217,31 +223,8 @@ class WeatherRepository
             val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val fetchedAt = System.currentTimeMillis()
 
-        /*
-        fetchFromNws function doesn't just get the forecast; it also explicitly fetches the last 7 days of actual observations (highs and lows
-        that already happened) so the widget can show the "Yesterday" history.
-
-
-        If we change the code to just date != null, the app will do the following every hour:
-        1. Fetch the last 7 days of observations.
-        2. Save them into the forecast_snapshots table as "snapshots" made today.
-
-
-        The result:
-        Your forecast_snapshots table would become cluttered with "predictions" of the past. For example, it would store a record saying: "Today (Feb 4), we predict that
-        on Feb 1st, it was 65 degrees." Since Feb 1st is already over, that's not a forecast—it's just a record of history.
-
-
-        My recommendation:
-        Keep (date.isAfter(today) || date.isEqual(today)). This ensures the snapshot table stays focused on predictions (what we think will happen today and in the future)
-        rather than re-saving old observations over and over again.
-
-         */
-
-            // Include all forecasts for today and the future.
-            // We filter out past dates because NWS also returns historical observations
-            // for the last 7 days which we don't want to store as 'forecast' snapshots.
-            // We also skip climate normals (gap data) as they are static and not part of prediction history.
+            // Include only today and future dates: NWS returns 7 days of historical observations
+            // which we don't want stored as "forecast" snapshots. Also skip climate normals.
             val relevantForecasts =
                 weather.filter {
                     val date =
@@ -406,10 +389,6 @@ class WeatherRepository
         }
 
         /**
-         * Fetches weather from both APIs concurrently and saves snapshots from both sources.
-         * Returns both APIs' data (NWS first, Open-Meteo second) for storage.
-         */
-        /**
          * Determines whether a given source should be fetched right now.
          * Visible sources always fetch. Hidden sources only fetch when charging
          * (to preserve accuracy tracking data without wasting battery).
@@ -423,6 +402,7 @@ class WeatherRepository
             return charging
         }
 
+        /** Fetches weather from all three APIs concurrently and saves forecast snapshots. */
         private suspend fun fetchFromBothApis(
             lat: Double,
             lon: Double,
@@ -686,11 +666,11 @@ class WeatherRepository
                 try {
                     if (gridPoint.observationStationsUrl != null) {
                         val stationsUrl = gridPoint.observationStationsUrl!!
-                        appLogDao.log("OBS_BATCH_START", "Fetching 8 days of history from $stationsUrl")
+                        appLogDao.log("OBS_BATCH_START", "Fetching $DAYS_OF_HISTORY days of history from $stationsUrl")
 
                         // Fetch all 8 days in parallel
                         val observationDeferreds =
-                            (0..7).map { daysAgo ->
+                            (0 until DAYS_OF_HISTORY).map { daysAgo ->
                                 val date = today.minusDays(daysAgo.toLong())
                                 async {
                                     val result = fetchDayObservations(stationsUrl, date)
@@ -705,24 +685,24 @@ class WeatherRepository
 
                             if (observationData != null) {
                                 successCount++
-                                weatherByDate[dateStr] = observationData.first to observationData.second
-                                stationByDate[dateStr] = observationData.third // Track station ID
-                                highSourceByDate[dateStr] = "OBS:${observationData.third}"
-                                lowSourceByDate[dateStr] = "OBS:${observationData.third}"
+                                weatherByDate[dateStr] = observationData.highTemp to observationData.lowTemp
+                                stationByDate[dateStr] = observationData.stationId
+                                highSourceByDate[dateStr] = "OBS:${observationData.stationId}"
+                                lowSourceByDate[dateStr] = "OBS:${observationData.stationId}"
                                 // For today, skip observation condition — the NWS daily forecast
                                 // shortForecast (e.g. "Partly Sunny then Rain") is a better whole-day
                                 // summary than the cloud-cover-only observation score.
                                 if (date != today) {
-                                    conditionByDate[dateStr] = observationData.fourth
-                                    conditionSourceByDate[dateStr] = "OBS:${observationData.third}"
+                                    conditionByDate[dateStr] = observationData.condition
+                                    conditionSourceByDate[dateStr] = "OBS:${observationData.stationId}"
                                 }
                                 Log.d(
                                     TAG,
-                                    "fetchFromNws: Got observations for $dateStr H=${observationData.first} L=${observationData.second} from station ${observationData.third} conditionSet=${date != today}",
+                                    "fetchFromNws: Got observations for $dateStr H=${observationData.highTemp} L=${observationData.lowTemp} from station ${observationData.stationId} conditionSet=${date != today}",
                                 )
                             }
                         }
-                        appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/8 days of history")
+                        appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/$DAYS_OF_HISTORY days of history")
                     }
                 } catch (e: Exception) {
                     appLogDao.log("OBS_BATCH_ERROR", "Error: ${e.message}", "ERROR")
@@ -868,7 +848,7 @@ class WeatherRepository
 
             val compact =
                 forecast
-                    .take(8)
+                    .take(NWS_PERIOD_SUMMARY_COUNT)
                     .mapIndexed { index, period ->
                         val dayFlag = if (period.isDaytime) "D" else "N"
                         "$index:${period.name}@${period.startTime}=${period.temperature}${period.temperatureUnit}[$dayFlag]"
@@ -907,8 +887,7 @@ class WeatherRepository
             val timeKey = "observation_stations_time_${stationsUrl.hashCode()}"
 
             val cacheTime = prefs.getLong(timeKey, 0L)
-            val cacheTtl = 24 * 60 * 60 * 1000L // 24 hours
-            if (System.currentTimeMillis() - cacheTime > cacheTtl) {
+            if (System.currentTimeMillis() - cacheTime > OBSERVATION_STATIONS_CACHE_TTL_MS) {
                 return null // Cache expired
             }
 
@@ -932,7 +911,7 @@ class WeatherRepository
         internal suspend fun fetchDayObservations(
             stationsUrl: String,
             date: LocalDate,
-        ): Quad<Int, Int, String, String>? { // CHANGED: Now returns (high, low, stationId, condition)
+        ): ObservationResult? {
             try {
                 // Try cached station list first
                 var stations = getCachedStations(stationsUrl)
@@ -948,9 +927,7 @@ class WeatherRepository
                     Log.d(TAG, "fetchDayObservations: Using cached stations (${stations.size} total)")
                 }
 
-                // Try up to 5 stations
-                val maxRetries = 5
-                val stationsToTry = stations.take(maxRetries)
+                val stationsToTry = stations.take(MAX_OBSERVATION_STATION_RETRIES)
 
                 for ((index, stationId) in stationsToTry.withIndex()) {
                     Log.d(TAG, "fetchDayObservations: Trying station $stationId (${index + 1}/${stationsToTry.size}) for $date")
@@ -1050,7 +1027,7 @@ class WeatherRepository
                             "fetchDayObservations: Station $stationId provided data for $date (H:$high L:$low) Score: $averageCloudScore -> $finalCondition",
                         )
 
-                        return Quad(high, low, stationId, finalCondition)
+                        return ObservationResult(high, low, stationId, finalCondition)
                     } catch (e: Exception) {
                         Log.w(TAG, "fetchDayObservations: Station $stationId failed for $date: ${e.message}")
                         // Continue to next station
