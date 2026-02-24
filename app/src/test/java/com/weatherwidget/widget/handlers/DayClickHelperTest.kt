@@ -231,7 +231,7 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `integration forward-looking today precip suppresses navigation when only past rain exists`() {
+    fun `integration next 8 hour precip suppresses navigation when only past rain exists`() {
         val now = LocalDateTime.of(2026, 2, 22, 10, 0)
         val forecasts = listOf(
             createForecast("2026-02-22T09:00", precipProb = 26),
@@ -239,17 +239,17 @@ class DayClickHelperTest {
             createForecast("2026-02-22T11:00", precipProb = 0),
         )
 
-        val todayForwardLookingPrecip =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+        val todayNext8HourPrecip =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 4,
                 now = now,
             )
 
-        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = todayForwardLookingPrecip)
+        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = todayNext8HourPrecip)
 
-        assertNull(todayForwardLookingPrecip)
+        assertNull(todayNext8HourPrecip)
         assertFalse(hasRain)
         assertFalse(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = false, hasRainForecast = hasRain))
     }

@@ -9,6 +9,26 @@ import java.time.LocalDateTime
 
 class PrecipitationGraphRendererTest {
     @Test
+    fun `shouldShowHourlyIcons is true for wide graph`() {
+        assertTrue(PrecipitationGraphRenderer.shouldShowHourlyIcons(584))
+    }
+
+    @Test
+    fun `shouldShowHourlyIcons is false for narrow graph`() {
+        assertTrue(!PrecipitationGraphRenderer.shouldShowHourlyIcons(360))
+    }
+
+    @Test
+    fun `iconStrideForLabelSpacing uses denser icons in wide zoom`() {
+        assertEquals(1, PrecipitationGraphRenderer.iconStrideForLabelSpacing(28f))
+    }
+
+    @Test
+    fun `iconStrideForLabelSpacing keeps hourly icons in narrow zoom`() {
+        assertEquals(1, PrecipitationGraphRenderer.iconStrideForLabelSpacing(18f))
+    }
+
+    @Test
     fun `computeEndLabelPlacement anchors label near right edge`() {
         val placement =
             PrecipitationGraphRenderer.computeEndLabelPlacement(

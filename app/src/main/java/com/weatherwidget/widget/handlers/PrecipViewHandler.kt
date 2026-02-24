@@ -147,7 +147,7 @@ object PrecipViewHandler {
         }
 
         val headerPrecipProbability =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = precipProbability,
@@ -351,6 +351,8 @@ object PrecipViewHandler {
     ): List<PrecipitationGraphRenderer.PrecipHourData> {
         val hours = mutableListOf<PrecipitationGraphRenderer.PrecipHourData>()
         val now = LocalDateTime.now()
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
         // Group by dateTime and prefer the selected source
         val forecastsByTime =
@@ -380,12 +382,33 @@ object PrecipViewHandler {
                 val absDiff = kotlin.math.abs(diffMinutes)
                 val isClosest = absDiff <= 30
                 val showLabel = isClosest || (hourIndex % labelInterval == 0)
+                val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
+                val iconRes = WeatherIconMapper.getIconResource(forecast.condition, isNight)
+                val isSunny =
+                    iconRes == R.drawable.ic_weather_clear ||
+                        iconRes == R.drawable.ic_weather_mostly_clear ||
+                        iconRes == R.drawable.ic_weather_night
+                val isRainy =
+                    iconRes == R.drawable.ic_weather_rain ||
+                        iconRes == R.drawable.ic_weather_storm ||
+                        iconRes == R.drawable.ic_weather_snow
+                val isMixed =
+                    iconRes == R.drawable.ic_weather_mostly_cloudy ||
+                        iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
+                        iconRes == R.drawable.ic_weather_partly_cloudy ||
+                        iconRes == R.drawable.ic_weather_partly_cloudy_night ||
+                        iconRes == R.drawable.ic_weather_fog_cloudy
 
                 hours.add(
                     PrecipitationGraphRenderer.PrecipHourData(
                         dateTime = currentHour,
                         precipProbability = forecast.precipProbability ?: 0,
                         label = formatHourLabel(currentHour),
+                        iconRes = iconRes,
+                        isNight = isNight,
+                        isSunny = isSunny,
+                        isRainy = isRainy,
+                        isMixed = isMixed,
                         isCurrentHour = isClosest,
                         showLabel = showLabel,
                     ),

@@ -11,11 +11,18 @@ import kotlin.math.roundToInt
 
 object PrecipitationGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+    private const val MIN_ICON_GRAPH_WIDTH_PX = 420
+    private const val MIN_ICON_LABEL_SPACING_DP = 24f
 
     data class PrecipHourData(
         val dateTime: LocalDateTime,
         val precipProbability: Int, // 0-100
         val label: String, // "12a", "1p", "2p"
+        val iconRes: Int? = null,
+        val isNight: Boolean = false,
+        val isSunny: Boolean = false,
+        val isRainy: Boolean = false,
+        val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true,
     )
@@ -68,6 +75,7 @@ object PrecipitationGraphRenderer {
         hourLabelSpacingDp: Float = 28f,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
+        onHourIconDrawn: ((index: Int) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -79,11 +87,22 @@ object PrecipitationGraphRenderer {
 
         // Layout zones (mirrors HourlyTemperatureGraphRenderer style)
         val topPadding = dpToPx(context, 12f)
+        val hasHourlyIcons = hours.any { it.iconRes != null }
+        val showHourlyIcons = hasHourlyIcons && shouldShowHourlyIcons(widthPx)
+        val iconStride = iconStrideForLabelSpacing(hourLabelSpacingDp)
+        val iconSize = dpToPx(context, 16f).toInt()
+        val iconTopPad = dpToPx(context, 2f)
+        val iconBottomPad = dpToPx(context, 1f)
         val labelHeight = dpToPx(context, 10f)
         val bottomPadding = dpToPx(context, 3f)
 
         val graphTop = topPadding
-        val graphBottom = heightPx - labelHeight - bottomPadding
+        val graphBottom =
+            if (showHourlyIcons) {
+                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
+            } else {
+                heightPx - labelHeight - bottomPadding
+            }
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
         val hourWidth = widthPx.toFloat() / hours.size
@@ -186,6 +205,7 @@ object PrecipitationGraphRenderer {
 
         // --- Draw labels and current-time indicator ---
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
+        val drawnIconBounds = mutableListOf<RectF>()
 
         // Track NOW x-position
         val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
@@ -198,6 +218,50 @@ object PrecipitationGraphRenderer {
                 isCurrentHour = { it.isCurrentHour },
                 dateTimeOf = { it.dateTime },
             )
+
+        GraphRenderUtils.drawHourLabels(
+            canvas = canvas,
+            items = hours,
+            points = points,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            minHourLabelSpacing = minHourLabelSpacing,
+            hourLabelTextPaint = hourLabelTextPaint,
+            dpToPx = { dpToPx(context, it) },
+            showLabel = { it.showLabel },
+            labelText = { it.label },
+        ) { index, clampedX ->
+            if (!showHourlyIcons) return@drawHourLabels
+            if (index % iconStride != 0) return@drawHourLabels
+            val hour = hours[index]
+            val iconRes = hour.iconRes ?: return@drawHourLabels
+            val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
+
+            val iconY = graphBottom + iconTopPad
+            val iconX = clampedX - iconSize / 2f
+            val iconRect = RectF(iconX, iconY, iconX + iconSize, iconY + iconSize)
+            drawnIconBounds.add(iconRect)
+
+            drawable.setBounds(
+                iconRect.left.toInt(),
+                iconRect.top.toInt(),
+                iconRect.right.toInt(),
+                iconRect.bottom.toInt(),
+            )
+
+            if (!hour.isRainy && !hour.isMixed) {
+                val iconTint =
+                    when {
+                        hour.isNight -> Color.parseColor("#BBBBBB")
+                        hour.isSunny -> Color.parseColor("#FFD60A")
+                        else -> Color.parseColor("#BBBBBB")
+                    }
+                drawable.setTint(iconTint)
+            }
+
+            drawable.draw(canvas)
+            onHourIconDrawn?.invoke(index)
+        }
 
         val labelSignal = smoothedProbs.map { it.roundToInt().coerceIn(0, 100) }
         Log.d("PrecipGraph", "signal=${labelSignal.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
@@ -627,13 +691,18 @@ object PrecipitationGraphRenderer {
                 }
 
                 val overlapsExisting = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
                 
                 // For mandatory labels (like the only peak of the day), allow a TINY overlap 
                 // if it helps the label appear. 15% of height is usually safe.
                 val overlapAllowed = isMandatory
                 val overlapThreshold = if (overlapAllowed) textHeight * 0.15f else 0f
                 
-                if (overlapsExisting) {
+                if (overlapsExisting || overlapsIcon) {
+                    if (overlapsIcon) {
+                        Log.d("PrecipGraph", "  REJECTED ($dx, $placeAbove): Overlap with icon bounds")
+                        continue
+                    }
                     // Check if overlap is within allowed threshold
                     val actualExistingOverlap = drawnLabelBounds.maxOfOrNull { existing ->
                         val intersect = RectF()
@@ -683,19 +752,6 @@ object PrecipitationGraphRenderer {
                 break
             }
         }
-
-        GraphRenderUtils.drawHourLabels(
-            canvas = canvas,
-            items = hours,
-            points = points,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            minHourLabelSpacing = minHourLabelSpacing,
-            hourLabelTextPaint = hourLabelTextPaint,
-            dpToPx = { dpToPx(context, it) },
-            showLabel = { it.showLabel },
-            labelText = { it.label },
-        )
 
         // Draw day of week indicators at 8am (start of the "active" day)
         val dayLabelHour = 8
@@ -1034,6 +1090,15 @@ object PrecipitationGraphRenderer {
         }
 
         return null
+    }
+
+    internal fun shouldShowHourlyIcons(widthPx: Int): Boolean {
+        return widthPx >= MIN_ICON_GRAPH_WIDTH_PX
+    }
+
+    internal fun iconStrideForLabelSpacing(hourLabelSpacingDp: Float): Int {
+        // In zoomed-in mode users expect per-hour context, so keep icon density at every hour.
+        return 1
     }
 
     private fun RectF.toPlacementRect(): PlacementRect {

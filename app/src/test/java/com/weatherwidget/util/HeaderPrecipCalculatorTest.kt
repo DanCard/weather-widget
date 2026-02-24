@@ -11,7 +11,7 @@ class HeaderPrecipCalculatorTest {
     private val now = LocalDateTime.of(2026, 2, 22, 10, 0)
 
     @Test
-    fun `returns null when forward-looking precip is zero`() {
+    fun `returns null when next 8 hour precip is zero`() {
         val forecasts =
             listOf(
                 hourly("2026-02-22T09:00", "NWS", 70),
@@ -20,7 +20,7 @@ class HeaderPrecipCalculatorTest {
             )
 
         val result =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 4,
@@ -31,7 +31,7 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
-    fun `uses max forward-looking value for selected source`() {
+    fun `uses max next 8 hour value for selected source`() {
         val forecasts =
             listOf(
                 hourly("2026-02-22T09:00", "NWS", 80),
@@ -41,7 +41,7 @@ class HeaderPrecipCalculatorTest {
             )
 
         val result =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 1,
@@ -60,7 +60,7 @@ class HeaderPrecipCalculatorTest {
             )
 
         val result =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.OPEN_METEO,
                 fallbackDailyProbability = null,
@@ -71,7 +71,7 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
-    fun `uses fallback daily probability when no forward-looking hourly data exists`() {
+    fun `uses fallback daily probability when no next 8 hour data exists`() {
         val forecasts =
             listOf(
                 hourly("2026-02-21T23:00", "NWS", 50),
@@ -79,7 +79,7 @@ class HeaderPrecipCalculatorTest {
             )
 
         val result =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 22,
@@ -90,9 +90,51 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
-    fun `returns null when fallback is zero and no forward-looking hourly data exists`() {
+    fun `ignores values beyond next 8 hours`() {
+        val forecasts =
+            listOf(
+                hourly("2026-02-22T10:00", "NWS", 10),
+                hourly("2026-02-22T17:00", "NWS", 20), // within 8h window
+                hourly("2026-02-22T18:00", "NWS", 99), // outside 8h window (end-exclusive)
+                hourly("2026-02-22T21:00", "NWS", 80),
+            )
+
         val result =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = 5,
+                now = now,
+            )
+
+        assertEquals(20, result)
+    }
+
+    @Test
+    fun `includes next-day hours when they are within next 8 hours`() {
+        val eveningNow = LocalDateTime.of(2026, 2, 22, 18, 0)
+        val forecasts =
+            listOf(
+                hourly("2026-02-22T21:00", "NWS", 25),
+                hourly("2026-02-23T00:00", "NWS", 40), // +6h (included)
+                hourly("2026-02-23T02:00", "NWS", 80), // +8h (excluded)
+            )
+
+        val result =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = 5,
+                now = eveningNow,
+            )
+
+        assertEquals(40, result)
+    }
+
+    @Test
+    fun `returns null when fallback is zero and no next 8 hour data exists`() {
+        val result =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = emptyList(),
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 0,

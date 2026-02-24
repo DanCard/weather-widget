@@ -3,10 +3,11 @@ package com.weatherwidget.util
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 object HeaderPrecipCalculator {
-    fun getForwardLookingTodayPrecipProbability(
+    private const val LOOKAHEAD_HOURS = 8L
+
+    fun getNext8HourPrecipProbability(
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         fallbackDailyProbability: Int?,
@@ -20,18 +21,27 @@ object HeaderPrecipCalculator {
                 hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }
             }
 
-        val todayDate = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val nowHourKey = WeatherTimeUtils.toHourlyForecastKey(now)
-        val forwardLookingValues =
+        val nowHour = LocalDateTime.parse(WeatherTimeUtils.toHourlyForecastKey(now))
+        val windowEndExclusive = nowHour.plusHours(LOOKAHEAD_HOURS)
+        val next8HourValues =
             candidateForecasts
                 .asSequence()
-                .filter { it.dateTime.startsWith(todayDate) && it.dateTime >= nowHourKey }
-                .mapNotNull { it.precipProbability }
+                .mapNotNull { forecast ->
+                    try {
+                        LocalDateTime.parse(forecast.dateTime) to forecast.precipProbability
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                .filter { (forecastHour, _) ->
+                    !forecastHour.isBefore(nowHour) && forecastHour.isBefore(windowEndExclusive)
+                }
+                .mapNotNull { (_, precipProbability) -> precipProbability }
                 .toList()
 
-        if (forwardLookingValues.isNotEmpty()) {
-            val maxForwardLooking = forwardLookingValues.maxOrNull() ?: 0
-            return maxForwardLooking.takeIf { it > 0 }
+        if (next8HourValues.isNotEmpty()) {
+            val maxNext8Hour = next8HourValues.maxOrNull() ?: 0
+            return maxNext8Hour.takeIf { it > 0 }
         }
 
         return fallbackDailyProbability?.takeIf { it > 0 }

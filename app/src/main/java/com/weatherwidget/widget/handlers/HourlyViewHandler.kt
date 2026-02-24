@@ -119,7 +119,7 @@ object HourlyViewHandler {
         }
 
         val headerPrecipProbability =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = precipProbability,

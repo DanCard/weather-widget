@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.weatherwidget.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -130,5 +131,72 @@ class PrecipitationGraphRendererLogInstrumentedTest {
         // and thinned out due to proximity to 3am anchor (index 3 vs 4)
         val label4a = placements.find { it.hourLabel == "4a" }
         assertTrue("4 am label should be thinned out", label4a == null)
+    }
+
+    @Test
+    fun renderGraph_drawsHourIconsForEveryHourInZoomedInSpacing() {
+        val start = LocalDateTime.now().minusHours(3)
+        val hours =
+            (0..5).map { index ->
+                PrecipitationGraphRenderer.PrecipHourData(
+                    dateTime = start.plusHours(index.toLong()),
+                    precipProbability = 30 + index,
+                    label = "${index}h",
+                    iconRes = R.drawable.ic_weather_clear,
+                    isSunny = true,
+                    showLabel = true,
+                )
+            }
+
+        val iconDrawnIndices = mutableListOf<Int>()
+
+        PrecipitationGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 320,
+            currentTime = start,
+            hourLabelSpacingDp = 18f, // narrow/zoomed-in spacing
+            onHourIconDrawn = { iconDrawnIndices.add(it) },
+        )
+
+        assertEquals(
+            "Expected one icon callback per hourly point in zoomed-in spacing",
+            hours.indices.toList(),
+            iconDrawnIndices,
+        )
+    }
+
+    @Test
+    fun renderGraph_skipsHourIconsWhenGraphWidthIsTooNarrow() {
+        val start = LocalDateTime.now().minusHours(2)
+        val hours =
+            (0..3).map { index ->
+                PrecipitationGraphRenderer.PrecipHourData(
+                    dateTime = start.plusHours(index.toLong()),
+                    precipProbability = 20 + index,
+                    label = "${index}h",
+                    iconRes = R.drawable.ic_weather_clear,
+                    isSunny = true,
+                    showLabel = true,
+                )
+            }
+
+        val iconDrawnIndices = mutableListOf<Int>()
+
+        PrecipitationGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 360, // below icon threshold
+            heightPx = 320,
+            currentTime = start,
+            hourLabelSpacingDp = 18f,
+            onHourIconDrawn = { iconDrawnIndices.add(it) },
+        )
+
+        assertTrue(
+            "Expected no icon callbacks when graph width is below threshold",
+            iconDrawnIndices.isEmpty(),
+        )
     }
 }

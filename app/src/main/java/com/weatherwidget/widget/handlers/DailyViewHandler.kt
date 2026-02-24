@@ -157,7 +157,7 @@ object DailyViewHandler : WidgetViewHandler {
         // Show precipitation probability next to current temp when rain is expected
         val todayWeather = weatherByDate[todayStr]
         val precipProb =
-            HeaderPrecipCalculator.getForwardLookingTodayPrecipProbability(
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = todayWeather?.precipProbability,
@@ -441,7 +441,7 @@ object DailyViewHandler : WidgetViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
-        todayForwardLookingPrecipProbability: Int? = null,
+        todayNext8HourPrecipProbability: Int? = null,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
 
@@ -547,7 +547,7 @@ object DailyViewHandler : WidgetViewHandler {
                     forecastSource = if (showComparison) displaySource else null,
                     accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE,
                     rainSummary = rainSummary,
-                    dailyPrecipProbability = if (isToday) todayForwardLookingPrecipProbability else weather.precipProbability,
+                    dailyPrecipProbability = if (isToday) todayNext8HourPrecipProbability else weather.precipProbability,
                 ),
             )
         }
@@ -604,7 +604,7 @@ object DailyViewHandler : WidgetViewHandler {
         skipHistory: Boolean = false,
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
-        todayForwardLookingPrecipProbability: Int? = null,
+        todayNext8HourPrecipProbability: Int? = null,
     ): List<Triple<Int, String, Boolean>> {  // dayIndex, dateStr, hasRainForecast
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
 
@@ -857,7 +857,7 @@ object DailyViewHandler : WidgetViewHandler {
         
         val visibleDays = mutableListOf<Triple<Int, String, Boolean>>()
         fun clickPrecip(date: LocalDate, dateStr: String): Int? {
-            return if (date == today) todayForwardLookingPrecipProbability else weatherByDate[dateStr]?.precipProbability
+            return if (date == today) todayNext8HourPrecipProbability else weatherByDate[dateStr]?.precipProbability
         }
 
         if (hasDay1) visibleDays.add(Triple(1, day1Str, DayClickHelper.hasRainForecast(rainSummary1, clickPrecip(day1Date, day1Str))))

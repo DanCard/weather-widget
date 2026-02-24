@@ -23,6 +23,7 @@ TEST_TIMEOUT=300 # Seconds for tests to complete
 VISIBLE_MODE=true  # Run emulator with GUI window (default)
 PROGRESS_PID=""
 DEBUG_LOG="/tmp/run-emulator-tests-debug-$(date +%Y%m%d-%H%M%S).log"
+TEST_RESULTS_LOG="/tmp/test_results-$$-$(date +%Y%m%d-%H%M%S).log"
 
 debug_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
@@ -364,10 +365,10 @@ show_progress() {
 echo -e "${BLUE}Starting tests...${NC}"
 
 # Truncate log so show_progress doesn't see stale content
-: > /tmp/test_results.log
+: > "$TEST_RESULTS_LOG"
 
 # Start progress monitor in background
-show_progress /tmp/test_results.log &
+show_progress "$TEST_RESULTS_LOG" &
 PROGRESS_PID=$!
 debug_log "progress monitor started pid=$PROGRESS_PID"
 
@@ -376,7 +377,7 @@ debug_log "progress monitor started pid=$PROGRESS_PID"
 # letting show_progress display checkmarks in real time.
 # shellcheck disable=SC2086
 script -qfc "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --console=plain --info" \
-    /tmp/test_results.log > /dev/null 2>&1 &
+    "$TEST_RESULTS_LOG" > /dev/null 2>&1 &
 GRADLE_PID=$!
 debug_log "gradle started via script(1) pid=$GRADLE_PID"
 
@@ -390,7 +391,7 @@ while kill -0 $GRADLE_PID 2>/dev/null; do
         debug_log "timeout after ${TEST_TIMEOUT}s"
         break
     fi
-    if grep -q "BUILD SUCCESSFUL\|BUILD FAILED" /tmp/test_results.log 2>/dev/null; then
+    if grep -q "BUILD SUCCESSFUL\|BUILD FAILED" "$TEST_RESULTS_LOG" 2>/dev/null; then
         debug_log "detected build completion in output"
         sleep 2  # Brief grace period for final output flush
         break
@@ -409,7 +410,7 @@ fi
 wait $GRADLE_PID 2>/dev/null || true
 
 # Determine success from build output (exit code unreliable since we may have killed the process)
-if grep -q "BUILD SUCCESSFUL" /tmp/test_results.log 2>/dev/null; then
+if grep -q "BUILD SUCCESSFUL" "$TEST_RESULTS_LOG" 2>/dev/null; then
     TEST_SUCCESS=true
 fi
 
@@ -430,9 +431,7 @@ SKIPPED=0
 
 RESULTS_DIR="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
 LATEST_REPORT_XML=""
-if [ "$TEST_SUCCESS" = true ]; then
-    LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
-fi
+LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
 
 if [ -n "$LATEST_REPORT_XML" ]; then
     TESTSUITE_LINE=$(grep -m1 '<testsuite ' "$LATEST_REPORT_XML" || true)
@@ -453,10 +452,10 @@ if [ -n "$LATEST_REPORT_XML" ]; then
     fi
 fi
 
-# Fallback to log parsing when XML summary is unavailable (only if build succeeded)
-if [ "$TOTAL" -eq 0 ] && [ "$TEST_SUCCESS" = true ] && [ -f /tmp/test_results.log ]; then
-    PASSED=$(grep -c "INFO: Execute .*: PASSED\| > .* PASSED" /tmp/test_results.log 2>/dev/null || echo 0)
-    FAILED=$(grep -c "INFO: Execute .*: FAILED\| > .* FAILED" /tmp/test_results.log 2>/dev/null || echo 0)
+# Fallback to log parsing when XML summary is unavailable
+if [ "$TOTAL" -eq 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
+    PASSED=$(grep -c "INFO: Execute .*: PASSED\| > .* PASSED" "$TEST_RESULTS_LOG" 2>/dev/null || echo 0)
+    FAILED=$(grep -c "INFO: Execute .*: FAILED\| > .* FAILED" "$TEST_RESULTS_LOG" 2>/dev/null || echo 0)
     ERRORS=0
     SKIPPED=0
     TOTAL=$((PASSED + FAILED))
@@ -492,8 +491,24 @@ echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
 # Show build errors (compile failures, etc.) when tests never ran
-if [ "$TEST_SUCCESS" = false ] && [ "$TOTAL" -eq 0 ] && [ -f /tmp/test_results.log ]; then
-    COMPILE_ERRORS=$(grep "^e: " /tmp/test_results.log 2>/dev/null | head -20)
+if [ "$TEST_SUCCESS" = false ] && [ "$TOTAL" -eq 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
+    BUILD_FAILURE_HEAD=$(awk '
+        BEGIN { in_block=0; count=0 }
+        /^FAILURE: Build failed with an exception\./ { in_block=1 }
+        in_block {
+            print
+            count++
+            if (count >= 25) exit
+        }
+    ' "$TEST_RESULTS_LOG")
+    if [ -n "$BUILD_FAILURE_HEAD" ]; then
+        echo -e "${RED}Build failure details:${NC}"
+        echo "$BUILD_FAILURE_HEAD" | while IFS= read -r line; do
+            echo -e "  ${RED}$line${NC}"
+        done
+    fi
+
+    COMPILE_ERRORS=$(grep "^e: " "$TEST_RESULTS_LOG" 2>/dev/null | head -20)
     if [ -n "$COMPILE_ERRORS" ]; then
         echo -e "${RED}Compile errors:${NC}"
         echo "$COMPILE_ERRORS" | while IFS= read -r line; do
@@ -503,16 +518,24 @@ if [ "$TEST_SUCCESS" = false ] && [ "$TOTAL" -eq 0 ] && [ -f /tmp/test_results.l
 fi
 
 # Show failed test names if any
-if [ "$FAILED" -gt 0 ] && [ -f /tmp/test_results.log ]; then
+if [ "$FAILED" -gt 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
     echo -e "${RED}Failed tests:${NC}"
-    # Match both "INFO: Execute Class.method: FAILED" and "Class > method FAILED"
-    grep " FAILED" /tmp/test_results.log | while read -r line; do
-        if echo "$line" | grep -q "INFO: Execute"; then
-            echo "$line" | sed -n "s/.*INFO: Execute \(.*\): .*/\1/p" | sed 's/^/  ✗ /'
-        else
-            echo "$line" | sed 's/.*:app:connectedDebugAndroidTest //' | sed 's/ FAILED.*//' | sed 's/^/  ✗ /'
-        fi
-    done | head -20
+    # Match only real failed test lines, not generic "BUILD FAILED" lines.
+    awk '
+        /INFO: Execute .*: FAILED/ || /SEVERE: Execute .*: FAILED/ {
+            line=$0
+            sub(/^.*Execute /, "", line)
+            sub(/: FAILED.*$/, "", line)
+            if (line != "") print "  ✗ " line
+            next
+        }
+        / > .* FAILED/ {
+            line=$0
+            sub(/^.*:app:connectedDebugAndroidTest /, "", line)
+            sub(/ FAILED.*$/, "", line)
+            if (line != "") print "  ✗ " line
+        }
+    ' "$TEST_RESULTS_LOG" | head -20
 fi
 
 # Return appropriate exit code
