@@ -18,6 +18,7 @@ enum class ApiPreference {
     ALTERNATE, // Pseudo-random initial source, changes daily
     PREFER_NWS, // Default to NWS, toggle switches to Open-Meteo
     PREFER_OPENMETEO, // Default to Open-Meteo, toggle switches to NWS
+    PREFER_WEATHERAPI, // Default to WeatherAPI, toggle switches to NWS
 }
 
 enum class ViewMode {
@@ -57,7 +58,9 @@ class WidgetStateManager
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
             const val MIN_HOURLY_OFFSET = -8 // Allow scrolling to see 16h of history (8h default + 8h scroll)
-            const val MAX_HOURLY_OFFSET = 96 // Allow navigating up to 4 days into the future
+            // Keep this aligned with daily navigation horizon so day-click to precip can
+            // preserve the intended target day (up to +14 days).
+            const val MAX_HOURLY_OFFSET = 336 // 14 days into the future
             const val HOURLY_NAV_JUMP = 6 // Navigate in 6-hour chunks (default, use getNavJump for zoom-aware)
 
             @Deprecated("Use WeatherSource.NWS.displayName instead", ReplaceWith("WeatherSource.NWS.displayName"))
@@ -65,6 +68,9 @@ class WidgetStateManager
 
             @Deprecated("Use WeatherSource.OPEN_METEO.displayName instead", ReplaceWith("WeatherSource.OPEN_METEO.displayName"))
             const val SOURCE_OPEN_METEO = "Open-Meteo"
+
+            @Deprecated("Use WeatherSource.WEATHER_API.displayName instead", ReplaceWith("WeatherSource.WEATHER_API.displayName"))
+            const val SOURCE_WEATHER_API = "WeatherAPI"
 
             @Deprecated("Use WeatherSource.GENERIC_GAP.id instead", ReplaceWith("WeatherSource.GENERIC_GAP.id"))
             const val SOURCE_GENERIC_GAP = "Generic"
@@ -270,20 +276,38 @@ class WidgetStateManager
          */
         fun getCurrentDisplaySource(widgetId: Int): WeatherSource {
             val preference = getApiPreference()
-            val isToggled = prefs.getBoolean("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", false)
+            val toggleStep = getDisplaySourceToggleStep(widgetId)
 
             return when (preference) {
-                ApiPreference.PREFER_NWS -> if (isToggled) WeatherSource.OPEN_METEO else WeatherSource.NWS
-                ApiPreference.PREFER_OPENMETEO -> if (isToggled) WeatherSource.NWS else WeatherSource.OPEN_METEO
+                ApiPreference.PREFER_NWS -> sourceForStep(
+                    toggleStep,
+                    listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API),
+                )
+                ApiPreference.PREFER_OPENMETEO -> sourceForStep(
+                    toggleStep,
+                    listOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.NWS),
+                )
+                ApiPreference.PREFER_WEATHERAPI -> sourceForStep(
+                    toggleStep,
+                    listOf(WeatherSource.WEATHER_API, WeatherSource.NWS, WeatherSource.OPEN_METEO),
+                )
                 ApiPreference.ALTERNATE -> {
                     // Pseudo-random initial source: changes daily, varies by widget
                     val daysSinceEpoch = (System.currentTimeMillis() / (1000 * 60 * 60 * 24)).toInt()
-                    val defaultSource = if ((daysSinceEpoch + widgetId) % 2 == 0) WeatherSource.NWS else WeatherSource.OPEN_METEO
-                    if (isToggled) {
-                        if (defaultSource == WeatherSource.NWS) WeatherSource.OPEN_METEO else WeatherSource.NWS
-                    } else {
-                        defaultSource
-                    }
+                    val defaultSource =
+                        when ((daysSinceEpoch + widgetId) % 3) {
+                            0 -> WeatherSource.NWS
+                            1 -> WeatherSource.OPEN_METEO
+                            else -> WeatherSource.WEATHER_API
+                        }
+                    val sequence =
+                        when (defaultSource) {
+                            WeatherSource.NWS -> listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
+                            WeatherSource.OPEN_METEO -> listOf(WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API, WeatherSource.NWS)
+                            WeatherSource.WEATHER_API -> listOf(WeatherSource.WEATHER_API, WeatherSource.NWS, WeatherSource.OPEN_METEO)
+                            else -> listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
+                        }
+                    sourceForStep(toggleStep, sequence)
                 }
             }
         }
@@ -293,8 +317,8 @@ class WidgetStateManager
          * Returns the new source after toggling.
          */
         fun toggleDisplaySource(widgetId: Int): WeatherSource {
-            val isToggled = prefs.getBoolean("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", false)
-            prefs.edit().putBoolean("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", !isToggled).apply()
+            val currentStep = getDisplaySourceToggleStep(widgetId)
+            prefs.edit().putInt("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", currentStep + 1).apply()
             return getCurrentDisplaySource(widgetId)
         }
 
@@ -314,5 +338,20 @@ class WidgetStateManager
                 editor.remove(key)
             }
             editor.apply()
+        }
+
+        private fun sourceForStep(step: Int, sequence: List<WeatherSource>): WeatherSource {
+            if (sequence.isEmpty()) return WeatherSource.NWS
+            val normalizedStep = step.mod(sequence.size)
+            return sequence[normalizedStep]
+        }
+
+        private fun getDisplaySourceToggleStep(widgetId: Int): Int {
+            val key = "$KEY_DISPLAY_SOURCE_PREFIX$widgetId"
+            if (prefs.contains(key)) {
+                return prefs.getInt(key, 0)
+            }
+            // Migration fallback from old boolean state (pre-WeatherAPI rotation)
+            return if (prefs.getBoolean(key, false)) 1 else 0
         }
     }

@@ -81,7 +81,7 @@ class AccuracyCalculator
         }
 
         /**
-         * Get comparison statistics for both NWS and Open-Meteo.
+         * Get comparison statistics for all API sources.
          */
         suspend fun calculateComparison(
             lat: Double,
@@ -93,10 +93,12 @@ class AccuracyCalculator
 
             val nwsStats = calculateAccuracy(WeatherSource.NWS, lat, lon, days)
             val meteoStats = calculateAccuracy(WeatherSource.OPEN_METEO, lat, lon, days)
+            val weatherApiStats = calculateAccuracy(WeatherSource.WEATHER_API, lat, lon, days)
 
             return ComparisonStatistics(
                 nwsStats = nwsStats,
                 meteoStats = meteoStats,
+                weatherApiStats = weatherApiStats,
                 periodStart = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 periodEnd = endDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
             )

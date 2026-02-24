@@ -18,6 +18,7 @@ import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -48,6 +49,7 @@ class WeatherRepository
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
+        private val weatherApi: WeatherApi,
         private val widgetStateManager: WidgetStateManager,
         private val apiLogger: ApiLogger,
         private val temperatureInterpolator: TemperatureInterpolator,
@@ -127,12 +129,15 @@ class WeatherRepository
 
                     appLogDao.log("NET_FETCH_START", "Forcing fetch: force=$forceRefresh")
                     val fetchStart = System.currentTimeMillis()
-                    val (nwsWeather, meteoWeather) = fetchFromBothApis(lat, lon, locationName)
+                    val (nwsWeather, meteoWeather, weatherApiWeather) = fetchFromBothApis(lat, lon, locationName)
                     val fetchDuration = System.currentTimeMillis() - fetchStart
-                    appLogDao.log("NET_FETCH_DONE", "APIs returned in ${fetchDuration}ms. NWS=${nwsWeather?.size ?: "null"}, Meteo=${meteoWeather?.size ?: "null"}")
+                    appLogDao.log(
+                        "NET_FETCH_DONE",
+                        "APIs returned in ${fetchDuration}ms. NWS=${nwsWeather?.size ?: "null"}, Meteo=${meteoWeather?.size ?: "null"}, WAPI=${weatherApiWeather?.size ?: "null"}",
+                    )
 
-                    if (nwsWeather == null && meteoWeather == null) {
-                        appLogDao.log("NET_FETCH_FAIL", "Both APIs returned null", "WARN")
+                    if (nwsWeather == null && meteoWeather == null && weatherApiWeather == null) {
+                        appLogDao.log("NET_FETCH_FAIL", "All APIs returned null", "WARN")
                     }
 
                     // Save both APIs' data, merging with existing to preserve non-zero values
@@ -146,11 +151,17 @@ class WeatherRepository
                         weatherDao.insertAll(merged)
                         appLogDao.log("NET_FETCH_SUCCESS", "Meteo: Saved ${merged.size} entries (raw=${meteoWeather.size})")
                     }
+                    if (weatherApiWeather != null) {
+                        val merged = mergeWithExisting(weatherApiWeather, lat, lon)
+                        weatherDao.insertAll(merged)
+                        appLogDao.log("NET_FETCH_SUCCESS", "WeatherAPI: Saved ${merged.size} entries (raw=${weatherApiWeather.size})")
+                    }
 
                     // Fetch and save generic gap data once to cover any gaps in either API
                     val lastNwsDate = nwsWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
                     val lastMeteoDate = meteoWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
-                    val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate).minOrNull() ?: LocalDate.now()
+                    val lastWeatherApiDate = weatherApiWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
+                    val lastDateForGap = listOfNotNull(lastNwsDate, lastMeteoDate, lastWeatherApiDate).minOrNull() ?: LocalDate.now()
 
                     val gapStart = System.currentTimeMillis()
                     val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
@@ -390,7 +401,7 @@ class WeatherRepository
             lat: Double,
             lon: Double,
             locationName: String,
-        ): Pair<List<WeatherEntity>?, List<WeatherEntity>?> =
+        ): Triple<List<WeatherEntity>?, List<WeatherEntity>?, List<WeatherEntity>?> =
             coroutineScope {
                 // Try both APIs concurrently
                 val nwsDeferred =
@@ -425,25 +436,43 @@ class WeatherRepository
                         }
                     }
 
+                val weatherApiDeferred =
+                    async {
+                        try {
+                            val startTime = System.currentTimeMillis()
+                            val result = fetchFromWeatherApi(lat, lon, locationName, days = 14)
+                            val duration = System.currentTimeMillis() - startTime
+                            apiLogger.logApiCall("WeatherAPI", true, null, locationName, duration)
+                            Log.d(TAG, "fetchFromBothApis: WeatherAPI succeeded")
+                            result
+                        } catch (e: Exception) {
+                            Log.d(TAG, "fetchFromBothApis: WeatherAPI failed: ${e.message}")
+                            apiLogger.logApiCall("WeatherAPI", false, e.message ?: "Unknown error", locationName)
+                            null
+                        }
+                    }
+
                 val nwsResult = nwsDeferred.await()
                 val meteoResult = meteoDeferred.await()
+                val weatherApiResult = weatherApiDeferred.await()
 
                 // Save snapshots from both APIs (if available)
                 try {
                     nwsResult?.let { saveForecastSnapshot(it, lat, lon, "NWS") }
                     meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
+                    weatherApiResult?.let { saveForecastSnapshot(it, lat, lon, "WEATHER_API") }
                 } catch (e: Exception) {
                     Log.e(TAG, "fetchFromBothApis: saveForecastSnapshot failed: ${e.message}", e)
                     // Don't let snapshot failure kill the whole fetch
                 }
 
-                // If both failed, throw an exception
-                if (nwsResult == null && meteoResult == null) {
-                    Log.e(TAG, "fetchFromBothApis: Both APIs failed")
-                    throw Exception("Both APIs failed")
+                // If all failed, throw an exception
+                if (nwsResult == null && meteoResult == null && weatherApiResult == null) {
+                    Log.e(TAG, "fetchFromBothApis: All APIs failed")
+                    throw Exception("All APIs failed")
                 }
 
-                nwsResult to meteoResult
+                Triple(nwsResult, meteoResult, weatherApiResult)
             }
 
         private fun isDevicePluggedIn(): Boolean {
@@ -470,10 +499,8 @@ class WeatherRepository
         ): List<WeatherEntity> {
             val isPlugged = isDevicePluggedIn()
             Log.d(TAG, "fetchClimateNormalsGap: Checking if plugged in: $isPlugged (Source Context: $source)")
-
-            if (!isPlugged) {
-                return emptyList()
-            }
+            // Always allow gap fill so short-horizon providers (e.g., 3-day WeatherAPI plans)
+            // still render full future ranges via climate normals on battery-powered devices.
 
             val today = LocalDate.now()
             val targetDate = today.plusDays(targetDays.toLong())
@@ -999,6 +1026,42 @@ class WeatherRepository
             }
         }
 
+        private suspend fun fetchFromWeatherApi(
+            lat: Double,
+            lon: Double,
+            locationName: String,
+            days: Int = 14,
+        ): List<WeatherEntity> {
+            Log.d(TAG, "fetchFromWeatherApi: Fetching for $lat, $lon (days=$days)")
+            val forecast = weatherApi.getForecast(lat, lon, days)
+            Log.d(TAG, "fetchFromWeatherApi: Got ${forecast.daily.size} days from API")
+            forecast.daily.forEach { d ->
+                Log.d(TAG, "  API day: ${d.date} H=${d.highTemp} L=${d.lowTemp}")
+            }
+            val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+            if (forecast.hourly.isNotEmpty()) {
+                saveWeatherApiHourlyForecasts(forecast.hourly, lat, lon)
+            }
+
+            return forecast.daily.map { daily ->
+                WeatherEntity(
+                    date = daily.date,
+                    locationLat = lat,
+                    locationLon = lon,
+                    locationName = locationName,
+                    highTemp = daily.highTemp,
+                    lowTemp = daily.lowTemp,
+                    currentTemp = if (daily.date == today) forecast.currentTemp else null,
+                    condition = daily.condition,
+                    isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
+                    source = WeatherSource.WEATHER_API.id,
+                    precipProbability = daily.precipProbability,
+                    isClimateNormal = false,
+                )
+            }
+        }
+
         private suspend fun saveHourlyForecasts(
             hourlyForecasts: List<OpenMeteoApi.HourlyForecast>,
             lat: Double,
@@ -1058,6 +1121,33 @@ class WeatherRepository
             Log.d(
                 TAG,
                 "saveNwsHourlyForecasts: Saved ${entities.size} NWS hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}",
+            )
+        }
+
+        private suspend fun saveWeatherApiHourlyForecasts(
+            hourlyForecasts: List<WeatherApi.HourlyForecast>,
+            lat: Double,
+            lon: Double,
+        ) {
+            val entities =
+                hourlyForecasts.map { hourly ->
+                    HourlyForecastEntity(
+                        dateTime = hourly.dateTime,
+                        locationLat = lat,
+                        locationLon = lon,
+                        temperature = hourly.temperature,
+                        condition = hourly.condition,
+                        source = WeatherSource.WEATHER_API.id,
+                        precipProbability = hourly.precipProbability,
+                        fetchedAt = System.currentTimeMillis(),
+                    )
+                }
+
+            hourlyForecastDao.insertAll(entities)
+            val sortedTimes = entities.map { it.dateTime }.sorted()
+            Log.d(
+                TAG,
+                "saveWeatherApiHourlyForecasts: Saved ${entities.size} WeatherAPI hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}",
             )
         }
 

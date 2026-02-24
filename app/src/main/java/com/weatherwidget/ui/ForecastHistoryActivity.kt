@@ -191,6 +191,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         val nwsPoints = evolutionPoints.filter { it.source == WeatherSource.NWS }
         val meteoPoints = evolutionPoints.filter { it.source == WeatherSource.OPEN_METEO }
+        val weatherApiPoints = evolutionPoints.filter { it.source == WeatherSource.WEATHER_API }
+        val meteoLikePoints = meteoPoints + weatherApiPoints
         val gapPoints = evolutionPoints.filter { it.source == WeatherSource.GENERIC_GAP }
 
         val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
@@ -198,7 +200,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
             when (requestedSource) {
                 WeatherSource.NWS -> nwsPoints.size
                 WeatherSource.OPEN_METEO -> meteoPoints.size
-                else -> nwsPoints.size + meteoPoints.size
+                WeatherSource.WEATHER_API -> weatherApiPoints.size
+                else -> nwsPoints.size + meteoPoints.size + weatherApiPoints.size
             }
         val summaryText =
             buildString {
@@ -206,8 +209,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     append("$summaryCount NWS forecast snapshots")
                 } else if (requestedSource == WeatherSource.OPEN_METEO) {
                     append("$summaryCount Open-Meteo forecast snapshots")
+                } else if (requestedSource == WeatherSource.WEATHER_API) {
+                    append("$summaryCount WeatherAPI forecast snapshots")
                 } else {
-                    append("${nwsPoints.size} NWS + ${meteoPoints.size} Open-Meteo snapshots")
+                    append("${nwsPoints.size} NWS + ${meteoPoints.size} Open-Meteo + ${weatherApiPoints.size} WeatherAPI snapshots")
                     if (gapPoints.isNotEmpty()) append(" • ${gapPoints.size} climate-fill points")
                 }
             }
@@ -230,6 +235,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 meteoLegend.visibility = View.GONE
             }
             WeatherSource.OPEN_METEO -> {
+                nwsLegend.visibility = View.GONE
+                meteoLegend.visibility = View.VISIBLE
+            }
+            WeatherSource.WEATHER_API -> {
                 nwsLegend.visibility = View.GONE
                 meteoLegend.visibility = View.VISIBLE
             }
@@ -264,7 +273,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         highTitle.text = if (isErrorMode) getString(R.string.forecast_error_high_title) else getString(R.string.forecast_evolution_high_title)
         lowTitle.text = if (isErrorMode) getString(R.string.forecast_error_low_title) else getString(R.string.forecast_evolution_low_title)
 
-        if (nwsPoints.isNotEmpty() || meteoPoints.isNotEmpty()) {
+        if (nwsPoints.isNotEmpty() || meteoLikePoints.isNotEmpty()) {
             if (isErrorMode && (actualHigh == null || actualLow == null)) {
                 noDataTextView.text = getString(R.string.forecast_error_requires_actuals)
                 noDataTextView.visibility = View.VISIBLE
@@ -282,7 +291,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     ForecastEvolutionRenderer.renderHighErrorGraph(
                         context = this,
                         nwsPoints = nwsPoints,
-                        meteoPoints = meteoPoints,
+                        meteoPoints = meteoLikePoints,
                         actualHigh = actualHigh,
                         widthPx = width,
                         heightPx = height,
@@ -291,7 +300,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     ForecastEvolutionRenderer.renderHighGraph(
                         context = this,
                         nwsPoints = nwsPoints,
-                        meteoPoints = meteoPoints,
+                        meteoPoints = meteoLikePoints,
                         actualHigh = actualHigh,
                         widthPx = width,
                         heightPx = height,
@@ -304,7 +313,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     ForecastEvolutionRenderer.renderLowErrorGraph(
                         context = this,
                         nwsPoints = nwsPoints,
-                        meteoPoints = meteoPoints,
+                        meteoPoints = meteoLikePoints,
                         actualLow = actualLow,
                         widthPx = width,
                         heightPx = height,
@@ -313,7 +322,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     ForecastEvolutionRenderer.renderLowGraph(
                         context = this,
                         nwsPoints = nwsPoints,
-                        meteoPoints = meteoPoints,
+                        meteoPoints = meteoLikePoints,
                         actualLow = actualLow,
                         widthPx = width,
                         heightPx = height,
@@ -384,6 +393,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         return when (rawSource) {
             "NWS" -> WeatherSource.NWS
             "Open-Meteo", "OPEN_METEO" -> WeatherSource.OPEN_METEO
+            "WeatherAPI", "WEATHER_API" -> WeatherSource.WEATHER_API
             else -> null
         }
     }

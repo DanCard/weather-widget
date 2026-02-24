@@ -134,6 +134,15 @@ class WidgetStateManagerTest {
     }
 
     @Test
+    fun `setHourlyOffset preserves day-click future offsets within range`() {
+        val widgetId = 1
+
+        stateManager.setHourlyOffset(widgetId, 129)
+
+        verify { editor.putInt("widget_hourly_offset_$widgetId", 129) }
+    }
+
+    @Test
     fun `toggleViewMode to DAILY resets zoom to WIDE`() {
         val widgetId = 1
         every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.HOURLY.ordinal
@@ -163,6 +172,42 @@ class WidgetStateManagerTest {
         stateManager.clearWidgetState(widgetId)
 
         verify { editor.remove("widget_zoom_level_$widgetId") }
+    }
+
+    @Test
+    fun `toggleDisplaySource cycles through all three sources for prefer nws`() {
+        val widgetId = 1
+        every { prefs.getInt("api_preference", any()) } returns ApiPreference.PREFER_NWS.ordinal
+        every { prefs.contains("widget_display_source_$widgetId") } returns true
+        var storedStep = 0
+        every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
+        every { editor.putInt("widget_display_source_$widgetId", any()) } returns editor
+        every { editor.putInt("widget_display_source_$widgetId", any()) } answers {
+            storedStep = secondArg()
+            editor
+        }
+
+        val first = stateManager.getCurrentDisplaySource(widgetId)
+        val second = stateManager.toggleDisplaySource(widgetId)
+        val third = stateManager.toggleDisplaySource(widgetId)
+        val fourth = stateManager.toggleDisplaySource(widgetId)
+
+        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, first)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, second)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.WEATHER_API, third)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, fourth)
+    }
+
+    @Test
+    fun `getCurrentDisplaySource migrates legacy boolean toggle state`() {
+        val widgetId = 1
+        every { prefs.getInt("api_preference", any()) } returns ApiPreference.PREFER_NWS.ordinal
+        every { prefs.contains("widget_display_source_$widgetId") } returns false
+        every { prefs.getBoolean("widget_display_source_$widgetId", false) } returns true
+
+        val source = stateManager.getCurrentDisplaySource(widgetId)
+
+        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, source)
     }
 
     @Test

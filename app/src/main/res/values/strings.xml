@@ -23,9 +23,10 @@
     <string name="weather_icon_desc">Weather condition icon</string>
     <string name="api_preference">Weather Data Source</string>
     <string name="api_preference_description">Choose which weather API to prefer (fallback to other if unavailable)</string>
-    <string name="api_alternate">Alternate - Switch between NWS and Open-Meteo</string>
+    <string name="api_alternate">Alternate - Rotate between NWS, Open-Meteo, and WeatherAPI</string>
     <string name="api_prefer_nws">Prefer NWS - National Weather Service (US only)</string>
     <string name="api_prefer_openmeteo">Prefer Open-Meteo - Global coverage</string>
+    <string name="api_prefer_weatherapi">Prefer WeatherAPI - Global coverage</string>
     <string name="api_diagnostics">API Diagnostics</string>
     <string name="api_diagnostics_description">View recent API calls and troubleshoot issues</string>
     <string name="view_api_log">View API Log</string>
@@ -62,7 +63,7 @@
     <string name="tour_current_temp_desc">The large temperature in the top-left corner shows the current temperature, interpolated from hourly forecast data for smooth transitions. Updates 1–4 times per hour based on temperature change rate.</string>
 
     <string name="tour_api_toggle_title">Weather Data Source</string>
-    <string name="tour_api_toggle_desc">Tap the API indicator in the top-right corner to toggle between weather sources:\n\n• NWS: National Weather Service (US only)\n• Meteo: Open-Meteo (global coverage)\n\nYou can set your preferred source in Settings (Alternate, Prefer NWS, or Prefer Open-Meteo).</string>
+    <string name="tour_api_toggle_desc">Tap the API indicator in the top-right corner to toggle between weather sources:\n\n• NWS: National Weather Service (US only)\n• Meteo: Open-Meteo (global coverage)\n• WAPI: WeatherAPI (global coverage)\n\nYou can set your preferred source in Settings (Alternate, Prefer NWS, Prefer Open-Meteo, or Prefer WeatherAPI).</string>
 
     <string name="tour_navigation_title">Navigation</string>
     <string name="tour_navigation_desc">Use the left/right arrows to browse up to 30 days of historical weather data and future forecasts. Past days show actual temperatures compared to predictions for accuracy analysis.</string>

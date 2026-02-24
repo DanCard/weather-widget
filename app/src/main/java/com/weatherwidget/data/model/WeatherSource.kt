@@ -21,6 +21,11 @@ enum class WeatherSource(
         displayName = "Open-Meteo",
         shortDisplayName = "Meteo",
     ),
+    WEATHER_API(
+        id = "WEATHER_API",
+        displayName = "WeatherAPI",
+        shortDisplayName = "WAPI",
+    ),
     GENERIC_GAP(
         id = "Generic",
         displayName = "Climate Avg",
@@ -38,6 +43,7 @@ enum class WeatherSource(
             when (displaySource) {
                 "NWS" -> NWS
                 "Open-Meteo", "OPEN_METEO" -> OPEN_METEO
+                "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 else -> NWS
             }
 
@@ -48,6 +54,7 @@ enum class WeatherSource(
             when (id) {
                 "NWS" -> NWS
                 "OPEN_METEO" -> OPEN_METEO
+                "WEATHER_API" -> WEATHER_API
                 "Generic" -> GENERIC_GAP
                 else -> NWS
             }

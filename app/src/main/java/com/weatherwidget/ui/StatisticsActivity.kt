@@ -64,7 +64,8 @@ class StatisticsActivity : AppCompatActivity() {
                 // Get daily breakdown for both sources and combine
                 val nwsDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
                 val meteoDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.OPEN_METEO, lat, lon, 30)
-                val allDaily = (nwsDaily + meteoDaily).sortedByDescending { it.date }
+                val weatherApiDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.WEATHER_API, lat, lon, 30)
+                val allDaily = (nwsDaily + meteoDaily + weatherApiDaily).sortedByDescending { it.date }
 
                 // Check if we have any data
                 val hasAnyData = allDaily.isNotEmpty()
@@ -93,7 +94,7 @@ class StatisticsActivity : AppCompatActivity() {
                             if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
                                 val stats = comparison.meteoStats
                                 append(
-                                    "Open-Meteo: High ±%.1f°%s, Low ±%.1f°%s".format(
+                                    "Open-Meteo: High ±%.1f°%s, Low ±%.1f°%s\n".format(
                                         stats.avgHighError,
                                         formatBias(stats.highBias),
                                         stats.avgLowError,
@@ -101,7 +102,21 @@ class StatisticsActivity : AppCompatActivity() {
                                     ),
                                 )
                             } else {
-                                append("Open-Meteo: No data yet")
+                                append("Open-Meteo: No data yet\n")
+                            }
+
+                            if (comparison.weatherApiStats != null && comparison.weatherApiStats.totalForecasts > 0) {
+                                val stats = comparison.weatherApiStats
+                                append(
+                                    "WeatherAPI: High ±%.1f°%s, Low ±%.1f°%s".format(
+                                        stats.avgHighError,
+                                        formatBias(stats.highBias),
+                                        stats.avgLowError,
+                                        formatBias(stats.lowBias),
+                                    ),
+                                )
+                            } else {
+                                append("WeatherAPI: No data yet")
                             }
                         }
                     }

@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
@@ -29,6 +30,7 @@ class WeatherGapTest {
     private lateinit var appLogDao: AppLogDao
     private lateinit var nwsApi: NwsApi
     private lateinit var openMeteoApi: OpenMeteoApi
+    private lateinit var weatherApi: WeatherApi
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var apiLogger: ApiLogger
     private lateinit var temperatureInterpolator: TemperatureInterpolator
@@ -52,6 +54,7 @@ class WeatherGapTest {
         appLogDao = mockk(relaxed = true)
         nwsApi = mockk()
         openMeteoApi = mockk()
+        weatherApi = mockk()
         widgetStateManager = mockk(relaxed = true)
         apiLogger = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
@@ -65,10 +68,13 @@ class WeatherGapTest {
                 appLogDao,
                 nwsApi,
                 openMeteoApi,
+                weatherApi,
                 widgetStateManager,
                 apiLogger,
                 temperatureInterpolator,
             )
+
+        coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
     }
 
     @Test

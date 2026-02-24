@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -6,6 +8,16 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.ktlint)
 }
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.inputStream().use { localProperties.load(it) }
+}
+val weatherApiKey =
+    (localProperties.getProperty("WEATHER_API_KEY")
+        ?: System.getenv("WEATHER_API_KEY")
+        ?: "")
 
 ktlint {
     version.set("1.2.1")
@@ -36,6 +48,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -131,6 +148,7 @@ dependencies {
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.test:rules:1.5.0")
     androidTestImplementation(libs.mockk.android)
+    androidTestImplementation(libs.ktor.client.mock)
 }
 
 ksp {

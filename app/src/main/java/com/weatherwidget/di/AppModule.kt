@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.Module
 import dagger.Provides
@@ -88,4 +89,11 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
     ): OpenMeteoApi = OpenMeteoApi(httpClient, json)
+
+    @Provides
+    @Singleton
+    fun provideWeatherApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): WeatherApi = WeatherApi(httpClient, json)
 }

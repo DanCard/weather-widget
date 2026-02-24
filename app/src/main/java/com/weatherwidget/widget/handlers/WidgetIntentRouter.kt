@@ -4,6 +4,11 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -310,6 +315,7 @@ object WidgetIntentRouter {
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
+        val missingDataForSelectedSource = sourceDataMissingForCurrentWindow(weatherDao, hourlyDao, lat, lon, newSource)
 
         if (viewMode == com.weatherwidget.widget.ViewMode.HOURLY ||
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
@@ -353,6 +359,11 @@ object WidgetIntentRouter {
             withContext(Dispatchers.Main) {
                 DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
             }
+        }
+
+        if (missingDataForSelectedSource) {
+            Log.d(TAG, "handleToggleApi: Missing cached data for $newSource, enqueueing forced refresh")
+            enqueueForcedRefresh(context)
         }
     }
 
@@ -417,6 +428,47 @@ object WidgetIntentRouter {
                 DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
             }
         }
+    }
+
+    private suspend fun sourceDataMissingForCurrentWindow(
+        weatherDao: com.weatherwidget.data.local.WeatherDao,
+        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        lat: Double,
+        lon: Double,
+        source: WeatherSource,
+    ): Boolean {
+        val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val futureEnd = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val sourceDaily = weatherDao.getWeatherRangeBySource(historyStart, futureEnd, lat, lon, source.id)
+        val maxDailyDate =
+            sourceDaily.mapNotNull {
+                runCatching { LocalDate.parse(it.date) }.getOrNull()
+            }.maxOrNull()
+        val hasRequiredFutureCoverage = maxDailyDate != null && !maxDailyDate.isBefore(LocalDate.now().plusDays(2))
+
+        val now = LocalDateTime.now()
+        val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val sourceHourly = hourlyDao.getHourlyForecastsBySource(hourlyStart, hourlyEnd, lat, lon, source.id)
+
+        return sourceDaily.isEmpty() || sourceHourly.isEmpty() || !hasRequiredFutureCoverage
+    }
+
+    private fun enqueueForcedRefresh(context: Context) {
+        val workRequest =
+            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInputData(
+                    Data.Builder()
+                        .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                        .build(),
+                )
+                .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WeatherWidgetProvider.WORK_NAME_ONE_TIME,
+            ExistingWorkPolicy.REPLACE,
+            workRequest,
+        )
     }
 
     /**

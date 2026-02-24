@@ -15,7 +15,9 @@ import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.HourlyViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
@@ -245,12 +247,61 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         } catch (_: Exception) {
                             ViewMode.PRECIPITATION
                         }
+                    val hasHourlyData =
+                        hasHourlyDataForDate(
+                            context = context,
+                            database = database,
+                            appWidgetId = appWidgetId,
+                            dateStr = dateStr,
+                            intent = intent,
+                        )
+                    if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.HOURLY)) {
+                        database.appLogDao().log(
+                            "CLICK_DAILY_NO_HOURLY",
+                            "date=$dateStr mode=$targetMode -> settings",
+                        )
+                        val settingsIntent = Intent(context, SettingsActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(settingsIntent)
+                        return@launch
+                    }
                     WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset)
                 }
             } finally {
                 pendingResult.finish()
             }
         }
+    }
+
+    private suspend fun hasHourlyDataForDate(
+        context: Context,
+        database: WeatherDatabase,
+        appWidgetId: Int,
+        dateStr: String,
+        intent: Intent,
+    ): Boolean {
+        val targetDate =
+            try {
+                LocalDate.parse(dateStr)
+            } catch (_: Exception) {
+                return false
+            }
+
+        val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
+        val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
+        val latestWeather = database.weatherDao().getLatestWeather()
+        val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return false
+        val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return false
+
+        val start = "${targetDate}T00:00"
+        val end = "${targetDate}T23:00"
+        val hourlyForDay = database.hourlyForecastDao().getHourlyForecasts(start, end, effectiveLat, effectiveLon)
+        if (hourlyForDay.isEmpty()) return false
+
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true
+        val displaySource = WidgetStateManager(context).getCurrentDisplaySource(appWidgetId).id
+        return hourlyForDay.any { it.source == displaySource || it.source == WeatherSource.GENERIC_GAP.id }
     }
 
     private fun handleRefreshAction(

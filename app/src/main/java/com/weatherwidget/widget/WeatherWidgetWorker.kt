@@ -43,8 +43,9 @@ class WeatherWidgetWorker
             val lastFetchAge = (System.currentTimeMillis() - weatherRepository.lastNetworkFetchTimeMs) / 1000
             appLogDao.log("SYNC_START", "uiOnly=$uiOnlyRefresh, force=$forceRefresh, battery=$batteryLevel%, plugged=$isPlugged, lastFetch=${lastFetchAge}s ago")
 
-            // Reset toggle states only on full refresh (not UI-only refresh)
-            if (!uiOnlyRefresh) {
+            // Reset toggle states only on scheduled refreshes (not UI-only or forced refreshes)
+            // Forced refreshes are triggered by user toggle actions, so preserve the user's choice
+            if (!uiOnlyRefresh && !forceRefresh) {
                 widgetStateManager.resetAllToggleStates()
             }
 

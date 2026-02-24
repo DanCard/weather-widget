@@ -111,6 +111,7 @@ class SettingsActivity : AppCompatActivity() {
                 ApiPreference.ALTERNATE -> R.id.radio_api_alternate
                 ApiPreference.PREFER_NWS -> R.id.radio_api_nws
                 ApiPreference.PREFER_OPENMETEO -> R.id.radio_api_openmeteo
+                ApiPreference.PREFER_WEATHERAPI -> R.id.radio_api_weatherapi
             }
         apiGroup.check(selectedApiId)
 
@@ -121,6 +122,7 @@ class SettingsActivity : AppCompatActivity() {
                     R.id.radio_api_alternate -> ApiPreference.ALTERNATE
                     R.id.radio_api_nws -> ApiPreference.PREFER_NWS
                     R.id.radio_api_openmeteo -> ApiPreference.PREFER_OPENMETEO
+                    R.id.radio_api_weatherapi -> ApiPreference.PREFER_WEATHERAPI
                     else -> ApiPreference.ALTERNATE
                 }
             widgetStateManager.setApiPreference(preference)
@@ -234,7 +236,8 @@ class SettingsActivity : AppCompatActivity() {
                 // Check if we have any data at all
                 val hasAnyData =
                     (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||
-                        (comparison.meteoStats?.totalForecasts ?: 0) > 0
+                        (comparison.meteoStats?.totalForecasts ?: 0) > 0 ||
+                        (comparison.weatherApiStats?.totalForecasts ?: 0) > 0
 
                 val statsText =
                     if (!hasAnyData) {
@@ -268,9 +271,20 @@ class SettingsActivity : AppCompatActivity() {
                                 append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
                                 append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
                                 append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
+                                append("  • Forecasts: %d\n\n".format(stats.totalForecasts))
+                            } else {
+                                append("Open-Meteo: No data yet\n\n")
+                            }
+
+                            if (comparison.weatherApiStats != null && comparison.weatherApiStats.totalForecasts > 0) {
+                                val stats = comparison.weatherApiStats
+                                append("WeatherAPI:\n")
+                                append("  • High: ±%.1f°%s\n".format(stats.avgHighError, formatBias(stats.highBias)))
+                                append("  • Low: ±%.1f°%s\n".format(stats.avgLowError, formatBias(stats.lowBias)))
+                                append("  • Within 3°: %.0f%%\n".format(stats.percentWithin3Degrees))
                                 append("  • Forecasts: %d\n".format(stats.totalForecasts))
                             } else {
-                                append("Open-Meteo: No data yet")
+                                append("WeatherAPI: No data yet")
                             }
                         }
                     }

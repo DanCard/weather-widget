@@ -14,6 +14,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
+import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
@@ -86,6 +87,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Setup current temp click to toggle view mode
         setupCurrentTempToggle(context, views, appWidgetId)
+        setupSettingsShortcut(context, views, appWidgetId)
 
         val today = LocalDate.now()
         val skipHistory = NavigationUtils.shouldSkipHistory(isEveningMode, dateOffset)
@@ -324,6 +326,23 @@ object DailyViewHandler : WidgetViewHandler {
             )
         views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
         views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
+    }
+
+    private fun setupSettingsShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val settingsIntent = Intent(context, SettingsActivity::class.java)
+        val settingsPendingIntent =
+            PendingIntent.getActivity(
+                context,
+                appWidgetId * 2 + 900,
+                settingsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
+        views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
     private fun setupApiToggle(
@@ -1002,6 +1021,8 @@ object DailyViewHandler : WidgetViewHandler {
 
                 intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
                 intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             }
 
             val pendingIntent = PendingIntent.getBroadcast(
@@ -1074,6 +1095,8 @@ object DailyViewHandler : WidgetViewHandler {
 
                 intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
                 intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             }
 
             val pendingIntent = PendingIntent.getBroadcast(

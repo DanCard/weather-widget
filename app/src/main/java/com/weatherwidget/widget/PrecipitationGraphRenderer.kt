@@ -334,6 +334,30 @@ object PrecipitationGraphRenderer {
         addCandidate(0, 2)
         addCandidate(hours.lastIndex, 2)
 
+        // Priority 0: "Dry window" labels — 0% runs flanked by rain on both sides.
+        // These are arguably the most important feature ("there's a break in the rain!")
+        // but addCandidate() filters <= 0, so we insert them directly.
+        run {
+            var i = 0
+            while (i < labelSignal.size) {
+                if (labelSignal[i] == 0) {
+                    val runStart = i
+                    while (i < labelSignal.size && labelSignal[i] == 0) i++
+                    val runEnd = i - 1 // inclusive
+                    // Only label interior zero runs (rain→0→rain), not leading/trailing
+                    val hasRainBefore = runStart > 0 && labelSignal[runStart - 1] > 0
+                    val hasRainAfter = runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] > 0
+                    if (hasRainBefore && hasRainAfter) {
+                        val midIdx = (runStart + runEnd) / 2
+                        candidateMap[midIdx] = 0 // same priority as global extrema
+                        Log.d("PrecipGraph", "Dry-window 0% label at idx=$midIdx (run $runStart..$runEnd)")
+                    }
+                } else {
+                    i++
+                }
+            }
+        }
+
         // Priority 5: Interval labels from the underlying timeline (lowest priority).
         hours.forEachIndexed { index, hour ->
             if (hour.showLabel) addCandidate(index, 5)
@@ -351,6 +375,15 @@ object PrecipitationGraphRenderer {
         }
         if (globalMaxIndex in labelSignal.indices && labelSignal[globalMaxIndex] > 0) mandatoryIndices.add(globalMaxIndex)
         if (globalMinIndex in labelSignal.indices && labelSignal[globalMinIndex] > 0) mandatoryIndices.add(globalMinIndex)
+
+        // Dry-window 0% labels are mandatory (rain→0→rain is a key feature)
+        val dryWindowIndices = mutableSetOf<Int>()
+        candidateMap.forEach { (idx, _) ->
+            if (idx in labelSignal.indices && labelSignal[idx] == 0) {
+                mandatoryIndices.add(idx)
+                dryWindowIndices.add(idx)
+            }
+        }
 
         // Peaks: must have reasonable prominence on BOTH sides to be mandatory
         localMaxima.forEach { idx ->
@@ -489,7 +522,8 @@ object PrecipitationGraphRenderer {
 
             val index = candidate.index
             val prob = labelSignal[index]
-            if (prob <= 0) continue
+            val isDryWindow = index in dryWindowIndices
+            if (prob <= 0 && !isDryWindow) continue
             val isPeak = index in localMaxima || index == globalMaxIndex
             val isValley = index in localMinima || index == globalMinIndex
             val isEarlyAnchor = index == firstPositive || index == firstLabeledPositive
@@ -641,8 +675,14 @@ object PrecipitationGraphRenderer {
             }
 
             // 2. PROXIMITY SKIP: Skip non-mandatory labels too close to an already-placed label (time spacing)
+            // Exception: peak+valley pairs are complementary features that should coexist
             val proximityThreshold = if (hours.size <= 8) 1 else 2
-            if (!isMandatory && labeledIndices.any { abs(it - anchorIdx) <= proximityThreshold }) {
+            if (!isMandatory && labeledIndices.any { nearIdx ->
+                    abs(nearIdx - anchorIdx) <= proximityThreshold &&
+                        // Allow peak next to valley (or vice versa) — they're complementary
+                        !((isPeak || isDryWindow) && (nearIdx in localMinima || nearIdx == globalMinIndex || nearIdx in dryWindowIndices)) &&
+                        !(isValley && (nearIdx in localMaxima || nearIdx == globalMaxIndex))
+                }) {
                 Log.d("PrecipGraph", "SKIPPED: Proximity to existing labels for idx=$index (anchor=$anchorIdx)")
                 continue
             }

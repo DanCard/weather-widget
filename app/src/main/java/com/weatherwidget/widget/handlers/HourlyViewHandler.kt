@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
@@ -73,6 +74,7 @@ object HourlyViewHandler {
 
         // Setup current temp click to toggle view
         setupCurrentTempToggle(context, views, appWidgetId)
+        setupSettingsShortcut(context, views, appWidgetId)
 
         // Get current display source
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -356,6 +358,23 @@ object HourlyViewHandler {
                 else -> 14f
             }
         views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+    }
+
+    private fun setupSettingsShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val settingsIntent = Intent(context, SettingsActivity::class.java)
+        val settingsPendingIntent =
+            PendingIntent.getActivity(
+                context,
+                appWidgetId * 2 + 900,
+                settingsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
+        views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
     private fun buildHourDataList(

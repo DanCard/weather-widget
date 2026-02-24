@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
@@ -70,6 +71,7 @@ object PrecipViewHandler {
 
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
+        setupSettingsShortcut(context, views, appWidgetId)
 
         // In precipitation mode: current temp → hourly graph, precip % → daily forecast
         val goHourlyIntent =
@@ -340,6 +342,23 @@ object PrecipViewHandler {
                 else -> 14f
             }
         views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+    }
+
+    private fun setupSettingsShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val settingsIntent = Intent(context, SettingsActivity::class.java)
+        val settingsPendingIntent =
+            PendingIntent.getActivity(
+                context,
+                appWidgetId * 2 + 900,
+                settingsIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
+        views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
     private fun buildPrecipHourDataList(

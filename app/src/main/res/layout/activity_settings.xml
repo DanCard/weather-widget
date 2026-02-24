@@ -242,6 +242,17 @@
             android:paddingTop="12dp"
             android:paddingBottom="12dp" />
 
+        <RadioButton
+            android:id="@+id/radio_api_weatherapi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/api_prefer_weatherapi"
+            android:textColor="@color/widget_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
     </RadioGroup>
 
     <!-- API Diagnostics Section -->
