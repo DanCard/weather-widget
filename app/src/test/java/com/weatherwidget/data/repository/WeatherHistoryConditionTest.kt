@@ -31,6 +31,7 @@ class WeatherHistoryConditionTest {
                 mockk(relaxed = true),
                 mockk(relaxed = true),
                 mockk(relaxed = true),
+                mockk(relaxed = true),
             )
     }
 

@@ -22,7 +22,6 @@ class OpenMeteoApi
         companion object {
             private const val BASE_URL = "https://api.open-meteo.com/v1"
             private const val CLIMATE_URL = "https://climate-api.open-meteo.com/v1"
-            private const val ARCHIVE_URL = "https://archive-api.open-meteo.com/v1"
         }
 
         suspend fun getForecast(
@@ -158,47 +157,6 @@ class OpenMeteoApi
                     highTemp = maxTemps.getOrNull(index) ?: 0,
                     lowTemp = minTemps.getOrNull(index) ?: 0,
                     weatherCode = 0, // Climate API doesn't usually return weather code, default to Clear
-                )
-            }
-        }
-
-        suspend fun getHistoricalArchiveForecast(
-            lat: Double,
-            lon: Double,
-            startDate: String,
-            endDate: String,
-        ): List<DailyForecast> {
-            val response: String =
-                httpClient.get("$ARCHIVE_URL/archive") {
-                    parameter("latitude", lat)
-                    parameter("longitude", lon)
-                    parameter("start_date", startDate)
-                    parameter("end_date", endDate)
-                    parameter("daily", "temperature_2m_max,temperature_2m_min")
-                    parameter("temperature_unit", "fahrenheit")
-                    parameter("timezone", "auto")
-                }.body()
-
-            Log.d(TAG, "getHistoricalArchiveForecast: Raw response length=${response.length}")
-            val jsonObj = json.parseToJsonElement(response).jsonObject
-            val daily = jsonObj["daily"]?.jsonObject
-
-            val dates = daily?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-            val maxTemps =
-                daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
-                } ?: emptyList()
-            val minTemps =
-                daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
-                } ?: emptyList()
-
-            return dates.mapIndexed { index, date ->
-                DailyForecast(
-                    date = date,
-                    highTemp = maxTemps.getOrNull(index) ?: 0,
-                    lowTemp = minTemps.getOrNull(index) ?: 0,
-                    weatherCode = 0,
                 )
             }
         }

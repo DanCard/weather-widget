@@ -245,6 +245,17 @@ if [ "$USE_EXISTING" = false ]; then
     sleep 10
 fi
 
+# Ensure emulator window is not minimized (emulator pauses when minimized)
+# Must run before any adb shell commands that need a responsive VM.
+if [ "$VISIBLE_MODE" = true ] && command -v xdotool &>/dev/null; then
+    EMU_WIN_ID=$(xdotool search --name "$EMULATOR_NAME" 2>/dev/null | tail -1)
+    if [ -n "$EMU_WIN_ID" ]; then
+        xdotool windowactivate "$EMU_WIN_ID" 2>/dev/null || true
+        debug_log "restored emulator window $EMU_WIN_ID (pre-device-info)"
+        echo -e "${GREEN}Restored emulator window${NC}"
+    fi
+fi
+
 # Show device info
 MODEL=$($ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
 echo -en "${BLUE}Device info: product model:${NC} ${MODEL:-Unknown}   Android build version: "

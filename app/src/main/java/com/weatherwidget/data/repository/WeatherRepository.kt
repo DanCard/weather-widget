@@ -8,6 +8,8 @@ import android.os.BatteryManager
 import android.util.Log
 import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.ClimateNormalDao
+import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.ForecastSnapshotEntity
@@ -31,7 +33,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.MonthDay
+import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,6 +43,50 @@ import kotlin.math.roundToInt
 
 private const val TAG = "WeatherRepository"
 
+/**
+ * Central weather data repository — coordinates fetching, caching, merging, and
+ * serving weather data from three APIs (NWS, Open-Meteo, WeatherAPI).
+ *
+ * ## Responsibilities
+ *
+ * **Data access** — [getWeatherData] is the main entry point. It returns cached data
+ * when fresh (<30 min), otherwise fetches from all APIs concurrently. Source-filtered
+ * access is available via [getCachedDataBySource]. Forecast snapshots (for accuracy
+ * tracking) are exposed through [getForecastForDate], [getForecastForDateBySource],
+ * and [getForecastsInRange].
+ *
+ * **API orchestration** — [fetchFromAllApis] launches parallel fetches to NWS,
+ * Open-Meteo, and WeatherAPI. Hidden sources are only fetched when charging (to
+ * preserve accuracy data without wasting battery). A global rate limiter
+ * ([MIN_NETWORK_INTERVAL_MS]) and a [Mutex] prevent burst fetches from multiple
+ * workers.
+ *
+ * **NWS pipeline** — [fetchFromNws] is the most complex fetch path because NWS
+ * provides separate forecast periods, hourly data, and historical observations
+ * from nearby weather stations. It delegates to four helpers:
+ * - [initPrecipFromHourly] — builds per-day precipitation probability from hourly data
+ * - [fetchAndApplyObservations] — parallel station observation fetches for 8 days of history
+ * - [applyForecastPeriods] — maps NWS day/night periods into weather/condition maps
+ * - [logTodayDiagnostics] — condition override logic and transition change detection
+ *
+ * **Merge & persistence** — [mergeWithExisting] ensures new API data doesn't
+ * overwrite historical actuals or drop dates missing from the latest fetch.
+ * [saveForecastSnapshot] archives today's forecasts for later accuracy comparison.
+ * Three API-specific hourly mappers funnel into [saveHourlyEntities] for the
+ * shared insert-and-log tail.
+ *
+ * **Gap fill** — [fetchClimateNormalsGap] fills dates beyond API forecast horizons
+ * with 10-year historical averages (2011–2020) from Open-Meteo's archive, stored
+ * as [WeatherSource.GENERIC_GAP] entries.
+ *
+ * **Temperature interpolation** — [getInterpolatedTemperature] provides smooth
+ * between-hour current temp estimates from cached hourly data (no network needed).
+ * [getNextInterpolationUpdateTime] determines widget refresh cadence based on
+ * temperature change rate.
+ *
+ * **Cleanup** — [cleanOldData] prunes weather, snapshot, hourly, and log records
+ * older than 30 days (logs: 3 days).
+ */
 @Singleton
 class WeatherRepository
     @Inject
@@ -54,6 +102,7 @@ class WeatherRepository
         private val widgetStateManager: WidgetStateManager,
         private val apiLogger: ApiLogger,
         private val temperatureInterpolator: TemperatureInterpolator,
+        private val climateNormalDao: ClimateNormalDao,
     ) {
         internal data class ObservationResult(
             val highTemp: Int,
@@ -70,9 +119,8 @@ class WeatherRepository
 
         companion object {
             private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
+            private const val CACHE_FRESHNESS_MS = 1_800_000L // 30 minutes
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
-            private const val HISTORICAL_NORMALS_START_YEAR = 1991
-            private const val HISTORICAL_NORMALS_END_YEAR = 2020
             private const val MAX_OBSERVATION_STATION_RETRIES = 5
             private const val OBSERVATION_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
             private const val DAYS_OF_HISTORY = 8
@@ -88,6 +136,13 @@ class WeatherRepository
         /** Expose rate limiter state for diagnostics (e.g., SYNC_START logging). */
         val lastNetworkFetchTimeMs: Long get() = lastNetworkFetchTime
 
+        /**
+         * Main entry point for weather data. Returns cached data if fresh (<30 min),
+         * otherwise fetches from all APIs behind a rate limiter and mutex.
+         *
+         * @param forceRefresh bypass freshness check (still rate-limited)
+         * @param networkAllowed if false, always returns cache regardless of staleness
+         */
         suspend fun getWeatherData(
             lat: Double,
             lon: Double,
@@ -102,8 +157,7 @@ class WeatherRepository
                 // If not forced, check if cached data is fresh (within 30 mins)
                 if (!forceRefresh && cached.isNotEmpty()) {
                     val latestFetch = cached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
-                    val isFresh = (now - latestFetch) < 30L * 60 * 1000 // 30 minutes
-                    if (isFresh) {
+                    if ((now - latestFetch) < CACHE_FRESHNESS_MS) {
                         Log.d(TAG, "getWeatherData: Returning fresh cached data (${(now - latestFetch) / 1000}s old)")
                         return Result.success(cached)
                     }
@@ -121,7 +175,7 @@ class WeatherRepository
                     val freshCached = getCachedData(lat, lon)
                     if (!forceRefresh && freshCached.isNotEmpty()) {
                         val latestFetch = freshCached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
-                        if ((System.currentTimeMillis() - latestFetch) < 30L * 60 * 1000) {
+                        if ((System.currentTimeMillis() - latestFetch) < CACHE_FRESHNESS_MS) {
                             Log.d(TAG, "getWeatherData: Found fresh data after acquiring lock, skipping fetch")
                             return Result.success(freshCached)
                         }
@@ -138,7 +192,7 @@ class WeatherRepository
 
                     appLogDao.log("NET_FETCH_START", "Forcing fetch: force=$forceRefresh")
                     val fetchStart = System.currentTimeMillis()
-                    val (nwsWeather, meteoWeather, weatherApiWeather) = fetchFromBothApis(lat, lon, locationName)
+                    val (nwsWeather, meteoWeather, weatherApiWeather) = fetchFromAllApis(lat, lon, locationName)
                     val fetchDuration = System.currentTimeMillis() - fetchStart
                     appLogDao.log(
                         "NET_FETCH_DONE",
@@ -149,7 +203,7 @@ class WeatherRepository
                         appLogDao.log("NET_FETCH_FAIL", "All APIs returned null", "WARN")
                     }
 
-                    // Save both APIs' data, merging with existing to preserve non-zero values
+                    // Save all APIs' data, merging with existing to preserve non-zero values
                     if (nwsWeather != null) {
                         val merged = mergeWithExisting(nwsWeather, lat, lon)
                         weatherDao.insertAll(merged)
@@ -166,7 +220,7 @@ class WeatherRepository
                         appLogDao.log("NET_FETCH_SUCCESS", "WeatherAPI: Saved ${merged.size} entries (raw=${weatherApiWeather.size})")
                     }
 
-                    // Fetch and save generic gap data once to cover any gaps in either API.
+                    // Fetch and save generic gap data once to cover any gaps in any API.
                     // If any provider is missing entirely, start gap fill at today so source-specific
                     // views (especially short-horizon WeatherAPI) still have fallback coverage.
                     val lastNwsDate = nwsWeather?.map { LocalDate.parse(it.date) }?.maxOrNull()
@@ -182,7 +236,7 @@ class WeatherRepository
                             .minOrNull() ?: LocalDate.now()
 
                     val gapStart = System.currentTimeMillis()
-                    val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30, "Generic")
+                    val gapWeather = fetchClimateNormalsGap(lat, lon, locationName, lastDateForGap, 30)
                     if (gapWeather.isNotEmpty()) {
                         weatherDao.insertAll(gapWeather)
                     }
@@ -212,6 +266,11 @@ class WeatherRepository
             }
         }
 
+        /**
+         * Archives today-and-future forecasts as snapshots for later accuracy comparison.
+         * Skips historical observations and climate normals. Only saves entries where
+         * at least one of highTemp/lowTemp is non-null.
+         */
         private suspend fun saveForecastSnapshot(
             weather: List<WeatherEntity>,
             lat: Double,
@@ -324,8 +383,9 @@ class WeatherRepository
         }
 
         /**
-         * Merges new weather data with existing data, preserving historical "Actual" records
-         * and non-zero values. This ensures that history is not lost during partial API fetches.
+         * Merges new API data with existing DB records per-source. Preserves historical
+         * "Actual" records over incoming forecasts, and fills null temps from existing
+         * data so partial fetches don't erase previously-known values.
          */
         private suspend fun mergeWithExisting(
             newData: List<WeatherEntity>,
@@ -364,8 +424,8 @@ class WeatherRepository
                             // AUDIT: Check if we are replacing Actual (History) with Forecast
                             if (existing.isActual && !new.isActual && !isPlaceholder) {
                                 val existingTime =
-                                    java.time.Instant.ofEpochMilli(existing.fetchedAt)
-                                        .atZone(java.time.ZoneId.systemDefault())
+                                    Instant.ofEpochMilli(existing.fetchedAt)
+                                        .atZone(ZoneId.systemDefault())
                                         .format(DateTimeFormatter.ofPattern("HH:mm:ss"))
 
                                 appLogDao.log("MERGE_CONFLICT", "[$sourceId] $date: Preserving ACTUAL record from $existingTime over new FORECAST", "WARN")
@@ -402,8 +462,8 @@ class WeatherRepository
             return charging
         }
 
-        /** Fetches weather from all three APIs concurrently and saves forecast snapshots. */
-        private suspend fun fetchFromBothApis(
+        /** Fetches weather from all APIs concurrently and saves forecast snapshots. */
+        private suspend fun fetchFromAllApis(
             lat: Double,
             lon: Double,
             locationName: String,
@@ -419,10 +479,10 @@ class WeatherRepository
                         val result = fetchFromNws(lat, lon, locationName)
                         val duration = System.currentTimeMillis() - startTime
                         apiLogger.logApiCall("NWS", true, null, locationName, duration)
-                        Log.d(TAG, "fetchFromBothApis: NWS succeeded")
+                        Log.d(TAG, "fetchFromAllApis: NWS succeeded")
                         result
                     } catch (e: Exception) {
-                        Log.d(TAG, "fetchFromBothApis: NWS failed: ${e.message}")
+                        Log.d(TAG, "fetchFromAllApis: NWS failed: ${e.message}")
                         apiLogger.logApiCall("NWS", false, e.message ?: "Unknown error", locationName)
                         null
                     }
@@ -434,10 +494,10 @@ class WeatherRepository
                         val result = fetchFromOpenMeteo(lat, lon, locationName, days = 14)
                         val duration = System.currentTimeMillis() - startTime
                         apiLogger.logApiCall("Open-Meteo", true, null, locationName, duration)
-                        Log.d(TAG, "fetchFromBothApis: Open-Meteo succeeded")
+                        Log.d(TAG, "fetchFromAllApis: Open-Meteo succeeded")
                         result
                     } catch (e: Exception) {
-                        Log.d(TAG, "fetchFromBothApis: Open-Meteo failed: ${e.message}")
+                        Log.d(TAG, "fetchFromAllApis: Open-Meteo failed: ${e.message}")
                         apiLogger.logApiCall("Open-Meteo", false, e.message ?: "Unknown error", locationName)
                         null
                     }
@@ -449,10 +509,10 @@ class WeatherRepository
                         val result = fetchFromWeatherApi(lat, lon, locationName, days = 14)
                         val duration = System.currentTimeMillis() - startTime
                         apiLogger.logApiCall("WeatherAPI", true, null, locationName, duration)
-                        Log.d(TAG, "fetchFromBothApis: WeatherAPI succeeded")
+                        Log.d(TAG, "fetchFromAllApis: WeatherAPI succeeded")
                         result
                     } catch (e: Exception) {
-                        Log.d(TAG, "fetchFromBothApis: WeatherAPI failed: ${e.message}")
+                        Log.d(TAG, "fetchFromAllApis: WeatherAPI failed: ${e.message}")
                         apiLogger.logApiCall("WeatherAPI", false, e.message ?: "Unknown error", locationName)
                         null
                     }
@@ -468,16 +528,16 @@ class WeatherRepository
                     meteoResult?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }
                     weatherApiResult?.let { saveForecastSnapshot(it, lat, lon, "WEATHER_API") }
                 } catch (e: Exception) {
-                    Log.e(TAG, "fetchFromBothApis: saveForecastSnapshot failed: ${e.message}", e)
+                    Log.e(TAG, "fetchFromAllApis: saveForecastSnapshot failed: ${e.message}", e)
                 }
 
                 // If all attempted APIs failed (or none were attempted), throw
                 if (nwsResult == null && meteoResult == null && weatherApiResult == null) {
                     if (!fetchNws && !fetchMeteo && !fetchWapi) {
-                        Log.e(TAG, "fetchFromBothApis: All sources hidden and not charging")
+                        Log.e(TAG, "fetchFromAllApis: All sources hidden and not charging")
                         throw Exception("All sources hidden and device not charging")
                     }
-                    Log.e(TAG, "fetchFromBothApis: All APIs failed")
+                    Log.e(TAG, "fetchFromAllApis: All APIs failed")
                     throw Exception("All APIs failed")
                 }
 
@@ -498,19 +558,17 @@ class WeatherRepository
             return isPlugged
         }
 
+        /**
+         * Fills dates beyond API forecast horizons with 30-year historical averages
+         * (1991–2020) from Open-Meteo's archive, stored as [WeatherSource.GENERIC_GAP].
+         */
         private suspend fun fetchClimateNormalsGap(
             lat: Double,
             lon: Double,
             locationName: String,
             lastDate: LocalDate,
             targetDays: Int,
-            source: String,
         ): List<WeatherEntity> {
-            val isPlugged = isDevicePluggedIn()
-            Log.d(TAG, "fetchClimateNormalsGap: Checking if plugged in: $isPlugged (Source Context: $source)")
-            // Always allow gap fill so short-horizon providers (e.g., 3-day WeatherAPI plans)
-            // still render full future ranges via climate normals on battery-powered devices.
-
             val today = LocalDate.now()
             val targetDate = today.plusDays(targetDays.toLong())
             val startDate = lastDate.plusDays(1)
@@ -522,7 +580,7 @@ class WeatherRepository
             return try {
                 val startDateStr = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val endDateStr = targetDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                Log.d(TAG, "fetchClimateNormalsGap: Fetching climate normals from $startDateStr to $endDateStr for $source")
+                Log.d(TAG, "fetchClimateNormalsGap: Fetching climate normals from $startDateStr to $endDateStr")
 
                 val normalsByMonthDay = getHistoricalNormalsByMonthDay(lat, lon)
                 if (normalsByMonthDay.isEmpty()) {
@@ -561,39 +619,75 @@ class WeatherRepository
             }
         }
 
+        /**
+         * Returns climate-model average high/low by MonthDay via Open-Meteo's
+         * Climate API (pre-aggregated server-side, ~366 rows).
+         * Persisted to Room so the fetch only happens once per location.
+         * Location is rounded to 1 decimal place (~7 mi) to avoid re-fetching
+         * for minor GPS drift.
+         */
         private suspend fun getHistoricalNormalsByMonthDay(
             lat: Double,
             lon: Double,
         ): Map<MonthDay, Pair<Int, Int>> {
-            val baselineStart = LocalDate.of(HISTORICAL_NORMALS_START_YEAR, 1, 1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val baselineEnd = LocalDate.of(HISTORICAL_NORMALS_END_YEAR, 12, 31).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            Log.d(
-                TAG,
-                "fetchClimateNormalsGap: Fetching historical archive baseline $baselineStart to $baselineEnd",
-            )
+            val roundedLat = (lat * 10).roundToInt() / 10.0
+            val roundedLon = (lon * 10).roundToInt() / 10.0
+            val locationKey = "${roundedLat}_${roundedLon}"
 
-            val historical =
-                openMeteoApi.getHistoricalArchiveForecast(
-                    lat = lat,
-                    lon = lon,
-                    startDate = baselineStart,
-                    endDate = baselineEnd,
+            // Check database for persisted normals at this location
+            val cached = climateNormalDao.getNormalsForLocation(locationKey)
+            if (cached.isNotEmpty()) {
+                Log.d(TAG, "getHistoricalNormalsByMonthDay: Loaded ${cached.size} persisted normals for $locationKey")
+                return cached.associate { entity ->
+                    val (month, day) = entity.monthDay.split("-").map { it.toInt() }
+                    MonthDay.of(month, day) to (entity.highTemp to entity.lowTemp)
+                }
+            }
+
+            // Use a leap year to ensure Feb 29 is included
+            val startDate = "2020-01-01"
+            val endDate = "2020-12-31"
+            Log.d(TAG, "getHistoricalNormalsByMonthDay: Fetching climate normals for $locationKey")
+
+            val climate =
+                openMeteoApi.getClimateForecast(
+                    lat = roundedLat,
+                    lon = roundedLon,
+                    startDate = startDate,
+                    endDate = endDate,
                 )
-            if (historical.isEmpty()) return emptyMap()
+            if (climate.isEmpty()) return emptyMap()
 
-            return historical
+            val normals = climate
                 .mapNotNull { day ->
                     val parsed = runCatching { LocalDate.parse(day.date) }.getOrNull() ?: return@mapNotNull null
-                    MonthDay.from(parsed) to day
+                    MonthDay.from(parsed) to (day.highTemp to day.lowTemp)
                 }
-                .groupBy { it.first }
-                .mapValues { (_, entries) ->
-                    val avgHigh = entries.map { it.second.highTemp }.average().roundToInt()
-                    val avgLow = entries.map { it.second.lowTemp }.average().roundToInt()
-                    avgHigh to avgLow
-                }
+                .toMap()
+
+            // Persist to database, clearing any normals from a previous location
+            val entities = normals.map { (md, temps) ->
+                ClimateNormalEntity(
+                    monthDay = "${md.monthValue.toString().padStart(2, '0')}-${md.dayOfMonth.toString().padStart(2, '0')}",
+                    locationKey = locationKey,
+                    highTemp = temps.first,
+                    lowTemp = temps.second,
+                )
+            }
+            climateNormalDao.deleteOtherLocations(locationKey)
+            climateNormalDao.insertAll(entities)
+
+            Log.d(TAG, "getHistoricalNormalsByMonthDay: Persisted ${normals.size} normals for $locationKey")
+            return normals
         }
 
+        /**
+         * Fetches weather from NWS: grid-point lookup → parallel forecast + hourly fetch →
+         * observation history from nearby stations → merge into WeatherEntity list.
+         *
+         * Delegates to [initPrecipFromHourly], [fetchAndApplyObservations],
+         * [applyForecastPeriods], and [logTodayDiagnostics] for the heavy lifting.
+         */
         internal suspend fun fetchFromNws(
             lat: Double,
             lon: Double,
@@ -631,192 +725,17 @@ class WeatherRepository
                 val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
                 val conditionByDate = mutableMapOf<String, String>()
                 val conditionSourceByDate = mutableMapOf<String, String>()
-                val precipByDate = mutableMapOf<String, Int>() // Max precipitation probability per day
-
-                // Initialize precip probability from hourly data for precise calendar-day matching.
-                // This prevents "Saturday Night" periods (which often include Sunday morning) from
-                // incorrectly inflating Saturday's daily POP display.
-                if (hourlyForecast.isNotEmpty()) {
-                    hourlyForecast.forEach { hourly ->
-                        val date =
-                            try {
-                                java.time.ZonedDateTime.parse(hourly.startTime)
-                                    .toLocalDate()
-                                    .format(DateTimeFormatter.ISO_LOCAL_DATE)
-                            } catch (e: Exception) {
-                                null
-                            }
-                        if (date != null) {
-                            val pop = hourly.precipProbability ?: 0
-                            if (pop > (precipByDate[date] ?: 0)) {
-                                precipByDate[date] = pop
-                            }
-                        }
-                    }
-                    Log.d(TAG, "fetchFromNws: Initialized precipByDate for ${precipByDate.size} days from hourly data")
-                }
-
-                val stationByDate = mutableMapOf<String, String>() // Track which station provided data
+                val precipByDate = mutableMapOf<String, Int>()
+                val stationByDate = mutableMapOf<String, String>()
                 val highSourceByDate = mutableMapOf<String, String>()
                 val lowSourceByDate = mutableMapOf<String, String>()
-                val todayForecastPeriods = mutableListOf<NwsApi.ForecastPeriod>()
 
-                // Fetch last 7 days of actual observations if observation stations are available
-                // Include today (daysAgo=0) to get today's actual high/low when it's evening
-                try {
-                    if (gridPoint.observationStationsUrl != null) {
-                        val stationsUrl = gridPoint.observationStationsUrl!!
-                        appLogDao.log("OBS_BATCH_START", "Fetching $DAYS_OF_HISTORY days of history from $stationsUrl")
-
-                        // Fetch all 8 days in parallel
-                        val observationDeferreds =
-                            (0 until DAYS_OF_HISTORY).map { daysAgo ->
-                                val date = today.minusDays(daysAgo.toLong())
-                                async {
-                                    val result = fetchDayObservations(stationsUrl, date)
-                                    date to result
-                                }
-                            }
-
-                        var successCount = 0
-                        observationDeferreds.forEach { deferred ->
-                            val (date, observationData) = deferred.await()
-                            val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-
-                            if (observationData != null) {
-                                successCount++
-                                weatherByDate[dateStr] = observationData.highTemp to observationData.lowTemp
-                                stationByDate[dateStr] = observationData.stationId
-                                highSourceByDate[dateStr] = "OBS:${observationData.stationId}"
-                                lowSourceByDate[dateStr] = "OBS:${observationData.stationId}"
-                                // For today, skip observation condition — the NWS daily forecast
-                                // shortForecast (e.g. "Partly Sunny then Rain") is a better whole-day
-                                // summary than the cloud-cover-only observation score.
-                                if (date != today) {
-                                    conditionByDate[dateStr] = observationData.condition
-                                    conditionSourceByDate[dateStr] = "OBS:${observationData.stationId}"
-                                }
-                                Log.d(
-                                    TAG,
-                                    "fetchFromNws: Got observations for $dateStr H=${observationData.highTemp} L=${observationData.lowTemp} from station ${observationData.stationId} conditionSet=${date != today}",
-                                )
-                            }
-                        }
-                        appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/$DAYS_OF_HISTORY days of history")
-                    }
-                } catch (e: Exception) {
-                    appLogDao.log("OBS_BATCH_ERROR", "Error: ${e.message}", "ERROR")
-                }
-
-                // NWS returns periods with startTime - extract date from there
-                // Each day has a daytime period (high) and nighttime period (low)
-                forecast.forEachIndexed { index, period ->
-                    val date =
-                        extractNwsForecastDate(period.startTime) ?: run {
-                            Log.w(TAG, "Failed to parse startTime ${period.startTime}, skipping period index=$index name=${period.name}")
-                            return@forEachIndexed
-                        }
-                    if (date == todayStr) {
-                        todayForecastPeriods += period
-                    }
-                    val current = weatherByDate[date] ?: (null to null)
-
-                    Log.d(
-                        TAG,
-                        "  Period $index: ${period.name} isDaytime=${period.isDaytime} temp=${period.temperature} startTime=${period.startTime} -> date=$date",
-                    )
-
-                    // Track max precipitation probability across day and night periods
-                    val pop = period.precipProbability
-                    // Use daily period POP as a fallback ONLY if we don't have hourly data for this date.
-                    // If we have hourly data, it's more accurate for calendar-day boundaries.
-                    if (pop != null && !precipByDate.containsKey(date)) {
-                        precipByDate[date] = pop
-                    }
-
-                    if (period.isDaytime) {
-                        weatherByDate[date] = period.temperature to current.second
-                        highSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
-                        // Only use forecast condition if we don't already have an observation
-                        if (conditionByDate[date] == null) {
-                            conditionByDate[date] = period.shortForecast
-                            conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
-                        }
-                    } else {
-                        weatherByDate[date] = current.first to period.temperature
-                        lowSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
-                        // Ensure partial days have a condition (use night if day is missing/no observation)
-                        if (conditionByDate[date] == null) {
-                            conditionByDate[date] = period.shortForecast
-                            conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
-                        }
-                    }
-                }
-
-                val firstTodayPeriod = todayForecastPeriods.firstOrNull()
-                if (firstTodayPeriod != null && !firstTodayPeriod.isDaytime) {
-                    val previousCondition = conditionByDate[todayStr]
-                    val previousConditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
-                    conditionByDate[todayStr] = firstTodayPeriod.shortForecast
-                    conditionSourceByDate[todayStr] = "FCST_ACTIVE:${firstTodayPeriod.name}@${firstTodayPeriod.startTime}"
-                    appLogDao.log(
-                        "NWS_TODAY_CONDITION_OVERRIDE",
-                        "date=$todayStr firstPeriod=${firstTodayPeriod.name}@${firstTodayPeriod.startTime} " +
-                            "isDaytime=${firstTodayPeriod.isDaytime} condition ${previousCondition ?: "null"}->${firstTodayPeriod.shortForecast} " +
-                            "source $previousConditionSource->${conditionSourceByDate[todayStr]}",
-                    )
-                }
+                initPrecipFromHourly(hourlyForecast, precipByDate)
+                fetchAndApplyObservations(gridPoint, today, weatherByDate, stationByDate, conditionByDate, conditionSourceByDate, highSourceByDate, lowSourceByDate)
+                val todayForecastPeriods = applyForecastPeriods(forecast, todayStr, weatherByDate, conditionByDate, conditionSourceByDate, highSourceByDate, lowSourceByDate, precipByDate)
+                logTodayDiagnostics(todayStr, weatherByDate, highSourceByDate, lowSourceByDate, conditionByDate, conditionSourceByDate, todayForecastPeriods, lat, lon)
 
                 Log.d(TAG, "fetchFromNws: Parsed ${weatherByDate.size} days")
-
-                val todayTemps = weatherByDate[todayStr]
-                if (todayTemps != null) {
-                    val currentHigh = todayTemps.first
-                    val currentLow = todayTemps.second
-                    val highSource = highSourceByDate[todayStr] ?: "UNKNOWN"
-                    val lowSource = lowSourceByDate[todayStr] ?: "UNKNOWN"
-                    val condition = conditionByDate[todayStr] ?: "Unknown"
-                    val conditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
-                    val firstTodayPeriodSummary =
-                        firstTodayPeriod?.let {
-                            val dayFlag = if (it.isDaytime) "D" else "N"
-                            "${it.name}@${it.startTime}[$dayFlag]=${it.shortForecast}"
-                        } ?: "none"
-
-                    appLogDao.log(
-                        "NWS_TODAY_SOURCE",
-                        "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource) " +
-                            "condition=$condition ($conditionSource) firstTodayPeriod=$firstTodayPeriodSummary",
-                    )
-
-                    val previous =
-                        forecastSnapshotDao.getForecastForDateBySource(
-                            targetDate = todayStr,
-                            forecastDate = todayStr,
-                            lat = lat,
-                            lon = lon,
-                            source = "NWS",
-                        )
-
-                    val changed =
-                        previous != null &&
-                            (
-                                previous.highTemp != currentHigh ||
-                                    previous.lowTemp != currentLow ||
-                                    previous.condition != condition
-                            )
-                    if (changed) {
-                        val previousFetched =
-                            Instant.ofEpochMilli(previous.fetchedAt)
-                                .atZone(ZoneId.systemDefault())
-                                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-                        appLogDao.log(
-                            "NWS_TODAY_TRANSITION",
-                            "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow " +
-                                "condition ${previous.condition}->$condition prevFetched=$previousFetched",
-                        )
-                    }
-                }
 
                 weatherByDate.map { (date, temps) ->
                     WeatherEntity(
@@ -836,6 +755,215 @@ class WeatherRepository
                     )
                 }
             }
+
+        /** Populates precipByDate from hourly data for precise calendar-day matching. */
+        private fun initPrecipFromHourly(
+            hourlyForecast: List<NwsApi.HourlyForecastPeriod>,
+            precipByDate: MutableMap<String, Int>,
+        ) {
+            if (hourlyForecast.isEmpty()) return
+            hourlyForecast.forEach { hourly ->
+                val date =
+                    try {
+                        ZonedDateTime.parse(hourly.startTime)
+                            .toLocalDate()
+                            .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    } catch (e: Exception) {
+                        null
+                    }
+                if (date != null) {
+                    val pop = hourly.precipProbability ?: 0
+                    if (pop > (precipByDate[date] ?: 0)) {
+                        precipByDate[date] = pop
+                    }
+                }
+            }
+            Log.d(TAG, "initPrecipFromHourly: Initialized precipByDate for ${precipByDate.size} days from hourly data")
+        }
+
+        /** Fetches last [DAYS_OF_HISTORY] days of actual observations and populates weather/station/condition maps. */
+        private suspend fun fetchAndApplyObservations(
+            gridPoint: NwsApi.GridPointInfo,
+            today: LocalDate,
+            weatherByDate: MutableMap<String, Pair<Int?, Int?>>,
+            stationByDate: MutableMap<String, String>,
+            conditionByDate: MutableMap<String, String>,
+            conditionSourceByDate: MutableMap<String, String>,
+            highSourceByDate: MutableMap<String, String>,
+            lowSourceByDate: MutableMap<String, String>,
+        ) = coroutineScope {
+            try {
+                if (gridPoint.observationStationsUrl != null) {
+                    val stationsUrl = gridPoint.observationStationsUrl!!
+                    appLogDao.log("OBS_BATCH_START", "Fetching $DAYS_OF_HISTORY days of history from $stationsUrl")
+
+                    val observationDeferreds =
+                        (0 until DAYS_OF_HISTORY).map { daysAgo ->
+                            val date = today.minusDays(daysAgo.toLong())
+                            async {
+                                val result = fetchDayObservations(stationsUrl, date)
+                                date to result
+                            }
+                        }
+
+                    var successCount = 0
+                    observationDeferreds.forEach { deferred ->
+                        val (date, observationData) = deferred.await()
+                        val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+                        if (observationData != null) {
+                            successCount++
+                            weatherByDate[dateStr] = observationData.highTemp to observationData.lowTemp
+                            stationByDate[dateStr] = observationData.stationId
+                            highSourceByDate[dateStr] = "OBS:${observationData.stationId}"
+                            lowSourceByDate[dateStr] = "OBS:${observationData.stationId}"
+                            // For today, skip observation condition — the NWS daily forecast
+                            // shortForecast is a better whole-day summary than the cloud-cover-only observation score.
+                            if (date != today) {
+                                conditionByDate[dateStr] = observationData.condition
+                                conditionSourceByDate[dateStr] = "OBS:${observationData.stationId}"
+                            }
+                            Log.d(
+                                TAG,
+                                "fetchAndApplyObservations: Got observations for $dateStr H=${observationData.highTemp} L=${observationData.lowTemp} from station ${observationData.stationId} conditionSet=${date != today}",
+                            )
+                        }
+                    }
+                    appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/$DAYS_OF_HISTORY days of history")
+                }
+            } catch (e: Exception) {
+                appLogDao.log("OBS_BATCH_ERROR", "Error: ${e.message}", "ERROR")
+            }
+        }
+
+        /** Iterates NWS forecast periods, populating weather/condition/precip maps. Returns today's periods. */
+        private fun applyForecastPeriods(
+            forecast: List<NwsApi.ForecastPeriod>,
+            todayStr: String,
+            weatherByDate: MutableMap<String, Pair<Int?, Int?>>,
+            conditionByDate: MutableMap<String, String>,
+            conditionSourceByDate: MutableMap<String, String>,
+            highSourceByDate: MutableMap<String, String>,
+            lowSourceByDate: MutableMap<String, String>,
+            precipByDate: MutableMap<String, Int>,
+        ): List<NwsApi.ForecastPeriod> {
+            val todayForecastPeriods = mutableListOf<NwsApi.ForecastPeriod>()
+
+            forecast.forEachIndexed { index, period ->
+                val date =
+                    extractNwsForecastDate(period.startTime) ?: run {
+                        Log.w(TAG, "Failed to parse startTime ${period.startTime}, skipping period index=$index name=${period.name}")
+                        return@forEachIndexed
+                    }
+                if (date == todayStr) {
+                    todayForecastPeriods += period
+                }
+                val current = weatherByDate[date] ?: (null to null)
+
+                Log.d(
+                    TAG,
+                    "  Period $index: ${period.name} isDaytime=${period.isDaytime} temp=${period.temperature} startTime=${period.startTime} -> date=$date",
+                )
+
+                // Use daily period POP as a fallback ONLY if we don't have hourly data for this date.
+                val pop = period.precipProbability
+                if (pop != null && !precipByDate.containsKey(date)) {
+                    precipByDate[date] = pop
+                }
+
+                if (period.isDaytime) {
+                    weatherByDate[date] = period.temperature to current.second
+                    highSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
+                    if (conditionByDate[date] == null) {
+                        conditionByDate[date] = period.shortForecast
+                        conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
+                    }
+                } else {
+                    weatherByDate[date] = current.first to period.temperature
+                    lowSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
+                    if (conditionByDate[date] == null) {
+                        conditionByDate[date] = period.shortForecast
+                        conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
+                    }
+                }
+            }
+
+            return todayForecastPeriods
+        }
+
+        /** Logs today's condition override and transition diagnostics. */
+        private suspend fun logTodayDiagnostics(
+            todayStr: String,
+            weatherByDate: Map<String, Pair<Int?, Int?>>,
+            highSourceByDate: Map<String, String>,
+            lowSourceByDate: Map<String, String>,
+            conditionByDate: MutableMap<String, String>,
+            conditionSourceByDate: MutableMap<String, String>,
+            todayForecastPeriods: List<NwsApi.ForecastPeriod>,
+            lat: Double,
+            lon: Double,
+        ) {
+            val firstTodayPeriod = todayForecastPeriods.firstOrNull()
+            if (firstTodayPeriod != null && !firstTodayPeriod.isDaytime) {
+                val previousCondition = conditionByDate[todayStr]
+                val previousConditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
+                conditionByDate[todayStr] = firstTodayPeriod.shortForecast
+                conditionSourceByDate[todayStr] = "FCST_ACTIVE:${firstTodayPeriod.name}@${firstTodayPeriod.startTime}"
+                appLogDao.log(
+                    "NWS_TODAY_CONDITION_OVERRIDE",
+                    "date=$todayStr firstPeriod=${firstTodayPeriod.name}@${firstTodayPeriod.startTime} " +
+                        "isDaytime=${firstTodayPeriod.isDaytime} condition ${previousCondition ?: "null"}->${firstTodayPeriod.shortForecast} " +
+                        "source $previousConditionSource->${conditionSourceByDate[todayStr]}",
+                )
+            }
+
+            val todayTemps = weatherByDate[todayStr] ?: return
+            val currentHigh = todayTemps.first
+            val currentLow = todayTemps.second
+            val highSource = highSourceByDate[todayStr] ?: "UNKNOWN"
+            val lowSource = lowSourceByDate[todayStr] ?: "UNKNOWN"
+            val condition = conditionByDate[todayStr] ?: "Unknown"
+            val conditionSource = conditionSourceByDate[todayStr] ?: "UNKNOWN"
+            val firstTodayPeriodSummary =
+                firstTodayPeriod?.let {
+                    val dayFlag = if (it.isDaytime) "D" else "N"
+                    "${it.name}@${it.startTime}[$dayFlag]=${it.shortForecast}"
+                } ?: "none"
+
+            appLogDao.log(
+                "NWS_TODAY_SOURCE",
+                "date=$todayStr high=$currentHigh ($highSource) low=$currentLow ($lowSource) " +
+                    "condition=$condition ($conditionSource) firstTodayPeriod=$firstTodayPeriodSummary",
+            )
+
+            val previous =
+                forecastSnapshotDao.getForecastForDateBySource(
+                    targetDate = todayStr,
+                    forecastDate = todayStr,
+                    lat = lat,
+                    lon = lon,
+                    source = "NWS",
+                )
+
+            val changed =
+                previous != null &&
+                    (
+                        previous.highTemp != currentHigh ||
+                            previous.lowTemp != currentLow ||
+                            previous.condition != condition
+                    )
+            if (changed) {
+                val previousFetched =
+                    Instant.ofEpochMilli(previous.fetchedAt)
+                        .atZone(ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                appLogDao.log(
+                    "NWS_TODAY_TRANSITION",
+                    "date=$todayStr high ${previous.highTemp}->$currentHigh low ${previous.lowTemp}->$currentLow " +
+                        "condition ${previous.condition}->$condition prevFetched=$previousFetched",
+                )
+            }
+        }
 
         private suspend fun persistNwsPeriodSummary(
             forecastUrl: String,
@@ -861,7 +989,7 @@ class WeatherRepository
         private fun extractNwsForecastDate(startTime: String): String? {
             // Typical NWS value: "2026-02-06T18:00:00-08:00"
             try {
-                return java.time.ZonedDateTime.parse(startTime)
+                return ZonedDateTime.parse(startTime)
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
             } catch (_: Exception) {
@@ -869,7 +997,7 @@ class WeatherRepository
             }
 
             try {
-                return java.time.OffsetDateTime.parse(startTime)
+                return OffsetDateTime.parse(startTime)
                     .toLocalDate()
                     .format(DateTimeFormatter.ISO_LOCAL_DATE)
             } catch (_: Exception) {
@@ -908,6 +1036,13 @@ class WeatherRepository
                 .apply()
         }
 
+        /**
+         * Fetches actual high/low/condition observations for a single day from NWS
+         * weather stations. Tries up to [MAX_OBSERVATION_STATION_RETRIES] nearby
+         * stations, using a 24-hour cached station list to reduce API calls.
+         * Derives condition from weighted daylight-hour cloud coverage scores,
+         * with precipitation observations overriding cloud-only conditions.
+         */
         internal suspend fun fetchDayObservations(
             stationsUrl: String,
             date: LocalDate,
@@ -934,13 +1069,13 @@ class WeatherRepository
 
                     try {
                         // Fetch observations for the specified day
-                        val localZone = java.time.ZoneId.systemDefault()
+                        val localZone = ZoneId.systemDefault()
                         val startTime =
                             date.atStartOfDay(localZone)
-                                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+                                .format(DateTimeFormatter.ISO_INSTANT)
                         val endTime =
                             date.plusDays(1).atStartOfDay(localZone)
-                                .format(java.time.format.DateTimeFormatter.ISO_INSTANT)
+                                .format(DateTimeFormatter.ISO_INSTANT)
 
                         val startTimeMs = System.currentTimeMillis()
                         val observations = nwsApi.getObservations(stationId, startTime, endTime)
@@ -969,7 +1104,7 @@ class WeatherRepository
                             observations.filter { obs ->
                                 try {
                                     val dt =
-                                        java.time.ZonedDateTime.parse(obs.timestamp)
+                                        ZonedDateTime.parse(obs.timestamp)
                                             .withZoneSameInstant(localZone)
                                     dt.hour in 7..19
                                 } catch (e: Exception) {
@@ -1116,6 +1251,12 @@ class WeatherRepository
             }
         }
 
+        private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>, label: String) {
+            hourlyForecastDao.insertAll(entities)
+            val sortedTimes = entities.map { it.dateTime }.sorted()
+            Log.d(TAG, "$label: Saved ${entities.size} hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}")
+        }
+
         private suspend fun saveHourlyForecasts(
             hourlyForecasts: List<OpenMeteoApi.HourlyForecast>,
             lat: Double,
@@ -1134,12 +1275,7 @@ class WeatherRepository
                         fetchedAt = System.currentTimeMillis(),
                     )
                 }
-            hourlyForecastDao.insertAll(entities)
-            val sortedTimes = entities.map { it.dateTime }.sorted()
-            Log.d(
-                TAG,
-                "saveHourlyForecasts: Saved ${entities.size} Open-Meteo hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}",
-            )
+            saveHourlyEntities(entities, "saveHourlyForecasts")
         }
 
         private suspend fun saveNwsHourlyForecasts(
@@ -1149,10 +1285,9 @@ class WeatherRepository
         ) {
             val entities =
                 hourlyForecasts.mapNotNull { hourly ->
-                    // Convert NWS ISO 8601 format "2026-02-01T10:00:00-08:00" to "2026-02-01T10:00"
                     val dateTime =
                         try {
-                            val zonedDateTime = java.time.ZonedDateTime.parse(hourly.startTime)
+                            val zonedDateTime = ZonedDateTime.parse(hourly.startTime)
                             zonedDateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                         } catch (e: Exception) {
                             Log.w(TAG, "saveNwsHourlyForecasts: Failed to parse time ${hourly.startTime}: ${e.message}")
@@ -1170,12 +1305,7 @@ class WeatherRepository
                         fetchedAt = System.currentTimeMillis(),
                     )
                 }
-            hourlyForecastDao.insertAll(entities)
-            val sortedTimes = entities.map { it.dateTime }.sorted()
-            Log.d(
-                TAG,
-                "saveNwsHourlyForecasts: Saved ${entities.size} NWS hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}",
-            )
+            saveHourlyEntities(entities, "saveNwsHourlyForecasts")
         }
 
         private suspend fun saveWeatherApiHourlyForecasts(
@@ -1196,13 +1326,7 @@ class WeatherRepository
                         fetchedAt = System.currentTimeMillis(),
                     )
                 }
-
-            hourlyForecastDao.insertAll(entities)
-            val sortedTimes = entities.map { it.dateTime }.sorted()
-            Log.d(
-                TAG,
-                "saveWeatherApiHourlyForecasts: Saved ${entities.size} WeatherAPI hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}",
-            )
+            saveHourlyEntities(entities, "saveWeatherApiHourlyForecasts")
         }
 
         /**

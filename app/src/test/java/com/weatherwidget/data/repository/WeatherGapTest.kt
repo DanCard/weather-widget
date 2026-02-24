@@ -72,6 +72,7 @@ class WeatherGapTest {
                 widgetStateManager,
                 apiLogger,
                 temperatureInterpolator,
+                mockk(relaxed = true),
             )
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")

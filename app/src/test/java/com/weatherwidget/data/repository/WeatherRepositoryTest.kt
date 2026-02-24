@@ -6,6 +6,8 @@ import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.ClimateNormalDao
+import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.remote.NwsApi
@@ -20,6 +22,7 @@ import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 class WeatherRepositoryTest {
     private lateinit var context: Context
@@ -34,6 +37,7 @@ class WeatherRepositoryTest {
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var apiLogger: ApiLogger
     private lateinit var temperatureInterpolator: TemperatureInterpolator
+    private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -58,6 +62,7 @@ class WeatherRepositoryTest {
         widgetStateManager = mockk(relaxed = true)
         apiLogger = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
+        climateNormalDao = mockk(relaxed = true)
 
         repository =
             WeatherRepository(
@@ -72,6 +77,7 @@ class WeatherRepositoryTest {
                 widgetStateManager,
                 apiLogger,
                 temperatureInterpolator,
+                climateNormalDao,
             )
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
@@ -282,7 +288,7 @@ class WeatherRepositoryTest {
                 )
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns staleData
 
-            // Both APIs throw (fetchFromBothApis catches these and returns null for each)
+            // All APIs throw (fetchFromAllApis catches these and returns null for each)
             coEvery { nwsApi.getGridPoint(testLat, testLon) } throws Exception("NWS timeout")
             coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } throws Exception("Meteo timeout")
 
@@ -354,6 +360,79 @@ class WeatherRepositoryTest {
             val todayEntry = result.find { it.date == today }
             assertNotNull("Should have entry for today", todayEntry)
             assertEquals("Daily POP should match the max from hourly data (5%), not the period POP (14%)", 5, todayEntry?.precipProbability)
+        }
+
+    @Test
+    fun `climate normals cache hit returns Room data without API call`() =
+        runTest {
+            // Pre-populate DAO with cached normals for the rounded location key
+            val roundedLat = (testLat * 10).roundToInt() / 10.0
+            val roundedLon = (testLon * 10).roundToInt() / 10.0
+            val locationKey = "${roundedLat}_${roundedLon}"
+
+            val cachedNormals = listOf(
+                ClimateNormalEntity("07-15", locationKey, 85, 60),
+                ClimateNormalEntity("07-16", locationKey, 86, 61),
+            )
+            coEvery { climateNormalDao.getNormalsForLocation(locationKey) } returns cachedNormals
+
+            // Setup a successful NWS fetch that only covers today (so gap fill is triggered)
+            coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList() andThen
+                listOf(createWeatherEntity(today, 70, 50))
+            coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, any()) } returns emptyList()
+
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com")
+            coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
+            coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
+                NwsApi.ForecastPeriod("Today", "${today}T06:00:00-08:00", 70, "F", "Sunny", true),
+            )
+            coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+            coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } throws Exception("Skipped")
+
+            repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+            // Climate API should NOT have been called — cache was sufficient
+            coVerify(exactly = 0) { openMeteoApi.getClimateForecast(any(), any(), any(), any()) }
+            // Room cache WAS read
+            coVerify { climateNormalDao.getNormalsForLocation(locationKey) }
+        }
+
+    @Test
+    fun `climate normals cache miss fetches from Climate API and persists`() =
+        runTest {
+            val roundedLat = (testLat * 10).roundToInt() / 10.0
+            val roundedLon = (testLon * 10).roundToInt() / 10.0
+            val locationKey = "${roundedLat}_${roundedLon}"
+
+            // DAO returns empty — cache miss
+            coEvery { climateNormalDao.getNormalsForLocation(locationKey) } returns emptyList()
+
+            // Climate API returns two days of normals
+            coEvery { openMeteoApi.getClimateForecast(roundedLat, roundedLon, any(), any()) } returns listOf(
+                OpenMeteoApi.DailyForecast("2020-07-15", 85, 60, 0),
+                OpenMeteoApi.DailyForecast("2020-07-16", 86, 61, 0),
+            )
+
+            // Setup a successful NWS fetch that only covers today
+            coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList() andThen
+                listOf(createWeatherEntity(today, 70, 50))
+            coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, any()) } returns emptyList()
+
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com")
+            coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
+            coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
+                NwsApi.ForecastPeriod("Today", "${today}T06:00:00-08:00", 70, "F", "Sunny", true),
+            )
+            coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+            coEvery { openMeteoApi.getForecast(testLat, testLon, any()) } throws Exception("Skipped")
+
+            repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+            // Climate API should have been called
+            coVerify { openMeteoApi.getClimateForecast(roundedLat, roundedLon, "2020-01-01", "2020-12-31") }
+            // Old location data should be cleared, new normals persisted
+            coVerify { climateNormalDao.deleteOtherLocations(locationKey) }
+            coVerify { climateNormalDao.insertAll(match { it.size == 2 && it.all { e -> e.locationKey == locationKey } }) }
         }
 
     private fun createWeatherEntity(

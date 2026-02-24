@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class],
-    version = 16,
+    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class],
+    version = 17,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -20,6 +20,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun hourlyForecastDao(): HourlyForecastDao
 
     abstract fun appLogDao(): AppLogDao
+
+    abstract fun climateNormalDao(): ClimateNormalDao
 
     companion object {
         @Volatile
@@ -49,6 +51,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_13_14,
                             MIGRATION_14_15,
                             MIGRATION_15_16,
+                            MIGRATION_16_17,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -428,6 +431,24 @@ abstract class WeatherDatabase : RoomDatabase() {
             object : Migration(15, 16) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE hourly_forecasts ADD COLUMN precipProbability INTEGER DEFAULT NULL")
+                }
+            }
+
+        val MIGRATION_16_17 =
+            object : Migration(16, 17) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS climate_normals (
+                            monthDay TEXT NOT NULL,
+                            locationKey TEXT NOT NULL,
+                            highTemp INTEGER NOT NULL,
+                            lowTemp INTEGER NOT NULL,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(monthDay, locationKey)
+                        )
+                        """.trimIndent(),
+                    )
                 }
             }
     }

@@ -2,6 +2,7 @@ package com.weatherwidget.di
 
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
@@ -69,6 +70,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAppLogDao(database: WeatherDatabase): AppLogDao = database.appLogDao()
+
+    @Provides
+    @Singleton
+    fun provideClimateNormalDao(database: WeatherDatabase): ClimateNormalDao = database.climateNormalDao()
 
     @Provides
     @Singleton
