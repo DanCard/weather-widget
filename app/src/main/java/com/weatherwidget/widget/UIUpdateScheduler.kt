@@ -68,23 +68,19 @@ class UIUpdateScheduler(private val context: Context) {
 
             // Calculate next update time based on temperature change rate
             val nextUpdateTime = interpolator.getNextUpdateTime(now, tempDifference)
-            var delayMillis = java.time.Duration.between(now, nextUpdateTime).toMillis()
 
-            // Cap update interval at 15 minutes to ensure "NOW" indicator on hourly graph
-            // and time-sensitive labels remain accurate
-            val maxDelay = 15 * 60 * 1000L
-            if (delayMillis > maxDelay) {
-                delayMillis = maxDelay
-                Log.d(TAG, "Capped delay to 15 mins for UI responsiveness")
-            }
+            // If plugged in (and screen is on, handled by receiver), update very frequently
+            val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+            val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
 
-            // Check if we need to schedule an update for evening mode transition (6 PM)
-            // This ensures the widget switches from showing yesterday+today to today+forecast
-            val eveningModeDelay = getTimeUntilEveningMode()
-            if (eveningModeDelay in 1..delayMillis) {
-                delayMillis = eveningModeDelay
-                Log.d(TAG, "Scheduling update for evening mode transition at 6 PM")
-            }
+            // Use strategy to compute actual delay
+            val delayMillis = UIUpdateIntervalStrategy.computeDelayMillis(
+                nextUpdateTimeMillis = nextUpdateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                nowMillis = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                isCharging = isCharging,
+                timeUntilEveningModeMillis = getTimeUntilEveningMode()
+            )
 
             Log.d(
                 TAG,
@@ -92,7 +88,7 @@ class UIUpdateScheduler(private val context: Context) {
                     "(tempDiff=$tempDifference, nextUpdate=$nextUpdateTime)",
             )
 
-            scheduleUpdate(delayMillis.coerceAtLeast(60 * 1000L)) // Minimum 1 minute
+            scheduleUpdate(delayMillis)
         } catch (e: Exception) {
             Log.e(TAG, "Error scheduling next update", e)
             // Fallback to 30 minute update

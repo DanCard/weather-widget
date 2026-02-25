@@ -20,6 +20,12 @@ class UIUpdateReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (!powerManager.isInteractive) {
+            Log.d(TAG, "Screen is off, skipping UI update and pausing schedule")
+            return
+        }
+
         Log.d(TAG, "UI update alarm triggered")
 
         // Trigger UI-only update (no network fetch)

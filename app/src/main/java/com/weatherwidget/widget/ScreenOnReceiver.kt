@@ -6,6 +6,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Receiver that triggers widget updates when the user unlocks the screen.
@@ -33,6 +36,18 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 }
             }
         context.sendBroadcast(providerIntent)
+
+        // Resume background UI updates now that screen is on
+        val pendingResult = goAsync()
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                UIUpdateScheduler(context).scheduleNextUpdate()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to schedule next update on screen on", e)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     private fun isCharging(context: Context): Boolean {
