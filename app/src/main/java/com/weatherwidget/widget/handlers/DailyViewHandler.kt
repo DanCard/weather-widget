@@ -8,6 +8,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
+import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
@@ -824,6 +825,45 @@ object DailyViewHandler : WidgetViewHandler {
         }
     }
 
+    @VisibleForTesting
+    internal fun buildDayClickIntent(
+        context: Context,
+        appWidgetId: Int,
+        dayIndex: Int,
+        dateStr: String,
+        hasRainForecast: Boolean,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+        now: LocalDateTime = LocalDateTime.now(),
+    ): Intent {
+        val targetDay = LocalDate.parse(dateStr)
+        val isHistory = targetDay.isBefore(now.toLocalDate())
+        val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
+        val showHistory = !navigateToPrecip
+
+        return Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = ACTION_DAY_CLICK
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra("date", dateStr)
+            putExtra("isHistory", isHistory)
+            putExtra("showHistory", showHistory)
+            putExtra("index", dayIndex)
+
+            if (showHistory) {
+                putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+            } else {
+                val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
+                putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
+                putExtra(EXTRA_HOURLY_OFFSET, offset)
+                putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+            }
+        }
+    }
+
     private fun setupTextDayClickHandlers(
         context: Context,
         views: RemoteViews,
@@ -847,43 +887,19 @@ object DailyViewHandler : WidgetViewHandler {
 
         val midpoint = visibleDays.size / 2
 
-        visibleDays.forEachIndexed { index, (dayIndex, dateStr, hasRainForecast) ->
+        visibleDays.forEach { (dayIndex, dateStr, hasRainForecast) ->
             val containerId = containerIds[dayIndex - 1]
-
-            val targetDay = LocalDate.parse(dateStr)
-            val today = LocalDate.now()
-            val isHistory = targetDay.isBefore(today)
-
-            // Determine action: history view vs precipitation view
-            // Past days → always show history
-            // Today/future with rain → show precipitation graph
-            // Today/future without rain → show history
-            val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
-            val showHistory = !navigateToPrecip
-
-            Log.d(TAG, "Text click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, showHistory=$showHistory")
-
-            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_DAY_CLICK
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra("date", dateStr)
-                putExtra("isHistory", isHistory)
-                putExtra("showHistory", showHistory)
-                putExtra("index", dayIndex)
-            }
-
-            if (showHistory) {
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-            } else {
-                val offset = DayClickHelper.calculatePrecipitationOffset(LocalDateTime.now(), targetDay)
-
-                intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
-                intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            }
+            val intent =
+                buildDayClickIntent(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    dayIndex = dayIndex,
+                    dateStr = dateStr,
+                    hasRainForecast = hasRainForecast,
+                    lat = lat,
+                    lon = lon,
+                    displaySource = displaySource,
+                )
 
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
@@ -923,41 +939,18 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(zoneId, View.VISIBLE)
 
             val dateStr = dayData.date
-            val targetDay = LocalDate.parse(dateStr)
-            val today = LocalDate.now()
-            val isHistory = targetDay.isBefore(today)
-
-            // Determine action: history view vs precipitation view
-            // Past days → always show history
-            // Today/future with rain → show precipitation graph
-            // Today/future without rain → show history
             val hasRainForecast = dayData.hasRainForecast
-            val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
-            val showHistory = !navigateToPrecip
-
-            Log.d(TAG, "Graph click: date=$dateStr, isHistory=$isHistory, hasRainForecast=$hasRainForecast, rainSummary=${dayData.rainSummary}, dailyPrecip=${dayData.dailyPrecipProbability}, showHistory=$showHistory")
-
-            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_DAY_CLICK
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra("date", dateStr)
-                putExtra("isHistory", isHistory)
-                putExtra("showHistory", showHistory)
-                putExtra("index", index + 1)
-            }
-
-            if (showHistory) {
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-            } else {
-                val offset = DayClickHelper.calculatePrecipitationOffset(LocalDateTime.now(), targetDay)
-
-                intent.putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
-                intent.putExtra(EXTRA_HOURLY_OFFSET, offset)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                intent.putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            }
+            val intent =
+                buildDayClickIntent(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    dayIndex = index + 1,
+                    dateStr = dateStr,
+                    hasRainForecast = hasRainForecast,
+                    lat = lat,
+                    lon = lon,
+                    displaySource = displaySource,
+                )
 
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
