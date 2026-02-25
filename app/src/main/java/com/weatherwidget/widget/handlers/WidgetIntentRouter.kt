@@ -559,6 +559,7 @@ object WidgetIntentRouter {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, targetMode)
+        stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
         if (targetMode == com.weatherwidget.widget.ViewMode.HOURLY ||
             targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {

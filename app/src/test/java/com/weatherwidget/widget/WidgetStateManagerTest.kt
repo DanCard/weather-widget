@@ -32,15 +32,16 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `toggleViewMode from DAILY to HOURLY resets offset`() {
+    fun `toggleViewMode from DAILY to HOURLY resets offset and zoom`() {
         val widgetId = 1
         every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.DAILY.ordinal
         
         stateManager.toggleViewMode(widgetId)
         
-        // Should set view mode to HOURLY and reset offset to 0
+        // Should set view mode to HOURLY and reset offset to 0 and zoom to WIDE
         verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.HOURLY.ordinal) }
         verify { editor.putInt("widget_hourly_offset_$widgetId", 0) }
+        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
     }
 
     @Test
@@ -57,14 +58,16 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `togglePrecipitationMode from DAILY to PRECIPITATION resets offset`() {
+    fun `togglePrecipitationMode from DAILY to PRECIPITATION resets offset and zoom`() {
         val widgetId = 1
         every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.DAILY.ordinal
 
         stateManager.togglePrecipitationMode(widgetId)
 
+        // Should set view mode to PRECIPITATION and reset offset to 0 and zoom to WIDE
         verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.PRECIPITATION.ordinal) }
         verify { editor.putInt("widget_hourly_offset_$widgetId", 0) }
+        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
     }
 
     // --- Zoom level tests ---

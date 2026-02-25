@@ -226,9 +226,10 @@ class WidgetStateManager
                     else -> ViewMode.DAILY // From HOURLY or PRECIPITATION, go back to DAILY
                 }
             setViewMode(widgetId, newMode)
-            // Reset hourly offset only when entering hourly mode FROM DAILY
+            // Reset hourly offset and zoom only when entering hourly mode FROM DAILY
             if (newMode == ViewMode.HOURLY && currentMode == ViewMode.DAILY) {
                 setHourlyOffset(widgetId, 0)
+                setZoomLevel(widgetId, ZoomLevel.WIDE)
             }
             // Reset zoom when switching back to DAILY
             if (newMode == ViewMode.DAILY) {
@@ -241,9 +242,10 @@ class WidgetStateManager
             val currentMode = getViewMode(widgetId)
             val newMode = if (currentMode == ViewMode.PRECIPITATION) ViewMode.DAILY else ViewMode.PRECIPITATION
             setViewMode(widgetId, newMode)
-            // Reset hourly offset only when entering precipitation mode FROM DAILY
+            // Reset hourly offset and zoom only when entering precipitation mode FROM DAILY
             if (newMode == ViewMode.PRECIPITATION && currentMode == ViewMode.DAILY) {
                 setHourlyOffset(widgetId, 0)
+                setZoomLevel(widgetId, ZoomLevel.WIDE)
             }
             // Reset zoom when switching back to DAILY
             if (newMode == ViewMode.DAILY) {

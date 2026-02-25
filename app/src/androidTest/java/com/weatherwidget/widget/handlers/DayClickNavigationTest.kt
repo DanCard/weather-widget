@@ -118,6 +118,11 @@ class DayClickNavigationTest {
             ViewMode.PRECIPITATION,
             stateManager.getViewMode(testWidgetId),
         )
+        assertEquals(
+            "Zoom level should be reset to WIDE when explicitly setting view",
+            com.weatherwidget.widget.ZoomLevel.WIDE,
+            stateManager.getZoomLevel(testWidgetId)
+        )
     }
 
     // ── High hourly rain: should always work ──
