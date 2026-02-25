@@ -1,8 +1,14 @@
 package com.weatherwidget.widget.handlers
 
+import android.appwidget.AppWidgetManager
+import android.os.Bundle
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -10,8 +16,11 @@ import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.runs
+import io.mockk.slot
 import io.mockk.unmockkObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -22,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -198,6 +208,91 @@ class DailyViewHandlerTest {
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("PRECIPITATION", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
         assertEquals(20, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+    }
+
+    @Test
+    fun `updateWidget text labels use integer format when value is whole`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList = listOf(createWeather(todayStr, highTemp = 62f, lowTemp = 51f))
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(42)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 140)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 140)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
+        }
+        every { appWidgetManager.getAppWidgetOptions(42) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(42, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 42,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val highTexts = listOf(R.id.day1_high, R.id.day2_high, R.id.day3_high).mapNotNull { id ->
+            applied.findViewById<TextView>(id)?.text?.toString()
+        }
+        val lowTexts = listOf(R.id.day1_low, R.id.day2_low, R.id.day3_low).mapNotNull { id ->
+            applied.findViewById<TextView>(id)?.text?.toString()
+        }
+
+        assertTrue(highTexts.contains("62°"))
+        assertTrue(lowTexts.contains("51°"))
+    }
+
+    @Test
+    fun `updateWidget text labels keep tenth precision for decimal source values`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList =
+            listOf(
+                createWeather(todayStr, highTemp = 62.9f, lowTemp = 51.2f).copy(source = WeatherSource.OPEN_METEO.id),
+            )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(43)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 140)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 140)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
+        }
+        every { appWidgetManager.getAppWidgetOptions(43) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(43, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 43,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val highTexts = listOf(R.id.day1_high, R.id.day2_high, R.id.day3_high).mapNotNull { id ->
+            applied.findViewById<TextView>(id)?.text?.toString()
+        }
+        val lowTexts = listOf(R.id.day1_low, R.id.day2_low, R.id.day3_low).mapNotNull { id ->
+            applied.findViewById<TextView>(id)?.text?.toString()
+        }
+
+        assertTrue(highTexts.contains("62.9°"))
+        assertTrue(lowTexts.contains("51.2°"))
     }
 
     private fun createWeatherMap(today: LocalDate): Map<String, WeatherEntity> {
