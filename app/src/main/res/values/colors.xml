@@ -9,6 +9,8 @@
     <color name="widget_background">#80000000</color>
     <color name="widget_text_primary">#FFFFFF</color>
     <color name="widget_text_secondary">#AAAAAA</color>
+    <color name="sunny_yellow">#FFD60A</color>
+    <color name="weather_icon_tint_default">#AAAAAA</color>
 
     <!-- Settings activity colors -->
     <color name="background">#1C1C1E</color>

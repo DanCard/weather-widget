@@ -56,6 +56,7 @@ play-services-location = { group = "com.google.android.gms", name = "play-servic
 junit = { group = "junit", name = "junit", version = "4.13.2" }
 mockk = { group = "io.mockk", name = "mockk", version = "1.13.9" }
 mockk-android = { group = "io.mockk", name = "mockk-android", version = "1.13.9" }
+robolectric = { group = "org.robolectric", name = "robolectric", version = "4.12.1" }
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 ktor-client-mock = { group = "io.ktor", name = "ktor-client-mock", version.ref = "ktor" }
 

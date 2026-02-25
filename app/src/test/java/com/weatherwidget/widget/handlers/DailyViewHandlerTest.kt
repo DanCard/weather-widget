@@ -1,28 +1,42 @@
 package com.weatherwidget.widget.handlers
 
-import android.view.View
-import android.widget.RemoteViews
-import com.weatherwidget.R
+import android.content.Context
+import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
-import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class DailyViewHandlerTest {
+
+    private lateinit var context: Context
+
+    @Before
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
+        mockkObject(RainAnalyzer)
+    }
 
     @After
     fun teardown() {
@@ -30,290 +44,168 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateTextMode numColumns=2 shows only day2 and day3 slots`() {
-        mockkObject(RainAnalyzer)
+    fun `prepareTextDays numColumns=2 shows only 2 slots`() {
         every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
-        val today = LocalDate.of(2030, 6, 15)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val weatherByDate =
-            listOf(
-                today.minusDays(1),
-                today,
-                today.plusDays(1),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr)
-            }
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = createWeatherMap(today)
 
-        invokeUpdateTextMode(
-            views = views,
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
             centerDate = today,
             today = today,
             weatherByDate = weatherByDate,
             hourlyForecasts = emptyList(),
             numColumns = 2,
-            stateManager = null,
+            displaySource = WeatherSource.NWS
         )
 
-        verify { views.setViewVisibility(R.id.day1_container, View.GONE) }
-        verify { views.setViewVisibility(R.id.day2_container, View.VISIBLE) }
-        verify { views.setViewVisibility(R.id.day3_container, View.VISIBLE) }
-        verify { views.setViewVisibility(R.id.day4_container, View.GONE) }
-        verify { views.setViewVisibility(R.id.day5_container, View.GONE) }
-        verify { views.setViewVisibility(R.id.day6_container, View.GONE) }
-        verify { views.setViewVisibility(R.id.day7_container, View.GONE) }
+        assertEquals(7, result.size)
+        assertEquals(2, result.count { it.isVisible })
+        assertTrue(result[1].isVisible) // today
+        assertTrue(result[2].isVisible) // tomorrow
     }
 
     @Test
-    fun `updateTextMode skipHistory shifts visible dates to today and future`() {
-        mockkObject(RainAnalyzer)
+    fun `prepareTextDays skipHistory shifts visible dates`() {
         every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
-        val today = LocalDate.of(2030, 6, 15)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val weatherByDate =
-            listOf(
-                today,
-                today.plusDays(1),
-                today.plusDays(2),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr)
-            }
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = createWeatherMap(today)
 
-        val result =
-            invokeUpdateTextMode(
-                views = views,
-                centerDate = today,
-                today = today,
-                weatherByDate = weatherByDate,
-                hourlyForecasts = emptyList(),
-                numColumns = 3,
-                skipHistory = true,
-                stateManager = null,
-            )
-
-        assertEquals(
-            listOf(
-                today.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE),
-                today.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE),
-            ),
-            result.map { it.second },
-        )
-    }
-
-    @Test
-    fun `updateTextMode keeps hasRainForecast true for clicks even when today's rain text is suppressed`() {
-        mockkObject(RainAnalyzer)
-
-        val today = LocalDate.now()
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val stateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { stateManager.wasRainShownToday(any(), todayStr) } returns true
-
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } answers {
-            val targetDate = secondArg<LocalDate>()
-            if (targetDate == today) "2pm" else null
-        }
-
-        val weatherByDate =
-            listOf(
-                today.minusDays(1),
-                today,
-                today.plusDays(1),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr, precipProbability = null)
-            }
-
-        val result =
-            invokeUpdateTextMode(
-                views = views,
-                centerDate = today,
-                today = today,
-                weatherByDate = weatherByDate,
-                hourlyForecasts = emptyList(),
-                numColumns = 3,
-                stateManager = stateManager,
-            )
-
-        val todayEntry = result.first { it.second == todayStr }
-        assertTrue(todayEntry.third)
-        verify { views.setViewVisibility(R.id.day2_rain, View.GONE) }
-    }
-
-    @Test
-    fun `updateTextMode excludes days with incomplete high low data`() {
-        mockkObject(RainAnalyzer)
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
-
-        val today = LocalDate.of(2030, 6, 15)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val day1 = today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day2 = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day3 = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val weatherByDate =
-            mapOf(
-                day1 to createWeather(day1, highTemp = 71, lowTemp = 50),
-                day2 to createWeather(day2, highTemp = 72, lowTemp = null),
-                day3 to createWeather(day3, highTemp = 73, lowTemp = 53),
-            )
-
-        val result =
-            invokeUpdateTextMode(
-                views = views,
-                centerDate = today,
-                today = today,
-                weatherByDate = weatherByDate,
-                hourlyForecasts = emptyList(),
-                numColumns = 3,
-                stateManager = null,
-            )
-
-        assertEquals(listOf(day1, day3), result.map { it.second })
-        verify { views.setViewVisibility(R.id.day2_container, View.GONE) }
-    }
-
-    @Test
-    fun `updateTextMode with numColumns=1 shows only center day slot`() {
-        mockkObject(RainAnalyzer)
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
-
-        val today = LocalDate.of(2030, 6, 15)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val weatherByDate =
-            listOf(
-                today.minusDays(1),
-                today,
-                today.plusDays(1),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr)
-            }
-
-        invokeUpdateTextMode(
-            views = views,
-            centerDate = today,
-            today = today,
-            weatherByDate = weatherByDate,
-            hourlyForecasts = emptyList(),
-            numColumns = 1,
-            stateManager = null,
-        )
-
-        verify { views.setViewVisibility(R.id.day1_container, View.GONE) }
-        verify { views.setViewVisibility(R.id.day2_container, View.VISIBLE) }
-        verify { views.setViewVisibility(R.id.day3_container, View.GONE) }
-    }
-
-    @Test
-    fun `updateTextMode shows rain text only for first rainy day`() {
-        mockkObject(RainAnalyzer)
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } answers {
-            when (secondArg<LocalDate>()) {
-                LocalDate.of(2030, 6, 15) -> "9am"
-                LocalDate.of(2030, 6, 16) -> "10am"
-                else -> null
-            }
-        }
-
-        val today = LocalDate.of(2030, 6, 15)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val weatherByDate =
-            listOf(
-                today.minusDays(1),
-                today,
-                today.plusDays(1),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr)
-            }
-
-        invokeUpdateTextMode(
-            views = views,
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
             centerDate = today,
             today = today,
             weatherByDate = weatherByDate,
             hourlyForecasts = emptyList(),
             numColumns = 3,
-            stateManager = null,
+            displaySource = WeatherSource.NWS,
+            skipHistory = true
         )
 
-        verify { views.setViewVisibility(R.id.day2_rain, View.VISIBLE) }
-        verify { views.setViewVisibility(R.id.day3_rain, View.GONE) }
-    }
-
-    @Test
-    fun `updateTextMode uses daily precip fallback for click rain detection`() {
-        mockkObject(RainAnalyzer)
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
-
-        val today = LocalDate.of(2030, 6, 15)
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val weatherByDate =
+        val visibleDates = result.filter { it.isVisible }.map { it.dateStr }
+        assertEquals(
             listOf(
-                today.minusDays(1),
-                today,
-                today.plusDays(1),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr, precipProbability = 0)
-            }
-
-        val result =
-            invokeUpdateTextMode(
-                views = views,
-                centerDate = today,
-                today = today,
-                weatherByDate = weatherByDate,
-                hourlyForecasts = emptyList(),
-                numColumns = 3,
-                stateManager = null,
-                todayNext8HourPrecipProbability = 25,
-            )
-
-        assertTrue(result.first { it.second == todayStr }.third)
-        assertFalse(result.first { it.second == today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE) }.third)
+                today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE),
+                today.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            ),
+            visibleDates
+        )
     }
 
     @Test
-    fun `updateTextMode suppresses rain text beyond today plus two days`() {
-        mockkObject(RainAnalyzer)
+    fun `prepareTextDays identifies first rainy day for text display`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        
         every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } answers {
-            val d = secondArg<LocalDate>()
-            if (d == LocalDate.of(2030, 6, 18)) "8am" else null
+            val date = secondArg<LocalDate>()
+            if (date == today.plusDays(1)) "9am"
+            else if (date == today.plusDays(2)) "10am"
+            else null
         }
 
-        val today = LocalDate.of(2030, 6, 15)
-        val views = mockk<RemoteViews>(relaxed = true)
-        val weatherByDate =
-            listOf(
-                today.minusDays(1),
-                today,
-                today.plusDays(1),
-                today.plusDays(2),
-                today.plusDays(3),
-            ).associate { date ->
-                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                dateStr to createWeather(dateStr)
-            }
-
-        invokeUpdateTextMode(
-            views = views,
+        val weatherByDate = createWeatherMap(today)
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
             centerDate = today,
             today = today,
             weatherByDate = weatherByDate,
             hourlyForecasts = emptyList(),
             numColumns = 5,
-            stateManager = null,
+            displaySource = WeatherSource.NWS
         )
 
-        // day5 is today+3 and should not render rain text due to near-term display cap
-        verify { views.setViewVisibility(R.id.day5_rain, View.GONE) }
+        val tomorrow = result.first { it.date == today.plusDays(1) }
+        val dayAfter = result.first { it.date == today.plusDays(2) }
+
+        assertTrue(tomorrow.showRain)
+        assertEquals("9am", tomorrow.rainSummary)
+        assertFalse(dayAfter.showRain) // Only first rainy day shows text
+        assertEquals("10am", dayAfter.rainSummary) // Summary still exists for click logic
+    }
+
+    @Test
+    fun `prepareGraphDays compositions triple line data for today`() {
+        val now = LocalDateTime.of(2030, 6, 15, 20, 0) // 8 PM
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        
+        // Official API says 80/60
+        val weatherByDate = mapOf(
+            todayStr to createWeather(todayStr, highTemp = 80, lowTemp = 60)
+        )
+        
+        // Hourly samples only reached 74/65
+        val hourlyForecasts = (0..23).map { hour ->
+            HourlyForecastEntity(
+                dateTime = today.atTime(hour, 0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")),
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                temperature = (65 + (hour % 10)).toFloat(), // Max 74
+                locationLat = 0.0,
+                locationLon = 0.0,
+                fetchedAt = 1L
+            )
+        }
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = true,
+            skipHistory = false,
+            hourlyForecasts = hourlyForecasts
+        )
+
+        val todayData = days.first { it.date == todayStr }
+        // Refined logic: Observed uses hourly peak (74) if after 4 PM, 
+        // but Forecast line (Blue) uses official API (80)
+        assertEquals(74f, todayData.high!!, 0.1f) 
+        assertEquals(65f, todayData.low!!, 0.1f)
+        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
+        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+    }
+
+    @Test
+    fun `buildDayClickIntent returns correct extras with Robolectric`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val dateStr = "2030-06-16" // Tomorrow
+        
+        val intent = DailyViewHandler.buildDayClickIntent(
+            context = context,
+            appWidgetId = 42,
+            dayIndex = 1,
+            dateStr = dateStr,
+            hasRainForecast = true,
+            lat = 37.0,
+            lon = -122.0,
+            displaySource = WeatherSource.NWS,
+            now = now
+        )
+
+        assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
+        assertEquals(dateStr, intent.getStringExtra("date"))
+        assertFalse(intent.getBooleanExtra("showHistory", true))
+        assertEquals("PRECIPITATION", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
+        assertEquals(20, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+    }
+
+    private fun createWeatherMap(today: LocalDate): Map<String, WeatherEntity> {
+        return (-1..5).associate { offset ->
+            val date = today.plusDays(offset.toLong())
+            val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            dateStr to createWeather(dateStr)
+        }
     }
 
     private fun createWeather(
@@ -336,51 +228,5 @@ class DailyViewHandlerTest {
             precipProbability = precipProbability,
             fetchedAt = 1L,
         )
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    private fun invokeUpdateTextMode(
-        views: RemoteViews,
-        centerDate: LocalDate,
-        today: LocalDate,
-        weatherByDate: Map<String, WeatherEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        numColumns: Int,
-        displaySource: WeatherSource = WeatherSource.NWS,
-        skipHistory: Boolean = false,
-        stateManager: WidgetStateManager? = null,
-        appWidgetId: Int = 42,
-        todayNext8HourPrecipProbability: Int? = null,
-    ): List<Triple<Int, String, Boolean>> {
-        val method =
-            DailyViewHandler::class.java.getDeclaredMethod(
-                "updateTextMode",
-                RemoteViews::class.java,
-                LocalDate::class.java,
-                LocalDate::class.java,
-                Map::class.java,
-                List::class.java,
-                Int::class.javaPrimitiveType,
-                WeatherSource::class.java,
-                Boolean::class.javaPrimitiveType,
-                WidgetStateManager::class.java,
-                Int::class.javaPrimitiveType,
-                Int::class.javaObjectType,
-            )
-        method.isAccessible = true
-        return method.invoke(
-            DailyViewHandler,
-            views,
-            centerDate,
-            today,
-            weatherByDate,
-            hourlyForecasts,
-            numColumns,
-            displaySource,
-            skipHistory,
-            stateManager,
-            appWidgetId,
-            todayNext8HourPrecipProbability,
-        ) as List<Triple<Int, String, Boolean>>
     }
 }

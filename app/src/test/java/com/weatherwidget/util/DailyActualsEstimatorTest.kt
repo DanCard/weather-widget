@@ -48,12 +48,12 @@ class DailyActualsEstimatorTest {
 
         // Observed so far: low=40
         assertEquals(40f, valuesEarly.observedLow!!, 0.01f)
-        // High should still be the full-day forecast high (68) because it's before 4 PM
-        assertEquals(68f, valuesEarly.observedHigh!!, 0.01f)
+        // High should still be the full-day forecast high (65) because it's before 4 PM
+        assertEquals(65f, valuesEarly.observedHigh!!, 0.01f)
 
-        // Full-day prediction: low=38, high=68
-        assertEquals(38f, valuesEarly.forecastLow!!, 0.01f)
-        assertEquals(68f, valuesEarly.forecastHigh!!, 0.01f)
+        // Full-day prediction: low=45, high=65 (from fallbackWeather)
+        assertEquals(45f, valuesEarly.forecastLow!!, 0.01f)
+        assertEquals(65f, valuesEarly.forecastHigh!!, 0.01f)
 
         // Scenario 2: After 4:00 PM (e.g., 5:00 PM)
         val nowLate = LocalDateTime.of(2026, 2, 25, 17, 0)
@@ -72,23 +72,16 @@ class DailyActualsEstimatorTest {
             HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 55f, "Cloudy", "OPEN_METEO", 0, 0), // Actual peak so far
             HourlyForecastEntity("2026-02-25T20:00", 0.0, 0.0, 45f, "Cloudy", "OPEN_METEO", 0, 0)  // Cooling down
         )
-        // Manual forecast high for this test set is 55.
-        // Let's add a future forecast that is HIGHER to test the cutoff logic properly.
-        val hourlyWithHigherFuture = listOf(
-            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 40f, "Cloudy", "OPEN_METEO", 0, 0),
-            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 55f, "Cloudy", "OPEN_METEO", 0, 0), // Actual peak so far
-            HourlyForecastEntity("2026-02-25T20:00", 0.0, 0.0, 68f, "Sunny", "OPEN_METEO", 0, 0)  // Predicted later peak (unusual but good for testing)
-        )
-
-        // Before 4 PM: Should return forecast high (68)
+        // Manual forecast high for this test set is 65 (from fallbackWeather).
+        // Before 4 PM: Should return forecast high (65)
         val valuesEarlyHigher = DailyActualsEstimator.calculateTodayTripleLineValues(
-            hourlyWithHigherFuture, today, nowEarly, displaySource, fallbackWeather
+            hourlyLowerPeak, today, nowEarly, displaySource, fallbackWeather
         )
-        assertEquals(68f, valuesEarlyHigher.observedHigh!!, 0.01f)
+        assertEquals(65f, valuesEarlyHigher.observedHigh!!, 0.01f)
 
         // After 4 PM: Should return actual high so far (55)
         val valuesLateHigher = DailyActualsEstimator.calculateTodayTripleLineValues(
-            hourlyWithHigherFuture, today, nowLate, displaySource, fallbackWeather
+            hourlyLowerPeak, today, nowLate, displaySource, fallbackWeather
         )
         assertEquals(55f, valuesLateHigher.observedHigh!!, 0.01f)
     }
@@ -116,16 +109,19 @@ class DailyActualsEstimatorTest {
             HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 45f, "Cloudy", "Generic", 0, 0)
         )
 
+        // To test filtering logic without daily fallback interference, use empty daily values
+        val emptyFallback = fallbackWeather.copy(highTemp = null, lowTemp = null)
+
         // Test NWS filtering
         val valuesNWS = DailyActualsEstimator.calculateTodayTripleLineValues(
-            hourly, today, now, WeatherSource.NWS, fallbackWeather
+            hourly, today, now, WeatherSource.NWS, emptyFallback
         )
         // Should use NWS (40) and Generic (45). Min is 40.
         assertEquals(40f, valuesNWS.observedLow!!, 0.01f)
 
         // Test WeatherAPI filtering
         val valuesWAPI = DailyActualsEstimator.calculateTodayTripleLineValues(
-            hourly, today, now, WeatherSource.WEATHER_API, fallbackWeather
+            hourly, today, now, WeatherSource.WEATHER_API, emptyFallback
         )
         // Should use WeatherAPI (42) and Generic (45). Min is 42.
         assertEquals(42f, valuesWAPI.observedLow!!, 0.01f)
@@ -139,8 +135,11 @@ class DailyActualsEstimatorTest {
             HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 58.2f, "Cloudy", "OPEN_METEO", 0, 0)
         )
 
+        // Use empty daily values to trigger hourly fallback
+        val emptyFallback = fallbackWeather.copy(highTemp = null, lowTemp = null)
+
         val values = DailyActualsEstimator.calculateTodayTripleLineValues(
-            hourly, today, now, WeatherSource.OPEN_METEO, fallbackWeather
+            hourly, today, now, WeatherSource.OPEN_METEO, emptyFallback
         )
 
         // 61.7 is preserved

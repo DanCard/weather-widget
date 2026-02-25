@@ -46,4 +46,24 @@ object WeatherIconMapper {
             else -> R.drawable.ic_weather_clear // Optimistic fallback: default to CLEAR instead of CLOUDY
         }
     }
+
+    fun isSunny(iconRes: Int): Boolean {
+        return iconRes == R.drawable.ic_weather_clear ||
+               iconRes == R.drawable.ic_weather_mostly_clear ||
+               iconRes == R.drawable.ic_weather_night
+    }
+
+    fun isRainy(iconRes: Int): Boolean {
+        return iconRes == R.drawable.ic_weather_rain ||
+               iconRes == R.drawable.ic_weather_storm ||
+               iconRes == R.drawable.ic_weather_snow
+    }
+
+    fun isMixed(iconRes: Int): Boolean {
+        return iconRes == R.drawable.ic_weather_mostly_cloudy ||
+               iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
+               iconRes == R.drawable.ic_weather_partly_cloudy ||
+               iconRes == R.drawable.ic_weather_partly_cloudy_night ||
+               iconRes == R.drawable.ic_weather_fog_cloudy
+    }
 }
