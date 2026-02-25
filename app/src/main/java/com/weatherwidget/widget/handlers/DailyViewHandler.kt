@@ -410,8 +410,8 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         views.setViewVisibility(ids.icon, View.VISIBLE)
-        views.setTextViewText(ids.high, data.weather?.highTemp?.let { "$it°" } ?: "--°")
-        views.setTextViewText(ids.low, data.weather?.lowTemp?.let { "$it°" } ?: "--°")
+        views.setTextViewText(ids.high, data.highLabel ?: "--°")
+        views.setTextViewText(ids.low, data.lowLabel ?: "--°")
 
         if (data.showRain && !data.rainSummary.isNullOrEmpty()) {
             views.setTextViewText(ids.rain, "💧 ${data.rainSummary}")

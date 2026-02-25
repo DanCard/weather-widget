@@ -73,21 +73,25 @@ object DailyActualsEstimator {
         val actualLowSoFar = observedToday.minOfOrNull { it.temperature }
 
         // 2. Full-day prediction (including both past and future hours)
-        // Prefer the official daily high/low from the API, fallback to hourly max/min
-        val forecastHigh = fallbackWeather.highTemp?.toFloat() ?: todayHourly.maxOfOrNull { it.temperature }
-        val forecastLow = fallbackWeather.lowTemp?.toFloat() ?: todayHourly.minOfOrNull { it.temperature }
+        val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
+        val hourlyMin = todayHourly.minOfOrNull { it.temperature }
 
-        // Before the typical high hour (4 PM), keep the top of the bar at the forecast high.
+        // Prefer the official daily high/low from the API for the forecast line (blue line)
+        val forecastHigh = fallbackWeather.highTemp?.toFloat() ?: hourlyMax
+        val forecastLow = fallbackWeather.lowTemp?.toFloat() ?: hourlyMin
+
+        // Before the typical high hour (4 PM), keep the top of the bar at the expected high from hourly data.
+        // This ensures we retain the tenth-of-a-digit precision from the hourly API (e.g., Open-Meteo).
         // After the typical high hour, update to the actual peak observed today.
         val finalObservedHigh = if (now.hour < TYPICAL_HIGH_HOUR) {
-            forecastHigh
+            hourlyMax
         } else {
             actualHighSoFar
         }
 
         return TodayTripleLineValues(
             observedHigh = finalObservedHigh ?: forecastHigh,
-            observedLow = actualLowSoFar ?: forecastLow,
+            observedLow = actualLowSoFar ?: hourlyMin ?: forecastLow,
             forecastHigh = forecastHigh,
             forecastLow = forecastLow
         )

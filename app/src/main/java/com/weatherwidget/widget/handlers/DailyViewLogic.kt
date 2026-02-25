@@ -15,6 +15,8 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * Pure logic for the daily forecast view, separated from Android UI components for testability.
@@ -32,7 +34,9 @@ object DailyViewLogic {
         val rainSummary: String?,
         val showRain: Boolean,
         val isToday: Boolean,
-        val hasRainForecast: Boolean
+        val hasRainForecast: Boolean,
+        val highLabel: String?,
+        val lowLabel: String?
     )
 
     fun getEffectiveCondition(
@@ -109,6 +113,25 @@ object DailyViewLogic {
             val isToday = date == today
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             
+            var highLabel: String? = weather?.highTemp?.let { "$it°" }
+            var lowLabel: String? = weather?.lowTemp?.let { "$it°" }
+
+            if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
+                val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
+                    hourlyForecasts, today, now, displaySource, weather
+                )
+                
+                fun formatPrecise(v: Float?): String? {
+                    if (v == null) return null
+                    val rounded = v.roundToInt()
+                    val diff = abs(v - rounded.toFloat())
+                    return if (diff < 0.01f) "$rounded°" else String.format("%.1f°", v)
+                }
+                
+                highLabel = formatPrecise(tripleValues.observedHigh) ?: highLabel
+                lowLabel = formatPrecise(tripleValues.observedLow) ?: lowLabel
+            }
+
             TextDayData(
                 dayIndex = dayIndex,
                 date = date,
@@ -120,7 +143,9 @@ object DailyViewLogic {
                 rainSummary = displayedSummaries[index],
                 showRain = index == firstRainDayIndex,
                 isToday = isToday,
-                hasRainForecast = DayClickHelper.hasRainForecast(rawSummaries[index], precip)
+                hasRainForecast = DayClickHelper.hasRainForecast(rawSummaries[index], precip),
+                highLabel = highLabel,
+                lowLabel = lowLabel
             )
         }
     }
