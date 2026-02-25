@@ -280,6 +280,42 @@ class DailyViewHandlerTest {
         assertFalse(result.first { it.second == today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE) }.third)
     }
 
+    @Test
+    fun `updateTextMode suppresses rain text beyond today plus two days`() {
+        mockkObject(RainAnalyzer)
+        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } answers {
+            val d = secondArg<LocalDate>()
+            if (d == LocalDate.of(2030, 6, 18)) "8am" else null
+        }
+
+        val today = LocalDate.of(2030, 6, 15)
+        val views = mockk<RemoteViews>(relaxed = true)
+        val weatherByDate =
+            listOf(
+                today.minusDays(1),
+                today,
+                today.plusDays(1),
+                today.plusDays(2),
+                today.plusDays(3),
+            ).associate { date ->
+                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                dateStr to createWeather(dateStr)
+            }
+
+        invokeUpdateTextMode(
+            views = views,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 5,
+            stateManager = null,
+        )
+
+        // day5 is today+3 and should not render rain text due to near-term display cap
+        verify { views.setViewVisibility(R.id.day5_rain, View.GONE) }
+    }
+
     private fun createWeather(
         date: String,
         precipProbability: Int? = 0,

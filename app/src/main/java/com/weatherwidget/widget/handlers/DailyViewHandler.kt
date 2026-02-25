@@ -574,15 +574,20 @@ object DailyViewHandler : WidgetViewHandler {
                 rawRainSummary,
                 if (isToday) todayNext8HourPrecipProbability else weather.precipProbability,
             )
-            val rainSummary = if (isToday && rawRainSummary != null && stateManager != null) {
-                if (stateManager.wasRainShownToday(appWidgetId, todayStr)) {
-                    null
+            val nearTermLimit = today.plusDays(2)
+            val rainSummary = if (!date.isBefore(today) && !date.isAfter(nearTermLimit)) {
+                if (isToday && rawRainSummary != null && stateManager != null) {
+                    if (stateManager.wasRainShownToday(appWidgetId, todayStr)) {
+                        null
+                    } else {
+                        stateManager.markRainShown(appWidgetId, todayStr)
+                        rawRainSummary
+                    }
                 } else {
-                    stateManager.markRainShown(appWidgetId, todayStr)
                     rawRainSummary
                 }
             } else {
-                rawRainSummary
+                null
             }
 
             days.add(
@@ -687,6 +692,8 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Check rain forecast for all visible days.
         val now = LocalDateTime.now()
+        val nearTermLimit = today.plusDays(2)
+        fun isNearTerm(date: LocalDate) = !date.isBefore(today) && !date.isAfter(nearTermLimit)
         // Suppress today's rain summary if already shown once this day
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         fun suppressIfAlreadyShown(date: LocalDate, summary: String?): String? {
@@ -708,7 +715,11 @@ object DailyViewHandler : WidgetViewHandler {
 
         val displayedRainSummaries =
             daySlots.mapIndexed { index, slot ->
-                suppressIfAlreadyShown(slot.date, rawRainSummaries[index])
+                if (!isNearTerm(slot.date)) {
+                    null
+                } else {
+                    suppressIfAlreadyShown(slot.date, rawRainSummaries[index])
+                }
             }
 
         daySlots.forEachIndexed { index, slot ->
