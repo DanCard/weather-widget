@@ -60,6 +60,7 @@
     <string name="forecast_hourly_subtitle">Hourly Detail</string>
     <string name="forecast_hourly_no_data">No hourly temperature forecast available for this date.</string>
     <string name="forecast_hourly_legend">Now</string>
+    <string name="forecast_history_no_data_for_source">No forecast history for this date (%1$s).</string>
     <string name="forecast_error_requires_actuals">Error view is available after actual temperatures are recorded for this day.</string>
     <string name="legend_actual">Actual</string>
     <string name="legend_zero_error">Zero Error</string>

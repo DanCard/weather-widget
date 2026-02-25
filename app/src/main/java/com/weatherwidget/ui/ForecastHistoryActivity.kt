@@ -11,6 +11,13 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.ForecastSnapshotEntity
@@ -21,18 +28,13 @@ import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.handlers.DayClickHelper
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
-import kotlin.math.abs
-import kotlin.math.roundToInt
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
 import javax.inject.Inject
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @AndroidEntryPoint
 class ForecastHistoryActivity : AppCompatActivity() {
@@ -53,17 +55,45 @@ class ForecastHistoryActivity : AppCompatActivity() {
          * Determines whether clicking the mode button should launch hourly view
          * (true) or toggle graph mode (false).
          */
-        fun shouldLaunchTemperature(hasDate: Boolean, snapshotsEmpty: Boolean): Boolean =
-            hasDate && snapshotsEmpty
+        fun shouldLaunchTemperature(hasDate: Boolean, showTemperatureButton: Boolean): Boolean =
+            hasDate && showTemperatureButton
 
         /**
-         * Determines the button label mode: HOURLY when no history exists,
-         * or the current graph mode (EVOLUTION/ERROR) when history exists.
+         * Shows hourly button when viewing today/future without actuals.
          */
-        fun resolveButtonMode(snapshotsEmpty: Boolean, graphMode: GraphMode): ButtonMode =
-            if (snapshotsEmpty) ButtonMode.TEMPERATURE
+        fun shouldShowTemperatureButton(
+            date: LocalDate?,
+            hasActualValues: Boolean,
+            today: LocalDate = LocalDate.now(),
+        ): Boolean = date != null && !date.isBefore(today) && !hasActualValues
+
+        /**
+         * Determines the button label mode: HOURLY when hourly button is active,
+         * or the current graph mode (EVOLUTION/ERROR) otherwise.
+         */
+        fun resolveButtonMode(showTemperatureButton: Boolean, graphMode: GraphMode): ButtonMode =
+            if (showTemperatureButton) ButtonMode.TEMPERATURE
             else if (graphMode == GraphMode.EVOLUTION) ButtonMode.EVOLUTION
             else ButtonMode.ERROR
+
+        fun hasRequiredHistoryExtras(
+            targetDate: String?,
+            hasLatExtra: Boolean,
+            hasLonExtra: Boolean,
+        ): Boolean = targetDate != null && hasLatExtra && hasLonExtra
+
+        fun resolveActualLookupMode(
+            date: LocalDate,
+            requestedSource: WeatherSource?,
+            today: LocalDate = LocalDate.now(),
+        ): ActualLookupMode =
+            if (!date.isBefore(today)) {
+                ActualLookupMode.NONE
+            } else if (requestedSource != null) {
+                ActualLookupMode.SOURCE_SPECIFIC
+            } else {
+                ActualLookupMode.ANY_SOURCE
+            }
     }
 
     enum class GraphMode {
@@ -75,6 +105,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
         EVOLUTION,
         ERROR,
         TEMPERATURE,
+    }
+
+    enum class ActualLookupMode {
+        NONE,
+        SOURCE_SPECIFIC,
+        ANY_SOURCE,
     }
 
     private var graphMode = GraphMode.EVOLUTION
@@ -92,19 +128,22 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val lon = intent.getDoubleExtra(EXTRA_LON, 0.0)
         val requestedSource = normalizeSource(intent.getStringExtra(EXTRA_SOURCE))
 
-        if (targetDate == null || lat == 0.0) {
+        if (!hasRequiredHistoryExtras(targetDate, intent.hasExtra(EXTRA_LAT), intent.hasExtra(EXTRA_LON))) {
             Log.e(TAG, "Missing required extras")
             finish()
             return
         }
+        val safeTargetDate = checkNotNull(targetDate)
 
-        Log.d(TAG, "Loading forecast history for $targetDate at $lat, $lon (source=$requestedSource)")
+        Log.d(TAG, "Loading forecast history for $safeTargetDate at $lat, $lon (source=$requestedSource)")
 
         findViewById<ImageButton>(R.id.back_button).setOnClickListener { finish() }
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
         graphModeButton.setOnClickListener {
             val date = cachedDate
-            if (shouldLaunchTemperature(date != null, cachedSnapshots.isEmpty())) {
+            val hasActualValues = cachedActualWeather?.highTemp != null && cachedActualWeather?.lowTemp != null
+            val showTemperatureButton = shouldShowTemperatureButton(date, hasActualValues)
+            if (shouldLaunchTemperature(date != null, showTemperatureButton)) {
                 launchWidgetTemperatureMode(date!!)
                 return@setOnClickListener
             }
@@ -117,14 +156,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
         updateModeUi()
 
-        val date = LocalDate.parse(targetDate)
+        val date = LocalDate.parse(safeTargetDate)
         val dateText =
             date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()) +
                 ", " + date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
                 " " + date.dayOfMonth
         findViewById<TextView>(R.id.date_subtitle).text = dateText
 
-        loadData(targetDate, lat, lon, date, requestedSource)
+        loadData(safeTargetDate, lat, lon, date, requestedSource)
     }
 
     private fun loadData(
@@ -134,7 +173,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         date: LocalDate,
         requestedSource: WeatherSource?,
     ) {
-        CoroutineScope(Dispatchers.IO).launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val allSnapshots = forecastSnapshotDao.getForecastEvolution(targetDate, lat, lon)
                 val snapshots =
@@ -146,15 +185,17 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 Log.d(TAG, "Found ${snapshots.size} snapshots for $targetDate")
 
                 val actualWeather =
-                    if (date.isBefore(LocalDate.now())) {
-                        if (requestedSource != null) {
-                            weatherDao.getWeatherForDateBySource(targetDate, lat, lon, requestedSource.id)
-                                ?: weatherDao.getWeatherForDate(targetDate, lat, lon)
-                        } else {
+                    when (resolveActualLookupMode(date, requestedSource)) {
+                        ActualLookupMode.NONE -> null
+                        ActualLookupMode.SOURCE_SPECIFIC ->
+                            weatherDao.getWeatherForDateBySource(
+                                targetDate,
+                                lat,
+                                lon,
+                                checkNotNull(requestedSource).id,
+                            )
+                        ActualLookupMode.ANY_SOURCE ->
                             weatherDao.getWeatherForDate(targetDate, lat, lon)
-                        }
-                    } else {
-                        null
                     }
 
                 withContext(Dispatchers.Main) {
@@ -333,7 +374,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             lowGraphView.setImageBitmap(lowBitmap)
         } else {
             val sourceLabel = requestedSource?.displayName ?: "selected source"
-            noDataTextView.text = "No forecast history for this date ($sourceLabel)."
+            noDataTextView.text = getString(R.string.forecast_history_no_data_for_source, sourceLabel)
             noDataTextView.visibility = View.VISIBLE
             highCard.visibility = View.GONE
             lowCard.visibility = View.GONE
@@ -349,7 +390,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun updateModeUi() {
         val modeButton = findViewById<Button>(R.id.graph_mode_button)
         val actualLegendText = findViewById<TextView>(R.id.legend_actual_text)
-        when (resolveButtonMode(cachedSnapshots.isEmpty(), graphMode)) {
+        val hasActualValues = cachedActualWeather?.highTemp != null && cachedActualWeather?.lowTemp != null
+        val showTemperatureButton = shouldShowTemperatureButton(cachedDate, hasActualValues)
+        when (resolveButtonMode(showTemperatureButton, graphMode)) {
             ButtonMode.EVOLUTION -> {
                 modeButton.text = getString(R.string.forecast_mode_evolution)
                 actualLegendText.text = getString(R.string.legend_actual)
@@ -375,7 +418,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val offset = DayClickHelper.calculatePrecipitationOffset(LocalDateTime.now(), targetDay)
         val startMs = SystemClock.elapsedRealtime()
         Log.d(TAG, "launchWidgetTemperatureMode: start widget=$appWidgetId targetDay=$targetDay offset=$offset")
-        CoroutineScope(Dispatchers.IO).launch {
+        lifecycleScope.launch(Dispatchers.IO) {
             WidgetIntentRouter.handleSetView(
                 context = this@ForecastHistoryActivity,
                 appWidgetId = appWidgetId,
