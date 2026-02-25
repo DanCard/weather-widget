@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.ui.ForecastHistoryActivity.ButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveButtonMode
+import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldShowTemperatureButton
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldLaunchTemperature
 import com.weatherwidget.ui.ForecastHistoryActivity.GraphMode
 import kotlinx.coroutines.runBlocking
@@ -23,10 +24,8 @@ import java.time.LocalDate
  * Integration tests verifying the ForecastHistoryActivity button label logic
  * end-to-end: DB insert → DAO query → decision function.
  *
- * Guards against the regression where the button showed "Hourly Temperature Forecast"
- * even when forecast history snapshots existed (e.g., for today with collected snapshots).
- * The original bug used date-based logic (isPastDate) instead of data-based logic
- * (hasSnapshots) to decide the button label.
+ * Verifies that today/future dates without actual values switch to hourly mode,
+ * while past dates continue to use evolution/error toggles.
  */
 @RunWith(AndroidJUnit4::class)
 class ForecastHistoryButtonIntegrationTest {
@@ -49,12 +48,11 @@ class ForecastHistoryButtonIntegrationTest {
     }
 
     /**
-     * When forecast snapshots exist for a date, the button should show "Evolution"
-     * (not "Hourly Temperature Forecast"). This is the core regression case:
-     * today has snapshots, so the user should see the Evolution/Error toggle.
+     * Today should route to hourly mode when actual values are unavailable,
+     * even if forecast snapshots exist.
      */
     @Test
-    fun buttonShowsEvolution_whenSnapshotsExist() = runBlocking {
+    fun buttonShowsHourlyForTodayWithoutActuals_evenWhenSnapshotsExist() = runBlocking {
         val today = LocalDate.now().toString()
         val yesterday = LocalDate.now().minusDays(1).toString()
 
@@ -77,51 +75,101 @@ class ForecastHistoryButtonIntegrationTest {
         val snapshots = db.forecastSnapshotDao().getForecastEvolution(today, lat, lon)
         assertTrue("Expected snapshots in DB but found none", snapshots.isNotEmpty())
 
-        // Verify: button should show Evolution, NOT "Hourly Temperature Forecast"
+        // Today + no actuals -> temperature button
+        val showTemperatureButton = shouldShowTemperatureButton(
+            date = LocalDate.parse(today),
+            hasActualValues = false,
+        )
         val buttonMode = resolveButtonMode(
-            snapshotsEmpty = snapshots.isEmpty(),
+            showTemperatureButton = showTemperatureButton,
             graphMode = GraphMode.EVOLUTION,
         )
         assertEquals(
-            "Button should show Evolution when snapshots exist (was the regression bug)",
-            ButtonMode.EVOLUTION,
-            buttonMode,
-        )
-
-        // Click handler should toggle graph mode, not launch hourly
-        assertFalse(
-            "Click should toggle graph mode when snapshots exist",
-            shouldLaunchTemperature(hasDate = true, snapshotsEmpty = snapshots.isEmpty()),
-        )
-    }
-
-    /**
-     * When no forecast snapshots exist for a date, the button should show
-     * "Hourly Temperature Forecast" and clicking it should launch hourly mode.
-     */
-    @Test
-    fun buttonShowsHourly_whenNoSnapshotsExist() = runBlocking {
-        val futureDate = LocalDate.now().plusDays(3).toString()
-
-        // Query with no data inserted
-        val snapshots = db.forecastSnapshotDao().getForecastEvolution(futureDate, lat, lon)
-        assertTrue("Expected no snapshots for future date", snapshots.isEmpty())
-
-        // Verify: button should show Hourly
-        val buttonMode = resolveButtonMode(
-            snapshotsEmpty = snapshots.isEmpty(),
-            graphMode = GraphMode.EVOLUTION,
-        )
-        assertEquals(
-            "Button should show Hourly when no snapshots exist",
+            "Button should show Hourly for today without actual values",
             ButtonMode.TEMPERATURE,
             buttonMode,
         )
 
         // Click handler should launch hourly mode
         assertTrue(
-            "Click should launch hourly mode when no snapshots exist",
-            shouldLaunchTemperature(hasDate = true, snapshotsEmpty = snapshots.isEmpty()),
+            "Click should launch hourly mode when temperature button is active",
+            shouldLaunchTemperature(hasDate = true, showTemperatureButton = showTemperatureButton),
+        )
+    }
+
+    /**
+     * Future dates without actual values should also use hourly mode.
+     */
+    @Test
+    fun buttonShowsHourly_whenFutureDateHasNoActuals() = runBlocking {
+        val futureDate = LocalDate.now().plusDays(3).toString()
+
+        // Query with no data inserted
+        val snapshots = db.forecastSnapshotDao().getForecastEvolution(futureDate, lat, lon)
+        assertTrue("Expected no snapshots for future date", snapshots.isEmpty())
+
+        val showTemperatureButton = shouldShowTemperatureButton(
+            date = LocalDate.parse(futureDate),
+            hasActualValues = false,
+        )
+        val buttonMode = resolveButtonMode(
+            showTemperatureButton = showTemperatureButton,
+            graphMode = GraphMode.EVOLUTION,
+        )
+        assertEquals(
+            "Button should show Hourly when future day has no actual values",
+            ButtonMode.TEMPERATURE,
+            buttonMode,
+        )
+
+        // Click handler should launch hourly mode
+        assertTrue(
+            "Click should launch hourly mode for future date without actual values",
+            shouldLaunchTemperature(hasDate = true, showTemperatureButton = showTemperatureButton),
+        )
+    }
+
+    /**
+     * Past dates should keep evolution/error toggle behavior even if actuals are unavailable.
+     */
+    @Test
+    fun buttonShowsEvolution_whenPastDateAndSnapshotsExist() = runBlocking {
+        val targetDate = LocalDate.now().minusDays(2).toString()
+        val forecastDate = LocalDate.now().minusDays(3).toString()
+
+        db.forecastSnapshotDao().insertSnapshot(
+            ForecastSnapshotEntity(
+                targetDate = targetDate,
+                forecastDate = forecastDate,
+                locationLat = lat,
+                locationLon = lon,
+                highTemp = 68f,
+                lowTemp = 52f,
+                condition = "Clear",
+                source = "NWS",
+                fetchedAt = System.currentTimeMillis(),
+            )
+        )
+
+        val snapshots = db.forecastSnapshotDao().getForecastEvolution(targetDate, lat, lon)
+        assertTrue("Expected snapshots for past date", snapshots.isNotEmpty())
+
+        val showTemperatureButton = shouldShowTemperatureButton(
+            date = LocalDate.parse(targetDate),
+            hasActualValues = false,
+        )
+        val buttonMode = resolveButtonMode(
+            showTemperatureButton = showTemperatureButton,
+            graphMode = GraphMode.EVOLUTION,
+        )
+        assertEquals(
+            "Button should stay in evolution mode for past dates",
+            ButtonMode.EVOLUTION,
+            buttonMode,
+        )
+        assertFalse(
+            "Click should toggle graph mode for past dates",
+            shouldLaunchTemperature(hasDate = true, showTemperatureButton = showTemperatureButton),
         )
     }
 }
