@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 /**
  * Utility to estimate observed vs. forecasted temperature ranges for a day.
@@ -68,12 +69,12 @@ object DailyActualsEstimator {
 
         // 1. Observed so far (history/current)
         val observedToday = todayHourly.filter { it.dateTime <= nowStr }
-        val actualHighSoFar = observedToday.maxOfOrNull { it.temperature }?.toInt()
-        val actualLowSoFar = observedToday.minOfOrNull { it.temperature }?.toInt()
+        val actualHighSoFar = observedToday.maxOfOrNull { it.temperature }?.roundToInt()
+        val actualLowSoFar = observedToday.minOfOrNull { it.temperature }?.roundToInt()
 
         // 2. Full-day prediction (including both past and future hours)
-        val forecastHigh = todayHourly.maxOfOrNull { it.temperature }?.toInt()
-        val forecastLow = todayHourly.minOfOrNull { it.temperature }?.toInt()
+        val forecastHigh = todayHourly.maxOfOrNull { it.temperature }?.roundToInt()
+        val forecastLow = todayHourly.minOfOrNull { it.temperature }?.roundToInt()
 
         // Before the typical high hour (4 PM), keep the top of the bar at the forecast high.
         // After the typical high hour, update to the actual peak observed today.
@@ -117,6 +118,6 @@ object DailyActualsEstimator {
             return fallbackWeather.highTemp to fallbackWeather.lowTemp
         }
 
-        return temps.maxOrNull()?.toInt() to temps.minOrNull()?.toInt()
+        return temps.maxOfOrNull { it }?.roundToInt() to temps.minOfOrNull { it }?.roundToInt()
     }
 }

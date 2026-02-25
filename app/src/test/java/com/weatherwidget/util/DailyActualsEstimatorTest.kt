@@ -130,4 +130,22 @@ class DailyActualsEstimatorTest {
         // Should use WeatherAPI (42) and Generic (45). Min is 42.
         assertEquals(42, valuesWAPI.observedLow)
     }
+
+    @Test
+    fun calculateTodayTripleLineValues_roundsToNearestInteger() {
+        val hourly = listOf(
+            // High of 61.7, Low of 58.2
+            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 61.7f, "Sunny", "OPEN_METEO", 0, 0),
+            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 58.2f, "Cloudy", "OPEN_METEO", 0, 0)
+        )
+
+        val values = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourly, today, now, WeatherSource.OPEN_METEO, fallbackWeather
+        )
+
+        // 61.7 rounds to 62
+        assertEquals(62, values.forecastHigh)
+        // 58.2 rounds to 58
+        assertEquals(58, values.forecastLow)
+    }
 }
