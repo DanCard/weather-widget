@@ -13,9 +13,9 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPositionUtils
-import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
+import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -51,6 +51,7 @@ object PrecipViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
         precipProbability: Int? = null,
+        observedCurrentTemp: Float? = null,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -129,21 +130,23 @@ object PrecipViewHandler {
         // Setup API toggle
         setupApiToggle(context, views, appWidgetId, numRows)
 
-        // Set current temperature (interpolated from hourly data)
-        if (hourlyForecasts.isNotEmpty()) {
-            val interpolator = TemperatureInterpolator()
-            val currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, now, displaySource)
-            if (currentTemp != null) {
-                val formattedTemp =
-                    when {
-                        numColumns >= 2 -> String.format("%.1f°", currentTemp)
-                        else -> String.format("%.0f°", currentTemp)
-                    }
-                views.setTextViewText(R.id.current_temp, formattedTemp)
-                views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-            } else {
-                views.setViewVisibility(R.id.current_temp, View.GONE)
-            }
+        val currentTempResolution =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = displaySource,
+                hourlyForecasts = hourlyForecasts,
+                observedCurrentTemp = observedCurrentTemp,
+            )
+        val currentTemp = currentTempResolution.displayTemp
+        if (currentTemp != null) {
+            val formattedTemp =
+                CurrentTemperatureResolver.formatDisplayTemperature(
+                    temp = currentTemp,
+                    numColumns = numColumns,
+                    isStaleEstimate = currentTempResolution.isStaleEstimate,
+                )
+            views.setTextViewText(R.id.current_temp, formattedTemp)
+            views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
         }

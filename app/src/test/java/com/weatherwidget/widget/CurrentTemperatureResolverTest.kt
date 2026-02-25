@@ -1,0 +1,102 @@
+package com.weatherwidget.widget
+
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.model.WeatherSource
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
+class CurrentTemperatureResolverTest {
+    private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+
+    @Test
+    fun `resolve prefers interpolated estimate over observed temp`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 30)
+        val hourly =
+            listOf(
+                hourly(now.withMinute(0), 40f, fetchedAt = nowMs(now)),
+                hourly(now.plusHours(1).withMinute(0), 44f, fetchedAt = nowMs(now)),
+            )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourly,
+                observedCurrentTemp = 39f,
+            )
+
+        assertEquals(42f, result.displayTemp!!, 0.01f)
+        assertEquals(42f, result.estimatedTemp!!, 0.01f)
+        assertEquals(39f, result.observedTemp!!, 0.01f)
+    }
+
+    @Test
+    fun `resolve falls back to observed when interpolation unavailable`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 15)
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = emptyList(),
+                observedCurrentTemp = 57f,
+            )
+
+        assertEquals(57f, result.displayTemp!!, 0.01f)
+        assertEquals(null, result.estimatedTemp)
+        assertFalse(result.isStaleEstimate)
+    }
+
+    @Test
+    fun `resolve marks stale estimate when hourly fetch is old`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 30)
+        val staleFetchedAt = nowMs(now) - (3 * 60 * 60 * 1000L)
+        val hourly =
+            listOf(
+                hourly(now.withMinute(0), 60f, fetchedAt = staleFetchedAt),
+                hourly(now.plusHours(1).withMinute(0), 64f, fetchedAt = staleFetchedAt),
+            )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourly,
+                observedCurrentTemp = null,
+            )
+
+        assertTrue(result.isStaleEstimate)
+        assertEquals("62°", CurrentTemperatureResolver.formatDisplayTemperature(result.displayTemp!!, 3, result.isStaleEstimate))
+    }
+
+    @Test
+    fun `format keeps decimal precision when estimate is fresh and space allows`() {
+        val formatted = CurrentTemperatureResolver.formatDisplayTemperature(62.4f, 3, isStaleEstimate = false)
+        assertEquals("62.4°", formatted)
+    }
+
+    private fun hourly(
+        dateTime: LocalDateTime,
+        temp: Float,
+        fetchedAt: Long,
+    ): HourlyForecastEntity {
+        return HourlyForecastEntity(
+            dateTime = dateTime.format(formatter),
+            locationLat = 0.0,
+            locationLon = 0.0,
+            temperature = temp,
+            condition = "Clear",
+            source = WeatherSource.NWS.id,
+            precipProbability = null,
+            fetchedAt = fetchedAt,
+        )
+    }
+
+    private fun nowMs(dateTime: LocalDateTime): Long {
+        return dateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
+}

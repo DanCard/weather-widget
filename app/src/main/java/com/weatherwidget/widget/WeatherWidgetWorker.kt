@@ -61,7 +61,7 @@ class WeatherWidgetWorker
                         lon = location.second,
                         locationName = getLocationName(location.first, location.second),
                         forceRefresh = forceRefresh && !uiOnlyRefresh,
-                        networkAllowed = !uiOnlyRefresh,
+                        networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
                     )
 
                 result.fold(

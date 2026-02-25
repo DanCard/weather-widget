@@ -94,7 +94,7 @@ class TemperatureViewHandlerCenterTimeTest {
             condition = "Clear",
             source = WeatherSource.NWS.id,
             precipProbability = 0,
-            fetchedAt = 1L,
+            fetchedAt = System.currentTimeMillis(),
         )
     }
 }

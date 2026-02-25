@@ -22,10 +22,10 @@ import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SunPositionUtils
-import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.AccuracyDisplayMode
+import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -144,28 +144,33 @@ object DailyViewHandler : WidgetViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
-        // Set current temperature - always use interpolation from hourly forecasts for accuracy
-        var currentTemp: Float? = null
-        if (hourlyForecasts.isNotEmpty()) {
-            val interpolator = TemperatureInterpolator()
-            currentTemp = interpolator.getInterpolatedTemperature(hourlyForecasts, now, displaySource)
-        }
+        val observedCurrentTemp =
+            weatherList
+                .filter {
+                    it.date == todayStr &&
+                        it.currentTemp != null &&
+                        it.currentTemp != 0f &&
+                        (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
+                }
+                .maxByOrNull { it.fetchedAt }
+                ?.currentTemp
 
-        // Fallback to API currentTemp if interpolation unavailable
-        if (currentTemp == null) {
-            currentTemp =
-                weatherList
-                    .filter { it.date == todayStr && it.currentTemp != null && it.currentTemp != 0f }
-                    .maxByOrNull { it.fetchedAt }
-                    ?.currentTemp
-        }
+        val currentTempResolution =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = displaySource,
+                hourlyForecasts = hourlyForecasts,
+                observedCurrentTemp = observedCurrentTemp,
+            )
+        val currentTemp = currentTempResolution.displayTemp
 
         if (currentTemp != null) {
             val formattedTemp =
-                when {
-                    numColumns >= 2 -> String.format("%.1f°", currentTemp)
-                    else -> String.format("%.0f°", currentTemp)
-                }
+                CurrentTemperatureResolver.formatDisplayTemperature(
+                    temp = currentTemp,
+                    numColumns = numColumns,
+                    isStaleEstimate = currentTempResolution.isStaleEstimate,
+                )
             views.setTextViewText(R.id.current_temp, formattedTemp)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {

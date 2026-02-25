@@ -30,8 +30,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         val providerIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_REFRESH
-                // If not charging, only do UI update (no full fetch)
-                if (!charging) {
+                if (WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(charging)) {
                     putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
                 }
             }

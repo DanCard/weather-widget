@@ -318,11 +318,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                if (DataFreshness.isDataStale(context)) {
+                val isDataStale = DataFreshness.isDataStale(context)
+                if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
                     Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
                     triggerImmediateUpdate(context, forceRefresh = true)
                 } else {
-                    Log.d(TAG, "onReceive: Data is fresh, UI update only")
+                    Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
                 }
             } finally {
                 pendingResult.finish()
@@ -617,7 +618,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == todayStr && it.source == displaySource.id }
                             ?.precipProbability
-                    TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                    val observedCurrentTemp = resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+                    TemperatureViewHandler.updateWidget(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetId = appWidgetId,
+                        hourlyForecasts = hourlyForecasts,
+                        centerTime = centerTime,
+                        precipProbability = todayPrecip,
+                        observedCurrentTemp = observedCurrentTemp,
+                    )
                 }
                 ViewMode.PRECIPITATION -> {
                     val now = LocalDateTime.now()
@@ -629,7 +639,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == todayStr && it.source == displaySource.id }
                             ?.precipProbability
-                    PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                    val observedCurrentTemp = resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+                    PrecipViewHandler.updateWidget(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetId = appWidgetId,
+                        hourlyForecasts = hourlyForecasts,
+                        centerTime = centerTime,
+                        precipProbability = todayPrecip,
+                        observedCurrentTemp = observedCurrentTemp,
+                    )
                 }
                 ViewMode.DAILY -> {
                     // Use coroutine for suspend function
@@ -645,6 +664,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
                 }
             }
+        }
+
+        private fun resolveObservedCurrentTemp(
+            weatherList: List<WeatherEntity>,
+            displaySource: WeatherSource,
+            todayStr: String,
+        ): Float? {
+            return weatherList
+                .filter {
+                    it.date == todayStr &&
+                        it.currentTemp != null &&
+                        it.currentTemp != 0f &&
+                        (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
+                }
+                .maxByOrNull { it.fetchedAt }
+                ?.currentTemp
         }
     }
 }

@@ -302,6 +302,7 @@ if [ -n "$TEST_CLASS" ]; then
 else
     echo -en "${YELLOW}Running all instrumented tests${NC} \t"
 fi
+echo -e "${YELLOW}APK install step: connectedDebugAndroidTest builds and installs app + test APKs on $ANDROID_SERIAL (Gradle may skip unchanged tasks)${NC}"
 
 # Run tests with timeout - show output in real-time
 TEST_START=$(date +%s)
@@ -373,7 +374,7 @@ show_progress() {
     done
 }
 
-echo -e "${BLUE}Starting tests...${NC}"
+echo -e "${BLUE}Starting tests (build/install + execute)...${NC}"
 
 # Truncate log so show_progress doesn't see stale content
 : > "$TEST_RESULTS_LOG"
