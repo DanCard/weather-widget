@@ -39,6 +39,29 @@ import kotlin.math.min
 
 /**
  * Handler for the daily forecast view mode.
+ *
+ * Architecture overview:
+ * 1) `updateWidget()` is the orchestration entrypoint:
+ *    - prepares data and state
+ *    - chooses text mode vs graph mode
+ *    - wires navigation/click actions
+ *
+ * 2) Display and interaction rain signals are intentionally separate:
+ *    - Click routing uses an unsuppressed rain signal (`hasRainForecast`) so navigation
+ *      remains correct even when rain text is hidden.
+ *    - Rain text display can be suppressed (already shown today) and is capped to
+ *      a near-term horizon (today + 2 days).
+ *
+ * 3) Core invariants:
+ *    - Past day click -> history
+ *    - Today/future + rain signal -> precipitation view
+ *    - Today/future + no rain signal -> history
+ *    - Display suppression must never change click-routing decisions
+ *
+ * 4) Maintenance map:
+ *    - Text rendering/population: `updateTextMode()`
+ *    - Graph day data composition: `buildDayDataList()`
+ *    - Day click intent contract: `buildDayClickIntent()`
  */
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
