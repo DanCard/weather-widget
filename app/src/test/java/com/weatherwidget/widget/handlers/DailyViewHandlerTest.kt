@@ -137,7 +137,7 @@ class DailyViewHandlerTest {
         
         // Official API says 80/60
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr, highTemp = 80, lowTemp = 60)
+            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
         )
         
         // Hourly samples only reached 74/65
@@ -211,8 +211,8 @@ class DailyViewHandlerTest {
     private fun createWeather(
         date: String,
         precipProbability: Int? = 0,
-        highTemp: Int? = 70,
-        lowTemp: Int? = 55,
+        highTemp: Float? = 70f,
+        lowTemp: Float? = 55f,
     ): WeatherEntity {
         return WeatherEntity(
             date = date,
@@ -221,7 +221,7 @@ class DailyViewHandlerTest {
             locationName = "Test",
             highTemp = highTemp,
             lowTemp = lowTemp,
-            currentTemp = 62,
+            currentTemp = 62f,
             condition = "Clear",
             isActual = false,
             source = WeatherSource.NWS.id,

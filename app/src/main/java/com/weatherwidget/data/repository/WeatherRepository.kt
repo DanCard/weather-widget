@@ -105,8 +105,8 @@ class WeatherRepository
         private val climateNormalDao: ClimateNormalDao,
     ) {
         internal data class ObservationResult(
-            val highTemp: Int,
-            val lowTemp: Int,
+            val highTemp: Float,
+            val lowTemp: Float,
             val stationId: String,
             val condition: String,
         )
@@ -599,8 +599,8 @@ class WeatherRepository
                                 locationLat = lat,
                                 locationLon = lon,
                                 locationName = locationName,
-                                highTemp = normal.first,
-                                lowTemp = normal.second,
+                                highTemp = normal.first.toFloat(),
+                                lowTemp = normal.second.toFloat(),
                                 currentTemp = null,
                                 condition = "Historical Avg",
                                 isActual = false,
@@ -661,7 +661,7 @@ class WeatherRepository
             val normals = climate
                 .mapNotNull { day ->
                     val parsed = runCatching { LocalDate.parse(day.date) }.getOrNull() ?: return@mapNotNull null
-                    MonthDay.from(parsed) to (day.highTemp to day.lowTemp)
+                    MonthDay.from(parsed) to (day.highTemp.roundToInt() to day.lowTemp.roundToInt())
                 }
                 .toMap()
 
@@ -722,7 +722,7 @@ class WeatherRepository
                     saveNwsHourlyForecasts(hourlyForecast, lat, lon)
                 }
 
-                val weatherByDate = mutableMapOf<String, Pair<Int?, Int?>>()
+                val weatherByDate = mutableMapOf<String, Pair<Float?, Float?>>()
                 val conditionByDate = mutableMapOf<String, String>()
                 val conditionSourceByDate = mutableMapOf<String, String>()
                 val precipByDate = mutableMapOf<String, Int>()
@@ -785,7 +785,7 @@ class WeatherRepository
         private suspend fun fetchAndApplyObservations(
             gridPoint: NwsApi.GridPointInfo,
             today: LocalDate,
-            weatherByDate: MutableMap<String, Pair<Int?, Int?>>,
+            weatherByDate: MutableMap<String, Pair<Float?, Float?>>,
             stationByDate: MutableMap<String, String>,
             conditionByDate: MutableMap<String, String>,
             conditionSourceByDate: MutableMap<String, String>,
@@ -840,7 +840,7 @@ class WeatherRepository
         private fun applyForecastPeriods(
             forecast: List<NwsApi.ForecastPeriod>,
             todayStr: String,
-            weatherByDate: MutableMap<String, Pair<Int?, Int?>>,
+            weatherByDate: MutableMap<String, Pair<Float?, Float?>>,
             conditionByDate: MutableMap<String, String>,
             conditionSourceByDate: MutableMap<String, String>,
             highSourceByDate: MutableMap<String, String>,
@@ -872,14 +872,14 @@ class WeatherRepository
                 }
 
                 if (period.isDaytime) {
-                    weatherByDate[date] = period.temperature to current.second
+                    weatherByDate[date] = period.temperature.toFloat() to current.second
                     highSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                     if (conditionByDate[date] == null) {
                         conditionByDate[date] = period.shortForecast
                         conditionSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                     }
                 } else {
-                    weatherByDate[date] = current.first to period.temperature
+                    weatherByDate[date] = current.first to period.temperature.toFloat()
                     lowSourceByDate[date] = "FCST:${period.name}@${period.startTime}"
                     if (conditionByDate[date] == null) {
                         conditionByDate[date] = period.shortForecast
@@ -894,7 +894,7 @@ class WeatherRepository
         /** Logs today's condition override and transition diagnostics. */
         private suspend fun logTodayDiagnostics(
             todayStr: String,
-            weatherByDate: Map<String, Pair<Int?, Int?>>,
+            weatherByDate: Map<String, Pair<Float?, Float?>>,
             highSourceByDate: Map<String, String>,
             lowSourceByDate: Map<String, String>,
             conditionByDate: MutableMap<String, String>,
@@ -1091,9 +1091,9 @@ class WeatherRepository
                         appLogDao.log("OBS_DAY_SUCCESS", "$date: Got ${observations.size} from $stationId")
 
                         // Calculate high/low from observations (convert C to F) using Float math for precision
-                        val temps: List<Int> =
+                        val temps: List<Float> =
                             observations.map { obs: NwsApi.Observation ->
-                                (obs.temperatureCelsius * 1.8f + 32f).roundToInt()
+                                (obs.temperatureCelsius * 1.8f) + 32f
                             }
                         val high = temps.maxOrNull() ?: continue
                         val low = temps.minOrNull() ?: continue

@@ -11,7 +11,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
-import kotlin.math.roundToInt
 
 private const val TAG = "WeatherApi"
 
@@ -58,8 +57,8 @@ class WeatherApi
 
                     DailyForecast(
                         date = date,
-                        highTemp = dayData["maxtemp_f"]?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt() ?: 0,
-                        lowTemp = dayData["mintemp_f"]?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt() ?: 0,
+                        highTemp = dayData["maxtemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
+                        lowTemp = dayData["mintemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
                         condition = dayData["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                         precipProbability = dayData["daily_chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
                     )
@@ -86,22 +85,22 @@ class WeatherApi
             Log.d(TAG, "getForecast: Parsed ${dailyForecasts.size} daily and ${hourlyForecasts.size} hourly entries")
 
             return WeatherForecast(
-                currentTemp = current?.get("temp_f")?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt(),
+                currentTemp = current?.get("temp_f")?.jsonPrimitive?.content?.toFloatOrNull(),
                 daily = dailyForecasts,
                 hourly = hourlyForecasts,
             )
         }
 
         data class WeatherForecast(
-            val currentTemp: Int?,
+            val currentTemp: Float?,
             val daily: List<DailyForecast>,
             val hourly: List<HourlyForecast>,
         )
 
         data class DailyForecast(
             val date: String,
-            val highTemp: Int,
-            val lowTemp: Int,
+            val highTemp: Float,
+            val lowTemp: Float,
             val condition: String,
             val precipProbability: Int? = null,
         )

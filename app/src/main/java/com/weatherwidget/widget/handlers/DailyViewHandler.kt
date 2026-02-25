@@ -155,9 +155,9 @@ object DailyViewHandler : WidgetViewHandler {
         if (currentTemp == null) {
             currentTemp =
                 weatherList
-                    .filter { it.date == todayStr && it.currentTemp != null && it.currentTemp != 0 }
+                    .filter { it.date == todayStr && it.currentTemp != null && it.currentTemp != 0f }
                     .maxByOrNull { it.fetchedAt }
-                    ?.currentTemp?.toFloat()
+                    ?.currentTemp
         }
 
         if (currentTemp != null) {

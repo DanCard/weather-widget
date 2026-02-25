@@ -9,7 +9,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
-import kotlin.math.roundToInt
 
 private const val TAG = "OpenMeteoApi"
 
@@ -53,11 +52,11 @@ class OpenMeteoApi
             Log.d(TAG, "getForecast: parsed ${dates.size} dates: $dates")
             val maxTemps =
                 daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
+                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
                 } ?: emptyList()
             val minTemps =
                 daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
+                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
                 } ?: emptyList()
             val weatherCodes =
                 daily?.get("weather_code")?.jsonArray?.map {
@@ -72,8 +71,8 @@ class OpenMeteoApi
                 dates.mapIndexed { index, date ->
                     DailyForecast(
                         date = date,
-                        highTemp = maxTemps.getOrNull(index) ?: 0,
-                        lowTemp = minTemps.getOrNull(index) ?: 0,
+                        highTemp = maxTemps.getOrNull(index) ?: 0f,
+                        lowTemp = minTemps.getOrNull(index) ?: 0f,
                         weatherCode = weatherCodes.getOrNull(index) ?: 0,
                         precipProbability = precipProbs.getOrNull(index),
                     )
@@ -114,7 +113,7 @@ class OpenMeteoApi
             Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
 
             return WeatherForecast(
-                currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt(),
+                currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
                 currentWeatherCode = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull(),
                 daily = dailyForecasts,
                 hourly = hourlyForecasts,
@@ -144,18 +143,18 @@ class OpenMeteoApi
             val dates = daily?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
             val maxTemps =
                 daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
+                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
                 } ?: emptyList()
             val minTemps =
                 daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toDoubleOrNull()?.roundToInt() ?: 0
+                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
                 } ?: emptyList()
 
             return dates.mapIndexed { index, date ->
                 DailyForecast(
                     date = date,
-                    highTemp = maxTemps.getOrNull(index) ?: 0,
-                    lowTemp = minTemps.getOrNull(index) ?: 0,
+                    highTemp = maxTemps.getOrNull(index) ?: 0f,
+                    lowTemp = minTemps.getOrNull(index) ?: 0f,
                     weatherCode = 0, // Climate API doesn't usually return weather code, default to Clear
                 )
             }
@@ -180,7 +179,7 @@ class OpenMeteoApi
             }
 
         data class WeatherForecast(
-            val currentTemp: Int?,
+            val currentTemp: Float?,
             val currentWeatherCode: Int?,
             val daily: List<DailyForecast>,
             val hourly: List<HourlyForecast> = emptyList(),
@@ -188,8 +187,8 @@ class OpenMeteoApi
 
         data class DailyForecast(
             val date: String,
-            val highTemp: Int,
-            val lowTemp: Int,
+            val highTemp: Float,
+            val lowTemp: Float,
             val weatherCode: Int,
             val precipProbability: Int? = null,
         )

@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class],
-    version = 17,
+    version = 18,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -52,6 +52,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_14_15,
                             MIGRATION_15_16,
                             MIGRATION_16_17,
+                            MIGRATION_17_18,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -448,6 +449,86 @@ abstract class WeatherDatabase : RoomDatabase() {
                             PRIMARY KEY(monthDay, locationKey)
                         )
                         """.trimIndent(),
+                    )
+                }
+            }
+
+        val MIGRATION_17_18 =
+            object : Migration(17, 18) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS weather_data_v18 (
+                            date TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            locationName TEXT NOT NULL,
+                            highTemp REAL,
+                            lowTemp REAL,
+                            currentTemp REAL,
+                            `condition` TEXT NOT NULL,
+                            isActual INTEGER NOT NULL,
+                            isClimateNormal INTEGER NOT NULL,
+                            source TEXT NOT NULL,
+                            stationId TEXT,
+                            precipProbability INTEGER,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(date, source)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO weather_data_v18 (
+                            date, locationLat, locationLon, locationName, highTemp, lowTemp, currentTemp,
+                            `condition`, isActual, isClimateNormal, source, stationId, precipProbability, fetchedAt
+                        )
+                        SELECT
+                            date, locationLat, locationLon, locationName,
+                            CAST(highTemp AS REAL), CAST(lowTemp AS REAL), CAST(currentTemp AS REAL),
+                            `condition`, isActual, isClimateNormal, source, stationId, precipProbability, fetchedAt
+                        FROM weather_data
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE weather_data")
+                    db.execSQL("ALTER TABLE weather_data_v18 RENAME TO weather_data")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_weather_data_locationLat_locationLon ON weather_data (locationLat, locationLon)",
+                    )
+
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS forecast_snapshots_v18 (
+                            targetDate TEXT NOT NULL,
+                            forecastDate TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            highTemp REAL,
+                            lowTemp REAL,
+                            `condition` TEXT NOT NULL,
+                            source TEXT NOT NULL,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(targetDate, forecastDate, locationLat, locationLon, source, fetchedAt)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO forecast_snapshots_v18 (
+                            targetDate, forecastDate, locationLat, locationLon, highTemp, lowTemp,
+                            `condition`, source, fetchedAt
+                        )
+                        SELECT
+                            targetDate, forecastDate, locationLat, locationLon,
+                            CAST(highTemp AS REAL), CAST(lowTemp AS REAL),
+                            `condition`, source, fetchedAt
+                        FROM forecast_snapshots
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE forecast_snapshots")
+                    db.execSQL("ALTER TABLE forecast_snapshots_v18 RENAME TO forecast_snapshots")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_forecast_snapshots_locationLat_locationLon ON forecast_snapshots (locationLat, locationLon)",
                     )
                 }
             }

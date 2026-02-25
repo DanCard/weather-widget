@@ -104,19 +104,19 @@ class WeatherApiTest {
             val api = WeatherApi(createMockClient(responseJson), json)
             val forecast = api.getForecast(37.42, -122.08, days = 2)
 
-            assertEquals(68, forecast.currentTemp)
+            assertEquals(67.6f, forecast.currentTemp!!, 0.001f)
             assertEquals(2, forecast.daily.size)
             assertEquals(2, forecast.hourly.size)
 
             assertEquals("2026-02-24", forecast.daily[0].date)
-            assertEquals(71, forecast.daily[0].highTemp)
-            assertEquals(50, forecast.daily[0].lowTemp)
+            assertEquals(71.4f, forecast.daily[0].highTemp, 0.001f)
+            assertEquals(50.1f, forecast.daily[0].lowTemp, 0.001f)
             assertEquals("Partly cloudy", forecast.daily[0].condition)
             assertEquals(35, forecast.daily[0].precipProbability)
 
             assertEquals("2026-02-25", forecast.daily[1].date)
-            assertEquals(74, forecast.daily[1].highTemp)
-            assertEquals(49, forecast.daily[1].lowTemp)
+            assertEquals(73.5f, forecast.daily[1].highTemp, 0.001f)
+            assertEquals(48.5f, forecast.daily[1].lowTemp, 0.001f)
             assertEquals("Sunny", forecast.daily[1].condition)
             assertEquals(5, forecast.daily[1].precipProbability)
 

@@ -409,8 +409,8 @@ class WeatherRepositoryTest {
 
             // Climate API returns two days of normals
             coEvery { openMeteoApi.getClimateForecast(roundedLat, roundedLon, any(), any()) } returns listOf(
-                OpenMeteoApi.DailyForecast("2020-07-15", 85, 60, 0),
-                OpenMeteoApi.DailyForecast("2020-07-16", 86, 61, 0),
+                OpenMeteoApi.DailyForecast("2020-07-15", 85f, 60f, 0),
+                OpenMeteoApi.DailyForecast("2020-07-16", 86f, 61f, 0),
             )
 
             // Setup a successful NWS fetch that only covers today
@@ -446,8 +446,8 @@ class WeatherRepositoryTest {
         locationLat = testLat,
         locationLon = testLon,
         locationName = testLocationName,
-        highTemp = high,
-        lowTemp = low,
+        highTemp = high.toFloat(),
+        lowTemp = low.toFloat(),
         currentTemp = null,
         condition = "Sunny",
         isActual = isActual,

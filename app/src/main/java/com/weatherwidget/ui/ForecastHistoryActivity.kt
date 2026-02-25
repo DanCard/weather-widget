@@ -27,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 import java.util.Locale
@@ -183,8 +185,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     forecastDate = snapshot.forecastDate,
                     fetchedAt = snapshot.fetchedAt,
                     daysAhead = daysAhead,
-                    highTemp = snapshot.highTemp,
-                    lowTemp = snapshot.lowTemp,
+                    highTemp = snapshot.highTemp?.roundToInt(),
+                    lowTemp = snapshot.lowTemp?.roundToInt(),
                     source = WeatherSource.fromId(snapshot.source),
                 )
             }
@@ -253,7 +255,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         if (actualHigh != null && actualLow != null) {
             val actualTextView = findViewById<TextView>(R.id.actual_temps_text)
             val sourceLabel = requestedSource?.displayName ?: "Observed"
-            actualTextView.text = "$sourceLabel actual: $actualHigh° / $actualLow°"
+            actualTextView.text = "$sourceLabel actual: ${formatTemp(actualHigh)} / ${formatTemp(actualLow)}"
             actualTextView.visibility = View.VISIBLE
         }
 
@@ -292,7 +294,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         context = this,
                         nwsPoints = nwsPoints,
                         meteoPoints = meteoLikePoints,
-                        actualHigh = actualHigh,
+                        actualHigh = actualHigh?.roundToInt(),
                         widthPx = width,
                         heightPx = height,
                     )
@@ -301,7 +303,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         context = this,
                         nwsPoints = nwsPoints,
                         meteoPoints = meteoLikePoints,
-                        actualHigh = actualHigh,
+                        actualHigh = actualHigh?.roundToInt(),
                         widthPx = width,
                         heightPx = height,
                     )
@@ -314,7 +316,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         context = this,
                         nwsPoints = nwsPoints,
                         meteoPoints = meteoLikePoints,
-                        actualLow = actualLow,
+                        actualLow = actualLow?.roundToInt(),
                         widthPx = width,
                         heightPx = height,
                     )
@@ -323,7 +325,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                         context = this,
                         nwsPoints = nwsPoints,
                         meteoPoints = meteoLikePoints,
-                        actualLow = actualLow,
+                        actualLow = actualLow?.roundToInt(),
                         widthPx = width,
                         heightPx = height,
                     )
@@ -337,6 +339,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
             lowCard.visibility = View.GONE
         }
         updateModeUi()
+    }
+
+    private fun formatTemp(value: Float): String {
+        val rounded = value.roundToInt()
+        return if (abs(value - rounded.toFloat()) < 0.01f) "$rounded°" else String.format("%.1f°", value)
     }
 
     private fun updateModeUi() {

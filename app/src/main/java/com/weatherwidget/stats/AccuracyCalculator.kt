@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @Singleton
 class AccuracyCalculator
@@ -153,16 +154,20 @@ class AccuracyCalculator
                     val fLow = forecast.lowTemp
 
                     if (aHigh != null && aLow != null && fHigh != null && fLow != null) {
-                        val highError = aHigh - fHigh
-                        val lowError = aLow - fLow
+                        val roundedActualHigh = aHigh.roundToInt()
+                        val roundedActualLow = aLow.roundToInt()
+                        val roundedForecastHigh = fHigh.roundToInt()
+                        val roundedForecastLow = fLow.roundToInt()
+                        val highError = roundedActualHigh - roundedForecastHigh
+                        val lowError = roundedActualLow - roundedForecastLow
 
                         dailyAccuracies.add(
                             DailyAccuracy(
                                 date = actual.date,
-                                actualHigh = aHigh,
-                                actualLow = aLow,
-                                forecastHigh = fHigh,
-                                forecastLow = fLow,
+                                actualHigh = roundedActualHigh,
+                                actualLow = roundedActualLow,
+                                forecastHigh = roundedForecastHigh,
+                                forecastLow = roundedForecastLow,
                                 source = source.displayName,
                                 highError = highError,
                                 lowError = lowError,

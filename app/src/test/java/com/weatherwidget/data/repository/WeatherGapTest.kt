@@ -107,11 +107,11 @@ class WeatherGapTest {
             assertEquals(2, result.size)
             // Today should be NWS data (preferred)
             assertEquals("NWS", result.find { it.date == today }?.source)
-            assertEquals(70, result.find { it.date == today }?.highTemp)
+            assertEquals(70f, result.find { it.date == today }?.highTemp)
 
             // Tomorrow should be GENERIC_GAP data
             assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.date == tomorrow }?.source)
-            assertEquals(66, result.find { it.date == tomorrow }?.highTemp)
+            assertEquals(66f, result.find { it.date == tomorrow }?.highTemp)
         }
 
     @Test
@@ -124,8 +124,8 @@ class WeatherGapTest {
                     forecastDate = today,
                     locationLat = testLat,
                     locationLon = testLon,
-                    highTemp = 66,
-                    lowTemp = 46,
+                    highTemp = 66f,
+                    lowTemp = 46f,
                     condition = "Climate Avg",
                     source = WeatherSource.GENERIC_GAP.id,
                     fetchedAt = System.currentTimeMillis(),
@@ -138,7 +138,7 @@ class WeatherGapTest {
 
             assertNotNull(result)
             assertEquals(WeatherSource.GENERIC_GAP.id, result?.source)
-            assertEquals(66, result?.highTemp)
+            assertEquals(66f, result?.highTemp)
         }
 
     private fun createWeatherEntity(
@@ -152,8 +152,8 @@ class WeatherGapTest {
         locationLat = testLat,
         locationLon = testLon,
         locationName = testLocationName,
-        highTemp = high,
-        lowTemp = low,
+        highTemp = high.toFloat(),
+        lowTemp = low.toFloat(),
         currentTemp = null,
         condition = if (isClimateNormal) "Climate Avg" else "Sunny",
         isActual = false,

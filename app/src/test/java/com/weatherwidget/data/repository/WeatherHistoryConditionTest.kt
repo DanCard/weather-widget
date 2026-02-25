@@ -170,7 +170,7 @@ class WeatherHistoryConditionTest {
 
             assertNull(todayData)
             assertNotNull(tomorrowData)
-            assertEquals(68, tomorrowData?.highTemp)
-            assertEquals(50, tomorrowData?.lowTemp)
+            assertEquals(68f, tomorrowData?.highTemp)
+            assertEquals(50f, tomorrowData?.lowTemp)
         }
 }

@@ -13,8 +13,8 @@ data class ForecastSnapshotEntity(
     val forecastDate: String, // When forecast was made (e.g., "2024-01-14" for 1-day-ahead)
     val locationLat: Double,
     val locationLon: Double,
-    val highTemp: Int?,
-    val lowTemp: Int?,
+    val highTemp: Float?,
+    val lowTemp: Float?,
     val condition: String,
     val source: String, // Database storage: "NWS", "OPEN_METEO", or "Generic". Use WeatherSource.fromId() to convert.
     val fetchedAt: Long = System.currentTimeMillis(),

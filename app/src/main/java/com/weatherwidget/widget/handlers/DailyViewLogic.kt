@@ -22,6 +22,13 @@ import kotlin.math.roundToInt
  * Pure logic for the daily forecast view, separated from Android UI components for testability.
  */
 object DailyViewLogic {
+    private fun formatTempLabel(v: Float?): String? {
+        if (v == null) return null
+        val rounded = v.roundToInt()
+        val diff = abs(v - rounded.toFloat())
+        return if (diff < 0.01f) "$rounded°" else String.format("%.1f°", v)
+    }
+
 
     data class TextDayData(
         val dayIndex: Int,
@@ -113,23 +120,16 @@ object DailyViewLogic {
             val isToday = date == today
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             
-            var highLabel: String? = weather?.highTemp?.let { "$it°" }
-            var lowLabel: String? = weather?.lowTemp?.let { "$it°" }
+            var highLabel: String? = formatTempLabel(weather?.highTemp)
+            var lowLabel: String? = formatTempLabel(weather?.lowTemp)
 
             if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather
                 )
                 
-                fun formatPrecise(v: Float?): String? {
-                    if (v == null) return null
-                    val rounded = v.roundToInt()
-                    val diff = abs(v - rounded.toFloat())
-                    return if (diff < 0.01f) "$rounded°" else String.format("%.1f°", v)
-                }
-                
-                highLabel = formatPrecise(tripleValues.observedHigh) ?: highLabel
-                lowLabel = formatPrecise(tripleValues.observedLow) ?: lowLabel
+                highLabel = formatTempLabel(tripleValues.observedHigh) ?: highLabel
+                lowLabel = formatTempLabel(tripleValues.observedLow) ?: lowLabel
             }
 
             TextDayData(
@@ -188,8 +188,8 @@ object DailyViewLogic {
             val showComparison = (isPastDate || (isToday && isEveningMode)) &&
                 forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
-            var finalHigh: Float? = weather.highTemp?.toFloat()
-            var finalLow: Float? = weather.lowTemp?.toFloat()
+            var finalHigh: Float? = weather.highTemp
+            var finalLow: Float? = weather.lowTemp
             var fHigh: Float? = null
             var fLow: Float? = null
 
@@ -202,8 +202,8 @@ object DailyViewLogic {
                 fHigh = tripleValues.forecastHigh
                 fLow = tripleValues.forecastLow
             } else if (showComparison) {
-                fHigh = forecast?.highTemp?.toFloat()
-                fLow = forecast?.lowTemp?.toFloat()
+                fHigh = forecast?.highTemp
+                fLow = forecast?.lowTemp
             }
 
             val effectiveCondition = if (isToday) {
