@@ -259,7 +259,6 @@ object DailyViewHandler : WidgetViewHandler {
                 lat,
                 lon,
                 displaySource,
-                skipHistory,
             )
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -280,7 +279,6 @@ object DailyViewHandler : WidgetViewHandler {
                 lat,
                 lon,
                 displaySource,
-                skipHistory,
             )
         }
 
@@ -880,7 +878,6 @@ object DailyViewHandler : WidgetViewHandler {
         lat: Double,
         lon: Double,
         displaySource: WeatherSource,
-        isEveningModeAtOffset0: Boolean = false,
     ) {
         val containerIds =
             listOf(
@@ -892,8 +889,6 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.day6_container,
                 R.id.day7_container,
             )
-
-        val midpoint = visibleDays.size / 2
 
         visibleDays.forEach { (dayIndex, dateStr, hasRainForecast) ->
             val containerId = containerIds[dayIndex - 1]
@@ -927,7 +922,6 @@ object DailyViewHandler : WidgetViewHandler {
         lat: Double,
         lon: Double,
         displaySource: WeatherSource,
-        isEveningModeAtOffset0: Boolean = false,
     ) {
         val zoneIds =
             listOf(
@@ -939,8 +933,6 @@ object DailyViewHandler : WidgetViewHandler {
                 R.id.graph_day6_zone,
                 R.id.graph_day7_zone,
             )
-
-        val midpoint = days.size / 2
 
         days.forEachIndexed { index, dayData ->
             val zoneId = zoneIds.getOrNull(index) ?: return@forEachIndexed
