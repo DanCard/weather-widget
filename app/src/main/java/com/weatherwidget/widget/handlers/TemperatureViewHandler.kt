@@ -16,7 +16,7 @@ import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
-import com.weatherwidget.widget.HourlyTemperatureGraphRenderer
+import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -27,10 +27,10 @@ import java.util.Locale
 import kotlin.math.min
 
 /**
- * Handler for the hourly temperature view mode.
+ * Handler for the temperature view mode.
  */
-object HourlyViewHandler {
-    private const val TAG = "HourlyViewHandler"
+object TemperatureViewHandler {
+    private const val TAG = "TemperatureViewHandler"
     private const val CELL_HEIGHT_DP = 90
 
     // Intent actions
@@ -161,8 +161,8 @@ object HourlyViewHandler {
                     heightPx.toFloat() / rawHeightPx.toFloat(),
                 )
 
-            // Render hourly graph
-            val bitmap = HourlyTemperatureGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale)
+            // Render temperature graph
+            val bitmap = TemperatureGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale)
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -383,8 +383,8 @@ object HourlyViewHandler {
         numColumns: Int,
         displaySource: WeatherSource,
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
-    ): List<HourlyTemperatureGraphRenderer.HourData> {
-        val hours = mutableListOf<HourlyTemperatureGraphRenderer.HourData>()
+    ): List<TemperatureGraphRenderer.HourData> {
+        val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
 
         // Group by dateTime and prefer the selected source, fallback to generic gap
@@ -439,7 +439,7 @@ object HourlyViewHandler {
                         iconRes == R.drawable.ic_weather_fog_cloudy
 
                 hours.add(
-                    HourlyTemperatureGraphRenderer.HourData(
+                    TemperatureGraphRenderer.HourData(
                         dateTime = currentHour,
                         temperature = forecast.temperature,
                         label = formatHourLabel(currentHour),

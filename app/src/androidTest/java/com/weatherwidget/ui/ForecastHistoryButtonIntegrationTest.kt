@@ -7,7 +7,7 @@ import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.ui.ForecastHistoryActivity.ButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveButtonMode
-import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldLaunchHourly
+import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldLaunchTemperature
 import com.weatherwidget.ui.ForecastHistoryActivity.GraphMode
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -91,7 +91,7 @@ class ForecastHistoryButtonIntegrationTest {
         // Click handler should toggle graph mode, not launch hourly
         assertFalse(
             "Click should toggle graph mode when snapshots exist",
-            shouldLaunchHourly(hasDate = true, snapshotsEmpty = snapshots.isEmpty()),
+            shouldLaunchTemperature(hasDate = true, snapshotsEmpty = snapshots.isEmpty()),
         )
     }
 
@@ -114,14 +114,14 @@ class ForecastHistoryButtonIntegrationTest {
         )
         assertEquals(
             "Button should show Hourly when no snapshots exist",
-            ButtonMode.HOURLY,
+            ButtonMode.TEMPERATURE,
             buttonMode,
         )
 
         // Click handler should launch hourly mode
         assertTrue(
             "Click should launch hourly mode when no snapshots exist",
-            shouldLaunchHourly(hasDate = true, snapshotsEmpty = snapshots.isEmpty()),
+            shouldLaunchTemperature(hasDate = true, snapshotsEmpty = snapshots.isEmpty()),
         )
     }
 }

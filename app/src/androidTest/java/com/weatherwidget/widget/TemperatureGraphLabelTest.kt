@@ -13,14 +13,14 @@ import java.io.InputStreamReader
 import java.time.LocalDateTime
 
 /**
- * Instrumented tests for HourlyTemperatureGraphRenderer label placement.
+ * Instrumented tests for TemperatureGraphRenderer label placement.
  *
  * These tests verify that temperature labels (LOW, HIGH, START, END) are
  * correctly placed on the hourly graph by inspecting log output from the
- * renderer. Log lines are annotated in HourlyTemperatureGraphRenderer.kt.
+ * renderer. Log lines are annotated in TemperatureGraphRenderer.kt.
  */
 @RunWith(AndroidJUnit4::class)
-class HourlyTemperatureGraphLabelTest {
+class TemperatureGraphLabelTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
 
@@ -33,10 +33,10 @@ class HourlyTemperatureGraphLabelTest {
     private fun buildHours(
         temps: List<Float>,
         startTime: LocalDateTime = LocalDateTime.of(2026, 2, 17, 19, 0),
-    ): List<HourlyTemperatureGraphRenderer.HourData> {
+    ): List<TemperatureGraphRenderer.HourData> {
         return temps.mapIndexed { index, temp ->
             val dt = startTime.plusHours(index.toLong())
-            HourlyTemperatureGraphRenderer.HourData(
+            TemperatureGraphRenderer.HourData(
                 dateTime = dt,
                 temperature = temp,
                 label = "${dt.hour}",
@@ -50,9 +50,9 @@ class HourlyTemperatureGraphLabelTest {
     fun lowLabel_isDrawnAtMinimumTemperature() {
         val temps = listOf(50f, 48f, 46f, 44f, 44f, 46f, 48f, 50f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
@@ -68,9 +68,9 @@ class HourlyTemperatureGraphLabelTest {
     fun highLabel_isDrawnAtMaximumTemperature() {
         val temps = listOf(44f, 46f, 48f, 51f, 51f, 49f, 47f, 44f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
@@ -87,9 +87,9 @@ class HourlyTemperatureGraphLabelTest {
         // Two consecutive 39° points at idx 6 and 7; label should center between them
         val temps = listOf(50f, 48f, 46f, 44f, 42f, 40f, 39f, 39f, 40f, 42f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
@@ -115,9 +115,9 @@ class HourlyTemperatureGraphLabelTest {
         // Now, they can take opposite sides (one BELOW, one ABOVE) and both be drawn.
         val temps = listOf(50f, 48f, 46f, 44f, 42f, 41f, 40f, 39f, 39f, 40f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 200,
@@ -135,9 +135,9 @@ class HourlyTemperatureGraphLabelTest {
         // Clear separation: low in middle, high later, start and end far apart
         val temps = listOf(55f, 50f, 45f, 40f, 45f, 50f, 60f, 65f, 70f, 68f, 65f, 60f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 900,
@@ -157,10 +157,10 @@ class HourlyTemperatureGraphLabelTest {
         // High peak at 88 in range [40, 100]. High is at 88% of range.
         val temps = listOf(40f, 50f, 60f, 70f, 88f, 70f, 60f, 40f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
         // Use tall bitmap (400px) to ensure room above (12dp padding = 36-48px)
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
@@ -179,9 +179,9 @@ class HourlyTemperatureGraphLabelTest {
         // Low valley at 12 in range [0, 100].
         val temps = listOf(80f, 60f, 40f, 12f, 40f, 60f, 80f, 90f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
@@ -200,10 +200,10 @@ class HourlyTemperatureGraphLabelTest {
         // Peak at 98 in range [0, 100]. Very close to top edge.
         val temps = listOf(0f, 50f, 98f, 50f, 0f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
         // Use short bitmap (150px) to force off-screen if ABOVE
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,

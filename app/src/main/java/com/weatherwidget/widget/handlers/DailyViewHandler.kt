@@ -501,10 +501,26 @@ object DailyViewHandler : WidgetViewHandler {
                 forecast != null && accuracyMode != AccuracyDisplayMode.NONE
 
             // In evening mode for today, estimate actuals from hourly data.
-            val (actualHigh, actualLow) = if (isToday && isEveningMode && hourlyForecasts.isNotEmpty()) {
-                estimateTodayActualsFromHourly(hourlyForecasts, today, displaySource, weather)
-            } else {
-                weather.highTemp to weather.lowTemp
+            // Also extract full-day forecast for Today's triple-line representation.
+            var finalHigh = weather.highTemp
+            var finalLow = weather.lowTemp
+            var fHigh: Int? = null
+            var fLow: Int? = null
+
+            if (isToday && hourlyForecasts.isNotEmpty()) {
+                val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
+                    hourlyForecasts, today, LocalDateTime.now(), displaySource, weather
+                )
+                // Use observed range for the primary bars (yellow/orange)
+                finalHigh = tripleValues.observedHigh
+                finalLow = tripleValues.observedLow
+                // Use full-day forecast for the comparison bar (blue)
+                fHigh = tripleValues.forecastHigh
+                fLow = tripleValues.forecastLow
+            } else if (showComparison && forecast != null) {
+                // Standard history comparison
+                fHigh = forecast.highTemp
+                fLow = forecast.lowTemp
             }
 
             // Use current hour condition for Today to match the main widget icon
@@ -552,8 +568,8 @@ object DailyViewHandler : WidgetViewHandler {
                 DailyForecastGraphRenderer.DayData(
                     date = dateStr,
                     label = label,
-                    high = actualHigh,
-                    low = actualLow,
+                    high = finalHigh,
+                    low = finalLow,
                     iconRes = iconRes,
                     isSunny = isSunny,
                     isRainy = isRainy,
@@ -561,10 +577,10 @@ object DailyViewHandler : WidgetViewHandler {
                     isToday = isToday,
                     isPast = isPastDate,
                     isClimateNormal = weather.isClimateNormal,
-                    forecastHigh = if (showComparison) forecast?.highTemp else null,
-                    forecastLow = if (showComparison) forecast?.lowTemp else null,
-                    forecastSource = if (showComparison) displaySource else null,
-                    accuracyMode = if (showComparison) accuracyMode else AccuracyDisplayMode.NONE,
+                    forecastHigh = fHigh,
+                    forecastLow = fLow,
+                    forecastSource = if (showComparison || isToday) displaySource else null,
+                    accuracyMode = if (showComparison || isToday) accuracyMode else AccuracyDisplayMode.NONE,
                     rainSummary = rainSummary,
                     dailyPrecipProbability = if (isToday) todayNext8HourPrecipProbability else weather.precipProbability,
                 ),
@@ -574,43 +590,6 @@ object DailyViewHandler : WidgetViewHandler {
         return days
     }
 
-    /**
-     * Estimates today's actual high/low from hourly forecast data.
-     * Uses observed hourly data up to current time for actuals,
-     * and remaining forecast for the rest of the day.
-     */
-    private fun estimateTodayActualsFromHourly(
-        hourlyForecasts: List<HourlyForecastEntity>,
-        today: LocalDate,
-        displaySource: WeatherSource,
-        fallbackWeather: WeatherEntity,
-    ): Pair<Int?, Int?> {
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val now = LocalDateTime.now()
-
-        // Filter hourly forecasts for today from the display source
-        val todayHourly = hourlyForecasts.filter {
-            it.dateTime.startsWith(todayStr) &&
-                (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
-        }
-
-        if (todayHourly.isEmpty()) {
-            return fallbackWeather.highTemp to fallbackWeather.lowTemp
-        }
-
-        // Get all temperatures for today
-        val temps = todayHourly.map { it.temperature }
-        if (temps.isEmpty()) {
-            return fallbackWeather.highTemp to fallbackWeather.lowTemp
-        }
-
-        // For estimation, use the full day's hourly data (both past and future hours)
-        // This gives us the best estimate of what the day's actual high/low will be
-        val estimatedHigh = temps.maxOrNull()?.toInt()
-        val estimatedLow = temps.minOrNull()?.toInt()
-
-        return estimatedHigh to estimatedLow
-    }
 
     private fun updateTextMode(
         views: RemoteViews,

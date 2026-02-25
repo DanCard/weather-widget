@@ -41,7 +41,7 @@ object DailyForecastGraphRenderer {
         if (days.isEmpty()) return bitmap
 
         // Find temperature range for scaling (ignore nulls)
-        val allTemps = days.flatMap { listOfNotNull(it.high, it.low) }
+        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow) }
         // Remove buffer so the lowest temp hits the bottom exactly
         val minTemp = (allTemps.minOrNull() ?: 0).toFloat()
         val maxTemp = (allTemps.maxOrNull() ?: 100).toFloat()
@@ -404,18 +404,29 @@ object DailyForecastGraphRenderer {
             if (highY != null && lowY != null) {
                 if (day.isToday) {
                     // Triple line for today: Yellow (history color), Orange (today color), Blue (forecast color)
+                    val forecastHighY = day.forecastHigh?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: highY
+                    val forecastLowY = day.forecastLow?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: lowY
+
                     canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, lowY, todayTripleOrangePaint)
-                    canvas.drawLine(centerX + tripleBarOffset, highY, centerX + tripleBarOffset, lowY, todayTripleBluePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, forecastHighY, centerX + tripleBarOffset, forecastLowY, todayTripleBluePaint)
                 } else {
                     // Full data: draw vertical bar (no caps as requested)
                     canvas.drawLine(centerX, highY, centerX, lowY, paint)
                 }
             } else if (highY != null) {
                 if (day.isToday) {
+                    val forecastHighY = day.forecastHigh?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: highY
+
                     canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, highY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, highY, todayTripleOrangePaint)
-                    canvas.drawLine(centerX + tripleBarOffset, highY, centerX + tripleBarOffset, highY, todayTripleBluePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, forecastHighY, centerX + tripleBarOffset, forecastHighY, todayTripleBluePaint)
                 } else {
                     // Only high temp: draw point/small segment?
                     // Using a 1-pixel line to mark the spot if no range exists
@@ -423,9 +434,13 @@ object DailyForecastGraphRenderer {
                 }
             } else if (lowY != null) {
                 if (day.isToday) {
+                    val forecastLowY = day.forecastLow?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: lowY
+
                     canvas.drawLine(centerX - tripleBarOffset, lowY, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, lowY, centerX, lowY, todayTripleOrangePaint)
-                    canvas.drawLine(centerX + tripleBarOffset, lowY, centerX + tripleBarOffset, lowY, todayTripleBluePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, forecastLowY, centerX + tripleBarOffset, forecastLowY, todayTripleBluePaint)
                 } else {
                     // Only low temp
                     canvas.drawLine(centerX, lowY, centerX, lowY, paint)

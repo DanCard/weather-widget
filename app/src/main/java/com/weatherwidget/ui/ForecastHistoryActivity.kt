@@ -51,7 +51,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
          * Determines whether clicking the mode button should launch hourly view
          * (true) or toggle graph mode (false).
          */
-        fun shouldLaunchHourly(hasDate: Boolean, snapshotsEmpty: Boolean): Boolean =
+        fun shouldLaunchTemperature(hasDate: Boolean, snapshotsEmpty: Boolean): Boolean =
             hasDate && snapshotsEmpty
 
         /**
@@ -59,7 +59,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
          * or the current graph mode (EVOLUTION/ERROR) when history exists.
          */
         fun resolveButtonMode(snapshotsEmpty: Boolean, graphMode: GraphMode): ButtonMode =
-            if (snapshotsEmpty) ButtonMode.HOURLY
+            if (snapshotsEmpty) ButtonMode.TEMPERATURE
             else if (graphMode == GraphMode.EVOLUTION) ButtonMode.EVOLUTION
             else ButtonMode.ERROR
     }
@@ -72,7 +72,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     enum class ButtonMode {
         EVOLUTION,
         ERROR,
-        HOURLY,
+        TEMPERATURE,
     }
 
     private var graphMode = GraphMode.EVOLUTION
@@ -102,8 +102,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
         graphModeButton.setOnClickListener {
             val date = cachedDate
-            if (shouldLaunchHourly(date != null, cachedSnapshots.isEmpty())) {
-                launchWidgetHourlyMode(date!!)
+            if (shouldLaunchTemperature(date != null, cachedSnapshots.isEmpty())) {
+                launchWidgetTemperatureMode(date!!)
                 return@setOnClickListener
             }
 
@@ -351,14 +351,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 modeButton.text = getString(R.string.forecast_mode_error)
                 actualLegendText.text = getString(R.string.legend_zero_error)
             }
-            ButtonMode.HOURLY -> {
+            ButtonMode.TEMPERATURE -> {
                 modeButton.text = getString(R.string.forecast_show_hourly)
                 actualLegendText.text = getString(R.string.legend_actual)
             }
         }
     }
 
-    private fun launchWidgetHourlyMode(targetDay: LocalDate) {
+    private fun launchWidgetTemperatureMode(targetDay: LocalDate) {
         val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             Log.w(TAG, "Cannot switch widget to hourly mode: missing appWidgetId")
@@ -367,19 +367,19 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         val offset = DayClickHelper.calculatePrecipitationOffset(LocalDateTime.now(), targetDay)
         val startMs = SystemClock.elapsedRealtime()
-        Log.d(TAG, "launchWidgetHourlyMode: start widget=$appWidgetId targetDay=$targetDay offset=$offset")
+        Log.d(TAG, "launchWidgetTemperatureMode: start widget=$appWidgetId targetDay=$targetDay offset=$offset")
         CoroutineScope(Dispatchers.IO).launch {
             WidgetIntentRouter.handleSetView(
                 context = this@ForecastHistoryActivity,
                 appWidgetId = appWidgetId,
-                targetMode = ViewMode.HOURLY,
+                targetMode = ViewMode.TEMPERATURE,
                 targetOffset = offset,
             )
             val afterSetViewMs = SystemClock.elapsedRealtime()
-            Log.d(TAG, "launchWidgetHourlyMode: handleSetView complete in ${afterSetViewMs - startMs}ms")
+            Log.d(TAG, "launchWidgetTemperatureMode: handleSetView complete in ${afterSetViewMs - startMs}ms")
             withContext(Dispatchers.Main) {
                 val beforeFinishMs = SystemClock.elapsedRealtime()
-                Log.d(TAG, "launchWidgetHourlyMode: finishing activity at +${beforeFinishMs - startMs}ms")
+                Log.d(TAG, "launchWidgetTemperatureMode: finishing activity at +${beforeFinishMs - startMs}ms")
                 finish()
             }
         }

@@ -378,4 +378,76 @@ class DailyForecastGraphRendererTest {
 
         assertTrue("Expected blue pixels for partial data caps", foundBlue)
     }
+
+    @Test
+    fun renderGraph_todayTripleLine_showsDifferentHeights() {
+        val days =
+            listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = "2026-02-25",
+                    label = "Today",
+                    high = 60, // Observed high
+                    low = 45,  // Observed low
+                    isToday = true,
+                    forecastHigh = 65, // Predicted high
+                    forecastLow = 40,  // Predicted low
+                ),
+            )
+
+        val bitmap =
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 500,
+                heightPx = 500,
+            )
+
+        assertNotNull(bitmap)
+
+        val yellowColor = Color.parseColor("#FFD60A")
+        val orangeColor = Color.parseColor("#FF9F0A")
+        val blueColor = Color.parseColor("#5AC8FA")
+
+        // We expect:
+        // Yellow/Orange lines cover the range corresponding to 45-60 degrees.
+        // Blue line covers the range corresponding to 40-65 degrees.
+        
+        // Find the lowest pixel for yellow (observed low 45) and blue (forecast low 40)
+        var lowestYellowY = -1
+        var lowestBlueY = -1
+
+        for (y in bitmap.height - 1 downTo 0) {
+            for (x in 0 until bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                if (pixel == yellowColor && lowestYellowY == -1) lowestYellowY = y
+                if (pixel == blueColor && lowestBlueY == -1) lowestBlueY = y
+            }
+        }
+
+        // The blue line (forecast low 40) should extend lower than the yellow line (observed low 45)
+        // Note: Y increases downwards in Android Canvas
+        assertTrue(
+            "Expected blue line (forecast low 40) to extend lower than yellow line (observed low 45). " +
+            "lowestBlueY=$lowestBlueY, lowestYellowY=$lowestYellowY",
+            lowestBlueY > lowestYellowY
+        )
+        
+        // Similarly for the high: blue (forecast high 65) should extend higher than yellow (observed high 60)
+        var highestYellowY = bitmap.height
+        var highestBlueY = bitmap.height
+
+        for (y in 0 until bitmap.height) {
+            for (x in 0 until bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                if (pixel == yellowColor && highestYellowY == bitmap.height) highestYellowY = y
+                if (pixel == blueColor && highestBlueY == bitmap.height) highestBlueY = y
+            }
+        }
+
+        assertTrue(
+            "Expected blue line (forecast high 65) to extend higher than yellow line (observed high 60). " +
+            "highestBlueY=$highestBlueY, highestYellowY=$highestYellowY",
+            highestBlueY < highestYellowY
+        )
+    }
 }

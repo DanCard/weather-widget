@@ -107,7 +107,7 @@ class PrecipTouchZoneInstrumentedTest {
 
     @Test
     fun allViewHandlers_wirePrecipTouchZone() {
-        // Verify that DailyViewHandler, HourlyViewHandler, and PrecipViewHandler
+        // Verify that DailyViewHandler, TemperatureViewHandler, and PrecipViewHandler
         // all have access to the required IDs to wire up the touch zone
 
         // This is a compile-time check - if the IDs exist, the handlers can use them

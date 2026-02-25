@@ -49,14 +49,14 @@
     <string name="forecast_history">History of Forecasts for </string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>
     <string name="forecast_mode_error">Mode: Error</string>
-    <string name="forecast_mode_hourly">Mode: Hourly</string>
+    <string name="forecast_mode_hourly">Mode: Temperature</string>
     <string name="forecast_evolution_high_title">High Temperature Evolution</string>
     <string name="forecast_evolution_low_title">Low Temperature Evolution</string>
     <string name="forecast_error_high_title">High Temperature Error</string>
     <string name="forecast_error_low_title">Low Temperature Error</string>
-    <string name="forecast_show_hourly">Hourly Temperature Forecast</string>
+    <string name="forecast_show_hourly">Temperature Forecast</string>
     <string name="forecast_show_evolution">Back to Forecast History</string>
-    <string name="forecast_hourly_title">Hourly Temperature Forecast</string>
+    <string name="forecast_hourly_title">Temperature Forecast</string>
     <string name="forecast_hourly_subtitle">Hourly Detail</string>
     <string name="forecast_hourly_no_data">No hourly temperature forecast available for this date.</string>
     <string name="forecast_hourly_legend">Now</string>
@@ -71,7 +71,7 @@
     <string name="tour_widget_sizing_desc">The widget adapts to different sizes:\n\n• 1x1: Forecast high for today (+ current temp if space allows)\n• 1x3: Yesterday, today, tomorrow (text only)\n• 2x3: Same as 1x3 but with graphical temperature bars\n• 4+ columns: Additional forecast days (4 cols = 2 forecast days, 5 cols = 3 forecast days, etc.)\n\nResize the widget by long-pressing it on your home screen and dragging the edges.</string>
 
     <string name="tour_current_temp_title">Current Temperature</string>
-    <string name="tour_current_temp_desc">The large temperature in the top-left corner shows the current temperature, interpolated from hourly forecast data for smooth transitions. Updates 1–4 times per hour based on temperature change rate.</string>
+    <string name="tour_current_temp_desc">The large temperature in the top-left corner shows the current temperature, interpolated from hourly forecast data for smooth transitions. Updates 1–4 times per hour based on temperature change rate. Tap this to switch to the hourly temperature graph.</string>
 
     <string name="tour_api_toggle_title">Weather Data Source</string>
     <string name="tour_api_toggle_desc">Tap the API indicator in the top-right corner to toggle between weather sources:\n\n• NWS: National Weather Service (US only)\n• Meteo: Open-Meteo (global coverage)\n• WAPI: WeatherAPI (global coverage)\n\nYou can set your preferred source in Settings (Alternate, Prefer NWS, Prefer Open-Meteo, or Prefer WeatherAPI).</string>

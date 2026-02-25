@@ -84,7 +84,7 @@ class WidgetIntentRouterTest {
                 WidgetIntentRouter.handleSetView(
                     context,
                     appWidgetId,
-                    com.weatherwidget.widget.ViewMode.HOURLY,
+                    com.weatherwidget.widget.ViewMode.TEMPERATURE,
                 )
             } catch (e: Exception) {
                 // Expected for invalid widget without database setup

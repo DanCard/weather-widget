@@ -13,12 +13,12 @@ import java.io.InputStreamReader
 import java.time.LocalDateTime
 
 /**
- * Instrumented tests for HourlyTemperatureGraphRenderer label clutter.
+ * Instrumented tests for TemperatureGraphRenderer label clutter.
  *
  * Verifies that minor humps/peaks (e.g., 1 degree changes) don't trigger labels.
  */
 @RunWith(AndroidJUnit4::class)
-class HourlyTemperatureGraphClutterTest {
+class TemperatureGraphClutterTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
 
@@ -30,10 +30,10 @@ class HourlyTemperatureGraphClutterTest {
     private fun buildHours(
         temps: List<Float>,
         startTime: LocalDateTime = LocalDateTime.of(2026, 2, 17, 19, 0),
-    ): List<HourlyTemperatureGraphRenderer.HourData> {
+    ): List<TemperatureGraphRenderer.HourData> {
         return temps.mapIndexed { index, temp ->
             val dt = startTime.plusHours(index.toLong())
-            HourlyTemperatureGraphRenderer.HourData(
+            TemperatureGraphRenderer.HourData(
                 dateTime = dt,
                 temperature = temp,
                 label = "${dt.hour}",
@@ -49,9 +49,9 @@ class HourlyTemperatureGraphClutterTest {
         // but it's only 1 degree and likely not worth labeling.
         val temps = listOf(55f, 56f, 58f, 60f, 60f, 61f, 60f, 60f, 58f, 56f, 54f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 1000, // Wide enough to avoid overlap skipping

@@ -16,7 +16,7 @@ enum class AccuracyDisplayMode {
 
 enum class ViewMode {
     DAILY, // Default: shows daily forecast bars
-    HOURLY, // Alternative: shows hourly temperature curve
+    TEMPERATURE, // Alternative: shows hourly temperature curve
     PRECIPITATION, // Hourly precipitation probability graph
 }
 
@@ -222,12 +222,12 @@ class WidgetStateManager
             val currentMode = getViewMode(widgetId)
             val newMode =
                 when (currentMode) {
-                    ViewMode.DAILY -> ViewMode.HOURLY
-                    else -> ViewMode.DAILY // From HOURLY or PRECIPITATION, go back to DAILY
+                    ViewMode.DAILY -> ViewMode.TEMPERATURE
+                    else -> ViewMode.DAILY // From TEMPERATURE or PRECIPITATION, go back to DAILY
                 }
             setViewMode(widgetId, newMode)
-            // Reset hourly offset and zoom only when entering hourly mode FROM DAILY
-            if (newMode == ViewMode.HOURLY && currentMode == ViewMode.DAILY) {
+            // Reset hourly offset and zoom only when entering temperature mode FROM DAILY
+            if (newMode == ViewMode.TEMPERATURE && currentMode == ViewMode.DAILY) {
                 setHourlyOffset(widgetId, 0)
                 setZoomLevel(widgetId, ZoomLevel.WIDE)
             }

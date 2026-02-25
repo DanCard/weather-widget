@@ -9,10 +9,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Instrumented tests for HourlyViewHandler.
+ * Instrumented tests for TemperatureViewHandler.
  */
 @RunWith(AndroidJUnit4::class)
-class HourlyViewHandlerTest {
+class TemperatureViewHandlerTest {
     private lateinit var context: Context
 
     @Before
@@ -23,6 +23,6 @@ class HourlyViewHandlerTest {
     @Test
     fun handlerExists() {
         // Verify the handler object exists
-        assertTrue("HourlyViewHandler should exist", true)
+        assertTrue("TemperatureViewHandler should exist", true)
     }
 }

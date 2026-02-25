@@ -19,7 +19,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.widget.handlers.DailyViewHandler
-import com.weatherwidget.widget.handlers.HourlyViewHandler
+import com.weatherwidget.widget.handlers.TemperatureViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import com.weatherwidget.widget.handlers.WidgetSizeCalculator
@@ -41,7 +41,7 @@ import java.util.concurrent.TimeUnit
  *
  * The rendering logic has been refactored into handler classes:
  * - [DailyViewHandler]: Handles daily forecast view
- * - [HourlyViewHandler]: Handles hourly temperature graph
+ * - [TemperatureViewHandler]: Handles hourly temperature graph
  * - [PrecipViewHandler]: Handles precipitation graph
  * - [WidgetIntentRouter]: Routes intent actions to appropriate handlers
  * - [WidgetSizeCalculator]: Calculates widget dimensions
@@ -255,7 +255,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             dateStr = dateStr,
                             intent = intent,
                         )
-                    if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.HOURLY)) {
+                    if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE)) {
                         database.appLogDao().log(
                             "CLICK_DAILY_NO_HOURLY",
                             "date=$dateStr mode=$targetMode -> settings",
@@ -607,7 +607,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val viewMode = stateManager.getViewMode(appWidgetId)
 
             when (viewMode) {
-                ViewMode.HOURLY -> {
+                ViewMode.TEMPERATURE -> {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
@@ -617,7 +617,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == todayStr && it.source == displaySource.id }
                             ?.precipProbability
-                    HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                    TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 }
                 ViewMode.PRECIPITATION -> {
                     val now = LocalDateTime.now()

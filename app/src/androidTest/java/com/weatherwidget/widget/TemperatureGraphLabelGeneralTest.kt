@@ -9,7 +9,7 @@ import org.junit.runner.RunWith
 import java.time.LocalDateTime
 
 @RunWith(AndroidJUnit4::class)
-class HourlyGraphLabelTest {
+class TemperatureGraphLabelGeneralTest {
 
     @Test
     fun verifyLocalMinLabelIsDrawn() {
@@ -33,9 +33,9 @@ class HourlyGraphLabelTest {
             createHour(now.plusHours(8), 47.0f)
         )
 
-        val drawnLabels = mutableListOf<HourlyTemperatureGraphRenderer.LabelPlacementDebug>()
+        val drawnLabels = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        HourlyTemperatureGraphRenderer.renderGraph(
+        TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 1080, // Typical width
@@ -55,8 +55,8 @@ class HourlyGraphLabelTest {
         assertTrue("Local minimum (44) should be drawn. Actual: $drawnLabels", drawn44)
     }
 
-    private fun createHour(time: LocalDateTime, temp: Float): HourlyTemperatureGraphRenderer.HourData {
-        return HourlyTemperatureGraphRenderer.HourData(
+    private fun createHour(time: LocalDateTime, temp: Float): TemperatureGraphRenderer.HourData {
+        return TemperatureGraphRenderer.HourData(
             dateTime = time,
             temperature = temp,
             label = "${time.hour}h"

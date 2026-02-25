@@ -34,7 +34,7 @@ class ZoomCycleTest {
         context = ApplicationProvider.getApplicationContext()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
-        stateManager.setViewMode(testWidgetId, ViewMode.HOURLY)
+        stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
     }
 
     @After
@@ -241,7 +241,7 @@ class ZoomCycleTest {
         for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
             // Reset to WIDE zoom for each zone test
             stateManager.clearWidgetState(testWidgetId)
-            stateManager.setViewMode(testWidgetId, ViewMode.HOURLY)
+            stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
             stateManager.setHourlyOffset(testWidgetId, baseOffset)
             assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 

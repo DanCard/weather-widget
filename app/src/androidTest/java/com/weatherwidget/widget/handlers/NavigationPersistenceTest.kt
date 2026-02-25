@@ -60,20 +60,20 @@ class NavigationPersistenceTest {
                 WidgetIntentRouter.handleSetView(
                     context, 
                     testWidgetId, 
-                    ViewMode.HOURLY
+                    ViewMode.TEMPERATURE
                 )
             } catch (_: Exception) {}
         }
         
         // 4. Verify offset is preserved (fixed)
-        assertEquals("View mode should be HOURLY", ViewMode.HOURLY, stateManager.getViewMode(testWidgetId))
+        assertEquals("View mode should be HOURLY", ViewMode.TEMPERATURE, stateManager.getViewMode(testWidgetId))
         assertEquals("Offset should be preserved", 48, stateManager.getHourlyOffset(testWidgetId))
     }
     
     @Test
     fun toggleFromHourlyToPrecip_preservesOffset() {
         // 1. Start in HOURLY mode with offset 24
-        stateManager.setViewMode(testWidgetId, ViewMode.HOURLY)
+        stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
         stateManager.setHourlyOffset(testWidgetId, 24)
         
         // 2. Toggle to PRECIPITATION

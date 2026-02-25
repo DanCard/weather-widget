@@ -74,21 +74,21 @@ object PrecipViewHandler {
         setupSettingsShortcut(context, views, appWidgetId)
 
         // In precipitation mode: current temp → hourly graph, precip % → daily forecast
-        val goHourlyIntent =
+        val goTempIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_SET_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.HOURLY.name)
+                putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
             }
-        val goHourlyPending =
+        val goTempPending =
             PendingIntent.getBroadcast(
                 context,
                 appWidgetId * 2 + 200,
-                goHourlyIntent,
+                goTempIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-        views.setOnClickPendingIntent(R.id.current_temp, goHourlyPending)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, goHourlyPending)
+        views.setOnClickPendingIntent(R.id.current_temp, goTempPending)
+        views.setOnClickPendingIntent(R.id.current_temp_zone, goTempPending)
 
         val goDailyIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {

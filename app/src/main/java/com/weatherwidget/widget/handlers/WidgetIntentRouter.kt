@@ -52,10 +52,10 @@ object WidgetIntentRouter {
         val direction = if (isLeft) "LEFT" else "RIGHT"
         Log.d(TAG, "handleNavigation: widget=$appWidgetId, direction=$direction, viewMode=$viewMode")
 
-        if (viewMode == com.weatherwidget.widget.ViewMode.HOURLY ||
+        if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
-            handleHourlyNavigation(context, appWidgetId, isLeft)
+            handleGraphNavigation(context, appWidgetId, isLeft)
         } else {
             handleDailyNavigation(context, appWidgetId, isLeft)
         }
@@ -174,7 +174,7 @@ object WidgetIntentRouter {
     /**
      * Handle hourly/precipitation view navigation.
      */
-    private suspend fun handleHourlyNavigation(
+    private suspend fun handleGraphNavigation(
         context: Context,
         appWidgetId: Int,
         isLeft: Boolean,
@@ -187,7 +187,7 @@ object WidgetIntentRouter {
             } else {
                 stateManager.navigateHourlyRight(appWidgetId)
             }
-        Log.d(TAG, "handleHourlyNavigation: Navigated to offset $newOffset for widget $appWidgetId")
+        Log.d(TAG, "handleGraphNavigation: Navigated to offset $newOffset for widget $appWidgetId")
 
         val database = WeatherDatabase.getDatabase(context)
         val hourlyDao = database.hourlyForecastDao()
@@ -227,7 +227,7 @@ object WidgetIntentRouter {
                     todayPrecip,
                 )
             } else {
-                HourlyViewHandler.updateWidget(
+                TemperatureViewHandler.updateWidget(
                     context,
                     appWidgetManager,
                     appWidgetId,
@@ -292,7 +292,7 @@ object WidgetIntentRouter {
             if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
                 PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             } else {
-                HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             }
         }
     }
@@ -322,7 +322,7 @@ object WidgetIntentRouter {
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val missingDataForSelectedSource = sourceDataMissingForCurrentWindow(weatherDao, hourlyDao, lat, lon, newSource)
 
-        if (viewMode == com.weatherwidget.widget.ViewMode.HOURLY ||
+        if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
             val zoom = stateManager.getZoomLevel(appWidgetId)
@@ -344,7 +344,7 @@ object WidgetIntentRouter {
                 if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
                     PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 } else {
-                    HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                    TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 }
             }
         } else {
@@ -395,7 +395,7 @@ object WidgetIntentRouter {
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
 
-        if (newMode == com.weatherwidget.widget.ViewMode.HOURLY) {
+        if (newMode == com.weatherwidget.widget.ViewMode.TEMPERATURE) {
             val zoom = stateManager.getZoomLevel(appWidgetId)
             val now = LocalDateTime.now()
             val offset = stateManager.getHourlyOffset(appWidgetId)
@@ -414,7 +414,7 @@ object WidgetIntentRouter {
                     ?.precipProbability
 
             withContext(Dispatchers.Main) {
-                HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
             }
         } else {
             val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -559,8 +559,10 @@ object WidgetIntentRouter {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, targetMode)
-        stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
-        if (targetMode == com.weatherwidget.widget.ViewMode.HOURLY ||
+        if (targetMode == com.weatherwidget.widget.ViewMode.DAILY) {
+            stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
+        }
+        if (targetMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
             targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
             if (targetOffset != Int.MIN_VALUE) {
@@ -584,7 +586,7 @@ object WidgetIntentRouter {
         val zoom = stateManager.getZoomLevel(appWidgetId)
 
         when (targetMode) {
-            com.weatherwidget.widget.ViewMode.HOURLY -> {
+            com.weatherwidget.widget.ViewMode.TEMPERATURE -> {
                 val now = LocalDateTime.now()
                 val offset = stateManager.getHourlyOffset(appWidgetId)
                 val centerTime = now.plusHours(offset.toLong())
@@ -601,7 +603,7 @@ object WidgetIntentRouter {
                         ?.precipProbability
 
                 withContext(Dispatchers.Main) {
-                    HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                    TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 }
                 Log.d(TAG, "handleSetView: hourly update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
@@ -670,7 +672,7 @@ object WidgetIntentRouter {
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
 
-        if (viewMode == com.weatherwidget.widget.ViewMode.HOURLY ||
+        if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
             val zoom = stateManager.getZoomLevel(appWidgetId)
@@ -693,7 +695,7 @@ object WidgetIntentRouter {
                 if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
                     PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 } else {
-                    HourlyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
+                    TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
                 }
             }
         } else {

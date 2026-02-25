@@ -6,7 +6,7 @@ import android.util.Log
 import android.util.TypedValue
 import java.time.LocalDateTime
 
-object HourlyTemperatureGraphRenderer {
+object TemperatureGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 1.5f
 

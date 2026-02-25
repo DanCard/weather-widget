@@ -39,7 +39,7 @@ class WidgetStateManagerTest {
         stateManager.toggleViewMode(widgetId)
         
         // Should set view mode to HOURLY and reset offset to 0 and zoom to WIDE
-        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.HOURLY.ordinal) }
+        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.TEMPERATURE.ordinal) }
         verify { editor.putInt("widget_hourly_offset_$widgetId", 0) }
         verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
     }
@@ -148,7 +148,7 @@ class WidgetStateManagerTest {
     @Test
     fun `toggleViewMode to DAILY resets zoom to WIDE`() {
         val widgetId = 1
-        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.HOURLY.ordinal
+        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.TEMPERATURE.ordinal
 
         stateManager.toggleViewMode(widgetId)
 
