@@ -22,11 +22,9 @@ fi
 RESULTS_DIR="app/build/test-results/testDebugUnitTest"
 rm -rf "$RESULTS_DIR"
 
-# Run gradle and strip blank lines from the output for a compact view
-# --console=rich forces colors even when piping through grep
-./gradlew :app:test $FORCE_FLAG --console=rich | grep --line-buffered -vE '^\s*$'
-#./gradlew :app:test $FORCE_FLAG --console=rich | grep -vE '^\s*$'
-#./gradlew :app:test $FORCE_FLAG
+# Run gradle and strip blank lines + per-test PASSED lines for a compact view
+# We keep failures and other diagnostics visible.
+./gradlew :app:test $FORCE_FLAG --console=plain | awk 'NF && $0 !~ / > .* PASSED$/'
 
 EXIT_CODE=${PIPESTATUS[0]}
 
@@ -37,6 +35,7 @@ FAILED=0
 ERRORS=0
 SKIPPED=0
 FAILED_TESTS=()
+declare -A CLASS_PASSED_COUNTS
 
 if [ -d "$RESULTS_DIR" ]; then
     for xml in "$RESULTS_DIR"/TEST-*.xml; do
@@ -45,11 +44,20 @@ if [ -d "$RESULTS_DIR" ]; then
             F=$(grep -oP 'failures="\K[0-9]+' "$xml" | head -1)
             E=$(grep -oP 'errors="\K[0-9]+' "$xml" | head -1)
             S=$(grep -oP 'skipped="\K[0-9]+' "$xml" | head -1)
+            XML_BASENAME=$(basename "$xml")
+            SUITE_NAME=${XML_BASENAME#TEST-}
+            SUITE_NAME=${SUITE_NAME%.xml}
+            CLASS_NAME=${SUITE_NAME##*.}
+            CLASS_PASSED=$((T - F - E - S))
             
             TOTAL=$((TOTAL + T))
             FAILED=$((FAILED + F))
             ERRORS=$((ERRORS + E))
             SKIPPED=$((SKIPPED + S))
+
+            if [ "$CLASS_PASSED" -gt 0 ]; then
+                CLASS_PASSED_COUNTS["$CLASS_NAME"]=$CLASS_PASSED
+            fi
             
             if [ "$F" -gt 0 ] || [ "$E" -gt 0 ]; then
                 # Extract failed test names
@@ -85,6 +93,13 @@ if [ "$TOTAL" -gt 0 ]; then
     fi
     if [ "$SKIPPED" -gt 0 ]; then
         echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
+    fi
+
+    if [ "${#CLASS_PASSED_COUNTS[@]}" -gt 0 ]; then
+        echo -e "${BLUE}Per-class pass summary:${NC}"
+        while IFS= read -r class_name; do
+            echo -e "  ${GREEN}${class_name}${NC} > Passed ${CLASS_PASSED_COUNTS[$class_name]} tests"
+        done < <(printf '%s\n' "${!CLASS_PASSED_COUNTS[@]}" | sort)
     fi
 else
     if [ "$EXIT_CODE" -ne 0 ]; then

@@ -342,6 +342,21 @@ adb devices
 adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.model"
 ```
 
+### Safe Multi-Device SDK Query
+Use this when you need `ro.build.version.sdk` for every connected device. It safely handles device serials with spaces and avoids stdin issues that can skip later devices in a loop.
+
+```bash
+ADB=/home/dcar/.Android/Sdk/platform-tools/adb
+$ADB devices | sed '1d;/^$/d' | while IFS=$'\t' read -r serial state; do
+  if [ "$state" = "device" ]; then
+    sdk=$($ADB -s "$serial" shell getprop ro.build.version.sdk </dev/null 2>/dev/null | tr -d '\r')
+    echo "$serial => sdk=${sdk:-<empty>}"
+  else
+    echo "$serial => state=$state (not queried)"
+  fi
+done
+```
+
 ### ADB Path Reliability
 - Before assuming `adb` is unavailable, run `which adb`.
 - If `adb` is not found in non-interactive shells, use the absolute path:
