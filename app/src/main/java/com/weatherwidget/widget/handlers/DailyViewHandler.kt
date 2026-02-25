@@ -42,6 +42,22 @@ import kotlin.math.min
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
     private const val CELL_HEIGHT_DP = 90
+    private data class DayIds(
+        val container: Int,
+        val label: Int,
+        val icon: Int,
+        val high: Int,
+        val low: Int,
+        val rain: Int,
+    )
+
+    private data class DaySlot(
+        val dayIndex: Int, // 1..7
+        val date: LocalDate,
+        val dateStr: String,
+        val hasData: Boolean,
+        val ids: DayIds,
+    )
 
     // Intent actions from WeatherWidgetProvider
     private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -553,6 +569,10 @@ object DailyViewHandler : WidgetViewHandler {
             } else {
                 null
             }
+            val hasRainForecast = DayClickHelper.hasRainForecast(
+                rawRainSummary,
+                if (isToday) todayNext8HourPrecipProbability else weather.precipProbability,
+            )
             val rainSummary = if (isToday && rawRainSummary != null && stateManager != null) {
                 if (stateManager.wasRainShownToday(appWidgetId, todayStr)) {
                     null
@@ -583,6 +603,7 @@ object DailyViewHandler : WidgetViewHandler {
                     accuracyMode = if (showComparison || isToday) accuracyMode else AccuracyDisplayMode.NONE,
                     rainSummary = rainSummary,
                     dailyPrecipProbability = if (isToday) todayNext8HourPrecipProbability else weather.precipProbability,
+                    hasRainForecast = hasRainForecast,
                 ),
             )
         }
@@ -606,99 +627,57 @@ object DailyViewHandler : WidgetViewHandler {
     ): List<Triple<Int, String, Boolean>> {  // dayIndex, dateStr, hasRainForecast
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
 
-        val day1Date = effectiveCenter.minusDays(1)
-        val day2Date = effectiveCenter
-        val day3Date = effectiveCenter.plusDays(1)
-        val day4Date = effectiveCenter.plusDays(2)
-        val day5Date = effectiveCenter.plusDays(3)
-        val day6Date = effectiveCenter.plusDays(4)
-        val day7Date = effectiveCenter.plusDays(5)
-
-        val day1Str = day1Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day2Str = day2Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day3Str = day3Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day4Str = day4Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day5Str = day5Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day6Str = day6Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val day7Str = day7Date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val dayIds =
+            listOf(
+                DayIds(R.id.day1_container, R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low, R.id.day1_rain),
+                DayIds(R.id.day2_container, R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low, R.id.day2_rain),
+                DayIds(R.id.day3_container, R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low, R.id.day3_rain),
+                DayIds(R.id.day4_container, R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low, R.id.day4_rain),
+                DayIds(R.id.day5_container, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, R.id.day5_rain),
+                DayIds(R.id.day6_container, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, R.id.day6_rain),
+                DayIds(R.id.day7_container, R.id.day7_label, R.id.day7_icon, R.id.day7_high, R.id.day7_low, R.id.day7_rain),
+            )
 
         fun hasCompleteData(dateStr: String): Boolean {
             val weather = weatherByDate[dateStr] ?: return false
             return weather.highTemp != null && weather.lowTemp != null
         }
 
-        val hasDay1 = hasCompleteData(day1Str)
-        val hasDay2 = hasCompleteData(day2Str)
-        val hasDay3 = hasCompleteData(day3Str)
-        val hasDay4 = hasCompleteData(day4Str)
-        val hasDay5 = hasCompleteData(day5Str)
-        val hasDay6 = hasCompleteData(day6Str)
-        val hasDay7 = hasCompleteData(day7Str)
+        val daySlots =
+            listOf(
+                effectiveCenter.minusDays(1),
+                effectiveCenter,
+                effectiveCenter.plusDays(1),
+                effectiveCenter.plusDays(2),
+                effectiveCenter.plusDays(3),
+                effectiveCenter.plusDays(4),
+                effectiveCenter.plusDays(5),
+            ).mapIndexed { index, date ->
+                val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                DaySlot(
+                    dayIndex = index + 1,
+                    date = date,
+                    dateStr = dateStr,
+                    hasData = hasCompleteData(dateStr),
+                    ids = dayIds[index],
+                )
+            }
 
-        when {
-            numColumns >= 7 -> {
-                views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day6_container, if (hasDay6) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day7_container, if (hasDay7) View.VISIBLE else View.GONE)
+        fun slotVisibleByColumns(index: Int): Boolean {
+            return when {
+                numColumns >= 7 -> true
+                numColumns == 6 -> index <= 5
+                numColumns == 5 -> index <= 4
+                numColumns == 4 -> index <= 3
+                numColumns == 3 -> index <= 2
+                numColumns == 2 -> index in 1..2
+                else -> index == 1
             }
-            numColumns == 6 -> {
-                views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day6_container, if (hasDay6) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day7_container, View.GONE)
-            }
-            numColumns == 5 -> {
-                views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day5_container, if (hasDay5) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day6_container, View.GONE)
-                views.setViewVisibility(R.id.day7_container, View.GONE)
-            }
-            numColumns == 4 -> {
-                views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day4_container, if (hasDay4) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day5_container, View.GONE)
-                views.setViewVisibility(R.id.day6_container, View.GONE)
-                views.setViewVisibility(R.id.day7_container, View.GONE)
-            }
-            numColumns == 3 -> {
-                views.setViewVisibility(R.id.day1_container, if (hasDay1) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day4_container, View.GONE)
-                views.setViewVisibility(R.id.day5_container, View.GONE)
-                views.setViewVisibility(R.id.day6_container, View.GONE)
-                views.setViewVisibility(R.id.day7_container, View.GONE)
-            }
-            numColumns == 2 -> {
-                views.setViewVisibility(R.id.day1_container, View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, if (hasDay3) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day4_container, View.GONE)
-                views.setViewVisibility(R.id.day5_container, View.GONE)
-                views.setViewVisibility(R.id.day6_container, View.GONE)
-                views.setViewVisibility(R.id.day7_container, View.GONE)
-            }
-            else -> {
-                views.setViewVisibility(R.id.day1_container, View.GONE)
-                views.setViewVisibility(R.id.day2_container, if (hasDay2) View.VISIBLE else View.GONE)
-                views.setViewVisibility(R.id.day3_container, View.GONE)
-                views.setViewVisibility(R.id.day4_container, View.GONE)
-                views.setViewVisibility(R.id.day5_container, View.GONE)
-                views.setViewVisibility(R.id.day6_container, View.GONE)
-                views.setViewVisibility(R.id.day7_container, View.GONE)
-            }
+        }
+
+        daySlots.forEachIndexed { index, slot ->
+            val shouldShow = slotVisibleByColumns(index) && slot.hasData
+            views.setViewVisibility(slot.ids.container, if (shouldShow) View.VISIBLE else View.GONE)
         }
 
         fun getLabelForDate(date: LocalDate): String {
@@ -720,161 +699,63 @@ object DailyViewHandler : WidgetViewHandler {
             return summary
         }
 
-        val rainSummary1 = suppressIfAlreadyShown(day1Date, if (hasDay1) RainAnalyzer.getRainSummary(hourlyForecasts, day1Date, displaySource.id, now) else null)
-        val rainSummary2 = suppressIfAlreadyShown(day2Date, if (hasDay2) RainAnalyzer.getRainSummary(hourlyForecasts, day2Date, displaySource.id, now) else null)
-        val rainSummary3 = suppressIfAlreadyShown(day3Date, if (hasDay3) RainAnalyzer.getRainSummary(hourlyForecasts, day3Date, displaySource.id, now) else null)
-        val rainSummary4 = if (hasDay4) RainAnalyzer.getRainSummary(hourlyForecasts, day4Date, displaySource.id, now) else null
-        val rainSummary5 = if (hasDay5) RainAnalyzer.getRainSummary(hourlyForecasts, day5Date, displaySource.id, now) else null
-        val rainSummary6 = if (hasDay6) RainAnalyzer.getRainSummary(hourlyForecasts, day6Date, displaySource.id, now) else null
-        val rainSummary7 = if (hasDay7) RainAnalyzer.getRainSummary(hourlyForecasts, day7Date, displaySource.id, now) else null
+        val rawRainSummaries =
+            daySlots.map { slot ->
+                if (slot.hasData) {
+                    RainAnalyzer.getRainSummary(hourlyForecasts, slot.date, displaySource.id, now)
+                } else {
+                    null
+                }
+            }
 
-        if (hasDay1) {
+        val displayedRainSummaries =
+            daySlots.mapIndexed { index, slot ->
+                suppressIfAlreadyShown(slot.date, rawRainSummaries[index])
+            }
+
+        daySlots.forEachIndexed { index, slot ->
+            if (!slot.hasData) return@forEachIndexed
             populateDay(
                 views,
-                R.id.day1_label,
-                R.id.day1_icon,
-                R.id.day1_high,
-                R.id.day1_low,
-                R.id.day1_rain,
-                getLabelForDate(day1Date),
-                weatherByDate[day1Str],
-                rainSummary1,
-                isToday = day1Date == today,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-            )
-        }
-        if (hasDay2) {
-            populateDay(
-                views,
-                R.id.day2_label,
-                R.id.day2_icon,
-                R.id.day2_high,
-                R.id.day2_low,
-                R.id.day2_rain,
-                getLabelForDate(day2Date),
-                weatherByDate[day2Str],
-                rainSummary2,
-                isToday = day2Date == today,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-            )
-        }
-        if (hasDay3) {
-            populateDay(
-                views,
-                R.id.day3_label,
-                R.id.day3_icon,
-                R.id.day3_high,
-                R.id.day3_low,
-                R.id.day3_rain,
-                getLabelForDate(day3Date),
-                weatherByDate[day3Str],
-                rainSummary3,
-                isToday = day3Date == today,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-            )
-        }
-        if (hasDay4) {
-            populateDay(
-                views,
-                R.id.day4_label,
-                R.id.day4_icon,
-                R.id.day4_high,
-                R.id.day4_low,
-                R.id.day4_rain,
-                getLabelForDate(day4Date),
-                weatherByDate[day4Str],
-                rainSummary4,
-                isToday = day4Date == today,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-            )
-        }
-        if (hasDay5) {
-            populateDay(
-                views,
-                R.id.day5_label,
-                R.id.day5_icon,
-                R.id.day5_high,
-                R.id.day5_low,
-                R.id.day5_rain,
-                getLabelForDate(day5Date),
-                weatherByDate[day5Str],
-                rainSummary5,
-                isToday = day5Date == today,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-            )
-        }
-        if (hasDay6) {
-            populateDay(
-                views,
-                R.id.day6_label,
-                R.id.day6_icon,
-                R.id.day6_high,
-                R.id.day6_low,
-                R.id.day6_rain,
-                getLabelForDate(day6Date),
-                weatherByDate[day6Str],
-                rainSummary6,
-                isToday = day6Date == today,
-                hourlyForecasts = hourlyForecasts,
-                displaySource = displaySource,
-            )
-        }
-        if (hasDay7) {
-            populateDay(
-                views,
-                R.id.day7_label,
-                R.id.day7_icon,
-                R.id.day7_high,
-                R.id.day7_low,
-                R.id.day7_rain,
-                getLabelForDate(day7Date),
-                weatherByDate[day7Str],
-                rainSummary7,
-                isToday = day7Date == today,
+                slot.ids.label,
+                slot.ids.icon,
+                slot.ids.high,
+                slot.ids.low,
+                slot.ids.rain,
+                getLabelForDate(slot.date),
+                weatherByDate[slot.dateStr],
+                displayedRainSummaries[index],
+                isToday = slot.date == today,
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
             )
         }
 
         // Determine first day with rain (only show rain indicator for first occurrence)
-        val firstRainDay = when {
-            rainSummary1 != null -> 1
-            rainSummary2 != null -> 2
-            rainSummary3 != null -> 3
-            rainSummary4 != null -> 4
-            rainSummary5 != null -> 5
-            rainSummary6 != null -> 6
-            rainSummary7 != null -> 7
-            else -> -1
-        }
-        
+        val firstRainDay = displayedRainSummaries.indexOfFirst { it != null }.let { if (it >= 0) it + 1 else -1 }
+
         val visibleDays = mutableListOf<Triple<Int, String, Boolean>>()
-        fun clickPrecip(date: LocalDate, dateStr: String): Int? {
-            return if (date == today) todayNext8HourPrecipProbability else weatherByDate[dateStr]?.precipProbability
+        fun clickPrecip(slot: DaySlot): Int? {
+            return if (slot.date == today) todayNext8HourPrecipProbability else weatherByDate[slot.dateStr]?.precipProbability
         }
 
-        if (hasDay1) visibleDays.add(Triple(1, day1Str, DayClickHelper.hasRainForecast(rainSummary1, clickPrecip(day1Date, day1Str))))
-        if (hasDay2) visibleDays.add(Triple(2, day2Str, DayClickHelper.hasRainForecast(rainSummary2, clickPrecip(day2Date, day2Str))))
-        if (hasDay3) visibleDays.add(Triple(3, day3Str, DayClickHelper.hasRainForecast(rainSummary3, clickPrecip(day3Date, day3Str))))
-        if (hasDay4) visibleDays.add(Triple(4, day4Str, DayClickHelper.hasRainForecast(rainSummary4, clickPrecip(day4Date, day4Str))))
-        if (hasDay5) visibleDays.add(Triple(5, day5Str, DayClickHelper.hasRainForecast(rainSummary5, clickPrecip(day5Date, day5Str))))
-        if (hasDay6) visibleDays.add(Triple(6, day6Str, DayClickHelper.hasRainForecast(rainSummary6, clickPrecip(day6Date, day6Str))))
-        if (hasDay7) visibleDays.add(Triple(7, day7Str, DayClickHelper.hasRainForecast(rainSummary7, clickPrecip(day7Date, day7Str))))
-        
+        daySlots.forEachIndexed { index, slot ->
+            if (!slot.hasData) return@forEachIndexed
+            visibleDays.add(
+                Triple(
+                    slot.dayIndex,
+                    slot.dateStr,
+                    DayClickHelper.hasRainForecast(rawRainSummaries[index], clickPrecip(slot)),
+                ),
+            )
+        }
+
         // Update rain visibility - only show for first rainy day
-        if (hasDay1) populateDayRain(views, R.id.day1_rain, rainSummary1, firstRainDay == 1)
-        if (hasDay2) populateDayRain(views, R.id.day2_rain, rainSummary2, firstRainDay == 2)
-        if (hasDay3) populateDayRain(views, R.id.day3_rain, rainSummary3, firstRainDay == 3)
-        if (hasDay4) populateDayRain(views, R.id.day4_rain, rainSummary4, firstRainDay == 4)
-        if (hasDay5) populateDayRain(views, R.id.day5_rain, rainSummary5, firstRainDay == 5)
-        if (hasDay6) populateDayRain(views, R.id.day6_rain, rainSummary6, firstRainDay == 6)
-        if (hasDay7) populateDayRain(views, R.id.day7_rain, rainSummary7, firstRainDay == 7)
-        
+        daySlots.forEachIndexed { index, slot ->
+            if (!slot.hasData) return@forEachIndexed
+            populateDayRain(views, slot.ids.rain, displayedRainSummaries[index], firstRainDay == slot.dayIndex)
+        }
+
         return visibleDays
     }
 
@@ -1050,7 +931,7 @@ object DailyViewHandler : WidgetViewHandler {
             // Past days → always show history
             // Today/future with rain → show precipitation graph
             // Today/future without rain → show history
-            val hasRainForecast = DayClickHelper.hasRainForecast(dayData.rainSummary, dayData.dailyPrecipProbability)
+            val hasRainForecast = dayData.hasRainForecast
             val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
             val showHistory = !navigateToPrecip
 

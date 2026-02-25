@@ -27,6 +27,7 @@ object DailyForecastGraphRenderer {
         val accuracyMode: AccuracyDisplayMode = AccuracyDisplayMode.NONE,
         val rainSummary: String? = null, // e.g. "2pm" — start of first rain window
         val dailyPrecipProbability: Int? = null, // From WeatherEntity, used for click routing
+        val hasRainForecast: Boolean = false, // Unsuppressed rain signal for click routing
     )
 
     fun renderGraph(
