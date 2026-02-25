@@ -4,6 +4,7 @@ import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDateTime
+import java.time.Duration
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
@@ -133,16 +134,9 @@ class TemperatureInterpolator
         ): Float? {
             if (hourlyForecasts.isEmpty()) return null
 
-            val targetMinutes =
-                targetTime.toLocalDate().atStartOfDay()
-                    .until(targetTime, ChronoUnit.MINUTES)
-
             return hourlyForecasts.minByOrNull { forecast ->
                 val forecastTime = LocalDateTime.parse(forecast.dateTime, HOUR_FORMATTER)
-                val forecastMinutes =
-                    forecastTime.toLocalDate().atStartOfDay()
-                        .until(forecastTime, ChronoUnit.MINUTES)
-                kotlin.math.abs(targetMinutes - forecastMinutes)
+                kotlin.math.abs(Duration.between(targetTime, forecastTime).toMinutes())
             }?.temperature
         }
 

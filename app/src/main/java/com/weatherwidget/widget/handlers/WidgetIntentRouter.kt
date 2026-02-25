@@ -8,8 +8,8 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 
 /**
  * Router for handling widget intent actions.
@@ -27,6 +28,7 @@ import java.time.format.DateTimeFormatter
  */
 object WidgetIntentRouter {
     private const val TAG = "WidgetIntentRouter"
+    private val HOUR_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
 
     // Intent actions
     const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -201,12 +203,15 @@ object WidgetIntentRouter {
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val now = LocalDateTime.now()
         val centerTime = now.plusHours(newOffset.toLong())
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-
-        val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+        val hourlyForecasts =
+            loadGraphWindowHourlyForecasts(
+                hourlyDao = hourlyDao,
+                lat = lat,
+                lon = lon,
+                centerTime = centerTime,
+                zoom = zoom,
+                now = now,
+            )
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
@@ -273,12 +278,15 @@ object WidgetIntentRouter {
         val now = LocalDateTime.now()
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         val centerTime = now.plusHours(hourlyOffset.toLong())
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startTime = roundedCenter.minusHours(newZoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val endTime = roundedCenter.plusHours(newZoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-
-        val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+        val hourlyForecasts =
+            loadGraphWindowHourlyForecasts(
+                hourlyDao = hourlyDao,
+                lat = lat,
+                lon = lon,
+                centerTime = centerTime,
+                zoom = newZoom,
+                now = now,
+            )
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
@@ -320,20 +328,50 @@ object WidgetIntentRouter {
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val missingDataForSelectedSource = sourceDataMissingForCurrentWindow(weatherDao, hourlyDao, lat, lon, newSource)
+        val now = LocalDateTime.now()
+        val currentGraphZoom =
+            if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
+                viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
+            ) {
+                stateManager.getZoomLevel(appWidgetId)
+            } else {
+                null
+            }
+        val currentGraphCenterTime =
+            if (currentGraphZoom != null) {
+                val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+                now.plusHours(hourlyOffset.toLong())
+            } else {
+                null
+            }
+        val missingDataForSelectedSource =
+            sourceDataMissingForCurrentWindow(
+                weatherDao = weatherDao,
+                hourlyDao = hourlyDao,
+                lat = lat,
+                lon = lon,
+                source = newSource,
+                centerTime = currentGraphCenterTime,
+                zoom = currentGraphZoom,
+                now = now,
+            )
 
         if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
         ) {
-            val zoom = stateManager.getZoomLevel(appWidgetId)
-            val now = LocalDateTime.now()
-            val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-            val centerTime = now.plusHours(hourlyOffset.toLong())
-            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-            val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            val zoom = currentGraphZoom ?: stateManager.getZoomLevel(appWidgetId)
+            val centerTime =
+                currentGraphCenterTime
+                    ?: now.plusHours(stateManager.getHourlyOffset(appWidgetId).toLong())
+            val hourlyForecasts =
+                loadGraphWindowHourlyForecasts(
+                    hourlyDao = hourlyDao,
+                    lat = lat,
+                    lon = lon,
+                    centerTime = centerTime,
+                    zoom = zoom,
+                    now = now,
+                )
 
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val todayPrecip =
@@ -356,7 +394,6 @@ object WidgetIntentRouter {
                 snapshotDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
 
-            val now = LocalDateTime.now()
             val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
@@ -400,12 +437,15 @@ object WidgetIntentRouter {
             val now = LocalDateTime.now()
             val offset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(offset.toLong())
-            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-            val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            val hourlyForecasts =
+                loadGraphWindowHourlyForecasts(
+                    hourlyDao = hourlyDao,
+                    lat = lat,
+                    lon = lon,
+                    centerTime = centerTime,
+                    zoom = zoom,
+                    now = now,
+                )
 
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -442,6 +482,9 @@ object WidgetIntentRouter {
         lat: Double,
         lon: Double,
         source: WeatherSource,
+        centerTime: LocalDateTime? = null,
+        zoom: com.weatherwidget.widget.ZoomLevel? = null,
+        now: LocalDateTime = LocalDateTime.now(),
     ): Boolean {
         val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
         val futureEnd = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -452,10 +495,22 @@ object WidgetIntentRouter {
             }.maxOrNull()
         val hasRequiredFutureCoverage = maxDailyDate != null && !maxDailyDate.isBefore(LocalDate.now().plusDays(2))
 
-        val now = LocalDateTime.now()
-        val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val sourceHourly = hourlyDao.getHourlyForecastsBySource(hourlyStart, hourlyEnd, lat, lon, source.id)
+        val sourceHourly =
+            if (centerTime != null && zoom != null) {
+                loadGraphWindowHourlyForecastsBySource(
+                    hourlyDao = hourlyDao,
+                    lat = lat,
+                    lon = lon,
+                    centerTime = centerTime,
+                    zoom = zoom,
+                    now = now,
+                    source = source,
+                )
+            } else {
+                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(HOUR_FORMATTER)
+                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(HOUR_FORMATTER)
+                hourlyDao.getHourlyForecastsBySource(hourlyStart, hourlyEnd, lat, lon, source.id)
+            }
 
         return sourceDaily.isEmpty() || sourceHourly.isEmpty() || !hasRequiredFutureCoverage
     }
@@ -513,12 +568,15 @@ object WidgetIntentRouter {
             val now = LocalDateTime.now()
             val offset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(offset.toLong())
-            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-            val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            val hourlyForecasts =
+                loadGraphWindowHourlyForecasts(
+                    hourlyDao = hourlyDao,
+                    lat = lat,
+                    lon = lon,
+                    centerTime = centerTime,
+                    zoom = zoom,
+                    now = now,
+                )
 
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -590,12 +648,15 @@ object WidgetIntentRouter {
                 val now = LocalDateTime.now()
                 val offset = stateManager.getHourlyOffset(appWidgetId)
                 val centerTime = now.plusHours(offset.toLong())
-                val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-                val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-
-                val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+                val hourlyForecasts =
+                    loadGraphWindowHourlyForecasts(
+                        hourlyDao = hourlyDao,
+                        lat = lat,
+                        lon = lon,
+                        centerTime = centerTime,
+                        zoom = zoom,
+                        now = now,
+                    )
                 val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                 val todayPrecip =
@@ -611,12 +672,15 @@ object WidgetIntentRouter {
                 val now = LocalDateTime.now()
                 val offset = stateManager.getHourlyOffset(appWidgetId)
                 val centerTime = now.plusHours(offset.toLong())
-                val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-                val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-
-                val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+                val hourlyForecasts =
+                    loadGraphWindowHourlyForecasts(
+                        hourlyDao = hourlyDao,
+                        lat = lat,
+                        lon = lon,
+                        centerTime = centerTime,
+                        zoom = zoom,
+                        now = now,
+                    )
                 val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                 val todayPrecip =
@@ -679,11 +743,15 @@ object WidgetIntentRouter {
             val now = LocalDateTime.now()
             val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(hourlyOffset.toLong())
-            val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val roundedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-            val startTime = roundedCenter.minusHours(zoom.backHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = roundedCenter.plusHours(zoom.forwardHours).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            val hourlyForecasts =
+                loadGraphWindowHourlyForecasts(
+                    hourlyDao = hourlyDao,
+                    lat = lat,
+                    lon = lon,
+                    centerTime = centerTime,
+                    zoom = zoom,
+                    now = now,
+                )
 
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -717,4 +785,103 @@ object WidgetIntentRouter {
             }
         }
     }
+
+    private suspend fun loadGraphWindowHourlyForecasts(
+        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        lat: Double,
+        lon: Double,
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+        now: LocalDateTime,
+    ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
+        val window = buildGraphQueryWindow(centerTime, zoom, now)
+        val centerRows =
+            hourlyDao.getHourlyForecasts(
+                window.centerStart.format(HOUR_FORMATTER),
+                window.centerEnd.format(HOUR_FORMATTER),
+                lat,
+                lon,
+            )
+
+        val nowRows =
+            if (window.nowStart != null && window.nowEnd != null) {
+                hourlyDao.getHourlyForecasts(
+                    window.nowStart.format(HOUR_FORMATTER),
+                    window.nowEnd.format(HOUR_FORMATTER),
+                    lat,
+                    lon,
+                )
+            } else {
+                emptyList()
+            }
+
+        return (centerRows + nowRows)
+            .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
+            .sortedBy { it.dateTime }
+    }
+
+    private suspend fun loadGraphWindowHourlyForecastsBySource(
+        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        lat: Double,
+        lon: Double,
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+        now: LocalDateTime,
+        source: WeatherSource,
+    ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
+        val window = buildGraphQueryWindow(centerTime, zoom, now)
+        val centerRows =
+            hourlyDao.getHourlyForecastsBySource(
+                window.centerStart.format(HOUR_FORMATTER),
+                window.centerEnd.format(HOUR_FORMATTER),
+                lat,
+                lon,
+                source.id,
+            )
+
+        val nowRows =
+            if (window.nowStart != null && window.nowEnd != null) {
+                hourlyDao.getHourlyForecastsBySource(
+                    window.nowStart.format(HOUR_FORMATTER),
+                    window.nowEnd.format(HOUR_FORMATTER),
+                    lat,
+                    lon,
+                    source.id,
+                )
+            } else {
+                emptyList()
+            }
+
+        return (centerRows + nowRows)
+            .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
+            .sortedBy { it.dateTime }
+    }
+
+    internal fun buildGraphQueryWindow(
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+        now: LocalDateTime,
+    ): GraphQueryWindow {
+        val truncatedCenter = centerTime.truncatedTo(ChronoUnit.HOURS)
+        val roundedCenter = if (centerTime.minute >= 30) truncatedCenter.plusHours(1) else truncatedCenter
+        val centerStart = roundedCenter.minusHours(zoom.backHours)
+        val centerEnd = roundedCenter.plusHours(zoom.forwardHours)
+
+        val nowStart = now.truncatedTo(ChronoUnit.HOURS)
+        val nowEnd = nowStart.plusHours(1)
+        val overlaps = !nowEnd.isBefore(centerStart) && !nowStart.isAfter(centerEnd)
+
+        return if (overlaps) {
+            GraphQueryWindow(centerStart = centerStart, centerEnd = centerEnd, nowStart = null, nowEnd = null)
+        } else {
+            GraphQueryWindow(centerStart = centerStart, centerEnd = centerEnd, nowStart = nowStart, nowEnd = nowEnd)
+        }
+    }
+
+    internal data class GraphQueryWindow(
+        val centerStart: LocalDateTime,
+        val centerEnd: LocalDateTime,
+        val nowStart: LocalDateTime?,
+        val nowEnd: LocalDateTime?,
+    )
 }

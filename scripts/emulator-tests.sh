@@ -343,7 +343,7 @@ show_progress() {
                             local simple_class="${class_full##*.}"
 
                             case "$status" in
-                                PASSED)  echo -e "${GREEN}  ✓ ${simple_class} > ${method_part}${NC}" ;;
+                                PASSED)  : ;; # Summarized per class at end
                                 FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
                                 SKIPPED) echo -e "${YELLOW}  - ${simple_class} > ${method_part} (SKIPPED)${NC}" ;;
                             esac
@@ -359,7 +359,7 @@ show_progress() {
                             local simple_class="${class_part##*.}"
 
                             case "$status" in
-                                PASSED)  echo -e "${GREEN}  ✓ ${simple_class} > ${method_part}${NC}" ;;
+                                PASSED)  : ;; # Summarized per class at end
                                 FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
                                 SKIPPED) echo -e "${YELLOW}  - ${simple_class} > ${method_part} (SKIPPED)${NC}" ;;
                             esac
@@ -504,6 +504,56 @@ fi
 echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
 echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
+
+# Show per-class pass summary (compact replacement for per-test PASSED spam)
+if [ -f "$TEST_RESULTS_LOG" ]; then
+    HAS_INFO_EXECUTE=false
+    if grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)" "$TEST_RESULTS_LOG" 2>/dev/null; then
+        HAS_INFO_EXECUTE=true
+    fi
+
+    if [ "$HAS_INFO_EXECUTE" = true ]; then
+        CLASS_PASS_SUMMARY=$(awk '
+            /INFO: Execute .*: PASSED/ {
+                line=$0
+                sub(/^.*INFO: Execute /, "", line)
+                sub(/: PASSED.*$/, "", line)
+                class=line
+                sub(/\.[^.]+$/, "", class)
+                simple=class
+                sub(/^.*\./, "", simple)
+                if (simple != "") counts[simple]++
+            }
+            END {
+                for (k in counts) print k "\t" counts[k]
+            }
+        ' "$TEST_RESULTS_LOG" | sort)
+    else
+        CLASS_PASS_SUMMARY=$(awk '
+            / > .* PASSED/ {
+                line=$0
+                sub(/^.*:app:connectedDebugAndroidTest /, "", line)
+                split(line, parts, " > ")
+                class=parts[1]
+                gsub(/[[:space:]]+/, "", class)
+                simple=class
+                sub(/^.*\./, "", simple)
+                if (simple != "") counts[simple]++
+            }
+            END {
+                for (k in counts) print k "\t" counts[k]
+            }
+        ' "$TEST_RESULTS_LOG" | sort)
+    fi
+
+    if [ -n "$CLASS_PASS_SUMMARY" ]; then
+        echo -e "${BLUE}Per-class pass summary:${NC}"
+        while IFS=$'\t' read -r class_name pass_count; do
+            [ -z "$class_name" ] && continue
+            echo -e "  ${GREEN}${class_name}${NC} > Passed ${pass_count} tests"
+        done <<< "$CLASS_PASS_SUMMARY"
+    fi
+fi
 
 # Show build errors (compile failures, etc.) when build failed
 if [ "$TEST_SUCCESS" = false ] && [ -f "$TEST_RESULTS_LOG" ]; then

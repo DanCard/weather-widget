@@ -198,6 +198,25 @@ class TemperatureInterpolatorTest {
         assertEquals(68.0f, result)
     }
 
+    @Test
+    fun `getInterpolatedTemperature finds closest using full datetime not time-of-day only`() {
+        val forecasts =
+            listOf(
+                createHourlyForecast("2026-01-16T13:00", 73),
+                createHourlyForecast("2026-01-16T14:00", 74),
+                createHourlyForecast("2026-01-17T08:00", 52),
+            )
+
+        // Target Jan 17 08:20 should resolve to Jan 17 08:00 (52), not Jan 16 13:00 (73).
+        val result =
+            interpolator.getInterpolatedTemperature(
+                forecasts,
+                LocalDateTime.of(2026, 1, 17, 8, 20),
+            )
+
+        assertEquals(52.0f, result)
+    }
+
     // Tests for getUpdatesPerHour
 
     @Test

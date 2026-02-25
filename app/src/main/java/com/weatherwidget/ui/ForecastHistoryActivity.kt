@@ -1,6 +1,7 @@
 package com.weatherwidget.ui
 
 import android.appwidget.AppWidgetManager
+import android.content.Intent
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
@@ -26,6 +27,7 @@ import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.DayClickHelper
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import java.time.LocalDate
@@ -118,6 +120,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private var cachedActualWeather: WeatherEntity? = null
     private var cachedDate: LocalDate? = null
     private var cachedRequestedSource: WeatherSource? = null
+    private lateinit var targetDate: String
+    private var targetLat: Double = 0.0
+    private var targetLon: Double = 0.0
+    private lateinit var targetLocalDate: LocalDate
+    private lateinit var widgetStateManager: WidgetStateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -134,10 +141,25 @@ class ForecastHistoryActivity : AppCompatActivity() {
             return
         }
         val safeTargetDate = checkNotNull(targetDate)
+        widgetStateManager = WidgetStateManager(this)
+        this.targetDate = safeTargetDate
+        targetLat = lat
+        targetLon = lon
+        targetLocalDate = LocalDate.parse(safeTargetDate)
 
         Log.d(TAG, "Loading forecast history for $safeTargetDate at $lat, $lon (source=$requestedSource)")
 
         findViewById<ImageButton>(R.id.back_button).setOnClickListener { finish() }
+        findViewById<View>(R.id.api_source_button).setOnClickListener {
+            cycleApiSource()
+        }
+        findViewById<View>(R.id.settings_button).setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
+
+        cachedRequestedSource = requestedSource ?: firstVisibleSource()
+        updateApiSourceButton()
+
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
         graphModeButton.setOnClickListener {
             val date = cachedDate
@@ -156,14 +178,19 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
         updateModeUi()
 
-        val date = LocalDate.parse(safeTargetDate)
         val dateText =
-            date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()) +
-                ", " + date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
-                " " + date.dayOfMonth
+            targetLocalDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()) +
+                ", " + targetLocalDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
+                " " + targetLocalDate.dayOfMonth
         findViewById<TextView>(R.id.date_subtitle).text = dateText
 
-        loadData(safeTargetDate, lat, lon, date, requestedSource)
+        loadData(
+            targetDate = this.targetDate,
+            lat = targetLat,
+            lon = targetLon,
+            date = targetLocalDate,
+            requestedSource = checkNotNull(cachedRequestedSource),
+        )
     }
 
     private fun loadData(
@@ -217,6 +244,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         cachedActualWeather = actualWeather
         cachedDate = date
         cachedRequestedSource = requestedSource
+        updateApiSourceButton()
 
         val evolutionPoints =
             snapshots.map { snapshot ->
@@ -298,6 +326,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
             val sourceLabel = requestedSource?.displayName ?: "Observed"
             actualTextView.text = "$sourceLabel actual: ${formatTemp(actualHigh)} / ${formatTemp(actualLow)}"
             actualTextView.visibility = View.VISIBLE
+        } else {
+            findViewById<TextView>(R.id.actual_temps_text).visibility = View.INVISIBLE
         }
 
         val highGraphView = findViewById<ImageView>(R.id.high_temp_graph)
@@ -446,5 +476,40 @@ class ForecastHistoryActivity : AppCompatActivity() {
             "WeatherAPI", "WEATHER_API" -> WeatherSource.WEATHER_API
             else -> null
         }
+    }
+
+    private fun cycleApiSource() {
+        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+        if (visibleSources.isEmpty()) {
+            return
+        }
+
+        val currentSource = cachedRequestedSource
+        val currentIndex = visibleSources.indexOf(currentSource)
+        val nextSource =
+            if (currentIndex == -1) {
+                visibleSources.first()
+            } else {
+                visibleSources[(currentIndex + 1) % visibleSources.size]
+            }
+
+        cachedRequestedSource = nextSource
+        updateApiSourceButton()
+        loadData(
+            targetDate = targetDate,
+            lat = targetLat,
+            lon = targetLon,
+            date = targetLocalDate,
+            requestedSource = nextSource,
+        )
+    }
+
+    private fun updateApiSourceButton() {
+        val source = cachedRequestedSource ?: firstVisibleSource() ?: WeatherSource.NWS
+        findViewById<TextView>(R.id.api_source_button).text = source.shortDisplayName
+    }
+
+    private fun firstVisibleSource(): WeatherSource? {
+        return widgetStateManager.getVisibleSourcesOrder().firstOrNull()
     }
 }
