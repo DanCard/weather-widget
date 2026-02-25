@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.TypedValue
 import com.weatherwidget.data.model.WeatherSource
+import kotlin.math.roundToInt
 
 object DailyForecastGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
@@ -11,8 +12,8 @@ object DailyForecastGraphRenderer {
     data class DayData(
         val date: String, // ISO date string (e.g. "2024-01-15")
         val label: String,
-        val high: Int?,
-        val low: Int?,
+        val high: Float?,
+        val low: Float?,
         val iconRes: Int? = null,
         val isSunny: Boolean = false,
         val isRainy: Boolean = false,
@@ -20,8 +21,8 @@ object DailyForecastGraphRenderer {
         val isToday: Boolean = false,
         val isPast: Boolean = false, // Is this a historical day?
         val isClimateNormal: Boolean = false, // Is this long-range climate data?
-        val forecastHigh: Int? = null, // Single forecast
-        val forecastLow: Int? = null, // Single forecast
+        val forecastHigh: Float? = null, // Single forecast
+        val forecastLow: Float? = null, // Single forecast
         val forecastSource: WeatherSource? = null,
         val accuracyMode: AccuracyDisplayMode = AccuracyDisplayMode.NONE,
         val rainSummary: String? = null, // e.g. "2pm" — start of first rain window
@@ -366,6 +367,7 @@ object DailyForecastGraphRenderer {
                         day.forecastLow,
                         day.forecastSource,
                         day.accuracyMode,
+                        day.isToday,
                     )
                 val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
                 canvas.drawText(lowLabel, centerX, lowTempY, tempPaint)
@@ -474,6 +476,7 @@ object DailyForecastGraphRenderer {
                         day.forecastHigh,
                         day.forecastSource,
                         day.accuracyMode,
+                        day.isToday,
                     )
                 // If we have a Y position, use it. Otherwise (shouldn't happen here), skip.
                 highY?.let { y ->
@@ -495,8 +498,8 @@ object DailyForecastGraphRenderer {
                 val highDiff = kotlin.math.abs(day.high - day.forecastHigh)
                 val dotPaint =
                     when {
-                        highDiff <= 2 -> accuracyGreenPaint
-                        highDiff <= 5 -> accuracyYellowPaint
+                        highDiff <= 2f -> accuracyGreenPaint
+                        highDiff <= 5f -> accuracyYellowPaint
                         else -> accuracyRedPaint
                     }
                 highY?.let { y ->
@@ -525,28 +528,31 @@ object DailyForecastGraphRenderer {
     }
 
     private fun formatTempWithForecast(
-        actual: Int,
-        forecast: Int?,
+        actual: Float,
+        forecast: Float?,
         forecastSource: WeatherSource?,
         mode: AccuracyDisplayMode,
+        isToday: Boolean,
     ): String {
+        fun formatVal(v: Float): String = if (isToday) String.format("%.1f°", v) else "${v.roundToInt()}°"
+
         return when {
             mode == AccuracyDisplayMode.NONE ||
                 mode == AccuracyDisplayMode.ACCURACY_DOT ||
                 mode == AccuracyDisplayMode.FORECAST_BAR -> {
-                "$actual°"
+                formatVal(actual)
             }
             mode == AccuracyDisplayMode.SIDE_BY_SIDE && forecast != null -> {
                 val label = forecastSource?.shortDisplayName ?: "?"
-                "$actual° ($label:$forecast°)"
+                "${formatVal(actual)} ($label:${formatVal(forecast)})"
             }
             mode == AccuracyDisplayMode.DIFFERENCE && forecast != null -> {
-                val diff = actual - forecast
+                val diff = (actual - forecast).roundToInt()
                 val sign = if (diff >= 0) "+" else ""
                 val label = forecastSource?.shortDisplayName ?: "?"
-                "$actual° ($label:$sign$diff)"
+                "${formatVal(actual)} ($label:$sign$diff)"
             }
-            else -> "$actual°"
+            else -> formatVal(actual)
         }
     }
 }

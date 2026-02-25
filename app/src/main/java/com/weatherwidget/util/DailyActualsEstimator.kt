@@ -25,10 +25,10 @@ object DailyActualsEstimator {
      * Values for rendering the "Today" triple-line representation.
      */
     data class TodayTripleLineValues(
-        val observedHigh: Int?,
-        val observedLow: Int?,
-        val forecastHigh: Int?,
-        val forecastLow: Int?
+        val observedHigh: Float?,
+        val observedLow: Float?,
+        val forecastHigh: Float?,
+        val forecastLow: Float?
     )
 
     /**
@@ -60,21 +60,21 @@ object DailyActualsEstimator {
 
         if (todayHourly.isEmpty()) {
             return TodayTripleLineValues(
-                observedHigh = fallbackWeather.highTemp,
-                observedLow = fallbackWeather.lowTemp,
-                forecastHigh = fallbackWeather.highTemp,
-                forecastLow = fallbackWeather.lowTemp
+                observedHigh = fallbackWeather.highTemp?.toFloat(),
+                observedLow = fallbackWeather.lowTemp?.toFloat(),
+                forecastHigh = fallbackWeather.highTemp?.toFloat(),
+                forecastLow = fallbackWeather.lowTemp?.toFloat()
             )
         }
 
         // 1. Observed so far (history/current)
         val observedToday = todayHourly.filter { it.dateTime <= nowStr }
-        val actualHighSoFar = observedToday.maxOfOrNull { it.temperature }?.roundToInt()
-        val actualLowSoFar = observedToday.minOfOrNull { it.temperature }?.roundToInt()
+        val actualHighSoFar = observedToday.maxOfOrNull { it.temperature }
+        val actualLowSoFar = observedToday.minOfOrNull { it.temperature }
 
         // 2. Full-day prediction (including both past and future hours)
-        val forecastHigh = todayHourly.maxOfOrNull { it.temperature }?.roundToInt()
-        val forecastLow = todayHourly.minOfOrNull { it.temperature }?.roundToInt()
+        val forecastHigh = todayHourly.maxOfOrNull { it.temperature }
+        val forecastLow = todayHourly.minOfOrNull { it.temperature }
 
         // Before the typical high hour (4 PM), keep the top of the bar at the forecast high.
         // After the typical high hour, update to the actual peak observed today.
@@ -101,7 +101,7 @@ object DailyActualsEstimator {
         today: LocalDate,
         displaySource: WeatherSource,
         fallbackWeather: WeatherEntity
-    ): Pair<Int?, Int?> {
+    ): Pair<Float?, Float?> {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         val todayHourly = hourlyForecasts.filter {
@@ -110,14 +110,14 @@ object DailyActualsEstimator {
         }
 
         if (todayHourly.isEmpty()) {
-            return fallbackWeather.highTemp to fallbackWeather.lowTemp
+            return fallbackWeather.highTemp?.toFloat() to fallbackWeather.lowTemp?.toFloat()
         }
 
         val temps = todayHourly.map { it.temperature }
         if (temps.isEmpty()) {
-            return fallbackWeather.highTemp to fallbackWeather.lowTemp
+            return fallbackWeather.highTemp?.toFloat() to fallbackWeather.lowTemp?.toFloat()
         }
 
-        return temps.maxOfOrNull { it }?.roundToInt() to temps.minOfOrNull { it }?.roundToInt()
+        return temps.maxOfOrNull { it } to temps.minOfOrNull { it }
     }
 }

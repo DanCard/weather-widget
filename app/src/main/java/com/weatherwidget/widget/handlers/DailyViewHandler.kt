@@ -502,10 +502,10 @@ object DailyViewHandler : WidgetViewHandler {
 
             // In evening mode for today, estimate actuals from hourly data.
             // Also extract full-day forecast for Today's triple-line representation.
-            var finalHigh = weather.highTemp
-            var finalLow = weather.lowTemp
-            var fHigh: Int? = null
-            var fLow: Int? = null
+            var finalHigh: Float? = weather.highTemp?.toFloat()
+            var finalLow: Float? = weather.lowTemp?.toFloat()
+            var fHigh: Float? = null
+            var fLow: Float? = null
 
             if (isToday && hourlyForecasts.isNotEmpty()) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
@@ -519,8 +519,8 @@ object DailyViewHandler : WidgetViewHandler {
                 fLow = tripleValues.forecastLow
             } else if (showComparison && forecast != null) {
                 // Standard history comparison
-                fHigh = forecast.highTemp
-                fLow = forecast.lowTemp
+                fHigh = forecast.highTemp?.toFloat()
+                fLow = forecast.lowTemp?.toFloat()
             }
 
             // Use current hour condition for Today to match the main widget icon

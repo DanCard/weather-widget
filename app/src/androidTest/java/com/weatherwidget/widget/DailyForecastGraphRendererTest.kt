@@ -30,28 +30,28 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-01",
                     label = "Sat",
-                    high = 65,
-                    low = 45,
+                    high = 65f,
+                    low = 45f,
                     isToday = false,
                     isPast = true, // Historical day
-                    forecastHigh = 63, // What was predicted
-                    forecastLow = 47,
+                    forecastHigh = 63f, // What was predicted
+                    forecastLow = 47f,
                     forecastSource = WeatherSource.OPEN_METEO,
                     accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-02",
                     label = "Today",
-                    high = 68,
-                    low = 48,
+                    high = 68f,
+                    low = 48f,
                     isToday = true,
                     isPast = false,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-03",
                     label = "Mon",
-                    high = 70,
-                    low = 50,
+                    high = 70f,
+                    low = 50f,
                     isToday = false,
                     isPast = false,
                 ),
@@ -101,8 +101,8 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-01",
                     label = "Sat",
-                    high = 65,
-                    low = 45,
+                    high = 65f,
+                    low = 45f,
                     isToday = false,
                     isPast = true,
                     forecastHigh = null, // No forecast data
@@ -112,8 +112,8 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-02",
                     label = "Today",
-                    high = 68,
-                    low = 48,
+                    high = 68f,
+                    low = 48f,
                     isToday = true,
                     isPast = false,
                 ),
@@ -161,12 +161,12 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-01",
                     label = "Sat",
-                    high = 65,
-                    low = 45,
+                    high = 65f,
+                    low = 45f,
                     isToday = false,
                     isPast = true,
-                    forecastHigh = 63,
-                    forecastLow = 47,
+                    forecastHigh = 63f,
+                    forecastLow = 47f,
                     forecastSource = WeatherSource.OPEN_METEO,
                     accuracyMode = AccuracyDisplayMode.NONE, // Mode is NONE
                 ),
@@ -210,8 +210,8 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-02",
                     label = "Today",
-                    high = 68,
-                    low = 48,
+                    high = 68f,
+                    low = 48f,
                     isToday = true,
                     isPast = false,
                 ),
@@ -251,8 +251,8 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-03",
                     label = "Mon",
-                    high = 70,
-                    low = 50,
+                    high = 70f,
+                    low = 50f,
                     isToday = false,
                     isPast = false, // Future day
                 ),
@@ -292,8 +292,8 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-01",
                     label = "Sat",
-                    high = 65,
-                    low = 45,
+                    high = 65f,
+                    low = 45f,
                     isToday = false,
                     isPast = true, // Historical day
                 ),
@@ -334,7 +334,7 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-04",
                     label = "HighOnly",
-                    high = 70,
+                    high = 70f,
                     low = null, // Missing low
                     isToday = false,
                     isPast = false,
@@ -343,7 +343,7 @@ class DailyForecastGraphRendererTest {
                     date = "2026-02-05",
                     label = "LowOnly",
                     high = null, // Missing high
-                    low = 50,
+                    low = 50f,
                     isToday = false,
                     isPast = false,
                 ),
@@ -386,11 +386,11 @@ class DailyForecastGraphRendererTest {
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-25",
                     label = "Today",
-                    high = 60, // Observed high
-                    low = 45,  // Observed low
+                    high = 60f, // Observed high
+                    low = 45f,  // Observed low
                     isToday = true,
-                    forecastHigh = 65, // Predicted high
-                    forecastLow = 40,  // Predicted low
+                    forecastHigh = 65f, // Predicted high
+                    forecastLow = 40f,  // Predicted low
                 ),
             )
 

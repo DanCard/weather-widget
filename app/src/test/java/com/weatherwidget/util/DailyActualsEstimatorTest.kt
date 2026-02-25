@@ -47,13 +47,13 @@ class DailyActualsEstimatorTest {
         )
 
         // Observed so far: low=40
-        assertEquals(40, valuesEarly.observedLow)
+        assertEquals(40f, valuesEarly.observedLow!!, 0.01f)
         // High should still be the full-day forecast high (68) because it's before 4 PM
-        assertEquals(68, valuesEarly.observedHigh)
+        assertEquals(68f, valuesEarly.observedHigh!!, 0.01f)
 
         // Full-day prediction: low=38, high=68
-        assertEquals(38, valuesEarly.forecastLow)
-        assertEquals(68, valuesEarly.forecastHigh)
+        assertEquals(38f, valuesEarly.forecastLow!!, 0.01f)
+        assertEquals(68f, valuesEarly.forecastHigh!!, 0.01f)
 
         // Scenario 2: After 4:00 PM (e.g., 5:00 PM)
         val nowLate = LocalDateTime.of(2026, 2, 25, 17, 0)
@@ -62,14 +62,14 @@ class DailyActualsEstimatorTest {
         )
 
         // Observed so far: low=40
-        assertEquals(40, valuesLate.observedLow)
+        assertEquals(40f, valuesLate.observedLow!!, 0.01f)
         // High should now be the actual peak observed today (68)
-        assertEquals(68, valuesLate.observedHigh)
+        assertEquals(68f, valuesLate.observedHigh!!, 0.01f)
 
         // Example with lower actual peak observed after 4 PM
         val hourlyLowerPeak = listOf(
             HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 40f, "Cloudy", "OPEN_METEO", 0, 0),
-            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 55f, "Cloudy", "OPEN_METEO", 0, 0), // Peak so far
+            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 55f, "Cloudy", "OPEN_METEO", 0, 0), // Actual peak so far
             HourlyForecastEntity("2026-02-25T20:00", 0.0, 0.0, 45f, "Cloudy", "OPEN_METEO", 0, 0)  // Cooling down
         )
         // Manual forecast high for this test set is 55.
@@ -84,13 +84,13 @@ class DailyActualsEstimatorTest {
         val valuesEarlyHigher = DailyActualsEstimator.calculateTodayTripleLineValues(
             hourlyWithHigherFuture, today, nowEarly, displaySource, fallbackWeather
         )
-        assertEquals(68, valuesEarlyHigher.observedHigh)
+        assertEquals(68f, valuesEarlyHigher.observedHigh!!, 0.01f)
 
         // After 4 PM: Should return actual high so far (55)
         val valuesLateHigher = DailyActualsEstimator.calculateTodayTripleLineValues(
             hourlyWithHigherFuture, today, nowLate, displaySource, fallbackWeather
         )
-        assertEquals(55, valuesLateHigher.observedHigh)
+        assertEquals(55f, valuesLateHigher.observedHigh!!, 0.01f)
     }
 
     @Test
@@ -99,10 +99,10 @@ class DailyActualsEstimatorTest {
             emptyList(), today, now, displaySource, fallbackWeather
         )
 
-        assertEquals(45, values.observedLow)
-        assertEquals(65, values.observedHigh)
-        assertEquals(45, values.forecastLow)
-        assertEquals(65, values.forecastHigh)
+        assertEquals(45f, values.observedLow!!, 0.01f)
+        assertEquals(65f, values.observedHigh!!, 0.01f)
+        assertEquals(45f, values.forecastLow!!, 0.01f)
+        assertEquals(65f, values.forecastHigh!!, 0.01f)
     }
 
     @Test
@@ -121,18 +121,18 @@ class DailyActualsEstimatorTest {
             hourly, today, now, WeatherSource.NWS, fallbackWeather
         )
         // Should use NWS (40) and Generic (45). Min is 40.
-        assertEquals(40, valuesNWS.observedLow)
+        assertEquals(40f, valuesNWS.observedLow!!, 0.01f)
 
         // Test WeatherAPI filtering
         val valuesWAPI = DailyActualsEstimator.calculateTodayTripleLineValues(
             hourly, today, now, WeatherSource.WEATHER_API, fallbackWeather
         )
         // Should use WeatherAPI (42) and Generic (45). Min is 42.
-        assertEquals(42, valuesWAPI.observedLow)
+        assertEquals(42f, valuesWAPI.observedLow!!, 0.01f)
     }
 
     @Test
-    fun calculateTodayTripleLineValues_roundsToNearestInteger() {
+    fun calculateTodayTripleLineValues_preservesPrecision() {
         val hourly = listOf(
             // High of 61.7, Low of 58.2
             HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 61.7f, "Sunny", "OPEN_METEO", 0, 0),
@@ -143,9 +143,9 @@ class DailyActualsEstimatorTest {
             hourly, today, now, WeatherSource.OPEN_METEO, fallbackWeather
         )
 
-        // 61.7 rounds to 62
-        assertEquals(62, values.forecastHigh)
-        // 58.2 rounds to 58
-        assertEquals(58, values.forecastLow)
+        // 61.7 is preserved
+        assertEquals(61.7f, values.forecastHigh!!, 0.01f)
+        // 58.2 is preserved
+        assertEquals(58.2f, values.forecastLow!!, 0.01f)
     }
 }
