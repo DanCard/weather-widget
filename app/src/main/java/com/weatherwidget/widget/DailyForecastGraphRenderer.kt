@@ -111,6 +111,10 @@ object DailyForecastGraphRenderer {
         val barWidth = dpToPx(context, 2.2f * scaleFactor) // Even thinner bars (was 3f)
         val capHeight = dpToPx(context, 2f * scaleFactor)
 
+        // Triple line for today
+        val tripleBarWidth = dpToPx(context, 1.1f * scaleFactor)
+        val tripleBarOffset = dpToPx(context, 1.5f * scaleFactor)
+
         // Paints
         val barPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -123,6 +127,28 @@ object DailyForecastGraphRenderer {
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#FF9F0A")
                 strokeWidth = barWidth
+                strokeCap = Paint.Cap.ROUND
+            }
+
+        // Triple line paints for today
+        val todayTripleYellowPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FFD60A")
+                strokeWidth = tripleBarWidth
+                strokeCap = Paint.Cap.ROUND
+            }
+
+        val todayTripleOrangePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FF9F0A")
+                strokeWidth = tripleBarWidth
+                strokeCap = Paint.Cap.ROUND
+            }
+
+        val todayTripleBluePaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#5AC8FA")
+                strokeWidth = tripleBarWidth
                 strokeCap = Paint.Cap.ROUND
             }
 
@@ -376,15 +402,34 @@ object DailyForecastGraphRenderer {
 
             // Draw based on available data
             if (highY != null && lowY != null) {
-                // Full data: draw vertical bar (no caps as requested)
-                canvas.drawLine(centerX, highY, centerX, lowY, paint)
+                if (day.isToday) {
+                    // Triple line for today: Yellow (history color), Orange (today color), Blue (forecast color)
+                    canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
+                    canvas.drawLine(centerX, highY, centerX, lowY, todayTripleOrangePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, highY, centerX + tripleBarOffset, lowY, todayTripleBluePaint)
+                } else {
+                    // Full data: draw vertical bar (no caps as requested)
+                    canvas.drawLine(centerX, highY, centerX, lowY, paint)
+                }
             } else if (highY != null) {
-                // Only high temp: draw point/small segment?
-                // Using a 1-pixel line to mark the spot if no range exists
-                canvas.drawLine(centerX, highY, centerX, highY, paint)
+                if (day.isToday) {
+                    canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, highY, todayTripleYellowPaint)
+                    canvas.drawLine(centerX, highY, centerX, highY, todayTripleOrangePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, highY, centerX + tripleBarOffset, highY, todayTripleBluePaint)
+                } else {
+                    // Only high temp: draw point/small segment?
+                    // Using a 1-pixel line to mark the spot if no range exists
+                    canvas.drawLine(centerX, highY, centerX, highY, paint)
+                }
             } else if (lowY != null) {
-                // Only low temp
-                canvas.drawLine(centerX, lowY, centerX, lowY, paint)
+                if (day.isToday) {
+                    canvas.drawLine(centerX - tripleBarOffset, lowY, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
+                    canvas.drawLine(centerX, lowY, centerX, lowY, todayTripleOrangePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, lowY, centerX + tripleBarOffset, lowY, todayTripleBluePaint)
+                } else {
+                    // Only low temp
+                    canvas.drawLine(centerX, lowY, centerX, lowY, paint)
+                }
             }
 
             // Draw forecast bar (only if full data available for comparison)

@@ -1,3 +1,47 @@
+/**
+ * Central weather data repository — coordinates fetching, caching, merging, and
+ * serving weather data from three APIs (NWS, Open-Meteo, WeatherAPI).
+ *
+ * ## Responsibilities
+ *
+ * **Data access** — [getWeatherData] is the main entry point. It returns cached data
+ * when fresh (<30 min), otherwise fetches from all APIs concurrently. Source-filtered
+ * access is available via [getCachedDataBySource]. Forecast snapshots (for accuracy
+ * tracking) are exposed through [getForecastForDate], [getForecastForDateBySource],
+ * and [getForecastsInRange].
+ *
+ * **API orchestration** — [fetchFromAllApis] launches parallel fetches to NWS,
+ * Open-Meteo, and WeatherAPI. Hidden sources are only fetched when charging (to
+ * preserve accuracy data without wasting battery). A global rate limiter
+ * ([MIN_NETWORK_INTERVAL_MS]) and a [Mutex] prevent burst fetches from multiple
+ * workers.
+ *
+ * **NWS pipeline** — [fetchFromNws] is the most complex fetch path because NWS
+ * provides separate forecast periods, hourly data, and historical observations
+ * from nearby weather stations. It delegates to four helpers:
+ * - [initPrecipFromHourly] — builds per-day precipitation probability from hourly data
+ * - [fetchAndApplyObservations] — parallel station observation fetches for 8 days of history
+ * - [applyForecastPeriods] — maps NWS day/night periods into weather/condition maps
+ * - [logTodayDiagnostics] — condition override logic and transition change detection
+ *
+ * **Merge & persistence** — [mergeWithExisting] ensures new API data doesn't
+ * overwrite historical actuals or drop dates missing from the latest fetch.
+ * [saveForecastSnapshot] archives today's forecasts for later accuracy comparison.
+ * Three API-specific hourly mappers funnel into [saveHourlyEntities] for the
+ * shared insert-and-log tail.
+ *
+ * **Gap fill** — [fetchClimateNormalsGap] fills dates beyond API forecast horizons
+ * with 10-year historical averages (2011–2020) from Open-Meteo's archive, stored
+ * as [WeatherSource.GENERIC_GAP] entries.
+ *
+ * **Temperature interpolation** — [getInterpolatedTemperature] provides smooth
+ * between-hour current temp estimates from cached hourly data (no network needed).
+ * [getNextInterpolationUpdateTime] determines widget refresh cadence based on
+ * temperature change rate.
+ *
+ * **Cleanup** — [cleanOldData] prunes weather, snapshot, hourly, and log records
+ * older than 30 days (logs: 3 days).
+ */
 package com.weatherwidget.data.repository
 
 import android.content.Context
@@ -43,50 +87,6 @@ import kotlin.math.roundToInt
 
 private const val TAG = "WeatherRepository"
 
-/**
- * Central weather data repository — coordinates fetching, caching, merging, and
- * serving weather data from three APIs (NWS, Open-Meteo, WeatherAPI).
- *
- * ## Responsibilities
- *
- * **Data access** — [getWeatherData] is the main entry point. It returns cached data
- * when fresh (<30 min), otherwise fetches from all APIs concurrently. Source-filtered
- * access is available via [getCachedDataBySource]. Forecast snapshots (for accuracy
- * tracking) are exposed through [getForecastForDate], [getForecastForDateBySource],
- * and [getForecastsInRange].
- *
- * **API orchestration** — [fetchFromAllApis] launches parallel fetches to NWS,
- * Open-Meteo, and WeatherAPI. Hidden sources are only fetched when charging (to
- * preserve accuracy data without wasting battery). A global rate limiter
- * ([MIN_NETWORK_INTERVAL_MS]) and a [Mutex] prevent burst fetches from multiple
- * workers.
- *
- * **NWS pipeline** — [fetchFromNws] is the most complex fetch path because NWS
- * provides separate forecast periods, hourly data, and historical observations
- * from nearby weather stations. It delegates to four helpers:
- * - [initPrecipFromHourly] — builds per-day precipitation probability from hourly data
- * - [fetchAndApplyObservations] — parallel station observation fetches for 8 days of history
- * - [applyForecastPeriods] — maps NWS day/night periods into weather/condition maps
- * - [logTodayDiagnostics] — condition override logic and transition change detection
- *
- * **Merge & persistence** — [mergeWithExisting] ensures new API data doesn't
- * overwrite historical actuals or drop dates missing from the latest fetch.
- * [saveForecastSnapshot] archives today's forecasts for later accuracy comparison.
- * Three API-specific hourly mappers funnel into [saveHourlyEntities] for the
- * shared insert-and-log tail.
- *
- * **Gap fill** — [fetchClimateNormalsGap] fills dates beyond API forecast horizons
- * with 10-year historical averages (2011–2020) from Open-Meteo's archive, stored
- * as [WeatherSource.GENERIC_GAP] entries.
- *
- * **Temperature interpolation** — [getInterpolatedTemperature] provides smooth
- * between-hour current temp estimates from cached hourly data (no network needed).
- * [getNextInterpolationUpdateTime] determines widget refresh cadence based on
- * temperature change rate.
- *
- * **Cleanup** — [cleanOldData] prunes weather, snapshot, hourly, and log records
- * older than 30 days (logs: 3 days).
- */
 @Singleton
 class WeatherRepository
     @Inject
