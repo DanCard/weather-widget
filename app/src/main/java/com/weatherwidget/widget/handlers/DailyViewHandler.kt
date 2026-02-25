@@ -685,11 +685,8 @@ object DailyViewHandler : WidgetViewHandler {
             return date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         }
 
-        // Check rain forecast for all days (for click behavior)
-        // But only display rain text for near-term days (today + 2 days)
+        // Check rain forecast for all visible days.
         val now = LocalDateTime.now()
-        val nearTermLimit = today.plusDays(2)
-        fun isNearTerm(date: LocalDate) = !date.isBefore(today) && !date.isAfter(nearTermLimit)
         // Suppress today's rain summary if already shown once this day
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         fun suppressIfAlreadyShown(date: LocalDate, summary: String?): String? {
