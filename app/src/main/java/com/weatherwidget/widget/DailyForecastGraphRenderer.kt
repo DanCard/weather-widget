@@ -534,7 +534,11 @@ object DailyForecastGraphRenderer {
         mode: AccuracyDisplayMode,
         isToday: Boolean,
     ): String {
-        fun formatVal(v: Float): String = if (isToday) String.format("%.1f°", v) else "${v.roundToInt()}°"
+        fun formatVal(v: Float): String {
+            if (!isToday) return "${v.roundToInt()}°"
+            val rounded = v.roundToInt()
+            return if (kotlin.math.abs(v - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", v)
+        }
 
         return when {
             mode == AccuracyDisplayMode.NONE ||
