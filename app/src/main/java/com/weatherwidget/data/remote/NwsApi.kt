@@ -89,6 +89,7 @@ class NwsApi
                     textDescription = textDescription,
                 )
             } else {
+                Log.d("NwsApi", "getLatestObservation: station=$stationId has null temperature value")
                 null
             }
         }

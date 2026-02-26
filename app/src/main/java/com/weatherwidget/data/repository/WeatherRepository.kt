@@ -1486,14 +1486,28 @@ class WeatherRepository
                                             return@forEach
                                         }
 
-                                        val latest = nwsApi.getLatestObservation(stations.first()) ?: return@forEach
-                                        val tempF = (latest.temperatureCelsius * 1.8f) + 32f
-                                        
+                                        var observation: NwsApi.Observation? = null
+                                        val maxRetries = minOf(stations.size, MAX_OBSERVATION_STATION_RETRIES)
+                                        for (i in 0 until maxRetries) {
+                                            observation = nwsApi.getLatestObservation(stations[i])
+                                            if (observation != null) break
+                                        }
+
+                                        if (observation == null) {
+                                            appLogDao.log(
+                                                "CURR_FETCH_SKIP",
+                                                "reason=$reason source=${weatherSource.id} null_observation tried=$maxRetries stations",
+                                                "WARN",
+                                            )
+                                            return@forEach
+                                        }
+
+                                        val tempF = (observation.temperatureCelsius * 1.8f) + 32f
                                         CurrentReadingPayload(
                                             source = weatherSource,
                                             temperature = tempF,
-                                            condition = latest.textDescription,
-                                            observedAt = OffsetDateTime.parse(latest.timestamp).toInstant().toEpochMilli(),
+                                            condition = observation.textDescription,
+                                            observedAt = OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
                                         )
                                     }
                                     WeatherSource.GENERIC_GAP -> return@forEach
