@@ -118,7 +118,7 @@ class WeatherRepository
         companion object {
             private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
             private const val FORECAST_FRESHNESS_MS = 2 * 60 * 60 * 1000L // 2 hours
-            private const val CURRENT_TEMP_FRESHNESS_MS = 10 * 60 * 1000L // 10 minutes
+            private const val CURRENT_TEMP_FRESHNESS_MS = 5 * 60 * 1000L // 5 minutes
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
             private const val MAX_OBSERVATION_STATION_RETRIES = 5
             private const val OBSERVATION_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
@@ -770,6 +770,7 @@ class WeatherRepository
                 val lowSourceByDate = mutableMapOf<String, String>()
 
                 initPrecipFromHourly(hourlyForecast, precipByDate)
+                initConditionsFromHourly(hourlyForecast, conditionByDate, conditionSourceByDate)
                 fetchAndApplyObservations(gridPoint, today, weatherByDate, stationByDate, conditionByDate, conditionSourceByDate, highSourceByDate, lowSourceByDate)
                 val todayForecastPeriods = applyForecastPeriods(forecast, todayStr, weatherByDate, conditionByDate, conditionSourceByDate, highSourceByDate, lowSourceByDate, precipByDate)
                 logTodayDiagnostics(todayStr, weatherByDate, highSourceByDate, lowSourceByDate, conditionByDate, conditionSourceByDate, todayForecastPeriods, lat, lon)
@@ -818,6 +819,88 @@ class WeatherRepository
                 }
             }
             Log.d(TAG, "initPrecipFromHourly: Initialized precipByDate for ${precipByDate.size} days from hourly data")
+        }
+
+        /**
+         * Populates conditionByDate from midday hourly data for future days.
+         * This prioritizes the representative "day" weather (12 PM - 3 PM) over
+         * early morning fog or late evening slight rain chances found in daily summaries.
+         */
+        private fun initConditionsFromHourly(
+            hourlyForecast: List<NwsApi.HourlyForecastPeriod>,
+            conditionByDate: MutableMap<String, String>,
+            conditionSourceByDate: MutableMap<String, String>,
+        ) {
+            if (hourlyForecast.isEmpty()) return
+
+            val today = LocalDate.now()
+            val hourlyByDate = hourlyForecast.groupBy {
+                try {
+                    ZonedDateTime.parse(it.startTime)
+                        .toLocalDate()
+                        .format(DateTimeFormatter.ISO_LOCAL_DATE)
+                } catch (e: Exception) {
+                    null
+                }
+            }
+
+            hourlyByDate.forEach { (dateStr, periods) ->
+                if (dateStr == null) return@forEach
+                val date = try { LocalDate.parse(dateStr) } catch (e: Exception) { null } ?: return@forEach
+
+                // Only apply midday override to future days
+                if (!date.isAfter(today)) return@forEach
+
+                // Prioritize 1 PM, then 2 PM, then 12 PM, then 3 PM
+                val targetHours = listOf(13, 14, 12, 15)
+                var bestPeriod: NwsApi.HourlyForecastPeriod? = null
+
+                for (hour in targetHours) {
+                    bestPeriod = periods.find {
+                        try {
+                            ZonedDateTime.parse(it.startTime).hour == hour
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    if (bestPeriod != null) break
+                }
+
+                if (bestPeriod != null) {
+                    val middayCondition = bestPeriod.shortForecast
+                    
+                    // Detect morning fog (5 AM - 10 AM) to preserve the "Fog then Sun" transition icon
+                    val hasMorningFog = periods.any { p ->
+                        try {
+                            val hour = ZonedDateTime.parse(p.startTime).hour
+                            hour in 5..10 && p.shortForecast.lowercase().contains("fog")
+                        } catch (e: Exception) { false }
+                    }
+                    
+                    val isSun = middayCondition.lowercase().contains("sunny") || middayCondition.lowercase().contains("clear")
+
+                    if (hasMorningFog && isSun) {
+                        conditionByDate[dateStr] = "Fog then $middayCondition"
+                        conditionSourceByDate[dateStr] = "HOURLY_MIDDAY_TRANSITION:${bestPeriod.startTime}"
+                        return@forEach
+                    }
+
+                    // Skip "Patchy Fog" or "Areas of Fog" if it's the midday condition,
+                    // as it's likely a persistent fog that will clear or is less representative.
+                    if (middayCondition.lowercase().contains("fog") && periods.any { it.shortForecast.lowercase().contains("sunny") || it.shortForecast.lowercase().contains("clear") }) {
+                        val sunnier = periods.find { it.shortForecast.lowercase().contains("sunny") || it.shortForecast.lowercase().contains("clear") }
+                        if (sunnier != null) {
+                            conditionByDate[dateStr] = sunnier.shortForecast
+                            conditionSourceByDate[dateStr] = "HOURLY_MIDDAY_SUN_PRIORITY:${sunnier.startTime}"
+                            return@forEach
+                        }
+                    }
+
+                    conditionByDate[dateStr] = middayCondition
+                    conditionSourceByDate[dateStr] = "HOURLY_MIDDAY:${bestPeriod.startTime}"
+                }
+            }
+            Log.d(TAG, "initConditionsFromHourly: Initialized conditionByDate for ${conditionByDate.size} days from midday hourly data")
         }
 
         /** Fetches last [DAYS_OF_HISTORY] days of actual observations and populates weather/station/condition maps. */

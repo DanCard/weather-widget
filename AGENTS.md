@@ -198,11 +198,15 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 
 ### Required Investigation Sequence
 1. **Check database state first (source of truth):**
+   - For issues described as **current/latest/now/today** (for example staleness/freshness), use the **live device DB first**.
+   - Backups are fallback-only for these cases: use them only when live access is unavailable, or when the user asks for historical analysis.
+   - If a backup is used for a current issue, explicitly state the backup timestamp and that it may be stale.
    - Prefer existing scripts:
      - `scripts/query_captured_today.sh`
      - `scripts/query_forecasts.sh [optional_db_path]`
      - `scripts/query_forecasts_all.sh`
    - If scripts are insufficient, run direct `sqlite3` queries against:
+     - live device DB (pulled via `adb` / `run-as` when available),
      - `backups/<timestamp>/databases/weather_database`
      - or device DB extracted into `backups/`.
 

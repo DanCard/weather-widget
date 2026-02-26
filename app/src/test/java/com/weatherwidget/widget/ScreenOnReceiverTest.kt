@@ -113,6 +113,45 @@ class ScreenOnReceiverTest {
     }
 
     @Test
+    fun `onReceive with POWER_CONNECTED writes enqueued app log`() {
+        val beforeCount = powerConnectedLogCount()
+
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+
+        val foundLog = waitForCondition(timeoutMs = 1000) {
+            powerConnectedLogCount() > beforeCount
+        }
+        assertTrue("Expected POWER_CONNECTED_EVENT log entry", foundLog)
+
+        val latest =
+            runBlocking {
+                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT").firstOrNull()
+            }
+        assertNotNull("Expected latest POWER_CONNECTED_EVENT log", latest)
+        assertTrue("Expected enqueued result in log message", latest!!.message.contains("result=enqueued"))
+    }
+
+    @Test
+    fun `onReceive with POWER_CONNECTED debounce writes skip app log`() {
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+        val beforeCount = powerConnectedLogCount()
+
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+
+        val foundLog = waitForCondition(timeoutMs = 1000) {
+            powerConnectedLogCount() > beforeCount
+        }
+        assertTrue("Expected debounced POWER_CONNECTED_EVENT log entry", foundLog)
+
+        val latest =
+            runBlocking {
+                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT").firstOrNull()
+            }
+        assertNotNull("Expected latest POWER_CONNECTED_EVENT log", latest)
+        assertTrue("Expected debounce skip result in log message", latest!!.message.contains("result=debounced_skip"))
+    }
+
+    @Test
     fun `onReceive with USER_PRESENT writes unlock policy app log`() {
         val beforeCount = unlockPolicyLogCount()
 
@@ -134,6 +173,12 @@ class ScreenOnReceiverTest {
     private fun unlockPolicyLogCount(): Int {
         return runBlocking {
             WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY").size
+        }
+    }
+
+    private fun powerConnectedLogCount(): Int {
+        return runBlocking {
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT").size
         }
     }
 

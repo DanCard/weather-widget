@@ -47,6 +47,8 @@ class ObservationResolverTest {
         assertNotNull(resolved)
         assertEquals(54.0f, resolved!!.temperature)
         assertEquals(1_800L, resolved.observedAt)
+        assertEquals(WeatherSource.NWS.id, resolved.source)
+        assertEquals(2_000L, resolved.rowFetchedAt)
     }
 
     @Test
@@ -73,6 +75,8 @@ class ObservationResolverTest {
         assertNotNull(resolved)
         assertEquals(51.0f, resolved!!.temperature)
         assertEquals(7_000L, resolved.observedAt)
+        assertEquals(WeatherSource.NWS.id, resolved.source)
+        assertEquals(7_000L, resolved.rowFetchedAt)
     }
 
     @Test

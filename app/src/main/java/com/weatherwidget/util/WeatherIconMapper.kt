@@ -10,14 +10,25 @@ object WeatherIconMapper {
         if (condition == null) return R.drawable.ic_weather_unknown
 
         val lowerCondition = condition.lowercase()
+        val isSlightChance = lowerCondition.contains("slight chance") || lowerCondition.contains("patchy")
+        
         return when {
-            lowerCondition.contains("thunder") || lowerCondition.contains("storm") -> R.drawable.ic_weather_storm
-            lowerCondition.contains(
-                "snow",
-            ) || lowerCondition.contains("flurries") || lowerCondition.contains("blizzard") -> R.drawable.ic_weather_snow
-            lowerCondition.contains(
-                "rain",
-            ) || lowerCondition.contains("drizzle") || lowerCondition.contains("shower") -> R.drawable.ic_weather_rain
+            lowerCondition.contains("thunder") || lowerCondition.contains("storm") -> {
+                if (isSlightChance) {
+                    if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+                } else R.drawable.ic_weather_storm
+            }
+            lowerCondition.contains("snow") || lowerCondition.contains("flurries") || lowerCondition.contains("blizzard") -> {
+                if (isSlightChance) {
+                    if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+                } else R.drawable.ic_weather_snow
+            }
+            lowerCondition.contains("rain") || lowerCondition.contains("drizzle") || lowerCondition.contains("shower") -> {
+                if (isSlightChance) {
+                    if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+                } else R.drawable.ic_weather_rain
+            }
+            lowerCondition.contains("fog") && (lowerCondition.contains("sunny") || lowerCondition.contains("clear")) -> R.drawable.ic_weather_fog_sunny
             lowerCondition.contains("fog") && (lowerCondition.contains("cloudy") || lowerCondition.contains("overcast")) -> R.drawable.ic_weather_fog_cloudy
             lowerCondition.contains(
                 "fog",
@@ -64,6 +75,7 @@ object WeatherIconMapper {
                iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
                iconRes == R.drawable.ic_weather_partly_cloudy ||
                iconRes == R.drawable.ic_weather_partly_cloudy_night ||
-               iconRes == R.drawable.ic_weather_fog_cloudy
+               iconRes == R.drawable.ic_weather_fog_cloudy ||
+               iconRes == R.drawable.ic_weather_fog_sunny
     }
 }

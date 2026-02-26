@@ -35,10 +35,17 @@ class ScreenOnReceiver : BroadcastReceiver() {
         val now = System.currentTimeMillis()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val lastRefreshMs = prefs.getLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, 0L)
+        val elapsedMs = now - lastRefreshMs
 
         if (!PowerConnectedRefreshPolicy.shouldEnqueueRefresh(now, lastRefreshMs)) {
-            val elapsedMs = now - lastRefreshMs
             Log.d(TAG, "Power connected - skipping lazy refresh (debounced, elapsed=${elapsedMs}ms)")
+            logPowerConnectedEvent(
+                context = context,
+                result = "debounced_skip",
+                nowMs = now,
+                lastRefreshMs = lastRefreshMs,
+                elapsedMs = elapsedMs,
+            )
             return
         }
 
@@ -48,6 +55,13 @@ class ScreenOnReceiver : BroadcastReceiver() {
             context = context,
             reason = "power_connected_lazy",
             opportunistic = true,
+        )
+        logPowerConnectedEvent(
+            context = context,
+            result = "enqueued",
+            nowMs = now,
+            lastRefreshMs = lastRefreshMs,
+            elapsedMs = elapsedMs,
         )
     }
 
@@ -99,6 +113,28 @@ class ScreenOnReceiver : BroadcastReceiver() {
     private fun handleScreenOff(context: Context) {
         Log.d(TAG, "Screen turned off - canceling charging current-temp loop")
         CurrentTempUpdateScheduler.cancel(context)
+    }
+
+    private fun logPowerConnectedEvent(
+        context: Context,
+        result: String,
+        nowMs: Long,
+        lastRefreshMs: Long,
+        elapsedMs: Long,
+    ) {
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "POWER_CONNECTED_EVENT",
+                    "result=$result nowMs=$nowMs lastRefreshMs=$lastRefreshMs elapsedMs=$elapsedMs debounceMs=${PowerConnectedRefreshPolicy.DEBOUNCE_MS}",
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to persist POWER_CONNECTED_EVENT log", e)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
     }
 
     private fun getBatteryState(context: Context): BatteryState {

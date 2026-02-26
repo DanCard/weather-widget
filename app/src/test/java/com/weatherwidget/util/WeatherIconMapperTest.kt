@@ -86,4 +86,28 @@ class WeatherIconMapperTest {
         val res = WeatherIconMapper.getIconResource("Something Weird", isNight = false)
         assertEquals(R.drawable.ic_weather_clear, res)
     }
+
+    @Test
+    fun testGetIconResource_SlightChanceRain() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_PatchySnow() {
+        val res = WeatherIconMapper.getIconResource("Patchy Snow", isNight = false)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_SlightChanceStormNight() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Thunderstorms", isNight = true)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_night, res)
+    }
+
+    @Test
+    fun testGetIconResource_FogThenSunny() {
+        val res = WeatherIconMapper.getIconResource("Patchy Fog then Partly Sunny", isNight = false)
+        assertEquals(R.drawable.ic_weather_fog_sunny, res)
+    }
 }

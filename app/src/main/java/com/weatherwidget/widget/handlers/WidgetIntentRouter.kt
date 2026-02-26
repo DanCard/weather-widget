@@ -18,8 +18,10 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
@@ -719,6 +721,14 @@ object WidgetIntentRouter {
         
         val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
         val observation = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+        logCurrentTempStalenessDebug(
+            database = database,
+            appWidgetId = appWidgetId,
+            viewMode = viewMode.name,
+            displaySource = displaySource,
+            observation = observation,
+            centerTime = centerTime,
+        )
 
         withContext(Dispatchers.Main) {
             if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
@@ -745,6 +755,42 @@ object WidgetIntentRouter {
                 )
             }
         }
+    }
+
+    private suspend fun logCurrentTempStalenessDebug(
+        database: WeatherDatabase,
+        appWidgetId: Int,
+        viewMode: String,
+        displaySource: WeatherSource,
+        observation: com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature?,
+        centerTime: LocalDateTime,
+    ) {
+        if (viewMode != com.weatherwidget.widget.ViewMode.TEMPERATURE.name) return
+
+        val appLogDao = database.appLogDao()
+        val nowMs = System.currentTimeMillis()
+        if (observation == null) {
+            appLogDao.log(
+                "CURR_STALE_DEBUG",
+                "widget=$appWidgetId source=${displaySource.id} center=$centerTime observation=none",
+                "VERBOSE",
+            )
+            return
+        }
+
+        val observedAgeMin = ((nowMs - observation.observedAt).coerceAtLeast(0L) / 1000.0 / 60.0)
+        val fetchAgeMin = ((nowMs - observation.rowFetchedAt).coerceAtLeast(0L) / 1000.0 / 60.0)
+        val message =
+            "widget=$appWidgetId source=${displaySource.id} selectedSource=${observation.source} " +
+                "temp=${String.format("%.1f", observation.temperature)} " +
+                "obsAt=${formatEpochLocal(observation.observedAt)} obsAgeMin=${String.format("%.1f", observedAgeMin)} " +
+                "rowFetchedAt=${formatEpochLocal(observation.rowFetchedAt)} rowFetchAgeMin=${String.format("%.1f", fetchAgeMin)} " +
+                "center=$centerTime"
+        appLogDao.log("CURR_STALE_DEBUG", message, "VERBOSE")
+    }
+
+    private fun formatEpochLocal(epochMs: Long): String {
+        return Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
     }
 
     private suspend fun logResizeDiagnostics(

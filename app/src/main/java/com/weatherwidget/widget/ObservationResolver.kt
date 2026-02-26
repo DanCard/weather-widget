@@ -11,6 +11,8 @@ object ObservationResolver {
     data class ObservedCurrentTemperature(
         val temperature: Float,
         val observedAt: Long,
+        val source: String,
+        val rowFetchedAt: Long,
     )
 
     /**
@@ -35,6 +37,8 @@ object ObservationResolver {
                 ObservedCurrentTemperature(
                     temperature = currentTemp,
                     observedAt = weather.currentTempObservedAt ?: weather.fetchedAt,
+                    source = weather.source,
+                    rowFetchedAt = weather.fetchedAt,
                 )
             }
     }
