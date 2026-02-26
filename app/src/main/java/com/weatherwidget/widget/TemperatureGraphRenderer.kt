@@ -493,6 +493,8 @@ object TemperatureGraphRenderer {
                 dateTimeOf = { it.dateTime }
             )
             
+            Log.d("TempGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${expectedHours.first().dateTime} to ${expectedHours.last().dateTime}")
+            
             if (fetchX != null) {
                 // Find Y on the smoothed expected curve
                 val fetchIdx = expectedHours.indexOfLast { !it.dateTime.isAfter(fetchTime) }

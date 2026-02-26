@@ -845,6 +845,8 @@ object PrecipitationGraphRenderer {
                 dateTimeOf = { it.dateTime }
             )
             
+            Log.d("PrecipGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${hours.first().dateTime} to ${hours.last().dateTime}")
+            
             if (fetchX != null) {
                 val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
                 if (fetchIdx != -1 && fetchIdx < smoothedProbs.lastIndex) {

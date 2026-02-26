@@ -612,7 +612,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == todayStr && it.source == displaySource.id }
                             ?.precipProbability
-                    val observedCurrentTemp = resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+                    val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
                     TemperatureViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -634,7 +634,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == todayStr && it.source == displaySource.id }
                             ?.precipProbability
-                    val observedCurrentTemp = resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+                    val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
                     PrecipViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -660,33 +660,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
                 }
             }
-        }
-
-        private data class ObservedCurrentTemperature(
-            val temperature: Float,
-            val observedAt: Long,
-        )
-
-        private fun resolveObservedCurrentTemp(
-            weatherList: List<WeatherEntity>,
-            displaySource: WeatherSource,
-            todayStr: String,
-        ): ObservedCurrentTemperature? {
-            // Find the latest observation specifically for the ACTIVE source.
-            return weatherList
-                .filter {
-                    it.date == todayStr &&
-                        it.currentTemp != null &&
-                        (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
-                }
-                .maxByOrNull { it.currentTempObservedAt ?: it.fetchedAt }
-                ?.let { weather ->
-                    val currentTemp = weather.currentTemp ?: return@let null
-                    ObservedCurrentTemperature(
-                        temperature = currentTemp,
-                        observedAt = weather.currentTempObservedAt ?: weather.fetchedAt,
-                    )
-                }
         }
     }
 }

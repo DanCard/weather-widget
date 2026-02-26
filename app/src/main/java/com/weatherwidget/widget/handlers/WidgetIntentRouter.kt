@@ -214,35 +214,8 @@ object WidgetIntentRouter {
                 now = now,
             )
 
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val viewMode = stateManager.getViewMode(appWidgetId)
-        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-        val todayPrecip =
-            weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource.id)
-                ?.precipProbability
-
-        withContext(Dispatchers.Main) {
-            if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
-                PrecipViewHandler.updateWidget(
-                    context,
-                    appWidgetManager,
-                    appWidgetId,
-                    hourlyForecasts,
-                    centerTime,
-                    todayPrecip,
-                )
-            } else {
-                TemperatureViewHandler.updateWidget(
-                    context,
-                    appWidgetManager,
-                    appWidgetId,
-                    hourlyForecasts,
-                    centerTime,
-                    todayPrecip,
-                )
-            }
-        }
+        updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon)
     }
 
     /**
@@ -289,21 +262,8 @@ object WidgetIntentRouter {
                 now = now,
             )
 
-        val appWidgetManager = AppWidgetManager.getInstance(context)
-        val viewMode = stateManager.getViewMode(appWidgetId)
-        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-        val todayPrecip =
-            weatherDao.getWeatherForDateBySource(todayStr, lat, lon, displaySource.id)
-                ?.precipProbability
-
-        withContext(Dispatchers.Main) {
-            if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
-                PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
-            } else {
-                TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
-            }
-        }
+        updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon)
     }
 
     /**
@@ -374,18 +334,7 @@ object WidgetIntentRouter {
                     now = now,
                 )
 
-            val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val todayPrecip =
-                weatherDao.getWeatherForDateBySource(todayStr, lat, lon, newSource.id)
-                    ?.precipProbability
-
-            withContext(Dispatchers.Main) {
-                if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
-                    PrecipViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
-                } else {
-                    TemperatureViewHandler.updateWidget(context, appWidgetManager, appWidgetId, hourlyForecasts, centerTime, todayPrecip)
-                }
-            }
+            updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, newSource, lat, lon)
         } else {
             val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -784,6 +733,53 @@ object WidgetIntentRouter {
 
             withContext(Dispatchers.Main) {
                 DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts)
+            }
+        }
+    }
+
+    private suspend fun updateHourlyViewWithData(
+        context: Context,
+        appWidgetId: Int,
+        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        displaySource: WeatherSource,
+        lat: Double,
+        lon: Double,
+    ) {
+        val stateManager = WidgetStateManager(context)
+        val viewMode = stateManager.getViewMode(appWidgetId)
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val database = WeatherDatabase.getDatabase(context)
+        val weatherList = database.weatherDao().getWeatherRange(todayStr, todayStr, lat, lon)
+        
+        val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
+        val observation = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+
+        withContext(Dispatchers.Main) {
+            if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
+                PrecipViewHandler.updateWidget(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    hourlyForecasts = hourlyForecasts,
+                    centerTime = centerTime,
+                    precipProbability = todayPrecip,
+                    observedCurrentTemp = observation?.temperature,
+                    observedCurrentTempFetchedAt = observation?.observedAt
+                )
+            } else {
+                TemperatureViewHandler.updateWidget(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    hourlyForecasts = hourlyForecasts,
+                    centerTime = centerTime,
+                    precipProbability = todayPrecip,
+                    observedCurrentTemp = observation?.temperature,
+                    observedCurrentTempFetchedAt = observation?.observedAt
+                )
             }
         }
     }
