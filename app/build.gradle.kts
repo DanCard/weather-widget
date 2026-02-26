@@ -107,6 +107,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.flexbox)
 
     // Hilt
     implementation(libs.hilt.android)

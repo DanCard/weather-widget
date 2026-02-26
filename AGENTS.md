@@ -363,6 +363,7 @@ done
   - `/home/dcar/.Android/Sdk/platform-tools/adb`
 - For one-off commands, you can also prepend:
   - `PATH="$PATH:/home/dcar/.Android/Sdk/platform-tools"`
+- SDK path note: on this machine use `~/.Android/Sdk` (not `~/Android/Sdk`) for both `adb` and `emulator` commands.
 
 **Example from this project:**
 - `2A191FDH300PPW` - Appears like Samsung ID, but is actually **Google Pixel 7 Pro**

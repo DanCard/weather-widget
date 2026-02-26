@@ -68,6 +68,12 @@ class SettingsActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        val viewAppLogsButton = findViewById<Button>(R.id.view_app_logs_button)
+        viewAppLogsButton.setOnClickListener {
+            val intent = Intent(this, AppLogsActivity::class.java)
+            startActivity(intent)
+        }
+
         // Back button
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()

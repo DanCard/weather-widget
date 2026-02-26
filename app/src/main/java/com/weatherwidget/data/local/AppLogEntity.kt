@@ -43,6 +43,9 @@ interface AppLogDao {
 
     @Query("SELECT COUNT(*) FROM app_logs")
     suspend fun getCount(): Int
+
+    @Query("DELETE FROM app_logs")
+    suspend fun clearAllLogs()
 }
 
 /** Log to both the app_logs DB table and logcat in one call. */
