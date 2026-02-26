@@ -7,9 +7,39 @@ import org.junit.Test
 class WidgetRefreshPolicyTest {
 
     @Test
-    fun `screen unlock is ui-only when not charging`() {
-        assertTrue(WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(isCharging = false))
-        assertFalse(WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(isCharging = true))
+    fun `screen unlock is network-capable while charging`() {
+        assertFalse(
+            WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
+                isCharging = true,
+                batteryLevel = 5,
+            ),
+        )
+    }
+
+    @Test
+    fun `screen unlock on battery is ui-only when battery is below opportunistic threshold`() {
+        assertTrue(
+            WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
+                isCharging = false,
+                batteryLevel = BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH - 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `screen unlock on battery allows opportunistic network at threshold and above`() {
+        assertFalse(
+            WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
+                isCharging = false,
+                batteryLevel = BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH,
+            ),
+        )
+        assertFalse(
+            WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
+                isCharging = false,
+                batteryLevel = 80,
+            ),
+        )
     }
 
     @Test

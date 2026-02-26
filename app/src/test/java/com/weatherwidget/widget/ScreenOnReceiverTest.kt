@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -13,6 +14,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowApplication
+import com.weatherwidget.data.local.WeatherDatabase
+import kotlinx.coroutines.runBlocking
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -78,5 +81,42 @@ class ScreenOnReceiverTest {
             }
 
         assertTrue("Did not expect refresh broadcast on screen off", providerIntent == null)
+    }
+
+    @Test
+    fun `onReceive with USER_PRESENT writes unlock policy app log`() {
+        val beforeCount = unlockPolicyLogCount()
+
+        receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
+
+        val foundLog = waitForCondition(timeoutMs = 1000) {
+            unlockPolicyLogCount() > beforeCount
+        }
+        assertTrue("Expected UNLOCK_REFRESH_POLICY log entry", foundLog)
+
+        val latest =
+            runBlocking {
+                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY").firstOrNull()
+            }
+        assertNotNull("Expected latest UNLOCK_REFRESH_POLICY log", latest)
+        assertFalse("Expected uiOnly field in log message", latest!!.message.contains("uiOnly=").not())
+    }
+
+    private fun unlockPolicyLogCount(): Int {
+        return runBlocking {
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY").size
+        }
+    }
+
+    private fun waitForCondition(
+        timeoutMs: Long,
+        condition: () -> Boolean,
+    ): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (condition()) return true
+            Thread.sleep(20)
+        }
+        return condition()
     }
 }

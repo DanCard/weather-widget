@@ -70,4 +70,19 @@ class BatteryFetchStrategyTest {
         val now = System.currentTimeMillis()
         assertFalse(BatteryFetchStrategy.shouldRefreshStaleData(now, now))
     }
+
+    @Test
+    fun `opportunistic fetch threshold allows fetch at and above 30 percent`() {
+        assertFalse(
+            BatteryFetchStrategy.shouldAllowOpportunisticFetchOnBattery(
+                BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH - 1,
+            ),
+        )
+        assertTrue(
+            BatteryFetchStrategy.shouldAllowOpportunisticFetchOnBattery(
+                BatteryFetchStrategy.MIN_BATTERY_FOR_OPPORTUNISTIC_FETCH,
+            ),
+        )
+        assertTrue(BatteryFetchStrategy.shouldAllowOpportunisticFetchOnBattery(100))
+    }
 }

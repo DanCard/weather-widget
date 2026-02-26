@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,20 +31,24 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     private fun handleUserPresent(context: Context) {
-        val charging = isCharging(context)
-        Log.d(TAG, "Screen unlocked - charging=$charging")
+        val battery = getBatteryState(context)
+        val uiOnly = WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(
+            isCharging = battery.isCharging,
+            batteryLevel = battery.level,
+        )
+        Log.d(TAG, "Screen unlocked - charging=${battery.isCharging}, battery=${battery.level}%, uiOnly=$uiOnly")
 
         // Trigger update via provider
         val providerIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_REFRESH
-                if (WidgetRefreshPolicy.shouldUseUiOnlyOnScreenUnlock(charging)) {
+                if (uiOnly) {
                     putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
                 }
             }
         context.sendBroadcast(providerIntent)
 
-        if (charging) {
+        if (battery.isCharging) {
             CurrentTempUpdateScheduler.enqueueImmediateUpdate(
                 context = context,
                 reason = "screen_unlock_charging",
@@ -54,13 +60,17 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
         // Resume background UI updates now that screen is on
         val pendingResult = goAsync()
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
+                WeatherDatabase.getDatabase(context).appLogDao().log(
+                    "UNLOCK_REFRESH_POLICY",
+                    "charging=${battery.isCharging} battery=${battery.level}% uiOnly=$uiOnly",
+                )
                 UIUpdateScheduler(context).scheduleNextUpdate()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to schedule next update on screen on", e)
             } finally {
-                pendingResult.finish()
+                pendingResult?.finish()
             }
         }
     }
@@ -70,18 +80,38 @@ class ScreenOnReceiver : BroadcastReceiver() {
         CurrentTempUpdateScheduler.cancel(context)
     }
 
-    private fun isCharging(context: Context): Boolean {
+    private fun getBatteryState(context: Context): BatteryState {
         val batteryStatus: Intent? =
             IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
                 context.registerReceiver(null, filter)
             }
 
         val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-        return status == BatteryManager.BATTERY_STATUS_CHARGING ||
+        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
+
+        val level = batteryStatus?.let { intent ->
+            val rawLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            if (rawLevel >= 0 && scale > 0) {
+                (rawLevel * 100) / scale
+            } else {
+                100
+            }
+        } ?: 100
+
+        return BatteryState(
+            isCharging = isCharging,
+            level = level,
+        )
     }
 
     companion object {
         private const val TAG = "ScreenOnReceiver"
     }
 }
+
+private data class BatteryState(
+    val isCharging: Boolean,
+    val level: Int,
+)
