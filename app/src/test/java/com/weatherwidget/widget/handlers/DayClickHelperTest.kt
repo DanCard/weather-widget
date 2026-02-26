@@ -23,14 +23,26 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `hasRainForecast true when daily precip probability is positive`() {
-        // Key bug scenario: widget shows "16%" but RainAnalyzer found nothing
-        assertTrue(DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 16))
+    fun `hasRainForecast true when daily precip probability is above threshold`() {
+        // Threshold is now 8%
+        assertTrue(DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 9))
+    }
+
+    @Test
+    fun `hasRainForecast false when daily precip probability is at or below threshold`() {
+        assertFalse(DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 8))
+        assertFalse(DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 5))
     }
 
     @Test
     fun `hasRainForecast true when both hourly and daily indicate rain`() {
         assertTrue(DayClickHelper.hasRainForecast(rainSummary = "2pm", dailyPrecipProbability = 60))
+    }
+
+    @Test
+    fun `hasRainForecast true when hourly rain summary exists even if daily is low`() {
+        // If RainAnalyzer detected a start time (>= 50% hourly), we always show rain graph
+        assertTrue(DayClickHelper.hasRainForecast(rainSummary = "3pm", dailyPrecipProbability = 5))
     }
 
     @Test
@@ -142,6 +154,22 @@ class DayClickHelperTest {
         assertTrue("Daily precipitation 16% should count as rain", hasRain)
         assertFalse("Today should NOT show history", DayClickHelper.shouldShowHistory(false))
         assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRain))
+    }
+
+    @Test
+    fun `today with 8 percent daily precip and no hourly rain navigates to temperature`() {
+        val today = LocalDate.of(2024, 6, 15)
+        val now = LocalDateTime.of(2024, 6, 15, 10, 0)
+        val forecasts = listOf(
+            createForecast("2024-06-15T14:00", precipProb = 5),
+        )
+        val dailyPrecipProbability = 8
+
+        val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
+        val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
+
+        assertFalse("8% daily precip should NOT count as rain for navigation", hasRain)
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
     }
 
     @Test

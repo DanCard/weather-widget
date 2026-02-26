@@ -127,6 +127,29 @@ class DayClickNavigationTest {
         )
     }
 
+    @Test
+    fun todayWith8PercentDailyPrecip_navigatesToTemperature() {
+        val today = LocalDate.now()
+        val now = today.atTime(10, 0)
+        val todayStr = today.toString()
+
+        val futureHour = now.plusHours(3)
+        val forecasts = listOf(
+            createForecast(
+                String.format("%sT%02d:00", todayStr, futureHour.hour),
+                precipProb = 5,
+            ),
+        )
+
+        val dailyPrecipProbability = 8
+
+        val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
+        val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
+
+        assertFalse("8% daily precip should NOT resolve to precipitation", hasRain)
+        assertEquals(ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
+    }
+
     // ── High hourly rain: should always work ──
 
     @Test
@@ -281,10 +304,10 @@ class DayClickNavigationTest {
             // The production code should use BOTH rainSummary AND dailyPrecipProb
             val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProb)
 
-            // If daily precip > 0 OR hourly rain detected, hasRain should be true
-            if ((dailyPrecipProb ?: 0) > 0 || rainSummary != null) {
+            // If daily precip > 8 OR hourly rain detected, hasRain should be true
+            if ((dailyPrecipProb ?: 0) > 8 || rainSummary != null) {
                 assertTrue(
-                    "hasRainForecast should be true when daily precip=$dailyPrecipProb or rainSummary=$rainSummary",
+                    "hasRainForecast should be true when daily precip=$dailyPrecipProb (>8) or rainSummary=$rainSummary",
                     hasRain,
                 )
             }

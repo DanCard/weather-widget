@@ -27,10 +27,13 @@ object DayClickHelper {
      *
      * @param rainSummary the RainAnalyzer summary (non-null when rain is starting after a dry gap)
      * @param dailyPrecipProbability the daily precipitation probability from WeatherEntity
-     * @return true if any rain indication exists
+     * @return true if any rain indication exists above the display threshold
      */
     fun hasRainForecast(rainSummary: String?, dailyPrecipProbability: Int?): Boolean {
-        return !rainSummary.isNullOrEmpty() || (dailyPrecipProbability != null && dailyPrecipProbability > 0)
+        // Use 8% as the threshold for daily precipitation to avoid showing "boring"
+        // flat rain graphs when the probability is low.
+        // If RainAnalyzer detected a specific start time (rainSummary), always prioritize that.
+        return !rainSummary.isNullOrEmpty() || (dailyPrecipProbability != null && dailyPrecipProbability > 8)
     }
 
     /**
