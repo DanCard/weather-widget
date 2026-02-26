@@ -45,6 +45,7 @@ class OpportunisticUpdateJobService : JobService() {
                                 .setInputData(
                                     Data.Builder()
                                         .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "opportunistic_job_ui")
                                         .build(),
                                 )
                                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

@@ -191,6 +191,11 @@ class WeatherWidgetWorker
             val workRequest =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInitialDelay(intervalMinutes, TimeUnit.MINUTES)
+                    .setInputData(
+                        Data.Builder()
+                            .putString(KEY_CURRENT_TEMP_REASON, "scheduled_loop")
+                            .build()
+                    )
                     .setConstraints(constraints)
                     .build()
 

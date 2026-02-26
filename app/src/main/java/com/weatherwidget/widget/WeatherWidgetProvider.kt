@@ -70,7 +70,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetLoading(context, appWidgetManager, appWidgetId)
                     }
-                    triggerImmediateUpdate(context)
+                    triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
                     // We have some data, refresh all widgets from cache immediately
                     val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -113,7 +113,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     // 2. Check if data is stale and needs background fetch
                     if (DataFreshness.isDataStale(context)) {
                         Log.d(TAG, "onUpdate: Data is stale, triggering background fetch")
-                        triggerImmediateUpdate(context)
+                        triggerImmediateUpdate(context, reason = "on_update_stale")
                     } else {
                         Log.d(TAG, "onUpdate: Data is fresh, skipped fetch")
                     }
@@ -304,7 +304,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val uiOnly = intent.getBooleanExtra(EXTRA_UI_ONLY, false)
         Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
 
-        triggerUiOnlyUpdate(context)
+        triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
 
         if (uiOnly) return
 
@@ -314,7 +314,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val isDataStale = DataFreshness.isDataStale(context)
                 if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
                     Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
-                    triggerImmediateUpdate(context, forceRefresh = true)
+                    triggerImmediateUpdate(context, forceRefresh = true, reason = "refresh_action_stale")
                 } else {
                     Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
                 }
@@ -481,6 +481,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 1,
                 TimeUnit.HOURS,
             )
+                .setInputData(
+                    Data.Builder()
+                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "periodic_one_hour")
+                        .build()
+                )
                 .setConstraints(constraints)
                 .build()
 
@@ -494,13 +499,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private fun triggerImmediateUpdate(
         context: Context,
         forceRefresh: Boolean = false,
+        reason: String = "unspecified",
     ) {
-        Log.d(TAG, "triggerImmediateUpdate: Enqueueing worker (force=$forceRefresh)")
+        Log.d(TAG, "triggerImmediateUpdate: Enqueueing full/forced worker (reason=$reason, force=$forceRefresh)")
         val workRequest =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                 .setInputData(
                     Data.Builder()
                         .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, forceRefresh)
+                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                         .build(),
                 )
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -514,13 +521,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "triggerImmediateUpdate: Worker enqueued with id=${workRequest.id}")
     }
 
-    private fun triggerUiOnlyUpdate(context: Context) {
-        Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker")
+    private fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
+        Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker (reason=$reason)")
         val workRequest =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                 .setInputData(
                     Data.Builder()
                         .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                         .build(),
                 )
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)

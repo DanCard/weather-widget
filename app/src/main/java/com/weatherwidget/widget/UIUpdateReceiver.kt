@@ -20,9 +20,21 @@ class UIUpdateReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                handleUiUpdateAlarm(context)
+            } finally {
+                pendingResult?.finish()
+            }
+        }
+    }
+
+    private suspend fun handleUiUpdateAlarm(context: Context) {
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
         if (!powerManager.isInteractive) {
-            Log.d(TAG, "Screen is off, skipping UI update and pausing schedule")
+            Log.d(TAG, "Screen is off, skipping UI update work but preserving schedule")
+            UIUpdateScheduler(context).scheduleNextUpdate()
             return
         }
 
@@ -34,6 +46,7 @@ class UIUpdateReceiver : BroadcastReceiver() {
                 .setInputData(
                     Data.Builder()
                         .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "ui_update_alarm")
                         .build(),
                 )
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -46,16 +59,7 @@ class UIUpdateReceiver : BroadcastReceiver() {
         )
         Log.d(TAG, "UI-only update enqueued")
 
-        // Schedule next UI update using goAsync to avoid blocking
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val scheduler = UIUpdateScheduler(context)
-                scheduler.scheduleNextUpdate()
-            } finally {
-                pendingResult.finish()
-            }
-        }
+        UIUpdateScheduler(context).scheduleNextUpdate()
     }
 
     companion object {
