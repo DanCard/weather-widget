@@ -15,6 +15,7 @@ class CurrentTemperatureResolverTest {
     @Test
     fun `resolve prefers interpolated estimate over observed temp`() {
         val now = LocalDateTime.of(2026, 2, 25, 10, 30)
+        val observedFetchedAt = nowMs(now)
         val hourly =
             listOf(
                 hourly(now.withMinute(0), 40f, fetchedAt = nowMs(now)),
@@ -27,11 +28,17 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = 39f,
+                observedCurrentTempFetchedAt = observedFetchedAt,
+                storedDeltaState = null,
+                currentLat = 0.0,
+                currentLon = 0.0,
             )
 
-        assertEquals(42f, result.displayTemp!!, 0.01f)
+        assertEquals(39f, result.displayTemp!!, 0.01f)
         assertEquals(42f, result.estimatedTemp!!, 0.01f)
         assertEquals(39f, result.observedTemp!!, 0.01f)
+        assertEquals(-3f, result.appliedDelta!!, 0.01f)
+        assertEquals(observedFetchedAt, result.updatedDeltaState?.lastObservedFetchedAt)
     }
 
     @Test
@@ -44,6 +51,10 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = emptyList(),
                 observedCurrentTemp = 57f,
+                observedCurrentTempFetchedAt = nowMs(now),
+                storedDeltaState = null,
+                currentLat = 0.0,
+                currentLon = 0.0,
             )
 
         assertEquals(57f, result.displayTemp!!, 0.01f)
@@ -67,6 +78,10 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = null,
+                observedCurrentTempFetchedAt = null,
+                storedDeltaState = null,
+                currentLat = 0.0,
+                currentLon = 0.0,
             )
 
         assertTrue(result.isStaleEstimate)
@@ -77,6 +92,119 @@ class CurrentTemperatureResolverTest {
     fun `format keeps decimal precision when estimate is fresh and space allows`() {
         val formatted = CurrentTemperatureResolver.formatDisplayTemperature(62.4f, 3, isStaleEstimate = false)
         assertEquals("62.4°", formatted)
+    }
+
+    @Test
+    fun `resolve linearly decays stored delta over four hours`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 45)
+        val nowMs = nowMs(now)
+        val hourly =
+            listOf(
+                hourly(now.withMinute(0), 40f, fetchedAt = nowMs),
+                hourly(now.plusHours(1).withMinute(0), 44f, fetchedAt = nowMs),
+            )
+        val stored =
+            CurrentTemperatureDeltaState(
+                delta = -4f,
+                lastObservedTemp = 39f,
+                lastObservedFetchedAt = 1000L,
+                updatedAtMs = nowMs - (2 * 60 * 60 * 1000L),
+                sourceId = WeatherSource.NWS.id,
+                locationLat = 0.0,
+                locationLon = 0.0,
+            )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourly,
+                observedCurrentTemp = 39f,
+                observedCurrentTempFetchedAt = 1000L,
+                storedDeltaState = stored,
+                currentLat = 0.0,
+                currentLon = 0.0,
+            )
+
+        assertEquals(43f, result.estimatedTemp!!, 0.01f)
+        assertEquals(41f, result.displayTemp!!, 0.01f)
+        assertEquals(-2f, result.appliedDelta!!, 0.01f)
+        assertEquals(null, result.updatedDeltaState)
+    }
+
+    @Test
+    fun `resolve updates delta when observed reading timestamp changes`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 45)
+        val nowMs = nowMs(now)
+        val hourly =
+            listOf(
+                hourly(now.withMinute(0), 40f, fetchedAt = nowMs),
+                hourly(now.plusHours(1).withMinute(0), 44f, fetchedAt = nowMs),
+            )
+        val stored =
+            CurrentTemperatureDeltaState(
+                delta = -3f,
+                lastObservedTemp = 39f,
+                lastObservedFetchedAt = 1000L,
+                updatedAtMs = nowMs - (3 * 60 * 60 * 1000L),
+                sourceId = WeatherSource.NWS.id,
+                locationLat = 0.0,
+                locationLon = 0.0,
+            )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourly,
+                observedCurrentTemp = 41f,
+                observedCurrentTempFetchedAt = 2000L,
+                storedDeltaState = stored,
+                currentLat = 0.0,
+                currentLon = 0.0,
+            )
+
+        assertEquals(43f, result.estimatedTemp!!, 0.01f)
+        assertEquals(41f, result.displayTemp!!, 0.01f)
+        assertEquals(-2f, result.appliedDelta!!, 0.01f)
+        assertEquals(2000L, result.updatedDeltaState?.lastObservedFetchedAt)
+    }
+
+    @Test
+    fun `resolve decays stored delta to zero after four hours`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 45)
+        val nowMs = nowMs(now)
+        val hourly =
+            listOf(
+                hourly(now.withMinute(0), 40f, fetchedAt = nowMs),
+                hourly(now.plusHours(1).withMinute(0), 44f, fetchedAt = nowMs),
+            )
+        val stored =
+            CurrentTemperatureDeltaState(
+                delta = -6f,
+                lastObservedTemp = 37f,
+                lastObservedFetchedAt = 1000L,
+                updatedAtMs = nowMs - (4 * 60 * 60 * 1000L),
+                sourceId = WeatherSource.NWS.id,
+                locationLat = 0.0,
+                locationLon = 0.0,
+            )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourly,
+                observedCurrentTemp = 37f,
+                observedCurrentTempFetchedAt = 1000L,
+                storedDeltaState = stored,
+                currentLat = 0.0,
+                currentLon = 0.0,
+            )
+
+        assertEquals(43f, result.estimatedTemp!!, 0.01f)
+        assertEquals(43f, result.displayTemp!!, 0.01f)
+        assertEquals(0f, result.appliedDelta!!, 0.01f)
     }
 
     private fun hourly(

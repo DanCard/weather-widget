@@ -52,6 +52,7 @@ object TemperatureViewHandler {
         centerTime: LocalDateTime,
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
+        observedCurrentTempFetchedAt: Long? = null,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -108,7 +109,15 @@ object TemperatureViewHandler {
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentTemp,
+                observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
+                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId),
+                currentLat = lat,
+                currentLon = lon,
             )
+        if (currentTempResolution.shouldClearStoredDelta) {
+            stateManager.clearCurrentTempDeltaState(appWidgetId)
+        }
+        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
         val currentTemp = currentTempResolution.displayTemp
         if (currentTemp != null) {
             val formattedTemp =

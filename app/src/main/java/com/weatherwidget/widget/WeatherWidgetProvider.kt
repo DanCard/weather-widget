@@ -626,7 +626,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
                         precipProbability = todayPrecip,
-                        observedCurrentTemp = observedCurrentTemp,
+                        observedCurrentTemp = observedCurrentTemp?.temperature,
+                        observedCurrentTempFetchedAt = observedCurrentTemp?.fetchedAt,
                     )
                 }
                 ViewMode.PRECIPITATION -> {
@@ -647,7 +648,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
                         precipProbability = todayPrecip,
-                        observedCurrentTemp = observedCurrentTemp,
+                        observedCurrentTemp = observedCurrentTemp?.temperature,
+                        observedCurrentTempFetchedAt = observedCurrentTemp?.fetchedAt,
                     )
                 }
                 ViewMode.DAILY -> {
@@ -666,11 +668,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        private data class ObservedCurrentTemperature(
+            val temperature: Float,
+            val fetchedAt: Long,
+        )
+
         private fun resolveObservedCurrentTemp(
             weatherList: List<WeatherEntity>,
             displaySource: WeatherSource,
             todayStr: String,
-        ): Float? {
+        ): ObservedCurrentTemperature? {
             return weatherList
                 .filter {
                     it.date == todayStr &&
@@ -679,7 +686,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
                 }
                 .maxByOrNull { it.fetchedAt }
-                ?.currentTemp
+                ?.let { weather ->
+                    val currentTemp = weather.currentTemp ?: return@let null
+                    ObservedCurrentTemperature(
+                        temperature = currentTemp,
+                        fetchedAt = weather.fetchedAt,
+                    )
+                }
         }
     }
 }

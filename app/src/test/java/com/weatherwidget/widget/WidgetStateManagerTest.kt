@@ -26,6 +26,8 @@ class WidgetStateManagerTest {
         every { editor.putInt(any(), any()) } returns editor
         every { editor.putBoolean(any(), any()) } returns editor
         every { editor.putString(any(), any()) } returns editor
+        every { editor.putFloat(any(), any()) } returns editor
+        every { editor.putLong(any(), any()) } returns editor
         every { editor.remove(any()) } returns editor
         
         stateManager = WidgetStateManager(context)
@@ -200,6 +202,25 @@ class WidgetStateManagerTest {
         assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, second)
         assertEquals(com.weatherwidget.data.model.WeatherSource.WEATHER_API, third)
         assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, fourth)
+    }
+
+    @Test
+    fun `toggleDisplaySource clears current temp delta state`() {
+        val widgetId = 1
+        every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
+        every { prefs.contains("widget_display_source_$widgetId") } returns true
+        every { prefs.getInt("widget_display_source_$widgetId", any()) } returns 0
+
+        stateManager.toggleDisplaySource(widgetId)
+
+        verify { editor.remove("widget_current_temp_delta_$widgetId") }
+        verify { editor.remove("widget_current_temp_delta_observed_$widgetId") }
+        verify { editor.remove("widget_current_temp_delta_fetched_at_$widgetId") }
+        verify { editor.remove("widget_current_temp_delta_updated_at_$widgetId") }
+        verify { editor.remove("widget_current_temp_delta_source_$widgetId") }
+        verify { editor.remove("widget_current_temp_delta_lat_$widgetId") }
+        verify { editor.remove("widget_current_temp_delta_lon_$widgetId") }
     }
 
     @Test

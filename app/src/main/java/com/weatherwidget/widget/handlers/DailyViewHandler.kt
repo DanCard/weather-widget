@@ -144,7 +144,7 @@ object DailyViewHandler : WidgetViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
-        val observedCurrentTemp =
+        val observedCurrentWeather =
             weatherList
                 .filter {
                     it.date == todayStr &&
@@ -153,15 +153,22 @@ object DailyViewHandler : WidgetViewHandler {
                         (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
                 }
                 .maxByOrNull { it.fetchedAt }
-                ?.currentTemp
 
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
-                observedCurrentTemp = observedCurrentTemp,
+                observedCurrentTemp = observedCurrentWeather?.currentTemp,
+                observedCurrentTempFetchedAt = observedCurrentWeather?.fetchedAt,
+                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId),
+                currentLat = lat,
+                currentLon = lon,
             )
+        if (currentTempResolution.shouldClearStoredDelta) {
+            stateManager.clearCurrentTempDeltaState(appWidgetId)
+        }
+        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
         val currentTemp = currentTempResolution.displayTemp
 
         if (currentTemp != null) {
