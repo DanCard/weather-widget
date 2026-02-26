@@ -21,8 +21,14 @@ class ScreenOnReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
-        if (intent.action != Intent.ACTION_USER_PRESENT) return
+        when (intent.action) {
+            Intent.ACTION_USER_PRESENT -> handleUserPresent(context)
+            Intent.ACTION_SCREEN_OFF -> handleScreenOff(context)
+            else -> return
+        }
+    }
 
+    private fun handleUserPresent(context: Context) {
         val charging = isCharging(context)
         Log.d(TAG, "Screen unlocked - charging=$charging")
 
@@ -36,6 +42,16 @@ class ScreenOnReceiver : BroadcastReceiver() {
             }
         context.sendBroadcast(providerIntent)
 
+        if (charging) {
+            CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+                context = context,
+                reason = "screen_unlock_charging",
+                opportunistic = false,
+            )
+        } else {
+            CurrentTempUpdateScheduler.cancel(context)
+        }
+
         // Resume background UI updates now that screen is on
         val pendingResult = goAsync()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -47,6 +63,11 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 pendingResult.finish()
             }
         }
+    }
+
+    private fun handleScreenOff(context: Context) {
+        Log.d(TAG, "Screen turned off - canceling charging current-temp loop")
+        CurrentTempUpdateScheduler.cancel(context)
     }
 
     private fun isCharging(context: Context): Boolean {

@@ -11,6 +11,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -171,5 +172,28 @@ class WeatherApiTest {
             assertEquals(1, forecast.hourly.size)
             assertNull(forecast.daily[0].precipProbability)
             assertNull(forecast.hourly[0].precipProbability)
+        }
+
+    @Test
+    fun `getCurrent parses lightweight current response`() =
+        runTest {
+            val responseJson =
+                """
+                {
+                  "current": {
+                    "temp_f": 58.2,
+                    "condition": {
+                      "text": "Cloudy"
+                    }
+                  }
+                }
+                """.trimIndent()
+
+            val api = WeatherApi(createMockClient(responseJson), json)
+            val current = api.getCurrent(37.42, -122.08)
+
+            assertNotNull(current)
+            assertEquals(58.2f, current!!.temperature, 0.001f)
+            assertEquals("Cloudy", current?.condition)
         }
 }

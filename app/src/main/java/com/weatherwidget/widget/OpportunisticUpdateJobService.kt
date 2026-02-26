@@ -58,6 +58,12 @@ class OpportunisticUpdateJobService : JobService() {
                     } else {
                         Log.d(TAG, "No recent hourly data, skipping opportunistic update")
                     }
+
+                    CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+                        context = applicationContext,
+                        reason = "opportunistic_job",
+                        opportunistic = true,
+                    )
                 } finally {
                     jobFinished(params, false)
                 }

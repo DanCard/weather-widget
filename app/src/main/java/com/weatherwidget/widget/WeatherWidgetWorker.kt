@@ -35,13 +35,31 @@ class WeatherWidgetWorker
         override suspend fun doWork(): Result {
             val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
             val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
+            val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
+            val opportunisticCurrentTemp = inputData.getBoolean(KEY_CURRENT_TEMP_OPPORTUNISTIC, false)
+            val currentTempReason = inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"
 
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
             val isPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
+            val isScreenInteractive = isScreenInteractive()
 
             val lastFetchAge = (System.currentTimeMillis() - weatherRepository.lastNetworkFetchTimeMs) / 1000
-            appLogDao.log("SYNC_START", "uiOnly=$uiOnlyRefresh, force=$forceRefresh, battery=$batteryLevel%, plugged=$isPlugged, lastFetch=${lastFetchAge}s ago")
+            appLogDao.log(
+                "SYNC_START",
+                "uiOnly=$uiOnlyRefresh, force=$forceRefresh, currentOnly=$currentTempOnly, " +
+                    "opportunistic=$opportunisticCurrentTemp, battery=$batteryLevel%, plugged=$isPlugged, " +
+                    "interactive=$isScreenInteractive, reason=$currentTempReason, lastFetch=${lastFetchAge}s ago",
+            )
+
+            if (currentTempOnly) {
+                return handleCurrentTempOnlyWork(
+                    isPlugged = isPlugged,
+                    isScreenInteractive = isScreenInteractive,
+                    isOpportunisticContext = opportunisticCurrentTemp,
+                    reason = currentTempReason,
+                )
+            }
 
             // Reset toggle states only on scheduled refreshes (not UI-only or forced refreshes)
             // Forced refreshes are triggered by user toggle actions, so preserve the user's choice
@@ -181,6 +199,85 @@ class WeatherWidgetWorker
             )
         }
 
+        private suspend fun handleCurrentTempOnlyWork(
+            isPlugged: Boolean,
+            isScreenInteractive: Boolean,
+            isOpportunisticContext: Boolean,
+            reason: String,
+        ): Result {
+            return try {
+                if (
+                    !CurrentTempFetchPolicy.shouldFetchNow(
+                        isCharging = isPlugged,
+                        isScreenInteractive = isScreenInteractive,
+                        isOpportunisticContext = isOpportunisticContext,
+                    )
+                ) {
+                    appLogDao.log(
+                        "CURR_FETCH_SKIP",
+                        "reason=$reason policy_blocked charging=$isPlugged interactive=$isScreenInteractive opportunistic=$isOpportunisticContext",
+                        "WARN",
+                    )
+                } else {
+                    val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+                    val refreshResult =
+                        weatherRepository.refreshCurrentTemperature(
+                            lat = location.first,
+                            lon = location.second,
+                            locationName = getLocationName(location.first, location.second),
+                            reason = reason,
+                        )
+
+                    refreshResult.fold(
+                        onSuccess = { updated ->
+                            appLogDao.log("CURR_FETCH_DONE", "reason=$reason updated=$updated")
+                        },
+                        onFailure = { e ->
+                            appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.message}", "ERROR")
+                        },
+                    )
+                }
+
+                refreshWidgetsFromCache()
+                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
+                Result.success()
+            } catch (e: Exception) {
+                appLogDao.log("CURR_FETCH_EXCEPTION", "reason=$reason ${e.javaClass.simpleName}: ${e.message}", "ERROR")
+                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
+                Result.retry()
+            }
+        }
+
+        private suspend fun refreshWidgetsFromCache() {
+            val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+            val weatherList =
+                weatherRepository.getWeatherData(
+                    lat = location.first,
+                    lon = location.second,
+                    locationName = getLocationName(location.first, location.second),
+                    networkAllowed = false,
+                ).getOrDefault(emptyList())
+            val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
+            val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
+        }
+
+        private fun manageCurrentTempLoopAfterRun(
+            isPlugged: Boolean,
+            isScreenInteractive: Boolean,
+        ) {
+            if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isPlugged, isScreenInteractive)) {
+                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+            } else {
+                CurrentTempUpdateScheduler.cancel(context)
+            }
+        }
+
+        private fun isScreenInteractive(): Boolean {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            return powerManager.isInteractive
+        }
+
         private fun getUpdateIntervalMinutes(): Long? {
             val batteryStatus: Intent? =
                 IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
@@ -219,5 +316,8 @@ class WeatherWidgetWorker
             const val DEFAULT_LON = -122.0841
             const val KEY_UI_ONLY_REFRESH = "ui_only_refresh"
             const val KEY_FORCE_REFRESH = "force_refresh"
+            const val KEY_CURRENT_TEMP_ONLY = "current_temp_only"
+            const val KEY_CURRENT_TEMP_OPPORTUNISTIC = "current_temp_opportunistic"
+            const val KEY_CURRENT_TEMP_REASON = "current_temp_reason"
         }
     }

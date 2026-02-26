@@ -1206,6 +1206,7 @@ class WeatherRepository
                     highTemp = daily.highTemp,
                     lowTemp = daily.lowTemp,
                     currentTemp = if (daily.date == today) forecast.currentTemp else null,
+                    currentTempObservedAt = if (daily.date == today) forecast.currentObservedAt else null,
                     condition = openMeteoApi.weatherCodeToCondition(daily.weatherCode),
                     isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
                     source = WeatherSource.OPEN_METEO.id,
@@ -1242,6 +1243,7 @@ class WeatherRepository
                     highTemp = daily.highTemp,
                     lowTemp = daily.lowTemp,
                     currentTemp = if (daily.date == today) forecast.currentTemp else null,
+                    currentTempObservedAt = if (daily.date == today) forecast.currentObservedAt else null,
                     condition = daily.condition,
                     isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
                     source = WeatherSource.WEATHER_API.id,
@@ -1377,6 +1379,138 @@ class WeatherRepository
             return temperatureInterpolator.getNextUpdateTime(currentTime, tempDiff)
         }
 
+        suspend fun refreshCurrentTemperature(
+            lat: Double,
+            lon: Double,
+            locationName: String,
+            source: WeatherSource? = null,
+            reason: String = "unspecified",
+        ): Result<Int> {
+            return try {
+                syncMutex.withLock {
+                    val now = System.currentTimeMillis()
+                    val timeSinceLastFetch = now - lastNetworkFetchTime
+                    if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS) {
+                        appLogDao.log(
+                            "CURR_FETCH_SKIP",
+                            "reason=$reason rate_limited=${timeSinceLastFetch}ms (<$MIN_NETWORK_INTERVAL_MS)",
+                            "WARN",
+                        )
+                        return Result.success(0)
+                    }
+
+                    val targetSources =
+                        (source?.let { listOf(it) } ?: widgetStateManager.getVisibleSourcesOrder())
+                            .filter { it != WeatherSource.GENERIC_GAP }
+                            .distinct()
+                    val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+                    appLogDao.log(
+                        "CURR_FETCH_START",
+                        "reason=$reason location=$locationName sources=${targetSources.joinToString(",") { it.id }}",
+                    )
+
+                    var updatedCount = 0
+                    targetSources.forEach { weatherSource ->
+                        try {
+                            val reading =
+                                when (weatherSource) {
+                                    WeatherSource.OPEN_METEO -> {
+                                        val current = openMeteoApi.getCurrent(lat, lon) ?: return@forEach
+                                        CurrentReadingPayload(
+                                            source = weatherSource,
+                                            temperature = current.temperature,
+                                            condition = current.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) },
+                                            observedAt = current.observedAt,
+                                        )
+                                    }
+                                    WeatherSource.WEATHER_API -> {
+                                        val current = weatherApi.getCurrent(lat, lon) ?: return@forEach
+                                        CurrentReadingPayload(
+                                            source = weatherSource,
+                                            temperature = current.temperature,
+                                            condition = current.condition,
+                                            observedAt = current.observedAt,
+                                        )
+                                    }
+                                    WeatherSource.NWS -> {
+                                        appLogDao.log(
+                                            "CURR_FETCH_SKIP",
+                                            "reason=$reason source=${weatherSource.id} unsupported_current_endpoint",
+                                            "WARN",
+                                        )
+                                        return@forEach
+                                    }
+                                    WeatherSource.GENERIC_GAP -> return@forEach
+                                }
+
+                            val interpolated =
+                                getInterpolatedCurrentTempForSource(
+                                    lat = lat,
+                                    lon = lon,
+                                    source = reading.source,
+                                    currentTime = LocalDateTime.now(),
+                                )
+                            val delta = interpolated?.let { reading.temperature - it }
+
+                            val existing = weatherDao.getWeatherForDateBySource(today, lat, lon, reading.source.id)
+                            if (existing == null) {
+                                appLogDao.log(
+                                    "CURR_FETCH_SKIP",
+                                    "reason=$reason source=${reading.source.id} missing_today_row date=$today",
+                                    "WARN",
+                                )
+                                return@forEach
+                            }
+
+                            weatherDao.insertWeather(
+                                existing.copy(
+                                    currentTemp = reading.temperature,
+                                    currentTempObservedAt = reading.observedAt ?: now,
+                                    condition = reading.condition ?: existing.condition,
+                                    fetchedAt = now,
+                                ),
+                            )
+                            val observedAtMs = reading.observedAt ?: now
+                            val observedAtIso =
+                                Instant.ofEpochMilli(observedAtMs)
+                                    .atZone(ZoneId.systemDefault())
+                                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                            val observedAgeMs = (now - observedAtMs).coerceAtLeast(0L)
+                            val deltaMessage =
+                                "reason=$reason source=${reading.source.id} observed=${reading.temperature} " +
+                                    "observedAtMs=$observedAtMs observedAtIso=$observedAtIso observedAgeMs=$observedAgeMs " +
+                                    "interpolated=${interpolated ?: "null"} delta=${delta ?: "null"}"
+                            appLogDao.log(
+                                "CURR_FETCH_DELTA",
+                                deltaMessage,
+                            )
+                            Log.d(TAG, "CURR_FETCH_DELTA: $deltaMessage")
+                            updatedCount++
+                        } catch (sourceError: Exception) {
+                            appLogDao.log(
+                                "CURR_FETCH_SKIP",
+                                "reason=$reason source=${weatherSource.id} error=${sourceError.message}",
+                                "WARN",
+                            )
+                        }
+                    }
+
+                    if (updatedCount > 0) {
+                        lastNetworkFetchTime = now
+                    }
+                    appLogDao.log(
+                        "CURR_FETCH_SUCCESS",
+                        "reason=$reason updated=$updatedCount sources=${targetSources.joinToString(",") { it.id }}",
+                    )
+                    Result.success(updatedCount)
+                }
+            } catch (e: Exception) {
+                appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.javaClass.simpleName}: ${e.message}", "ERROR")
+                Result.failure(e)
+            }
+        }
+
         private suspend fun cleanOldData() {
             val now = System.currentTimeMillis()
             val cutoff = now - MONTH_IN_MILLIS
@@ -1414,5 +1548,29 @@ class WeatherRepository
         suspend fun getLatestLocation(): Pair<Double, Double>? {
             val latest = weatherDao.getLatestWeather()
             return latest?.let { it.locationLat to it.locationLon }
+        }
+
+        private data class CurrentReadingPayload(
+            val source: WeatherSource,
+            val temperature: Float,
+            val condition: String?,
+            val observedAt: Long?,
+        )
+
+        private suspend fun getInterpolatedCurrentTempForSource(
+            lat: Double,
+            lon: Double,
+            source: WeatherSource,
+            currentTime: LocalDateTime,
+        ): Float? {
+            val startTime = currentTime.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val endTime = currentTime.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            if (hourlyForecasts.isEmpty()) return null
+            return temperatureInterpolator.getInterpolatedTemperature(
+                hourlyForecasts = hourlyForecasts,
+                targetTime = currentTime,
+                source = source,
+            )
         }
     }

@@ -63,4 +63,20 @@ class ScreenOnReceiverTest {
         
         assertTrue("Did not expect broadcast to WeatherWidgetProvider", providerIntent == null)
     }
+
+    @Test
+    fun `onReceive with SCREEN_OFF does not send refresh broadcast`() {
+        val intent = Intent(Intent.ACTION_SCREEN_OFF)
+
+        receiver.onReceive(context, intent)
+
+        val shadowApplication = shadowOf(context as android.app.Application)
+        val providerIntent =
+            shadowApplication.broadcastIntents.find {
+                it.component?.className == WeatherWidgetProvider::class.java.name &&
+                    it.action == WeatherWidgetProvider.ACTION_REFRESH
+            }
+
+        assertTrue("Did not expect refresh broadcast on screen off", providerIntent == null)
+    }
 }

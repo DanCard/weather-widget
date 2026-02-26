@@ -162,6 +162,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_CURRENT_TEMP)
 
         val uiScheduler = UIUpdateScheduler(context)
         uiScheduler.cancelScheduledUpdates()
@@ -548,6 +549,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val HOURLY_LOOKAHEAD_HOURS = 60L
         const val WORK_NAME = "weather_widget_update"
         const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
+        const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
         const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
         const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
@@ -627,7 +629,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         centerTime = centerTime,
                         precipProbability = todayPrecip,
                         observedCurrentTemp = observedCurrentTemp?.temperature,
-                        observedCurrentTempFetchedAt = observedCurrentTemp?.fetchedAt,
+                        observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
                     )
                 }
                 ViewMode.PRECIPITATION -> {
@@ -649,7 +651,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         centerTime = centerTime,
                         precipProbability = todayPrecip,
                         observedCurrentTemp = observedCurrentTemp?.temperature,
-                        observedCurrentTempFetchedAt = observedCurrentTemp?.fetchedAt,
+                        observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
                     )
                 }
                 ViewMode.DAILY -> {
@@ -670,7 +672,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         private data class ObservedCurrentTemperature(
             val temperature: Float,
-            val fetchedAt: Long,
+            val observedAt: Long,
         )
 
         private fun resolveObservedCurrentTemp(
@@ -685,12 +687,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         it.currentTemp != 0f &&
                         (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
                 }
-                .maxByOrNull { it.fetchedAt }
+                .maxByOrNull { it.currentTempObservedAt ?: it.fetchedAt }
                 ?.let { weather ->
                     val currentTemp = weather.currentTemp ?: return@let null
                     ObservedCurrentTemperature(
                         temperature = currentTemp,
-                        fetchedAt = weather.fetchedAt,
+                        observedAt = weather.currentTempObservedAt ?: weather.fetchedAt,
                     )
                 }
         }

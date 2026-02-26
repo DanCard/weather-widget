@@ -10,6 +10,7 @@ import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
@@ -433,6 +434,92 @@ class WeatherRepositoryTest {
             // Old location data should be cleared, new normals persisted
             coVerify { climateNormalDao.deleteOtherLocations(locationKey) }
             coVerify { climateNormalDao.insertAll(match { it.size == 2 && it.all { e -> e.locationKey == locationKey } }) }
+        }
+
+    @Test
+    fun `refreshCurrentTemperature updates only current temp on existing today row`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { editor.putLong("last_network_fetch_time", any()) } returns editor
+            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } returns 0L
+
+            coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(61.2f, 1)
+            every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
+
+            val existing =
+                createWeatherEntity(today, 70, 50, source = WeatherSource.OPEN_METEO.id).copy(
+                    currentTemp = 55.0f,
+                    condition = "Sunny",
+                )
+            coEvery {
+                weatherDao.getWeatherForDateBySource(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns existing
+
+            val result =
+                repository.refreshCurrentTemperature(
+                    testLat,
+                    testLon,
+                    testLocationName,
+                    source = WeatherSource.OPEN_METEO,
+                    reason = "test",
+                )
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { openMeteoApi.getCurrent(any(), any()) }
+            coVerify {
+                weatherDao.insertWeather(
+                    match { entity ->
+                        entity.source == WeatherSource.OPEN_METEO.id &&
+                            entity.highTemp == existing.highTemp &&
+                            entity.lowTemp == existing.lowTemp &&
+                            entity.currentTemp == 61.2f
+                    },
+                )
+            }
+        }
+
+    @Test
+    fun `refreshCurrentTemperature continues when one source fails`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { editor.putLong("last_network_fetch_time", any()) } returns editor
+            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } returns 0L
+
+            every { widgetStateManager.getVisibleSourcesOrder() } returns
+                listOf(WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
+            coEvery { weatherApi.getCurrent(any(), any()) } throws IllegalStateException("Missing key")
+            coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(59.5f, 2)
+            every { openMeteoApi.weatherCodeToCondition(any()) } returns "Partly Cloudy"
+
+            val meteoExisting = createWeatherEntity(today, 68, 49, source = WeatherSource.OPEN_METEO.id)
+            coEvery {
+                weatherDao.getWeatherForDateBySource(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            } returns meteoExisting
+
+            val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, reason = "test")
+
+            assertTrue(result.isSuccess)
+            coVerify(exactly = 1) { weatherApi.getCurrent(any(), any()) }
+            coVerify(exactly = 1) { openMeteoApi.getCurrent(any(), any()) }
+            coVerify(exactly = 1) {
+                weatherDao.insertWeather(
+                    match { entity ->
+                        entity.source == WeatherSource.OPEN_METEO.id && entity.currentTemp == 59.5f
+                    },
+                )
+            }
         }
 
     private fun createWeatherEntity(

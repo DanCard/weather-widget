@@ -78,7 +78,7 @@ object CurrentTemperatureResolver {
                         delta = delta,
                         lastObservedTemp = observedCurrentTemp,
                         lastObservedFetchedAt = observedCurrentTempFetchedAt,
-                        updatedAtMs = nowMs,
+                        updatedAtMs = observedCurrentTempFetchedAt.coerceAtMost(nowMs),
                         sourceId = displaySource.id,
                         locationLat = currentLat,
                         locationLon = currentLon,

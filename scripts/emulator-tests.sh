@@ -302,7 +302,7 @@ if [ -n "$TEST_CLASS" ]; then
 else
     echo -en "${YELLOW}Running all instrumented tests${NC} \t"
 fi
-echo -e "${YELLOW}APK install step: connectedDebugAndroidTest builds and installs app + test APKs on $ANDROID_SERIAL (Gradle may skip unchanged tasks)${NC}"
+echo -e "${YELLOW}APK install step: connectedDebugAndroidTest builds and installs the application APK and the instrumentation test APK on $ANDROID_SERIAL (Gradle may skip unchanged tasks)${NC}"
 
 # Run tests with timeout - show output in real-time
 TEST_START=$(date +%s)
@@ -324,6 +324,7 @@ fi
 show_progress() {
     local logfile=$1
     local last_line=0
+
     while true; do
         if [ -f "$logfile" ]; then
             # Get all new lines since last check
@@ -375,6 +376,10 @@ show_progress() {
 }
 
 echo -e "${BLUE}Starting tests (build/install + execute)...${NC}"
+INSTALL_START_TS=$(date +%s)
+INSTALL_END_LOGGED=false
+echo -e "${YELLOW}APK install started on $ANDROID_SERIAL${NC}"
+debug_log "apk_install_start: serial=$ANDROID_SERIAL"
 
 # Truncate log so show_progress doesn't see stale content
 : > "$TEST_RESULTS_LOG"
@@ -398,12 +403,27 @@ debug_log "gradle started via script(1) pid=$GRADLE_PID"
 # so we detect completion from output rather than waiting for process exit.
 WAIT_ELAPSED=0
 while kill -0 $GRADLE_PID 2>/dev/null; do
+    if [ "$INSTALL_END_LOGGED" = false ] && grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)| > .* (PASSED|FAILED|SKIPPED)" "$TEST_RESULTS_LOG" 2>/dev/null; then
+        INSTALL_END_TS=$(date +%s)
+        INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
+        echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
+        debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=first_test_output"
+        INSTALL_END_LOGGED=true
+    fi
+
     if [ $WAIT_ELAPSED -ge $TEST_TIMEOUT ]; then
         echo -e "${RED}Test timeout after ${TEST_TIMEOUT}s${NC}"
         debug_log "timeout after ${TEST_TIMEOUT}s"
         break
     fi
     if grep -q "BUILD SUCCESSFUL\|BUILD FAILED" "$TEST_RESULTS_LOG" 2>/dev/null; then
+        if [ "$INSTALL_END_LOGGED" = false ]; then
+            INSTALL_END_TS=$(date +%s)
+            INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
+            echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
+            debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=build_complete"
+            INSTALL_END_LOGGED=true
+        fi
         debug_log "detected build completion in output"
         sleep 2  # Brief grace period for final output flush
         break

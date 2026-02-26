@@ -86,13 +86,42 @@ class WeatherApi
 
             return WeatherForecast(
                 currentTemp = current?.get("temp_f")?.jsonPrimitive?.content?.toFloatOrNull(),
+                currentObservedAt = current?.get("last_updated_epoch")?.jsonPrimitive?.content?.toLongOrNull()?.times(1000),
                 daily = dailyForecasts,
                 hourly = hourlyForecasts,
             )
         }
 
+        suspend fun getCurrent(
+            lat: Double,
+            lon: Double,
+        ): CurrentReading? {
+            val apiKey = BuildConfig.WEATHER_API_KEY
+            if (apiKey.isBlank()) {
+                throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
+            }
+
+            val response: String =
+                httpClient.get("$BASE_URL/current.json") {
+                    parameter("key", apiKey)
+                    parameter("q", "$lat,$lon")
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val current = jsonObj["current"]?.jsonObject ?: return null
+            val temp = current["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
+            val condition = current["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content
+
+            return CurrentReading(
+                temperature = temp,
+                condition = condition,
+                observedAt = current["last_updated_epoch"]?.jsonPrimitive?.content?.toLongOrNull()?.times(1000),
+            )
+        }
+
         data class WeatherForecast(
             val currentTemp: Float?,
+            val currentObservedAt: Long? = null,
             val daily: List<DailyForecast>,
             val hourly: List<HourlyForecast>,
         )
@@ -110,5 +139,11 @@ class WeatherApi
             val temperature: Float,
             val condition: String,
             val precipProbability: Int? = null,
+        )
+
+        data class CurrentReading(
+            val temperature: Float,
+            val condition: String?,
+            val observedAt: Long? = null,
         )
     }

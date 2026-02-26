@@ -101,6 +101,29 @@ class OpenMeteoApiTest {
         }
 
     @Test
+    fun `getCurrent parses lightweight current response`() =
+        runTest {
+            val responseJson =
+                """
+                {
+                    "current": {
+                        "temperature_2m": 64.3,
+                        "weather_code": 2
+                    }
+                }
+                """.trimIndent()
+
+            val client = createMockClient(responseJson)
+            val api = OpenMeteoApi(client, json)
+
+            val current = api.getCurrent(37.42, -122.08)
+
+            assertNotNull(current)
+            assertEquals(64.3f, current!!.temperature, 0.001f)
+            assertEquals(2, current?.weatherCode)
+        }
+
+    @Test
     fun `weatherCodeToCondition returns correct conditions`() {
         val api = OpenMeteoApi(HttpClient(MockEngine) { engine { addHandler { error("unused") } } }, json)
 

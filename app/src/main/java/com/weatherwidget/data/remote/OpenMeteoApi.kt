@@ -8,6 +8,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import javax.inject.Inject
 
 private const val TAG = "OpenMeteoApi"
@@ -45,6 +48,7 @@ class OpenMeteoApi
             val jsonObj = json.parseToJsonElement(response).jsonObject
 
             val current = jsonObj["current"]?.jsonObject
+            val timezone = jsonObj["timezone"]?.jsonPrimitive?.content
             val daily = jsonObj["daily"]?.jsonObject
             Log.d(TAG, "getForecast: daily object keys=${daily?.keys}")
 
@@ -115,9 +119,58 @@ class OpenMeteoApi
             return WeatherForecast(
                 currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
                 currentWeatherCode = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull(),
+                currentObservedAt = parseCurrentObservedAt(
+                    timeRaw = current?.get("time")?.jsonPrimitive?.content,
+                    timezone = timezone,
+                ),
                 daily = dailyForecasts,
                 hourly = hourlyForecasts,
             )
+        }
+
+        suspend fun getCurrent(
+            lat: Double,
+            lon: Double,
+        ): CurrentReading? {
+            val response: String =
+                httpClient.get("$BASE_URL/forecast") {
+                    parameter("latitude", lat)
+                    parameter("longitude", lon)
+                    parameter("current", "temperature_2m,weather_code")
+                    parameter("temperature_unit", "fahrenheit")
+                    parameter("timezone", "auto")
+                    parameter("forecast_days", 1)
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val current = jsonObj["current"]?.jsonObject ?: return null
+            val timezone = jsonObj["timezone"]?.jsonPrimitive?.content
+            val temp = current["temperature_2m"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
+            val weatherCode = current["weather_code"]?.jsonPrimitive?.content?.toIntOrNull()
+
+            return CurrentReading(
+                temperature = temp,
+                weatherCode = weatherCode,
+                observedAt = parseCurrentObservedAt(current["time"]?.jsonPrimitive?.content, timezone),
+            )
+        }
+
+        private fun parseCurrentObservedAt(
+            timeRaw: String?,
+            timezone: String?,
+        ): Long? {
+            if (timeRaw.isNullOrBlank()) return null
+            return try {
+                ZonedDateTime.parse(timeRaw).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                try {
+                    val local = LocalDateTime.parse(timeRaw)
+                    val zone = timezone?.let { ZoneId.of(it) } ?: ZoneId.systemDefault()
+                    local.atZone(zone).toInstant().toEpochMilli()
+                } catch (_: Exception) {
+                    null
+                }
+            }
         }
 
         suspend fun getClimateForecast(
@@ -181,6 +234,7 @@ class OpenMeteoApi
         data class WeatherForecast(
             val currentTemp: Float?,
             val currentWeatherCode: Int?,
+            val currentObservedAt: Long? = null,
             val daily: List<DailyForecast>,
             val hourly: List<HourlyForecast> = emptyList(),
         )
@@ -198,5 +252,11 @@ class OpenMeteoApi
             val temperature: Float,
             val weatherCode: Int,
             val precipProbability: Int? = null,
+        )
+
+        data class CurrentReading(
+            val temperature: Float,
+            val weatherCode: Int?,
+            val observedAt: Long? = null,
         )
     }

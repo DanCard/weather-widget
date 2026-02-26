@@ -152,7 +152,7 @@ object DailyViewHandler : WidgetViewHandler {
                         it.currentTemp != 0f &&
                         (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
                 }
-                .maxByOrNull { it.fetchedAt }
+                .maxByOrNull { it.currentTempObservedAt ?: it.fetchedAt }
 
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
@@ -160,7 +160,7 @@ object DailyViewHandler : WidgetViewHandler {
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentWeather?.currentTemp,
-                observedCurrentTempFetchedAt = observedCurrentWeather?.fetchedAt,
+                observedCurrentTempFetchedAt = observedCurrentWeather?.currentTempObservedAt ?: observedCurrentWeather?.fetchedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId),
                 currentLat = lat,
                 currentLon = lon,
