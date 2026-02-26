@@ -50,7 +50,6 @@ import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.BatteryManager
 import android.util.Log
-import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
@@ -100,7 +99,6 @@ class WeatherRepository
         private val openMeteoApi: OpenMeteoApi,
         private val weatherApi: WeatherApi,
         private val widgetStateManager: WidgetStateManager,
-        private val apiLogger: ApiLogger,
         private val temperatureInterpolator: TemperatureInterpolator,
         private val climateNormalDao: ClimateNormalDao,
     ) {
@@ -478,12 +476,12 @@ class WeatherRepository
                         val startTime = System.currentTimeMillis()
                         val result = fetchFromNws(lat, lon, locationName)
                         val duration = System.currentTimeMillis() - startTime
-                        apiLogger.logApiCall("NWS", true, null, locationName, duration)
+                        appLogDao.log("API_CALL", "NWS success durationMs=$duration location=$locationName")
                         Log.d(TAG, "fetchFromAllApis: NWS succeeded")
                         result
                     } catch (e: Exception) {
                         Log.d(TAG, "fetchFromAllApis: NWS failed: ${e.message}")
-                        apiLogger.logApiCall("NWS", false, e.message ?: "Unknown error", locationName)
+                        appLogDao.log("API_CALL", "NWS failure location=$locationName error=${e.message ?: "Unknown error"}", "WARN")
                         null
                     }
                 } else null
@@ -493,12 +491,12 @@ class WeatherRepository
                         val startTime = System.currentTimeMillis()
                         val result = fetchFromOpenMeteo(lat, lon, locationName, days = 14)
                         val duration = System.currentTimeMillis() - startTime
-                        apiLogger.logApiCall("Open-Meteo", true, null, locationName, duration)
+                        appLogDao.log("API_CALL", "Open-Meteo success durationMs=$duration location=$locationName")
                         Log.d(TAG, "fetchFromAllApis: Open-Meteo succeeded")
                         result
                     } catch (e: Exception) {
                         Log.d(TAG, "fetchFromAllApis: Open-Meteo failed: ${e.message}")
-                        apiLogger.logApiCall("Open-Meteo", false, e.message ?: "Unknown error", locationName)
+                        appLogDao.log("API_CALL", "Open-Meteo failure location=$locationName error=${e.message ?: "Unknown error"}", "WARN")
                         null
                     }
                 } else null
@@ -508,12 +506,12 @@ class WeatherRepository
                         val startTime = System.currentTimeMillis()
                         val result = fetchFromWeatherApi(lat, lon, locationName, days = 14)
                         val duration = System.currentTimeMillis() - startTime
-                        apiLogger.logApiCall("WeatherAPI", true, null, locationName, duration)
+                        appLogDao.log("API_CALL", "WeatherAPI success durationMs=$duration location=$locationName")
                         Log.d(TAG, "fetchFromAllApis: WeatherAPI succeeded")
                         result
                     } catch (e: Exception) {
                         Log.d(TAG, "fetchFromAllApis: WeatherAPI failed: ${e.message}")
-                        apiLogger.logApiCall("WeatherAPI", false, e.message ?: "Unknown error", locationName)
+                        appLogDao.log("API_CALL", "WeatherAPI failure location=$locationName error=${e.message ?: "Unknown error"}", "WARN")
                         null
                     }
                 } else null
@@ -1082,12 +1080,12 @@ class WeatherRepository
                         val durationMs = System.currentTimeMillis() - startTimeMs
 
                         if (observations.isEmpty()) {
-                            apiLogger.logApiCall("NWS-Obs", false, "No observations", stationId, durationMs)
+                            appLogDao.log("API_CALL", "NWS-Obs failure station=$stationId durationMs=$durationMs error=No observations", "WARN")
                             Log.w(TAG, "fetchDayObservations: No observations from $stationId for $date - trying next")
                             continue // Try next station
                         }
 
-                        apiLogger.logApiCall("NWS-Obs", true, null, stationId, durationMs)
+                        appLogDao.log("API_CALL", "NWS-Obs success station=$stationId durationMs=$durationMs")
                         appLogDao.log("OBS_DAY_SUCCESS", "$date: Got ${observations.size} from $stationId")
 
                         // Calculate high/low from observations (convert C to F) using Float math for precision

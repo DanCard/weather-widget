@@ -45,97 +45,43 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-    <!-- Feature Tour Button (at top for easy discovery) -->
-    <Button
-        android:id="@+id/view_feature_tour_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/view_feature_tour"
-        android:textColor="#FFFFFF"
-        android:background="@drawable/rounded_button_blue"
-        android:textSize="16sp"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:layout_marginBottom="24dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/manual_refresh_title"
-        android:textSize="16sp"
-        android:textColor="@color/widget_text_primary"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp" />
-
-    <Button
-        android:id="@+id/refresh_now_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/refresh_now"
-        android:textColor="#FFFFFF"
-        android:background="@drawable/rounded_button_blue"
-        android:textSize="14sp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp" />
-
-    <TextView
-        android:id="@+id/refresh_status_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:textSize="12sp"
-        android:textColor="@color/widget_text_secondary"
-        android:layout_marginTop="8dp"
-        android:layout_marginBottom="24dp"
-        android:text="@string/refresh_status_ready" />
-
-    <!-- Accuracy Statistics Section -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/accuracy_statistics"
-        android:textSize="16sp"
-        android:textColor="@color/widget_text_primary"
-        android:textStyle="bold"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/accuracy_statistics_description"
-        android:textSize="14sp"
-        android:textColor="@color/widget_text_secondary"
-        android:layout_marginBottom="16dp" />
-
-    <TextView
-        android:id="@+id/accuracy_stats_text"
+    <!-- Top actions row -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#1E1E1E"
-        android:padding="16dp"
-        android:textSize="13sp"
-        android:fontFamily="monospace"
-        android:textColor="@color/widget_text_primary"
-        android:text="Loading statistics..."
-        android:layout_marginBottom="12dp" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="24dp">
 
-    <Button
-        android:id="@+id/view_detailed_stats_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/view_detailed_statistics"
-        android:textColor="#FFFFFF"
-        android:background="@drawable/rounded_button_blue"
-        android:textSize="14sp"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="12dp"
-        android:layout_marginBottom="24dp" />
+        <Button
+            android:id="@+id/refresh_now_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/refresh_now"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/rounded_button_blue"
+            android:textSize="14sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+
+        <Button
+            android:id="@+id/view_feature_tour_button"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:text="@string/view_feature_tour"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/rounded_button_blue"
+            android:textSize="14sp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp" />
+    </LinearLayout>
 
     <!-- API Sources Section -->
     <TextView
@@ -161,101 +107,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical" />
-
-    <!-- API Diagnostics Section -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/api_diagnostics"
-        android:textSize="16sp"
-        android:textColor="@color/widget_text_primary"
-        android:textStyle="bold"
-        android:layout_marginTop="24dp"
-        android:layout_marginBottom="8dp" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/api_diagnostics_description"
-        android:textSize="14sp"
-        android:textColor="@color/widget_text_secondary"
-        android:layout_marginBottom="16dp" />
-
-    <TextView
-        android:id="@+id/api_log_status"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Checking log..."
-        android:textSize="12sp"
-        android:textColor="@color/widget_text_secondary"
-        android:layout_marginBottom="8dp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <Button
-            android:id="@+id/view_api_log_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/view_api_log"
-            android:textColor="#FFFFFF"
-            android:background="@drawable/rounded_button_blue"
-            android:textSize="14sp"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="12dp"
-            android:paddingBottom="12dp" />
-
-        <Button
-            android:id="@+id/clear_api_log_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/clear_log"
-            android:textColor="#AAAAAA"
-            android:background="@drawable/rounded_button_gray"
-            android:textSize="11sp"
-            android:layout_marginStart="12dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingTop="10dp"
-            android:paddingBottom="10dp"
-            android:minWidth="0dp" />
-    </LinearLayout>
-
-    <!-- API Log Display (initially hidden) -->
-    <ScrollView
-        android:id="@+id/api_log_container"
-        android:layout_width="match_parent"
-        android:layout_height="400dp"
-        android:layout_marginTop="16dp"
-        android:layout_marginBottom="16dp"
-        android:visibility="gone"
-        android:background="#1E1E1E"
-        android:padding="12dp"
-        android:elevation="4dp"
-        android:scrollbars="vertical"
-        android:fadeScrollbars="false">
-
-        <HorizontalScrollView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:scrollbars="horizontal"
-            android:fadeScrollbars="false">
-
-            <TextView
-                android:id="@+id/api_log_text"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textSize="11sp"
-                android:fontFamily="monospace"
-                android:textColor="#00FF00"
-                android:text="Loading log..." />
-
-        </HorizontalScrollView>
-    </ScrollView>
 
         </LinearLayout>
     </ScrollView>

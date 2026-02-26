@@ -25,6 +25,7 @@ import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
@@ -45,6 +46,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     @Inject
     lateinit var weatherDao: WeatherDao
+
+    @Inject
+    lateinit var accuracyCalculator: AccuracyCalculator
 
     companion object {
         const val EXTRA_TARGET_DATE = "target_date"
@@ -191,6 +195,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             date = targetLocalDate,
             requestedSource = checkNotNull(cachedRequestedSource),
         )
+        loadAccuracySummary(targetLat, targetLon)
     }
 
     private fun loadData(
@@ -415,6 +420,86 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private fun formatTemp(value: Float): String {
         val rounded = value.roundToInt()
         return if (abs(value - rounded.toFloat()) < 0.01f) "$rounded°" else String.format("%.1f°", value)
+    }
+
+    private fun loadAccuracySummary(lat: Double, lon: Double) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
+                val hasAnyData =
+                    (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||
+                        (comparison.meteoStats?.totalForecasts ?: 0) > 0 ||
+                        (comparison.weatherApiStats?.totalForecasts ?: 0) > 0
+
+                val summary =
+                    if (!hasAnyData) {
+                        "No historical forecast data available yet.\n" +
+                            "Forecast snapshots are saved daily. Check back tomorrow for your first accuracy comparison."
+                    } else {
+                        buildString {
+                            val nws = comparison.nwsStats
+                            if (nws != null && nws.totalForecasts > 0) {
+                                append("NWS\n")
+                                append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
+                                    nws.avgHighError,
+                                    formatBias(nws.highBias),
+                                    nws.avgLowError,
+                                    formatBias(nws.lowBias),
+                                ))
+                                append("%% within 3°: %.0f%%  Forecasts: %d\n\n".format(nws.percentWithin3Degrees, nws.totalForecasts))
+                            } else {
+                                append("NWS: No data yet\n\n")
+                            }
+
+                            val meteo = comparison.meteoStats
+                            if (meteo != null && meteo.totalForecasts > 0) {
+                                append("Open-Meteo\n")
+                                append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
+                                    meteo.avgHighError,
+                                    formatBias(meteo.highBias),
+                                    meteo.avgLowError,
+                                    formatBias(meteo.lowBias),
+                                ))
+                                append("%% within 3°: %.0f%%  Forecasts: %d\n\n".format(meteo.percentWithin3Degrees, meteo.totalForecasts))
+                            } else {
+                                append("Open-Meteo: No data yet\n\n")
+                            }
+
+                            val weatherApi = comparison.weatherApiStats
+                            if (weatherApi != null && weatherApi.totalForecasts > 0) {
+                                append("WeatherAPI\n")
+                                append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
+                                    weatherApi.avgHighError,
+                                    formatBias(weatherApi.highBias),
+                                    weatherApi.avgLowError,
+                                    formatBias(weatherApi.lowBias),
+                                ))
+                                append("%% within 3°: %.0f%%  Forecasts: %d".format(weatherApi.percentWithin3Degrees, weatherApi.totalForecasts))
+                            } else {
+                                append("WeatherAPI: No data yet")
+                            }
+                        }
+                    }
+                withContext(Dispatchers.Main) {
+                    findViewById<TextView>(R.id.accuracy_summary_text).text = summary
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading forecast accuracy summary", e)
+                withContext(Dispatchers.Main) {
+                    findViewById<TextView>(R.id.accuracy_summary_text).text =
+                        getString(R.string.error_loading_accuracy_summary)
+                }
+            }
+        }
+    }
+
+    private fun formatBias(bias: Double): String {
+        val absBias = kotlin.math.abs(bias)
+        return when {
+            absBias < 0.5 -> ""
+            bias > 0 -> " (${String.format("%.1f", absBias)}° low)"
+            else -> " (${String.format("%.1f", absBias)}° high)"
+        }
     }
 
     private fun updateModeUi() {

@@ -1,4 +1,5 @@
 import java.io.File
+import java.util.concurrent.Executors
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
@@ -196,67 +197,91 @@ tasks.register("installDebugSmart") {
             .filter { it.isNotEmpty() }
             .toList()
 
-        val firstEmulator = deviceLines
-            .mapNotNull { line ->
-                val parts = line.split(Regex("\\s+"))
-                val serial = parts.getOrNull(0)
-                val state = parts.getOrNull(1)
-                if (serial != null && state == "device" && serial.startsWith("emulator-")) serial else null
-            }
-            .firstOrNull()
-
-        val targetSerial = firstEmulator ?: deviceLines
-            .mapNotNull { line ->
-                val parts = line.split(Regex("\\s+"))
-                val serial = parts.getOrNull(0)
-                val state = parts.getOrNull(1)
-                if (serial != null && state == "device") serial else null
-            }
-            .firstOrNull()
-
-        if (targetSerial == null) {
-            error("No online Android device found for install.")
+        fun parseAdbDeviceLine(line: String): Pair<String, String>? {
+            val match = Regex("^(.*)\\s+(device|offline|unauthorized)\\s*$").find(line)
+                ?: return null
+            val serial = match.groupValues[1].trim()
+            val state = match.groupValues[2]
+            if (serial.isEmpty()) return null
+            return serial to state
         }
 
-        logger.lifecycle("Target device: $targetSerial")
-
-        if (targetSerial.startsWith("emulator-")) {
-            runCommand(listOf(adbPath, "-s", targetSerial, "wait-for-device"), timeoutSeconds = 20)
-            runCommand(listOf(adbPath, "-s", targetSerial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"), timeoutSeconds = 3)
-            runCommand(listOf(adbPath, "-s", targetSerial, "shell", "input", "keyevent", "82"), timeoutSeconds = 3)
-
-            var sdkLevel: String? = null
-            repeat(30) {
-                val sdk = runCommand(
-                    listOf(adbPath, "-s", targetSerial, "shell", "getprop", "ro.build.version.sdk"),
-                    timeoutSeconds = 3,
-                ).replace("\r", "")
-                if (sdk.matches(Regex("\\d+"))) {
-                    sdkLevel = sdk
-                    return@repeat
-                }
-                Thread.sleep(1000)
+        val targetSerials = deviceLines
+            .mapNotNull { line ->
+                val parsed = parseAdbDeviceLine(line) ?: return@mapNotNull null
+                val (serial, state) = parsed
+                if (state == "device") serial else null
             }
+            .toList()
 
-            if (sdkLevel != null) {
-                logger.lifecycle("Emulator SDK detected: $sdkLevel")
-            } else {
-                logger.warn("Could not read emulator SDK level; install may fail if emulator is paused.")
-            }
+        if (targetSerials.isEmpty()) {
+            error("No online Android devices found for install.")
         }
+
+        logger.lifecycle("Target devices: ${targetSerials.joinToString(", ")}")
 
         val apkFile = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
         if (!apkFile.exists()) {
             error("Debug APK not found at ${apkFile.absolutePath}")
         }
 
-        val installOutput = runCommand(
-            listOf(adbPath, "-s", targetSerial, "install", "-r", "-t", apkFile.absolutePath),
-            timeoutSeconds = 120,
-        )
-        if (!installOutput.contains("Success")) {
-            error("adb install failed for $targetSerial:\n$installOutput")
+        val failedInstalls = mutableListOf<String>()
+        val maxParallel = minOf(targetSerials.size, 4)
+        val executor = Executors.newFixedThreadPool(maxParallel)
+
+        try {
+            val futures = targetSerials.map { serial ->
+                executor.submit<String> {
+                    if (serial.startsWith("emulator-")) {
+                        runCommand(listOf(adbPath, "-s", serial, "wait-for-device"), timeoutSeconds = 20)
+                        runCommand(listOf(adbPath, "-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"), timeoutSeconds = 3)
+                        runCommand(listOf(adbPath, "-s", serial, "shell", "input", "keyevent", "82"), timeoutSeconds = 3)
+
+                        var sdkLevel: String? = null
+                        repeat(30) {
+                            val sdk = runCommand(
+                                listOf(adbPath, "-s", serial, "shell", "getprop", "ro.build.version.sdk"),
+                                timeoutSeconds = 3,
+                            ).replace("\r", "")
+                            if (sdk.matches(Regex("\\d+"))) {
+                                sdkLevel = sdk
+                                return@repeat
+                            }
+                            Thread.sleep(1000)
+                        }
+
+                        if (sdkLevel != null) {
+                            logger.lifecycle("Emulator $serial SDK detected: $sdkLevel")
+                        } else {
+                            logger.warn("Could not read emulator SDK level for $serial; install may fail if emulator is paused.")
+                        }
+                    }
+
+                    val installOutput = runCommand(
+                        listOf(adbPath, "-s", serial, "install", "-r", "-t", apkFile.absolutePath),
+                        timeoutSeconds = 120,
+                    )
+                    if (!installOutput.contains("Success")) {
+                        "$serial -> ${installOutput.ifBlank { "no output" }}"
+                    } else {
+                        logger.lifecycle("Install success on $serial")
+                        ""
+                    }
+                }
+            }
+
+            futures.forEach { future ->
+                val failure = future.get()
+                if (failure.isNotEmpty()) {
+                    failedInstalls += failure
+                }
+            }
+        } finally {
+            executor.shutdown()
         }
-        logger.lifecycle("Install success on $targetSerial")
+
+        if (failedInstalls.isNotEmpty()) {
+            error("adb install failed on one or more devices:\n${failedInstalls.joinToString("\n")}")
+        }
     }
 }
