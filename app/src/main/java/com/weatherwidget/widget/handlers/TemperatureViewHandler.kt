@@ -199,7 +199,8 @@ object TemperatureViewHandler {
                 heightPx = heightPx,
                 currentTime = now,
                 bitmapScale = bitmapScale,
-                appliedDelta = currentTempResolution.appliedDelta
+                appliedDelta = currentTempResolution.appliedDelta,
+                observedTempFetchedAt = observedCurrentTempFetchedAt
             )
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {

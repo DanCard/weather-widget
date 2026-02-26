@@ -130,6 +130,7 @@ object TemperatureGraphRenderer {
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
         appliedDelta: Float? = null,
+        observedTempFetchedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -477,6 +478,50 @@ object TemperatureGraphRenderer {
         }
 
         GraphRenderUtils.drawNowIndicator(canvas, nowX, graphTop, graphHeight, currentTimePaint, nowLabelTextPaint) { dpToPx(context, it) }
+
+        // Draw "Last Fetch Dot" on the Expected Truth (Ghost) line
+        if (observedTempFetchedAt != null) {
+            val fetchTime = java.time.Instant.ofEpochMilli(observedTempFetchedAt)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+            
+            val fetchX = GraphRenderUtils.computeXForTime(
+                targetTime = fetchTime,
+                items = expectedHours,
+                points = expectedPoints,
+                hourWidth = hourWidth,
+                dateTimeOf = { it.dateTime }
+            )
+            
+            if (fetchX != null) {
+                // Find Y on the smoothed expected curve
+                val fetchIdx = expectedHours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
+                if (fetchIdx != -1 && fetchIdx < smoothedExpectedTemps.lastIndex) {
+                    val baseTemp = smoothedExpectedTemps[fetchIdx]
+                    val nextTemp = smoothedExpectedTemps[fetchIdx + 1]
+                    val fraction = java.time.Duration.between(expectedHours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+                    val interpolatedFetchTemp = baseTemp + (nextTemp - baseTemp) * fraction
+                    val fetchY = graphTop + graphHeight * (1 - (interpolatedFetchTemp - minTemp) / tempRange)
+                    
+                    val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = tempToColor(interpolatedFetchTemp)
+                        style = Paint.Style.FILL
+                        setShadowLayer(dpToPx(context, 3f), 0f, 0f, Color.parseColor("#AA000000"))
+                    }
+                    
+                    val dotRadius = dpToPx(context, 3.2f * labelScale)
+                    canvas.drawCircle(fetchX, fetchY, dotRadius, dotPaint)
+                    
+                    // Distinct white outer ring to make the thermal color pop
+                    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.WHITE
+                        style = Paint.Style.STROKE
+                        strokeWidth = dpToPx(context, 1.2f * labelScale)
+                    }
+                    canvas.drawCircle(fetchX, fetchY, dotRadius, ringPaint)
+                }
+            }
+        }
 
         return bitmap
     }

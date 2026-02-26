@@ -74,6 +74,31 @@ internal object GraphRenderUtils {
         return curvePath to fillPath
     }
 
+    fun <T> computeXForTime(
+        targetTime: LocalDateTime,
+        items: List<T>,
+        points: List<Pair<Float, Float>>,
+        hourWidth: Float,
+        dateTimeOf: (T) -> LocalDateTime,
+    ): Float? {
+        if (items.isEmpty() || points.isEmpty()) return null
+        
+        // Find the hour bucket
+        val firstTime = dateTimeOf(items.first())
+        val lastTime = dateTimeOf(items.last())
+        
+        if (targetTime.isBefore(firstTime) || targetTime.isAfter(lastTime)) return null
+        
+        // Find the index of the hour starting at or before targetTime
+        val index = items.indexOfLast { !dateTimeOf(it).isAfter(targetTime) }
+        if (index == -1 || index >= points.size) return null
+        
+        val basePointX = points[index].first
+        val minutesOffset = Duration.between(dateTimeOf(items[index]), targetTime).toMinutes()
+        
+        return basePointX + (minutesOffset / 60f) * hourWidth
+    }
+
     fun <T> computeNowX(
         items: List<T>,
         points: List<Pair<Float, Float>>,
