@@ -67,6 +67,7 @@ import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import androidx.annotation.VisibleForTesting
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -282,7 +283,8 @@ class WeatherRepository
          * forecasted values (high, low, or condition) differ from the most recent
          * existing snapshot for that target date and source.
          */
-        private suspend fun saveForecastSnapshot(
+        @VisibleForTesting
+        internal suspend fun saveForecastSnapshot(
             weather: List<WeatherEntity>,
             lat: Double,
             lon: Double,
@@ -430,7 +432,8 @@ class WeatherRepository
          * "Actual" records over incoming forecasts, and fills null temps from existing
          * data so partial fetches don't erase previously-known values.
          */
-        private suspend fun mergeWithExisting(
+        @VisibleForTesting
+        internal suspend fun mergeWithExisting(
             newData: List<WeatherEntity>,
             lat: Double,
             lon: Double,

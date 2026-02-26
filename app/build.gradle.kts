@@ -85,6 +85,10 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
@@ -149,11 +153,13 @@ dependencies {
     testImplementation("androidx.test:core:1.5.0")
     testImplementation(libs.coroutines.test)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.room.testing)
 
     // Instrumented tests
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.ktor.client.mock)
 }
