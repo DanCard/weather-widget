@@ -1475,7 +1475,7 @@ class WeatherRepository
                                     WeatherSource.NWS -> {
                                         appLogDao.log(
                                             "CURR_FETCH_SKIP",
-                                            "reason=$reason source=${weatherSource.id} unsupported_current_endpoint",
+                                            "reason=$reason source=${weatherSource.id} skipped: no lightweight current-temp endpoint",
                                             "INFO",
                                         )
                                         return@forEach
