@@ -134,16 +134,19 @@ class ZoomCycleTest {
 
     @Test
     fun handleCycleZoom_withOffset_recentersOnZoomIn() {
-        stateManager.setHourlyOffset(testWidgetId, 0)
+        // Start with an existing offset (e.g., scrolled forward by 4 hours)
+        stateManager.setHourlyOffset(testWidgetId, 4)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
-        // Simulate tapping zone 8 (center = 0 + (-7 + 2*8) = +9 hours)
+        // Simulate tapping a zone that calculated an absolute center of 9
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 9)
             } catch (_: Exception) {}
         }
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
+        
+        // The absolute offset should be exactly what was passed in
         assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
     }
 
@@ -278,7 +281,9 @@ class ZoomCycleTest {
         val baseOffset = 6  // User has navigated 6h forward
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // Tap zone 0 (leftmost): should center on baseOffset + (-7) = -1
+        // Tap zone 0 (leftmost): should request a relative change of -7
+        // Wait, zoneIndexToOffset currently returns an ABSOLUTE offset.
+        // Let's test what it actually does with the new router logic.
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM

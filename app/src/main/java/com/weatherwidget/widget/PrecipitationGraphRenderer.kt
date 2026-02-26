@@ -879,6 +879,40 @@ object PrecipitationGraphRenderer {
                         strokeWidth = dpToPx(context, 0.5f)
                     }
                     canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
+                    
+                    // On zoomed-in view, show the exact age
+                    if (hours.size <= 8) {
+                        val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
+                        if (ageMinutes >= 0) {
+                            val ageText = if (ageMinutes >= 60) {
+                                val h = ageMinutes / 60
+                                val m = ageMinutes % 60
+                                if (m > 0) "${h}h ${m}m" else "${h}h"
+                            } else {
+                                "${ageMinutes}m"
+                            }
+                            
+                            val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+                            val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                color = Color.parseColor("#BBFFFFFF")
+                                textSize = dpToPx(context, 10f * labelScale)
+                                textAlign = Paint.Align.LEFT
+                                setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+                            }
+                            
+                            val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
+                            val textY = fetchY + ageTextPaint.textSize / 3f
+                            
+                            val textWidth = ageTextPaint.measureText(ageText)
+                            val finalX = if (textX + textWidth > widthPx) {
+                                clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
+                            } else {
+                                textX
+                            }
+                            
+                            canvas.drawText(ageText, finalX, textY, ageTextPaint)
+                        }
+                    }
                 }
             }
         }
