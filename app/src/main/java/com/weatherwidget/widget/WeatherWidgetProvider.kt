@@ -629,7 +629,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         centerTime = centerTime,
                         precipProbability = todayPrecip,
                         observedCurrentTemp = observedCurrentTemp?.temperature,
-                        observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
+                        observedCurrentTempFetchedAt = com.weatherwidget.data.repository.FetchMetadata.getLastSuccessfulCheckTimeMs(context),
                     )
                 }
                 ViewMode.PRECIPITATION -> {
@@ -651,7 +651,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         centerTime = centerTime,
                         precipProbability = todayPrecip,
                         observedCurrentTemp = observedCurrentTemp?.temperature,
-                        observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
+                        observedCurrentTempFetchedAt = com.weatherwidget.data.repository.FetchMetadata.getLastSuccessfulCheckTimeMs(context),
                     )
                 }
                 ViewMode.DAILY -> {

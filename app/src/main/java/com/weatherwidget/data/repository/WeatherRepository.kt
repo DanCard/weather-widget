@@ -117,7 +117,8 @@ class WeatherRepository
 
         companion object {
             private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
-            private const val FORECAST_FRESHNESS_MS = 2 * 60 * 60 * 1000L // 2 hours
+            private const val FORECAST_FRESHNESS_MS = 30 * 60 * 1000L // 30 minutes (matches UI)
+            private const val HOURLY_FRESHNESS_MS = 30 * 60 * 1000L // 30 minutes
             private const val CURRENT_TEMP_FRESHNESS_MS = 5 * 60 * 1000L // 5 minutes
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
             private const val MAX_OBSERVATION_STATION_RETRIES = 5
@@ -129,15 +130,18 @@ class WeatherRepository
         // Rate limiting for network fetches to prevent bursts.
         // Persisted in SharedPreferences to survive process restarts.
         private var lastFullFetchTime: Long
-            get() = prefs.getLong("last_full_fetch_time", 0L)
-            set(value) = prefs.edit().putLong("last_full_fetch_time", value).apply()
+            get() = FetchMetadata.getLastFullFetchTime(context)
+            set(value) = FetchMetadata.setLastFullFetchTime(context, value)
 
         private var lastCurrentTempFetchTime: Long
-            get() = prefs.getLong("last_current_temp_fetch_time", 0L)
-            set(value) = prefs.edit().putLong("last_current_temp_fetch_time", value).apply()
+            get() = FetchMetadata.getLastCurrentTempFetchTime(context)
+            set(value) = FetchMetadata.setLastCurrentTempFetchTime(context, value)
 
         /** Expose rate limiter state for diagnostics (e.g., SYNC_START logging). */
         val lastNetworkFetchTimeMs: Long get() = lastFullFetchTime
+
+        /** Expose the most recent successful API check (either full sync or current temp). */
+        val lastSuccessfulCheckTimeMs: Long get() = FetchMetadata.getLastSuccessfulCheckTimeMs(context)
 
         /**
          * Main entry point for weather data. Returns cached data if fresh (<30 min),
@@ -456,6 +460,23 @@ class WeatherRepository
 
                         // Scenario 3: Both exist -> MERGE
                         new != null && existing != null -> {
+                            // Deduplication: If the new data is identical to the existing record,
+                            // don't update anything to avoid redundant writes.
+                            val isUnchanged =
+                                new.highTemp == existing.highTemp &&
+                                    new.lowTemp == existing.lowTemp &&
+                                    new.condition == existing.condition &&
+                                    new.precipProbability == existing.precipProbability &&
+                                    new.isActual == existing.isActual
+
+                            if (isUnchanged) {
+                                // If forecast data is unchanged, we still check if the 'new' record
+                                // has a fresh currentTemp observation. If so, we must NOT deduplicate.
+                                if (new.currentTemp == null || new.currentTemp == existing.currentTemp) {
+                                    return@map existing
+                                }
+                            }
+
                             // Special Case: If existing is a placeholder "Observed" record,
                             // always allow overwriting it with the new (better) data.
                             val isPlaceholder = existing.condition == "Observed" || existing.condition == "Unknown"
@@ -1375,9 +1396,39 @@ class WeatherRepository
         }
 
         private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>, label: String) {
-            hourlyForecastDao.insertAll(entities)
-            val sortedTimes = entities.map { it.dateTime }.sorted()
-            Log.d(TAG, "$label: Saved ${entities.size} hourly forecasts, range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}")
+            if (entities.isEmpty()) return
+
+            // Deduplication: Fetch existing records for the same time range and source
+            // to avoid redundant writes if data hasn't changed.
+            val start = entities.minOf { it.dateTime }
+            val end = entities.maxOf { it.dateTime }
+            val lat = entities.first().locationLat
+            val lon = entities.first().locationLon
+            val source = entities.first().source
+
+            val existing = hourlyForecastDao.getHourlyForecastsBySource(start, end, lat, lon, source)
+            val existingByTime = existing.associateBy { it.dateTime }
+
+            val changedEntities =
+                entities.filter { new ->
+                    val old = existingByTime[new.dateTime] ?: return@filter true
+                    new.temperature != old.temperature ||
+                        new.condition != old.condition ||
+                        new.precipProbability != old.precipProbability
+                }
+
+            if (changedEntities.isEmpty()) {
+                Log.d(TAG, "$label: Skipping save — all ${entities.size} hourly points are unchanged")
+                return
+            }
+
+            hourlyForecastDao.insertAll(changedEntities)
+            val sortedTimes = changedEntities.map { it.dateTime }.sorted()
+            Log.d(
+                TAG,
+                "$label: Saved ${changedEntities.size} hourly forecasts (filtered from ${entities.size}), " +
+                    "range: ${sortedTimes.firstOrNull()} to ${sortedTimes.lastOrNull()}",
+            )
         }
 
         private suspend fun saveHourlyForecasts(
@@ -1645,9 +1696,7 @@ class WeatherRepository
                         }
                     }
 
-                    if (updatedCount > 0) {
-                        lastCurrentTempFetchTime = now
-                    }
+                    lastCurrentTempFetchTime = now
                     appLogDao.log(
                         "CURR_FETCH_SUCCESS",
                         "reason=$reason updated=$updatedCount sources=${targetSources.joinToString(",") { it.id }} force=$force",

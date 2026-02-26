@@ -11,10 +11,10 @@ class BatteryFetchStrategyTest {
     // ── computeFetchInterval ──
 
     @Test
-    fun `charging always returns 120 regardless of battery level`() {
-        assertEquals(120L, BatteryFetchStrategy.computeFetchInterval(isCharging = true, batteryLevel = 10))
-        assertEquals(120L, BatteryFetchStrategy.computeFetchInterval(isCharging = true, batteryLevel = 50))
-        assertEquals(120L, BatteryFetchStrategy.computeFetchInterval(isCharging = true, batteryLevel = 100))
+    fun `charging always returns 30 regardless of battery level`() {
+        assertEquals(30L, BatteryFetchStrategy.computeFetchInterval(isCharging = true, batteryLevel = 10))
+        assertEquals(30L, BatteryFetchStrategy.computeFetchInterval(isCharging = true, batteryLevel = 50))
+        assertEquals(30L, BatteryFetchStrategy.computeFetchInterval(isCharging = true, batteryLevel = 100))
     }
 
     @Test

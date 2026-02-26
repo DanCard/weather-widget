@@ -174,7 +174,7 @@ class WeatherRepositoryTest {
     @Test
     fun `getWeatherData returns cached data when not forcing refresh`() =
         runTest {
-            val cachedData = listOf(createWeatherEntity(today, 70, 50).copy(fetchedAt = System.currentTimeMillis() - 60 * 60 * 1000)) // 1 hour old
+            val cachedData = listOf(createWeatherEntity(today, 70, 50).copy(fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000)) // 15 mins old
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns cachedData
 
             val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
