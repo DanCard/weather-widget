@@ -122,6 +122,12 @@ object TemperatureGraphRenderer {
         val reason: String = "",
     )
 
+    data class FetchDotDebug(
+        val observedTempFetchedAt: Long,
+        val fetchX: Float?,
+        val withinWindow: Boolean,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<HourData>,
@@ -132,6 +138,7 @@ object TemperatureGraphRenderer {
         appliedDelta: Float? = null,
         observedTempFetchedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
+        onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -499,6 +506,13 @@ object TemperatureGraphRenderer {
                 points = expectedPoints,
                 hourWidth = hourWidth,
                 dateTimeOf = { it.dateTime }
+            )
+            onFetchDotResolved?.invoke(
+                FetchDotDebug(
+                    observedTempFetchedAt = observedTempFetchedAt,
+                    fetchX = fetchX,
+                    withinWindow = fetchX != null,
+                ),
             )
             
             Log.d("TempGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${expectedHours.first().dateTime} to ${expectedHours.last().dateTime}")

@@ -55,6 +55,7 @@ object TemperatureViewHandler {
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
         observedCurrentTempFetchedAt: Long? = null,
+        onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -203,7 +204,8 @@ object TemperatureViewHandler {
                 currentTime = now,
                 bitmapScale = bitmapScale,
                 appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
-                observedTempFetchedAt = observedCurrentTempFetchedAt
+                observedTempFetchedAt = observedCurrentTempFetchedAt,
+                onFetchDotResolved = onFetchDotResolved,
             )
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
