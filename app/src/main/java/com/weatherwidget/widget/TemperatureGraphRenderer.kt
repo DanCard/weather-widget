@@ -270,22 +270,6 @@ object TemperatureGraphRenderer {
         val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
         val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
 
-        // Draw Expected Truth fill and Ghost line (Dashed)
-        if (appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f) {
-            canvas.drawPath(expectedFillPath, expectedFillPaint)
-            canvas.drawPath(expectedPath, ghostPaint)
-        } else {
-            // If no delta, just draw original fill
-            val (_, originalFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
-            canvas.drawPath(originalFillPath, expectedFillPaint)
-        }
-
-        // Draw Original Forecast colorful curve on top
-        canvas.drawPath(originalPath, originalCurvePaint)
-
-        // --- Draw labels, icons, current-time indicator ---
-        val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
-
         // Compute NOW x-position relative to original points
         val nowX =
             GraphRenderUtils.computeNowX(
@@ -296,6 +280,23 @@ object TemperatureGraphRenderer {
                 isCurrentHour = { it.isCurrentHour },
                 dateTimeOf = { it.dateTime },
             )
+        val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
+
+        // Draw Expected Truth fill and Ghost line (Dashed) only when NOW line is visible.
+        if (nowIndicatorVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f) {
+            canvas.drawPath(expectedFillPath, expectedFillPaint)
+            canvas.drawPath(expectedPath, ghostPaint)
+        } else {
+            // If no visible delta context, draw original fill only.
+            val (_, originalFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+            canvas.drawPath(originalFillPath, expectedFillPaint)
+        }
+
+        // Draw Original Forecast colorful curve on top
+        canvas.drawPath(originalPath, originalCurvePaint)
+
+        // --- Draw labels, icons, current-time indicator ---
+        val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
 
         // 1. Draw Hour Labels and Icons
         val drawnIconBounds = mutableListOf<RectF>()
@@ -477,7 +478,14 @@ object TemperatureGraphRenderer {
             }
         }
 
-        GraphRenderUtils.drawNowIndicator(canvas, nowX, graphTop, graphHeight, currentTimePaint, nowLabelTextPaint) { dpToPx(context, it) }
+        GraphRenderUtils.drawNowIndicator(
+            canvas,
+            if (nowIndicatorVisible) nowX else null,
+            graphTop,
+            graphHeight,
+            currentTimePaint,
+            nowLabelTextPaint,
+        ) { dpToPx(context, it) }
 
         // Draw "Last Fetch Dot" on the Expected Truth (Ghost) line
         if (observedTempFetchedAt != null) {

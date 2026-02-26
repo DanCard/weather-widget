@@ -6,11 +6,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
-import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 
 /**
  * Receiver that triggers widget updates when the user unlocks the screen.
@@ -24,10 +24,31 @@ class ScreenOnReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         when (intent.action) {
+            Intent.ACTION_POWER_CONNECTED -> handlePowerConnected(context)
             Intent.ACTION_USER_PRESENT -> handleUserPresent(context)
             Intent.ACTION_SCREEN_OFF -> handleScreenOff(context)
             else -> return
         }
+    }
+
+    private fun handlePowerConnected(context: Context) {
+        val now = System.currentTimeMillis()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val lastRefreshMs = prefs.getLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, 0L)
+
+        if (!PowerConnectedRefreshPolicy.shouldEnqueueRefresh(now, lastRefreshMs)) {
+            val elapsedMs = now - lastRefreshMs
+            Log.d(TAG, "Power connected - skipping lazy refresh (debounced, elapsed=${elapsedMs}ms)")
+            return
+        }
+
+        prefs.edit().putLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, now).apply()
+        Log.d(TAG, "Power connected - enqueueing lazy current-temp refresh")
+        CurrentTempUpdateScheduler.enqueueImmediateUpdate(
+            context = context,
+            reason = "power_connected_lazy",
+            opportunistic = true,
+        )
     }
 
     private fun handleUserPresent(context: Context) {
@@ -108,6 +129,8 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "ScreenOnReceiver"
+        private const val PREFS_NAME = "screen_on_receiver_prefs"
+        private const val KEY_LAST_POWER_CONNECTED_REFRESH_MS = "last_power_connected_refresh_ms"
     }
 }
 

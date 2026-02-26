@@ -124,6 +124,16 @@ object TemperatureViewHandler {
         }
         currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
         val currentTemp = currentTempResolution.displayTemp
+        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
+        val useGraph = rawRows >= 1.4f
+        val graphHours =
+            if (useGraph) {
+                buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
+            } else {
+                emptyList()
+            }
+        val isNowLineVisible = graphHours.any { it.isCurrentHour }
+
         if (currentTemp != null) {
             val formattedTemp =
                 CurrentTemperatureResolver.formatDisplayTemperature(
@@ -136,7 +146,7 @@ object TemperatureViewHandler {
 
             // Update delta badge
             val delta = currentTempResolution.appliedDelta
-            if (delta != null && kotlin.math.abs(delta) >= 0.1f) {
+            if (isNowLineVisible && delta != null && kotlin.math.abs(delta) >= 0.1f) {
                 val deltaText = String.format("%+.1f", delta)
                 val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
                 views.setTextViewText(R.id.current_temp_delta, deltaText)
@@ -166,16 +176,9 @@ object TemperatureViewHandler {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
 
-        // Use graph mode for 2+ rows, text mode for 1 row
-        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
-        val useGraph = rawRows >= 1.4f
-
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
-
-            // Build hour data list for graph
-            val hours = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
 
             // Use actual widget dimensions for bitmap
             // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
@@ -194,12 +197,12 @@ object TemperatureViewHandler {
             // Render temperature graph
             val bitmap = TemperatureGraphRenderer.renderGraph(
                 context = context,
-                hours = hours,
+                hours = graphHours,
                 widthPx = widthPx,
                 heightPx = heightPx,
                 currentTime = now,
                 bitmapScale = bitmapScale,
-                appliedDelta = currentTempResolution.appliedDelta,
+                appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
                 observedTempFetchedAt = observedCurrentTempFetchedAt
             )
             views.setImageViewBitmap(R.id.graph_view, bitmap)
@@ -492,8 +495,9 @@ object TemperatureViewHandler {
             if (forecast != null) {
                 val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
                 val absDiff = kotlin.math.abs(diffMinutes)
+                val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
                 val isClosest = absDiff <= 30
-                val showLabel = isClosest || (hourIndex % labelInterval == 0)
+                val showLabel = isCurrentHour || isClosest || (hourIndex % labelInterval == 0)
 
                 val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
                 val iconRes = WeatherIconMapper.getIconResource(forecast.condition, isNight)
@@ -522,7 +526,7 @@ object TemperatureViewHandler {
                         isSunny = isSunny,
                         isRainy = isRainy,
                         isMixed = isMixed,
-                        isCurrentHour = isClosest,
+                        isCurrentHour = isCurrentHour,
                         showLabel = showLabel,
                     ),
                 )

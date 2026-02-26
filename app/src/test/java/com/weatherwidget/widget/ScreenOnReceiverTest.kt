@@ -13,9 +13,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowApplication
-import com.weatherwidget.data.local.WeatherDatabase
 import kotlinx.coroutines.runBlocking
+
+import com.weatherwidget.data.local.WeatherDatabase
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -28,6 +28,10 @@ class ScreenOnReceiverTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         receiver = ScreenOnReceiver()
+        context.getSharedPreferences("screen_on_receiver_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .commit()
     }
 
     @Test
@@ -81,6 +85,31 @@ class ScreenOnReceiverTest {
             }
 
         assertTrue("Did not expect refresh broadcast on screen off", providerIntent == null)
+    }
+
+    @Test
+    fun `onReceive with POWER_CONNECTED records lazy refresh timestamp`() {
+        val prefs = context.getSharedPreferences("screen_on_receiver_prefs", Context.MODE_PRIVATE)
+        assertEquals(0L, prefs.getLong("last_power_connected_refresh_ms", 0L))
+
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+
+        val stored = prefs.getLong("last_power_connected_refresh_ms", 0L)
+        assertTrue("Expected power-connected lazy refresh timestamp to be stored", stored > 0L)
+    }
+
+    @Test
+    fun `onReceive with POWER_CONNECTED is debounced within window`() {
+        val prefs = context.getSharedPreferences("screen_on_receiver_prefs", Context.MODE_PRIVATE)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+        val first = prefs.getLong("last_power_connected_refresh_ms", 0L)
+        assertTrue("Expected first power-connected timestamp", first > 0L)
+
+        receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
+        val second = prefs.getLong("last_power_connected_refresh_ms", 0L)
+
+        assertEquals("Expected second power-connected event to be debounced", first, second)
     }
 
     @Test

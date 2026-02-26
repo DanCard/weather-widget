@@ -182,4 +182,49 @@ class TemperatureDeltaVisibilityRoboTest {
         val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
         assertEquals("Delta badge should be GONE for negligible delta", View.GONE, deltaBadge.visibility)
     }
+
+    @Test
+    fun `delta badge is hidden when now line is not visible`() {
+        val appWidgetManager = mockk<AppWidgetManager>()
+        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+        }
+
+        val viewsSlot = slot<RemoteViews>()
+        every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
+
+        val now = LocalDateTime.now()
+        val todayStr = now.toLocalDate().toString()
+        val currentHourKey = String.format("%sT%02d:00", todayStr, now.hour)
+
+        val hourly = listOf(
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = currentHourKey,
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis(),
+            ),
+        )
+
+        TemperatureViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = hourly,
+            centerTime = now.plusHours(24), // Graph window excludes current hour -> no NOW line
+            precipProbability = 0,
+            observedCurrentTemp = 72.0f,
+            observedCurrentTempFetchedAt = System.currentTimeMillis(),
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root)
+        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
+        assertEquals("Delta badge should be GONE when NOW line is not visible", View.GONE, deltaBadge.visibility)
+    }
 }

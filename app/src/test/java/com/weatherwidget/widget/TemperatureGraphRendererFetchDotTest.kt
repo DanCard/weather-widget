@@ -61,6 +61,25 @@ class TemperatureGraphRendererFetchDotTest {
         verify(exactly = 3) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
     }
 
+    @Test
+    fun `renderGraph does not draw ghost line when now indicator is not visible`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 26, 10, 0)
+        val hours = buildHours(start) // No isCurrentHour marker -> NOW indicator hidden
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 300,
+            currentTime = start.plusHours(2),
+            appliedDelta = 1.5f,
+        )
+
+        // Hidden NOW indicator should force original-only fill + curve (2 paths).
+        verify(exactly = 2) { anyConstructed<Canvas>().drawPath(any(), any()) }
+    }
+
     private fun mockContext(): Context {
         mockkStatic(Bitmap::class)
         mockkConstructor(Canvas::class)
