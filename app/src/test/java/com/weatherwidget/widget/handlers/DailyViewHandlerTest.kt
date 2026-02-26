@@ -209,6 +209,51 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `buildDayClickIntent tomorrow without rain navigates to temperature`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val dateStr = "2030-06-16" // Tomorrow
+        
+        val intent = DailyViewHandler.buildDayClickIntent(
+            context = context,
+            appWidgetId = 42,
+            dayIndex = 1,
+            dateStr = dateStr,
+            hasRainForecast = false,
+            lat = 37.0,
+            lon = -122.0,
+            displaySource = WeatherSource.NWS,
+            now = now
+        )
+
+        assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
+        assertFalse(intent.getBooleanExtra("showHistory", true))
+        assertEquals("TEMPERATURE", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
+        assertEquals(20, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+    }
+
+    @Test
+    fun `buildDayClickIntent past day navigates to history`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val dateStr = "2030-06-14" // Yesterday
+        
+        val intent = DailyViewHandler.buildDayClickIntent(
+            context = context,
+            appWidgetId = 42,
+            dayIndex = 1,
+            dateStr = dateStr,
+            hasRainForecast = false,
+            lat = 37.0,
+            lon = -122.0,
+            displaySource = WeatherSource.NWS,
+            now = now
+        )
+
+        assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
+        assertTrue(intent.getBooleanExtra("showHistory", false))
+        assertEquals(37.0, intent.getDoubleExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.1)
+    }
+
+    @Test
     fun `updateWidget text labels use integer format when value is whole`() = runBlocking {
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)

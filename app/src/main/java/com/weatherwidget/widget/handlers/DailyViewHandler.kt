@@ -200,6 +200,10 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Setup API source toggle click handler
         setupApiToggle(context, views, appWidgetId, numRows)
+        
+        // Hide history icon in daily mode
+        views.setViewVisibility(R.id.history_icon, View.GONE)
+        views.setViewVisibility(R.id.history_touch_zone, View.GONE)
 
         // Set up navigation click handlers
         val availableDates = weatherByDate.filter { (_, weather) ->
@@ -439,8 +443,7 @@ object DailyViewHandler : WidgetViewHandler {
     ): Intent {
         val targetDay = LocalDate.parse(dateStr)
         val isHistory = targetDay.isBefore(now.toLocalDate())
-        val navigateToPrecip = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRainForecast)
-        val showHistory = !navigateToPrecip
+        val showHistory = DayClickHelper.shouldShowHistory(isHistory)
 
         return Intent(context, WeatherWidgetProvider::class.java).apply {
             action = ACTION_DAY_CLICK
@@ -449,17 +452,15 @@ object DailyViewHandler : WidgetViewHandler {
             putExtra("isHistory", isHistory)
             putExtra("showHistory", showHistory)
             putExtra("index", dayIndex)
+            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
 
-            if (showHistory) {
-                putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-            } else {
+            if (!showHistory) {
+                val targetMode = DayClickHelper.resolveTargetViewMode(hasRainForecast)
                 val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
-                putExtra(EXTRA_TARGET_VIEW, "PRECIPITATION")
+                putExtra(EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(EXTRA_HOURLY_OFFSET, offset)
-                putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             }
         }
     }

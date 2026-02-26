@@ -87,7 +87,7 @@ class DailyViewHandlerIntentContractTest {
         assertEquals(expectedOffset, intent.getIntExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
         assertEquals(LAT, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.00001)
         assertEquals(LON, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0), 0.00001)
-        assertNull(intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
+        assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
     }
 
     @Test

@@ -580,6 +580,21 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         cachedRequestedSource = nextSource
         updateApiSourceButton()
+        
+        // Sync back to widget state if appWidgetId is available
+        val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            widgetStateManager.setCurrentDisplaySource(appWidgetId, nextSource)
+            
+            // Trigger UI update to reflect the new source
+            val updateIntent = Intent(this, com.weatherwidget.widget.WeatherWidgetProvider::class.java).apply {
+                action = com.weatherwidget.widget.WeatherWidgetProvider.ACTION_REFRESH
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(com.weatherwidget.widget.WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+            }
+            sendBroadcast(updateIntent)
+        }
+
         loadData(
             targetDate = targetDate,
             lat = targetLat,

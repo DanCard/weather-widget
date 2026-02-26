@@ -722,6 +722,30 @@
 
     </FrameLayout>
 
+    <!-- History icon (top-middle) - Only visible in hourly views -->
+    <ImageView
+        android:id="@+id/history_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="6dp"
+        android:src="@drawable/ic_history"
+        android:contentDescription="@string/forecast_history"
+        android:tint="#AAFFFFFF"
+        android:visibility="gone" />
+
+    <!-- Larger history touch target -->
+    <FrameLayout
+        android:id="@+id/history_touch_zone"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="-2dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
     <!-- Settings icon (top-right corner) -->
     <ImageView
         android:id="@+id/settings_icon"

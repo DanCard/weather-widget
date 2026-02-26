@@ -20,6 +20,7 @@ import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -102,6 +103,9 @@ object TemperatureViewHandler {
 
         // Setup API toggle
         setupApiToggle(context, views, appWidgetId, numRows)
+
+        // Setup History shortcut
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
 
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
@@ -370,6 +374,41 @@ object TemperatureViewHandler {
                 else -> 14f
             }
         views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+    }
+
+    private fun setupHistoryShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        centerTime: LocalDateTime,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+    ) {
+        val dateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+
+        val historyIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WeatherWidgetProvider.ACTION_DAY_CLICK
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra("date", dateStr)
+            putExtra("showHistory", true)
+            putExtra("isHistory", centerTime.toLocalDate().isBefore(LocalDate.now()))
+            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
+            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
+            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            appWidgetId * 100 + 700,
+            historyIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
+        views.setViewVisibility(R.id.history_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
     }
 
     private fun setupSettingsShortcut(

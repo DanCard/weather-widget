@@ -322,6 +322,18 @@ class WidgetStateManager
         }
 
         /**
+         * Sets the current display source for a widget by finding its index in the visible sources list.
+         */
+        fun setCurrentDisplaySource(widgetId: Int, source: WeatherSource) {
+            val visibleSources = getVisibleSourcesOrder()
+            val index = visibleSources.indexOf(source)
+            if (index != -1) {
+                prefs.edit().putInt("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", index).apply()
+                clearCurrentTempDeltaState(widgetId)
+            }
+        }
+
+        /**
          * Toggles the display source for a widget.
          * Returns the new source after toggling.
          */

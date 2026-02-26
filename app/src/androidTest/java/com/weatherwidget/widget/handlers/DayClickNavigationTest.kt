@@ -98,9 +98,11 @@ class DayClickNavigationTest {
         // But DayClickHelper should still detect rain from daily data
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
         assertTrue("Daily 16% precip should count as rain for navigation", hasRain)
-        assertTrue(
-            "Should navigate to precipitation graph",
-            DayClickHelper.shouldNavigateToPrecipitation(false, hasRain),
+        assertFalse("Today should NOT show history", DayClickHelper.shouldShowHistory(false))
+        assertEquals(
+            "Should resolve to PRECIPITATION view mode",
+            ViewMode.PRECIPITATION,
+            DayClickHelper.resolveTargetViewMode(hasRain),
         )
 
         // Simulate the widget state transition
@@ -146,7 +148,8 @@ class DayClickNavigationTest {
         assertNotNull("70% hourly rain should be detected", rainSummary)
 
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 70)
-        assertTrue(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
+        assertFalse(DayClickHelper.shouldShowHistory(false))
+        assertEquals(ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRain))
 
         val offset = DayClickHelper.calculatePrecipitationOffset(now, today)
         runBlocking {
@@ -179,11 +182,20 @@ class DayClickNavigationTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 0)
 
         assertNull(rainSummary)
-        assertFalse("No rain should not navigate to precipitation", hasRain)
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
+        assertFalse("No rain should not resolve to precipitation", hasRain)
+        assertFalse(DayClickHelper.shouldShowHistory(false))
+        assertEquals(ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
 
-        // showHistory=true path opens ForecastHistoryActivity, does NOT change view mode
-        assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
+        // showHistory=false path with no rain opens TEMPERATURE hourly, 
+        // unlike the old path which opened history.
+        // Let's verify it transitions correctly.
+        val offset = DayClickHelper.calculatePrecipitationOffset(now, today)
+        runBlocking {
+            try {
+                WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.TEMPERATURE, offset)
+            } catch (_: Exception) {}
+        }
+        assertEquals(ViewMode.TEMPERATURE, stateManager.getViewMode(testWidgetId))
     }
 
     // ── State management: offset is persisted correctly ──

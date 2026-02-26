@@ -48,41 +48,28 @@ class DayClickHelperTest {
         assertFalse(DayClickHelper.hasRainForecast(rainSummary = "", dailyPrecipProbability = 0))
     }
 
-    // ── shouldNavigateToPrecipitation: basic decision truth table ──
+    // ── shouldShowHistory: basic decision truth table ──
 
     @Test
-    fun `today with rain navigates to precipitation`() {
-        assertTrue(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = false, hasRainForecast = true))
+    fun `past day shows history`() {
+        assertTrue(DayClickHelper.shouldShowHistory(isPastDay = true))
     }
 
     @Test
-    fun `today without rain does not navigate to precipitation`() {
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = false, hasRainForecast = false))
+    fun `today does not show history`() {
+        assertFalse(DayClickHelper.shouldShowHistory(isPastDay = false))
+    }
+
+    // ── resolveTargetViewMode: basic decision truth table ──
+
+    @Test
+    fun `day with rain navigates to precipitation`() {
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRainForecast = true))
     }
 
     @Test
-    fun `past day with rain does not navigate to precipitation`() {
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = true, hasRainForecast = true))
-    }
-
-    @Test
-    fun `past day without rain does not navigate to precipitation`() {
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = true, hasRainForecast = false))
-    }
-
-    @Test
-    fun `helper is inverse of showHistory logic`() {
-        for (isHistory in listOf(true, false)) {
-            for (hasRain in listOf(true, false)) {
-                val showHistory = isHistory || !hasRain
-                val shouldNav = DayClickHelper.shouldNavigateToPrecipitation(isHistory, hasRain)
-                assertEquals(
-                    "isHistory=$isHistory, hasRain=$hasRain",
-                    showHistory,
-                    !shouldNav,
-                )
-            }
-        }
+    fun `day without rain navigates to temperature`() {
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRainForecast = false))
     }
 
     // ── calculatePrecipitationOffset ──
@@ -141,30 +128,20 @@ class DayClickHelperTest {
 
     @Test
     fun `today with daily precip but no hourly rain navigates to precipitation`() {
-        // Real-world scenario from device: NWS daily says 16% precip, but
-        // hourly data has max 6% — no hour exceeds 40% threshold.
         val today = LocalDate.of(2024, 6, 15)
         val now = LocalDateTime.of(2024, 6, 15, 10, 0)
         val forecasts = listOf(
             createForecast("2024-06-15T14:00", precipProb = 6),
             createForecast("2024-06-15T15:00", precipProb = 3),
         )
-        val dailyPrecipProbability = 16 // Shown on widget as "16%"
+        val dailyPrecipProbability = 16
 
         val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
-        assertNull("Hourly data should NOT meet 40% threshold", rainSummary)
-
-        // Despite no hourly rain, daily data shows 16% — widget displays this.
-        // Clicking today should navigate to precipitation graph.
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
-        assertTrue(
-            "Daily precipitation 16% should count as rain for navigation",
-            hasRain,
-        )
-        assertTrue(
-            "Today with 16% daily precipitation should navigate to precipitation graph",
-            DayClickHelper.shouldNavigateToPrecipitation(false, hasRain),
-        )
+
+        assertTrue("Daily precipitation 16% should count as rain", hasRain)
+        assertFalse("Today should NOT show history", DayClickHelper.shouldShowHistory(false))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRain))
     }
 
     @Test
@@ -178,12 +155,13 @@ class DayClickHelperTest {
         val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 60)
 
-        assertNotNull("60% hourly rain should be detected", rainSummary)
-        assertTrue(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
+        assertTrue(hasRain)
+        assertFalse(DayClickHelper.shouldShowHistory(false))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRain))
     }
 
     @Test
-    fun `today with zero daily precip and no hourly rain shows history`() {
+    fun `today with zero daily precip and no hourly rain navigates to temperature`() {
         val today = LocalDate.of(2024, 6, 15)
         val now = LocalDateTime.of(2024, 6, 15, 10, 0)
         val forecasts = listOf(
@@ -193,45 +171,20 @@ class DayClickHelperTest {
         val rainSummary = RainAnalyzer.getRainSummary(forecasts, today, "NWS", now)
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = 0)
 
-        assertNull(rainSummary)
         assertFalse(hasRain)
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
+        assertFalse(DayClickHelper.shouldShowHistory(false))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
     }
 
     @Test
-    fun `today with null daily precip and no hourly rain shows history`() {
-        val today = LocalDate.of(2024, 6, 15)
-        val now = LocalDateTime.of(2024, 6, 15, 10, 0)
-
-        val rainSummary = RainAnalyzer.getRainSummary(emptyList(), today, "NWS", now)
-        val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability = null)
-
-        assertFalse(hasRain)
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
-    }
-
-    @Test
-    fun `past day with daily precip does not navigate to precipitation`() {
-        // Even with 80% daily probability, past days always go to history
+    fun `past day with daily precip shows history regardless of rain`() {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 80)
-        assertTrue("Should detect rain", hasRain)
-        assertFalse(
-            "Past days never navigate to precipitation",
-            DayClickHelper.shouldNavigateToPrecipitation(isPastDay = true, hasRainForecast = hasRain),
-        )
-    }
-
-    @Test
-    fun `today with 4 percent daily precip navigates to precipitation`() {
-        // Even small probabilities (e.g., Open-Meteo's 4%) should trigger
-        // navigation since the widget shows this to the user
-        val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 4)
         assertTrue(hasRain)
-        assertTrue(DayClickHelper.shouldNavigateToPrecipitation(false, hasRain))
+        assertTrue("Past days ALWAYS show history", DayClickHelper.shouldShowHistory(isPastDay = true))
     }
 
     @Test
-    fun `integration next 8 hour precip suppresses navigation when only past rain exists`() {
+    fun `integration next 8 hour precip suppresses precipitation navigation when only past rain exists`() {
         val now = LocalDateTime.of(2026, 2, 22, 10, 0)
         val forecasts = listOf(
             createForecast("2026-02-22T09:00", precipProb = 26),
@@ -251,6 +204,6 @@ class DayClickHelperTest {
 
         assertNull(todayNext8HourPrecip)
         assertFalse(hasRain)
-        assertFalse(DayClickHelper.shouldNavigateToPrecipitation(isPastDay = false, hasRainForecast = hasRain))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
     }
 }

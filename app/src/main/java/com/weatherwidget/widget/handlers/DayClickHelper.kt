@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.ViewMode
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -10,8 +11,9 @@ import java.time.temporal.ChronoUnit
  *
  * When a user taps a day in the daily forecast view:
  * - Past days always open ForecastHistoryActivity (showHistory=true)
- * - Today/future days WITH any rain indication navigate to the precipitation graph
- * - Today/future days WITHOUT rain open ForecastHistoryActivity
+ * - Today/future days stay in the widget:
+ *   - If any rain indication exists, navigate to the PRECIPITATION graph
+ *   - Otherwise, navigate to the TEMPERATURE graph
  *
  * Rain is indicated by either:
  * - RainAnalyzer detecting future hourly rain (>= 40% probability threshold)
@@ -23,11 +25,6 @@ object DayClickHelper {
      * Determines whether a day has any rain forecast, considering both hourly
      * analysis and daily precipitation probability.
      *
-     * The widget shows daily precipProbability next to current temp (e.g., "16%").
-     * When this is visible, clicking the day should navigate to the precipitation
-     * graph so the user can see the hourly breakdown — even if no single hour
-     * exceeds the 50% RainAnalyzer threshold.
-     *
      * @param rainSummary the RainAnalyzer summary (non-null when rain is starting after a dry gap)
      * @param dailyPrecipProbability the daily precipitation probability from WeatherEntity
      * @return true if any rain indication exists
@@ -37,23 +34,30 @@ object DayClickHelper {
     }
 
     /**
-     * Determines whether clicking a day should navigate to the precipitation graph.
+     * Determines whether clicking a day should open the ForecastHistoryActivity.
      *
      * @param isPastDay true if the target day is before today
-     * @param hasRainForecast true if any rain indication exists for this day
-     * @return true if the click should switch to the hourly precipitation view
+     * @return true if the click should launch the history activity
      */
-    fun shouldNavigateToPrecipitation(isPastDay: Boolean, hasRainForecast: Boolean): Boolean {
-        return !isPastDay && hasRainForecast
+    fun shouldShowHistory(isPastDay: Boolean): Boolean {
+        return isPastDay
     }
 
     /**
-     * Calculates the hourly offset for centering the precipitation graph on a target day.
+     * Resolves the target ViewMode for a day click when not showing history.
+     *
+     * @param hasRainForecast true if any rain indication exists for this day
+     * @return the resolved ViewMode (TEMPERATURE or PRECIPITATION)
+     */
+    fun resolveTargetViewMode(hasRainForecast: Boolean): ViewMode {
+        return if (hasRainForecast) ViewMode.PRECIPITATION else ViewMode.TEMPERATURE
+    }
+
+    /**
+     * Calculates the hourly offset for centering the hourly graphs on a target day.
      *
      * For TODAY:
      * Returns 0 to center the graph on the current hour.
-     * The graph shows (center - 8h) to (center + 16h), which results in
-     * exactly 8 hours of history and 16 hours of forecast relative to "now".
      *
      * For FUTURE days:
      * Returns the offset required to center the graph on 8 AM of the target day.
