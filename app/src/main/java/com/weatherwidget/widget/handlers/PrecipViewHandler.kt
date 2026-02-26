@@ -134,6 +134,9 @@ object PrecipViewHandler {
 
         // Setup History shortcut
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
+        
+        // Hide temp delta badge in precip mode
+        views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(

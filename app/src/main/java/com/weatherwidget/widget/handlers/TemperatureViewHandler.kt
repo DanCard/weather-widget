@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -132,8 +133,21 @@ object TemperatureViewHandler {
                 )
             views.setTextViewText(R.id.current_temp, formattedTemp)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
+
+            // Update delta badge
+            val delta = currentTempResolution.appliedDelta
+            if (delta != null && kotlin.math.abs(delta) >= 0.1f) {
+                val deltaText = String.format("%+.1f", delta)
+                val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
+                views.setTextViewText(R.id.current_temp_delta, deltaText)
+                views.setTextColor(R.id.current_temp_delta, deltaColor)
+                views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
+            } else {
+                views.setViewVisibility(R.id.current_temp_delta, View.GONE)
+            }
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
+            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
         }
 
         val headerPrecipProbability =
@@ -178,7 +192,15 @@ object TemperatureViewHandler {
                 )
 
             // Render temperature graph
-            val bitmap = TemperatureGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale)
+            val bitmap = TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                currentTime = now,
+                bitmapScale = bitmapScale,
+                appliedDelta = currentTempResolution.appliedDelta
+            )
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)

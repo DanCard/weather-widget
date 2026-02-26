@@ -129,6 +129,7 @@ object TemperatureGraphRenderer {
         heightPx: Int,
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
+        appliedDelta: Float? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -136,8 +137,12 @@ object TemperatureGraphRenderer {
 
         if (hours.isEmpty()) return bitmap
 
-        // Find temperature range for scaling
-        val allTemps = hours.map { it.temperature }
+        // Apply delta to all hours if present
+        val correctedHours = hours.map { it.copy(temperature = it.temperature + (appliedDelta ?: 0f)) }
+
+        // Find temperature range for scaling (using BOTH corrected and original temps)
+        // to ensure the ghost line is always visible.
+        val allTemps = correctedHours.map { it.temperature } + hours.map { it.temperature }
         val minTemp = (allTemps.minOrNull() ?: 0f)
         val maxTemp = (allTemps.maxOrNull() ?: 100f)
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
@@ -158,7 +163,7 @@ object TemperatureGraphRenderer {
         val graphBottom = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        val hourWidth = widthPx.toFloat() / hours.size
+        val hourWidth = widthPx.toFloat() / correctedHours.size
 
         // --- Paints ---
 
@@ -235,21 +240,42 @@ object TemperatureGraphRenderer {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             }
 
-        // --- Build curve path & gradient fill path ---
-        val points = mutableListOf<Pair<Float, Float>>() // x,y for each hour
-        val rawTemps = hours.map { it.temperature }
-        val smoothedTemps = GraphRenderUtils.smoothValues(rawTemps, iterations = 1)
+        // --- Build curve paths ---
+        val rawCorrectedTemps = correctedHours.map { it.temperature }
+        val smoothedCorrectedTemps = GraphRenderUtils.smoothValues(rawCorrectedTemps, iterations = 1)
+        
+        val rawOriginalTemps = hours.map { it.temperature }
+        val smoothedOriginalTemps = GraphRenderUtils.smoothValues(rawOriginalTemps, iterations = 1)
 
-        // Compute all data points first
-        hours.forEachIndexed { index, _ ->
+        val correctedPoints = mutableListOf<Pair<Float, Float>>()
+        val originalPoints = mutableListOf<Pair<Float, Float>>()
+
+        hours.indices.forEach { index ->
             val x = hourWidth * index + hourWidth / 2
-            val y = graphTop + graphHeight * (1 - (smoothedTemps[index] - minTemp) / tempRange)
-            points.add(x to y)
+            
+            val yCorrected = graphTop + graphHeight * (1 - (smoothedCorrectedTemps[index] - minTemp) / tempRange)
+            correctedPoints.add(x to yCorrected)
+            
+            val yOriginal = graphTop + graphHeight * (1 - (smoothedOriginalTemps[index] - minTemp) / tempRange)
+            originalPoints.add(x to yOriginal)
         }
 
-        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
+        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(correctedPoints, graphBottom)
 
-        // Draw gradient fill, then curve on top
+        // Draw original "Ghost" line if significant delta exists
+        if (appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f) {
+            val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+            val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                alpha = 60 // ~23% opacity
+                strokeWidth = dpToPx(context, 1f)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 2f), dpToPx(context, 2f)), 0f)
+            }
+            canvas.drawPath(originalPath, ghostPaint)
+        }
+
+        // Draw gradient fill, then colorful corrected curve on top
         canvas.drawPath(fillPath, gradientPaint)
         canvas.drawPath(curvePath, curvePaint)
 
@@ -259,8 +285,8 @@ object TemperatureGraphRenderer {
         // Compute NOW x-position early
         val nowX =
             GraphRenderUtils.computeNowX(
-                items = hours,
-                points = points,
+                items = correctedHours,
+                points = correctedPoints,
                 currentTime = currentTime,
                 hourWidth = hourWidth,
                 isCurrentHour = { it.isCurrentHour },
@@ -271,8 +297,8 @@ object TemperatureGraphRenderer {
         val drawnIconBounds = mutableListOf<RectF>()
         GraphRenderUtils.drawHourLabels(
             canvas = canvas,
-            items = hours,
-            points = points,
+            items = correctedHours,
+            points = correctedPoints,
             widthPx = widthPx,
             heightPx = heightPx,
             minHourLabelSpacing = minHourLabelSpacing,
@@ -281,7 +307,7 @@ object TemperatureGraphRenderer {
             showLabel = { it.showLabel },
             labelText = { it.label },
         ) { index, clampedX ->
-            val hour = hours[index]
+            val hour = correctedHours[index]
             if (hour.iconRes != null) {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
                 if (drawable != null) {
@@ -314,30 +340,30 @@ object TemperatureGraphRenderer {
         }
 
         // 2. Key temperature labels — find min/max from the data used to draw the curve
-        val dailyHighIndex = smoothedTemps.indices.maxByOrNull { smoothedTemps[it] } ?: -1
-        val dailyLowIndex = smoothedTemps.indices.minByOrNull { smoothedTemps[it] } ?: -1
+        val dailyHighIndex = smoothedCorrectedTemps.indices.maxByOrNull { smoothedCorrectedTemps[it] } ?: -1
+        val dailyLowIndex = smoothedCorrectedTemps.indices.minByOrNull { smoothedCorrectedTemps[it] } ?: -1
 
         // Find local extrema (peaks and valleys) that are significant enough to label
         fun findLocalExtremaIndices(): List<Int> {
             val extrema = mutableListOf<Int>()
-            if (smoothedTemps.size < 3) return extrema
+            if (smoothedCorrectedTemps.size < 3) return extrema
 
             var i = 1
-            while (i < smoothedTemps.size - 1) {
-                val current = smoothedTemps[i]
-                val prev = smoothedTemps[i - 1]
+            while (i < smoothedCorrectedTemps.size - 1) {
+                val current = smoothedCorrectedTemps[i]
+                val prev = smoothedCorrectedTemps[i - 1]
                 
-                if (current > prev && current > smoothedTemps[i + 1]) {
+                if (current > prev && current > smoothedCorrectedTemps[i + 1]) {
                     extrema.add(i) // Local Max
-                } else if (current < prev && current < smoothedTemps[i + 1]) {
+                } else if (current < prev && current < smoothedCorrectedTemps[i + 1]) {
                     extrema.add(i) // Local Min
-                } else if (current == smoothedTemps[i + 1] && current != prev) {
+                } else if (current == smoothedCorrectedTemps[i + 1] && current != prev) {
                     var j = i + 1
-                    while (j < smoothedTemps.size - 1 && smoothedTemps[j] == current) {
+                    while (j < smoothedCorrectedTemps.size - 1 && smoothedCorrectedTemps[j] == current) {
                         j++
                     }
-                    val next = smoothedTemps[j]
-                    if (j < smoothedTemps.size) {
+                    val next = smoothedCorrectedTemps[j]
+                    if (j < smoothedCorrectedTemps.size) {
                         if (current > prev && current > next) extrema.add((i + j) / 2) 
                         else if (current < prev && current < next) extrema.add((i + j) / 2)
                     }
@@ -351,14 +377,14 @@ object TemperatureGraphRenderer {
         val localExtrema = findLocalExtremaIndices()
 
         fun bilateralExtremaProminence(index: Int): Float {
-            val current = smoothedTemps[index]
+            val current = smoothedCorrectedTemps[index]
             val localExtremaSet = localExtrema.toSet()
 
             fun maxDeltaInDirection(step: Int): Float {
                 var maxDelta = 0f
                 var cursor = index + step
-                while (cursor in smoothedTemps.indices) {
-                    val delta = Math.abs(smoothedTemps[cursor] - current)
+                while (cursor in smoothedCorrectedTemps.indices) {
+                    val delta = Math.abs(smoothedCorrectedTemps[cursor] - current)
                     if (delta > maxDelta) maxDelta = delta
                     if (cursor != index + step && cursor in localExtremaSet) break
                     cursor += step
@@ -384,45 +410,45 @@ object TemperatureGraphRenderer {
 
         significantLocalExtrema.forEach { idx ->
             if (idx !in specialIndices) {
-                val labelText = String.format("%.0f", smoothedTemps[idx])
+                val labelText = String.format("%.0f", smoothedCorrectedTemps[idx])
                 val duplicatesNearby = specialIndices.any { existing ->
                     Math.abs(idx - existing) <= 3 &&
-                        String.format("%.0f", smoothedTemps[existing]) == labelText
+                        String.format("%.0f", smoothedCorrectedTemps[existing]) == labelText
                 }
                 if (!duplicatesNearby) specialIndices.add(idx)
             }
         }
 
         if (0 !in specialIndices) specialIndices.add(0)
-        if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
+        if (correctedHours.size > 1 && (correctedHours.size - 1) !in specialIndices) specialIndices.add(correctedHours.size - 1)
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
         // For min/max, find center of consecutive points at the same value
         fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
-            val value = smoothedTemps[anchorIdx]
+            val value = smoothedCorrectedTemps[anchorIdx]
             var first = anchorIdx
             var last = anchorIdx
-            while (first > 0 && smoothedTemps[first - 1] == value) first--
-            while (last < smoothedTemps.lastIndex && smoothedTemps[last + 1] == value) last++
-            val cx = (points[first].first + points[last].first) / 2f
-            val cy = (points[first].second + points[last].second) / 2f
+            while (first > 0 && smoothedCorrectedTemps[first - 1] == value) first--
+            while (last < smoothedCorrectedTemps.lastIndex && smoothedCorrectedTemps[last + 1] == value) last++
+            val cx = (correctedPoints[first].first + correctedPoints[last].first) / 2f
+            val cy = (correctedPoints[first].second + correctedPoints[last].second) / 2f
             return cx to cy
         }
 
         fun isLocalMax(index: Int): Boolean {
-            if (index <= 0 || index >= smoothedTemps.lastIndex) return false
-            val current = smoothedTemps[index]
-            val prev = smoothedTemps[index - 1]
-            val next = smoothedTemps[index + 1]
+            if (index <= 0 || index >= smoothedCorrectedTemps.lastIndex) return false
+            val current = smoothedCorrectedTemps[index]
+            val prev = smoothedCorrectedTemps[index - 1]
+            val next = smoothedCorrectedTemps[index + 1]
             return (current >= prev && current > next) || (current > prev && current >= next)
         }
 
         fun isLocalMin(index: Int): Boolean {
-            if (index <= 0 || index >= smoothedTemps.lastIndex) return false
-            val current = smoothedTemps[index]
-            val prev = smoothedTemps[index - 1]
-            val next = smoothedTemps[index + 1]
+            if (index <= 0 || index >= smoothedCorrectedTemps.lastIndex) return false
+            val current = smoothedCorrectedTemps[index]
+            val prev = smoothedCorrectedTemps[index - 1]
+            val next = smoothedCorrectedTemps[index + 1]
             return (current <= prev && current < next) || (current < prev && current <= next)
         }
 
@@ -430,9 +456,9 @@ object TemperatureGraphRenderer {
             val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) {
                 centerOfRun(idx)
             } else {
-                points[idx].first to points[idx].second
+                correctedPoints[idx].first to correctedPoints[idx].second
             }
-            val label = String.format("%.0f°", smoothedTemps[idx])
+            val label = String.format("%.0f°", smoothedCorrectedTemps[idx])
             val textWidth = tempLabelTextPaint.measureText(label)
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
@@ -490,7 +516,7 @@ object TemperatureGraphRenderer {
                         idx == dailyLowIndex -> "LOW"
                         idx == dailyHighIndex -> "HIGH"
                         idx == 0 -> "START"
-                        idx == hours.lastIndex -> "END"
+                        idx == correctedHours.lastIndex -> "END"
                         else -> "LOCAL"
                     }
 
@@ -498,8 +524,8 @@ object TemperatureGraphRenderer {
                     LabelPlacementDebug(
                         index = idx,
                         role = role,
-                        temperature = smoothedTemps[idx],
-                        rawTemperature = hours[idx].temperature,
+                        temperature = smoothedCorrectedTemps[idx],
+                        rawTemperature = correctedHours[idx].temperature,
                         x = clampedX,
                         y = placedLabelY,
                         placedAbove = !finalDrawBelow,
@@ -512,10 +538,10 @@ object TemperatureGraphRenderer {
         // Draw day of week indicators at 8am (start of the "active" day)
         val dayLabelHour = 8
         val dayY = heightPx - dpToPx(context, 14f)
-        hours.forEachIndexed { index, hour ->
+        correctedHours.forEachIndexed { index, hour ->
             if (hour.dateTime.hour == dayLabelHour) {
                 val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-                val centerX = points[index].first
+                val centerX = correctedPoints[index].first
                 val textWidth = dayLabelTextPaint.measureText(dayText)
                 val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
                 canvas.drawText(dayText, clampedX, dayY, dayLabelTextPaint)
@@ -523,13 +549,13 @@ object TemperatureGraphRenderer {
         }
 
         // Draw leading day label only if 8am for the same day isn't already in the data
-        if (hours.isNotEmpty() && hours.first().dateTime.hour != dayLabelHour) {
-            val firstDate = hours.first().dateTime.toLocalDate()
-            val sameDayAnchorExists = hours.any {
+        if (correctedHours.isNotEmpty() && correctedHours.first().dateTime.hour != dayLabelHour) {
+            val firstDate = correctedHours.first().dateTime.toLocalDate()
+            val sameDayAnchorExists = correctedHours.any {
                 it.dateTime.hour == dayLabelHour && it.dateTime.toLocalDate() == firstDate
             }
             if (!sameDayAnchorExists) {
-                val dayText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                val dayText = correctedHours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
                 val textWidth = dayLabelTextPaint.measureText(dayText)
                 val x = textWidth / 2f
                 canvas.drawText(dayText, x, dayY, dayLabelTextPaint)
