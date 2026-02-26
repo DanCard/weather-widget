@@ -44,12 +44,12 @@ class WeatherWidgetWorker
             val isPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
             val isScreenInteractive = isScreenInteractive()
 
-            val lastFetchAge = (System.currentTimeMillis() - weatherRepository.lastNetworkFetchTimeMs) / 1000
+            val lastFullFetchAge = (System.currentTimeMillis() - weatherRepository.lastNetworkFetchTimeMs) / 1000
             appLogDao.log(
                 "SYNC_START",
                 "uiOnly=$uiOnlyRefresh, force=$forceRefresh, currentOnly=$currentTempOnly, " +
                     "opportunistic=$opportunisticCurrentTemp, battery=$batteryLevel%, plugged=$isPlugged, " +
-                    "interactive=$isScreenInteractive, reason=$currentTempReason, lastFetch=${lastFetchAge}s ago",
+                    "interactive=$isScreenInteractive, reason=$currentTempReason, lastFullFetch=${lastFullFetchAge}s ago",
             )
 
             if (currentTempOnly) {
@@ -206,11 +206,13 @@ class WeatherWidgetWorker
             reason: String,
         ): Result {
             return try {
+                val isManual = reason.contains("manual") || reason.contains("force")
                 if (
                     !CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = isPlugged,
                         isScreenInteractive = isScreenInteractive,
                         isOpportunisticContext = isOpportunisticContext,
+                        isManual = isManual,
                     )
                 ) {
                     appLogDao.log(

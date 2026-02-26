@@ -150,7 +150,6 @@ class DailyForecastGraphRendererTest {
     }
 
     @Test
-    @Test
     fun renderGraph_todayShowsOrangeBar() {
         val days =
             listOf(

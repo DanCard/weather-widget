@@ -81,8 +81,14 @@ interface ForecastSnapshotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(snapshots: List<ForecastSnapshotEntity>)
 
+    @Query("SELECT COUNT(*) FROM forecast_snapshots")
+    suspend fun getCount(): Int
+
     @Query("DELETE FROM forecast_snapshots WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldSnapshots(cutoffTime: Long)
+
+    @Query("DELETE FROM forecast_snapshots WHERE fetchedAt < :cutoffTime AND source = :source")
+    suspend fun deleteOldSnapshotsBySource(cutoffTime: Long, source: String)
 
     @Query(
         """

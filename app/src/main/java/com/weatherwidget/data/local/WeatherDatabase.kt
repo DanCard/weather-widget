@@ -78,14 +78,6 @@ abstract class WeatherDatabase : RoomDatabase() {
                                     )
                                 }
 
-                                override fun onOpen(db: SupportSQLiteDatabase) {
-                                    super.onOpen(db)
-                                    // Optional: Log every time the DB is opened to track app restarts
-                                    db.execSQL(
-                                        "INSERT INTO app_logs (timestamp, tag, message, level) VALUES (?, ?, ?, ?)",
-                                        arrayOf(System.currentTimeMillis(), "DB_OPEN", "Database opened", "INFO"),
-                                    )
-                                }
                             },
                         )
                         .fallbackToDestructiveMigration()

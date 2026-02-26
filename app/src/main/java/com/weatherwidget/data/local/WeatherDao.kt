@@ -62,6 +62,9 @@ interface WeatherDao {
     @Query("DELETE FROM weather_data WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldData(cutoffTime: Long)
 
+    @Query("DELETE FROM weather_data WHERE fetchedAt < :cutoffTime AND source = :source")
+    suspend fun deleteOldDataBySource(cutoffTime: Long, source: String)
+
     @Query("SELECT * FROM weather_data ORDER BY fetchedAt DESC LIMIT 1")
     suspend fun getLatestWeather(): WeatherEntity?
 }

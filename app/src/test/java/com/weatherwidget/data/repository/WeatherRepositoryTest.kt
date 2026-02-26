@@ -2,7 +2,6 @@ package com.weatherwidget.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -36,7 +35,6 @@ class WeatherRepositoryTest {
     private lateinit var openMeteoApi: OpenMeteoApi
     private lateinit var weatherApi: WeatherApi
     private lateinit var widgetStateManager: WidgetStateManager
-    private lateinit var apiLogger: ApiLogger
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var repository: WeatherRepository
@@ -61,7 +59,6 @@ class WeatherRepositoryTest {
         openMeteoApi = mockk()
         weatherApi = mockk()
         widgetStateManager = mockk(relaxed = true)
-        apiLogger = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
 
@@ -76,7 +73,6 @@ class WeatherRepositoryTest {
                 openMeteoApi,
                 weatherApi,
                 widgetStateManager,
-                apiLogger,
                 temperatureInterpolator,
                 climateNormalDao,
             )
@@ -88,17 +84,17 @@ class WeatherRepositoryTest {
     }
 
     @Test
-    fun `lastNetworkFetchTime is persisted via SharedPreferences`() =
+    fun `lastFullFetchTime is persisted via SharedPreferences`() =
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
 
             val capturedTimes = mutableListOf<Long>()
-            every { editor.putLong("last_network_fetch_time", any()) } answers {
+            every { editor.putLong("last_full_fetch_time", any()) } answers {
                 capturedTimes.add(secondArg())
                 editor
             }
-            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers {
+            every { sharedPrefs.getLong("last_full_fetch_time", 0L) } answers {
                 capturedTimes.lastOrNull() ?: 0L
             }
 
@@ -178,7 +174,7 @@ class WeatherRepositoryTest {
     @Test
     fun `getWeatherData returns cached data when not forcing refresh`() =
         runTest {
-            val cachedData = listOf(createWeatherEntity(today, 70, 50))
+            val cachedData = listOf(createWeatherEntity(today, 70, 50).copy(fetchedAt = System.currentTimeMillis() - 60 * 60 * 1000)) // 1 hour old
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns cachedData
 
             val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
@@ -248,11 +244,11 @@ class WeatherRepositoryTest {
             every { sharedPrefs.edit() } returns editor
 
             var storedTime = 0L
-            every { editor.putLong("last_network_fetch_time", any()) } answers {
+            every { editor.putLong("last_full_fetch_time", any()) } answers {
                 storedTime = secondArg()
                 editor
             }
-            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { storedTime }
+            every { sharedPrefs.getLong("last_full_fetch_time", 0L) } answers { storedTime }
 
             // Empty cache forces network fetch
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList()
@@ -274,17 +270,17 @@ class WeatherRepositoryTest {
             every { sharedPrefs.edit() } returns editor
 
             var storedTime = 0L
-            every { editor.putLong("last_network_fetch_time", any()) } answers {
+            every { editor.putLong("last_full_fetch_time", any()) } answers {
                 storedTime = secondArg()
                 editor
             }
-            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { storedTime }
+            every { sharedPrefs.getLong("last_full_fetch_time", 0L) } answers { storedTime }
 
             // Stale cache forces network fetch
             val staleData =
                 listOf(
                     createWeatherEntity(today, 70, 50).copy(
-                        fetchedAt = System.currentTimeMillis() - 60 * 60 * 1000, // 1 hour old
+                        fetchedAt = System.currentTimeMillis() - 3 * 60 * 60 * 1000, // 3 hours old
                     ),
                 )
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns staleData
@@ -306,11 +302,11 @@ class WeatherRepositoryTest {
             every { sharedPrefs.edit() } returns editor
 
             var storedTime = 0L
-            every { editor.putLong("last_network_fetch_time", any()) } answers {
+            every { editor.putLong("last_full_fetch_time", any()) } answers {
                 storedTime = secondArg()
                 editor
             }
-            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } answers { storedTime }
+            every { sharedPrefs.getLong("last_full_fetch_time", 0L) } answers { storedTime }
 
             // Empty cache forces network fetch
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns emptyList() andThen
@@ -441,8 +437,8 @@ class WeatherRepositoryTest {
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
-            every { editor.putLong("last_network_fetch_time", any()) } returns editor
-            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } returns 0L
+            every { editor.putLong("last_current_temp_fetch_time", any()) } returns editor
+            every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
 
             coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(61.2f, 1)
             every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
@@ -489,8 +485,8 @@ class WeatherRepositoryTest {
         runTest {
             val editor = mockk<SharedPreferences.Editor>(relaxed = true)
             every { sharedPrefs.edit() } returns editor
-            every { editor.putLong("last_network_fetch_time", any()) } returns editor
-            every { sharedPrefs.getLong("last_network_fetch_time", 0L) } returns 0L
+            every { editor.putLong("last_current_temp_fetch_time", any()) } returns editor
+            every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
 
             every { widgetStateManager.getVisibleSourcesOrder() } returns
                 listOf(WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
@@ -520,6 +516,63 @@ class WeatherRepositoryTest {
                     },
                 )
             }
+        }
+
+    @Test
+    fun `saveForecastSnapshot deduplicates identical consecutive forecasts`() =
+        runTest {
+            // 1. Setup: NWS API returns a forecast
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com")
+            coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
+            val apiForecast =
+                listOf(
+                    NwsApi.ForecastPeriod("Today", "${today}T06:00:00-08:00", 72, "F", "Sunny", true),
+                )
+            coEvery { nwsApi.getForecast(gridPoint) } returns apiForecast
+            coEvery { nwsApi.getHourlyForecast(any()) } returns emptyList()
+            coEvery { openMeteoApi.getForecast(any(), any(), any()) } throws Exception("Skipped")
+
+            // 2. Mock existing snapshot in DB that is IDENTICAL to the new forecast
+            val existingSnapshot =
+                com.weatherwidget.data.local.ForecastSnapshotEntity(
+                    targetDate = today,
+                    forecastDate = yesterday,
+                    locationLat = testLat,
+                    locationLon = testLon,
+                    highTemp = 72.0f,
+                    lowTemp = null,
+                    condition = "Sunny",
+                    source = "NWS",
+                    fetchedAt = System.currentTimeMillis() - 3600000,
+                )
+            coEvery { forecastSnapshotDao.getForecastsInRange(any(), any(), testLat, testLon) } returns listOf(existingSnapshot)
+
+            // 3. Act: Trigger a fetch
+            repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+            // 4. Assert: Verify that NO new snapshots were saved (because it was identical)
+            // Note: The snapshots list passed to insertAll should be empty or insertAll shouldn't be called for snapshots
+            coVerify(exactly = 0) { forecastSnapshotDao.insertAll(any()) }
+            coVerify { appLogDao.insert(match { it.tag == "SNAPSHOT_SKIP" }) }
+
+            // 5. Act: Change the forecast and fetch again
+            val changedForecast =
+                listOf(
+                    NwsApi.ForecastPeriod("Today", "${today}T06:00:00-08:00", 75, "F", "Cloudy", true),
+                )
+            coEvery { nwsApi.getForecast(gridPoint) } returns changedForecast
+
+            repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = true)
+
+            // 6. Assert: Verify that the CHANGED snapshot was saved
+            coVerify(exactly = 1) {
+                forecastSnapshotDao.insertAll(
+                    match { list ->
+                        list.size == 1 && list[0].highTemp?.toInt() == 75 && list[0].condition == "Cloudy"
+                    },
+                )
+            }
+            coVerify { appLogDao.insert(match { it.tag == "SNAPSHOT_SAVE" }) }
         }
 
     private fun createWeatherEntity(

@@ -7,7 +7,8 @@ import org.junit.Test
 class CurrentTempFetchPolicyTest {
 
     @Test
-    fun `charging requires interactive screen for fetch`() {
+    fun `charging allows fetch if interactive or opportunistic`() {
+        // Interactive + non-opportunistic (10-min loop) = OK
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = true,
@@ -15,11 +16,32 @@ class CurrentTempFetchPolicyTest {
                 isOpportunisticContext = false,
             ),
         )
-        assertFalse(
+        // Non-interactive + opportunistic (30-min system job) = OK (Relaxed)
+        assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = true,
                 isScreenInteractive = false,
                 isOpportunisticContext = true,
+            ),
+        )
+        // Non-interactive + non-opportunistic (10-min loop) = FAIL
+        assertFalse(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = true,
+                isScreenInteractive = false,
+                isOpportunisticContext = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `manual triggers always bypass policy`() {
+        assertTrue(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = false,
+                isScreenInteractive = false,
+                isOpportunisticContext = false,
+                isManual = true,
             ),
         )
     }

@@ -45,4 +45,7 @@ interface HourlyForecastDao {
 
     @Query("DELETE FROM hourly_forecasts WHERE fetchedAt < :cutoffTime")
     suspend fun deleteOldForecasts(cutoffTime: Long)
+
+    @Query("DELETE FROM hourly_forecasts WHERE fetchedAt < :cutoffTime AND source = :source")
+    suspend fun deleteOldForecastsBySource(cutoffTime: Long, source: String)
 }

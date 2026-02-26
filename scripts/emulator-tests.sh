@@ -24,6 +24,7 @@ VISIBLE_MODE=true  # Run emulator with GUI window (default)
 PROGRESS_PID=""
 DEBUG_LOG="/tmp/run-emulator-tests-debug-$(date +%Y%m%d-%H%M%S).log"
 TEST_RESULTS_LOG="/tmp/test_results-$$-$(date +%Y%m%d-%H%M%S).log"
+ORIGINAL_ARGS=("$@")
 
 debug_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
@@ -38,6 +39,7 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 EMULATOR_NAME=""
+EMULATOR_NAME_EXPLICIT=false
 TEST_CLASS=""
 SHOW_HELP=false
 
@@ -45,7 +47,7 @@ LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side
 
 while getopts "e:c:quh" opt; do
     case $opt in
-        e) EMULATOR_NAME="$OPTARG" ;;
+        e) EMULATOR_NAME="$OPTARG"; EMULATOR_NAME_EXPLICIT=true ;;
         c) TEST_CLASS="$OPTARG" ;;
         q) VISIBLE_MODE=false ;;
         u) LEAVE_APKS_INSTALLED=false ;;
@@ -266,12 +268,40 @@ $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/nul
 
 cd "$PROJECT_DIR"
 
+# Multi-emulator mode: when multiple emulators are connected, run this script once per emulator.
+# This preserves existing single-device behavior while covering all active emulator-* devices.
+if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = false ]; then
+    mapfile -t CONNECTED_EMULATORS < <($ADB_BIN devices | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
+    if [ "${#CONNECTED_EMULATORS[@]}" -gt 1 ]; then
+        echo -e "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC}"
+        echo -e "${YELLOW}Running tests sequentially on each emulator...${NC}"
+        OVERALL_STATUS=0
+        for serial in "${CONNECTED_EMULATORS[@]}"; do
+            echo -e "${BLUE}=== Running on ${serial} ===${NC}"
+            if ! EMULATOR_TESTS_TARGET_SERIAL="$serial" "$0" "${ORIGINAL_ARGS[@]}"; then
+                OVERALL_STATUS=1
+            fi
+        done
+        exit $OVERALL_STATUS
+    fi
+fi
+
 # Check for multiple devices - filter to emulator only
 # echo -en "${BLUE}Checking connected devices...${NC} \t"
 ALL_DEVICES=$($ADB_BIN devices | grep -v "List of devices" | grep "device$" | cut -f1)
 EMULATOR_DEVICES=$(echo "$ALL_DEVICES" | grep "^emulator-" | head -1)
 
-if [ -n "$EMULATOR_SERIAL" ]; then
+if [ -n "${EMULATOR_TESTS_TARGET_SERIAL:-}" ]; then
+    EMULATOR_SERIAL="$EMULATOR_TESTS_TARGET_SERIAL"
+    if ! echo "$ALL_DEVICES" | grep -qx "$EMULATOR_SERIAL"; then
+        echo -e "${RED}Error: Requested emulator serial not connected: $EMULATOR_SERIAL${NC}"
+        echo "Connected devices:"
+        $ADB_BIN devices
+        exit 1
+    fi
+    echo -en "${GREEN}Targeting (override): $EMULATOR_SERIAL${NC} "
+    export ANDROID_SERIAL="$EMULATOR_SERIAL"
+elif [ -n "$EMULATOR_SERIAL" ]; then
     # We already have an emulator from earlier (started by this script or existing)
     echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC} "
     export ANDROID_SERIAL="$EMULATOR_SERIAL"

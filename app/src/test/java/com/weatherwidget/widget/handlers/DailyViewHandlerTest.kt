@@ -211,7 +211,12 @@ class DailyViewHandlerTest {
     @Test
     fun `updateWidget text labels use integer format when value is whole`() = runBlocking {
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val weatherList = listOf(createWeather(todayStr, highTemp = 62f, lowTemp = 51f))
+        val tomorrowStr = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList =
+            listOf(
+                createWeather(todayStr, highTemp = 62f, lowTemp = 51f),
+                createWeather(tomorrowStr, highTemp = 62f, lowTemp = 51f),
+            )
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(42)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
@@ -252,9 +257,11 @@ class DailyViewHandlerTest {
     @Test
     fun `updateWidget text labels keep tenth precision for decimal source values`() = runBlocking {
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList =
             listOf(
                 createWeather(todayStr, highTemp = 62.9f, lowTemp = 51.2f).copy(source = WeatherSource.OPEN_METEO.id),
+                createWeather(tomorrowStr, highTemp = 62.9f, lowTemp = 51.2f).copy(source = WeatherSource.OPEN_METEO.id),
             )
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(43)

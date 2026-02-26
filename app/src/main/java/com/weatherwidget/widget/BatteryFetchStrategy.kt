@@ -14,11 +14,11 @@ object BatteryFetchStrategy {
      * or null if no scheduled fetch should occur (battery too low).
      */
     fun computeFetchInterval(isCharging: Boolean, batteryLevel: Int): Long? {
-        if (isCharging) return 60
+        if (isCharging) return 120
 
         return when {
-            batteryLevel > 70 -> 120
-            batteryLevel > 50 -> 240
+            batteryLevel > 70 -> 240
+            batteryLevel > 50 -> 480
             else -> null
         }
     }

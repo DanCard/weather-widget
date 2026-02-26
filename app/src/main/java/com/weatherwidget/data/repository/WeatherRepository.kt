@@ -117,7 +117,8 @@ class WeatherRepository
 
         companion object {
             private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
-            private const val CACHE_FRESHNESS_MS = 1_800_000L // 30 minutes
+            private const val FORECAST_FRESHNESS_MS = 2 * 60 * 60 * 1000L // 2 hours
+            private const val CURRENT_TEMP_FRESHNESS_MS = 10 * 60 * 1000L // 10 minutes
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
             private const val MAX_OBSERVATION_STATION_RETRIES = 5
             private const val OBSERVATION_STATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
@@ -127,12 +128,16 @@ class WeatherRepository
 
         // Rate limiting for network fetches to prevent bursts.
         // Persisted in SharedPreferences to survive process restarts.
-        private var lastNetworkFetchTime: Long
-            get() = prefs.getLong("last_network_fetch_time", 0L)
-            set(value) = prefs.edit().putLong("last_network_fetch_time", value).apply()
+        private var lastFullFetchTime: Long
+            get() = prefs.getLong("last_full_fetch_time", 0L)
+            set(value) = prefs.edit().putLong("last_full_fetch_time", value).apply()
+
+        private var lastCurrentTempFetchTime: Long
+            get() = prefs.getLong("last_current_temp_fetch_time", 0L)
+            set(value) = prefs.edit().putLong("last_current_temp_fetch_time", value).apply()
 
         /** Expose rate limiter state for diagnostics (e.g., SYNC_START logging). */
-        val lastNetworkFetchTimeMs: Long get() = lastNetworkFetchTime
+        val lastNetworkFetchTimeMs: Long get() = lastFullFetchTime
 
         /**
          * Main entry point for weather data. Returns cached data if fresh (<30 min),
@@ -152,10 +157,10 @@ class WeatherRepository
                 val now = System.currentTimeMillis()
                 val cached = getCachedData(lat, lon)
 
-                // If not forced, check if cached data is fresh (within 30 mins)
+                // If not forced, check if cached data is fresh (within 2 hours)
                 if (!forceRefresh && cached.isNotEmpty()) {
                     val latestFetch = cached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
-                    if ((now - latestFetch) < CACHE_FRESHNESS_MS) {
+                    if ((now - latestFetch) < FORECAST_FRESHNESS_MS) {
                         Log.d(TAG, "getWeatherData: Returning fresh cached data (${(now - latestFetch) / 1000}s old)")
                         return Result.success(cached)
                     }
@@ -173,7 +178,7 @@ class WeatherRepository
                     val freshCached = getCachedData(lat, lon)
                     if (!forceRefresh && freshCached.isNotEmpty()) {
                         val latestFetch = freshCached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
-                        if ((System.currentTimeMillis() - latestFetch) < CACHE_FRESHNESS_MS) {
+                        if ((System.currentTimeMillis() - latestFetch) < FORECAST_FRESHNESS_MS) {
                             Log.d(TAG, "getWeatherData: Found fresh data after acquiring lock, skipping fetch")
                             return Result.success(freshCached)
                         }
@@ -181,10 +186,10 @@ class WeatherRepository
 
                     // Global rate limit for network fetches (even if forced, unless it's a very long time)
                     // This prevents bursts from multiple workers starting at once
-                    val timeSinceLastFetch = System.currentTimeMillis() - lastNetworkFetchTime
+                    val timeSinceLastFetch = System.currentTimeMillis() - lastFullFetchTime
                     if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && freshCached.isNotEmpty()) {
                         val reason = if (forceRefresh) "forced refresh" else "stale data"
-                        appLogDao.log("NET_RATE_LIMIT", "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago, lastNetworkFetchTime=$lastNetworkFetchTime", "WARN")
+                        appLogDao.log("NET_RATE_LIMIT", "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago, lastFullFetchTime=$lastFullFetchTime", "WARN")
                         return Result.success(freshCached)
                     }
 
@@ -246,13 +251,13 @@ class WeatherRepository
                     // Set rate limit only after successful fetch — prevents stale timestamps
                     // from persisting if the process dies mid-fetch (e.g., reinstall, force-stop).
                     // syncMutex handles in-process burst prevention.
-                    lastNetworkFetchTime = System.currentTimeMillis()
+                    lastFullFetchTime = System.currentTimeMillis()
                     appLogDao.log("NET_FETCH_COMPLETE", "Total ${totalDuration}ms. gap=${gapDuration}ms/${gapWeather.size} entries. DB now has ${totalEntries.size} entries")
                     // Return from database to include previously cached data (e.g., yesterday from Open-Meteo)
                     Result.success(totalEntries)
                 }
             } catch (e: Exception) {
-                lastNetworkFetchTime = 0L
+                lastFullFetchTime = 0L
                 val stackSummary = e.stackTrace.take(3).joinToString(" <- ") { "${it.fileName}:${it.lineNumber}" }
                 appLogDao.log("NET_FETCH_ERROR", "${e.javaClass.simpleName}: ${e.message} [$stackSummary], rate limit reset", "ERROR")
                 val cached = getCachedData(lat, lon)
@@ -268,6 +273,10 @@ class WeatherRepository
          * Archives today-and-future forecasts as snapshots for later accuracy comparison.
          * Skips historical observations and climate normals. Only saves entries where
          * at least one of highTemp/lowTemp is non-null.
+         *
+         * Implements value-change deduplication: only inserts a new snapshot if the
+         * forecasted values (high, low, or condition) differ from the most recent
+         * existing snapshot for that target date and source.
          */
         private suspend fun saveForecastSnapshot(
             weather: List<WeatherEntity>,
@@ -293,19 +302,45 @@ class WeatherRepository
                     date != null && (date.isAfter(today) || date.isEqual(today)) && !it.isClimateNormal
                 }
 
+            if (relevantForecasts.isEmpty()) return
+
             val weatherSource = WeatherSource.fromId(source)
+
+            // Fetch latest existing snapshots for deduplication
+            val startDate = relevantForecasts.minOf { it.date }
+            val endDate = relevantForecasts.maxOf { it.date }
+            val existingSnapshots =
+                forecastSnapshotDao.getForecastsInRange(startDate, endDate, lat, lon)
+                    .filter { it.source == source }
+                    .groupBy { it.targetDate }
+                    .mapValues { (_, forecasts) -> forecasts.maxByOrNull { it.fetchedAt } }
+
             val snapshots =
                 relevantForecasts.mapNotNull { forecast ->
                     // Save even if partial, but not if both are null
                     if (forecast.highTemp == null && forecast.lowTemp == null) return@mapNotNull null
+
+                    val latestExisting = existingSnapshots[forecast.date]
+
+                    // For Open-Meteo, round to integer to avoid redundant snapshots on minor decimal changes
+                    val currentHigh = if (source == WeatherSource.OPEN_METEO.id) forecast.highTemp?.roundToInt()?.toFloat() else forecast.highTemp
+                    val currentLow = if (source == WeatherSource.OPEN_METEO.id) forecast.lowTemp?.roundToInt()?.toFloat() else forecast.lowTemp
+
+                    val isChanged =
+                        latestExisting == null ||
+                            latestExisting.highTemp != currentHigh ||
+                            latestExisting.lowTemp != currentLow ||
+                            latestExisting.condition != forecast.condition
+
+                    if (!isChanged) return@mapNotNull null
 
                     ForecastSnapshotEntity(
                         targetDate = forecast.date,
                         forecastDate = todayStr,
                         locationLat = lat,
                         locationLon = lon,
-                        highTemp = forecast.highTemp,
-                        lowTemp = forecast.lowTemp,
+                        highTemp = currentHigh,
+                        lowTemp = currentLow,
                         condition = forecast.condition,
                         source = weatherSource.id,
                         fetchedAt = fetchedAt,
@@ -314,7 +349,12 @@ class WeatherRepository
 
             if (snapshots.isNotEmpty()) {
                 forecastSnapshotDao.insertAll(snapshots)
-                appLogDao.log("SNAPSHOT_SAVE", "Saved ${snapshots.size} snapshots for $source. Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}")
+                appLogDao.log(
+                    "SNAPSHOT_SAVE",
+                    "Saved ${snapshots.size} unique snapshots for $source (from ${relevantForecasts.size} total). Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}",
+                )
+            } else if (relevantForecasts.isNotEmpty()) {
+                appLogDao.log("SNAPSHOT_SKIP", "All ${relevantForecasts.size} forecasts for $source were identical to latest snapshots; skipping.")
             }
         }
 
@@ -489,7 +529,7 @@ class WeatherRepository
                 val meteoDeferred = if (fetchMeteo) async {
                     try {
                         val startTime = System.currentTimeMillis()
-                        val result = fetchFromOpenMeteo(lat, lon, locationName, days = 14)
+                        val result = fetchFromOpenMeteo(lat, lon, locationName, days = 7)
                         val duration = System.currentTimeMillis() - startTime
                         appLogDao.log("API_CALL", "Open-Meteo success durationMs=$duration location=$locationName")
                         Log.d(TAG, "fetchFromAllApis: Open-Meteo succeeded")
@@ -1086,7 +1126,6 @@ class WeatherRepository
                         }
 
                         appLogDao.log("API_CALL", "NWS-Obs success station=$stationId durationMs=$durationMs")
-                        appLogDao.log("OBS_DAY_SUCCESS", "$date: Got ${observations.size} from $stationId")
 
                         // Calculate high/low from observations (convert C to F) using Float math for precision
                         val temps: List<Float> =
@@ -1387,11 +1426,11 @@ class WeatherRepository
             return try {
                 syncMutex.withLock {
                     val now = System.currentTimeMillis()
-                    val timeSinceLastFetch = now - lastNetworkFetchTime
-                    if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS) {
+                    val timeSinceLastFetch = now - lastCurrentTempFetchTime
+                    if (timeSinceLastFetch < CURRENT_TEMP_FRESHNESS_MS) {
                         appLogDao.log(
                             "CURR_FETCH_SKIP",
-                            "reason=$reason rate_limited=${timeSinceLastFetch}ms (<$MIN_NETWORK_INTERVAL_MS)",
+                            "reason=$reason rate_limited=${timeSinceLastFetch}ms (<$CURRENT_TEMP_FRESHNESS_MS)",
                             "WARN",
                         )
                         return Result.success(0)
@@ -1495,7 +1534,7 @@ class WeatherRepository
                     }
 
                     if (updatedCount > 0) {
-                        lastNetworkFetchTime = now
+                        lastCurrentTempFetchTime = now
                     }
                     appLogDao.log(
                         "CURR_FETCH_SUCCESS",
@@ -1511,7 +1550,8 @@ class WeatherRepository
 
         private suspend fun cleanOldData() {
             val now = System.currentTimeMillis()
-            val cutoff = now - MONTH_IN_MILLIS
+            val cutoffStandard = now - MONTH_IN_MILLIS
+            val cutoffMeteo = now - (7L * 24 * 60 * 60 * 1000) // 7 days for Open-Meteo
 
             // Log cleanup stats
             try {
@@ -1525,18 +1565,30 @@ class WeatherRepository
                 // Count records before deletion
                 val oldWeather = weatherDao.getWeatherRange(historyStart, historyEnd, lat, lon).size
 
-                // Perform deletion
-                weatherDao.deleteOldData(cutoff)
-                forecastSnapshotDao.deleteOldSnapshots(cutoff)
-                hourlyForecastDao.deleteOldForecasts(cutoff)
+                // Standard 30-day cleanup for NWS and WeatherAPI
+                weatherDao.deleteOldDataBySource(cutoffStandard, WeatherSource.NWS.id)
+                weatherDao.deleteOldDataBySource(cutoffStandard, WeatherSource.WEATHER_API.id)
+                weatherDao.deleteOldDataBySource(cutoffStandard, WeatherSource.GENERIC_GAP.id)
+
+                forecastSnapshotDao.deleteOldSnapshotsBySource(cutoffStandard, WeatherSource.NWS.id)
+                forecastSnapshotDao.deleteOldSnapshotsBySource(cutoffStandard, WeatherSource.WEATHER_API.id)
+                forecastSnapshotDao.deleteOldSnapshotsBySource(cutoffStandard, WeatherSource.GENERIC_GAP.id)
+
+                hourlyForecastDao.deleteOldForecastsBySource(cutoffStandard, WeatherSource.NWS.id)
+                hourlyForecastDao.deleteOldForecastsBySource(cutoffStandard, WeatherSource.WEATHER_API.id)
+
+                // Aggressive 7-day cleanup for Open-Meteo
+                weatherDao.deleteOldDataBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
+                forecastSnapshotDao.deleteOldSnapshotsBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
+                hourlyForecastDao.deleteOldForecastsBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
 
                 // Maintain logs for 3 days (72 hours) to optimize space while keeping recent forensics
                 val logCutoff = now - (3L * 24 * 60 * 60 * 1000)
                 appLogDao.deleteOldLogs(logCutoff)
 
                 if (oldWeather > 0) {
-                    val cutoffDate = Instant.ofEpochMilli(cutoff).atZone(ZoneId.systemDefault()).toLocalDate()
-                    appLogDao.log("DB_CLEANUP", "Cleaned records older than $cutoffDate ($cutoff). Removed approx $oldWeather weather entries.")
+                    val cutoffDate = Instant.ofEpochMilli(cutoffStandard).atZone(ZoneId.systemDefault()).toLocalDate()
+                    appLogDao.log("DB_CLEANUP", "Cleaned standard records older than $cutoffDate. Pruned Open-Meteo to 7 days.")
                 }
             } catch (e: Exception) {
                 appLogDao.log("DB_CLEANUP_ERROR", "Cleanup failed: ${e.message}", "ERROR")

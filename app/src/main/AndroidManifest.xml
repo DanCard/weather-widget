@@ -43,7 +43,8 @@
         <activity
             android:name=".ui.AppLogsActivity"
             android:exported="false"
-            android:label="@string/app_logs" />
+            android:label="@string/app_logs"
+            android:screenOrientation="fullUser" />
 
         <activity
             android:name=".ui.ForecastHistoryActivity"

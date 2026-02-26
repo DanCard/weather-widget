@@ -7,16 +7,21 @@ object CurrentTempFetchPolicy {
     const val CHARGING_INTERVAL_MINUTES = 10L
 
     /**
-     * Fetch is allowed while charging only when screen is interactive.
+     * Fetch is allowed while charging if the screen is interactive OR if it's an
+     * opportunistic background sync (e.g. 30-minute system job).
      * On battery, fetch is only allowed for opportunistic contexts.
+     * Manual triggers always bypass these checks.
      */
     fun shouldFetchNow(
         isCharging: Boolean,
         isScreenInteractive: Boolean,
         isOpportunisticContext: Boolean,
+        isManual: Boolean = false,
     ): Boolean {
+        if (isManual) return true
+
         return if (isCharging) {
-            isScreenInteractive
+            isScreenInteractive || isOpportunisticContext
         } else {
             isOpportunisticContext
         }

@@ -61,14 +61,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 val weatherDao = database.weatherDao()
                 val snapshotDao = database.forecastSnapshotDao()
                 val hourlyDao = database.hourlyForecastDao()
-                val appLogDao = database.appLogDao()
 
                 // 1. Get latest data from DB to see if we can skip loading state
                 val latestWeather = weatherDao.getLatestWeather()
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
-                    appLogDao.log("WIDGET_UPDATE", "DB is empty, showing loading")
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetLoading(context, appWidgetManager, appWidgetId)
                     }
@@ -88,8 +86,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val forecastSnapshots =
                         snapshotDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
                             .groupBy { it.targetDate }
-
-                    appLogDao.log("WIDGET_UPDATE", "Updating with ${weatherList.size} weather entries")
 
                     // Get hourly forecasts for interpolation and rain analysis
                     val now = LocalDateTime.now()
@@ -153,10 +149,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         schedulePeriodicUpdate(context)
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
-        }
     }
 
     override fun onDisabled(context: Context) {
