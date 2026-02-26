@@ -3,7 +3,6 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.*
 import android.util.TypedValue
-import com.weatherwidget.data.model.WeatherSource
 import kotlin.math.roundToInt
 
 object DailyForecastGraphRenderer {
@@ -23,8 +22,6 @@ object DailyForecastGraphRenderer {
         val isClimateNormal: Boolean = false, // Is this long-range climate data?
         val forecastHigh: Float? = null, // Single forecast
         val forecastLow: Float? = null, // Single forecast
-        val forecastSource: WeatherSource? = null,
-        val accuracyMode: AccuracyDisplayMode = AccuracyDisplayMode.NONE,
         val rainSummary: String? = null, // e.g. "2pm" — start of first rain window
         val dailyPrecipProbability: Int? = null, // From WeatherEntity, used for click routing
         val hasRainForecast: Boolean = false, // Unsuppressed rain signal for click routing
@@ -237,27 +234,6 @@ object DailyForecastGraphRenderer {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
 
-        // Accuracy dot colors
-        val accuracyGreenPaint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#34C759") // Green
-            }
-        val accuracyYellowPaint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FFCC00") // Yellow
-            }
-        val accuracyRedPaint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FF3B30") // Red
-            }
-
-        val forecastTextPaint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#888888")
-                textSize = dpToPx(context, 11.5f * scaleFactor)
-                textAlign = Paint.Align.CENTER
-            }
-
         // Rain summary text paint - small blue text below temp
         val rainTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -274,14 +250,6 @@ object DailyForecastGraphRenderer {
                 strokeCap = Paint.Cap.ROUND
             }
 
-        val forecastCapPaint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#5AC8FA") // Blue caps
-                strokeWidth = (barWidth + dpToPx(context, 4f * scaleFactor)) * 0.5f
-                strokeCap = Paint.Cap.BUTT
-            }
-
-        val dotRadius = dpToPx(context, 4f * scaleFactor)
         val forecastBarOffset = barWidth * 1.2f // Offset for forecast bar from main bar
 
         // Icon paints
@@ -363,13 +331,7 @@ object DailyForecastGraphRenderer {
 
                 // Draw Low Temp Label
                 val lowLabel =
-                    formatTempWithForecast(
-                        lowTemp,
-                        day.forecastLow,
-                        day.forecastSource,
-                        day.accuracyMode,
-                        day.isToday,
-                    )
+                    formatTempLabel(lowTemp!!, day.isToday)
                 val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
                 canvas.drawText(lowLabel, centerX, lowTempY, tempPaint)
 
@@ -451,8 +413,7 @@ object DailyForecastGraphRenderer {
             }
 
             // Draw forecast bar (only if full data available for comparison)
-            if (day.accuracyMode == AccuracyDisplayMode.FORECAST_BAR &&
-                day.forecastHigh != null &&
+            if (day.forecastHigh != null &&
                 day.forecastLow != null
             ) {
                 val forecastHighY =
@@ -472,13 +433,7 @@ object DailyForecastGraphRenderer {
             // Draw high label if available
             if (day.high != null) {
                 val highLabel =
-                    formatTempWithForecast(
-                        day.high,
-                        day.forecastHigh,
-                        day.forecastSource,
-                        day.accuracyMode,
-                        day.isToday,
-                    )
+                    formatTempLabel(day.high, day.isToday)
                 // If we have a Y position, use it. Otherwise (shouldn't happen here), skip.
                 highY?.let { y ->
                     val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
@@ -491,27 +446,6 @@ object DailyForecastGraphRenderer {
                 }
             }
 
-            // Draw single accuracy dot if applicable (requires high temp)
-            if (day.accuracyMode == AccuracyDisplayMode.ACCURACY_DOT &&
-                day.forecastHigh != null &&
-                day.high != null
-            ) {
-                val highDiff = kotlin.math.abs(day.high - day.forecastHigh)
-                val dotPaint =
-                    when {
-                        highDiff <= 2f -> accuracyGreenPaint
-                        highDiff <= 5f -> accuracyYellowPaint
-                        else -> accuracyRedPaint
-                    }
-                highY?.let { y ->
-                    canvas.drawCircle(
-                        centerX + dpToPx(context, 20f * scaleFactor),
-                        y - dpToPx(context, 6f * scaleFactor) - dotRadius,
-                        dotRadius,
-                        dotPaint,
-                    )
-                }
-            }
         }
 
         return bitmap
@@ -528,36 +462,12 @@ object DailyForecastGraphRenderer {
         )
     }
 
-    private fun formatTempWithForecast(
+    private fun formatTempLabel(
         actual: Float,
-        forecast: Float?,
-        forecastSource: WeatherSource?,
-        mode: AccuracyDisplayMode,
         isToday: Boolean,
     ): String {
-        fun formatVal(v: Float): String {
-            if (!isToday) return "${v.roundToInt()}°"
-            val rounded = v.roundToInt()
-            return if (kotlin.math.abs(v - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", v)
-        }
-
-        return when {
-            mode == AccuracyDisplayMode.NONE ||
-                mode == AccuracyDisplayMode.ACCURACY_DOT ||
-                mode == AccuracyDisplayMode.FORECAST_BAR -> {
-                formatVal(actual)
-            }
-            mode == AccuracyDisplayMode.SIDE_BY_SIDE && forecast != null -> {
-                val label = forecastSource?.shortDisplayName ?: "?"
-                "${formatVal(actual)} ($label:${formatVal(forecast)})"
-            }
-            mode == AccuracyDisplayMode.DIFFERENCE && forecast != null -> {
-                val diff = (actual - forecast).roundToInt()
-                val sign = if (diff >= 0) "+" else ""
-                val label = forecastSource?.shortDisplayName ?: "?"
-                "${formatVal(actual)} ($label:$sign$diff)"
-            }
-            else -> formatVal(actual)
-        }
+        if (!isToday) return "${actual.roundToInt()}°"
+        val rounded = actual.roundToInt()
+        return if (kotlin.math.abs(actual - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", actual)
     }
 }

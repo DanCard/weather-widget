@@ -24,7 +24,6 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
-import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -99,7 +98,6 @@ object DailyViewHandler : WidgetViewHandler {
 
         val stateManager = WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
-        val accuracyMode = stateManager.getAccuracyDisplayMode()
 
         val isEveningMode = NavigationUtils.isEveningMode()
         
@@ -221,7 +219,7 @@ object DailyViewHandler : WidgetViewHandler {
 
             val days = DailyViewLogic.prepareGraphDays(
                 now, centerDate, today, weatherByDate, forecastSnapshots,
-                numColumns, accuracyMode, displaySource, isEveningMode, skipHistory,
+                numColumns, displaySource, isEveningMode, skipHistory,
                 hourlyForecasts, stateManager, appWidgetId, precipProb
             )
 

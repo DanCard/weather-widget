@@ -7,7 +7,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.util.WeatherIconMapper
-import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
@@ -157,7 +156,6 @@ object DailyViewLogic {
         weatherByDate: Map<String, WeatherEntity>,
         forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
         numColumns: Int,
-        accuracyMode: AccuracyDisplayMode,
         displaySource: WeatherSource,
         isEveningMode: Boolean,
         skipHistory: Boolean,
@@ -186,7 +184,7 @@ object DailyViewLogic {
             val isToday = date == today
 
             val showComparison = (isPastDate || (isToday && isEveningMode)) &&
-                forecast != null && accuracyMode != AccuracyDisplayMode.NONE
+                forecast != null
 
             var finalHigh: Float? = weather.highTemp
             var finalLow: Float? = weather.lowTemp
@@ -243,8 +241,6 @@ object DailyViewLogic {
                     isClimateNormal = weather.isClimateNormal,
                     forecastHigh = fHigh,
                     forecastLow = fLow,
-                    forecastSource = if (showComparison || isToday) displaySource else null,
-                    accuracyMode = if (showComparison || isToday) accuracyMode else AccuracyDisplayMode.NONE,
                     rainSummary = rainSummary,
                     dailyPrecipProbability = precip,
                     hasRainForecast = hasRainForecast,

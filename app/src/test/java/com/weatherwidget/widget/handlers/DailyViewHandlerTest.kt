@@ -13,7 +13,6 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.RainAnalyzer
-import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.just
@@ -170,7 +169,6 @@ class DailyViewHandlerTest {
             weatherByDate = weatherByDate,
             forecastSnapshots = emptyMap(),
             numColumns = 3,
-            accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
             displaySource = WeatherSource.NWS,
             isEveningMode = true,
             skipHistory = false,

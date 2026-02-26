@@ -3,7 +3,6 @@ package com.weatherwidget.widget
 import android.graphics.Color
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -36,8 +35,6 @@ class DailyForecastGraphRendererTest {
                     isPast = true, // Historical day
                     forecastHigh = 63f, // What was predicted
                     forecastLow = 47f,
-                    forecastSource = WeatherSource.OPEN_METEO,
-                    accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-02",
@@ -107,7 +104,6 @@ class DailyForecastGraphRendererTest {
                     isPast = true,
                     forecastHigh = null, // No forecast data
                     forecastLow = null,
-                    accuracyMode = AccuracyDisplayMode.FORECAST_BAR,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = "2026-02-02",
@@ -154,55 +150,6 @@ class DailyForecastGraphRendererTest {
     }
 
     @Test
-    fun renderGraph_withAccuracyModeNone_noForecastLine() {
-        // Even with forecast data, if mode is NONE, no forecast line should appear
-        val days =
-            listOf(
-                DailyForecastGraphRenderer.DayData(
-                    date = "2026-02-01",
-                    label = "Sat",
-                    high = 65f,
-                    low = 45f,
-                    isToday = false,
-                    isPast = true,
-                    forecastHigh = 63f,
-                    forecastLow = 47f,
-                    forecastSource = WeatherSource.OPEN_METEO,
-                    accuracyMode = AccuracyDisplayMode.NONE, // Mode is NONE
-                ),
-            )
-
-        val bitmap =
-            DailyForecastGraphRenderer.renderGraph(
-                context = context,
-                days = days,
-                widthPx = 200,
-                heightPx = 200,
-            )
-
-        assertNotNull(bitmap)
-
-        // Count blue pixels - with NONE mode, there should be fewer blue pixels
-        // (only from regular bar, not from forecast bar)
-        val blueColor = Color.parseColor("#5AC8FA")
-        var bluePixelCount = 0
-
-        for (x in 0 until bitmap.width) {
-            for (y in 0 until bitmap.height) {
-                if (bitmap.getPixel(x, y) == blueColor) {
-                    bluePixelCount++
-                }
-            }
-        }
-
-        // With NONE mode on a past day, the bar should be yellow, not blue
-        // So blue count should be minimal (possibly from anti-aliasing only)
-        assertTrue(
-            "With NONE mode, past day should use yellow bar, not blue. Found $bluePixelCount blue pixels",
-            bluePixelCount < 100, // Allow some for anti-aliasing
-        )
-    }
-
     @Test
     fun renderGraph_todayShowsOrangeBar() {
         val days =

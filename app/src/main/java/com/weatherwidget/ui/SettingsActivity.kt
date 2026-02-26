@@ -8,7 +8,6 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -28,7 +27,6 @@ import com.weatherwidget.data.ApiLogger
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
-import com.weatherwidget.widget.AccuracyDisplayMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -56,35 +54,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupViews() {
         // Get the main ScrollView
         val settingsScrollView = findViewById<ScrollView>(R.id.settings_scroll_view)
-
-        // Accuracy Display RadioGroup
-        val accuracyGroup = findViewById<RadioGroup>(R.id.accuracy_display_group)
-
-        // Set current selection
-        val currentMode = widgetStateManager.getAccuracyDisplayMode()
-        val selectedId =
-            when (currentMode) {
-                AccuracyDisplayMode.NONE -> R.id.radio_none
-                AccuracyDisplayMode.ACCURACY_DOT -> R.id.radio_accuracy_dot
-                AccuracyDisplayMode.FORECAST_BAR -> R.id.radio_forecast_bar
-                AccuracyDisplayMode.SIDE_BY_SIDE -> R.id.radio_side_by_side
-                AccuracyDisplayMode.DIFFERENCE -> R.id.radio_difference
-            }
-        accuracyGroup.check(selectedId)
-
-        // Listen for changes
-        accuracyGroup.setOnCheckedChangeListener { _, checkedId ->
-            val mode =
-                when (checkedId) {
-                    R.id.radio_none -> AccuracyDisplayMode.NONE
-                    R.id.radio_accuracy_dot -> AccuracyDisplayMode.ACCURACY_DOT
-                    R.id.radio_forecast_bar -> AccuracyDisplayMode.FORECAST_BAR
-                    R.id.radio_side_by_side -> AccuracyDisplayMode.SIDE_BY_SIDE
-                    R.id.radio_difference -> AccuracyDisplayMode.DIFFERENCE
-                    else -> AccuracyDisplayMode.FORECAST_BAR
-                }
-            widgetStateManager.setAccuracyDisplayMode(mode)
-        }
 
         // API Sources ordered checkable list
         setupApiSourcesList()

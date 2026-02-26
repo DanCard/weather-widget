@@ -6,14 +6,6 @@ import com.weatherwidget.data.model.WeatherSource
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class AccuracyDisplayMode {
-    NONE, // Don't show forecast comparison
-    FORECAST_BAR, // Yellow bar showing forecast alongside actual (Recommended)
-    ACCURACY_DOT, // Colored dot (green/yellow/red) based on accuracy
-    SIDE_BY_SIDE, // Show "72° (F:68°)"
-    DIFFERENCE, // Show "72° (+4)"
-}
-
 enum class ViewMode {
     DAILY, // Default: shows daily forecast bars
     TEMPERATURE, // Alternative: shows hourly temperature curve
@@ -40,7 +32,6 @@ class WidgetStateManager
         companion object {
             private const val PREFS_NAME = "widget_state_prefs"
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"
-            private const val KEY_ACCURACY_DISPLAY = "accuracy_display_mode"
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
@@ -119,15 +110,6 @@ class WidgetStateManager
 
         fun resetDateOffset(widgetId: Int) {
             setDateOffset(widgetId, 0)
-        }
-
-        fun getAccuracyDisplayMode(): AccuracyDisplayMode {
-            val ordinal = prefs.getInt(KEY_ACCURACY_DISPLAY, AccuracyDisplayMode.FORECAST_BAR.ordinal)
-            return AccuracyDisplayMode.entries.getOrElse(ordinal) { AccuracyDisplayMode.FORECAST_BAR }
-        }
-
-        fun setAccuracyDisplayMode(mode: AccuracyDisplayMode) {
-            prefs.edit().putInt(KEY_ACCURACY_DISPLAY, mode.ordinal).apply()
         }
 
         /**

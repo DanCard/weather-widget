@@ -16,13 +16,6 @@
     <string name="refresh_status_ready">Ready to refresh from APIs</string>
     <string name="refresh_status_enqueued">Refresh queued. Widget will update shortly.</string>
     <string name="refresh_now_enqueued_toast">Refresh queued</string>
-    <string name="forecast_accuracy_display">Forecast Accuracy Display</string>
-    <string name="forecast_accuracy_description">Choose how to show forecast vs actual comparison for past dates</string>
-    <string name="display_none">None - Don\'t show comparison</string>
-    <string name="display_accuracy_dot">Accuracy dot - Colored indicator (green/yellow/red)</string>
-    <string name="display_forecast_bar">Forecast bar - Yellow line showing predicted range (Recommended)</string>
-    <string name="display_side_by_side">Side by side - Show "72\u00B0 (F:68\u00B0)"</string>
-    <string name="display_difference">Difference - Show "72\u00B0 (+4)"</string>
     <string name="nav_previous">Previous days</string>
     <string name="nav_next">Next days</string>
     <string name="weather_icon_desc">Weather condition icon</string>
@@ -81,10 +74,10 @@
     <string name="tour_navigation_desc">Use the left/right arrows to browse up to 30 days of historical weather data and future forecasts. Past days show actual temperatures compared to predictions for accuracy analysis.</string>
 
     <string name="tour_accuracy_title">Forecast Accuracy Tracking</string>
-    <string name="tour_accuracy_desc">The app compares 1-day-ahead forecasts against actual weather. Five display modes available in Settings:\n\n• FORECAST_BAR (default): Yellow bar overlay showing predicted range alongside actual temperature bar\n• ACCURACY_DOT: Colored indicator (green ≤2°, yellow ≤5°, red >5° error)\n• SIDE_BY_SIDE: Shows "72° (N:68°)" with source abbreviation\n• DIFFERENCE: Shows "72° (N:+4)" with temperature difference\n• NONE: No forecast comparison\n\nView detailed 30-day statistics in the Statistics screen.</string>
+    <string name="tour_accuracy_desc">The app compares 1-day-ahead forecasts against actual weather. Past days show a forecast overlay bar alongside the actual temperature bar so you can quickly see how close each source was.\n\nView detailed 30-day statistics in the Statistics screen.</string>
 
     <string name="tour_settings_title">Settings &amp; Customization</string>
-    <string name="tour_settings_desc">Access Settings to customize:\n\n• Accuracy Display Mode (how forecast comparisons are shown)\n• API Preference (which weather source to use)\n• View Detailed Statistics (30-day accuracy breakdown)\n• API Diagnostics (troubleshoot data fetching issues)\n\nOpen Settings by long-pressing the widget and selecting "Configure".</string>
+    <string name="tour_settings_desc">Access Settings to customize:\n\n• API Preference (which weather source to use)\n• View Detailed Statistics (30-day accuracy breakdown)\n• API Diagnostics (troubleshoot data fetching issues)\n\nOpen Settings by long-pressing the widget and selecting "Configure".</string>
 
     <string name="tour_battery_title">Battery-Aware Updates</string>
     <string name="tour_battery_desc">Update frequency scales based on battery level:\n\n• Plugged in: Every 30 minutes\n• Battery &gt;50%%: Every 1 hour\n• Battery 20–50%%: Every 2 hours\n• Battery &lt;20%%: Every 4 hours\n\nManual refresh is always available by tapping the widget.</string>
@@ -103,7 +96,7 @@
 
     <string name="tour_mockup_navigation" translatable="false">┌──────────────────────────────┐\n│\u00A072°\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0Meteo\u00A0│\n│\u00A0◀\u00A0\u00A0Jan\u00A028\u00A0\u00A0Jan\u00A029\u00A0\u00A0Jan\u00A030\u00A0\u00A0▶\u00A0│\n│\u00A0\u00A0\u00A0\u00A0▓▓░░\u00A0\u00A0\u00A0\u00A0▓▓▓░░\u00A0\u00A0\u00A0▓▓░░░\u00A0\u00A0\u00A0\u00A0\u00A0│\n└──────────────────────────────┘\n\u00A0\u00A0\u00A0\u00A0↑\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0↑\n\u00A0\u00A030\u00A0days\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A07\u00A0days\n\u00A0\u00A0\u00A0back\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0forecast</string>
 
-    <string name="tour_mockup_accuracy" translatable="false">FORECAST_BAR:\u00A0\u00A0▓▓▓░░░\u00A0(yellow\u00A0=\u00A0predicted)\nACCURACY_DOT:\u00A0\u00A072°\u00A0●\u00A0\u00A0(green\u00A0≤2°\u00A0/\u00A0yellow\u00A0≤5°\u00A0/\u00A0red\u00A0>5°)\nSIDE_BY_SIDE:\u00A0\u00A072°\u00A0(N:68°)\nDIFFERENCE:\u00A0\u00A0\u00A0\u00A072°\u00A0(N:+4)</string>
+    <string name="tour_mockup_accuracy" translatable="false">ACTUAL:\u00A0\u00A0\u00A0\u00A0\u00A0▓▓▓░░░\nFORECAST:\u00A0\u00A0\u00A0│\u00A0\u00A0(yellow overlay = predicted range)</string>
 
-    <string name="tour_mockup_settings" translatable="false">┌─\u00A0Settings\u00A0─────────────────┐\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0📍\u00A0Location:\u00A0GPS\u00A0/\u00A0ZIP\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0🌡️\u00A0API:\u00A0Alternate\u00A0/\u00A0NWS\u00A0\u00A0\u00A0│\n│\u00A0\u00A0📊\u00A0Accuracy:\u00A0Forecast\u00A0Bar\u00A0│\n│\u00A0\u00A0📈\u00A0View\u00A0Statistics\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n└────────────────────────────┘</string>
+    <string name="tour_mockup_settings" translatable="false">┌─\u00A0Settings\u00A0─────────────────┐\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0📍\u00A0Location:\u00A0GPS\u00A0/\u00A0ZIP\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0🌡️\u00A0API:\u00A0Alternate\u00A0/\u00A0NWS\u00A0\u00A0\u00A0│\n│\u00A0\u00A0📈\u00A0View\u00A0Statistics\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0🛠️\u00A0API\u00A0Diagnostics\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n│\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0│\n└────────────────────────────┘</string>
 </resources>
