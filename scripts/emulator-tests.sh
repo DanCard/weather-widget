@@ -101,6 +101,10 @@ fi
 
 EMU_BIN="$SDK_ROOT/emulator/emulator"
 ADB_BIN="$SDK_ROOT/platform-tools/adb"
+TIMEOUT_CMD=""
+if command -v timeout &>/dev/null; then
+    TIMEOUT_CMD="timeout 5s"
+fi
 
 if [ ! -f "$EMU_BIN" ]; then
     echo -e "${RED}Error: Emulator binary not found at $EMU_BIN${NC}"
@@ -167,9 +171,9 @@ echo -en "${BLUE}Existing emulators:${NC} "
 EXISTING_EMU=$($ADB_BIN devices | grep "emulator-" | grep "device$" | cut -f1 | head -1)
 
 # Show all connected devices for info
-$ADB_BIN devices | grep -v "List of devices" | grep "device$" | while read -r line; do
-    device=$(echo "$line" | cut -f1)
-    model=$($ADB_BIN -s "$device" shell getprop ro.product.model 2>/dev/null | tr -d '\r')
+$ADB_BIN devices -l | grep -v "List of devices" | awk '$2 == "device"' | while read -r line; do
+    device=$(echo "$line" | awk '{print $1}')
+    model=$(echo "$line" | grep -o "model:[^ ]*" | cut -d: -f2)
     if echo "$device" | grep -q "^emulator-"; then
         echo -e "  ${GREEN}✓ $device ($model) - emulator${NC}"
     else
@@ -220,7 +224,7 @@ if [ "$USE_EXISTING" = false ]; then
         
         if [ -n "$EMULATOR_SERIAL" ]; then
             # Check if boot is complete
-            BOOT_COMPLETED=$($ADB_BIN -s "$EMULATOR_SERIAL" shell getprop sys.boot_completed 2>/dev/null || echo "")
+            BOOT_COMPLETED=$($TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop sys.boot_completed 2>/dev/null || echo "")
             
             if [ "$BOOT_COMPLETED" = "1" ]; then
                 DEVICE_READY=true
@@ -259,9 +263,9 @@ if [ "$VISIBLE_MODE" = true ] && command -v xdotool &>/dev/null; then
 fi
 
 # Show device info
-MODEL=$($ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
+MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
 echo -en "${BLUE}Device info: product model:${NC} ${MODEL:-Unknown}   Android build version: "
-$ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
+$TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
 
 
 # Run tests
@@ -320,8 +324,8 @@ else
 fi
 
 # Verify we're not targeting a physical Samsung device
-DEVICE_MODEL=$($ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
-DEVICE_BRAND=$($ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
+DEVICE_MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
+DEVICE_BRAND=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
 echo -en "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC} \t"
 
 # Build gradle command - use ANDROID_SERIAL to target specific device
