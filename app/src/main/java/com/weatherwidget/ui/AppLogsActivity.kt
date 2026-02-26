@@ -91,7 +91,7 @@ class AppLogsActivity : AppCompatActivity() {
 
     private fun loadLogs() {
         lifecycleScope.launch(Dispatchers.IO) {
-            val logs = appLogDao.getRecentLogs(500)
+            val logs = appLogDao.getRecentLogs(3000)
             totalLogCount = appLogDao.getCount()
             snapshotCount = forecastSnapshotDao.getCount()
             dbSizeMb = getDatabaseSizeMb()

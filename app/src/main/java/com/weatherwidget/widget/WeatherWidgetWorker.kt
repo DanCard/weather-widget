@@ -44,7 +44,8 @@ class WeatherWidgetWorker
             val isPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
             val isScreenInteractive = isScreenInteractive()
 
-            val lastFullFetchAge = (System.currentTimeMillis() - weatherRepository.lastNetworkFetchTimeMs) / 1000
+            val lastFullFetchMs = weatherRepository.lastNetworkFetchTimeMs
+            val lastFullFetchAge = if (lastFullFetchMs > 0) (System.currentTimeMillis() - lastFullFetchMs) / 1000 else -1
             appLogDao.log(
                 "SYNC_START",
                 "uiOnly=$uiOnlyRefresh, force=$forceRefresh, currentOnly=$currentTempOnly, " +
