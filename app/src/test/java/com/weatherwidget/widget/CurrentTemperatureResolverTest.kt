@@ -85,13 +85,18 @@ class CurrentTemperatureResolverTest {
             )
 
         assertTrue(result.isStaleEstimate)
-        assertEquals("62°", CurrentTemperatureResolver.formatDisplayTemperature(result.displayTemp!!, 3, result.isStaleEstimate))
+        assertEquals("62.0°", CurrentTemperatureResolver.formatDisplayTemperature(result.displayTemp!!, 3, result.isStaleEstimate))
     }
 
     @Test
-    fun `format keeps decimal precision when estimate is fresh and space allows`() {
-        val formatted = CurrentTemperatureResolver.formatDisplayTemperature(62.4f, 3, isStaleEstimate = false)
-        assertEquals("62.4°", formatted)
+    fun `format keeps decimal precision when space allows regardless of freshness`() {
+        // Fresh estimate
+        val freshFormatted = CurrentTemperatureResolver.formatDisplayTemperature(62.4f, 3, isStaleEstimate = false)
+        assertEquals("62.4°", freshFormatted)
+
+        // Stale estimate (previously would have been "62°")
+        val staleFormatted = CurrentTemperatureResolver.formatDisplayTemperature(62.4f, 3, isStaleEstimate = true)
+        assertEquals("62.4°", staleFormatted)
     }
 
     @Test

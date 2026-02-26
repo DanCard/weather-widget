@@ -110,7 +110,6 @@ object CurrentTemperatureResolver {
         isStaleEstimate: Boolean,
     ): String {
         return when {
-            isStaleEstimate -> String.format("%.0f°", temp)
             numColumns >= 2 -> String.format("%.1f°", temp)
             else -> String.format("%.0f°", temp)
         }
