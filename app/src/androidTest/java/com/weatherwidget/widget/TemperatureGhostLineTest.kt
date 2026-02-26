@@ -34,38 +34,10 @@ class TemperatureGhostLineTest {
     }
 
     @Test
-    fun labelsReflectCorrectedTemperature_whenNegativeDeltaApplied() {
+    fun labelsReflectOriginalTemperature_ignoringDelta() {
         // Delta -1.0 means it is colder than forecast.
-        // If API says 70, reality (ghost) is 69.
-        val temps = listOf(70f, 75f, 80f) // Fewer points, more spread out
-        val hours = buildHours(temps)
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
-
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 800, // Wider
-            heightPx = 500, // Much taller
-            currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
-            appliedDelta = -1.0f,
-            onLabelPlaced = { placements.add(it) }
-        )
-
-        // START label is index 0
-        val startLabel = placements.find { it.index == 0 }
-        assertTrue("START label (index 0) should be drawn. Found: ${placements.map { it.role }}", startLabel != null)
-        
-        assertEquals("Raw temperature should be 70 (API)", 70f, startLabel!!.rawTemperature, 0.01f)
-        
-        // With smoothing [0.25, 0.5, 0.25], smoothed 70 would be (70*0.75 + 75*0.25) = 71.25
-        // Corrected would be 71.25 - 1.0 = 70.25
-        // Let's just check that it is indeed Corrected = Smoothed + Delta
-        val expectedSmoothedValue = 70f * 0.75f + 75f * 0.25f
-        assertEquals("Label should be Smoothed + Delta", expectedSmoothedValue - 1.0f, startLabel.temperature, 0.1f)
-    }
-
-    @Test
-    fun labelsReflectCorrectedTemperature_whenPositiveDeltaApplied() {
+        // API says 70.
+        // Labels should now show the API (70) and ignore the delta.
         val temps = listOf(70f, 75f, 80f)
         val hours = buildHours(temps)
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
@@ -76,15 +48,17 @@ class TemperatureGhostLineTest {
             widthPx = 800,
             heightPx = 500,
             currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
-            appliedDelta = 2.0f,
+            appliedDelta = -1.0f,
             onLabelPlaced = { placements.add(it) }
         )
 
         val startLabel = placements.find { it.index == 0 }
         assertTrue("START label (index 0) should be drawn", startLabel != null)
         
-        assertEquals(70f, startLabel!!.rawTemperature, 0.01f)
+        assertEquals("Raw temperature should be 70 (API)", 70f, startLabel!!.rawTemperature, 0.01f)
+        
+        // Labels should now represent the SMOOTHED ORIGINAL temperature
         val expectedSmoothedValue = 70f * 0.75f + 75f * 0.25f
-        assertEquals(expectedSmoothedValue + 2.0f, startLabel.temperature, 0.1f)
+        assertEquals("Label should be Smoothed Original value, ignoring Delta", expectedSmoothedValue, startLabel.temperature, 0.1f)
     }
 }

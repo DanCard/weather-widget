@@ -342,24 +342,24 @@ object TemperatureGraphRenderer {
             }
         }
 
-        // 2. Key temperature labels — placed on the EXPECTED (Truth) line
-        val dailyHighIndex = smoothedExpectedTemps.indices.maxByOrNull { smoothedExpectedTemps[it] } ?: -1
-        val dailyLowIndex = smoothedExpectedTemps.indices.minByOrNull { smoothedExpectedTemps[it] } ?: -1
+        // 2. Key temperature labels — placed on the ORIGINAL (Solid) line
+        val dailyHighIndex = smoothedOriginalTemps.indices.maxByOrNull { smoothedOriginalTemps[it] } ?: -1
+        val dailyLowIndex = smoothedOriginalTemps.indices.minByOrNull { smoothedOriginalTemps[it] } ?: -1
 
         fun findLocalExtremaIndices(): List<Int> {
             val extrema = mutableListOf<Int>()
-            if (smoothedExpectedTemps.size < 3) return extrema
+            if (smoothedOriginalTemps.size < 3) return extrema
             var i = 1
-            while (i < smoothedExpectedTemps.size - 1) {
-                val current = smoothedExpectedTemps[i]
-                val prev = smoothedExpectedTemps[i - 1]
-                if (current > prev && current > smoothedExpectedTemps[i + 1]) extrema.add(i)
-                else if (current < prev && current < smoothedExpectedTemps[i + 1]) extrema.add(i)
-                else if (current == smoothedExpectedTemps[i + 1] && current != prev) {
+            while (i < smoothedOriginalTemps.size - 1) {
+                val current = smoothedOriginalTemps[i]
+                val prev = smoothedOriginalTemps[i - 1]
+                if (current > prev && current > smoothedOriginalTemps[i + 1]) extrema.add(i)
+                else if (current < prev && current < smoothedOriginalTemps[i + 1]) extrema.add(i)
+                else if (current == smoothedOriginalTemps[i + 1] && current != prev) {
                     var j = i + 1
-                    while (j < smoothedExpectedTemps.size - 1 && smoothedExpectedTemps[j] == current) j++
-                    val next = smoothedExpectedTemps[j]
-                    if (j < smoothedExpectedTemps.size) {
+                    while (j < smoothedOriginalTemps.size - 1 && smoothedOriginalTemps[j] == current) j++
+                    val next = smoothedOriginalTemps[j]
+                    if (j < smoothedOriginalTemps.size) {
                         if (current > prev && current > next) extrema.add((i + j) / 2) 
                         else if (current < prev && current < next) extrema.add((i + j) / 2)
                     }
@@ -373,13 +373,13 @@ object TemperatureGraphRenderer {
         val localExtrema = findLocalExtremaIndices()
 
         fun bilateralExtremaProminence(index: Int): Float {
-            val current = smoothedExpectedTemps[index]
+            val current = smoothedOriginalTemps[index]
             val localExtremaSet = localExtrema.toSet()
             fun maxDeltaInDirection(step: Int): Float {
                 var maxDelta = 0f
                 var cursor = index + step
-                while (cursor in smoothedExpectedTemps.indices) {
-                    val delta = Math.abs(smoothedExpectedTemps[cursor] - current)
+                while (cursor in smoothedOriginalTemps.indices) {
+                    val delta = Math.abs(smoothedOriginalTemps[cursor] - current)
                     if (delta > maxDelta) maxDelta = delta
                     if (cursor != index + step && cursor in localExtremaSet) break
                     cursor += step
@@ -399,35 +399,35 @@ object TemperatureGraphRenderer {
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
         significantLocalExtrema.forEach { idx ->
             if (idx !in specialIndices) {
-                val labelText = String.format("%.0f", smoothedExpectedTemps[idx])
-                if (specialIndices.none { Math.abs(idx - it) <= 3 && String.format("%.0f", smoothedExpectedTemps[it]) == labelText }) specialIndices.add(idx)
+                val labelText = String.format("%.0f", smoothedOriginalTemps[idx])
+                if (specialIndices.none { Math.abs(idx - it) <= 3 && String.format("%.0f", smoothedOriginalTemps[it]) == labelText }) specialIndices.add(idx)
             }
         }
         if (0 !in specialIndices) specialIndices.add(0)
-        if (expectedHours.size > 1 && (expectedHours.size - 1) !in specialIndices) specialIndices.add(expectedHours.size - 1)
+        if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
         fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
-            val value = smoothedExpectedTemps[anchorIdx]
+            val value = smoothedOriginalTemps[anchorIdx]
             var first = anchorIdx
             var last = anchorIdx
-            while (first > 0 && smoothedExpectedTemps[first - 1] == value) first--
-            while (last < smoothedExpectedTemps.lastIndex && smoothedExpectedTemps[last + 1] == value) last++
-            val cx = (expectedPoints[first].first + expectedPoints[last].first) / 2f
-            val cy = (expectedPoints[first].second + expectedPoints[last].second) / 2f
+            while (first > 0 && smoothedOriginalTemps[first - 1] == value) first--
+            while (last < smoothedOriginalTemps.lastIndex && smoothedOriginalTemps[last + 1] == value) last++
+            val cx = (originalPoints[first].first + originalPoints[last].first) / 2f
+            val cy = (originalPoints[first].second + originalPoints[last].second) / 2f
             return cx to cy
         }
 
         for (idx in specialIndices) {
-            val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) centerOfRun(idx) else expectedPoints[idx].first to expectedPoints[idx].second
-            val label = String.format("%.0f°", smoothedExpectedTemps[idx])
+            val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) centerOfRun(idx) else originalPoints[idx].first to originalPoints[idx].second
+            val label = String.format("%.0f°", smoothedOriginalTemps[idx])
             val textWidth = tempLabelTextPaint.measureText(label)
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && smoothedExpectedTemps[idx] > smoothedExpectedTemps.getOrElse(idx-1){0f}))
-            val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && smoothedExpectedTemps[idx] < smoothedExpectedTemps.getOrElse(idx-1){1000f}))
+            val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && smoothedOriginalTemps[idx] > smoothedOriginalTemps.getOrElse(idx-1){0f}))
+            val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && smoothedOriginalTemps[idx] < smoothedOriginalTemps.getOrElse(idx-1){1000f}))
 
             val preferBelow = if (isPeak) false else if (isValley) true else sy < graphTop + graphHeight / 2f
             val attempts = if (preferBelow) listOf(true, false) else listOf(false, true)
@@ -444,7 +444,7 @@ object TemperatureGraphRenderer {
                             idx == dailyLowIndex -> "LOW"
                             idx == dailyHighIndex -> "HIGH"
                             idx == 0 -> "START"
-                            idx == expectedHours.lastIndex -> "END"
+                            idx == hours.lastIndex -> "END"
                             else -> "LOCAL"
                         }
 
@@ -452,7 +452,7 @@ object TemperatureGraphRenderer {
                         LabelPlacementDebug(
                             index = idx,
                             role = role,
-                            temperature = smoothedExpectedTemps[idx],
+                            temperature = smoothedOriginalTemps[idx],
                             rawTemperature = hours[idx].temperature,
                             x = clampedX,
                             y = candidateY,
@@ -468,10 +468,10 @@ object TemperatureGraphRenderer {
         // Day of week indicators
         val dayLabelHour = 8
         val dayY = heightPx - dpToPx(context, 14f)
-        expectedHours.forEachIndexed { index, hour ->
+        hours.forEachIndexed { index, hour ->
             if (hour.dateTime.hour == dayLabelHour) {
                 val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-                val centerX = expectedPoints[index].first
+                val centerX = originalPoints[index].first
                 val textWidth = dayLabelTextPaint.measureText(dayText)
                 canvas.drawText(dayText, centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f), dayY, dayLabelTextPaint)
             }
