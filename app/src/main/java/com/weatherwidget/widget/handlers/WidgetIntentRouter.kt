@@ -817,7 +817,7 @@ object WidgetIntentRouter {
                 "calc=cols:${dimensions.cols},rows:${dimensions.rows},widthDp:${dimensions.widthDp},heightDp:${dimensions.heightDp} " +
                 "graphDp=${graphWidthDp}x$graphHeightDp rawPx=${rawWidthPx}x$rawHeightPx " +
                 "scaledPx=${scaledWidthPx}x$scaledHeightPx downscaled=$downscaled"
-        appLogDao.log("WIDGET_RESIZE", message)
+        appLogDao.log("WIDGET_RESIZE", message, "VERBOSE")
     }
 
     private suspend fun loadGraphWindowHourlyForecasts(

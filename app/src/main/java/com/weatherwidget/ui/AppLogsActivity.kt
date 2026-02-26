@@ -38,6 +38,7 @@ class AppLogsActivity : AppCompatActivity() {
     private var snapshotCount: Int = 0
     private var dbSizeMb: Double = 0.0
     private var filterQuery: String = ""
+    private var showVerbose: Boolean = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,11 +65,14 @@ class AppLogsActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(this)
 
+        val forceCheckbox = findViewById<android.widget.CheckBox>(R.id.force_refresh_checkbox)
+
         findViewById<Button>(R.id.refresh_current_temp_button).setOnClickListener {
             CurrentTempUpdateScheduler.enqueueImmediateUpdate(
                 context = this,
                 reason = "manual_logs_refresh",
                 opportunistic = false,
+                force = forceCheckbox.isChecked,
             )
             Toast.makeText(this, getString(R.string.app_logs_refreshing_toast), Toast.LENGTH_SHORT).show()
             // Reload logs after a brief delay to see the start event
@@ -76,6 +80,20 @@ class AppLogsActivity : AppCompatActivity() {
                 kotlinx.coroutines.delay(1000)
                 loadLogs()
             }
+        }
+
+        val toggleVerboseBtn = findViewById<Button>(R.id.toggle_debug_button)
+        toggleVerboseBtn.text = "VERBOSE"
+        toggleVerboseBtn.setOnClickListener {
+            showVerbose = !showVerbose
+            if (showVerbose) {
+                toggleVerboseBtn.setBackgroundResource(R.drawable.rounded_button_blue)
+                toggleVerboseBtn.setTextColor(0xFFFFFFFF.toInt())
+            } else {
+                toggleVerboseBtn.setBackgroundResource(R.drawable.rounded_button_gray)
+                toggleVerboseBtn.setTextColor(0xFFAAAAAA.toInt())
+            }
+            applyFilter()
         }
 
         findViewById<Button>(R.id.clear_app_logs_button).setOnClickListener {
@@ -118,23 +136,31 @@ class AppLogsActivity : AppCompatActivity() {
 
     private fun applyFilter() {
         val query = filterQuery.lowercase()
-        val filteredLogs = if (query.isBlank()) {
-            allLogs
-        } else {
-            allLogs.filter { log ->
+        val filteredLogs = allLogs.filter { log ->
+            // Level Filter: Show VERBOSE only if showVerbose is true.
+            // Hide only VERBOSE by default (show DEBUG, INFO, WARN, ERROR).
+            val levelPass = showVerbose || log.level != "VERBOSE"
+            
+            // Search Filter
+            val searchPass = if (query.isBlank()) {
+                true
+            } else {
                 log.tag.lowercase().contains(query) ||
                     log.level.lowercase().contains(query) ||
                     log.message.lowercase().contains(query)
             }
+            
+            levelPass && searchPass
         }
 
         adapter.setItems(filteredLogs)
 
         val dbStats = "DB: %.1f MB (%d logs, %d snaps)".format(dbSizeMb, totalLogCount, snapshotCount)
+        val levelStatus = if (showVerbose) "All Levels" else "DEBUG+"
         val filterStatus = if (query.isBlank()) {
-            "Showing ${filteredLogs.size} recent"
+            "Showing ${filteredLogs.size} ($levelStatus)"
         } else {
-            "Showing ${filteredLogs.size} matching \"$filterQuery\""
+            "Showing ${filteredLogs.size} matching \"$filterQuery\" ($levelStatus)"
         }
 
         statusText.text = "$dbStats\n$filterStatus"

@@ -27,6 +27,16 @@ class AppLogAdapter : RecyclerView.Adapter<AppLogAdapter.ViewHolder>() {
         val item = items[position]
         holder.metaText.text = "${item.getFormattedTime()}  ${item.level}  ${item.tag}"
         holder.messageText.text = item.message
+
+        val metaColor = when (item.level) {
+            "ERROR" -> 0xFFFF4444.toInt() // Red
+            "WARN"  -> 0xFFFFBB33.toInt() // Orange
+            "INFO"  -> 0xFFFFFFFF.toInt() // White
+            "DEBUG" -> 0xFF888888.toInt() // Gray
+            "VERBOSE" -> 0xFF666666.toInt() // Darker Gray
+            else    -> 0xFFAAAAAA.toInt() // widget_text_secondary
+        }
+        holder.metaText.setTextColor(metaColor)
     }
 
     override fun getItemCount(): Int = items.size

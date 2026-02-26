@@ -16,7 +16,7 @@ data class AppLogEntity(
     val timestamp: Long = System.currentTimeMillis(),
     val tag: String,
     val message: String,
-    val level: String = "INFO",
+    val level: String = "DEBUG",
 ) {
     fun getFormattedTime(): String {
         val instant = Instant.ofEpochMilli(timestamp)
@@ -49,7 +49,7 @@ interface AppLogDao {
 }
 
 /** Log to both the app_logs DB table and logcat in one call. */
-suspend fun AppLogDao.log(tag: String, message: String, level: String = "INFO") {
+suspend fun AppLogDao.log(tag: String, message: String, level: String = "DEBUG") {
     try {
         insert(AppLogEntity(tag = tag, message = message, level = level))
     } catch (e: Exception) {
@@ -58,6 +58,9 @@ suspend fun AppLogDao.log(tag: String, message: String, level: String = "INFO") 
     when (level) {
         "ERROR" -> Log.e(tag, message)
         "WARN" -> Log.w(tag, message)
+        "INFO" -> Log.i(tag, message)
+        "DEBUG" -> Log.d(tag, message)
+        "VERBOSE" -> Log.v(tag, message)
         else -> Log.d(tag, message)
     }
 }

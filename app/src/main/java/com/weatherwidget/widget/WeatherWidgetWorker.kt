@@ -59,6 +59,7 @@ class WeatherWidgetWorker
                     isScreenInteractive = isScreenInteractive,
                     isOpportunisticContext = opportunisticCurrentTemp,
                     reason = currentTempReason,
+                    force = forceRefresh,
                 )
             }
 
@@ -92,7 +93,7 @@ class WeatherWidgetWorker
                         // Fetch hourly forecasts for interpolation
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
 
-                        appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}")
+                        appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
                         updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
                         if (!uiOnlyRefresh) {
@@ -205,9 +206,10 @@ class WeatherWidgetWorker
             isScreenInteractive: Boolean,
             isOpportunisticContext: Boolean,
             reason: String,
+            force: Boolean = false,
         ): Result {
             return try {
-                val isManual = reason.contains("manual") || reason.contains("force")
+                val isManual = reason.contains("manual") || reason.contains("force") || force
                 if (
                     !CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = isPlugged,
@@ -219,7 +221,7 @@ class WeatherWidgetWorker
                     appLogDao.log(
                         "CURR_FETCH_SKIP",
                         "reason=$reason policy_blocked charging=$isPlugged interactive=$isScreenInteractive opportunistic=$isOpportunisticContext",
-                        "WARN",
+                        "INFO",
                     )
                 } else {
                     val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
@@ -229,6 +231,7 @@ class WeatherWidgetWorker
                             lon = location.second,
                             locationName = getLocationName(location.first, location.second),
                             reason = reason,
+                            force = force,
                         )
 
                     refreshResult.fold(

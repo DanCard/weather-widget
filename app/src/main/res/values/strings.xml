@@ -56,6 +56,7 @@
     <string name="view_app_logs">View App Logs</string>
     <string name="clear_app_logs">Clear Logs</string>
     <string name="app_logs_refresh_current">Refresh Current</string>
+    <string name="app_logs_force_refresh">Force</string>
     <string name="app_logs_refreshing_toast">Current temp refresh queued</string>
     <string name="app_logs_cleared">Logs cleared</string>
     <string name="no_app_logs">No app logs yet.</string>

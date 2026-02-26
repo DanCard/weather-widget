@@ -20,6 +20,7 @@ object CurrentTempUpdateScheduler {
         context: Context,
         reason: String,
         opportunistic: Boolean,
+        force: Boolean = false,
     ) {
         runCatching {
             val constraints =
@@ -34,6 +35,7 @@ object CurrentTempUpdateScheduler {
                             .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, true)
                             .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_OPPORTUNISTIC, opportunistic)
                             .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, force)
                             .build(),
                     )
                     .setConstraints(constraints)
@@ -44,7 +46,7 @@ object CurrentTempUpdateScheduler {
                 ExistingWorkPolicy.REPLACE,
                 workRequest,
             )
-            Log.d(TAG, "enqueueImmediateUpdate: reason=$reason opportunistic=$opportunistic id=${workRequest.id}")
+            Log.d(TAG, "enqueueImmediateUpdate: reason=$reason opportunistic=$opportunistic force=$force id=${workRequest.id}")
         }.onFailure { e ->
             Log.e(TAG, "enqueueImmediateUpdate failed: ${e.message}", e)
         }

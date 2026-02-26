@@ -189,7 +189,7 @@ class WeatherRepository
                     val timeSinceLastFetch = System.currentTimeMillis() - lastFullFetchTime
                     if (timeSinceLastFetch < MIN_NETWORK_INTERVAL_MS && freshCached.isNotEmpty()) {
                         val reason = if (forceRefresh) "forced refresh" else "stale data"
-                        appLogDao.log("NET_RATE_LIMIT", "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago, lastFullFetchTime=$lastFullFetchTime", "WARN")
+                        appLogDao.log("NET_RATE_LIMIT", "Skipping $reason, last fetch ${timeSinceLastFetch / 1000}s ago, lastFullFetchTime=$lastFullFetchTime", "INFO")
                         return Result.success(freshCached)
                     }
 
@@ -210,17 +210,17 @@ class WeatherRepository
                     if (nwsWeather != null) {
                         val merged = mergeWithExisting(nwsWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.log("NET_FETCH_SUCCESS", "NWS: Saved ${merged.size} entries (raw=${nwsWeather.size})")
+                        appLogDao.log("NET_FETCH_SUCCESS", "NWS: Saved ${merged.size} entries (raw=${nwsWeather.size})", "INFO")
                     }
                     if (meteoWeather != null) {
                         val merged = mergeWithExisting(meteoWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.log("NET_FETCH_SUCCESS", "Meteo: Saved ${merged.size} entries (raw=${meteoWeather.size})")
+                        appLogDao.log("NET_FETCH_SUCCESS", "Meteo: Saved ${merged.size} entries (raw=${meteoWeather.size})", "INFO")
                     }
                     if (weatherApiWeather != null) {
                         val merged = mergeWithExisting(weatherApiWeather, lat, lon)
                         weatherDao.insertAll(merged)
-                        appLogDao.log("NET_FETCH_SUCCESS", "WeatherAPI: Saved ${merged.size} entries (raw=${weatherApiWeather.size})")
+                        appLogDao.log("NET_FETCH_SUCCESS", "WeatherAPI: Saved ${merged.size} entries (raw=${weatherApiWeather.size})", "INFO")
                     }
 
                     // Fetch and save generic gap data once to cover any gaps in any API.
@@ -352,6 +352,7 @@ class WeatherRepository
                 appLogDao.log(
                     "SNAPSHOT_SAVE",
                     "Saved ${snapshots.size} unique snapshots for $source (from ${relevantForecasts.size} total). Range: ${snapshots.minOf { it.targetDate }} to ${snapshots.maxOf { it.targetDate }}",
+                    "INFO",
                 )
             } else if (relevantForecasts.isNotEmpty()) {
                 appLogDao.log("SNAPSHOT_SKIP", "All ${relevantForecasts.size} forecasts for $source were identical to latest snapshots; skipping.")
@@ -867,7 +868,7 @@ class WeatherRepository
                             )
                         }
                     }
-                    appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/$DAYS_OF_HISTORY days of history")
+                    appLogDao.log("OBS_BATCH_SUCCESS", "Got $successCount/$DAYS_OF_HISTORY days of history", "INFO")
                 }
             } catch (e: Exception) {
                 appLogDao.log("OBS_BATCH_ERROR", "Error: ${e.message}", "ERROR")
@@ -1422,16 +1423,17 @@ class WeatherRepository
             locationName: String,
             source: WeatherSource? = null,
             reason: String = "unspecified",
+            force: Boolean = false,
         ): Result<Int> {
             return try {
                 syncMutex.withLock {
                     val now = System.currentTimeMillis()
                     val timeSinceLastFetch = now - lastCurrentTempFetchTime
-                    if (timeSinceLastFetch < CURRENT_TEMP_FRESHNESS_MS) {
+                    if (!force && timeSinceLastFetch < CURRENT_TEMP_FRESHNESS_MS) {
                         appLogDao.log(
                             "CURR_FETCH_SKIP",
                             "reason=$reason rate_limited=${timeSinceLastFetch}ms (<$CURRENT_TEMP_FRESHNESS_MS)",
-                            "WARN",
+                            "INFO",
                         )
                         return Result.success(0)
                     }
@@ -1444,7 +1446,7 @@ class WeatherRepository
 
                     appLogDao.log(
                         "CURR_FETCH_START",
-                        "reason=$reason location=$locationName sources=${targetSources.joinToString(",") { it.id }}",
+                        "reason=$reason location=$locationName sources=${targetSources.joinToString(",") { it.id }} force=$force",
                     )
 
                     var updatedCount = 0
@@ -1474,7 +1476,7 @@ class WeatherRepository
                                         appLogDao.log(
                                             "CURR_FETCH_SKIP",
                                             "reason=$reason source=${weatherSource.id} unsupported_current_endpoint",
-                                            "WARN",
+                                            "INFO",
                                         )
                                         return@forEach
                                     }
@@ -1495,7 +1497,7 @@ class WeatherRepository
                                 appLogDao.log(
                                     "CURR_FETCH_SKIP",
                                     "reason=$reason source=${reading.source.id} missing_today_row date=$today",
-                                    "WARN",
+                                    "INFO",
                                 )
                                 return@forEach
                             }
@@ -1508,27 +1510,24 @@ class WeatherRepository
                                     fetchedAt = now,
                                 ),
                             )
+
+                            // Universal Human-Readable Logging for every source updated
                             val observedAtMs = reading.observedAt ?: now
-                            val observedAtIso =
-                                Instant.ofEpochMilli(observedAtMs)
-                                    .atZone(ZoneId.systemDefault())
-                                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
                             val observedAgeMs = (now - observedAtMs).coerceAtLeast(0L)
-                            val deltaMessage =
-                                "reason=$reason source=${reading.source.id} observed=${reading.temperature} " +
-                                    "observedAtMs=$observedAtMs observedAtIso=$observedAtIso observedAgeMs=$observedAgeMs " +
-                                    "interpolated=${interpolated ?: "null"} delta=${delta ?: "null"}"
-                            appLogDao.log(
-                                "CURR_FETCH_DELTA",
-                                deltaMessage,
-                            )
-                            Log.d(TAG, "CURR_FETCH_DELTA: $deltaMessage")
+                            val ageMins = observedAgeMs / 60000
+                            val freshnessStr = if (ageMins == 0L) "Just now" else "${ageMins}m ago"
+                            val deltaStr = delta?.let { " (delta ${if (it >= 0) "+" else ""}${String.format("%.1f", it)}°)" } ?: ""
+
+                            val displayMessage = "[${reading.source.id}] ${String.format("%.1f", reading.temperature)}°$deltaStr | Observed $freshnessStr"
+                            appLogDao.log("CURR_FETCH_DELTA", displayMessage)
+                            Log.d(TAG, "CURR_FETCH_DELTA: $displayMessage")
+
                             updatedCount++
                         } catch (sourceError: Exception) {
                             appLogDao.log(
                                 "CURR_FETCH_SKIP",
                                 "reason=$reason source=${weatherSource.id} error=${sourceError.message}",
-                                "WARN",
+                                "INFO",
                             )
                         }
                     }
@@ -1538,12 +1537,12 @@ class WeatherRepository
                     }
                     appLogDao.log(
                         "CURR_FETCH_SUCCESS",
-                        "reason=$reason updated=$updatedCount sources=${targetSources.joinToString(",") { it.id }}",
+                        "reason=$reason updated=$updatedCount sources=${targetSources.joinToString(",") { it.id }} force=$force",
                     )
                     Result.success(updatedCount)
                 }
             } catch (e: Exception) {
-                appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.javaClass.simpleName}: ${e.message}", "ERROR")
+                appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.javaClass.simpleName}: ${e.message} force=$force", "ERROR")
                 Result.failure(e)
             }
         }
@@ -1588,7 +1587,7 @@ class WeatherRepository
 
                 if (oldWeather > 0) {
                     val cutoffDate = Instant.ofEpochMilli(cutoffStandard).atZone(ZoneId.systemDefault()).toLocalDate()
-                    appLogDao.log("DB_CLEANUP", "Cleaned standard records older than $cutoffDate. Pruned Open-Meteo to 7 days.")
+                    appLogDao.log("DB_CLEANUP", "Cleaned standard records older than $cutoffDate. Pruned Open-Meteo to 7 days.", "INFO")
                 }
             } catch (e: Exception) {
                 appLogDao.log("DB_CLEANUP_ERROR", "Cleanup failed: ${e.message}", "ERROR")
