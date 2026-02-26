@@ -65,6 +65,34 @@ class NwsApi
             }
         }
 
+        suspend fun getLatestObservation(stationId: String): Observation? {
+            val response: String =
+                httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
+                    header("User-Agent", USER_AGENT)
+                    header("Accept", "application/geo+json")
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val props = jsonObj["properties"]?.jsonObject ?: return null
+            val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return null
+
+            // Temperature is in a value object with unitCode
+            val tempObj = props["temperature"]?.jsonObject
+            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
+
+            val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
+
+            return if (tempValue != null) {
+                Observation(
+                    timestamp = timestamp,
+                    temperatureCelsius = tempValue.toFloat(),
+                    textDescription = textDescription,
+                )
+            } else {
+                null
+            }
+        }
+
         suspend fun getObservations(
             stationId: String,
             start: String,

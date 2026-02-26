@@ -1473,12 +1473,28 @@ class WeatherRepository
                                         )
                                     }
                                     WeatherSource.NWS -> {
-                                        appLogDao.log(
-                                            "CURR_FETCH_SKIP",
-                                            "reason=$reason source=${weatherSource.id} skipped: no lightweight current-temp endpoint",
-                                            "INFO",
+                                        val gridPoint = nwsApi.getGridPoint(lat, lon)
+                                        val stations = getCachedStations(gridPoint.observationStationsUrl ?: "")
+                                            ?: nwsApi.getObservationStations(gridPoint.observationStationsUrl ?: "")
+                                        
+                                        if (stations.isEmpty()) {
+                                            appLogDao.log(
+                                                "CURR_FETCH_SKIP",
+                                                "reason=$reason source=${weatherSource.id} no_stations_found",
+                                                "WARN",
+                                            )
+                                            return@forEach
+                                        }
+
+                                        val latest = nwsApi.getLatestObservation(stations.first()) ?: return@forEach
+                                        val tempF = (latest.temperatureCelsius * 1.8f) + 32f
+                                        
+                                        CurrentReadingPayload(
+                                            source = weatherSource,
+                                            temperature = tempF,
+                                            condition = latest.textDescription,
+                                            observedAt = OffsetDateTime.parse(latest.timestamp).toInstant().toEpochMilli(),
                                         )
-                                        return@forEach
                                     }
                                     WeatherSource.GENERIC_GAP -> return@forEach
                                 }
