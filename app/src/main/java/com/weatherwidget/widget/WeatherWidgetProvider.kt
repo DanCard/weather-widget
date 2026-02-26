@@ -672,11 +672,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             displaySource: WeatherSource,
             todayStr: String,
         ): ObservedCurrentTemperature? {
+            // Find the latest observation specifically for the ACTIVE source.
             return weatherList
                 .filter {
                     it.date == todayStr &&
                         it.currentTemp != null &&
-                        it.currentTemp != 0f &&
                         (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
                 }
                 .maxByOrNull { it.currentTempObservedAt ?: it.fetchedAt }

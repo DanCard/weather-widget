@@ -26,14 +26,14 @@
 ---
 
 ## Building and Running
-Always ensure `JAVA_HOME` is set to a Java 21 JDK before running Gradle commands.
+The project requires Java 21. Ensure your environment is configured correctly before running Gradle commands.
 
 ```bash
 # Build and install to connected device/emulator
-JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug
+./gradlew installDebug
 
 # Run unit tests
-JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew test
+./gradlew test
 
 # Run instrumented tests
 ./scripts/emulator-tests.sh

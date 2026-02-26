@@ -33,9 +33,7 @@ This file provides guidance to AI agents working on this repository.
 
 ## Build Commands
 
-### Gradle JDK Usage
-- Use plain `./gradlew ...` by default.
-- Only prefix with `JAVA_HOME=...` when there is an actual JDK mismatch/error in the current shell session.
+Use plain `./gradlew ...` by default.
 
 ```bash
 # Build debug APK
@@ -58,9 +56,6 @@ This file provides guidance to AI agents working on this repository.
 
 # Run specific test method
 ./gradlew test --tests "com.weatherwidget.util.TemperatureInterpolatorTest.getInterpolatedTemperature returns null for empty list"
-
-# Fallback only when the shell has a JDK mismatch
-JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew test
 ```
 
 ## Project Structure
@@ -378,7 +373,7 @@ done
 - Default inspection actions: take a screenshot and/or inspect runtime logs with `adb logcat`.
 
 ### Manual Testing
-1. Build and install: `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 ./gradlew installDebug`
+1. Build and install: `./gradlew installDebug`
 2. On device/emulator: Long-press home screen → "Widgets"
 3. Find "Weather Widget" and drag to home screen
 4. Resize to test different layouts (1x1, 1x3, 2x3, 4x3, etc.)

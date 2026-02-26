@@ -209,7 +209,17 @@ object PrecipViewHandler {
 
             // Render precipitation graph
             val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
-            val bitmap = PrecipitationGraphRenderer.renderGraph(context, hours, widthPx, heightPx, now, bitmapScale, smoothIterations = zoom.precipSmoothIterations, hourLabelSpacingDp = hourLabelSpacingDp)
+            val bitmap = PrecipitationGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                currentTime = now,
+                bitmapScale = bitmapScale,
+                smoothIterations = zoom.precipSmoothIterations,
+                hourLabelSpacingDp = hourLabelSpacingDp,
+                observedTempFetchedAt = observedCurrentTempFetchedAt
+            )
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)

@@ -166,8 +166,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for complete update system design.
 
 ## Build Requirements
 
-- **Java**: Requires Java 21 (use Android Studio's bundled JDK or equivalent)
-- **Environment**: Trust the system `JAVA_HOME` if it points to a compatible JDK 21 (e.g., `/home/dcar/Downloads/high/android-studio/jbr`)
+- **Java**: Requires Java 21
 - **Gradle**: Currently using Gradle 8.13
 - Build with: `./gradlew installDebug`
 - Available emulators: `Generic_Foldable_API36`, `Medium_Phone_API_36`
@@ -176,7 +175,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for complete update system design.
 
 This is a widget-only app (no launcher activity). To test:
 
-1. Build and install: `./gradlew installDebug` (Ensure `JAVA_HOME` is set in your environment)
+1. Build and install: `./gradlew installDebug`
 2. On the emulator/device, long-press the home screen and select "Widgets"
 3. Find "Weather Widget" and drag it to the home screen
 4. Resize the widget to test different layouts (1x1, 1x3, 2x3, etc.)

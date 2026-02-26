@@ -73,6 +73,7 @@ object PrecipitationGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = 28f,
+        observedTempFetchedAt: Long? = null,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
@@ -829,6 +830,56 @@ object PrecipitationGraphRenderer {
             nowLabelTextPaint = nowLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
         )
+
+        // Draw "Last Fetch Dot" on the curve
+        if (observedTempFetchedAt != null) {
+            val fetchTime = java.time.Instant.ofEpochMilli(observedTempFetchedAt)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+            
+            val fetchX = GraphRenderUtils.computeXForTime(
+                targetTime = fetchTime,
+                items = hours,
+                points = points,
+                hourWidth = hourWidth,
+                dateTimeOf = { it.dateTime }
+            )
+            
+            if (fetchX != null) {
+                val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
+                if (fetchIdx != -1 && fetchIdx < smoothedProbs.lastIndex) {
+                    val baseProb = smoothedProbs[fetchIdx]
+                    val nextProb = smoothedProbs[fetchIdx + 1]
+                    val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+                    val interpolatedProb = baseProb + (nextProb - baseProb) * fraction
+                    val fetchY = graphBottom - graphHeight * (interpolatedProb / 100f)
+                    
+                    val dotRadius = dpToPx(context, 2.5f * (bitmapScale.coerceIn(0.5f, 1f)))
+                    val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
+
+                    val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.WHITE
+                        style = Paint.Style.FILL
+                    }
+                    
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
+                    
+                    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#AAFFFFFF")
+                        style = Paint.Style.STROKE
+                        strokeWidth = dpToPx(context, 1f)
+                    }
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
+
+                    val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#44000000")
+                        style = Paint.Style.STROKE
+                        strokeWidth = dpToPx(context, 0.5f)
+                    }
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
+                }
+            }
+        }
 
         // Draw end-of-graph label (right edge) for the final precipitation probability.
         // Keep it inside bounds and avoid overlaps with existing labels/NOW marker.

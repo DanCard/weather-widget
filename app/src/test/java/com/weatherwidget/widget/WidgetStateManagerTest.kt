@@ -270,7 +270,7 @@ class WidgetStateManagerTest {
         assertEquals(4, ZoomLevel.WIDE.labelInterval)
         assertEquals(2, ZoomLevel.WIDE.precipSmoothIterations)
 
-        assertEquals(2L, ZoomLevel.NARROW.backHours)
+        assertEquals(1L, ZoomLevel.NARROW.backHours)
         assertEquals(3L, ZoomLevel.NARROW.forwardHours)
         assertEquals(2, ZoomLevel.NARROW.navJump)
         assertEquals(1, ZoomLevel.NARROW.labelInterval)

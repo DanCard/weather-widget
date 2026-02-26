@@ -503,22 +503,31 @@ object TemperatureGraphRenderer {
                     val interpolatedFetchTemp = baseTemp + (nextTemp - baseTemp) * fraction
                     val fetchY = graphTop + graphHeight * (1 - (interpolatedFetchTemp - minTemp) / tempRange)
                     
+                    val dotRadius = dpToPx(context, 3.2f * labelScale)
+                    val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
+
                     val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = tempToColor(interpolatedFetchTemp)
                         style = Paint.Style.FILL
-                        setShadowLayer(dpToPx(context, 3f), 0f, 0f, Color.parseColor("#AA000000"))
                     }
                     
-                    val dotRadius = dpToPx(context, 3.2f * labelScale)
-                    canvas.drawCircle(fetchX, fetchY, dotRadius, dotPaint)
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
                     
-                    // Distinct white outer ring to make the thermal color pop
+                    // High-contrast white border
                     val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
-                        strokeWidth = dpToPx(context, 1.2f * labelScale)
+                        strokeWidth = dpToPx(context, 1.5f * labelScale)
                     }
-                    canvas.drawCircle(fetchX, fetchY, dotRadius, ringPaint)
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
+                    
+                    // Darker outer ring for better visibility on light backgrounds
+                    val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#44000000")
+                        style = Paint.Style.STROKE
+                        strokeWidth = dpToPx(context, 0.5f * labelScale)
+                    }
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + ringPaint.strokeWidth/2f, outerRingPaint)
                 }
             }
         }
