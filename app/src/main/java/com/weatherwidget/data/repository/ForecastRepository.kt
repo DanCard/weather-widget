@@ -16,6 +16,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
@@ -103,7 +104,9 @@ class ForecastRepository
         private fun requiresNetworkFetch(c: List<WeatherEntity>) = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API).any { s -> (widgetStateManager.isSourceVisible(s) || isPlugged()) && isStale(s, c) }
         private fun isStale(s: WeatherSource, c: List<WeatherEntity>): Boolean {
             val last = c.filter { it.source == s.id }.maxOfOrNull { it.fetchedAt } ?: 0L
-            val thresh = when (widgetStateManager.getVisibleSourcesOrder().indexOf(s)) { 0 -> 3600000L; 1 -> 5400000L; else -> 7200000L }
+            val thresh = ForecastStalenessPolicy.getStalenessThresholdMs(
+                widgetStateManager.getVisibleSourcesOrder().indexOf(s)
+            )
             return System.currentTimeMillis() - last >= thresh
         }
 

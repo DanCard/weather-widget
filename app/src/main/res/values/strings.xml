@@ -40,6 +40,12 @@
     <string name="refresh_policy_battery_high">Refresh Policy: Every 4h (battery %1$d%%)</string>
     <string name="refresh_policy_battery_mid">Refresh Policy: Every 8h (battery %1$d%%)</string>
     <string name="refresh_policy_battery_low">Refresh Policy: Paused (battery %1$d%%)</string>
+    <string name="forecast_policy_charging_1h">Forecast refresh: Every 1h while charging (primary API)</string>
+    <string name="forecast_policy_charging_90m">Forecast refresh: Every 90m while charging (secondary API)</string>
+    <string name="forecast_policy_charging_2h">Forecast refresh: Every 2h while charging (3rd+ API)</string>
+    <string name="forecast_policy_battery_high">Forecast refresh: Every 4h (battery %1$d%%)</string>
+    <string name="forecast_policy_battery_mid">Forecast refresh: Every 8h (battery %1$d%%)</string>
+    <string name="forecast_policy_battery_low">Forecast refresh: Paused (battery %1$d%%)</string>
     <string name="freshness_just_now">just now</string>
     <string name="forecast_history">History of Forecasts for </string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>

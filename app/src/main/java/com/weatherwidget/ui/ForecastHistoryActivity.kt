@@ -658,12 +658,20 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val isCharging = batteryManager.isCharging
-        // Refresh policy for current battery state
+        // Forecast staleness policy for current battery state
         val policyText = when {
-            isCharging -> getString(R.string.refresh_policy_charging)
-            batteryLevel > 70 -> getString(R.string.refresh_policy_battery_high, batteryLevel)
-            batteryLevel > 50 -> getString(R.string.refresh_policy_battery_mid, batteryLevel)
-            else -> getString(R.string.refresh_policy_battery_low, batteryLevel)
+            isCharging -> {
+                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+                val apiIndex = visibleSources.indexOf(cachedRequestedSource ?: visibleSources.firstOrNull())
+                when (apiIndex) {
+                    0 -> getString(R.string.forecast_policy_charging_1h)
+                    1 -> getString(R.string.forecast_policy_charging_90m)
+                    else -> getString(R.string.forecast_policy_charging_2h)
+                }
+            }
+            batteryLevel > 70 -> getString(R.string.forecast_policy_battery_high, batteryLevel)
+            batteryLevel > 50 -> getString(R.string.forecast_policy_battery_mid, batteryLevel)
+            else -> getString(R.string.forecast_policy_battery_low, batteryLevel)
         }
         nextUpdateView.text = policyText
 

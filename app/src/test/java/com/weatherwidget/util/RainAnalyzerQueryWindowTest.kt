@@ -43,9 +43,9 @@ class RainAnalyzerQueryWindowTest {
     fun `60h lookahead covers rain 2 days out`() = runTest {
         val now = LocalDateTime.now()
         val twoDaysOut = now.plusDays(2)
-        val rainDateTime = twoDaysOut.withHour(14).withMinute(0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val rainDateTime = twoDaysOut.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
 
-        // Insert rain data 2 days from now at 2pm
+        // Insert rain data 2 days from now at the same time as now
         hourlyDao.insertAll(
             listOf(TestData.hourly(dateTime = rainDateTime, condition = "Rain", precipProbability = 80)),
         )
@@ -68,7 +68,7 @@ class RainAnalyzerQueryWindowTest {
     fun `narrow 3h window misses rain 2 days out`() = runTest {
         val now = LocalDateTime.now()
         val twoDaysOut = now.plusDays(2)
-        val rainDateTime = twoDaysOut.withHour(14).withMinute(0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val rainDateTime = twoDaysOut.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
 
         hourlyDao.insertAll(
             listOf(TestData.hourly(dateTime = rainDateTime, condition = "Rain", precipProbability = 80)),
