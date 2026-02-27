@@ -19,8 +19,7 @@ import java.time.OffsetDateTime
 class WeatherRepositoryNwsParallelTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences
-    private lateinit var weatherDao: WeatherDao
-    private lateinit var forecastSnapshotDao: ForecastSnapshotDao
+    private lateinit var forecastDao: ForecastDao
     private lateinit var hourlyForecastDao: HourlyForecastDao
     private lateinit var appLogDao: AppLogDao
     private lateinit var nwsApi: NwsApi
@@ -29,7 +28,7 @@ class WeatherRepositoryNwsParallelTest {
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
-    private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var observationDao: ObservationDao
     private lateinit var currentTempDao: CurrentTempDao
     private lateinit var repository: WeatherRepository
 
@@ -42,8 +41,7 @@ class WeatherRepositoryNwsParallelTest {
         sharedPrefs = mockk(relaxed = true)
         every { context.getSharedPreferences(any(), any()) } returns sharedPrefs
 
-        weatherDao = mockk(relaxed = true)
-        forecastSnapshotDao = mockk(relaxed = true)
+        forecastDao = mockk(relaxed = true)
         hourlyForecastDao = mockk(relaxed = true)
         appLogDao = mockk(relaxed = true)
         nwsApi = mockk()
@@ -52,13 +50,13 @@ class WeatherRepositoryNwsParallelTest {
         widgetStateManager = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
-        weatherObservationDao = mockk(relaxed = true)
+        observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, weatherDao, forecastSnapshotDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao)
-        val currentRepo = CurrentTempRepository(context, currentTempDao, weatherObservationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator)
+        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao)
+        val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator)
 
-        repository = WeatherRepository(context, forecastRepo, currentRepo, weatherDao, forecastSnapshotDao, appLogDao, currentTempDao)
+        repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, currentTempDao)
 
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
         every { widgetStateManager.isSourceVisible(WeatherSource.NWS) } returns true

@@ -15,12 +15,12 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class WeatherDaoTest {
     private lateinit var db: WeatherDatabase
-    private lateinit var dao: WeatherDao
+    private lateinit var dao: ForecastDao
 
     @Before
     fun setup() {
         db = TestDatabase.create()
-        dao = db.weatherDao()
+        dao = db.forecastDao()
     }
 
     @After
@@ -30,10 +30,10 @@ class WeatherDaoTest {
 
     @Test
     fun `insert and retrieve by date`() = runTest {
-        val entity = TestData.weather(date = "2026-02-20", source = "NWS")
-        dao.insertWeather(entity)
+        val entity = TestData.forecast(targetDate = "2026-02-20", source = "NWS")
+        dao.insertForecast(entity)
 
-        val result = dao.getWeatherForDate("2026-02-20", LAT, LON)
+        val result = dao.getForecastForDate("2026-02-20", LAT, LON)
         assertNotNull(result)
         assertEquals("NWS", result!!.source)
         assertEquals(65f, result.highTemp)
@@ -41,11 +41,11 @@ class WeatherDaoTest {
 
     @Test
     fun `composite key allows both NWS and OpenMeteo for same date`() = runTest {
-        dao.insertWeather(TestData.weather(date = "2026-02-20", source = "NWS", highTemp = 65f))
-        dao.insertWeather(TestData.weather(date = "2026-02-20", source = "OPEN_METEO", highTemp = 67f))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", source = "NWS", highTemp = 65f))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", source = "OPEN_METEO", highTemp = 67f))
 
-        val nws = dao.getWeatherForDateBySource("2026-02-20", LAT, LON, "NWS")
-        val meteo = dao.getWeatherForDateBySource("2026-02-20", LAT, LON, "OPEN_METEO")
+        val nws = dao.getForecastForDateBySource("2026-02-20", "2026-02-20", LAT, LON, "NWS")
+        val meteo = dao.getForecastForDateBySource("2026-02-20", "2026-02-20", LAT, LON, "OPEN_METEO")
 
         assertNotNull(nws)
         assertNotNull(meteo)
@@ -54,67 +54,69 @@ class WeatherDaoTest {
     }
 
     @Test
-    fun `REPLACE strategy overwrites same date+source`() = runTest {
-        dao.insertWeather(TestData.weather(date = "2026-02-20", source = "NWS", highTemp = 65f))
-        dao.insertWeather(TestData.weather(date = "2026-02-20", source = "NWS", highTemp = 70f))
+    fun `REPLACE strategy overwrites same composite key`() = runTest {
+        val ts = 1000L
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", source = "NWS", highTemp = 65f, fetchedAt = ts))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", source = "NWS", highTemp = 70f, fetchedAt = ts))
 
-        val result = dao.getWeatherForDateBySource("2026-02-20", LAT, LON, "NWS")
-        assertEquals(70f, result!!.highTemp)
+        val results = dao.getForecastsInRangeBySource("2026-02-20", "2026-02-20", LAT, LON, "NWS")
+        assertEquals(1, results.size)
+        assertEquals(70f, results[0].highTemp)
     }
 
     @Test
-    fun `getWeatherRange returns ordered results`() = runTest {
-        dao.insertWeather(TestData.weather(date = "2026-02-22"))
-        dao.insertWeather(TestData.weather(date = "2026-02-20"))
-        dao.insertWeather(TestData.weather(date = "2026-02-21"))
+    fun `getForecastsInRange returns ordered results`() = runTest {
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-22"))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20"))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21"))
 
-        val range = dao.getWeatherRange("2026-02-20", "2026-02-22", LAT, LON)
+        val range = dao.getForecastsInRange("2026-02-20", "2026-02-22", LAT, LON)
         assertEquals(3, range.size)
-        assertEquals("2026-02-20", range[0].date)
-        assertEquals("2026-02-22", range[2].date)
+        assertEquals("2026-02-20", range[0].targetDate)
+        assertEquals("2026-02-22", range[2].targetDate)
     }
 
     @Test
-    fun `getWeatherRangeBySource filters by source`() = runTest {
-        dao.insertWeather(TestData.weather(date = "2026-02-20", source = "NWS"))
-        dao.insertWeather(TestData.weather(date = "2026-02-20", source = "OPEN_METEO"))
-        dao.insertWeather(TestData.weather(date = "2026-02-21", source = "NWS"))
+    fun `getForecastsInRangeBySource filters by source`() = runTest {
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", source = "NWS"))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", source = "OPEN_METEO"))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", source = "NWS"))
 
-        val nwsOnly = dao.getWeatherRangeBySource("2026-02-20", "2026-02-21", LAT, LON, "NWS")
+        val nwsOnly = dao.getForecastsInRangeBySource("2026-02-20", "2026-02-21", LAT, LON, "NWS")
         assertEquals(2, nwsOnly.size)
         assertTrue(nwsOnly.all { it.source == "NWS" })
     }
 
     @Test
     fun `location proximity filtering works within 0_1 degree`() = runTest {
-        dao.insertWeather(TestData.weather(lat = 37.42, lon = -122.08))
+        dao.insertForecast(TestData.forecast(lat = 37.42, lon = -122.08))
 
         // Within 0.1 degree — should match
-        val nearby = dao.getWeatherForDate("2026-02-20", 37.43, -122.07)
+        val nearby = dao.getForecastForDate("2026-02-20", 37.43, -122.07)
         assertNotNull(nearby)
 
         // Outside 0.1 degree — should NOT match
-        val far = dao.getWeatherForDate("2026-02-20", 38.0, -122.08)
+        val far = dao.getForecastForDate("2026-02-20", 38.0, -122.08)
         assertNull(far)
     }
 
     @Test
-    fun `deleteOldData removes entries before cutoff`() = runTest {
+    fun `deleteOldForecasts removes entries before cutoff`() = runTest {
         val old = System.currentTimeMillis() - 100_000
         val recent = System.currentTimeMillis()
-        dao.insertWeather(TestData.weather(date = "2026-02-18", fetchedAt = old))
-        dao.insertWeather(TestData.weather(date = "2026-02-20", fetchedAt = recent))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-18", fetchedAt = old))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-02-20", fetchedAt = recent))
 
-        dao.deleteOldData(System.currentTimeMillis() - 50_000)
+        dao.deleteOldForecasts(System.currentTimeMillis() - 50_000)
 
-        assertNull(dao.getWeatherForDate("2026-02-18", LAT, LON))
-        assertNotNull(dao.getWeatherForDate("2026-02-20", LAT, LON))
+        assertNull(dao.getForecastForDate("2026-02-18", LAT, LON))
+        assertNotNull(dao.getForecastForDate("2026-02-20", LAT, LON))
     }
 
     @Test
     fun `nullable temperatures are stored and retrieved correctly`() = runTest {
-        dao.insertWeather(TestData.weather(highTemp = null, lowTemp = null))
-        val result = dao.getWeatherForDate("2026-02-20", LAT, LON)
+        dao.insertForecast(TestData.forecast(highTemp = null, lowTemp = null))
+        val result = dao.getForecastForDate("2026-02-20", LAT, LON)
         assertNull(result!!.highTemp)
         assertNull(result.lowTemp)
     }

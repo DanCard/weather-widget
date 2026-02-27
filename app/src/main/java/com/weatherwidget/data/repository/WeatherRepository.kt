@@ -4,12 +4,9 @@ import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.CurrentTempEntity
-import com.weatherwidget.data.local.ForecastSnapshotDao
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
-import com.weatherwidget.data.local.WeatherDao
-import com.weatherwidget.data.local.WeatherEntity
-import com.weatherwidget.data.local.WeatherObservationDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -28,8 +25,7 @@ class WeatherRepository
         @ApplicationContext private val context: Context,
         private val forecastRepository: ForecastRepository,
         private val currentTempRepository: CurrentTempRepository,
-        private val weatherDao: WeatherDao,
-        private val forecastSnapshotDao: ForecastSnapshotDao,
+        private val forecastDao: ForecastDao,
         private val appLogDao: AppLogDao,
         private val currentTempDao: CurrentTempDao,
     ) {
@@ -40,7 +36,7 @@ class WeatherRepository
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
-        ): Result<List<WeatherEntity>> {
+        ): Result<List<ForecastEntity>> {
             return forecastRepository.getWeatherData(lat, lon, locationName, forceRefresh, networkAllowed, targetSourceId) { source, temp, observedAt, condition ->
                 currentTempDao.insert(CurrentTempEntity(java.time.LocalDate.now().toString(), source, lat, lon, temp, observedAt, condition, System.currentTimeMillis()))
             }
@@ -64,17 +60,15 @@ class WeatherRepository
         suspend fun getForecastForDateBySource(date: String, lat: Double, lon: Double, source: WeatherSource) = forecastRepository.getForecastForDateBySource(date, lat, lon, source)
         suspend fun getForecastsInRange(startDate: String, endDate: String, lat: Double, lon: Double) = forecastRepository.getForecastsInRange(startDate, endDate, lat, lon)
         suspend fun getWeatherRange(startDate: String, endDate: String, lat: Double, lon: Double) = forecastRepository.getWeatherRange(startDate, endDate, lat, lon)
-        suspend fun getLatestLocation(): Pair<Double, Double>? = weatherDao.getLatestWeather()?.let { it.locationLat to it.locationLon }
+        suspend fun getLatestLocation(): Pair<Double, Double>? = forecastDao.getLatestWeather()?.let { it.locationLat to it.locationLon }
 
         val lastNetworkFetchTimeMs: Long get() = FetchMetadata.getLastFullFetchTime(context)
         val lastSuccessfulCheckTimeMs: Long get() = FetchMetadata.getLastSuccessfulCheckTimeMs(context)
 
         @androidx.annotation.VisibleForTesting
-        internal suspend fun saveForecastSnapshot(weather: List<WeatherEntity>, lat: Double, lon: Double, source: String) = forecastRepository.saveForecastSnapshot(weather, lat, lon, source)
+        internal suspend fun saveForecastSnapshot(weather: List<ForecastEntity>, lat: Double, lon: Double, source: String) = forecastRepository.saveForecastSnapshot(weather, lat, lon, source)
         @androidx.annotation.VisibleForTesting
         internal suspend fun fetchFromNws(lat: Double, lon: Double, locationName: String) = forecastRepository.fetchFromNws(lat, lon, locationName)
-        @androidx.annotation.VisibleForTesting
-        internal suspend fun mergeWithExisting(newData: List<WeatherEntity>, lat: Double, lon: Double) = forecastRepository.mergeWithExisting(newData, lat, lon)
         @androidx.annotation.VisibleForTesting
         internal fun getHistoricalPois() = currentTempRepository.getHistoricalPois()
         @androidx.annotation.VisibleForTesting

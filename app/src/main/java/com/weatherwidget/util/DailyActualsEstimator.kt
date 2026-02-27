@@ -1,7 +1,7 @@
 package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -47,7 +47,7 @@ object DailyActualsEstimator {
         today: LocalDate,
         now: LocalDateTime,
         displaySource: WeatherSource,
-        fallbackWeather: WeatherEntity
+        fallbackWeather: ForecastEntity
     ): TodayTripleLineValues {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val nowStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
@@ -105,7 +105,7 @@ object DailyActualsEstimator {
         hourlyForecasts: List<HourlyForecastEntity>,
         today: LocalDate,
         displaySource: WeatherSource,
-        fallbackWeather: WeatherEntity
+        fallbackWeather: ForecastEntity
     ): Pair<Float?, Float?> {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 

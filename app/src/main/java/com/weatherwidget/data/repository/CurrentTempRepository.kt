@@ -7,8 +7,8 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.HourlyForecastDao
-import com.weatherwidget.data.local.WeatherObservationDao
-import com.weatherwidget.data.local.WeatherObservationEntity
+import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -39,7 +39,7 @@ class CurrentTempRepository
     constructor(
         @ApplicationContext private val context: Context,
         private val currentTempDao: CurrentTempDao,
-        private val weatherObservationDao: WeatherObservationDao,
+        private val observationDao: ObservationDao,
         private val hourlyForecastDao: HourlyForecastDao,
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
@@ -88,7 +88,7 @@ class CurrentTempRepository
                     val r = runCatching { openMeteoApi.getCurrent(p.first, p.second) }.getOrNull()
                     if (r != null) {
                         val cond = r.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) } ?: "Unknown"
-                        weatherObservationDao.insertAll(listOf(WeatherObservationEntity(if (p.third == "Current") "OPEN_METEO_MAIN" else "OPEN_METEO_$i", "Meteo: ${p.third}", r.observedAt ?: System.currentTimeMillis(), r.temperature, cond, lat, lon, calculateDistance(lat, lon, p.first, p.second) / 1000f, "OFFICIAL")))
+                        observationDao.insertAll(listOf(ObservationEntity(if (p.third == "Current") "OPEN_METEO_MAIN" else "OPEN_METEO_$i", "Meteo: ${p.third}", r.observedAt ?: System.currentTimeMillis(), r.temperature, cond, lat, lon, calculateDistance(lat, lon, p.first, p.second) / 1000f, "OFFICIAL")))
                     }
                     r
                 }
@@ -102,7 +102,7 @@ class CurrentTempRepository
                 async {
                     val r = runCatching { weatherApi.getCurrent(p.first, p.second) }.getOrNull()
                     if (r != null) {
-                        weatherObservationDao.insertAll(listOf(WeatherObservationEntity(if (p.third == "Current") "WEATHER_API_MAIN" else "WEATHER_API_$i", "WAPI: ${p.third}", r.observedAt ?: System.currentTimeMillis(), r.temperature, r.condition ?: "Unknown", lat, lon, calculateDistance(lat, lon, p.first, p.second) / 1000f, "OFFICIAL")))
+                        observationDao.insertAll(listOf(ObservationEntity(if (p.third == "Current") "WEATHER_API_MAIN" else "WEATHER_API_$i", "WAPI: ${p.third}", r.observedAt ?: System.currentTimeMillis(), r.temperature, r.condition ?: "Unknown", lat, lon, calculateDistance(lat, lon, p.first, p.second) / 1000f, "OFFICIAL")))
                     }
                     r
                 }
@@ -117,7 +117,7 @@ class CurrentTempRepository
                 async {
                     val o = runCatching { nwsApi.getLatestObservationDetailed(info.id) }.getOrNull()
                     if (o != null) {
-                        weatherObservationDao.insertAll(listOf(WeatherObservationEntity(info.id, o.stationName, OffsetDateTime.parse(o.timestamp).toInstant().toEpochMilli(), (o.temperatureCelsius * 1.8f) + 32f, o.textDescription, lat, lon, calculateDistance(lat, lon, info.lat, info.lon) / 1000f, info.type.name)))
+                        observationDao.insertAll(listOf(ObservationEntity(info.id, o.stationName, OffsetDateTime.parse(o.timestamp).toInstant().toEpochMilli(), (o.temperatureCelsius * 1.8f) + 32f, o.textDescription, lat, lon, calculateDistance(lat, lon, info.lat, info.lon) / 1000f, info.type.name)))
                     }
                     o
                 }

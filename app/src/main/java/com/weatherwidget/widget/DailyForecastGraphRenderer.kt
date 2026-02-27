@@ -23,7 +23,7 @@ object DailyForecastGraphRenderer {
         val forecastHigh: Float? = null, // Single forecast
         val forecastLow: Float? = null, // Single forecast
         val rainSummary: String? = null, // e.g. "2pm" — start of first rain window
-        val dailyPrecipProbability: Int? = null, // From WeatherEntity, used for click routing
+        val dailyPrecipProbability: Int? = null, // From ForecastEntity, used for click routing
         val hasRainForecast: Boolean = false, // Unsuppressed rain signal for click routing
     )
 

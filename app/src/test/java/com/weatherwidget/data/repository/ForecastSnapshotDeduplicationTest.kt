@@ -31,9 +31,9 @@ class ForecastSnapshotDeduplicationTest {
     fun setup() {
         db = TestDatabase.create()
         val context = RuntimeEnvironment.getApplication()
-        val forecastRepo = ForecastRepository(context, db.weatherDao(), db.forecastSnapshotDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(), mockk(), mockk(), mockk(relaxed = true), db.climateNormalDao())
-        val currentRepo = CurrentTempRepository(context, db.currentTempDao(), db.weatherObservationDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(), mockk(), mockk(), mockk(relaxed = true), TemperatureInterpolator())
-        repository = WeatherRepository(context, forecastRepo, currentRepo, db.weatherDao(), db.forecastSnapshotDao(), db.appLogDao(), db.currentTempDao())
+        val forecastRepo = ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(), mockk(), mockk(), mockk(relaxed = true), db.climateNormalDao())
+        val currentRepo = CurrentTempRepository(context, db.currentTempDao(), db.observationDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(), mockk(), mockk(), mockk(relaxed = true), TemperatureInterpolator())
+        repository = WeatherRepository(context, forecastRepo, currentRepo, db.forecastDao(), db.appLogDao(), db.currentTempDao())
     }
 
     @After
@@ -41,30 +41,30 @@ class ForecastSnapshotDeduplicationTest {
 
     @Test
     fun `first forecast creates a snapshot`() = runTest {
-        repository.saveForecastSnapshot(listOf(TestData.weather(date = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f)), LAT, LON, "NWS")
-        assertEquals(1, db.forecastSnapshotDao().getCount())
+        repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f)), LAT, LON, "NWS")
+        assertEquals(1, db.forecastDao().getCount())
     }
 
     @Test
     fun `identical forecast skips snapshot`() = runTest {
-        val weather = listOf(TestData.weather(date = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f, condition = "Sunny"))
+        val weather = listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f, condition = "Sunny"))
         repository.saveForecastSnapshot(weather, LAT, LON, "NWS")
-        assertEquals(1, db.forecastSnapshotDao().getCount())
+        assertEquals(1, db.forecastDao().getCount())
         repository.saveForecastSnapshot(weather, LAT, LON, "NWS")
-        assertEquals(1, db.forecastSnapshotDao().getCount())
+        assertEquals(1, db.forecastDao().getCount())
     }
 
     @Test
     fun `changed high temp creates new snapshot`() = runTest {
-        repository.saveForecastSnapshot(listOf(TestData.weather(date = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f)), LAT, LON, "NWS")
-        repository.saveForecastSnapshot(listOf(TestData.weather(date = tomorrow, source = "NWS", highTemp = 72f, lowTemp = 50f)), LAT, LON, "NWS")
-        assertEquals(2, db.forecastSnapshotDao().getCount())
+        repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f)), LAT, LON, "NWS")
+        repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 72f, lowTemp = 50f)), LAT, LON, "NWS")
+        assertEquals(2, db.forecastDao().getCount())
     }
 
     @Test
     fun `historical dates are excluded from snapshots`() = runTest {
         val yesterday = LocalDate.now().minusDays(1).toString()
-        repository.saveForecastSnapshot(listOf(TestData.weather(date = yesterday, source = "NWS")), LAT, LON, "NWS")
-        assertEquals(0, db.forecastSnapshotDao().getCount())
+        repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = yesterday, source = "NWS")), LAT, LON, "NWS")
+        assertEquals(0, db.forecastDao().getCount())
     }
 }

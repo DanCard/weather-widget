@@ -18,9 +18,9 @@ import org.junit.Test
 class WeatherRepositoryPoiTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences
-    private lateinit var weatherDao: WeatherDao
+    private lateinit var forecastDao: ForecastDao
     private lateinit var appLogDao: AppLogDao
-    private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var observationDao: ObservationDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.422
@@ -32,15 +32,15 @@ class WeatherRepositoryPoiTest {
         sharedPrefs = mockk(relaxed = true)
         every { context.getSharedPreferences(any(), any()) } returns sharedPrefs
 
-        weatherDao = mockk(relaxed = true)
+        forecastDao = mockk(relaxed = true)
         appLogDao = mockk(relaxed = true)
-        weatherObservationDao = mockk(relaxed = true)
+        observationDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, weatherDao, mockk(relaxed = true), mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
-        val currentRepo = CurrentTempRepository(context, mockk(relaxed = true), weatherObservationDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), TemperatureInterpolator())
-        
+        val forecastRepo = ForecastRepository(context, forecastDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
+        val currentRepo = CurrentTempRepository(context, mockk(relaxed = true), observationDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), TemperatureInterpolator())
+
         repository = WeatherRepository(
-            context, forecastRepo, currentRepo, weatherDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true)
+            context, forecastRepo, currentRepo, forecastDao, appLogDao, mockk(relaxed = true)
         )
     }
 

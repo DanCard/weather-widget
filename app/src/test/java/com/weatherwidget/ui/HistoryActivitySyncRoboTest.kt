@@ -6,8 +6,7 @@ import android.content.Intent
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.data.local.ForecastSnapshotDao
-import com.weatherwidget.data.local.WeatherDao
+import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
@@ -67,8 +66,7 @@ class HistoryActivitySyncRoboTest {
         val activity = controller.get()
         
         // Manual injection of required DAOs (mocked) to avoid Hilt @Inject failures during onCreate
-        activity.forecastSnapshotDao = mockk(relaxed = true)
-        activity.weatherDao = mockk(relaxed = true)
+        activity.forecastDao = mockk(relaxed = true)
         
         controller.setup()
 

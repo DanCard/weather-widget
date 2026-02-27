@@ -14,9 +14,8 @@ import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
 import com.weatherwidget.data.local.CurrentTempEntity
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
@@ -89,8 +88,8 @@ object DailyViewHandler : WidgetViewHandler {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        weatherList: List<WeatherEntity>,
-        forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+        weatherList: List<ForecastEntity>,
+        forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity>,
     ) {
@@ -127,7 +126,7 @@ object DailyViewHandler : WidgetViewHandler {
         val weatherByDate =
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-                .groupBy { it.date }
+                .groupBy { it.targetDate }
                 .mapValues { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
 
         // Set API source indicator
@@ -359,7 +358,7 @@ object DailyViewHandler : WidgetViewHandler {
 
     private fun updateTextMode(
         context: Context, views: RemoteViews, now: LocalDateTime, centerDate: LocalDate,
-        today: LocalDate, weatherByDate: Map<String, WeatherEntity>,
+        today: LocalDate, weatherByDate: Map<String, ForecastEntity>,
         hourlyForecasts: List<HourlyForecastEntity>, numColumns: Int,
         displaySource: WeatherSource, skipHistory: Boolean,
         stateManager: WidgetStateManager?, appWidgetId: Int,

@@ -31,7 +31,7 @@ class UIUpdateScheduler(private val context: Context) {
         try {
             val database = WeatherDatabase.getDatabase(context)
             val hourlyDao = database.hourlyForecastDao()
-            val weatherDao = database.weatherDao()
+            val weatherDao = database.forecastDao()
 
             // Get location from latest weather data
             val latestWeather = weatherDao.getLatestWeather()

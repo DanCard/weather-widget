@@ -6,13 +6,14 @@ import androidx.room.Index
 /**
  * Stores individual observations from specific weather stations.
  * Used to capture "micro-climate" discrepancies between nearby stations (e.g., NWS airports vs. PWS).
+ * Serves as source of truth for actual weather data in accuracy calculations.
  */
 @Entity(
-    tableName = "weather_observations",
+    tableName = "observations",
     primaryKeys = ["stationId", "timestamp", "distanceKm", "stationType"],
     indices = [Index(value = ["locationLat", "locationLon"])],
 )
-data class WeatherObservationEntity(
+data class ObservationEntity(
     val stationId: String,
     val stationName: String,
     val timestamp: Long, // Epoch ms

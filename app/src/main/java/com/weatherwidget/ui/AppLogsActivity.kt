@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.AppLogEntity
-import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.widget.CurrentTempUpdateScheduler
 
 @AndroidEntryPoint
@@ -28,7 +28,7 @@ class AppLogsActivity : AppCompatActivity() {
     lateinit var appLogDao: AppLogDao
 
     @Inject
-    lateinit var forecastSnapshotDao: ForecastSnapshotDao
+    lateinit var forecastDao: ForecastDao
 
     private lateinit var adapter: AppLogAdapter
     private lateinit var statusText: TextView
@@ -111,7 +111,7 @@ class AppLogsActivity : AppCompatActivity() {
         lifecycleScope.launch(Dispatchers.IO) {
             val logs = appLogDao.getRecentLogs(3000)
             totalLogCount = appLogDao.getCount()
-            snapshotCount = forecastSnapshotDao.getCount()
+            snapshotCount = forecastDao.getCount()
             dbSizeMb = getDatabaseSizeMb()
 
             withContext(Dispatchers.Main) {

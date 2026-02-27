@@ -10,7 +10,7 @@ import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.WidgetStateManager
@@ -345,7 +345,7 @@ class DailyViewHandlerTest {
         assertTrue(lowTexts.contains("51.2°"))
     }
 
-    private fun createWeatherMap(today: LocalDate): Map<String, WeatherEntity> {
+    private fun createWeatherMap(today: LocalDate): Map<String, ForecastEntity> {
         return (-1..5).associate { offset ->
             val date = today.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -358,16 +358,16 @@ class DailyViewHandlerTest {
         precipProbability: Int? = 0,
         highTemp: Float? = 70f,
         lowTemp: Float? = 55f,
-    ): WeatherEntity {
-        return WeatherEntity(
-            date = date,
+    ): ForecastEntity {
+        return ForecastEntity(
+            targetDate = date,
+            forecastDate = date,
             locationLat = 37.7749,
             locationLon = -122.4194,
             locationName = "Test",
             highTemp = highTemp,
             lowTemp = lowTemp,
             condition = "Clear",
-            isActual = false,
             source = WeatherSource.NWS.id,
             precipProbability = precipProbability,
             fetchedAt = 1L,

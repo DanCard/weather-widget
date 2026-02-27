@@ -47,7 +47,7 @@ class StatisticsActivity : AppCompatActivity() {
             try {
                 // Get location from latest weather data
                 val database = WeatherDatabase.getDatabase(this@StatisticsActivity)
-                val latestWeather = database.weatherDao().getLatestWeather()
+                val latestWeather = database.forecastDao().getLatestWeather()
 
                 if (latestWeather == null) {
                     findViewById<TextView>(R.id.stats_summary_text).text =

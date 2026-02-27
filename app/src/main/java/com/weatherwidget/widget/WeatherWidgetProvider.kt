@@ -11,10 +11,9 @@ import android.widget.RemoteViews
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
@@ -58,12 +57,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         CoroutineScope(Dispatchers.IO).launch {
             val database = WeatherDatabase.getDatabase(context)
             try {
-                val weatherDao = database.weatherDao()
-                val snapshotDao = database.forecastSnapshotDao()
+                val forecastDao = database.forecastDao()
                 val hourlyDao = database.hourlyForecastDao()
 
                 // 1. Get latest data from DB to see if we can skip loading state
-                val latestWeather = weatherDao.getLatestWeather()
+                val latestWeather = forecastDao.getLatestWeather()
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
@@ -77,14 +75,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
 
                     val weatherList =
-                        weatherDao.getWeatherRange(
+                        forecastDao.getForecastsInRange(
                             historyStart,
                             thirtyDays,
                             latestWeather.locationLat,
                             latestWeather.locationLon,
                         )
                     val forecastSnapshots =
-                        snapshotDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
+                        forecastDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
                             .groupBy { it.targetDate }
 
                     // Get hourly forecasts for interpolation and rain analysis
@@ -301,7 +299,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
         val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
-        val latestWeather = database.weatherDao().getLatestWeather()
+        val latestWeather = database.forecastDao().getLatestWeather()
         val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return false
         val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return false
 
@@ -621,8 +619,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
-            weatherList: List<WeatherEntity>,
-            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap(),
+            weatherList: List<ForecastEntity>,
+            forecastSnapshots: Map<String, List<ForecastEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
         ) {
@@ -638,7 +636,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
-                            .find { it.date == targetDateStr && it.source == displaySource.id }
+                            .find { it.targetDate == targetDateStr && it.source == displaySource.id }
                             ?.precipProbability
                     val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     TemperatureViewHandler.updateWidget(
@@ -660,7 +658,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
-                            .find { it.date == targetDateStr && it.source == displaySource.id }
+                            .find { it.targetDate == targetDateStr && it.source == displaySource.id }
                             ?.precipProbability
                     val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     PrecipViewHandler.updateWidget(

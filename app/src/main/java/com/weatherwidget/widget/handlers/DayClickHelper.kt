@@ -26,7 +26,7 @@ object DayClickHelper {
      * analysis and daily precipitation probability.
      *
      * @param rainSummary the RainAnalyzer summary (non-null when rain is starting after a dry gap)
-     * @param dailyPrecipProbability the daily precipitation probability from WeatherEntity
+     * @param dailyPrecipProbability the daily precipitation probability from ForecastEntity
      * @return true if any rain indication exists above the display threshold
      */
     fun hasRainForecast(rainSummary: String?, dailyPrecipProbability: Int?): Boolean {

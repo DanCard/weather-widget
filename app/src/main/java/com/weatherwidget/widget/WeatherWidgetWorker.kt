@@ -11,7 +11,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.WeatherRepository
@@ -124,7 +124,7 @@ class WeatherWidgetWorker
         private suspend fun fetchForecastSnapshots(
             lat: Double,
             lon: Double,
-        ): Map<String, List<ForecastSnapshotEntity>> {
+        ): Map<String, List<ForecastEntity>> {
             return try {
                 val startDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val endDate = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -163,8 +163,8 @@ class WeatherWidgetWorker
         }
 
         private fun updateAllWidgets(
-            weatherList: List<com.weatherwidget.data.local.WeatherEntity>,
-            forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+            weatherList: List<ForecastEntity>,
+            forecastSnapshots: Map<String, List<ForecastEntity>>,
             hourlyForecasts: List<HourlyForecastEntity>,
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
         ) {

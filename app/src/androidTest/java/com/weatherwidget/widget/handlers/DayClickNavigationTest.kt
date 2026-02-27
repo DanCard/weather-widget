@@ -3,9 +3,9 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.AndroidTestDatabase
 import com.weatherwidget.testutil.AndroidTestWidgetState
@@ -30,7 +30,7 @@ import java.time.LocalDateTime
  * Instrumented tests verifying that tapping "today" navigates to the
  * hourly precipitation graph when any rain is indicated.
  *
- * Tests the full chain: daily WeatherEntity precipProbability +
+ * Tests the full chain: daily ForecastEntity precipProbability +
  * RainAnalyzer hourly data → DayClickHelper → WidgetStateManager.
  *
  * The key bug being tested: the widget shows daily precipitation probability
@@ -60,16 +60,17 @@ class DayClickNavigationTest {
         stateManager = WidgetStateManager(context)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
         runBlocking {
-            database.weatherDao().insertWeather(
-                WeatherEntity(
-                    date = LocalDate.now().toString(),
+            val todayStr = LocalDate.now().toString()
+            database.forecastDao().insertForecast(
+                ForecastEntity(
+                    targetDate = todayStr,
+                    forecastDate = todayStr,
                     locationLat = WeatherWidgetWorker.DEFAULT_LAT,
                     locationLon = WeatherWidgetWorker.DEFAULT_LON,
                     locationName = "Mountain View, CA",
                     highTemp = 72f,
                     lowTemp = 54f,
                     condition = "Cloudy",
-                    isActual = false,
                     source = WeatherSource.NWS.id,
                     precipProbability = 0,
                     fetchedAt = System.currentTimeMillis(),
@@ -243,7 +244,7 @@ class DayClickNavigationTest {
         assertFalse(DayClickHelper.shouldShowHistory(false))
         assertEquals(ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
 
-        // showHistory=false path with no rain opens TEMPERATURE hourly, 
+        // showHistory=false path with no rain opens TEMPERATURE hourly,
         // unlike the old path which opened history.
         // Let's verify it transitions correctly.
         val offset = DayClickHelper.calculatePrecipitationOffset(now, today)
@@ -286,7 +287,7 @@ class DayClickNavigationTest {
         val tomorrow = today.plusDays(1)
         // Set "now" to 10 AM today
         val now = today.atTime(10, 0)
-        
+
         // Offset to 8 AM tomorrow should be 22 hours
         val expectedOffset = DayClickHelper.calculatePrecipitationOffset(now, tomorrow)
         assertEquals(22, expectedOffset)
@@ -320,19 +321,19 @@ class DayClickNavigationTest {
         val lon = WeatherWidgetWorker.DEFAULT_LON
 
         runBlocking {
-            val weatherDao = database.weatherDao()
+            val forecastDao = database.forecastDao()
             val hourlyDao = database.hourlyForecastDao()
 
-            weatherDao.insertWeather(
-                WeatherEntity(
-                    date = todayStr,
+            forecastDao.insertForecast(
+                ForecastEntity(
+                    targetDate = todayStr,
+                    forecastDate = todayStr,
                     locationLat = lat,
                     locationLon = lon,
                     locationName = "Mountain View, CA",
                     highTemp = 72f,
                     lowTemp = 54f,
                     condition = "Cloudy",
-                    isActual = false,
                     source = WeatherSource.NWS.id,
                     precipProbability = 16,
                     fetchedAt = System.currentTimeMillis(),
@@ -348,7 +349,7 @@ class DayClickNavigationTest {
                 ),
             )
 
-            val todayWeather = weatherDao.getWeatherForDate(todayStr, lat, lon)
+            val todayWeather = forecastDao.getForecastForDate(todayStr, lat, lon)
             val dailyPrecipProb = todayWeather?.precipProbability
 
             val hourlyStart = now.minusHours(24).toString()

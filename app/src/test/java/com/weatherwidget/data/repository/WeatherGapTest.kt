@@ -4,11 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
-import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
-import com.weatherwidget.data.local.WeatherDao
-import com.weatherwidget.data.local.WeatherEntity
-import com.weatherwidget.data.local.WeatherObservationDao
+import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -25,8 +24,7 @@ import java.time.format.DateTimeFormatter
 
 class WeatherGapTest {
     private lateinit var context: Context
-    private lateinit var weatherDao: WeatherDao
-    private lateinit var forecastSnapshotDao: ForecastSnapshotDao
+    private lateinit var forecastDao: ForecastDao
     private lateinit var hourlyForecastDao: HourlyForecastDao
     private lateinit var appLogDao: AppLogDao
     private lateinit var nwsApi: NwsApi
@@ -35,7 +33,7 @@ class WeatherGapTest {
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
-    private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var observationDao: ObservationDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -50,8 +48,7 @@ class WeatherGapTest {
         val sharedPrefs = mockk<SharedPreferences>(relaxed = true)
         every { context.getSharedPreferences(any(), any()) } returns sharedPrefs
 
-        weatherDao = mockk(relaxed = true)
-        forecastSnapshotDao = mockk(relaxed = true)
+        forecastDao = mockk(relaxed = true)
         hourlyForecastDao = mockk(relaxed = true)
         appLogDao = mockk(relaxed = true)
         nwsApi = mockk()
@@ -60,18 +57,17 @@ class WeatherGapTest {
         widgetStateManager = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
-        weatherObservationDao = mockk(relaxed = true)
+        observationDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, weatherDao, forecastSnapshotDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao)
-        val currentRepo = CurrentTempRepository(context, mockk(relaxed = true), weatherObservationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator)
+        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao)
+        val currentRepo = CurrentTempRepository(context, mockk(relaxed = true), observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator)
 
         repository =
             WeatherRepository(
                 context,
                 forecastRepo,
                 currentRepo,
-                weatherDao,
-                forecastSnapshotDao,
+                forecastDao,
                 appLogDao,
                 mockk(relaxed = true)
             )
@@ -82,19 +78,31 @@ class WeatherGapTest {
     @Test
     fun `getCachedDataBySource merges provider data with generic gap data`() =
         runTest {
-            val nwsData = listOf(createWeatherEntity(today, 70, 50, "NWS"))
+            val nwsData = listOf(createForecastEntity(today, 70, 50, "NWS"))
             val gapData = listOf(
-                createWeatherEntity(today, 65, 45, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
-                createWeatherEntity(tomorrow, 66, 46, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
+                createForecastEntity(today, 65, 45, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
+                createForecastEntity(tomorrow, 66, 46, WeatherSource.GENERIC_GAP.id, isClimateNormal = true),
             )
-            coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, "NWS") } returns nwsData
-            coEvery { weatherDao.getWeatherRangeBySource(any(), any(), testLat, testLon, WeatherSource.GENERIC_GAP.id) } returns gapData
+            coEvery { forecastDao.getForecastsInRangeBySource(any(), any(), testLat, testLon, "NWS") } returns nwsData
+            coEvery { forecastDao.getForecastsInRangeBySource(any(), any(), testLat, testLon, WeatherSource.GENERIC_GAP.id) } returns gapData
             val result = repository.getCachedDataBySource(testLat, testLon, WeatherSource.NWS)
             assertEquals(2, result.size)
-            assertEquals("NWS", result.find { it.date == today }?.source)
-            assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.date == tomorrow }?.source)
+            assertEquals("NWS", result.find { it.targetDate == today }?.source)
+            assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.targetDate == tomorrow }?.source)
         }
 
-    private fun createWeatherEntity(date: String, high: Int, low: Int, source: String, isClimateNormal: Boolean = false) =
-        WeatherEntity(date, testLat, testLon, testLocationName, high.toFloat(), low.toFloat(), if (isClimateNormal) "Climate Avg" else "Sunny", false, source = source, isClimateNormal = isClimateNormal, fetchedAt = System.currentTimeMillis())
+    private fun createForecastEntity(date: String, high: Int, low: Int, source: String, isClimateNormal: Boolean = false) =
+        ForecastEntity(
+            targetDate = date,
+            forecastDate = date,
+            locationLat = testLat,
+            locationLon = testLon,
+            locationName = testLocationName,
+            highTemp = high.toFloat(),
+            lowTemp = low.toFloat(),
+            condition = if (isClimateNormal) "Climate Avg" else "Sunny",
+            isClimateNormal = isClimateNormal,
+            source = source,
+            fetchedAt = System.currentTimeMillis()
+        )
 }

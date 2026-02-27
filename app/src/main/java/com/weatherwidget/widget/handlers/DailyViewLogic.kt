@@ -1,8 +1,7 @@
 package com.weatherwidget.widget.handlers
 
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
@@ -36,7 +35,7 @@ object DailyViewLogic {
         val isVisible: Boolean,
         val hasData: Boolean,
         val label: String,
-        val weather: WeatherEntity?,
+        val weather: ForecastEntity?,
         val rainSummary: String?,
         val showRain: Boolean,
         val isToday: Boolean,
@@ -50,7 +49,7 @@ object DailyViewLogic {
         todayStr: String,
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
-        dailyWeather: WeatherEntity?
+        dailyWeather: ForecastEntity?
     ): String? {
         val currentHourKey = com.weatherwidget.util.WeatherTimeUtils.toHourlyForecastKey(now)
         val currentHourForecast = hourlyForecasts.filter { it.dateTime == currentHourKey }.let { forecasts ->
@@ -65,7 +64,7 @@ object DailyViewLogic {
         now: LocalDateTime,
         centerDate: LocalDate,
         today: LocalDate,
-        weatherByDate: Map<String, WeatherEntity>,
+        weatherByDate: Map<String, ForecastEntity>,
         hourlyForecasts: List<HourlyForecastEntity>,
         numColumns: Int,
         displaySource: WeatherSource,
@@ -153,8 +152,8 @@ object DailyViewLogic {
         now: LocalDateTime,
         centerDate: LocalDate,
         today: LocalDate,
-        weatherByDate: Map<String, WeatherEntity>,
-        forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+        weatherByDate: Map<String, ForecastEntity>,
+        forecastSnapshots: Map<String, List<ForecastEntity>>,
         numColumns: Int,
         displaySource: WeatherSource,
         isEveningMode: Boolean,

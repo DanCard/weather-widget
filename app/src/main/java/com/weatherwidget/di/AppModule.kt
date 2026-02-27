@@ -4,11 +4,10 @@ import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.CurrentTempDao
-import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
-import com.weatherwidget.data.local.WeatherDao
+import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.WeatherObservationDao
 import com.weatherwidget.data.repository.CurrentTempRepository
 import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.remote.NwsApi
@@ -61,11 +60,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideWeatherDao(database: WeatherDatabase): WeatherDao = database.weatherDao()
-
-    @Provides
-    @Singleton
-    fun provideForecastSnapshotDao(database: WeatherDatabase): ForecastSnapshotDao = database.forecastSnapshotDao()
+    fun provideForecastDao(database: WeatherDatabase): ForecastDao = database.forecastDao()
 
     @Provides
     @Singleton
@@ -81,7 +76,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideWeatherObservationDao(database: WeatherDatabase): WeatherObservationDao = database.weatherObservationDao()
+    fun provideObservationDao(database: WeatherDatabase): ObservationDao = database.observationDao()
 
     @Provides
     @Singleton
@@ -91,8 +86,7 @@ object AppModule {
     @Singleton
     fun provideForecastRepository(
         @ApplicationContext context: Context,
-        weatherDao: WeatherDao,
-        forecastSnapshotDao: ForecastSnapshotDao,
+        forecastDao: ForecastDao,
         hourlyForecastDao: HourlyForecastDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
@@ -101,7 +95,7 @@ object AppModule {
         widgetStateManager: WidgetStateManager,
         climateNormalDao: ClimateNormalDao,
     ): ForecastRepository = ForecastRepository(
-        context, weatherDao, forecastSnapshotDao, hourlyForecastDao, appLogDao,
+        context, forecastDao, hourlyForecastDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
     )
 
@@ -110,7 +104,7 @@ object AppModule {
     fun provideCurrentTempRepository(
         @ApplicationContext context: Context,
         currentTempDao: CurrentTempDao,
-        weatherObservationDao: WeatherObservationDao,
+        observationDao: ObservationDao,
         hourlyForecastDao: HourlyForecastDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
@@ -118,7 +112,7 @@ object AppModule {
         weatherApi: WeatherApi,
         widgetStateManager: WidgetStateManager,
     ): CurrentTempRepository = CurrentTempRepository(
-        context, currentTempDao, weatherObservationDao, hourlyForecastDao, appLogDao,
+        context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator()
     )
 

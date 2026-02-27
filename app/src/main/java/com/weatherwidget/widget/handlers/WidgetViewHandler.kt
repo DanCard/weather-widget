@@ -3,9 +3,8 @@ package com.weatherwidget.widget.handlers
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import com.weatherwidget.data.local.CurrentTempEntity
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.widget.WidgetStateManager
 
 /**
@@ -28,8 +27,8 @@ interface WidgetViewHandler {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        weatherList: List<WeatherEntity>,
-        forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
+        weatherList: List<ForecastEntity>,
+        forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity> = emptyList(),
     )

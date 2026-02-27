@@ -23,9 +23,9 @@ object DataFreshness {
     suspend fun isDataStale(context: Context): Boolean {
         return try {
             val database = WeatherDatabase.getDatabase(context)
-            val weatherDao = database.weatherDao()
+            val forecastDao = database.forecastDao()
 
-            val latestWeather = weatherDao.getLatestWeather()
+            val latestWeather = forecastDao.getLatestWeather()
             if (latestWeather == null) {
                 Log.d(TAG, "No weather data available, considering stale")
                 return true
@@ -62,7 +62,7 @@ object DataFreshness {
     suspend fun getDataAgeMinutes(context: Context): Long? {
         return try {
             val database = WeatherDatabase.getDatabase(context)
-            val weatherDao = database.weatherDao()
+            val weatherDao = database.forecastDao()
 
             val latestWeather = weatherDao.getLatestWeather()
             if (latestWeather == null) {
@@ -91,7 +91,7 @@ object DataFreshness {
         return try {
             val database = WeatherDatabase.getDatabase(context)
             val hourlyDao = database.hourlyForecastDao()
-            val weatherDao = database.weatherDao()
+            val weatherDao = database.forecastDao()
 
             // Get location from latest weather data
             val latestWeather = weatherDao.getLatestWeather()

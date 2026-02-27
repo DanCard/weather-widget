@@ -1,7 +1,7 @@
 package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -13,15 +13,15 @@ class DailyActualsEstimatorTest {
     private val today = LocalDate.of(2026, 2, 25)
     private val now = LocalDateTime.of(2026, 2, 25, 14, 0) // 2:00 PM
     private val displaySource = WeatherSource.OPEN_METEO
-    private val fallbackWeather = WeatherEntity(
-        date = "2026-02-25",
+    private val fallbackWeather = ForecastEntity(
+        targetDate = "2026-02-25",
+        forecastDate = "2026-02-25",
         locationLat = 0.0,
         locationLon = 0.0,
         locationName = "Test",
         highTemp = 65f,
         lowTemp = 45f,
         condition = "Cloudy",
-        isActual = false,
         source = "OPEN_METEO",
         fetchedAt = System.currentTimeMillis()
     )

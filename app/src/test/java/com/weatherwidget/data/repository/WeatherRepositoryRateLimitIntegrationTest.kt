@@ -33,9 +33,9 @@ class WeatherRepositoryRateLimitIntegrationTest {
     ): WeatherRepository {
         val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
         every { widgetStateManager.isSourceVisible(any()) } returns true
-        val forecastRepo = ForecastRepository(context, db.weatherDao(), db.forecastSnapshotDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi, openMeteoApi, weatherApi, widgetStateManager, db.climateNormalDao())
-        val currentRepo = CurrentTempRepository(context, db.currentTempDao(), db.weatherObservationDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi, openMeteoApi, weatherApi, widgetStateManager, TemperatureInterpolator())
-        return WeatherRepository(context, forecastRepo, currentRepo, db.weatherDao(), db.forecastSnapshotDao(), db.appLogDao(), db.currentTempDao())
+        val forecastRepo = ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi, openMeteoApi, weatherApi, widgetStateManager, db.climateNormalDao())
+        val currentRepo = CurrentTempRepository(context, db.currentTempDao(), db.observationDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi, openMeteoApi, weatherApi, widgetStateManager, TemperatureInterpolator())
+        return WeatherRepository(context, forecastRepo, currentRepo, db.forecastDao(), db.appLogDao(), db.currentTempDao())
     }
 
     @Before

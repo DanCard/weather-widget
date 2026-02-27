@@ -1,0 +1,163 @@
+package com.weatherwidget.data.local
+
+import androidx.room.*
+
+@Dao
+interface ForecastDao {
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        ORDER BY fetchedAt DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getLatestWeather(lat: Double = 0.0, lon: Double = 0.0): ForecastEntity?
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE source = :source
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        ORDER BY fetchedAt DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getLatestForecastBySource(
+        source: String,
+        lat: Double,
+        lon: Double,
+    ): ForecastEntity?
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE source = :source
+        ORDER BY fetchedAt DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getLatestWeatherBySource(source: String): ForecastEntity?
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE targetDate = :targetDate
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        ORDER BY forecastDate DESC, fetchedAt DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getForecastForDate(
+        targetDate: String,
+        lat: Double,
+        lon: Double,
+    ): ForecastEntity?
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE targetDate = :targetDate
+        AND forecastDate = :forecastDate
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        ORDER BY fetchedAt DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getSpecificForecast(
+        targetDate: String,
+        forecastDate: String,
+        lat: Double,
+        lon: Double,
+    ): ForecastEntity?
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE targetDate = :targetDate
+        AND forecastDate = :forecastDate
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND source = :source
+        ORDER BY fetchedAt DESC
+        LIMIT 1
+    """,
+    )
+    suspend fun getForecastForDateBySource(
+        targetDate: String,
+        forecastDate: String,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): ForecastEntity?
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND targetDate >= :startDate
+        AND targetDate <= :endDate
+        ORDER BY targetDate ASC
+    """,
+    )
+    suspend fun getForecastsInRange(
+        startDate: String,
+        endDate: String,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity>
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND source = :source
+        AND targetDate >= :startDate
+        AND targetDate <= :endDate
+        ORDER BY targetDate ASC, forecastDate DESC
+    """,
+    )
+    suspend fun getForecastsInRangeBySource(
+        startDate: String,
+        endDate: String,
+        lat: Double,
+        lon: Double,
+        source: String,
+    ): List<ForecastEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertForecast(forecast: ForecastEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(forecasts: List<ForecastEntity>)
+
+    @Query("SELECT COUNT(*) FROM forecasts")
+    suspend fun getCount(): Int
+
+    @Query("DELETE FROM forecasts WHERE fetchedAt < :cutoffTime")
+    suspend fun deleteOldForecasts(cutoffTime: Long)
+
+    @Query("DELETE FROM forecasts WHERE fetchedAt < :cutoffTime AND source = :source")
+    suspend fun deleteOldForecastsBySource(cutoffTime: Long, source: String)
+
+    @Query(
+        """
+        SELECT * FROM forecasts
+        WHERE targetDate = :targetDate
+        AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        ORDER BY forecastDate ASC, fetchedAt ASC
+    """,
+    )
+    suspend fun getForecastEvolution(
+        targetDate: String,
+        lat: Double,
+        lon: Double,
+    ): List<ForecastEntity>
+}

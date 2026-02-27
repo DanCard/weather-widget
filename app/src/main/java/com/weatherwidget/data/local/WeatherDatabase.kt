@@ -8,14 +8,12 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, WeatherObservationEntity::class, CurrentTempEntity::class],
-    version = 23,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class],
+    version = 24,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
-    abstract fun weatherDao(): WeatherDao
-
-    abstract fun forecastSnapshotDao(): ForecastSnapshotDao
+    abstract fun forecastDao(): ForecastDao
 
     abstract fun hourlyForecastDao(): HourlyForecastDao
 
@@ -23,7 +21,7 @@ abstract class WeatherDatabase : RoomDatabase() {
 
     abstract fun climateNormalDao(): ClimateNormalDao
 
-    abstract fun weatherObservationDao(): WeatherObservationDao
+    abstract fun observationDao(): ObservationDao
 
     abstract fun currentTempDao(): CurrentTempDao
 
@@ -66,6 +64,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_20_21,
                             MIGRATION_21_22,
                             MIGRATION_22_23,
+                            MIGRATION_23_24,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -707,6 +706,85 @@ abstract class WeatherDatabase : RoomDatabase() {
                     db.execSQL(
                         "CREATE INDEX IF NOT EXISTS index_weather_data_locationLat_locationLon ON weather_data (locationLat, locationLon)",
                     )
+                }
+            }
+
+        val MIGRATION_23_24 =
+            object : Migration(23, 24) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // 1. Rename weather_observations to observations
+                    db.execSQL("ALTER TABLE weather_observations RENAME TO observations")
+                    db.execSQL("DROP INDEX IF EXISTS index_weather_observations_locationLat_locationLon")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_locationLat_locationLon ON observations(locationLat, locationLon)")
+
+                    // 2. Create forecasts table with new schema
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS forecasts (
+                            targetDate TEXT NOT NULL,
+                            forecastDate TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            locationName TEXT NOT NULL DEFAULT '',
+                            highTemp REAL,
+                            lowTemp REAL,
+                            `condition` TEXT NOT NULL,
+                            isClimateNormal INTEGER NOT NULL DEFAULT 0,
+                            source TEXT NOT NULL,
+                            precipProbability INTEGER,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(targetDate, forecastDate, locationLat, locationLon, source, fetchedAt)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_forecasts_locationLat_locationLon ON forecasts(locationLat, locationLon)",
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_forecasts_targetDate ON forecasts(targetDate)",
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_forecasts_targetDate_source_locationLat_locationLon_forecastDate_fetchedAt ON forecasts(targetDate, source, locationLat, locationLon, forecastDate, fetchedAt)",
+                    )
+
+                    // 3. Migrate forecast_snapshots to forecasts
+                    db.execSQL(
+                        """
+                        INSERT OR REPLACE INTO forecasts (
+                            targetDate, forecastDate, locationLat, locationLon, locationName,
+                            highTemp, lowTemp, condition, isClimateNormal, source,
+                            precipProbability, fetchedAt
+                        )
+                        SELECT
+                            targetDate, forecastDate, locationLat, locationLon, '' as locationName,
+                            highTemp, lowTemp, condition, 0 as isClimateNormal, source,
+                            NULL as precipProbability, fetchedAt
+                        FROM forecast_snapshots
+                        """.trimIndent(),
+                    )
+
+                    // 4. Migrate current forecasts from weather_data (non-actuals)
+                    db.execSQL(
+                        """
+                        INSERT OR REPLACE INTO forecasts (
+                            targetDate, forecastDate, locationLat, locationLon, locationName,
+                            highTemp, lowTemp, condition, isClimateNormal, source,
+                            precipProbability, fetchedAt
+                        )
+                        SELECT
+                            date as targetDate, date as forecastDate, locationLat, locationLon, locationName,
+                            highTemp, lowTemp, condition, isClimateNormal, source,
+                            precipProbability, fetchedAt
+                        FROM weather_data
+                        WHERE isActual = 0 OR isActual IS NULL
+                        """.trimIndent(),
+                    )
+
+                    // 5. Drop old tables
+                    db.execSQL("DROP TABLE IF EXISTS forecast_snapshots")
+                    db.execSQL("DROP INDEX IF EXISTS index_forecast_snapshots_locationLat_locationLon")
+                    db.execSQL("DROP TABLE IF EXISTS weather_data")
+                    db.execSQL("DROP INDEX IF EXISTS index_weather_data_locationLat_locationLon")
                 }
             }
     }

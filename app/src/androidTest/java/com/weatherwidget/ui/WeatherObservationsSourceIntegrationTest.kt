@@ -9,7 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.WeatherObservationEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.AndroidTestDatabase
 import com.weatherwidget.testutil.AndroidTestWidgetState
@@ -61,7 +61,7 @@ class WeatherObservationsSourceIntegrationTest {
         runBlocking {
             // 1. Insert mixed observations
             val now = System.currentTimeMillis() - 3600000 // 1 hour ago
-            val nwsObs = WeatherObservationEntity(
+            val nwsObs = ObservationEntity(
                 stationId = "KSJC",
                 stationName = "San Jose Airport",
                 timestamp = now,
@@ -72,7 +72,7 @@ class WeatherObservationsSourceIntegrationTest {
                 distanceKm = 5f,
                 stationType = "OFFICIAL"
             )
-            val meteoObs = WeatherObservationEntity(
+            val meteoObs = ObservationEntity(
                 stationId = "OPEN_METEO_MAIN",
                 stationName = "Meteo: Current",
                 timestamp = now,
@@ -83,7 +83,7 @@ class WeatherObservationsSourceIntegrationTest {
                 distanceKm = 0f,
                 stationType = "OFFICIAL"
             )
-            db.weatherObservationDao().insertAll(listOf(nwsObs, meteoObs))
+            db.observationDao().insertAll(listOf(nwsObs, meteoObs))
         }
 
         // 2. Launch activity with Open-Meteo selected
@@ -94,7 +94,7 @@ class WeatherObservationsSourceIntegrationTest {
         }
 
         ActivityScenario.launch<WeatherObservationsActivity>(intent).use { scenario ->
-            var items: List<WeatherObservationEntity> = emptyList()
+            var items: List<ObservationEntity> = emptyList()
             // Poll for up to 2 seconds for background load to complete
             val start = System.currentTimeMillis()
             while (System.currentTimeMillis() - start < 2000) {
@@ -125,7 +125,7 @@ class WeatherObservationsSourceIntegrationTest {
         // 3. Launch activity with NWS selected
         stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.NWS)
         ActivityScenario.launch<WeatherObservationsActivity>(intent).use { scenario ->
-            var items: List<WeatherObservationEntity> = emptyList()
+            var items: List<ObservationEntity> = emptyList()
             val start = System.currentTimeMillis()
             while (System.currentTimeMillis() - start < 2000) {
                 scenario.onActivity { activity ->

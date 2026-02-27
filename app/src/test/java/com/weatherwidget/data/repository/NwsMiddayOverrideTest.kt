@@ -4,10 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
-import com.weatherwidget.data.local.ForecastSnapshotDao
+import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
-import com.weatherwidget.data.local.WeatherDao
-import com.weatherwidget.data.local.WeatherObservationDao
+import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -26,8 +25,7 @@ import java.time.format.DateTimeFormatter
 class NwsMiddayOverrideTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences
-    private lateinit var weatherDao: WeatherDao
-    private lateinit var forecastSnapshotDao: ForecastSnapshotDao
+    private lateinit var forecastDao: ForecastDao
     private lateinit var hourlyForecastDao: HourlyForecastDao
     private lateinit var appLogDao: AppLogDao
     private lateinit var nwsApi: NwsApi
@@ -36,7 +34,7 @@ class NwsMiddayOverrideTest {
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
-    private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var observationDao: ObservationDao
     private lateinit var forecastRepository: ForecastRepository
     private lateinit var currentTempRepository: CurrentTempRepository
     private lateinit var repository: WeatherRepository
@@ -52,8 +50,7 @@ class NwsMiddayOverrideTest {
         sharedPrefs = mockk(relaxed = true)
         every { context.getSharedPreferences(any(), any()) } returns sharedPrefs
 
-        weatherDao = mockk(relaxed = true)
-        forecastSnapshotDao = mockk(relaxed = true)
+        forecastDao = mockk(relaxed = true)
         hourlyForecastDao = mockk(relaxed = true)
         appLogDao = mockk(relaxed = true)
         nwsApi = mockk()
@@ -62,14 +59,14 @@ class NwsMiddayOverrideTest {
         widgetStateManager = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
-        weatherObservationDao = mockk(relaxed = true)
+        observationDao = mockk(relaxed = true)
 
         forecastRepository = ForecastRepository(
-            context, weatherDao, forecastSnapshotDao, hourlyForecastDao, appLogDao,
+            context, forecastDao, hourlyForecastDao, appLogDao,
             nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
         )
         currentTempRepository = CurrentTempRepository(
-            context, mockk(relaxed = true), weatherObservationDao, hourlyForecastDao, appLogDao,
+            context, mockk(relaxed = true), observationDao, hourlyForecastDao, appLogDao,
             nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator
         )
 
@@ -78,8 +75,7 @@ class NwsMiddayOverrideTest {
                 context,
                 forecastRepository,
                 currentTempRepository,
-                weatherDao,
-                forecastSnapshotDao,
+                forecastDao,
                 appLogDao,
                 mockk(relaxed = true)
             )
@@ -97,7 +93,7 @@ class NwsMiddayOverrideTest {
         )
         coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
         val result = repository.fetchFromNws(testLat, testLon, testLocationName)
-        val tomorrowEntry = result.find { it.date == tomorrow }
+        val tomorrowEntry = result.find { it.targetDate == tomorrow }
         assertEquals("Fog then Partly Sunny", tomorrowEntry?.condition)
     }
 }

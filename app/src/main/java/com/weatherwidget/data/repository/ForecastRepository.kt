@@ -5,12 +5,10 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
-import com.weatherwidget.data.local.ForecastSnapshotDao
-import com.weatherwidget.data.local.ForecastSnapshotEntity
+import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.WeatherDao
-import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -42,8 +40,7 @@ class ForecastRepository
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
-        private val weatherDao: WeatherDao,
-        private val forecastSnapshotDao: ForecastSnapshotDao,
+        private val forecastDao: ForecastDao,
         private val hourlyForecastDao: HourlyForecastDao,
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
@@ -68,7 +65,7 @@ class ForecastRepository
             net: Boolean = true,
             targetSourceId: String? = null,
             onCurr: (suspend (String, Float, Long, String?) -> Unit)? = null
-        ): Result<List<WeatherEntity>> {
+        ): Result<List<ForecastEntity>> {
             try {
                 val c = getCachedData(lat, lon); if (!force && !requiresNetworkFetch(c)) return Result.success(c)
                 if (!net) return Result.success(c)
@@ -91,18 +88,18 @@ class ForecastRepository
                         shouldForce(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, f),
                         onCurr
                     )
-                    if (n != null) weatherDao.insertAll(mergeWithExisting(n, lat, lon))
-                    if (m != null) weatherDao.insertAll(mergeWithExisting(m, lat, lon))
-                    if (w != null) weatherDao.insertAll(mergeWithExisting(w, lat, lon))
-                    val l = listOfNotNull(n?.maxOfOrNull { LocalDate.parse(it.date) }, m?.maxOfOrNull { LocalDate.parse(it.date) }, w?.maxOfOrNull { LocalDate.parse(it.date) }, if (n.isNullOrEmpty() || m.isNullOrEmpty() || w.isNullOrEmpty()) LocalDate.now().minusDays(1) else null).minOrNull() ?: LocalDate.now()
-                    val g = fetchClimateNormalsGap(lat, lon, loc, l, 30); if (g.isNotEmpty()) weatherDao.insertAll(g)
+                    if (n != null) forecastDao.insertAll(n)
+                    if (m != null) forecastDao.insertAll(m)
+                    if (w != null) forecastDao.insertAll(w)
+                    val l = listOfNotNull(n?.maxOfOrNull { LocalDate.parse(it.targetDate) }, m?.maxOfOrNull { LocalDate.parse(it.targetDate) }, w?.maxOfOrNull { LocalDate.parse(it.targetDate) }, if (n.isNullOrEmpty() || m.isNullOrEmpty() || w.isNullOrEmpty()) LocalDate.now().minusDays(1) else null).minOrNull() ?: LocalDate.now()
+                    val g = fetchClimateNormalsGap(lat, lon, loc, l, 30); if (g.isNotEmpty()) forecastDao.insertAll(g)
                     cleanOldData(); lastFetch = System.currentTimeMillis(); return Result.success(getCachedData(lat, lon))
                 }
             } catch (e: Exception) { lastFetch = 0L; appLogDao.log("NET_FETCH_ERROR", "${e.message}", "ERROR"); val c = getCachedData(lat, lon); return if (c.isNotEmpty()) Result.success(c) else Result.failure(e) }
         }
 
-        private fun requiresNetworkFetch(c: List<WeatherEntity>) = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API).any { s -> (widgetStateManager.isSourceVisible(s) || isPlugged()) && isStale(s, c) }
-        private fun isStale(s: WeatherSource, c: List<WeatherEntity>): Boolean {
+        private fun requiresNetworkFetch(c: List<ForecastEntity>) = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API).any { s -> (widgetStateManager.isSourceVisible(s) || isPlugged()) && isStale(s, c) }
+        private fun isStale(s: WeatherSource, c: List<ForecastEntity>): Boolean {
             val last = c.filter { it.source == s.id }.maxOfOrNull { it.fetchedAt } ?: 0L
             val thresh = ForecastStalenessPolicy.getStalenessThresholdMs(
                 widgetStateManager.getVisibleSourcesOrder().indexOf(s)
@@ -110,32 +107,32 @@ class ForecastRepository
             return System.currentTimeMillis() - last >= thresh
         }
 
-        private suspend fun fetchFromAllApis(lat: Double, lon: Double, loc: String, fN: Boolean, fM: Boolean, fW: Boolean, onC: (suspend (String, Float, Long, String?) -> Unit)?): Triple<List<WeatherEntity>?, List<WeatherEntity>?, List<WeatherEntity>?> = coroutineScope {
+        private suspend fun fetchFromAllApis(lat: Double, lon: Double, loc: String, fN: Boolean, fM: Boolean, fW: Boolean, onC: (suspend (String, Float, Long, String?) -> Unit)?): Triple<List<ForecastEntity>?, List<ForecastEntity>?, List<ForecastEntity>?> = coroutineScope {
             val nD = if (fN) async { try { fetchFromNws(lat, lon, loc) } catch (e: Exception) { null } } else null
             val mD = if (fM) async { try {
                 val f = openMeteoApi.getForecast(lat, lon, 7); if (f.hourly.isNotEmpty()) saveHourlyForecasts(f.hourly, lat, lon)
                 if (f.currentTemp != null && onC != null) onC(WeatherSource.OPEN_METEO.id, f.currentTemp, f.currentObservedAt ?: System.currentTimeMillis(), null)
-                f.daily.map { d -> WeatherEntity(d.date, lat, lon, loc, d.highTemp, d.lowTemp, openMeteoApi.weatherCodeToCondition(d.weatherCode), LocalDate.parse(d.date).isBefore(LocalDate.now()), source = WeatherSource.OPEN_METEO.id, precipProbability = d.precipProbability) }
+                f.daily.map { d -> ForecastEntity(d.date, LocalDate.now().toString(), lat, lon, loc, d.highTemp, d.lowTemp, openMeteoApi.weatherCodeToCondition(d.weatherCode), false, source = WeatherSource.OPEN_METEO.id, precipProbability = d.precipProbability) }
             } catch (e: Exception) { null } } else null
             val wD = if (fW) async { try {
                 val f = weatherApi.getForecast(lat, lon, 14); if (f.hourly.isNotEmpty()) saveWeatherApiHourlyForecasts(f.hourly, lat, lon)
                 if (f.currentTemp != null && onC != null) onC(WeatherSource.WEATHER_API.id, f.currentTemp, f.currentObservedAt ?: System.currentTimeMillis(), null)
-                f.daily.map { d -> WeatherEntity(d.date, lat, lon, loc, d.highTemp, d.lowTemp, d.condition, LocalDate.parse(d.date).isBefore(LocalDate.now()), source = WeatherSource.WEATHER_API.id, precipProbability = d.precipProbability) }
+                f.daily.map { d -> ForecastEntity(d.date, LocalDate.now().toString(), lat, lon, loc, d.highTemp, d.lowTemp, d.condition, false, source = WeatherSource.WEATHER_API.id, precipProbability = d.precipProbability) }
             } catch (e: Exception) { null } } else null
             val n = nD?.await(); val m = mD?.await(); val w = wD?.await()
             n?.let { saveForecastSnapshot(it, lat, lon, "NWS") }; m?.let { saveForecastSnapshot(it, lat, lon, "OPEN_METEO") }; w?.let { saveForecastSnapshot(it, lat, lon, "WEATHER_API") }
             Triple(n, m, w)
         }
 
-        internal suspend fun fetchFromNws(lat: Double, lon: Double, loc: String): List<WeatherEntity> = coroutineScope {
+        internal suspend fun fetchFromNws(lat: Double, lon: Double, loc: String): List<ForecastEntity> = coroutineScope {
             val grid = nwsApi.getGridPoint(lat, lon); val fD = async { nwsApi.getForecast(grid) }; val hD = async { nwsApi.getHourlyForecast(grid) }
             val f = fD.await(); val h = hD.await(); val today = LocalDate.now(); val todayStr = today.toString()
             persistNwsPeriodSummary(grid.forecastUrl, f); if (h.isNotEmpty()) saveNwsHourlyForecasts(h, lat, lon)
             val w = mutableMapOf<String, Pair<Float?, Float?>>(); val c = mutableMapOf<String, String>(); val cS = mutableMapOf<String, String>(); val p = mutableMapOf<String, Int>(); val s = mutableMapOf<String, String>(); val hS = mutableMapOf<String, String>(); val lS = mutableMapOf<String, String>()
-            initPrecipFromHourly(h, p); initConditionsFromHourly(h, c, cS); fetchAndApplyObservations(grid, today, w, s, c, cS, hS, lS)
+            initPrecipFromHourly(h, p); initConditionsFromHourly(h, c, cS)
             val tPs = applyForecastPeriods(f, todayStr, w, c, cS, hS, lS, p)
             logTodayDiagnostics(todayStr, w, hS, lS, c, cS, tPs, lat, lon)
-            w.map { (dt, ts) -> WeatherEntity(dt, lat, lon, loc, ts.first, ts.second, c[dt] ?: "Unknown", LocalDate.parse(dt).isBefore(LocalDate.now()), source = WeatherSource.NWS.id, stationId = s[dt], precipProbability = p[dt]) }
+            w.map { (dt, ts) -> ForecastEntity(dt, LocalDate.now().toString(), lat, lon, loc, ts.first, ts.second, c[dt] ?: "Unknown", false, source = WeatherSource.NWS.id, precipProbability = p[dt]) }
         }
 
         private fun initPrecipFromHourly(h: List<NwsApi.HourlyForecastPeriod>, p: MutableMap<String, Int>) = h.forEach { hr -> runCatching { ZonedDateTime.parse(hr.startTime).toLocalDate().toString() }.getOrNull()?.let { d -> val pop = hr.precipProbability ?: 0; if (pop > (p[d] ?: 0)) p[d] = pop } }
@@ -154,13 +151,6 @@ class ForecastRepository
             } }
         }
 
-        private suspend fun fetchAndApplyObservations(grid: NwsApi.GridPointInfo, today: LocalDate, w: MutableMap<String, Pair<Float?, Float?>>, s: MutableMap<String, String>, c: MutableMap<String, String>, cS: MutableMap<String, String>, hS: MutableMap<String, String>, lS: MutableMap<String, String>) = coroutineScope {
-            val url = grid.observationStationsUrl ?: return@coroutineScope; val ss = getSortedObservationStations(url)
-            (0 until DAYS_OF_HISTORY).map { d -> val date = today.minusDays(d.toLong()); async { date to fetchDayObservations(ss, date) } }.forEach { d ->
-                val (dt, res) = d.await(); if (res != null) { val ds = dt.toString(); w[ds] = res.highTemp to res.lowTemp; s[ds] = res.stationId; hS[ds] = "OBS:${res.stationId}"; lS[ds] = "OBS:${res.stationId}"; if (dt != today) { c[ds] = res.condition; cS[ds] = "OBS:${res.stationId}" } }
-            }
-        }
-
         private fun applyForecastPeriods(f: List<NwsApi.ForecastPeriod>, today: String, w: MutableMap<String, Pair<Float?, Float?>>, c: MutableMap<String, String>, cS: MutableMap<String, String>, hS: MutableMap<String, String>, lS: MutableMap<String, String>, p: MutableMap<String, Int>): List<NwsApi.ForecastPeriod> {
             val tPs = mutableListOf<NwsApi.ForecastPeriod>()
             f.forEach { pr ->
@@ -176,6 +166,34 @@ class ForecastRepository
         private suspend fun logTodayDiagnostics(today: String, w: Map<String, Pair<Float?, Float?>>, hS: Map<String, String>, lS: Map<String, String>, c: MutableMap<String, String>, cS: MutableMap<String, String>, periods: List<NwsApi.ForecastPeriod>, lat: Double, lon: Double) {
             periods.firstOrNull { !it.isDaytime }?.let { c[today] = it.shortForecast; cS[today] = "FCST_ACTIVE:${it.name}@${it.startTime}" }
             val t = w[today] ?: return; appLogDao.log("NWS_TODAY_SOURCE", "high=${t.first} (${hS[today]}) low=${t.second} (${lS[today]}) cond=${c[today]} (${cS[today]})")
+        }
+
+        @androidx.annotation.VisibleForTesting
+        internal suspend fun saveForecastSnapshot(weather: List<ForecastEntity>, lat: Double, lon: Double, source: String) {
+            val forecasts = weather.filter { val d = runCatching { LocalDate.parse(it.targetDate) }.getOrNull(); d != null && !d.isBefore(LocalDate.now()) && !it.isClimateNormal }.mapNotNull { f ->
+                if (f.highTemp == null && f.lowTemp == null) return@mapNotNull null
+                val h = if (source == "OPEN_METEO") f.highTemp?.roundToInt()?.toFloat() else f.highTemp; val l = if (source == "OPEN_METEO") f.lowTemp?.roundToInt()?.toFloat() else f.lowTemp
+                ForecastEntity(f.targetDate, LocalDate.now().toString(), lat, lon, "", h, l, f.condition, f.isClimateNormal, source, f.precipProbability, System.currentTimeMillis())
+            }
+            if (forecasts.isNotEmpty()) {
+                val existing = forecastDao.getForecastsInRange(LocalDate.now().toString(), LocalDate.now().plusDays(14).toString(), lat, lon).filter { it.source == source }.associateBy { it.targetDate }
+                val newForecasts = forecasts.filter { sn -> val ex = existing[sn.targetDate]; if (ex != null && ex.highTemp == sn.highTemp && ex.lowTemp == sn.lowTemp && ex.condition == sn.condition) { appLogDao.log("SNAPSHOT_SKIP", "date=${sn.targetDate} source=$source"); false } else { appLogDao.log("SNAPSHOT_SAVE", "date=${sn.targetDate} source=$source"); true } }
+                if (newForecasts.isNotEmpty()) forecastDao.insertAll(newForecasts)
+            }
+        }
+
+        private suspend fun fetchClimateNormalsGap(lat: Double, lon: Double, loc: String, last: LocalDate, targetDays: Int): List<ForecastEntity> {
+            val target = LocalDate.now().plusDays(targetDays.toLong()); var cursor = last.plusDays(1); val normals = getHistoricalNormalsByMonthDay(lat, lon); val res = mutableListOf<ForecastEntity>()
+            while (!cursor.isAfter(target)) { normals[MonthDay.from(cursor)]?.let { (h, l) ->                     res.add(ForecastEntity(cursor.toString(), cursor.toString(), lat, lon, "", h.toFloat(), l.toFloat(), "Historical Avg", true, source = WeatherSource.GENERIC_GAP.id)) }; cursor = cursor.plusDays(1) }
+            return res
+        }
+
+        private suspend fun getHistoricalNormalsByMonthDay(lat: Double, lon: Double): Map<MonthDay, Pair<Int, Int>> {
+            val key = "${(lat * 10).roundToInt() / 10.0}_${(lon * 10).roundToInt() / 10.0}"; val cached = climateNormalDao.getNormalsForLocation(key)
+            if (cached.isNotEmpty()) return cached.associate { MonthDay.of(it.monthDay.take(2).toInt(), it.monthDay.takeLast(2).toInt()) to (it.highTemp to it.lowTemp) }
+            val climate = openMeteoApi.getClimateForecast(lat, lon, "2020-01-01", "2020-12-31"); val normals = climate.associate { MonthDay.from(LocalDate.parse(it.date)) to (it.highTemp.roundToInt() to it.lowTemp.roundToInt()) }
+            climateNormalDao.deleteOtherLocations(key);             climateNormalDao.insertAll(normals.map { (md, ts) -> ClimateNormalEntity("${md.monthValue.toString().padStart(2, '0')}-${md.dayOfMonth.toString().padStart(2, '0')}", key, ts.first, ts.second) })
+            return normals
         }
 
         internal suspend fun fetchDayObservations(url: String, date: LocalDate): ObservationResult? { if (url.isEmpty()) return null; return fetchDayObservations(getSortedObservationStations(url), date) }
@@ -201,57 +219,13 @@ class ForecastRepository
         private suspend fun getSortedObservationStations(url: String): List<NwsApi.StationInfo> {
             val key = "observation_stations_v2_${url.hashCode()}"; val tKey = "observation_stations_time_v2_${url.hashCode()}"
             val cached = prefs.getString(key, null); val t = prefs.getLong(tKey, 0)
-            if (cached != null && System.currentTimeMillis() - t < 86400000) return cached.split("|").map { val p = it.split(","); NwsApi.StationInfo(p[0], p[1], p[2].toDouble(), p[3].toDouble()) }
+            if (cached != null && System.currentTimeMillis() - t < 86400000) return cached.split("|").map { val p = it.split("\t"); NwsApi.StationInfo(p[0], p[1], p[2].toDouble(), p[3].toDouble()) }
             val ss = runCatching { nwsApi.getObservationStations(url) }.getOrDefault(emptyList())
-            if (ss.isNotEmpty()) prefs.edit().putString(key, ss.joinToString("|") { "${it.id},${it.name},${it.lat},${it.lon}" }).putLong(tKey, System.currentTimeMillis()).apply()
+            if (ss.isNotEmpty()) prefs.edit().putString(key, ss.joinToString("|") { "${it.id}\t${it.name}\t${it.lat}\t${it.lon}" }).putLong(tKey, System.currentTimeMillis()).apply()
             return ss
         }
 
         private fun extractNwsForecastDate(s: String): String? = runCatching { ZonedDateTime.parse(s).toLocalDate().toString() }.getOrNull() ?: runCatching { LocalDate.parse(s.take(10)).toString() }.getOrNull()
-        
-        @androidx.annotation.VisibleForTesting
-        internal suspend fun saveForecastSnapshot(weather: List<WeatherEntity>, lat: Double, lon: Double, source: String) {
-            val snapshots = weather.filter { val d = runCatching { LocalDate.parse(it.date) }.getOrNull(); d != null && !d.isBefore(LocalDate.now()) && !it.isClimateNormal }.mapNotNull { f ->
-                if (f.highTemp == null && f.lowTemp == null) return@mapNotNull null
-                val h = if (source == "OPEN_METEO") f.highTemp?.roundToInt()?.toFloat() else f.highTemp; val l = if (source == "OPEN_METEO") f.lowTemp?.roundToInt()?.toFloat() else f.lowTemp
-                ForecastSnapshotEntity(f.date, LocalDate.now().toString(), lat, lon, h, l, f.condition, source, System.currentTimeMillis())
-            }
-            if (snapshots.isNotEmpty()) {
-                val existing = forecastSnapshotDao.getForecastsInRange(LocalDate.now().toString(), LocalDate.now().plusDays(14).toString(), lat, lon).filter { it.source == source }.associateBy { it.targetDate }
-                val newSnapshots = snapshots.filter { sn -> val ex = existing[sn.targetDate]; if (ex != null && ex.highTemp == sn.highTemp && ex.lowTemp == sn.lowTemp && ex.condition == sn.condition) { appLogDao.log("SNAPSHOT_SKIP", "date=${sn.targetDate} source=$source"); false } else { appLogDao.log("SNAPSHOT_SAVE", "date=${sn.targetDate} source=$source"); true } }
-                if (newSnapshots.isNotEmpty()) forecastSnapshotDao.insertAll(newSnapshots)
-            }
-        }
-
-        @androidx.annotation.VisibleForTesting
-        internal suspend fun mergeWithExisting(newData: List<WeatherEntity>, lat: Double, lon: Double): List<WeatherEntity> {
-            if (newData.isEmpty()) return emptyList()
-            return newData.groupBy { it.source }.flatMap { (sourceId, newItems) ->
-                val existing = getCachedDataBySource(lat, lon, WeatherSource.fromId(sourceId)).associateBy { it.date }
-                (existing.keys + newItems.associateBy { it.date }.keys).distinct().map { date ->
-                    val ex = existing[date]; val nw = newItems.find { it.date == date }
-                    if (nw == null) return@map ex!!
-                    if (ex == null) return@map nw
-                    if (ex.highTemp == nw.highTemp && ex.lowTemp == nw.lowTemp && ex.condition == nw.condition && ex.isActual == nw.isActual) return@map ex
-                    if (ex.isActual && !nw.isActual && ex.condition != "Observed") { appLogDao.log("MERGE_CONFLICT", "Preserving actual for $date", "WARN"); ex.copy(highTemp = nw.highTemp ?: ex.highTemp, lowTemp = nw.lowTemp ?: ex.lowTemp) }
-                    else nw.copy(highTemp = nw.highTemp ?: ex.highTemp, lowTemp = nw.lowTemp ?: ex.lowTemp)
-                }
-            }
-        }
-
-        private suspend fun fetchClimateNormalsGap(lat: Double, lon: Double, loc: String, last: LocalDate, targetDays: Int): List<WeatherEntity> {
-            val target = LocalDate.now().plusDays(targetDays.toLong()); var cursor = last.plusDays(1); val normals = getHistoricalNormalsByMonthDay(lat, lon); val res = mutableListOf<WeatherEntity>()
-            while (!cursor.isAfter(target)) { normals[MonthDay.from(cursor)]?.let { (h, l) -> res.add(WeatherEntity(cursor.toString(), lat, lon, loc, h.toFloat(), l.toFloat(), "Historical Avg", false, source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)) }; cursor = cursor.plusDays(1) }
-            return res
-        }
-
-        private suspend fun getHistoricalNormalsByMonthDay(lat: Double, lon: Double): Map<MonthDay, Pair<Int, Int>> {
-            val key = "${(lat * 10).roundToInt() / 10.0}_${(lon * 10).roundToInt() / 10.0}"; val cached = climateNormalDao.getNormalsForLocation(key)
-            if (cached.isNotEmpty()) return cached.associate { MonthDay.of(it.monthDay.take(2).toInt(), it.monthDay.takeLast(2).toInt()) to (it.highTemp to it.lowTemp) }
-            val climate = openMeteoApi.getClimateForecast(lat, lon, "2020-01-01", "2020-12-31"); val normals = climate.associate { MonthDay.from(LocalDate.parse(it.date)) to (it.highTemp.roundToInt() to it.lowTemp.roundToInt()) }
-            climateNormalDao.deleteOtherLocations(key); climateNormalDao.insertAll(normals.map { (md, ts) -> ClimateNormalEntity("${md.monthValue.toString().padStart(2, '0')}-${md.dayOfMonth.toString().padStart(2, '0')}", key, ts.first, ts.second) })
-            return normals
-        }
 
         private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>, label: String) {
             if (entities.isEmpty()) return
@@ -265,11 +239,11 @@ class ForecastRepository
         private suspend fun saveNwsHourlyForecasts(h: List<NwsApi.HourlyForecastPeriod>, lat: Double, lon: Double) = saveHourlyEntities(h.mapNotNull { p -> val dt = runCatching { ZonedDateTime.parse(p.startTime).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")) }.getOrNull() ?: return@mapNotNull null; HourlyForecastEntity(dt, lat, lon, p.temperature.toFloat(), p.shortForecast, "NWS", p.precipProbability, System.currentTimeMillis()) }, "NWS")
         private suspend fun persistNwsPeriodSummary(url: String, f: List<NwsApi.ForecastPeriod>) { if (f.isEmpty()) return; val compact = f.take(NWS_PERIOD_SUMMARY_COUNT).mapIndexed { i, p -> "$i:${p.name}@${p.startTime}=${p.temperature}" }.joinToString("; "); appLogDao.log("NWS_PERIOD_SUMMARY", "url=$url first8=$compact") }
         private fun isPlugged(): Boolean { val i = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED)); return (i?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1) == android.os.BatteryManager.BATTERY_STATUS_CHARGING }
-        suspend fun getCachedData(lat: Double, lon: Double) = weatherDao.getWeatherRange(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), lat, lon)
-        suspend fun getCachedDataBySource(lat: Double, lon: Double, s: WeatherSource) = (weatherDao.getWeatherRangeBySource(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), lat, lon, WeatherSource.GENERIC_GAP.id) + weatherDao.getWeatherRangeBySource(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), lat, lon, s.id)).associateBy { it.date }.values.sortedBy { it.date }
-        suspend fun getForecastForDate(date: String, lat: Double, lon: Double) = forecastSnapshotDao.getForecastForDate(date, lat, lon)
-        suspend fun getForecastForDateBySource(date: String, lat: Double, lon: Double, source: WeatherSource): ForecastSnapshotEntity? { val s = forecastSnapshotDao.getForecastsInRange(date, date, lat, lon); return s.find { it.source == source.id } ?: s.find { it.source == "GENERIC_GAP" } }
-        suspend fun getForecastsInRange(s: String, e: String, lat: Double, lon: Double) = forecastSnapshotDao.getForecastsInRange(s, e, lat, lon)
-        suspend fun getWeatherRange(s: String, e: String, lat: Double, lon: Double) = weatherDao.getWeatherRange(s, e, lat, lon)
-        suspend fun cleanOldData() { val monthAgo = System.currentTimeMillis() - 2592000000L; weatherDao.deleteOldData(monthAgo); forecastSnapshotDao.deleteOldSnapshots(monthAgo); hourlyForecastDao.deleteOldForecasts(monthAgo); appLogDao.deleteOldLogs(System.currentTimeMillis() - 259200000L) }
+        suspend fun getCachedData(lat: Double, lon: Double) = forecastDao.getForecastsInRange(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), lat, lon)
+        suspend fun getCachedDataBySource(lat: Double, lon: Double, s: WeatherSource) = (forecastDao.getForecastsInRangeBySource(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), lat, lon, WeatherSource.GENERIC_GAP.id) + forecastDao.getForecastsInRangeBySource(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), lat, lon, s.id)).associateBy { it.targetDate }.values.sortedBy { it.targetDate }
+        suspend fun getForecastForDate(date: String, lat: Double, lon: Double) = forecastDao.getForecastForDate(date, lat, lon)
+        suspend fun getForecastForDateBySource(date: String, lat: Double, lon: Double, source: WeatherSource): ForecastEntity? { val s = forecastDao.getForecastsInRangeBySource(date, date, lat, lon, source.id); return s.firstOrNull() }
+        suspend fun getForecastsInRange(s: String, e: String, lat: Double, lon: Double) = forecastDao.getForecastsInRange(s, e, lat, lon)
+        suspend fun getWeatherRange(s: String, e: String, lat: Double, lon: Double) = forecastDao.getForecastsInRange(s, e, lat, lon)
+        suspend fun cleanOldData() { val monthAgo = System.currentTimeMillis() - 2592000000L; forecastDao.deleteOldForecasts(monthAgo); hourlyForecastDao.deleteOldForecasts(monthAgo); appLogDao.deleteOldLogs(System.currentTimeMillis() - 259200000L) }
     }

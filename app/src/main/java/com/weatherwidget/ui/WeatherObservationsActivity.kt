@@ -14,8 +14,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.WeatherObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -107,7 +107,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
     }
 
-    private fun showRenameDialog(entity: WeatherObservationEntity) {
+    private fun showRenameDialog(entity: ObservationEntity) {
         val editText = android.widget.EditText(this).apply {
             setText(entity.stationName.replace("Meteo: Recent: ", "").replace("WAPI: Recent: ", ""))
             setSelectAllOnFocus(true)
@@ -140,7 +140,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 val observations = if (currentSource == WeatherSource.NWS) {
                     // Fetch detailed multi-station observations from the last 24 hours
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    database.weatherObservationDao().getRecentObservations(sinceMs)
+                    database.observationDao().getRecentObservations(sinceMs)
                         .filter { !it.stationId.contains("OPEN_METEO_") && !it.stationId.contains("WEATHER_API_") }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
@@ -149,7 +149,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     // For other sources, show POIs if they exist, or fallback to the latest single reading
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
                     val poiPrefix = "${currentSource.id}_"
-                    val pois = database.weatherObservationDao().getRecentObservations(sinceMs)
+                    val pois = database.observationDao().getRecentObservations(sinceMs)
                         .filter { it.stationId.startsWith(poiPrefix) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
@@ -159,13 +159,13 @@ class WeatherObservationsActivity : AppCompatActivity() {
                         pois
                     } else {
                         val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                        val latest = database.weatherDao().getLatestWeatherBySource(currentSource.id)
+                        val latest = database.forecastDao().getLatestWeatherBySource(currentSource.id)
                         val currentTemp = if (latest != null) {
                             database.currentTempDao().getCurrentTemp(todayStr, currentSource.id, latest.locationLat, latest.locationLon)
                         } else null
                         if (latest != null && currentTemp != null) {
-                            listOf(WeatherObservationEntity(
-                                stationId = latest.stationId ?: currentSource.shortDisplayName,
+                            listOf(ObservationEntity(
+                                stationId = currentSource.shortDisplayName,
                                 stationName = latest.locationName,
                                 timestamp = currentTemp.observedAt,
                                 temperature = currentTemp.temperature,
@@ -223,11 +223,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
     }
 
-    internal class ObservationAdapter(private val onItemClick: (WeatherObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
-        internal var items: List<WeatherObservationEntity> = emptyList()
+    internal class ObservationAdapter(private val onItemClick: (ObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
+        internal var items: List<ObservationEntity> = emptyList()
         private val timeFormatter = DateTimeFormatter.ofPattern("h:mm:ss a").withZone(ZoneId.systemDefault())
 
-        fun submitList(newList: List<WeatherObservationEntity>) {
+        fun submitList(newList: List<ObservationEntity>) {
             items = newList
             notifyDataSetChanged()
         }

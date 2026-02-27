@@ -20,10 +20,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import com.weatherwidget.R
-import com.weatherwidget.data.local.ForecastSnapshotDao
-import com.weatherwidget.data.local.ForecastSnapshotEntity
-import com.weatherwidget.data.local.WeatherDao
-import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.ForecastEvolutionRenderer
@@ -55,10 +53,9 @@ import androidx.work.WorkManager
 @AndroidEntryPoint
 class ForecastHistoryActivity : AppCompatActivity() {
     @Inject
-    lateinit var forecastSnapshotDao: ForecastSnapshotDao
+    lateinit var forecastDao: ForecastDao
 
-    @Inject
-    lateinit var weatherDao: WeatherDao
+    // forecastDao is also used for actual weather lookups (previously weatherDao)
 
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
@@ -133,8 +130,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private var graphMode = GraphMode.EVOLUTION
-    private var cachedSnapshots: List<ForecastSnapshotEntity> = emptyList()
-    private var cachedActualWeather: WeatherEntity? = null
+    private var cachedSnapshots: List<ForecastEntity> = emptyList()
+    private var cachedActualWeather: ForecastEntity? = null
     private var cachedDate: LocalDate? = null
     private var cachedRequestedSource: WeatherSource? = null
     private lateinit var targetDate: String
@@ -220,7 +217,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     ) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val allSnapshots = forecastSnapshotDao.getForecastEvolution(targetDate, lat, lon)
+                val allSnapshots = forecastDao.getForecastEvolution(targetDate, lat, lon)
                 val snapshots =
                     if (requestedSource != null) {
                         allSnapshots.filter { it.source == requestedSource.id }
@@ -233,14 +230,15 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     when (resolveActualLookupMode(date, requestedSource)) {
                         ActualLookupMode.NONE -> null
                         ActualLookupMode.SOURCE_SPECIFIC ->
-                            weatherDao.getWeatherForDateBySource(
+                            forecastDao.getForecastsInRangeBySource(
+                                targetDate,
                                 targetDate,
                                 lat,
                                 lon,
                                 checkNotNull(requestedSource).id,
-                            )
+                            ).maxByOrNull { it.fetchedAt }
                         ActualLookupMode.ANY_SOURCE ->
-                            weatherDao.getWeatherForDate(targetDate, lat, lon)
+                            forecastDao.getForecastForDate(targetDate, lat, lon)
                     }
 
                 withContext(Dispatchers.Main) {
@@ -253,8 +251,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun displayData(
-        snapshots: List<ForecastSnapshotEntity>,
-        actualWeather: WeatherEntity?,
+        snapshots: List<ForecastEntity>,
+        actualWeather: ForecastEntity?,
         date: LocalDate,
         requestedSource: WeatherSource?,
     ) {
