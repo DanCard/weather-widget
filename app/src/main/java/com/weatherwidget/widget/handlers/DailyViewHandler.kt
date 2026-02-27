@@ -189,7 +189,7 @@ object DailyViewHandler : WidgetViewHandler {
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = todayWeather?.precipProbability,
-                now = now,
+                referenceTime = now,
             )
         if (precipProb != null && precipProb > 0) {
             views.setTextViewText(R.id.precip_probability, "$precipProb%")

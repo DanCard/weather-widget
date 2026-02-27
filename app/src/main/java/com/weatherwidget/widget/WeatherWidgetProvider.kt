@@ -623,12 +623,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
-                    val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val targetDateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-                    val todayPrecip =
+                    val targetPrecip =
                         weatherList
-                            .find { it.date == todayStr && it.source == displaySource.id }
+                            .find { it.date == targetDateStr && it.source == displaySource.id }
                             ?.precipProbability
+                    val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                     val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
                     TemperatureViewHandler.updateWidget(
                         context = context,
@@ -636,7 +637,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         appWidgetId = appWidgetId,
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
-                        precipProbability = todayPrecip,
+                        precipProbability = targetPrecip,
                         observedCurrentTemp = observedCurrentTemp?.temperature,
                         observedCurrentTempFetchedAt = com.weatherwidget.data.repository.FetchMetadata.getLastSuccessfulCheckTimeMs(context),
                     )
@@ -645,12 +646,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
-                    val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val targetDateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-                    val todayPrecip =
+                    val targetPrecip =
                         weatherList
-                            .find { it.date == todayStr && it.source == displaySource.id }
+                            .find { it.date == targetDateStr && it.source == displaySource.id }
                             ?.precipProbability
+                    val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                     val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
                     PrecipViewHandler.updateWidget(
                         context = context,
@@ -658,7 +660,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         appWidgetId = appWidgetId,
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
-                        precipProbability = todayPrecip,
+                        precipProbability = targetPrecip,
                         observedCurrentTemp = observedCurrentTemp?.temperature,
                         observedCurrentTempFetchedAt = com.weatherwidget.data.repository.FetchMetadata.getLastSuccessfulCheckTimeMs(context),
                     )

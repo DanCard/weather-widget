@@ -170,7 +170,7 @@ object TemperatureViewHandler {
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = precipProbability,
-                now = now,
+                referenceTime = centerTime,
             )
 
         // Show precipitation probability next to current temp when rain is expected

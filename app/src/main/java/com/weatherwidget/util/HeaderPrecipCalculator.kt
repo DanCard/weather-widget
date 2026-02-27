@@ -11,7 +11,7 @@ object HeaderPrecipCalculator {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         fallbackDailyProbability: Int?,
-        now: LocalDateTime,
+        referenceTime: LocalDateTime,
     ): Int? {
         val sourceForecasts = hourlyForecasts.filter { it.source == displaySource.id }
         val candidateForecasts =
@@ -21,7 +21,7 @@ object HeaderPrecipCalculator {
                 hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }
             }
 
-        val nowHour = LocalDateTime.parse(WeatherTimeUtils.toHourlyForecastKey(now))
+        val nowHour = LocalDateTime.parse(WeatherTimeUtils.toHourlyForecastKey(referenceTime))
         val windowEndExclusive = nowHour.plusHours(LOOKAHEAD_HOURS)
         val next8HourValues =
             candidateForecasts
@@ -40,10 +40,9 @@ object HeaderPrecipCalculator {
                 .toList()
 
         if (next8HourValues.isNotEmpty()) {
-            val maxNext8Hour = next8HourValues.maxOrNull() ?: 0
-            return maxNext8Hour.takeIf { it > 0 }
+            return next8HourValues.maxOrNull() ?: 0
         }
 
-        return fallbackDailyProbability?.takeIf { it > 0 }
+        return fallbackDailyProbability
     }
 }

@@ -176,11 +176,12 @@ object PrecipViewHandler {
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
                 fallbackDailyProbability = precipProbability,
-                now = now,
+                referenceTime = centerTime,
             )
 
-        // Show precipitation probability next to current temp
-        if (headerPrecipProbability != null && headerPrecipProbability > 0) {
+        // Show precipitation probability next to current temp.
+        // In precipitation mode, show even if 0% so the user gets confirmation.
+        if (headerPrecipProbability != null) {
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {

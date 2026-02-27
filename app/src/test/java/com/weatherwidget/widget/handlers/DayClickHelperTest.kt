@@ -225,12 +225,12 @@ class DayClickHelperTest {
                 hourlyForecasts = forecasts,
                 displaySource = WeatherSource.NWS,
                 fallbackDailyProbability = 4,
-                now = now,
+                referenceTime = now,
             )
 
         val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = todayNext8HourPrecip)
 
-        assertNull(todayNext8HourPrecip)
+        assertEquals(0, todayNext8HourPrecip)
         assertFalse(hasRain)
         assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
     }
