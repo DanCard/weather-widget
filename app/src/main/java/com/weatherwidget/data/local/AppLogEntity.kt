@@ -32,10 +32,10 @@ interface AppLogDao {
     @Insert
     suspend fun insert(log: AppLogEntity)
 
-    @Query("SELECT * FROM app_logs ORDER BY timestamp DESC LIMIT :limit")
+    @Query("SELECT * FROM app_logs ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getRecentLogs(limit: Int): List<AppLogEntity>
 
-    @Query("SELECT * FROM app_logs WHERE tag = :tag ORDER BY timestamp DESC LIMIT :limit")
+    @Query("SELECT * FROM app_logs WHERE tag = :tag ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getLogsByTag(tag: String, limit: Int): List<AppLogEntity>
 
     @Query("DELETE FROM app_logs WHERE timestamp < :cutoff")

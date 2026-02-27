@@ -32,6 +32,10 @@ class ScreenOnReceiverTest {
             .edit()
             .clear()
             .commit()
+
+        runBlocking {
+            WeatherDatabase.getDatabase(context).appLogDao().clearAllLogs()
+        }
     }
 
     @Test

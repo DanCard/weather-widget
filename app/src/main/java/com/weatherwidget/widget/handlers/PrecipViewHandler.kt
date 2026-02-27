@@ -136,10 +136,9 @@ object PrecipViewHandler {
         // Setup History shortcut
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
 
-        // Setup Current Stations shortcut
-        setupCurrentStationsShortcut(context, views, appWidgetId)
-        
-        // Hide temp delta badge in precip mode
+        // Hide observations and temp delta in precip mode
+        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         val currentTempResolution =
