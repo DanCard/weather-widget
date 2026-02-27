@@ -628,32 +628,23 @@ class ForecastHistoryActivity : AppCompatActivity() {
         return widgetStateManager.getVisibleSourcesOrder().firstOrNull()
     }
 
-    private fun updateFreshnessCard() {
-        val forecastFetchView = findViewById<TextView>(R.id.freshness_forecast_fetch)
-        val currentTempFetchView = findViewById<TextView>(R.id.freshness_current_temp_fetch)
-        val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
-        val nextUpdateView = findViewById<TextView>(R.id.freshness_next_update)
-        val refreshButton = findViewById<Button>(R.id.freshness_refresh_button)
-
-        val nowMs = System.currentTimeMillis()
-        val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
-        val lastCurrentTempMs = FetchMetadata.getLastCurrentTempFetchTime(this)
-
-        // Last full forecast fetch
-        if (lastFullFetchMs > 0L) {
-            forecastFetchView.text = "Forecast fetch: ${formatRelativeTime(nowMs - lastFullFetchMs)} ago"
-        } else {
-            forecastFetchView.text = "Forecast fetch: never"
-        }
-
-        // Last current temp fetch
-        if (lastCurrentTempMs > 0L) {
-            currentTempFetchView.text = "Current temp fetch: ${formatRelativeTime(nowMs - lastCurrentTempMs)} ago"
-        } else {
-            currentTempFetchView.text = "Current temp fetch: never"
-        }
-
-        // Displayed data fetch age (from the actual weather entity being shown)
+        private fun updateFreshnessCard() {
+            val forecastFetchView = findViewById<TextView>(R.id.freshness_forecast_fetch)
+            val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
+            val nextUpdateView = findViewById<TextView>(R.id.freshness_next_update)
+            val refreshButton = findViewById<Button>(R.id.freshness_refresh_button)
+    
+            val nowMs = System.currentTimeMillis()
+            val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
+    
+            // Last full forecast fetch
+            if (lastFullFetchMs > 0L) {
+                forecastFetchView.text = "Forecast fetch: ${formatRelativeTime(nowMs - lastFullFetchMs)} ago"
+            } else {
+                forecastFetchView.text = "Forecast fetch: never"
+            }
+    
+            // Displayed data fetch age (from the actual weather entity being shown)
         val displayedFetchedAt = cachedActualWeather?.fetchedAt
         if (displayedFetchedAt != null && displayedFetchedAt > 0L) {
             val sourceName = cachedRequestedSource?.shortDisplayName ?: cachedActualWeather?.source ?: "?"
@@ -673,9 +664,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
             nextUpdateView.text = getString(R.string.freshness_next_update_paused)
         } else {
             val suffix = if (isCharging) "(charging)" else "(battery $batteryLevel%)"
-            val referenceMs = maxOf(lastFullFetchMs, lastCurrentTempMs)
-            if (referenceMs > 0L) {
-                val nextFetchMs = referenceMs + intervalMinutes * 60 * 1000L
+            if (lastFullFetchMs > 0L) {
+                val nextFetchMs = lastFullFetchMs + intervalMinutes * 60 * 1000L
                 val remainingMs = nextFetchMs - nowMs
                 if (remainingMs <= 0) {
                     nextUpdateView.text = getString(R.string.freshness_next_update, "soon $suffix")
@@ -694,6 +684,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     .setInputData(
                         Data.Builder()
                             .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, cachedRequestedSource?.id)
                             .build(),
                     )
                     .build()

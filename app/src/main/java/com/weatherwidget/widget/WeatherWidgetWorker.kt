@@ -38,6 +38,7 @@ class WeatherWidgetWorker
             val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
             val opportunisticCurrentTemp = inputData.getBoolean(KEY_CURRENT_TEMP_OPPORTUNISTIC, false)
             val currentTempReason = inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"
+            val targetSourceId = inputData.getString(KEY_TARGET_SOURCE)
 
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -82,6 +83,7 @@ class WeatherWidgetWorker
                         locationName = getLocationName(location.first, location.second),
                         forceRefresh = forceRefresh && !uiOnlyRefresh,
                         networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
+                        targetSourceId = targetSourceId
                     )
 
                 result.fold(
@@ -339,5 +341,6 @@ class WeatherWidgetWorker
             const val KEY_CURRENT_TEMP_ONLY = "current_temp_only"
             const val KEY_CURRENT_TEMP_OPPORTUNISTIC = "current_temp_opportunistic"
             const val KEY_CURRENT_TEMP_REASON = "current_temp_reason"
+            const val KEY_TARGET_SOURCE = "target_source"
         }
     }

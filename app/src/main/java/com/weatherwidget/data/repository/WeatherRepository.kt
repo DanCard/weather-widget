@@ -39,8 +39,9 @@ class WeatherRepository
             locationName: String,
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
+            targetSourceId: String? = null,
         ): Result<List<WeatherEntity>> {
-            return forecastRepository.getWeatherData(lat, lon, locationName, forceRefresh, networkAllowed) { source, temp, observedAt, condition ->
+            return forecastRepository.getWeatherData(lat, lon, locationName, forceRefresh, networkAllowed, targetSourceId) { source, temp, observedAt, condition ->
                 currentTempDao.insert(CurrentTempEntity(java.time.LocalDate.now().toString(), source, lat, lon, temp, observedAt, condition, System.currentTimeMillis()))
             }
         }

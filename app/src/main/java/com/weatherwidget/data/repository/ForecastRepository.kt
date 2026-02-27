@@ -59,15 +59,37 @@ class ForecastRepository
             get() = FetchMetadata.getLastFullFetchTime(context)
             set(v) = FetchMetadata.setLastFullFetchTime(context, v)
 
-        suspend fun getWeatherData(lat: Double, lon: Double, loc: String, force: Boolean = false, net: Boolean = true, onCurr: (suspend (String, Float, Long, String?) -> Unit)? = null): Result<List<WeatherEntity>> {
+        suspend fun getWeatherData(
+            lat: Double,
+            lon: Double,
+            loc: String,
+            force: Boolean = false,
+            net: Boolean = true,
+            targetSourceId: String? = null,
+            onCurr: (suspend (String, Float, Long, String?) -> Unit)? = null
+        ): Result<List<WeatherEntity>> {
             try {
                 val c = getCachedData(lat, lon); if (!force && !requiresNetworkFetch(c)) return Result.success(c)
                 if (!net) return Result.success(c)
                 syncMutex.withLock {
                     val f = getCachedData(lat, lon); if (!force && !requiresNetworkFetch(f)) return Result.success(f)
                     if (System.currentTimeMillis() - lastFetch < MIN_NETWORK_INTERVAL_MS && f.isNotEmpty()) return Result.success(f)
-                    appLogDao.log("NET_FETCH_START", "force=$force"); val s = System.currentTimeMillis()
-                    val (n, m, w) = fetchFromAllApis(lat, lon, loc, force || isStale(WeatherSource.NWS, f), force || isStale(WeatherSource.OPEN_METEO, f), force || isStale(WeatherSource.WEATHER_API, f), onCurr)
+                    appLogDao.log("NET_FETCH_START", "force=$force target=$targetSourceId")
+                    val s = System.currentTimeMillis()
+
+                    fun shouldForce(source: WeatherSource): Boolean {
+                        if (!force) return false
+                        if (targetSourceId == null) return true // Force all if no target specified
+                        return source.id == targetSourceId
+                    }
+
+                    val (n, m, w) = fetchFromAllApis(
+                        lat, lon, loc,
+                        shouldForce(WeatherSource.NWS) || isStale(WeatherSource.NWS, f),
+                        shouldForce(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, f),
+                        shouldForce(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, f),
+                        onCurr
+                    )
                     if (n != null) weatherDao.insertAll(mergeWithExisting(n, lat, lon))
                     if (m != null) weatherDao.insertAll(mergeWithExisting(m, lat, lon))
                     if (w != null) weatherDao.insertAll(mergeWithExisting(w, lat, lon))
