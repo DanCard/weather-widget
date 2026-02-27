@@ -495,12 +495,12 @@ FAILED=0
 ERRORS=0
 SKIPPED=0
 
-# When the build failed (compile error etc.), tests never ran — stale XML would
-# give misleading counts.  Only parse XML when tests actually executed.
+# Prefer a fresh XML summary from this run when available, even if Gradle
+# returned BUILD FAILED because some tests failed.
 RESULTS_DIR="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
 LATEST_REPORT_XML=""
-if [ "$TEST_SUCCESS" = true ]; then
-    LATEST_REPORT_XML=$(ls -1t "$RESULTS_DIR"/TEST-*.xml 2>/dev/null | head -1 || true)
+if [ -d "$RESULTS_DIR" ] && [ -f "$TEST_RESULTS_LOG" ]; then
+    LATEST_REPORT_XML=$(find "$RESULTS_DIR" -maxdepth 1 -name 'TEST-*.xml' -newer "$TEST_RESULTS_LOG" -print 2>/dev/null | sort | tail -1 || true)
 fi
 
 if [ -n "$LATEST_REPORT_XML" ]; then
@@ -525,7 +525,7 @@ fi
 # Fallback to log parsing when XML summary is unavailable
 if [ "$TOTAL" -eq 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
     PASSED=$(grep -c "INFO: Execute .*: PASSED\| > .* PASSED" "$TEST_RESULTS_LOG" 2>/dev/null) || PASSED=0
-    FAILED=$(grep -c "INFO: Execute .*: FAILED\| > .* FAILED" "$TEST_RESULTS_LOG" 2>/dev/null) || FAILED=0
+    FAILED=$(grep -c "INFO: Execute .*: FAILED\|SEVERE: Execute .*: FAILED\| > .* FAILED" "$TEST_RESULTS_LOG" 2>/dev/null) || FAILED=0
     ERRORS=0
     SKIPPED=0
     TOTAL=$((PASSED + FAILED))
@@ -560,8 +560,8 @@ echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
 echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
-# Show per-class pass summary (compact replacement for per-test PASSED spam)
-if [ -f "$TEST_RESULTS_LOG" ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
+# Show per-class pass summary only for fully successful runs.
+if [ -f "$TEST_RESULTS_LOG" ] && [ "$TEST_SUCCESS" = true ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
     HAS_INFO_EXECUTE=false
     if grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)" "$TEST_RESULTS_LOG" 2>/dev/null; then
         HAS_INFO_EXECUTE=true

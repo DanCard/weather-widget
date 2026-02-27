@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.weatherwidget.testutil.AndroidTestWidgetState
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
@@ -18,6 +19,10 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class NavigationPersistenceTest {
+    companion object {
+        private const val TEST_PREFS_SUFFIX = "navigation_persistence"
+    }
+
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private val testWidgetId = 99991
@@ -25,6 +30,8 @@ class NavigationPersistenceTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        AndroidTestWidgetState.useIsolatedPrefs(TEST_PREFS_SUFFIX, context)
+        WidgetIntentRouter.setDisableRefreshForTesting(true)
         stateManager = WidgetStateManager(context)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
     }
@@ -32,6 +39,8 @@ class NavigationPersistenceTest {
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
+        AndroidTestWidgetState.cleanup(TEST_PREFS_SUFFIX, context)
+        WidgetIntentRouter.setDisableRefreshForTesting(false)
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.weatherwidget.ui
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
@@ -132,6 +133,7 @@ class SettingsActivity : AppCompatActivity() {
                 val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
                 if (isChecked) {
                     if (source !in current) current.add(source)
+                    Log.d("SOURCE_ORDER", "Checkbox: enabled ${source.name}, new list=$current")
                 } else {
                     if (current.size <= 1) {
                         // Prevent unchecking the last source
@@ -140,6 +142,7 @@ class SettingsActivity : AppCompatActivity() {
                         return@setOnCheckedChangeListener
                     }
                     current.remove(source)
+                    Log.d("SOURCE_ORDER", "Checkbox: disabled ${source.name}, new list=$current")
                 }
                 widgetStateManager.setVisibleSourcesOrder(current)
                 rebuildSourceRows(container)
@@ -149,6 +152,7 @@ class SettingsActivity : AppCompatActivity() {
                 val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
                 val pos = current.indexOf(source)
                 if (pos > 0) {
+                    Log.d("SOURCE_ORDER", "Move up: ${source.name} from pos $pos to ${pos - 1}")
                     current[pos] = current[pos - 1]
                     current[pos - 1] = source
                     widgetStateManager.setVisibleSourcesOrder(current)
@@ -160,6 +164,7 @@ class SettingsActivity : AppCompatActivity() {
                 val current = widgetStateManager.getVisibleSourcesOrder().toMutableList()
                 val pos = current.indexOf(source)
                 if (pos < current.size - 1) {
+                    Log.d("SOURCE_ORDER", "Move down: ${source.name} from pos $pos to ${pos + 1}")
                     current[pos] = current[pos + 1]
                     current[pos + 1] = source
                     widgetStateManager.setVisibleSourcesOrder(current)

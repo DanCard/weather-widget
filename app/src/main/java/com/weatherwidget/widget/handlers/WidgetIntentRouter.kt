@@ -32,6 +32,8 @@ import java.time.temporal.ChronoUnit
 object WidgetIntentRouter {
     private const val TAG = "WidgetIntentRouter"
     private val HOUR_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+    @Volatile
+    private var disableRefreshForTesting = false
 
     // Intent actions
     const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -42,6 +44,10 @@ object WidgetIntentRouter {
     const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
     const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
+
+    fun setDisableRefreshForTesting(disabled: Boolean) {
+        disableRefreshForTesting = disabled
+    }
 
     /**
      * Handle navigation (left/right) action.
@@ -480,6 +486,9 @@ object WidgetIntentRouter {
     }
 
     private fun refreshIfStale(context: Context, latestFetchedAt: Long?, reason: String) {
+        if (disableRefreshForTesting) {
+            return
+        }
         if (BatteryFetchStrategy.shouldRefreshStaleData(latestFetchedAt, System.currentTimeMillis())) {
             val ageMin = (System.currentTimeMillis() - (latestFetchedAt ?: 0L)) / 1000 / 60
             Log.d(TAG, "STALE_REFRESH: Data is ${ageMin}min old, enqueueing refresh on $reason")

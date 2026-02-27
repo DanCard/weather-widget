@@ -28,6 +28,10 @@ abstract class WeatherDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: WeatherDatabase? = null
+        @Volatile
+        private var databaseNameOverride: String? = null
+
+        private const val DEFAULT_DATABASE_NAME = "weather_database"
 
         fun getDatabase(context: Context): WeatherDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -35,7 +39,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                     Room.databaseBuilder(
                         context.applicationContext,
                         WeatherDatabase::class.java,
-                        "weather_database",
+                        databaseNameOverride ?: DEFAULT_DATABASE_NAME,
                     )
                         .addMigrations(
                             MIGRATION_1_2,
@@ -90,6 +94,18 @@ abstract class WeatherDatabase : RoomDatabase() {
                 INSTANCE = instance
                 instance
             }
+        }
+
+        @Synchronized
+        fun resetInstanceForTesting() {
+            INSTANCE?.close()
+            INSTANCE = null
+        }
+
+        @Synchronized
+        fun setDatabaseNameOverrideForTesting(databaseName: String?) {
+            resetInstanceForTesting()
+            databaseNameOverride = databaseName
         }
 
         val MIGRATION_1_2 =

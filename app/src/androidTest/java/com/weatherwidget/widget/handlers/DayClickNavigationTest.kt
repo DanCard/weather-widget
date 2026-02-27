@@ -5,6 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.AndroidTestDatabase
+import com.weatherwidget.testutil.AndroidTestWidgetState
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -36,7 +40,13 @@ import java.time.LocalDateTime
  */
 @RunWith(AndroidJUnit4::class)
 class DayClickNavigationTest {
+    companion object {
+        private const val TEST_DB_SUFFIX = "day_click_navigation"
+        private const val TEST_PREFS_SUFFIX = "day_click_navigation"
+    }
+
     private lateinit var context: Context
+    private lateinit var database: WeatherDatabase
     private lateinit var stateManager: WidgetStateManager
 
     private val testWidgetId = 99990
@@ -44,13 +54,38 @@ class DayClickNavigationTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        database = AndroidTestDatabase.useIsolatedDatabase(TEST_DB_SUFFIX)
+        AndroidTestWidgetState.useIsolatedPrefs(TEST_PREFS_SUFFIX, context)
+        WidgetIntentRouter.setDisableRefreshForTesting(true)
         stateManager = WidgetStateManager(context)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
+        runBlocking {
+            database.weatherDao().insertWeather(
+                WeatherEntity(
+                    date = LocalDate.now().toString(),
+                    locationLat = WeatherWidgetWorker.DEFAULT_LAT,
+                    locationLon = WeatherWidgetWorker.DEFAULT_LON,
+                    locationName = "Mountain View, CA",
+                    highTemp = 72f,
+                    lowTemp = 54f,
+                    currentTemp = 65f,
+                    condition = "Cloudy",
+                    isActual = false,
+                    source = WeatherSource.NWS.id,
+                    precipProbability = 0,
+                    fetchedAt = System.currentTimeMillis(),
+                ),
+            )
+        }
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
+        database.close()
+        AndroidTestDatabase.cleanup(TEST_DB_SUFFIX, context)
+        AndroidTestWidgetState.cleanup(TEST_PREFS_SUFFIX, context)
+        WidgetIntentRouter.setDisableRefreshForTesting(false)
     }
 
     private fun createForecast(
@@ -278,8 +313,6 @@ class DayClickNavigationTest {
 
     @Test
     fun productionCodePath_includesDailyPrecipInClickDecision() {
-        // Query the real database for today's weather data
-        val database = WeatherDatabase.getDatabase(context)
         val today = LocalDate.now()
         val todayStr = today.toString()
         val now = today.atTime(10, 0)
@@ -290,6 +323,32 @@ class DayClickNavigationTest {
         runBlocking {
             val weatherDao = database.weatherDao()
             val hourlyDao = database.hourlyForecastDao()
+
+            weatherDao.insertWeather(
+                WeatherEntity(
+                    date = todayStr,
+                    locationLat = lat,
+                    locationLon = lon,
+                    locationName = "Mountain View, CA",
+                    highTemp = 72f,
+                    lowTemp = 54f,
+                    currentTemp = 65f,
+                    condition = "Cloudy",
+                    isActual = false,
+                    source = WeatherSource.NWS.id,
+                    precipProbability = 16,
+                    fetchedAt = System.currentTimeMillis(),
+                ),
+            )
+            hourlyDao.insertAll(
+                listOf(
+                    createForecast(
+                        dateTime = now.plusHours(3).withMinute(0).withSecond(0).withNano(0).toString(),
+                        precipProb = 6,
+                        source = WeatherSource.NWS.id,
+                    ),
+                ),
+            )
 
             val todayWeather = weatherDao.getWeatherForDate(todayStr, lat, lon)
             val dailyPrecipProb = todayWeather?.precipProbability

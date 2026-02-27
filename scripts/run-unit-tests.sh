@@ -95,7 +95,7 @@ if [ "$TOTAL" -gt 0 ]; then
         echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
     fi
 
-    if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ] && [ "${#CLASS_PASSED_COUNTS[@]}" -gt 0 ]; then
+    if [ "$EXIT_CODE" -eq 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ] && [ "${#CLASS_PASSED_COUNTS[@]}" -gt 0 ]; then
         echo -e "${BLUE}Per-class pass summary:${NC}"
         while IFS= read -r class_name; do
             echo -e "  ${GREEN}${class_name}${NC} > Passed ${CLASS_PASSED_COUNTS[$class_name]} tests"

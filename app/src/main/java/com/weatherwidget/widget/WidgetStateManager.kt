@@ -2,7 +2,13 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,9 +34,21 @@ class WidgetStateManager
     @Inject
     constructor(
         private val context: Context,
+        private val appLogDao: AppLogDao? = null,
     ) {
+        private val logScope = CoroutineScope(Dispatchers.IO)
+        
+        private fun logEvent(tag: String, message: String) {
+            appLogDao?.let { dao ->
+                logScope.launch {
+                    dao.log(tag, message)
+                }
+            }
+        }
         companion object {
             private const val PREFS_NAME = "widget_state_prefs"
+            @Volatile
+            private var prefsNameOverride: String? = null
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
@@ -68,10 +86,17 @@ class WidgetStateManager
 
             @Deprecated("Use WeatherSource.GENERIC_GAP.id instead", ReplaceWith("WeatherSource.GENERIC_GAP.id"))
             const val SOURCE_GENERIC_GAP = "Generic"
+
+            @Synchronized
+            fun setPrefsNameOverrideForTesting(prefsName: String?) {
+                prefsNameOverride = prefsName
+            }
+
+            fun getPrefsNameForTesting(): String = prefsNameOverride ?: PREFS_NAME
         }
 
         private val prefs: SharedPreferences by lazy {
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            context.getSharedPreferences(prefsNameOverride ?: PREFS_NAME, Context.MODE_PRIVATE)
         }
 
         fun getDateOffset(widgetId: Int): Int {
@@ -132,7 +157,14 @@ class WidgetStateManager
         }
 
         fun setVisibleSourcesOrder(sources: List<WeatherSource>) {
-            val csv = sources.filter { it != WeatherSource.GENERIC_GAP }.joinToString(",") { it.name }
+            val oldOrder = getVisibleSourcesOrder().map { it.name }
+            val filtered = sources.filter { it != WeatherSource.GENERIC_GAP }
+            val csv = filtered.joinToString(",") { it.name }
+            val newOrder = filtered.map { it.name }
+            Log.d("SOURCE_ORDER", "setVisibleSourcesOrder: $oldOrder -> $newOrder")
+            appLogDao?.let { dao ->
+                logScope.launch { dao.log("SOURCE_ORDER", "Order changed: $oldOrder -> $newOrder") }
+            }
             prefs.edit().putString(KEY_VISIBLE_SOURCES_ORDER, csv).apply()
             // Reset all widget toggle states so they start at position 0 of the new order
             resetAllToggleStates()
@@ -160,6 +192,10 @@ class WidgetStateManager
                 2 -> "OPEN_METEO,WEATHER_API,NWS"        // PREFER_OPENMETEO
                 3 -> "WEATHER_API,NWS,OPEN_METEO"        // PREFER_WEATHERAPI
                 else -> DEFAULT_VISIBLE_SOURCES           // ALTERNATE (0) or unknown
+            }
+            Log.d("SOURCE_ORDER", "migrateApiPreference: ordinal=$oldOrdinal -> order=$newOrder")
+            logScope.launch {
+                appLogDao?.log("SOURCE_ORDER", "Migration from ordinal=$oldOrdinal -> order=$newOrder")
             }
             prefs.edit()
                 .putString(KEY_VISIBLE_SOURCES_ORDER, newOrder)

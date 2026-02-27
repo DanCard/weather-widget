@@ -191,15 +191,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
-            ACTION_SHOW_OBSERVATIONS -> handleShowObservationsAction(context)
+            ACTION_SHOW_OBSERVATIONS -> handleShowObservationsAction(context, intent)
         }
     }
 
-    private fun handleShowObservationsAction(context: Context) {
-        val intent = Intent(context, com.weatherwidget.ui.WeatherObservationsActivity::class.java).apply {
+    private fun handleShowObservationsAction(context: Context, intent: Intent) {
+        val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        val intentToActivity = Intent(context, com.weatherwidget.ui.WeatherObservationsActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        context.startActivity(intent)
+        context.startActivity(intentToActivity)
     }
 
     private fun handleDayClickAction(

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.weatherwidget.testutil.AndroidTestWidgetState
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
@@ -25,6 +26,10 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ZoomCycleTest {
+    companion object {
+        private const val TEST_PREFS_SUFFIX = "zoom_cycle"
+    }
+
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private val testWidgetId = 99992
@@ -32,6 +37,8 @@ class ZoomCycleTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        AndroidTestWidgetState.useIsolatedPrefs(TEST_PREFS_SUFFIX, context)
+        WidgetIntentRouter.setDisableRefreshForTesting(true)
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
@@ -40,6 +47,8 @@ class ZoomCycleTest {
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
+        AndroidTestWidgetState.cleanup(TEST_PREFS_SUFFIX, context)
+        WidgetIntentRouter.setDisableRefreshForTesting(false)
     }
 
     @Test

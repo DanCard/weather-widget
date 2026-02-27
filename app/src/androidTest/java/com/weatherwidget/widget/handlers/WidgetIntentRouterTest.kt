@@ -20,6 +20,12 @@ class WidgetIntentRouterTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        WidgetIntentRouter.setDisableRefreshForTesting(true)
+    }
+
+    @org.junit.After
+    fun cleanup() {
+        WidgetIntentRouter.setDisableRefreshForTesting(false)
     }
 
     @Test

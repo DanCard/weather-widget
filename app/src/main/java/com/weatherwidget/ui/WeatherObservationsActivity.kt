@@ -1,5 +1,7 @@
 package com.weatherwidget.ui
 
+import android.appwidget.AppWidgetManager
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -23,21 +25,17 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class WeatherObservationsActivity : AppCompatActivity() {
     private val TAG = "WeatherObservations"
-
-    @Inject
-    lateinit var database: WeatherDatabase
-
-    @Inject
-    lateinit var widgetStateManager: WidgetStateManager
+    private val database: WeatherDatabase by lazy { WeatherDatabase.getDatabase(applicationContext) }
+    private val widgetStateManager: WidgetStateManager by lazy { WidgetStateManager(applicationContext, database.appLogDao()) }
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
     private var currentSource: WeatherSource = WeatherSource.NWS
+    private var appWidgetId: Int = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +50,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
         recyclerView.adapter = adapter
 
-        currentSource = widgetStateManager.getVisibleSourcesOrder().firstOrNull() ?: WeatherSource.NWS
+        appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        currentSource = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            widgetStateManager.getCurrentDisplaySource(appWidgetId)
+        } else {
+            widgetStateManager.getVisibleSourcesOrder().firstOrNull() ?: WeatherSource.NWS
+        }
         updateApiButton()
 
         findViewById<View>(R.id.back_button).setOnClickListener { finish() }
@@ -63,7 +66,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
 
         findViewById<View>(R.id.settings_button).setOnClickListener {
-            startActivity(android.content.Intent(this, SettingsActivity::class.java))
+            startActivity(Intent(this, SettingsActivity::class.java))
         }
 
         loadObservations()
@@ -81,10 +84,27 @@ class WeatherObservationsActivity : AppCompatActivity() {
         val currentIndex = visibleSources.indexOf(currentSource)
         val nextIndex = (currentIndex + 1) % visibleSources.size
         currentSource = visibleSources[nextIndex]
+
+        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            widgetStateManager.setCurrentDisplaySource(appWidgetId, currentSource)
+        }
         
         updateApiButton()
         loadObservations()
         loadFetchLogs()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // If we were launched from a widget and changed the source, trigger a UI update
+        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            val refreshIntent = Intent(this, com.weatherwidget.widget.WeatherWidgetProvider::class.java).apply {
+                action = com.weatherwidget.widget.WeatherWidgetProvider.ACTION_REFRESH
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(com.weatherwidget.widget.WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+            }
+            sendBroadcast(refreshIntent)
+        }
     }
 
     private fun showRenameDialog(entity: WeatherObservationEntity) {
@@ -121,14 +141,14 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     // Fetch detailed multi-station observations from the last 24 hours
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
                     database.weatherObservationDao().getRecentObservations(sinceMs)
-                        .filter { !it.stationId.startsWith("METEO_") && !it.stationId.startsWith("WAPI_") }
+                        .filter { !it.stationId.contains("OPEN_METEO_") && !it.stationId.contains("WEATHER_API_") }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
                         .sortedBy { it.distanceKm }
                 } else {
                     // For other sources, show POIs if they exist, or fallback to the latest single reading
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    val poiPrefix = if (currentSource == WeatherSource.OPEN_METEO) "METEO_" else "WAPI_"
+                    val poiPrefix = "${currentSource.id}_"
                     val pois = database.weatherObservationDao().getRecentObservations(sinceMs)
                         .filter { it.stationId.startsWith(poiPrefix) }
                         .groupBy { it.stationId }
@@ -159,6 +179,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 }
 
                 withContext(Dispatchers.Main) {
+                    Log.d(TAG, "loadObservations: currentSource=${currentSource.id} items=${observations.map { it.stationId }}")
                     adapter.submitList(observations)
                     val subtitleView = findViewById<TextView>(R.id.subtitle)
                     if (observations.isEmpty()) {
@@ -198,8 +219,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
     }
 
-    private class ObservationAdapter(private val onItemClick: (WeatherObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
-        private var items: List<WeatherObservationEntity> = emptyList()
+    internal class ObservationAdapter(private val onItemClick: (WeatherObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
+        internal var items: List<WeatherObservationEntity> = emptyList()
         private val timeFormatter = DateTimeFormatter.ofPattern("h:mm:ss a").withZone(ZoneId.systemDefault())
 
         fun submitList(newList: List<WeatherObservationEntity>) {

@@ -84,7 +84,8 @@ object AppModule {
     @Singleton
     fun provideWidgetStateManager(
         @ApplicationContext context: Context,
-    ): WidgetStateManager = WidgetStateManager(context)
+        appLogDao: AppLogDao,
+    ): WidgetStateManager = WidgetStateManager(context, appLogDao)
 
     @Provides
     @Singleton

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.AndroidTestWidgetState
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -11,6 +13,9 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class WidgetStateManagerSyncTest {
+    companion object {
+        private const val TEST_PREFS_SUFFIX = "widget_state_sync"
+    }
 
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
@@ -19,8 +24,15 @@ class WidgetStateManagerSyncTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        AndroidTestWidgetState.useIsolatedPrefs(TEST_PREFS_SUFFIX, context)
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
+    }
+
+    @After
+    fun cleanup() {
+        stateManager.clearWidgetState(testWidgetId)
+        AndroidTestWidgetState.cleanup(TEST_PREFS_SUFFIX, context)
     }
 
     @Test
