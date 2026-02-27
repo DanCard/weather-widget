@@ -36,7 +36,7 @@ class WeatherRepositoryPoiTest {
         appLogDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, forecastDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
+        val forecastRepo = ForecastRepository(context, forecastDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), observationDao)
         val currentRepo = CurrentTempRepository(context, mockk(relaxed = true), observationDao, mockk(relaxed = true), appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), TemperatureInterpolator())
 
         repository = WeatherRepository(

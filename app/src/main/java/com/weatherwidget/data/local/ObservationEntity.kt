@@ -10,8 +10,11 @@ import androidx.room.Index
  */
 @Entity(
     tableName = "observations",
-    primaryKeys = ["stationId", "timestamp", "distanceKm", "stationType"],
-    indices = [Index(value = ["locationLat", "locationLon"])],
+    primaryKeys = ["stationId", "timestamp"],
+    indices = [
+        Index(value = ["locationLat", "locationLon"]),
+        Index(value = ["timestamp", "locationLat", "locationLon"])
+    ],
 )
 data class ObservationEntity(
     val stationId: String,

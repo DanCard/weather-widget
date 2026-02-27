@@ -94,9 +94,10 @@ object AppModule {
         weatherApi: WeatherApi,
         widgetStateManager: WidgetStateManager,
         climateNormalDao: ClimateNormalDao,
+        observationDao: ObservationDao,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
+        nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao
     )
 
     @Provides

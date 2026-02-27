@@ -69,7 +69,7 @@ class WeatherRepositoryTest {
 
         forecastRepository = ForecastRepository(
             context, forecastDao, hourlyForecastDao, appLogDao,
-            nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
+            nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao
         )
         currentTempRepository = CurrentTempRepository(
             context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
@@ -122,7 +122,7 @@ class WeatherRepositoryTest {
                 createForecastEntity(tomorrow, 75, 55).copy(source = WeatherSource.OPEN_METEO.id, fetchedAt = recentFetch),
                 createForecastEntity(tomorrow, 75, 55).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = recentFetch),
             )
-            coEvery { forecastDao.getForecastsInRange(any(), any(), testLat, testLon) } returns cachedData
+            coEvery { forecastDao.getLatestForecastsInRange(any(), any(), testLat, testLon) } returns cachedData
             val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
             assertTrue(result.isSuccess)
             assertEquals(6, result.getOrNull()?.size)

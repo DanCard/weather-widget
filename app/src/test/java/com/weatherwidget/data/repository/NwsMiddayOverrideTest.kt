@@ -63,7 +63,7 @@ class NwsMiddayOverrideTest {
 
         forecastRepository = ForecastRepository(
             context, forecastDao, hourlyForecastDao, appLogDao,
-            nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
+            nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao
         )
         currentTempRepository = CurrentTempRepository(
             context, mockk(relaxed = true), observationDao, hourlyForecastDao, appLogDao,

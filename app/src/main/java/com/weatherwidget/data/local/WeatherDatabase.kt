@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class],
-    version = 24,
+    version = 27,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -65,6 +65,9 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_21_22,
                             MIGRATION_22_23,
                             MIGRATION_23_24,
+                            MIGRATION_24_25,
+                            MIGRATION_25_26,
+                            MIGRATION_26_27,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -712,10 +715,46 @@ abstract class WeatherDatabase : RoomDatabase() {
         val MIGRATION_23_24 =
             object : Migration(23, 24) {
                 override fun migrate(db: SupportSQLiteDatabase) {
-                    // 1. Rename weather_observations to observations
-                    db.execSQL("ALTER TABLE weather_observations RENAME TO observations")
-                    db.execSQL("DROP INDEX IF EXISTS index_weather_observations_locationLat_locationLon")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_locationLat_locationLon ON observations(locationLat, locationLon)")
+                    // 1. Recreate observations table with new primary key and indices
+                    db.execSQL("DROP TABLE IF EXISTS observations") // Clean up if previous failed migration left it
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS observations (
+                            stationId TEXT NOT NULL,
+                            stationName TEXT NOT NULL,
+                            timestamp INTEGER NOT NULL,
+                            temperature REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            distanceKm REAL NOT NULL,
+                            stationType TEXT NOT NULL,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(stationId, timestamp)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_observations_locationLat_locationLon ON observations(locationLat, locationLon)",
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_observations_timestamp_locationLat_locationLon ON observations(timestamp, locationLat, locationLon)",
+                    )
+
+                    // Migrate data from weather_observations to observations
+                    db.execSQL(
+                        """
+                        INSERT OR IGNORE INTO observations (
+                            stationId, stationName, timestamp, temperature, `condition`,
+                            locationLat, locationLon, distanceKm, stationType, fetchedAt
+                        )
+                        SELECT
+                            stationId, stationName, timestamp, temperature, `condition`,
+                            locationLat, locationLon, distanceKm, stationType, fetchedAt
+                        FROM weather_observations
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE IF EXISTS weather_observations")
 
                     // 2. Create forecasts table with new schema
                     db.execSQL(
@@ -757,7 +796,12 @@ abstract class WeatherDatabase : RoomDatabase() {
                         )
                         SELECT
                             targetDate, forecastDate, locationLat, locationLon, '' as locationName,
-                            highTemp, lowTemp, condition, 0 as isClimateNormal, source,
+                            highTemp, lowTemp, condition, 0 as isClimateNormal,
+                            CASE 
+                                WHEN source = 'Open-Meteo' THEN 'OPEN_METEO'
+                                WHEN source = 'WeatherAPI' THEN 'WEATHER_API'
+                                ELSE source 
+                            END as source,
                             NULL as precipProbability, fetchedAt
                         FROM forecast_snapshots
                         """.trimIndent(),
@@ -773,7 +817,12 @@ abstract class WeatherDatabase : RoomDatabase() {
                         )
                         SELECT
                             date as targetDate, date as forecastDate, locationLat, locationLon, locationName,
-                            highTemp, lowTemp, condition, isClimateNormal, source,
+                            highTemp, lowTemp, condition, isClimateNormal,
+                            CASE 
+                                WHEN source = 'Open-Meteo' THEN 'OPEN_METEO'
+                                WHEN source = 'WeatherAPI' THEN 'WEATHER_API'
+                                ELSE source 
+                            END as source,
                             precipProbability, fetchedAt
                         FROM weather_data
                         WHERE isActual = 0 OR isActual IS NULL
@@ -785,6 +834,50 @@ abstract class WeatherDatabase : RoomDatabase() {
                     db.execSQL("DROP INDEX IF EXISTS index_forecast_snapshots_locationLat_locationLon")
                     db.execSQL("DROP TABLE IF EXISTS weather_data")
                     db.execSQL("DROP INDEX IF EXISTS index_weather_data_locationLat_locationLon")
+                }
+            }
+
+        val MIGRATION_24_25 =
+            object : Migration(24, 25) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // Recreate observations table with correct primary key and indices
+                    // NOTE: Schema must exactly match Room's expected SQL (no DEFAULT values)
+                    
+                    // Drop indices first to avoid name collisions or stale associations
+                    db.execSQL("DROP INDEX IF EXISTS index_observations_locationLat_locationLon")
+                    db.execSQL("DROP INDEX IF EXISTS index_observations_timestamp_locationLat_locationLon")
+
+                    db.execSQL("CREATE TABLE IF NOT EXISTS observations_new (stationId TEXT NOT NULL, stationName TEXT NOT NULL, timestamp INTEGER NOT NULL, temperature REAL NOT NULL, `condition` TEXT NOT NULL, locationLat REAL NOT NULL, locationLon REAL NOT NULL, distanceKm REAL NOT NULL, stationType TEXT NOT NULL, fetchedAt INTEGER NOT NULL, PRIMARY KEY(stationId, timestamp))")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_locationLat_locationLon ON observations_new(locationLat, locationLon)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_timestamp_locationLat_locationLon ON observations_new(timestamp, locationLat, locationLon)")
+                    
+                    // Copy data from old observations table if it exists
+                    db.execSQL("INSERT OR IGNORE INTO observations_new (stationId, stationName, timestamp, temperature, `condition`, locationLat, locationLon, distanceKm, stationType, fetchedAt) SELECT stationId, stationName, timestamp, temperature, `condition`, locationLat, locationLon, distanceKm, stationType, fetchedAt FROM observations")
+                    
+                    db.execSQL("DROP TABLE observations")
+                    db.execSQL("ALTER TABLE observations_new RENAME TO observations")
+                }
+            }
+
+        val MIGRATION_25_26 =
+            object : Migration(25, 26) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // Fix missing indices on observations table
+                    db.execSQL("DROP INDEX IF EXISTS index_observations_locationLat_locationLon")
+                    db.execSQL("DROP INDEX IF EXISTS index_observations_timestamp_locationLat_locationLon")
+                    
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_locationLat_locationLon ON observations(locationLat, locationLon)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_timestamp_locationLat_locationLon ON observations(timestamp, locationLat, locationLon)")
+                }
+            }
+
+        val MIGRATION_26_27 =
+            object : Migration(26, 27) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // Normalize source IDs in forecasts table
+                    db.execSQL("UPDATE forecasts SET source = 'OPEN_METEO' WHERE source = 'Open-Meteo'")
+                    db.execSQL("UPDATE forecasts SET source = 'WEATHER_API' WHERE source = 'WeatherAPI'")
+                    db.execSQL("UPDATE forecasts SET source = 'Generic' WHERE source = 'GENERIC_GAP'")
                 }
             }
     }

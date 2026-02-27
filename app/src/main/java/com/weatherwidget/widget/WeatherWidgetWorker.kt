@@ -78,8 +78,8 @@ class WeatherWidgetWorker
 
                 val result =
                     weatherRepository.getWeatherData(
-                        lat = location.first,
-                        lon = location.second,
+                        latitude = location.first,
+                        longitude = location.second,
                         locationName = getLocationName(location.first, location.second),
                         forceRefresh = forceRefresh && !uiOnlyRefresh,
                         networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
@@ -240,11 +240,11 @@ class WeatherWidgetWorker
                     val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
                     val refreshResult =
                         weatherRepository.refreshCurrentTemperature(
-                            lat = location.first,
-                            lon = location.second,
+                            latitude = location.first,
+                            longitude = location.second,
                             locationName = getLocationName(location.first, location.second),
                             reason = reason,
-                            force = force,
+                            forceRefresh = force,
                         )
 
                     refreshResult.fold(
@@ -271,8 +271,8 @@ class WeatherWidgetWorker
             val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
             val weatherList =
                 weatherRepository.getWeatherData(
-                    lat = location.first,
-                    lon = location.second,
+                    latitude = location.first,
+                    longitude = location.second,
                     locationName = getLocationName(location.first, location.second),
                     networkAllowed = false,
                 ).getOrDefault(emptyList())

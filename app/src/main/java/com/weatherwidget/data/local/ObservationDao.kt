@@ -18,8 +18,8 @@ interface ObservationDao {
         SELECT * FROM observations
         WHERE timestamp >= :startTs
           AND timestamp < :endTs
-          AND locationLat BETWEEN :lat - 0.5 AND :lat + 0.5
-          AND locationLon BETWEEN :lon - 0.5 AND :lon + 0.5
+          AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+          AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         ORDER BY timestamp ASC
     """,
     )

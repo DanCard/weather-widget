@@ -53,7 +53,7 @@ class WeatherRepositoryNwsParallelTest {
         observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao)
+        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao)
         val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator)
 
         repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, currentTempDao)
@@ -74,7 +74,7 @@ class WeatherRepositoryNwsParallelTest {
         val now = OffsetDateTime.now().toString()
         coEvery { nwsApi.getLatestObservationDetailed("AW020") } returns NwsApi.Observation(now, 22.78f, "Sunny", "AW020")
         coEvery { nwsApi.getLatestObservationDetailed("KNUQ") } returns NwsApi.Observation(now, 18.89f, "Clear", "Moffett Field")
-        repository.refreshCurrentTemperature(testLat, testLon, "Test", source = WeatherSource.NWS, force = true)
+        repository.refreshCurrentTemperature(testLat, testLon, "Test", source = WeatherSource.NWS, forceRefresh = true)
         coVerify { currentTempDao.insert(match { it.temperature > 72f }) }
     }
 }
