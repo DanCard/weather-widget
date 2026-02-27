@@ -204,6 +204,8 @@ object DailyViewHandler : WidgetViewHandler {
         // Hide history icon and delta badge in daily mode
         views.setViewVisibility(R.id.history_icon, View.GONE)
         views.setViewVisibility(R.id.history_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         // Set up navigation click handlers

@@ -67,4 +67,7 @@ interface WeatherDao {
 
     @Query("SELECT * FROM weather_data ORDER BY fetchedAt DESC LIMIT 1")
     suspend fun getLatestWeather(): WeatherEntity?
+
+    @Query("SELECT * FROM weather_data WHERE source = :source ORDER BY fetchedAt DESC LIMIT 1")
+    suspend fun getLatestWeatherBySource(source: String): WeatherEntity?
 }

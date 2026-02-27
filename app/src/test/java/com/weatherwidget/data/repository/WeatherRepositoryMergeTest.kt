@@ -57,6 +57,7 @@ class WeatherRepositoryMergeTest {
             },
             TemperatureInterpolator(),
             db.climateNormalDao(),
+            db.weatherObservationDao(),
         )
     }
 

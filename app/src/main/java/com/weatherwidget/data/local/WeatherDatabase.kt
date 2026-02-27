@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class],
-    version = 19,
+    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, WeatherObservationEntity::class],
+    version = 22,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -22,6 +22,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun appLogDao(): AppLogDao
 
     abstract fun climateNormalDao(): ClimateNormalDao
+
+    abstract fun weatherObservationDao(): WeatherObservationDao
 
     companion object {
         @Volatile
@@ -54,6 +56,9 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_16_17,
                             MIGRATION_17_18,
                             MIGRATION_18_19,
+                            MIGRATION_19_20,
+                            MIGRATION_20_21,
+                            MIGRATION_21_22,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -530,6 +535,85 @@ abstract class WeatherDatabase : RoomDatabase() {
             object : Migration(18, 19) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE weather_data ADD COLUMN currentTempObservedAt INTEGER DEFAULT NULL")
+                }
+            }
+
+        val MIGRATION_19_20 =
+            object : Migration(19, 20) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS weather_observations (
+                            stationId TEXT NOT NULL,
+                            stationName TEXT NOT NULL,
+                            timestamp INTEGER NOT NULL,
+                            temperature REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            distanceKm REAL NOT NULL DEFAULT 0,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(stationId, timestamp)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_weather_observations_locationLat_locationLon ON weather_observations (locationLat, locationLon)",
+                    )
+                }
+            }
+
+        val MIGRATION_20_21 =
+            object : Migration(20, 21) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // Recreate the table to include distanceKm in primary keys
+                    db.execSQL("DROP TABLE IF EXISTS weather_observations")
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS weather_observations (
+                            stationId TEXT NOT NULL,
+                            stationName TEXT NOT NULL,
+                            timestamp INTEGER NOT NULL,
+                            temperature REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            distanceKm REAL NOT NULL DEFAULT 0,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(stationId, timestamp, distanceKm)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_weather_observations_locationLat_locationLon ON weather_observations (locationLat, locationLon)",
+                    )
+                }
+            }
+
+        val MIGRATION_21_22 =
+            object : Migration(21, 22) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("DROP TABLE IF EXISTS weather_observations")
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS weather_observations (
+                            stationId TEXT NOT NULL,
+                            stationName TEXT NOT NULL,
+                            timestamp INTEGER NOT NULL,
+                            temperature REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            distanceKm REAL NOT NULL DEFAULT 0,
+                            stationType TEXT NOT NULL DEFAULT 'UNKNOWN',
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(stationId, timestamp, distanceKm, stationType)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_weather_observations_locationLat_locationLon ON weather_observations (locationLat, locationLon)",
+                    )
                 }
             }
     }

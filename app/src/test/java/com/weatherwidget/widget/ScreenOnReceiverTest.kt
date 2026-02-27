@@ -125,7 +125,7 @@ class ScreenOnReceiverTest {
 
         val latest =
             runBlocking {
-                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT").firstOrNull()
+                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 10).firstOrNull()
             }
         assertNotNull("Expected latest POWER_CONNECTED_EVENT log", latest)
         assertTrue("Expected enqueued result in log message", latest!!.message.contains("result=enqueued"))
@@ -145,7 +145,7 @@ class ScreenOnReceiverTest {
 
         val latest =
             runBlocking {
-                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT").firstOrNull()
+                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 10).firstOrNull()
             }
         assertNotNull("Expected latest POWER_CONNECTED_EVENT log", latest)
         assertTrue("Expected debounce skip result in log message", latest!!.message.contains("result=debounced_skip"))
@@ -164,7 +164,7 @@ class ScreenOnReceiverTest {
 
         val latest =
             runBlocking {
-                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY").firstOrNull()
+                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 1).firstOrNull()
             }
         assertNotNull("Expected latest UNLOCK_REFRESH_POLICY log", latest)
         assertFalse("Expected uiOnly field in log message", latest!!.message.contains("uiOnly=").not())
@@ -172,13 +172,13 @@ class ScreenOnReceiverTest {
 
     private fun unlockPolicyLogCount(): Int {
         return runBlocking {
-            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY").size
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 100).size
         }
     }
 
     private fun powerConnectedLogCount(): Int {
         return runBlocking {
-            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT").size
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 100).size
         }
     }
 

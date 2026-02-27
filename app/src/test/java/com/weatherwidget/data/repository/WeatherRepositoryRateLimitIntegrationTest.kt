@@ -55,6 +55,7 @@ class WeatherRepositoryRateLimitIntegrationTest {
         },
         TemperatureInterpolator(),
         db.climateNormalDao(),
+        db.weatherObservationDao(),
     )
 
     @Before

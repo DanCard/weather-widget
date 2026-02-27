@@ -31,6 +31,7 @@ class WeatherHistoryConditionTest {
                 mockk(relaxed = true),
                 mockk(relaxed = true),
                 mockk(relaxed = true),
+                mockk(relaxed = true),
             )
     }
 
@@ -40,7 +41,7 @@ class WeatherHistoryConditionTest {
             val date = LocalDate.now()
             val stationsUrl = "https://api.weather.gov/stations"
 
-            coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+            coEvery { nwsApi.getObservationStations(any()) } returns listOf(NwsApi.StationInfo("KSFO", "San Francisco", 0.0, 0.0, NwsApi.StationType.OFFICIAL))
             coEvery { nwsApi.getObservations(any(), any(), any()) } returns
                 listOf(
                     NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Clear"),
@@ -57,7 +58,7 @@ class WeatherHistoryConditionTest {
         runTest {
             val date = LocalDate.now()
 
-            coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+            coEvery { nwsApi.getObservationStations(any()) } returns listOf(NwsApi.StationInfo("KSFO", "San Francisco", 0.0, 0.0, NwsApi.StationType.OFFICIAL))
             coEvery { nwsApi.getObservations(any(), any(), any()) } returns
                 listOf(
                     NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Clear"),
@@ -77,7 +78,7 @@ class WeatherHistoryConditionTest {
         runTest {
             val date = LocalDate.now()
 
-            coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+            coEvery { nwsApi.getObservationStations(any()) } returns listOf(NwsApi.StationInfo("KSFO", "San Francisco", 0.0, 0.0, NwsApi.StationType.OFFICIAL))
             coEvery { nwsApi.getObservations(any(), any(), any()) } returns
                 listOf(
                     NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Fair"),
@@ -98,7 +99,7 @@ class WeatherHistoryConditionTest {
 
             val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "forecast", "stations")
             coEvery { nwsApi.getGridPoint(lat, lon) } returns gridPoint
-            coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+            coEvery { nwsApi.getObservationStations(any()) } returns listOf(NwsApi.StationInfo("KSFO", "San Francisco", 0.0, 0.0, NwsApi.StationType.OFFICIAL))
             coEvery { nwsApi.getObservations(any(), any(), any()) } returns
                 listOf(
                     NwsApi.Observation("${todayStr}T12:00:00Z", 20.0f, "Clear"),
@@ -128,7 +129,7 @@ class WeatherHistoryConditionTest {
 
             val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "forecast", "stations")
             coEvery { nwsApi.getGridPoint(lat, lon) } returns gridPoint
-            coEvery { nwsApi.getObservationStations(any()) } returns listOf("KSFO")
+            coEvery { nwsApi.getObservationStations(any()) } returns listOf(NwsApi.StationInfo("KSFO", "San Francisco", 0.0, 0.0, NwsApi.StationType.OFFICIAL))
             coEvery { nwsApi.getObservations(any(), any(), any()) } returns
                 listOf(
                     NwsApi.Observation("${todayStr}T12:00:00Z", 20.0f, "Clear"),

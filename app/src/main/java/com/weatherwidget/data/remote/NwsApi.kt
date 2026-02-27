@@ -50,20 +50,58 @@ class NwsApi
             )
         }
 
-        suspend fun getObservationStations(stationsUrl: String): List<String> {
+        suspend fun getObservationStations(stationsUrl: String): List<StationInfo> {
             val response: String =
                 httpClient.get(stationsUrl) {
                     header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
+                    header("Accept", "application/geo+json")
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
             val features = jsonObj["features"]?.jsonArray ?: return emptyList()
 
             return features.mapNotNull { feature ->
-                feature.jsonObject["properties"]?.jsonObject?.get("stationIdentifier")?.jsonPrimitive?.content
+                val featObj = feature.jsonObject
+                val props = featObj["properties"]?.jsonObject ?: return@mapNotNull null
+                val id = props["stationIdentifier"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val name = props["name"]?.jsonPrimitive?.content ?: id
+                
+                // Detection logic: Official METAR stations are 4-chars starting with K, P, or T.
+                val type = if (id.length == 4 && (id.startsWith("K") || id.startsWith("P") || id.startsWith("T"))) {
+                    StationType.OFFICIAL
+                } else {
+                    StationType.PERSONAL
+                }
+
+                val geometry = featObj["geometry"]?.jsonObject
+                val coords = geometry?.get("coordinates")?.jsonArray
+                if (coords != null && coords.size >= 2) {
+                    StationInfo(
+                        id = id,
+                        name = name,
+                        lon = coords[0].jsonPrimitive.content.toDouble(),
+                        lat = coords[1].jsonPrimitive.content.toDouble(),
+                        type = type
+                    )
+                } else {
+                    null
+                }
             }
         }
+
+        enum class StationType {
+            OFFICIAL,
+            PERSONAL,
+            UNKNOWN
+        }
+
+        data class StationInfo(
+            val id: String,
+            val name: String,
+            val lat: Double,
+            val lon: Double,
+            val type: StationType = StationType.UNKNOWN
+        )
 
         suspend fun getLatestObservation(stationId: String): Observation? {
             val response: String =
@@ -224,6 +262,37 @@ class NwsApi
             }
         }
 
+        suspend fun getLatestObservationDetailed(stationId: String): Observation? {
+            val response: String =
+                httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
+                    header("User-Agent", USER_AGENT)
+                    header("Accept", "application/geo+json")
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val props = jsonObj["properties"]?.jsonObject ?: return null
+            val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return null
+            val stationName = props["stationName"]?.jsonPrimitive?.content ?: stationId
+
+            // Temperature is in a value object with unitCode
+            val tempObj = props["temperature"]?.jsonObject
+            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
+
+            val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
+
+            return if (tempValue != null) {
+                Observation(
+                    timestamp = timestamp,
+                    temperatureCelsius = tempValue.toFloat(),
+                    textDescription = textDescription,
+                    stationName = stationName,
+                )
+            } else {
+                Log.d("NwsApi", "getLatestObservationDetailed: station=$stationId has null temperature value")
+                null
+            }
+        }
+
         data class GridPointInfo(
             val gridId: String,
             val gridX: Int,
@@ -246,6 +315,7 @@ class NwsApi
             val timestamp: String,
             val temperatureCelsius: Float,
             val textDescription: String,
+            val stationName: String = "",
         )
 
         data class HourlyForecastPeriod(

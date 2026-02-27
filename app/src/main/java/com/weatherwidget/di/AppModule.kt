@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.WeatherObservationDao
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
@@ -74,6 +75,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideClimateNormalDao(database: WeatherDatabase): ClimateNormalDao = database.climateNormalDao()
+
+    @Provides
+    @Singleton
+    fun provideWeatherObservationDao(database: WeatherDatabase): WeatherObservationDao = database.weatherObservationDao()
 
     @Provides
     @Singleton

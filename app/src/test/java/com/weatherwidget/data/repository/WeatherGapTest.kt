@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.WeatherObservationDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -34,6 +35,7 @@ class WeatherGapTest {
     private lateinit var widgetStateManager: WidgetStateManager
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
+    private lateinit var weatherObservationDao: WeatherObservationDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -58,6 +60,7 @@ class WeatherGapTest {
         widgetStateManager = mockk(relaxed = true)
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
+        weatherObservationDao = mockk(relaxed = true)
 
         repository =
             WeatherRepository(
@@ -72,6 +75,7 @@ class WeatherGapTest {
                 widgetStateManager,
                 temperatureInterpolator,
                 climateNormalDao,
+                weatherObservationDao,
             )
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")

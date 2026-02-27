@@ -48,6 +48,7 @@ class ForecastSnapshotDeduplicationTest {
             mockk<WidgetStateManager>(relaxed = true),
             TemperatureInterpolator(),
             db.climateNormalDao(),
+            db.weatherObservationDao(),
         )
     }
 

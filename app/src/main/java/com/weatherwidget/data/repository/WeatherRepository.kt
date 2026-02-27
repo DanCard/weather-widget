@@ -48,6 +48,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
+import android.location.Location
 import android.os.BatteryManager
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
@@ -60,6 +61,8 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.WeatherObservationDao
+import com.weatherwidget.data.local.WeatherObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -102,6 +105,7 @@ class WeatherRepository
         private val widgetStateManager: WidgetStateManager,
         private val temperatureInterpolator: TemperatureInterpolator,
         private val climateNormalDao: ClimateNormalDao,
+        private val weatherObservationDao: WeatherObservationDao,
     ) {
         internal data class ObservationResult(
             val highTemp: Float,
@@ -1169,6 +1173,59 @@ class WeatherRepository
             return cached.split(",").filter { it.isNotBlank() }
         }
 
+        /**
+         * Records a unique location to SharedPreferences for use as a POI in Meteo/WAPI.
+         * Keeps the 3 most recent unique locations.
+         */
+        @VisibleForTesting
+        internal fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
+            val results = FloatArray(1)
+            Location.distanceBetween(lat1, lon1, lat2, lon2, results)
+            return results[0]
+        }
+
+        private fun recordHistoricalPoi(lat: Double, lon: Double, name: String) {
+            val key = "historical_pois"
+            val existing = prefs.getString(key, "") ?: ""
+            val pois = if (existing.isEmpty()) mutableListOf() else existing.split(";").toMutableList()
+            
+            // Format: "name|lat|lon"
+            val newEntry = "$name|$lat|$lon"
+            
+            // Remove if already exists (to move to front)
+            pois.removeIf { it.contains("|$lat|$lon") }
+            
+            pois.add(0, newEntry)
+            
+            // Limit to 3 most recent
+            val limited = pois.take(3)
+            prefs.edit().putString(key, limited.joinToString(";")).apply()
+        }
+
+        private fun getHistoricalPois(): List<Triple<Double, Double, String>> {
+            val existing = prefs.getString("historical_pois", "") ?: ""
+            if (existing.isEmpty()) return emptyList()
+            
+            return existing.split(";").mapNotNull { entry ->
+                try {
+                    val parts = entry.split("|")
+                    if (parts.size == 3) {
+                        val lat = parts[1].toDouble()
+                        val lon = parts[2].toDouble()
+                        val defaultName = parts[0]
+                        
+                        // Check for user alias
+                        val aliasKey = String.format("alias_%.3f_%.3f", lat, lon)
+                        val name = prefs.getString(aliasKey, defaultName) ?: defaultName
+                        
+                        Triple(lat, lon, name)
+                    } else null
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+
         private fun cacheStations(
             stationsUrl: String,
             stations: List<String>,
@@ -1183,6 +1240,55 @@ class WeatherRepository
         }
 
         /**
+         * Fetches and caches NWS observation stations.
+         * Maintains the original ordering from the NWS API (typically distance-based).
+         */
+        private suspend fun getSortedObservationStations(stationsUrl: String): List<NwsApi.StationInfo> {
+            if (stationsUrl.isEmpty()) return emptyList()
+
+            // Try cache first
+            val key = "observation_stations_v2_${stationsUrl.hashCode()}"
+            val timeKey = "observation_stations_time_v2_${stationsUrl.hashCode()}"
+            
+            val cachedData = prefs.getString(key, null)
+            val cachedTime = prefs.getLong(timeKey, 0)
+            
+            if (cachedData != null && System.currentTimeMillis() - cachedTime < 24 * 60 * 60 * 1000) {
+                try {
+                    val stations = cachedData.split("|").map { 
+                        val parts = it.split(",")
+                        NwsApi.StationInfo(parts[0], parts[1], parts[2].toDouble(), parts[3].toDouble())
+                    }
+                    Log.d(TAG, "getSortedObservationStations: Using cached stations (${stations.size})")
+                    return stations
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing cached stations: ${e.message}")
+                }
+            }
+
+            // Fetch from API
+            val rawStations = try {
+                Log.d(TAG, "getSortedObservationStations: Fetching station list from API")
+                nwsApi.getObservationStations(stationsUrl)
+            } catch (e: Exception) {
+                Log.e(TAG, "getSortedObservationStations: Failed to fetch stations: ${e.message}")
+                emptyList()
+            }
+
+            if (rawStations.isEmpty()) return emptyList()
+
+            // Cache new data
+            val cacheStr = rawStations.joinToString("|") { "${it.id},${it.name},${it.lat},${it.lon}" }
+            prefs.edit()
+                .putString(key, cacheStr)
+                .putLong(timeKey, System.currentTimeMillis())
+                .apply()
+            
+            Log.d(TAG, "getSortedObservationStations: Using ${rawStations.size} stations in API order")
+            return rawStations
+        }
+
+        /**
          * Fetches actual high/low/condition observations for a single day from NWS
          * weather stations. Tries up to [MAX_OBSERVATION_STATION_RETRIES] nearby
          * stations, using a 24-hour cached station list to reduce API calls.
@@ -1194,24 +1300,19 @@ class WeatherRepository
             date: LocalDate,
         ): ObservationResult? {
             try {
-                // Try cached station list first
-                var stations = getCachedStations(stationsUrl)
-                if (stations == null || stations.isEmpty()) {
-                    Log.d(TAG, "fetchDayObservations: Fetching station list from API")
-                    stations = nwsApi.getObservationStations(stationsUrl)
-                    if (stations.isEmpty()) {
-                        Log.w(TAG, "fetchDayObservations: No observation stations found")
-                        return null
-                    }
-                    cacheStations(stationsUrl, stations)
-                } else {
-                    Log.d(TAG, "fetchDayObservations: Using cached stations (${stations.size} total)")
+                // Try prioritized station list
+                val stations = getSortedObservationStations(stationsUrl)
+                if (stations.isEmpty()) {
+                    Log.w(TAG, "fetchDayObservations: No observation stations found")
+                    return null
                 }
 
                 val stationsToTry = stations.take(MAX_OBSERVATION_STATION_RETRIES)
 
-                for ((index, stationId) in stationsToTry.withIndex()) {
+                for ((index, stationInfo) in stationsToTry.withIndex()) {
+                    val stationId = stationInfo.id
                     Log.d(TAG, "fetchDayObservations: Trying station $stationId (${index + 1}/${stationsToTry.size}) for $date")
+                    appLogDao.log("CURR_FETCH_STATION", "source=NWS station=$stationId (tried ${index + 1}) for $date")
 
                     try {
                         // Fetch observations for the specified day
@@ -1575,6 +1676,9 @@ class WeatherRepository
                         return Result.success(0)
                     }
 
+                    // Record this location in historical POIs (limit to 3 most recent unique locations)
+                    recordHistoricalPoi(lat, lon, locationName)
+
                     val targetSources =
                         (source?.let { listOf(it) } ?: widgetStateManager.getVisibleSourcesOrder())
                             .filter { it != WeatherSource.GENERIC_GAP }
@@ -1587,32 +1691,167 @@ class WeatherRepository
                     )
 
                     var updatedCount = 0
+                    
+                    data class POIResult<T>(
+                        val id: String,
+                        val label: String,
+                        val result: T?,
+                        val pLat: Double,
+                        val pLon: Double
+                    )
+
                     targetSources.forEach { weatherSource ->
                         try {
                             val reading =
                                 when (weatherSource) {
                                     WeatherSource.OPEN_METEO -> {
-                                        val current = openMeteoApi.getCurrent(lat, lon) ?: return@forEach
+                                        // Base Cardinal Points
+                                        val basePois = mutableListOf(
+                                            Triple(lat, lon, "Current"),
+                                            Triple(lat + 0.072, lon, "North (~5mi)"),
+                                            Triple(lat - 0.072, lon, "South (~5mi)"),
+                                            Triple(lat, lon + 0.09, "East (~5mi)"),
+                                            Triple(lat, lon - 0.09, "West (~5mi)")
+                                        )
+                                        
+                                        // Add Historical POIs (where the user has been recently)
+                                        val historical = getHistoricalPois()
+                                        historical.forEach { (hLat, hLon, hName) ->
+                                            if (calculateDistance(lat, lon, hLat, hLon) > 1000) {
+                                                basePois.add(Triple(hLat, hLon, "Recent: $hName"))
+                                            }
+                                        }
+
+                                        val pois = basePois.distinctBy { "${it.first},${it.second}" }
+
+                                        val results = coroutineScope {
+                                            pois.mapIndexed { index, (pLat, pLon, label) ->
+                                                async {
+                                                    try {
+                                                        val result = openMeteoApi.getCurrent(pLat, pLon)
+                                                        val stationId = if (label == "Current") "${weatherSource.id}_MAIN" 
+                                                                       else if (label.startsWith("Recent:")) "${weatherSource.id}_HIST_${index}"
+                                                                       else {
+                                                                           val direction = label.split(" ")[0].uppercase()
+                                                                           "${weatherSource.id}_$direction"
+                                                                       }
+                                                        
+                                                        if (result != null) {
+                                                            appLogDao.log("CURR_FETCH_POI", "source=${weatherSource.id} poi=$stationId success=true")
+                                                        }
+                                                        POIResult(stationId, label, result, pLat, pLon)
+                                                    } catch (e: Exception) {
+                                                        appLogDao.log("CURR_FETCH_POI", "source=${weatherSource.id} error=${e.message}", "WARN")
+                                                        POIResult("METEO_ERROR", label, null, pLat, pLon)
+                                                    }
+                                                }
+                                            }.map { it.await() }
+                                        }
+
+                                        val entities = results.mapNotNull { poiRes ->
+                                            val res = poiRes.result ?: return@mapNotNull null
+                                            val distanceKm = calculateDistance(lat, lon, poiRes.pLat, poiRes.pLon) / 1000f
+
+                                            WeatherObservationEntity(
+                                                stationId = poiRes.id,
+                                                stationName = "Meteo: ${poiRes.label}",
+                                                timestamp = res.observedAt ?: System.currentTimeMillis(),
+                                                temperature = res.temperature,
+                                                condition = res.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) } ?: "Unknown",
+                                                locationLat = lat,
+                                                locationLon = lon,
+                                                distanceKm = distanceKm,
+                                                stationType = "OFFICIAL"
+                                            )
+                                        }
+                                        if (entities.isNotEmpty()) {
+                                            weatherObservationDao.insertAll(entities)
+                                        }
+
+                                        val mainReading = results.firstOrNull { it.id == "${weatherSource.id}_MAIN" }?.result ?: return@forEach
                                         CurrentReadingPayload(
                                             source = weatherSource,
-                                            temperature = current.temperature,
-                                            condition = current.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) },
-                                            observedAt = current.observedAt,
+                                            temperature = mainReading.temperature,
+                                            condition = mainReading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) },
+                                            observedAt = mainReading.observedAt,
                                         )
                                     }
                                     WeatherSource.WEATHER_API -> {
-                                        val current = weatherApi.getCurrent(lat, lon) ?: return@forEach
+                                        // Base Cardinal Points
+                                        val basePois = mutableListOf(
+                                            Triple(lat, lon, "Current"),
+                                            Triple(lat + 0.072, lon, "North (~5mi)"),
+                                            Triple(lat - 0.072, lon, "South (~5mi)"),
+                                            Triple(lat, lon + 0.09, "East (~5mi)"),
+                                            Triple(lat, lon - 0.09, "West (~5mi)")
+                                        )
+                                        
+                                        // Add Historical POIs
+                                        val historical = getHistoricalPois()
+                                        historical.forEach { (hLat, hLon, hName) ->
+                                            if (calculateDistance(lat, lon, hLat, hLon) > 1000) {
+                                                basePois.add(Triple(hLat, hLon, "Recent: $hName"))
+                                            }
+                                        }
+
+                                        val pois = basePois.distinctBy { "${it.first},${it.second}" }
+
+                                        val results = coroutineScope {
+                                            pois.mapIndexed { index, (pLat, pLon, label) ->
+                                                async {
+                                                    try {
+                                                        val result = weatherApi.getCurrent(pLat, pLon)
+                                                        val stationId = if (label == "Current") "${weatherSource.id}_MAIN" 
+                                                                       else if (label.startsWith("Recent:")) "${weatherSource.id}_HIST_${index}"
+                                                                       else {
+                                                                           val direction = label.split(" ")[0].uppercase()
+                                                                           "${weatherSource.id}_$direction"
+                                                                       }
+                                                        
+                                                        if (result != null) {
+                                                            appLogDao.log("CURR_FETCH_POI", "source=${weatherSource.id} poi=$stationId success=true")
+                                                        }
+                                                        POIResult(stationId, label, result, pLat, pLon)
+                                                    } catch (e: Exception) {
+                                                        appLogDao.log("CURR_FETCH_POI", "source=${weatherSource.id} error=${e.message}", "WARN")
+                                                        POIResult("WAPI_ERROR", label, null, pLat, pLon)
+                                                    }
+                                                }
+                                            }.map { it.await() }
+                                        }
+
+                                        val entities = results.mapNotNull { poiRes ->
+                                            val res = poiRes.result ?: return@mapNotNull null
+                                            val distanceKm = calculateDistance(lat, lon, poiRes.pLat, poiRes.pLon) / 1000f
+
+                                            WeatherObservationEntity(
+                                                stationId = poiRes.id,
+                                                stationName = "WAPI: ${poiRes.label}",
+                                                timestamp = res.observedAt ?: System.currentTimeMillis(),
+                                                temperature = res.temperature,
+                                                condition = res.condition ?: "Unknown",
+                                                locationLat = lat,
+                                                locationLon = lon,
+                                                distanceKm = distanceKm,
+                                                stationType = "OFFICIAL"
+                                            )
+                                        }
+                                        if (entities.isNotEmpty()) {
+                                            weatherObservationDao.insertAll(entities)
+                                        }
+
+                                        val mainReading = results.firstOrNull { it.id == "${weatherSource.id}_MAIN" }?.result ?: return@forEach
                                         CurrentReadingPayload(
                                             source = weatherSource,
-                                            temperature = current.temperature,
-                                            condition = current.condition,
-                                            observedAt = current.observedAt,
+                                            temperature = mainReading.temperature,
+                                            condition = mainReading.condition,
+                                            observedAt = mainReading.observedAt,
                                         )
                                     }
                                     WeatherSource.NWS -> {
                                         val gridPoint = nwsApi.getGridPoint(lat, lon)
-                                        val stations = getCachedStations(gridPoint.observationStationsUrl ?: "")
-                                            ?: nwsApi.getObservationStations(gridPoint.observationStationsUrl ?: "")
+                                        val stationsUrl = gridPoint.observationStationsUrl ?: ""
+                                        val stations = getSortedObservationStations(stationsUrl)
                                         
                                         if (stations.isEmpty()) {
                                             appLogDao.log(
@@ -1623,28 +1862,70 @@ class WeatherRepository
                                             return@forEach
                                         }
 
-                                        var observation: NwsApi.Observation? = null
-                                        val maxRetries = minOf(stations.size, MAX_OBSERVATION_STATION_RETRIES)
-                                        for (i in 0 until maxRetries) {
-                                            observation = nwsApi.getLatestObservation(stations[i])
-                                            if (observation != null) break
+                                        val maxParallel = minOf(stations.size, MAX_OBSERVATION_STATION_RETRIES)
+                                        val stationsToFetch = stations.take(maxParallel)
+                                        
+                                        // Parallel fetch all target stations
+                                        val observations = coroutineScope {
+                                            stationsToFetch.mapIndexed { index, stationInfo ->
+                                                async {
+                                                    try {
+                                                        val result = nwsApi.getLatestObservationDetailed(stationInfo.id)
+                                                        if (result != null) {
+                                                            appLogDao.log("CURR_FETCH_STATION", "source=${weatherSource.id} station=${stationInfo.id} (tried ${index + 1}) success=true")
+                                                        } else {
+                                                            appLogDao.log("CURR_FETCH_STATION", "source=${weatherSource.id} station=${stationInfo.id} (tried ${index + 1}) success=false error=null", "WARN")
+                                                        }
+                                                        stationInfo to result
+                                                    } catch (e: Exception) {
+                                                        appLogDao.log("CURR_FETCH_STATION", "source=${weatherSource.id} station=${stationInfo.id} (tried ${index + 1}) success=false error=${e.message}", "WARN")
+                                                        stationInfo to null
+                                                    }
+                                                }
+                                            }.map { it.await() }
                                         }
 
-                                        if (observation == null) {
+                                        // Store all successful observations for discrepancy analysis
+                                        val observationEntities = observations.mapNotNull { (stationInfo, obs) ->
+                                            if (obs == null) return@mapNotNull null
+                                            
+                                            val distanceKm = calculateDistance(lat, lon, stationInfo.lat, stationInfo.lon) / 1000f
+
+                                            WeatherObservationEntity(
+                                                stationId = stationInfo.id,
+                                                stationName = obs.stationName,
+                                                timestamp = OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
+                                                temperature = (obs.temperatureCelsius * 1.8f) + 32f,
+                                                condition = obs.textDescription,
+                                                locationLat = lat,
+                                                locationLon = lon,
+                                                distanceKm = distanceKm,
+                                                stationType = stationInfo.type.name
+                                            )
+                                        }
+                                        if (observationEntities.isNotEmpty()) {
+                                            weatherObservationDao.insertAll(observationEntities)
+                                        }
+
+                                        // Pick the "best" observation for the main widget display.
+                                        // Since 'stations' is already sorted by priority (Official > Distance),
+                                        // we just take the first successful one.
+                                        val bestObservation = observationEntities.firstOrNull()
+
+                                        if (bestObservation == null) {
                                             appLogDao.log(
                                                 "CURR_FETCH_SKIP",
-                                                "reason=$reason source=${weatherSource.id} null_observation tried=$maxRetries stations",
+                                                "reason=$reason source=${weatherSource.id} null_observation tried=$maxParallel stations",
                                                 "WARN",
                                             )
                                             return@forEach
                                         }
 
-                                        val tempF = (observation.temperatureCelsius * 1.8f) + 32f
                                         CurrentReadingPayload(
                                             source = weatherSource,
-                                            temperature = tempF,
-                                            condition = observation.textDescription,
-                                            observedAt = OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
+                                            temperature = bestObservation.temperature,
+                                            condition = bestObservation.condition,
+                                            observedAt = bestObservation.timestamp,
                                         )
                                     }
                                     WeatherSource.GENERIC_GAP -> return@forEach
@@ -1749,6 +2030,7 @@ class WeatherRepository
                 // Maintain logs for 3 days (72 hours) to optimize space while keeping recent forensics
                 val logCutoff = now - (3L * 24 * 60 * 60 * 1000)
                 appLogDao.deleteOldLogs(logCutoff)
+                weatherObservationDao.deleteOldObservations(logCutoff)
 
                 if (oldWeather > 0) {
                     val cutoffDate = Instant.ofEpochMilli(cutoffStandard).atZone(ZoneId.systemDefault()).toLocalDate()

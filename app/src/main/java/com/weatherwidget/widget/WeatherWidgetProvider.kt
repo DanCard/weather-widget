@@ -191,7 +191,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
+            ACTION_SHOW_OBSERVATIONS -> handleShowObservationsAction(context)
         }
+    }
+
+    private fun handleShowObservationsAction(context: Context) {
+        val intent = Intent(context, com.weatherwidget.ui.WeatherObservationsActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
     }
 
     private fun handleDayClickAction(
@@ -559,6 +567,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
         const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
         const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
+        const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"

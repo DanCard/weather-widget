@@ -561,7 +561,7 @@ echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
 # Show per-class pass summary (compact replacement for per-test PASSED spam)
-if [ -f "$TEST_RESULTS_LOG" ]; then
+if [ -f "$TEST_RESULTS_LOG" ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
     HAS_INFO_EXECUTE=false
     if grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)" "$TEST_RESULTS_LOG" 2>/dev/null; then
         HAS_INFO_EXECUTE=true

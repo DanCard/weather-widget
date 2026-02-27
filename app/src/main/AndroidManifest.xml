@@ -51,6 +51,11 @@
             android:exported="false"
             android:label="@string/forecast_history" />
 
+        <activity
+            android:name=".ui.WeatherObservationsActivity"
+            android:exported="false"
+            android:label="Current Observations" />
+
         <receiver
             android:name=".widget.WeatherWidgetProvider"
             android:exported="true">

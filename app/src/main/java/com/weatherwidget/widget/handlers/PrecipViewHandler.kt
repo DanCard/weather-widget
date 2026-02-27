@@ -40,6 +40,7 @@ object PrecipViewHandler {
     private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
     private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
+    private const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
 
     /**
@@ -134,6 +135,9 @@ object PrecipViewHandler {
 
         // Setup History shortcut
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
+
+        // Setup Current Stations shortcut
+        setupCurrentStationsShortcut(context, views, appWidgetId)
         
         // Hide temp delta badge in precip mode
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
@@ -406,6 +410,28 @@ object PrecipViewHandler {
         views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
         views.setViewVisibility(R.id.history_icon, View.VISIBLE)
         views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
+    }
+
+    private fun setupCurrentStationsShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val obsIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = ACTION_SHOW_OBSERVATIONS
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            appWidgetId * 100 + 800,
+            obsIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.current_stations_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.current_stations_touch_zone, pendingIntent)
+        views.setViewVisibility(R.id.current_stations_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.current_stations_touch_zone, View.VISIBLE)
     }
 
     private fun setupSettingsShortcut(
