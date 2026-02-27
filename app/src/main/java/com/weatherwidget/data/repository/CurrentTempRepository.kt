@@ -143,11 +143,11 @@ class CurrentTempRepository
         }
 
         private suspend fun getSortedObservationStations(url: String): List<NwsApi.StationInfo> {
-            if (url.isEmpty()) return emptyList(); val key = "observation_stations_v2_${url.hashCode()}"; val tKey = "observation_stations_time_v2_${url.hashCode()}"
+            if (url.isEmpty()) return emptyList(); val key = "observation_stations_v3_${url.hashCode()}"; val tKey = "observation_stations_time_v3_${url.hashCode()}"
             val cached = prefs.getString(key, null); val t = prefs.getLong(tKey, 0)
-            if (cached != null && System.currentTimeMillis() - t < 86400000) return cached.split("|").map { val p = it.split(","); NwsApi.StationInfo(p[0], p[1], p[2].toDouble(), p[3].toDouble()) }
+            if (cached != null && System.currentTimeMillis() - t < 86400000) return cached.split("|").map { val p = it.split("\t"); NwsApi.StationInfo(p[0], p[1], p[2].toDouble(), p[3].toDouble()) }
             val ss = runCatching { nwsApi.getObservationStations(url) }.getOrDefault(emptyList())
-            if (ss.isNotEmpty()) prefs.edit().putString(key, ss.joinToString("|") { "${it.id},${it.name},${it.lat},${it.lon}" }).putLong(tKey, System.currentTimeMillis()).apply()
+            if (ss.isNotEmpty()) prefs.edit().putString(key, ss.joinToString("|") { "${it.id}\t${it.name}\t${it.lat}\t${it.lon}" }).putLong(tKey, System.currentTimeMillis()).apply()
             return ss
         }
 
