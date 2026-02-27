@@ -658,24 +658,14 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
         val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val isCharging = batteryManager.isCharging
-        val intervalMinutes = BatteryFetchStrategy.computeFetchInterval(isCharging, batteryLevel)
-
-        if (intervalMinutes == null) {
-            nextUpdateView.text = getString(R.string.freshness_next_update_paused)
-        } else {
-            val suffix = if (isCharging) "(charging)" else "(battery $batteryLevel%)"
-            if (lastFullFetchMs > 0L) {
-                val nextFetchMs = lastFullFetchMs + intervalMinutes * 60 * 1000L
-                val remainingMs = nextFetchMs - nowMs
-                if (remainingMs <= 0) {
-                    nextUpdateView.text = getString(R.string.freshness_next_update, "soon $suffix")
-                } else {
-                    nextUpdateView.text = getString(R.string.freshness_next_update, "${formatRelativeTime(remainingMs)} $suffix")
-                }
-            } else {
-                nextUpdateView.text = getString(R.string.freshness_next_update, "${intervalMinutes}min $suffix")
-            }
+        // Refresh policy for current battery state
+        val policyText = when {
+            isCharging -> getString(R.string.refresh_policy_charging)
+            batteryLevel > 70 -> getString(R.string.refresh_policy_battery_high, batteryLevel)
+            batteryLevel > 50 -> getString(R.string.refresh_policy_battery_mid, batteryLevel)
+            else -> getString(R.string.refresh_policy_battery_low, batteryLevel)
         }
+        nextUpdateView.text = policyText
 
         // Refresh button
         refreshButton.setOnClickListener {

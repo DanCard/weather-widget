@@ -36,8 +36,10 @@
     <string name="data_freshness_unknown">Data freshness: Unknown</string>
     <string name="data_freshness_format">Last updated: %1$s</string>
     <string name="freshness_last_updated">Last updated: %1$s ago</string>
-    <string name="freshness_next_update">Next update: ~%1$s</string>
-    <string name="freshness_next_update_paused">Updates paused (battery ≤ 50%%)</string>
+    <string name="refresh_policy_charging">Refresh Policy: Every 30m (charging)</string>
+    <string name="refresh_policy_battery_high">Refresh Policy: Every 4h (battery %1$d%%)</string>
+    <string name="refresh_policy_battery_mid">Refresh Policy: Every 8h (battery %1$d%%)</string>
+    <string name="refresh_policy_battery_low">Refresh Policy: Paused (battery %1$d%%)</string>
     <string name="freshness_just_now">just now</string>
     <string name="forecast_history">History of Forecasts for </string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>
