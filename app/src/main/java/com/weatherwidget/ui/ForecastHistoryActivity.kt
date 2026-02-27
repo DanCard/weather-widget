@@ -31,13 +31,16 @@ import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.DayClickHelper
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
+import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
+import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.weatherwidget.data.repository.FetchMetadata
 
 @AndroidEntryPoint
 class ForecastHistoryActivity : AppCompatActivity() {
@@ -301,6 +304,15 @@ class ForecastHistoryActivity : AppCompatActivity() {
             snapshotSummaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
             snapshotSummaryView.setTextColor(resources.getColor(R.color.widget_text_secondary, theme))
             snapshotSummaryView.setTypeface(snapshotSummaryView.typeface, android.graphics.Typeface.NORMAL)
+        }
+
+        val freshnessView = findViewById<TextView>(R.id.data_freshness_text)
+        val lastFetchMs = FetchMetadata.getLastSuccessfulCheckTimeMs(this)
+        if (lastFetchMs > 0L) {
+            val formatter = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+            freshnessView.text = getString(R.string.data_freshness_format, formatter.format(Date(lastFetchMs)))
+        } else {
+            freshnessView.text = getString(R.string.data_freshness_unknown)
         }
 
         val nwsLegend = findViewById<View>(R.id.legend_nws_group)
