@@ -12,17 +12,11 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 
 import dagger.hilt.android.AndroidEntryPoint
 
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
 
 import javax.inject.Inject
@@ -42,25 +36,6 @@ class SettingsActivity : AppCompatActivity() {
     private fun setupViews() {
         // API Sources ordered checkable list
         setupApiSourcesList()
-
-        // Manual refresh
-        val refreshNowButton = findViewById<Button>(R.id.refresh_now_button)
-        refreshNowButton.setOnClickListener {
-            val workRequest =
-                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                    .setInputData(
-                        Data.Builder()
-                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
-                            .build(),
-                    )
-                    .build()
-            WorkManager.getInstance(this).enqueueUniqueWork(
-                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-                ExistingWorkPolicy.REPLACE,
-                workRequest,
-            )
-            Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
-        }
 
         // Feature Tour button
         val featureTourButton = findViewById<Button>(R.id.view_feature_tour_button)
