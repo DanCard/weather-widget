@@ -9,6 +9,8 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.WeatherObservationDao
+import com.weatherwidget.data.repository.CurrentTempRepository
+import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
@@ -84,6 +86,41 @@ object AppModule {
     @Provides
     @Singleton
     fun provideCurrentTempDao(database: WeatherDatabase): CurrentTempDao = database.currentTempDao()
+
+    @Provides
+    @Singleton
+    fun provideForecastRepository(
+        @ApplicationContext context: Context,
+        weatherDao: WeatherDao,
+        forecastSnapshotDao: ForecastSnapshotDao,
+        hourlyForecastDao: HourlyForecastDao,
+        appLogDao: AppLogDao,
+        nwsApi: NwsApi,
+        openMeteoApi: OpenMeteoApi,
+        weatherApi: WeatherApi,
+        widgetStateManager: WidgetStateManager,
+        climateNormalDao: ClimateNormalDao,
+    ): ForecastRepository = ForecastRepository(
+        context, weatherDao, forecastSnapshotDao, hourlyForecastDao, appLogDao,
+        nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
+    )
+
+    @Provides
+    @Singleton
+    fun provideCurrentTempRepository(
+        @ApplicationContext context: Context,
+        currentTempDao: CurrentTempDao,
+        weatherObservationDao: WeatherObservationDao,
+        hourlyForecastDao: HourlyForecastDao,
+        appLogDao: AppLogDao,
+        nwsApi: NwsApi,
+        openMeteoApi: OpenMeteoApi,
+        weatherApi: WeatherApi,
+        widgetStateManager: WidgetStateManager,
+    ): CurrentTempRepository = CurrentTempRepository(
+        context, currentTempDao, weatherObservationDao, hourlyForecastDao, appLogDao,
+        nwsApi, openMeteoApi, weatherApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator()
+    )
 
     @Provides
     @Singleton

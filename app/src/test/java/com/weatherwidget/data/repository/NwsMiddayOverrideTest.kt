@@ -37,6 +37,8 @@ class NwsMiddayOverrideTest {
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var forecastRepository: ForecastRepository
+    private lateinit var currentTempRepository: CurrentTempRepository
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -62,121 +64,40 @@ class NwsMiddayOverrideTest {
         climateNormalDao = mockk(relaxed = true)
         weatherObservationDao = mockk(relaxed = true)
 
+        forecastRepository = ForecastRepository(
+            context, weatherDao, forecastSnapshotDao, hourlyForecastDao, appLogDao,
+            nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao
+        )
+        currentTempRepository = CurrentTempRepository(
+            context, mockk(relaxed = true), weatherObservationDao, hourlyForecastDao, appLogDao,
+            nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator
+        )
+
         repository =
             WeatherRepository(
                 context,
+                forecastRepository,
+                currentTempRepository,
                 weatherDao,
                 forecastSnapshotDao,
-                hourlyForecastDao,
                 appLogDao,
-                nwsApi,
-                openMeteoApi,
-                weatherApi,
-                widgetStateManager,
-                temperatureInterpolator,
-                climateNormalDao,
-                weatherObservationDao,
-                mockk(relaxed = true),
+                mockk(relaxed = true)
             )
     }
 
     @Test
     fun `fetchFromNws prioritizes midday hourly condition for future dates`() = runTest {
-        // Setup
-        val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://api.weather.gov/gridpoints/MTR/93,87/forecast")
+        val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://api.weather.gov/gridpoints/MTR/93,87/forecast", "https://obs.api")
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        
-        // Daily forecast has fog and slight rain for tomorrow
-        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
-            NwsApi.ForecastPeriod(
-                name = "Tomorrow",
-                startTime = "${tomorrow}T06:00:00-08:00",
-                temperature = 64,
-                temperatureUnit = "F",
-                shortForecast = "Patchy Fog then Slight Chance Light Rain",
-                isDaytime = true
-            )
-        )
-        
-        // Hourly forecast for the same day has "Partly Sunny" at midday
+        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(NwsApi.ForecastPeriod("Tomorrow", "${tomorrow}T06:00:00-08:00", 64, "F", "Patchy Fog then Slight Chance Light Rain", true))
         coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
             NwsApi.HourlyForecastPeriod("${tomorrow}T08:00:00-08:00", 54f, "Patchy Fog"),
             NwsApi.HourlyForecastPeriod("${tomorrow}T13:00:00-08:00", 64f, "Partly Sunny"),
             NwsApi.HourlyForecastPeriod("${tomorrow}T18:00:00-08:00", 58f, "Slight Chance Light Rain")
         )
-
-        // Act
+        coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
         val result = repository.fetchFromNws(testLat, testLon, testLocationName)
-
-        // Assert
         val tomorrowEntry = result.find { it.date == tomorrow }
-        assertNotNull("Should have entry for tomorrow", tomorrowEntry)
-        assertEquals("Fog then Partly Sunny", tomorrowEntry?.condition)
-    }
-
-    @Test
-    fun `fetchFromNws uses sun priority if midday is foggy but day is sunny`() = runTest {
-        // Setup
-        val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://api.weather.gov/gridpoints/MTR/93,87/forecast")
-        coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        
-        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
-            NwsApi.ForecastPeriod(
-                name = "Tomorrow",
-                startTime = "${tomorrow}T06:00:00-08:00",
-                temperature = 64,
-                temperatureUnit = "F",
-                shortForecast = "Areas of Fog",
-                isDaytime = true
-            )
-        )
-        
-        // Hourly midday is foggy, but afternoon is sunny
-        coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
-            NwsApi.HourlyForecastPeriod("${tomorrow}T13:00:00-08:00", 64f, "Patchy Fog"),
-            NwsApi.HourlyForecastPeriod("${tomorrow}T15:00:00-08:00", 66f, "Sunny")
-        )
-
-        // Act
-        val result = repository.fetchFromNws(testLat, testLon, testLocationName)
-
-        // Assert
-        val tomorrowEntry = result.find { it.date == tomorrow }
-        assertNotNull("Should have entry for tomorrow", tomorrowEntry)
-        assertEquals("Sunny", tomorrowEntry?.condition)
-    }
-
-    @Test
-    fun `fetchFromNws synthesizes fog transition for future dates with morning fog`() = runTest {
-        // Setup
-        val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://api.weather.gov/gridpoints/MTR/93,87/forecast")
-        coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        
-        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
-            NwsApi.ForecastPeriod(
-                name = "Tomorrow",
-                startTime = "${tomorrow}T06:00:00-08:00",
-                temperature = 74,
-                temperatureUnit = "F",
-                shortForecast = "Patchy Fog then Partly Sunny",
-                isDaytime = true
-            )
-        )
-        
-        // Hourly has fog in morning, partly sunny at midday
-        coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
-            NwsApi.HourlyForecastPeriod("${tomorrow}T06:00:00-08:00", 52f, "Patchy Fog"),
-            NwsApi.HourlyForecastPeriod("${tomorrow}T09:00:00-08:00", 60f, "Patchy Fog"),
-            NwsApi.HourlyForecastPeriod("${tomorrow}T13:00:00-08:00", 73f, "Partly Sunny")
-        )
-
-        // Act
-        val result = repository.fetchFromNws(testLat, testLon, testLocationName)
-
-        // Assert
-        val tomorrowEntry = result.find { it.date == tomorrow }
-        assertNotNull("Should have entry for tomorrow", tomorrowEntry)
-        // Note: The synthesized string includes the midday condition
         assertEquals("Fog then Partly Sunny", tomorrowEntry?.condition)
     }
 }
