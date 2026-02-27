@@ -697,14 +697,33 @@ class ForecastHistoryActivity : AppCompatActivity() {
                             .build(),
                     )
                     .build()
-            WorkManager.getInstance(this).enqueueUniqueWork(
+            
+            val workManager = WorkManager.getInstance(this)
+            workManager.enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_ONE_TIME,
                 ExistingWorkPolicy.REPLACE,
                 workRequest,
             )
+            
             Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
             refreshButton.isEnabled = false
-            refreshButton.postDelayed({ refreshButton.isEnabled = true }, 5000)
+            
+            // Observe the work to reload data when it finishes
+            workManager.getWorkInfoByIdLiveData(workRequest.id).observe(this) { workInfo ->
+                if (workInfo != null && workInfo.state.isFinished) {
+                    refreshButton.isEnabled = true
+                    if (workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) {
+                        loadData(
+                            targetDate = targetDate,
+                            lat = targetLat,
+                            lon = targetLon,
+                            date = targetLocalDate,
+                            requestedSource = cachedRequestedSource,
+                        )
+                        loadAccuracySummary(targetLat, targetLon)
+                    }
+                }
+            }
         }
     }
 

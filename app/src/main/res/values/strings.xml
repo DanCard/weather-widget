@@ -12,8 +12,8 @@
     <string name="settings">Settings</string>
     <string name="app_logs">App Logs</string>
     <string name="back">Back</string>
-    <string name="refresh_now">Refresh From APIs Now</string>
-    <string name="refresh_now_enqueued_toast">Refresh queued</string>
+    <string name="refresh_now">Refresh forecast data</string>
+    <string name="refresh_now_enqueued_toast">Forecast refresh queued</string>
     <string name="nav_previous">Previous days</string>
     <string name="nav_next">Next days</string>
     <string name="weather_icon_desc">Weather condition icon</string>
