@@ -178,13 +178,17 @@ class WeatherRepositoryTest {
     @Test
     fun `getWeatherData returns cached data when not forcing refresh`() =
         runTest {
-            val cachedData = listOf(createWeatherEntity(today, 70, 50).copy(fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000)) // 15 mins old
+            val cachedData = listOf(
+                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.NWS.id, fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000),
+                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.OPEN_METEO.id, fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000),
+                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000)
+            )
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns cachedData
 
             val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
 
             assertTrue(result.isSuccess)
-            assertEquals(1, result.getOrNull()?.size)
+            assertEquals(3, result.getOrNull()?.size)
             coVerify(exactly = 0) { nwsApi.getGridPoint(any(), any()) }
             coVerify(exactly = 0) { openMeteoApi.getForecast(any(), any(), any()) }
         }

@@ -122,7 +122,6 @@ class WeatherRepository
 
         companion object {
             private const val MONTH_IN_MILLIS = 30L * 24 * 60 * 60 * 1000
-            private const val FORECAST_FRESHNESS_MS = 30 * 60 * 1000L // 30 minutes (matches UI)
             private const val HOURLY_FRESHNESS_MS = 30 * 60 * 1000L // 30 minutes
             private const val CURRENT_TEMP_FRESHNESS_MS = 5 * 60 * 1000L // 5 minutes
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes minimum between network attempts
@@ -166,13 +165,33 @@ class WeatherRepository
                 val now = System.currentTimeMillis()
                 val cached = getCachedData(lat, lon)
 
-                // If not forced, check if cached data is fresh (within 2 hours)
-                if (!forceRefresh && cached.isNotEmpty()) {
-                    val latestFetch = cached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
-                    if ((now - latestFetch) < FORECAST_FRESHNESS_MS) {
-                        Log.d(TAG, "getWeatherData: Returning fresh cached data (${(now - latestFetch) / 1000}s old)")
-                        return Result.success(cached)
+                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+                fun getFreshnessThreshold(source: WeatherSource): Long {
+                    val index = visibleSources.indexOf(source)
+                    return when (index) {
+                        0 -> 60 * 60 * 1000L // 1st preference: 1 hour
+                        1 -> 90 * 60 * 1000L // 2nd preference: 90 mins
+                        else -> 120 * 60 * 1000L // 3rd preference or hidden: 2 hours
                     }
+                }
+
+                fun isSourceStale(source: WeatherSource, cache: List<WeatherEntity>): Boolean {
+                    val latestFetch = cache.filter { it.source == source.id }.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
+                    return (System.currentTimeMillis() - latestFetch) >= getFreshnessThreshold(source)
+                }
+
+                fun requiresNetworkFetch(cache: List<WeatherEntity>): Boolean {
+                    if (cache.isEmpty()) return true
+                    val nws = shouldFetchSource(WeatherSource.NWS) && isSourceStale(WeatherSource.NWS, cache)
+                    val meteo = shouldFetchSource(WeatherSource.OPEN_METEO) && isSourceStale(WeatherSource.OPEN_METEO, cache)
+                    val wapi = shouldFetchSource(WeatherSource.WEATHER_API) && isSourceStale(WeatherSource.WEATHER_API, cache)
+                    return nws || meteo || wapi
+                }
+
+                // If not forced, check if all required cached data is fresh
+                if (!forceRefresh && !requiresNetworkFetch(cached)) {
+                    Log.d(TAG, "getWeatherData: Returning fresh cached data")
+                    return Result.success(cached)
                 }
 
                 // If network is explicitly disallowed, return cache regardless of staleness
@@ -185,12 +204,9 @@ class WeatherRepository
                 syncMutex.withLock {
                     // Re-check cache after acquiring lock - another thread might have just finished the fetch
                     val freshCached = getCachedData(lat, lon)
-                    if (!forceRefresh && freshCached.isNotEmpty()) {
-                        val latestFetch = freshCached.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
-                        if ((System.currentTimeMillis() - latestFetch) < FORECAST_FRESHNESS_MS) {
-                            Log.d(TAG, "getWeatherData: Found fresh data after acquiring lock, skipping fetch")
-                            return Result.success(freshCached)
-                        }
+                    if (!forceRefresh && !requiresNetworkFetch(freshCached)) {
+                        Log.d(TAG, "getWeatherData: Found fresh data after acquiring lock, skipping fetch")
+                        return Result.success(freshCached)
                     }
 
                     // Global rate limit for network fetches (even if forced, unless it's a very long time)
@@ -204,7 +220,12 @@ class WeatherRepository
 
                     appLogDao.log("NET_FETCH_START", "Forcing fetch: force=$forceRefresh")
                     val fetchStart = System.currentTimeMillis()
-                    val (nwsWeather, meteoWeather, weatherApiWeather) = fetchFromAllApis(lat, lon, locationName)
+                    
+                    val fetchNws = forceRefresh || (shouldFetchSource(WeatherSource.NWS) && isSourceStale(WeatherSource.NWS, freshCached))
+                    val fetchMeteo = forceRefresh || (shouldFetchSource(WeatherSource.OPEN_METEO) && isSourceStale(WeatherSource.OPEN_METEO, freshCached))
+                    val fetchWapi = forceRefresh || (shouldFetchSource(WeatherSource.WEATHER_API) && isSourceStale(WeatherSource.WEATHER_API, freshCached))
+
+                    val (nwsWeather, meteoWeather, weatherApiWeather) = fetchFromAllApis(lat, lon, locationName, fetchNws, fetchMeteo, fetchWapi)
                     val fetchDuration = System.currentTimeMillis() - fetchStart
                     appLogDao.log(
                         "NET_FETCH_DONE",
@@ -534,12 +555,11 @@ class WeatherRepository
             lat: Double,
             lon: Double,
             locationName: String,
+            fetchNws: Boolean,
+            fetchMeteo: Boolean,
+            fetchWapi: Boolean,
         ): Triple<List<WeatherEntity>?, List<WeatherEntity>?, List<WeatherEntity>?> =
             coroutineScope {
-                val fetchNws = shouldFetchSource(WeatherSource.NWS)
-                val fetchMeteo = shouldFetchSource(WeatherSource.OPEN_METEO)
-                val fetchWapi = shouldFetchSource(WeatherSource.WEATHER_API)
-
                 val nwsDeferred = if (fetchNws) async {
                     try {
                         val startTime = System.currentTimeMillis()
