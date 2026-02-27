@@ -158,19 +158,23 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     if (pois.isNotEmpty()) {
                         pois
                     } else {
+                        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
                         val latest = database.weatherDao().getLatestWeatherBySource(currentSource.id)
-                        if (latest != null && latest.currentTemp != null) {
+                        val currentTemp = if (latest != null) {
+                            database.currentTempDao().getCurrentTemp(todayStr, currentSource.id, latest.locationLat, latest.locationLon)
+                        } else null
+                        if (latest != null && currentTemp != null) {
                             listOf(WeatherObservationEntity(
                                 stationId = latest.stationId ?: currentSource.shortDisplayName,
                                 stationName = latest.locationName,
-                                timestamp = latest.currentTempObservedAt ?: latest.fetchedAt,
-                                temperature = latest.currentTemp,
-                                condition = latest.condition,
+                                timestamp = currentTemp.observedAt,
+                                temperature = currentTemp.temperature,
+                                condition = currentTemp.condition ?: latest.condition,
                                 locationLat = latest.locationLat,
                                 locationLon = latest.locationLon,
                                 distanceKm = 0f,
                                 stationType = "OFFICIAL",
-                                fetchedAt = latest.fetchedAt
+                                fetchedAt = currentTemp.fetchedAt
                             ))
                         } else {
                             emptyList()

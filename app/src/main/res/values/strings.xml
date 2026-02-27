@@ -35,6 +35,10 @@
     <string name="error_loading_accuracy_summary">Unable to load forecast accuracy right now.</string>
     <string name="data_freshness_unknown">Data freshness: Unknown</string>
     <string name="data_freshness_format">Last updated: %1$s</string>
+    <string name="freshness_last_updated">Last updated: %1$s ago</string>
+    <string name="freshness_next_update">Next update: ~%1$s</string>
+    <string name="freshness_next_update_paused">Updates paused (battery ≤ 50%%)</string>
+    <string name="freshness_just_now">just now</string>
     <string name="forecast_history">History of Forecasts for </string>
     <string name="forecast_mode_evolution">Mode: Evolution</string>
     <string name="forecast_mode_error">Mode: Error</string>

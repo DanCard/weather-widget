@@ -20,7 +20,6 @@ class DailyActualsEstimatorTest {
         locationName = "Test",
         highTemp = 65f,
         lowTemp = 45f,
-        currentTemp = 60f,
         condition = "Cloudy",
         isActual = false,
         source = "OPEN_METEO",

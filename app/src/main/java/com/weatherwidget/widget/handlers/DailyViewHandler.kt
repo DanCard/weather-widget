@@ -13,6 +13,7 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
+import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
@@ -26,6 +27,7 @@ import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.DailyForecastGraphRenderer
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -90,6 +92,7 @@ object DailyViewHandler : WidgetViewHandler {
         weatherList: List<WeatherEntity>,
         forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
+        currentTemps: List<CurrentTempEntity>,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -142,23 +145,15 @@ object DailyViewHandler : WidgetViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
-        val observedCurrentWeather =
-            weatherList
-                .filter {
-                    it.date == todayStr &&
-                        it.currentTemp != null &&
-                        it.currentTemp != 0f &&
-                        (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
-                }
-                .maxByOrNull { it.currentTempObservedAt ?: it.fetchedAt }
+        val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
 
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
-                observedCurrentTemp = observedCurrentWeather?.currentTemp,
-                observedCurrentTempFetchedAt = observedCurrentWeather?.currentTempObservedAt ?: observedCurrentWeather?.fetchedAt,
+                observedCurrentTemp = observedCurrentTemp?.temperature,
+                observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId),
                 currentLat = lat,
                 currentLon = lon,

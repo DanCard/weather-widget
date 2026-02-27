@@ -76,6 +76,7 @@ class WeatherGapTest {
                 temperatureInterpolator,
                 climateNormalDao,
                 weatherObservationDao,
+                mockk(relaxed = true),
             )
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
@@ -157,7 +158,6 @@ class WeatherGapTest {
         locationName = testLocationName,
         highTemp = high.toFloat(),
         lowTemp = low.toFloat(),
-        currentTemp = null,
         condition = if (isClimateNormal) "Climate Avg" else "Sunny",
         isActual = false,
         source = source,

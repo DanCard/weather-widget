@@ -30,6 +30,7 @@ class WeatherRepositoryNwsParallelTest {
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var currentTempDao: CurrentTempDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -52,12 +53,13 @@ class WeatherRepositoryNwsParallelTest {
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         weatherObservationDao = mockk(relaxed = true)
+        currentTempDao = mockk(relaxed = true)
 
         repository = WeatherRepository(
             context, weatherDao, forecastSnapshotDao, hourlyForecastDao,
             appLogDao, nwsApi, openMeteoApi, weatherApi,
             widgetStateManager, temperatureInterpolator, climateNormalDao,
-            weatherObservationDao
+            weatherObservationDao, currentTempDao
         )
 
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
@@ -85,17 +87,17 @@ class WeatherRepositoryNwsParallelTest {
         coEvery { nwsApi.getLatestObservationDetailed("KNUQ") } returns NwsApi.Observation(now, 18.89f, "Clear", "Moffett Field")
 
         // Mock existing row
-        val existing = WeatherEntity("2026-02-26", testLat, testLon, "Test", 70f, 50f, 60f, "Clear", true, false, "NWS", null, null, 0L)
+        val existing = WeatherEntity("2026-02-26", testLat, testLon, "Test", 70f, 50f, "Clear", true, false, "NWS", null, null, 0L)
         coEvery { weatherDao.getWeatherForDateBySource(any(), testLat, testLon, "NWS") } returns existing
 
         // Act
         repository.refreshCurrentTemperature(testLat, testLon, "Test", source = WeatherSource.NWS, force = true)
 
-        // Assert: 
+        // Assert:
         // 1. AW020 (Personal) SHOULD be used for main currentTemp because it's first in NWS's list.
         //    73F = 22.78C * 1.8 + 32.
         coVerify {
-            weatherDao.insertWeather(match { it.currentTemp != null && it.currentTemp!! > 72f })
+            currentTempDao.insert(match { it.temperature > 72f })
         }
         
         // 2. Both observations should still be saved for discrepancy analysis

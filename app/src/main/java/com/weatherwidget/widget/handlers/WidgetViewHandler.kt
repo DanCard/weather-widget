@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastSnapshotEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherEntity
@@ -21,6 +22,7 @@ interface WidgetViewHandler {
      * @param weatherList List of weather entities
      * @param forecastSnapshots Map of forecast snapshots by date
      * @param hourlyForecasts List of hourly forecasts
+     * @param currentTemps Current temperature observations from separate table
      */
     suspend fun updateWidget(
         context: Context,
@@ -29,6 +31,7 @@ interface WidgetViewHandler {
         weatherList: List<WeatherEntity>,
         forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
+        currentTemps: List<CurrentTempEntity> = emptyList(),
     )
 
     /**

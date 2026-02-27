@@ -58,6 +58,7 @@ class WeatherRepositoryMergeTest {
             TemperatureInterpolator(),
             db.climateNormalDao(),
             db.weatherObservationDao(),
+            mockk(relaxed = true),
         )
     }
 

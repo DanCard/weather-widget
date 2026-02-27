@@ -113,10 +113,9 @@ class WeatherDaoTest {
 
     @Test
     fun `nullable temperatures are stored and retrieved correctly`() = runTest {
-        dao.insertWeather(TestData.weather(highTemp = null, lowTemp = null, currentTemp = null))
+        dao.insertWeather(TestData.weather(highTemp = null, lowTemp = null))
         val result = dao.getWeatherForDate("2026-02-20", LAT, LON)
         assertNull(result!!.highTemp)
         assertNull(result.lowTemp)
-        assertNull(result.currentTemp)
     }
 }

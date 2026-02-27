@@ -76,6 +76,7 @@ class NwsMiddayOverrideTest {
                 temperatureInterpolator,
                 climateNormalDao,
                 weatherObservationDao,
+                mockk(relaxed = true),
             )
     }
 

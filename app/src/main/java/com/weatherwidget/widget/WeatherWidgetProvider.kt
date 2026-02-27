@@ -99,6 +99,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             latestWeather.locationLon,
                         )
 
+                    val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val currentTemps = database.currentTempDao().getCurrentTemps(
+                        todayStr,
+                        latestWeather.locationLat,
+                        latestWeather.locationLon,
+                    )
+
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetWithData(
                             context = context,
@@ -107,6 +114,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             weatherList = weatherList,
                             forecastSnapshots = forecastSnapshots,
                             hourlyForecasts = hourlyForecasts,
+                            currentTemps = currentTemps,
                         )
                     }
 
@@ -616,6 +624,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             weatherList: List<WeatherEntity>,
             forecastSnapshots: Map<String, List<ForecastSnapshotEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
+            currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
         ) {
             val stateManager = WidgetStateManager(context)
             val viewMode = stateManager.getViewMode(appWidgetId)
@@ -631,8 +640,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == targetDateStr && it.source == displaySource.id }
                             ?.precipProbability
-                    val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+                    val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     TemperatureViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -640,8 +648,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
                         precipProbability = targetPrecip,
-                        observedCurrentTemp = observedCurrentTemp?.temperature,
-                        observedCurrentTempFetchedAt = com.weatherwidget.data.repository.FetchMetadata.getLastSuccessfulCheckTimeMs(context),
+                        observedCurrentTemp = observation?.temperature,
+                        observedCurrentTempFetchedAt = observation?.observedAt,
                     )
                 }
                 ViewMode.PRECIPITATION -> {
@@ -654,8 +662,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         weatherList
                             .find { it.date == targetDateStr && it.source == displaySource.id }
                             ?.precipProbability
-                    val todayStr = java.time.LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(weatherList, displaySource, todayStr)
+                    val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     PrecipViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -663,8 +670,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
                         precipProbability = targetPrecip,
-                        observedCurrentTemp = observedCurrentTemp?.temperature,
-                        observedCurrentTempFetchedAt = com.weatherwidget.data.repository.FetchMetadata.getLastSuccessfulCheckTimeMs(context),
+                        observedCurrentTemp = observation?.temperature,
+                        observedCurrentTempFetchedAt = observation?.observedAt,
                     )
                 }
                 ViewMode.DAILY -> {
@@ -677,6 +684,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             weatherList,
                             forecastSnapshots,
                             hourlyForecasts,
+                            currentTemps,
                         )
                     }
                 }

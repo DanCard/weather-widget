@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, WeatherObservationEntity::class],
-    version = 22,
+    entities = [WeatherEntity::class, ForecastSnapshotEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, WeatherObservationEntity::class, CurrentTempEntity::class],
+    version = 23,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -24,6 +24,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun climateNormalDao(): ClimateNormalDao
 
     abstract fun weatherObservationDao(): WeatherObservationDao
+
+    abstract fun currentTempDao(): CurrentTempDao
 
     companion object {
         @Volatile
@@ -63,6 +65,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_19_20,
                             MIGRATION_20_21,
                             MIGRATION_21_22,
+                            MIGRATION_22_23,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -629,6 +632,80 @@ abstract class WeatherDatabase : RoomDatabase() {
                     )
                     db.execSQL(
                         "CREATE INDEX IF NOT EXISTS index_weather_observations_locationLat_locationLon ON weather_observations (locationLat, locationLon)",
+                    )
+                }
+            }
+
+        val MIGRATION_22_23 =
+            object : Migration(22, 23) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // 1. Create current_temp table
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS current_temp (
+                            date TEXT NOT NULL,
+                            source TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            temperature REAL NOT NULL,
+                            observedAt INTEGER NOT NULL,
+                            `condition` TEXT,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(date, source)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_current_temp_locationLat_locationLon ON current_temp (locationLat, locationLon)",
+                    )
+
+                    // 2. Copy existing currentTemp data from weather_data into current_temp
+                    db.execSQL(
+                        """
+                        INSERT OR IGNORE INTO current_temp (date, source, locationLat, locationLon, temperature, observedAt, `condition`, fetchedAt)
+                        SELECT date, source, locationLat, locationLon, currentTemp, COALESCE(currentTempObservedAt, fetchedAt), `condition`, fetchedAt
+                        FROM weather_data
+                        WHERE currentTemp IS NOT NULL
+                        """.trimIndent(),
+                    )
+
+                    // 3. Recreate weather_data without currentTemp and currentTempObservedAt columns
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS weather_data_v23 (
+                            date TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            locationName TEXT NOT NULL,
+                            highTemp REAL,
+                            lowTemp REAL,
+                            `condition` TEXT NOT NULL,
+                            isActual INTEGER NOT NULL,
+                            isClimateNormal INTEGER NOT NULL,
+                            source TEXT NOT NULL,
+                            stationId TEXT,
+                            precipProbability INTEGER,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(date, source)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO weather_data_v23 (
+                            date, locationLat, locationLon, locationName, highTemp, lowTemp,
+                            `condition`, isActual, isClimateNormal, source, stationId, precipProbability, fetchedAt
+                        )
+                        SELECT
+                            date, locationLat, locationLon, locationName, highTemp, lowTemp,
+                            `condition`, isActual, isClimateNormal, source, stationId, precipProbability, fetchedAt
+                        FROM weather_data
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE weather_data")
+                    db.execSQL("ALTER TABLE weather_data_v23 RENAME TO weather_data")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_weather_data_locationLat_locationLon ON weather_data (locationLat, locationLon)",
                     )
                 }
             }

@@ -49,6 +49,7 @@ class ForecastSnapshotDeduplicationTest {
             TemperatureInterpolator(),
             db.climateNormalDao(),
             db.weatherObservationDao(),
+            mockk(relaxed = true),
         )
     }
 

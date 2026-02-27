@@ -1,10 +1,10 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.model.WeatherSource
 
 /**
- * Helper for resolving the most recent observed temperature from weather records.
+ * Helper for resolving the most recent observed temperature from current temp records.
  */
 object ObservationResolver {
 
@@ -16,29 +16,24 @@ object ObservationResolver {
     )
 
     /**
-     * Finds the latest observation for the specified weather source from a list of weather records.
+     * Finds the latest observation for the specified weather source from a list of current temp records.
      * Includes fallback to GENERIC_GAP source.
      */
     fun resolveObservedCurrentTemp(
-        weatherList: List<WeatherEntity>,
+        currentTemps: List<CurrentTempEntity>,
         displaySource: WeatherSource,
-        todayStr: String,
     ): ObservedCurrentTemperature? {
-        // Find the latest observation specifically for the ACTIVE source (or gap source).
-        return weatherList
+        return currentTemps
             .filter {
-                it.date == todayStr &&
-                    it.currentTemp != null &&
-                    (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
+                it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id
             }
-            .maxByOrNull { it.currentTempObservedAt ?: it.fetchedAt }
-            ?.let { weather ->
-                val currentTemp = weather.currentTemp ?: return@let null
+            .maxByOrNull { it.observedAt }
+            ?.let { entity ->
                 ObservedCurrentTemperature(
-                    temperature = currentTemp,
-                    observedAt = weather.currentTempObservedAt ?: weather.fetchedAt,
-                    source = weather.source,
-                    rowFetchedAt = weather.fetchedAt,
+                    temperature = entity.temperature,
+                    observedAt = entity.observedAt,
+                    source = entity.source,
+                    rowFetchedAt = entity.fetchedAt,
                 )
             }
     }

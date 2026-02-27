@@ -61,6 +61,8 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
+import com.weatherwidget.data.local.CurrentTempDao
+import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.WeatherObservationDao
 import com.weatherwidget.data.local.WeatherObservationEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -106,6 +108,7 @@ class WeatherRepository
         private val temperatureInterpolator: TemperatureInterpolator,
         private val climateNormalDao: ClimateNormalDao,
         private val weatherObservationDao: WeatherObservationDao,
+        private val currentTempDao: CurrentTempDao,
     ) {
         internal data class ObservationResult(
             val highTemp: Float,
@@ -176,7 +179,8 @@ class WeatherRepository
                 }
 
                 fun isSourceStale(source: WeatherSource, cache: List<WeatherEntity>): Boolean {
-                    val latestFetch = cache.filter { it.source == source.id }.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
+                    val sourceEntries = cache.filter { it.source == source.id }
+                    val latestFetch = sourceEntries.maxByOrNull { it.fetchedAt }?.fetchedAt ?: 0L
                     return (System.currentTimeMillis() - latestFetch) >= getFreshnessThreshold(source)
                 }
 
@@ -498,11 +502,7 @@ class WeatherRepository
                                     new.isActual == existing.isActual
 
                             if (isUnchanged) {
-                                // If forecast data is unchanged, we still check if the 'new' record
-                                // has a fresh currentTemp observation. If so, we must NOT deduplicate.
-                                if (new.currentTemp == null || new.currentTemp == existing.currentTemp) {
-                                    return@map existing
-                                }
+                                return@map existing
                             }
 
                             // Special Case: If existing is a placeholder "Observed" record,
@@ -688,7 +688,6 @@ class WeatherRepository
                                 locationName = locationName,
                                 highTemp = normal.first.toFloat(),
                                 lowTemp = normal.second.toFloat(),
-                                currentTemp = null,
                                 condition = "Historical Avg",
                                 isActual = false,
                                 isClimateNormal = true,
@@ -833,7 +832,6 @@ class WeatherRepository
                         locationName = locationName,
                         highTemp = temps.first,
                         lowTemp = temps.second,
-                        currentTemp = null,
                         condition = conditionByDate[date] ?: "Unknown",
                         isActual = LocalDate.parse(date).isBefore(LocalDate.now()),
                         source = WeatherSource.NWS.id,
@@ -1463,6 +1461,23 @@ class WeatherRepository
                 saveHourlyForecasts(forecast.hourly, lat, lon)
             }
 
+            // Write current temp to separate table if available
+            if (forecast.currentTemp != null) {
+                val now = System.currentTimeMillis()
+                currentTempDao.insert(
+                    CurrentTempEntity(
+                        date = today,
+                        source = WeatherSource.OPEN_METEO.id,
+                        locationLat = lat,
+                        locationLon = lon,
+                        temperature = forecast.currentTemp,
+                        observedAt = forecast.currentObservedAt ?: now,
+                        condition = null,
+                        fetchedAt = now,
+                    ),
+                )
+            }
+
             return forecast.daily.map { daily ->
                 WeatherEntity(
                     date = daily.date,
@@ -1471,8 +1486,6 @@ class WeatherRepository
                     locationName = locationName,
                     highTemp = daily.highTemp,
                     lowTemp = daily.lowTemp,
-                    currentTemp = if (daily.date == today) forecast.currentTemp else null,
-                    currentTempObservedAt = if (daily.date == today) forecast.currentObservedAt else null,
                     condition = openMeteoApi.weatherCodeToCondition(daily.weatherCode),
                     isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
                     source = WeatherSource.OPEN_METEO.id,
@@ -1500,6 +1513,23 @@ class WeatherRepository
                 saveWeatherApiHourlyForecasts(forecast.hourly, lat, lon)
             }
 
+            // Write current temp to separate table if available
+            if (forecast.currentTemp != null) {
+                val now = System.currentTimeMillis()
+                currentTempDao.insert(
+                    CurrentTempEntity(
+                        date = today,
+                        source = WeatherSource.WEATHER_API.id,
+                        locationLat = lat,
+                        locationLon = lon,
+                        temperature = forecast.currentTemp,
+                        observedAt = forecast.currentObservedAt ?: now,
+                        condition = null,
+                        fetchedAt = now,
+                    ),
+                )
+            }
+
             return forecast.daily.map { daily ->
                 WeatherEntity(
                     date = daily.date,
@@ -1508,8 +1538,6 @@ class WeatherRepository
                     locationName = locationName,
                     highTemp = daily.highTemp,
                     lowTemp = daily.lowTemp,
-                    currentTemp = if (daily.date == today) forecast.currentTemp else null,
-                    currentTempObservedAt = if (daily.date == today) forecast.currentObservedAt else null,
                     condition = daily.condition,
                     isActual = LocalDate.parse(daily.date).isBefore(LocalDate.now()),
                     source = WeatherSource.WEATHER_API.id,
@@ -1960,21 +1988,15 @@ class WeatherRepository
                                 )
                             val delta = interpolated?.let { reading.temperature - it }
 
-                            val existing = weatherDao.getWeatherForDateBySource(today, lat, lon, reading.source.id)
-                            if (existing == null) {
-                                appLogDao.log(
-                                    "CURR_FETCH_SKIP",
-                                    "reason=$reason source=${reading.source.id} missing_today_row date=$today",
-                                    "INFO",
-                                )
-                                return@forEach
-                            }
-
-                            weatherDao.insertWeather(
-                                existing.copy(
-                                    currentTemp = reading.temperature,
-                                    currentTempObservedAt = reading.observedAt ?: now,
-                                    condition = reading.condition ?: existing.condition,
+                            currentTempDao.insert(
+                                CurrentTempEntity(
+                                    date = today,
+                                    source = reading.source.id,
+                                    locationLat = lat,
+                                    locationLon = lon,
+                                    temperature = reading.temperature,
+                                    observedAt = reading.observedAt ?: now,
+                                    condition = reading.condition,
                                     fetchedAt = now,
                                 ),
                             )
@@ -2046,6 +2068,11 @@ class WeatherRepository
                 weatherDao.deleteOldDataBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
                 forecastSnapshotDao.deleteOldSnapshotsBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
                 hourlyForecastDao.deleteOldForecastsBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
+
+                // Current temp: standard 30-day for NWS/WeatherAPI, 7-day for Open-Meteo
+                currentTempDao.deleteOldDataBySource(cutoffStandard, WeatherSource.NWS.id)
+                currentTempDao.deleteOldDataBySource(cutoffStandard, WeatherSource.WEATHER_API.id)
+                currentTempDao.deleteOldDataBySource(cutoffMeteo, WeatherSource.OPEN_METEO.id)
 
                 // Maintain logs for 3 days (72 hours) to optimize space while keeping recent forensics
                 val logCutoff = now - (3L * 24 * 60 * 60 * 1000)

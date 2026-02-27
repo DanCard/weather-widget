@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ForecastSnapshotDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
+import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.WeatherDao
 import com.weatherwidget.data.local.WeatherEntity
 import com.weatherwidget.data.local.WeatherObservationDao
@@ -39,6 +40,7 @@ class WeatherRepositoryTest {
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var weatherObservationDao: WeatherObservationDao
+    private lateinit var currentTempDao: CurrentTempDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -64,6 +66,7 @@ class WeatherRepositoryTest {
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         weatherObservationDao = mockk(relaxed = true)
+        currentTempDao = mockk(relaxed = true)
 
         repository =
             WeatherRepository(
@@ -79,6 +82,7 @@ class WeatherRepositoryTest {
                 temperatureInterpolator,
                 climateNormalDao,
                 weatherObservationDao,
+                currentTempDao,
             )
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
@@ -178,17 +182,22 @@ class WeatherRepositoryTest {
     @Test
     fun `getWeatherData returns cached data when not forcing refresh`() =
         runTest {
+            val recentFetch = System.currentTimeMillis() - 15 * 60 * 1000
+            val tomorrow = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val cachedData = listOf(
-                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.NWS.id, fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000),
-                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.OPEN_METEO.id, fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000),
-                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = System.currentTimeMillis() - 15 * 60 * 1000)
+                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.NWS.id, fetchedAt = recentFetch),
+                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.OPEN_METEO.id, fetchedAt = recentFetch),
+                createWeatherEntity(today, 70, 50).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = recentFetch),
+                createWeatherEntity(tomorrow, 75, 55).copy(source = WeatherSource.NWS.id, fetchedAt = recentFetch),
+                createWeatherEntity(tomorrow, 75, 55).copy(source = WeatherSource.OPEN_METEO.id, fetchedAt = recentFetch),
+                createWeatherEntity(tomorrow, 75, 55).copy(source = WeatherSource.WEATHER_API.id, fetchedAt = recentFetch),
             )
             coEvery { weatherDao.getWeatherRange(any(), any(), testLat, testLon) } returns cachedData
 
             val result = repository.getWeatherData(testLat, testLon, testLocationName, forceRefresh = false)
 
             assertTrue(result.isSuccess)
-            assertEquals(3, result.getOrNull()?.size)
+            assertEquals(6, result.getOrNull()?.size)
             coVerify(exactly = 0) { nwsApi.getGridPoint(any(), any()) }
             coVerify(exactly = 0) { openMeteoApi.getForecast(any(), any(), any()) }
         }
@@ -451,20 +460,6 @@ class WeatherRepositoryTest {
             coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(61.2f, 1)
             every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
 
-            val existing =
-                createWeatherEntity(today, 70, 50, source = WeatherSource.OPEN_METEO.id).copy(
-                    currentTemp = 55.0f,
-                    condition = "Sunny",
-                )
-            coEvery {
-                weatherDao.getWeatherForDateBySource(
-                    any(),
-                    any(),
-                    any(),
-                    any(),
-                )
-            } returns existing
-
             val result =
                 repository.refreshCurrentTemperature(
                     testLat,
@@ -477,12 +472,10 @@ class WeatherRepositoryTest {
             assertTrue(result.isSuccess)
             coVerify(exactly = 5) { openMeteoApi.getCurrent(any(), any()) }
             coVerify {
-                weatherDao.insertWeather(
+                currentTempDao.insert(
                     match { entity ->
                         entity.source == WeatherSource.OPEN_METEO.id &&
-                            entity.highTemp == existing.highTemp &&
-                            entity.lowTemp == existing.lowTemp &&
-                            entity.currentTemp == 61.2f
+                            entity.temperature == 61.2f
                     },
                 )
             }
@@ -518,9 +511,9 @@ class WeatherRepositoryTest {
             coVerify(exactly = 5) { weatherApi.getCurrent(any(), any()) }
             coVerify(exactly = 5) { openMeteoApi.getCurrent(any(), any()) }
             coVerify(exactly = 1) {
-                weatherDao.insertWeather(
+                currentTempDao.insert(
                     match { entity ->
-                        entity.source == WeatherSource.OPEN_METEO.id && entity.currentTemp == 59.5f
+                        entity.source == WeatherSource.OPEN_METEO.id && entity.temperature == 59.5f
                     },
                 )
             }
@@ -596,7 +589,6 @@ class WeatherRepositoryTest {
         locationName = testLocationName,
         highTemp = high.toFloat(),
         lowTemp = low.toFloat(),
-        currentTemp = null,
         condition = "Sunny",
         isActual = isActual,
         source = source,

@@ -40,7 +40,7 @@ class WeatherRepositoryPoiTest {
             context, weatherDao, mockk(relaxed = true), mockk(relaxed = true),
             appLogDao, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true),
             mockk(relaxed = true), TemperatureInterpolator(), mockk(relaxed = true),
-            weatherObservationDao
+            weatherObservationDao, mockk(relaxed = true)
         )
     }
 
@@ -86,7 +86,7 @@ class WeatherRepositoryPoiTest {
             context, weatherDao, mockk(relaxed = true), mockk(relaxed = true),
             appLogDao, mockk(relaxed = true), openMeteoApi, mockk(relaxed = true),
             mockk(relaxed = true), TemperatureInterpolator(), mockk(relaxed = true),
-            weatherObservationDao
+            weatherObservationDao, mockk(relaxed = true)
         )
 
         // Setup: Mock today row for source check
@@ -115,7 +115,7 @@ class WeatherRepositoryPoiTest {
             context, weatherDao, mockk(relaxed = true), mockk(relaxed = true),
             appLogDao, mockk(relaxed = true), mockk(relaxed = true), weatherApi,
             mockk(relaxed = true), TemperatureInterpolator(), mockk(relaxed = true),
-            weatherObservationDao
+            weatherObservationDao, mockk(relaxed = true)
         )
 
         // Setup: Mock today row

@@ -41,6 +41,16 @@ import javax.inject.Inject
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import com.weatherwidget.data.repository.FetchMetadata
+import com.weatherwidget.widget.BatteryFetchStrategy
+import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WeatherWidgetWorker
+import android.content.Context
+import android.os.BatteryManager
+import android.widget.Toast
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 
 @AndroidEntryPoint
 class ForecastHistoryActivity : AppCompatActivity() {
@@ -306,14 +316,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             snapshotSummaryView.setTypeface(snapshotSummaryView.typeface, android.graphics.Typeface.NORMAL)
         }
 
-        val freshnessView = findViewById<TextView>(R.id.data_freshness_text)
-        val lastFetchMs = FetchMetadata.getLastSuccessfulCheckTimeMs(this)
-        if (lastFetchMs > 0L) {
-            val formatter = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
-            freshnessView.text = getString(R.string.data_freshness_format, formatter.format(Date(lastFetchMs)))
-        } else {
-            freshnessView.text = getString(R.string.data_freshness_unknown)
-        }
+        updateFreshnessCard()
 
         val nwsLegend = findViewById<View>(R.id.legend_nws_group)
         val meteoLegend = findViewById<View>(R.id.legend_meteo_group)
@@ -623,5 +626,98 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     private fun firstVisibleSource(): WeatherSource? {
         return widgetStateManager.getVisibleSourcesOrder().firstOrNull()
+    }
+
+    private fun updateFreshnessCard() {
+        val forecastFetchView = findViewById<TextView>(R.id.freshness_forecast_fetch)
+        val currentTempFetchView = findViewById<TextView>(R.id.freshness_current_temp_fetch)
+        val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
+        val nextUpdateView = findViewById<TextView>(R.id.freshness_next_update)
+        val refreshButton = findViewById<Button>(R.id.freshness_refresh_button)
+
+        val nowMs = System.currentTimeMillis()
+        val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
+        val lastCurrentTempMs = FetchMetadata.getLastCurrentTempFetchTime(this)
+
+        // Last full forecast fetch
+        if (lastFullFetchMs > 0L) {
+            forecastFetchView.text = "Forecast fetch: ${formatRelativeTime(nowMs - lastFullFetchMs)} ago"
+        } else {
+            forecastFetchView.text = "Forecast fetch: never"
+        }
+
+        // Last current temp fetch
+        if (lastCurrentTempMs > 0L) {
+            currentTempFetchView.text = "Current temp fetch: ${formatRelativeTime(nowMs - lastCurrentTempMs)} ago"
+        } else {
+            currentTempFetchView.text = "Current temp fetch: never"
+        }
+
+        // Displayed data fetch age (from the actual weather entity being shown)
+        val displayedFetchedAt = cachedActualWeather?.fetchedAt
+        if (displayedFetchedAt != null && displayedFetchedAt > 0L) {
+            val sourceName = cachedRequestedSource?.shortDisplayName ?: cachedActualWeather?.source ?: "?"
+            displayedDataView.text = "Displayed data ($sourceName): fetched ${formatRelativeTime(nowMs - displayedFetchedAt)} ago"
+            displayedDataView.visibility = View.VISIBLE
+        } else {
+            displayedDataView.visibility = View.GONE
+        }
+
+        // Next update estimate
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        val batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        val isCharging = batteryManager.isCharging
+        val intervalMinutes = BatteryFetchStrategy.computeFetchInterval(isCharging, batteryLevel)
+
+        if (intervalMinutes == null) {
+            nextUpdateView.text = getString(R.string.freshness_next_update_paused)
+        } else {
+            val suffix = if (isCharging) "(charging)" else "(battery $batteryLevel%)"
+            val referenceMs = maxOf(lastFullFetchMs, lastCurrentTempMs)
+            if (referenceMs > 0L) {
+                val nextFetchMs = referenceMs + intervalMinutes * 60 * 1000L
+                val remainingMs = nextFetchMs - nowMs
+                if (remainingMs <= 0) {
+                    nextUpdateView.text = getString(R.string.freshness_next_update, "soon $suffix")
+                } else {
+                    nextUpdateView.text = getString(R.string.freshness_next_update, "${formatRelativeTime(remainingMs)} $suffix")
+                }
+            } else {
+                nextUpdateView.text = getString(R.string.freshness_next_update, "${intervalMinutes}min $suffix")
+            }
+        }
+
+        // Refresh button
+        refreshButton.setOnClickListener {
+            val workRequest =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .build(),
+                    )
+                    .build()
+            WorkManager.getInstance(this).enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
+                ExistingWorkPolicy.REPLACE,
+                workRequest,
+            )
+            Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
+            refreshButton.isEnabled = false
+            refreshButton.postDelayed({ refreshButton.isEnabled = true }, 5000)
+        }
+    }
+
+    private fun formatRelativeTime(durationMs: Long): String {
+        val minutes = durationMs / 60_000
+        return when {
+            minutes < 1 -> getString(R.string.freshness_just_now)
+            minutes < 60 -> "${minutes}min"
+            else -> {
+                val hours = minutes / 60
+                val remainMin = minutes % 60
+                if (remainMin == 0L) "${hours}h" else "${hours}h ${remainMin}min"
+            }
+        }
     }
 }

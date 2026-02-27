@@ -366,7 +366,6 @@ class DailyViewHandlerTest {
             locationName = "Test",
             highTemp = highTemp,
             lowTemp = lowTemp,
-            currentTemp = 62f,
             condition = "Clear",
             isActual = false,
             source = WeatherSource.NWS.id,

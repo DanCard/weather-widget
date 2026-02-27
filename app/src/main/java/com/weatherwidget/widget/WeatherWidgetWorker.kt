@@ -93,9 +93,13 @@ class WeatherWidgetWorker
                         // Fetch hourly forecasts for interpolation
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
 
+                        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                        val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
+                            .getCurrentTemps(todayStr, location.first, location.second)
+
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
+                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps)
                         if (!uiOnlyRefresh) {
                             scheduleNextUpdate()
                             // Schedule next UI update after data fetch
@@ -160,6 +164,7 @@ class WeatherWidgetWorker
             weatherList: List<com.weatherwidget.data.local.WeatherEntity>,
             forecastSnapshots: Map<String, List<ForecastSnapshotEntity>>,
             hourlyForecasts: List<HourlyForecastEntity>,
+            currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
         ) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -173,6 +178,7 @@ class WeatherWidgetWorker
                     weatherList = weatherList,
                     forecastSnapshots = forecastSnapshots,
                     hourlyForecasts = hourlyForecasts,
+                    currentTemps = currentTemps,
                 )
             }
         }
@@ -270,7 +276,10 @@ class WeatherWidgetWorker
                 ).getOrDefault(emptyList())
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
-            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts)
+            val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
+                .getCurrentTemps(todayStr, location.first, location.second)
+            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps)
         }
 
         private fun manageCurrentTempLoopAfterRun(
