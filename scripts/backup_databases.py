@@ -21,18 +21,23 @@ LOGCAT_TIMEOUT = 30
 # Global lock for clean printing
 print_lock = threading.Lock()
 
+
 def log(serial, message):
     with print_lock:
         print(f"[{serial}] {message}")
 
+
 def run_command(cmd, timeout=30, capture_output=True):
     try:
-        result = subprocess.run(cmd, timeout=timeout, capture_output=capture_output, text=True)
+        result = subprocess.run(
+            cmd, timeout=timeout, capture_output=capture_output, text=True
+        )
         return result.stdout.strip(), result.returncode
     except subprocess.TimeoutExpired:
         return "", 124
     except Exception as e:
         return str(e), 1
+
 
 def run_adb(args, serial=None, timeout=30):
     cmd = ["adb"]
@@ -40,6 +45,7 @@ def run_adb(args, serial=None, timeout=30):
         cmd.extend(["-s", serial])
     cmd.extend(args)
     return run_command(cmd, timeout=timeout)
+
 
 def run_adb_to_file(args, out_file, serial=None, timeout=30):
     cmd = ["adb"]
@@ -54,25 +60,73 @@ def run_adb_to_file(args, out_file, serial=None, timeout=30):
     except Exception:
         return 1
 
-def get_devices():
+
+def is_wireless_connection(serial):
+    stdout, _ = run_adb(["get-state"], serial=serial, timeout=5)
+    if stdout == "unknown":
+        stdout, _ = run_adb(
+            ["shell", "getprop", "sys.usb.state"], serial=serial, timeout=5
+        )
+        if "adb" in stdout and "usb" in stdout:
+            return False
+    stdout, _ = run_adb(["shell", "getprop", "init.svc.adbd"], serial=serial, timeout=5)
+    if stdout:
+        stdout, _ = run_adb(
+            ["shell", "cat", "/sys/kernel/debug/usb/usbmon/0U"],
+            serial=serial,
+            timeout=5,
+        )
+        if stdout and "usb" in stdout.lower():
+            return False
+    stdout, _ = run_adb(
+        ["shell", "getprop", "service.adb.tcp.port"], serial=serial, timeout=5
+    )
+    if stdout and stdout.strip():
+        return True
+    return False
+
+
+def get_unique_devices():
     stdout, _ = run_adb(["devices"])
-    devices = []
-    # Known adb device states
+    serials = []
+
     states = ["device", "offline", "unauthorized", "recovery", "sideload", "bootloader"]
     state_pattern = "|".join(states)
-    
+
     for line in stdout.splitlines():
         if "List of devices" in line or not line.strip():
             continue
-        
-        # Match everything from start until a known state followed by whitespace or end of line
+
         match = re.search(f"^(.*?)\\s+({state_pattern})(?:\\s+|$)", line)
         if match:
             serial = match.group(1).strip()
             state = match.group(2)
             if state == "device":
-                devices.append(serial)
-    return devices
+                serials.append(serial)
+
+    device_map = {}
+    for serial in serials:
+        stdout, _ = run_adb(
+            ["shell", "getprop", "ro.product.manufacturer"], serial=serial, timeout=5
+        )
+        manufacturer = stdout.strip()
+        stdout, _ = run_adb(
+            ["shell", "getprop", "ro.product.model"], serial=serial, timeout=5
+        )
+        model = stdout.strip()
+        device_key = (manufacturer, model)
+
+        is_wireless = is_wireless_connection(serial)
+
+        if device_key not in device_map:
+            device_map[device_key] = (serial, is_wireless)
+        else:
+            existing_serial, existing_is_wireless = device_map[device_key]
+            if is_wireless and not existing_is_wireless:
+                device_map[device_key] = (serial, is_wireless)
+
+    return [serial for serial, _ in device_map.values()]
+
 
 def get_load_average(serial):
     stdout, code = run_adb(["shell", "uptime"], serial=serial, timeout=10)
@@ -83,20 +137,26 @@ def get_load_average(serial):
         return float(match.group(1))
     return None
 
+
 def get_avd_name(serial):
-    stdout, _ = run_adb(["shell", "getprop", "ro.boot.qemu.avd_name"], serial=serial, timeout=10)
+    stdout, _ = run_adb(
+        ["shell", "getprop", "ro.boot.qemu.avd_name"], serial=serial, timeout=10
+    )
     return stdout.strip()
+
 
 def restart_emulator(serial, avd_name):
     log(serial, f"Restarting (AVD: {avd_name})...")
     run_adb(["emu", "kill"], serial=serial)
     time.sleep(3)
-    
-    subprocess.Popen([EMULATOR_PATH, f"@{avd_name}", "-no-snapshot-load"], 
-                     stdout=subprocess.DEVNULL, 
-                     stderr=subprocess.DEVNULL, 
-                     preexec_fn=os.setpgrp)
-    
+
+    subprocess.Popen(
+        [EMULATOR_PATH, f"@{avd_name}", "-no-snapshot-load"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        preexec_fn=os.setpgrp,
+    )
+
     start_time = time.time()
     while time.time() - start_time < 120:
         stdout, _ = run_adb(["shell", "getprop", "sys.boot_completed"], timeout=5)
@@ -106,11 +166,16 @@ def restart_emulator(serial, avd_name):
         time.sleep(5)
     return False
 
+
 def backup_device(serial):
     try:
         # Check load
         load = get_load_average(serial)
-        if load is not None and load > LOAD_THRESHOLD and serial.startswith("emulator-"):
+        if (
+            load is not None
+            and load > LOAD_THRESHOLD
+            and serial.startswith("emulator-")
+        ):
             avd_name = get_avd_name(serial)
             if avd_name:
                 restart_emulator(serial, avd_name)
@@ -122,26 +187,37 @@ def backup_device(serial):
         folder_name = f"{TIMESTAMP}_{model}_{safe_id}"
         dest_dir = os.path.join(BACKUP_ROOT, folder_name)
         os.makedirs(dest_dir, exist_ok=True)
-        
+
         # Check package
-        pkgs, code = run_adb(["shell", "pm", "list", "packages", PACKAGE_NAME], serial=serial, timeout=15)
+        pkgs, code = run_adb(
+            ["shell", "pm", "list", "packages", PACKAGE_NAME], serial=serial, timeout=15
+        )
         if code == 124 or PACKAGE_NAME not in pkgs:
             log(serial, "Skipped: App not found or unresponsive.")
             return False
-        
+
         log(serial, f"Backing up (Load: {load if load else '?'})")
 
         def copy_subdir(subfolder, target_name):
             os.makedirs(os.path.join(dest_dir, target_name), exist_ok=True)
-            files_str, _ = run_adb(["shell", f"run-as {PACKAGE_NAME} ls /data/data/{PACKAGE_NAME}/{subfolder}/"], serial=serial)
+            files_str, _ = run_adb(
+                [
+                    "shell",
+                    f"run-as {PACKAGE_NAME} ls /data/data/{PACKAGE_NAME}/{subfolder}/",
+                ],
+                serial=serial,
+            )
             method = "run-as"
             if not files_str:
-                files_str, _ = run_adb(["shell", f"su -c 'ls /data/data/{PACKAGE_NAME}/{subfolder}/'"], serial=serial)
+                files_str, _ = run_adb(
+                    ["shell", f"su -c 'ls /data/data/{PACKAGE_NAME}/{subfolder}/'"],
+                    serial=serial,
+                )
                 method = "su"
-                
+
             if not files_str:
                 return 0, 0
-                
+
             files = files_str.split()
             total_size = 0
             copied = 0
@@ -177,7 +253,7 @@ def backup_device(serial):
 
         db_count, db_size = copy_subdir("databases", "databases")
         pref_count, pref_size = copy_subdir("shared_prefs", "shared_prefs")
-        
+
         # DB stats
         db_path = os.path.join(dest_dir, "databases", "weather_database")
         if os.path.exists(db_path):
@@ -201,17 +277,24 @@ def backup_device(serial):
         # Logcat
         logcat_path = os.path.join(dest_dir, "logcat.txt")
         with open(logcat_path, "w") as f:
-            code = run_adb_to_file(["logcat", "-d", "-t", "1000"], f, serial=serial, timeout=LOGCAT_TIMEOUT)
+            code = run_adb_to_file(
+                ["logcat", "-d", "-t", "1000"], f, serial=serial, timeout=LOGCAT_TIMEOUT
+            )
             if code == 124:
                 log(serial, "Timeout capturing logcat; wrote partial output.")
             elif code != 0:
                 log(serial, "Failed capturing logcat.")
 
         # Metadata
-        metadata = {"timestamp": TIMESTAMP, "serial": serial, "model": model, "load": load}
+        metadata = {
+            "timestamp": TIMESTAMP,
+            "serial": serial,
+            "model": model,
+            "load": load,
+        }
         with open(os.path.join(dest_dir, "metadata.json"), "w") as f:
             json.dump(metadata, f, indent=4)
-        
+
         total_kb = (db_size + pref_size + os.path.getsize(logcat_path)) // 1024
         log(serial, f"Done: {db_count} DBs, {pref_count} Prefs. Total: {total_kb} KB")
         return True
@@ -219,21 +302,26 @@ def backup_device(serial):
         log(serial, f"Unexpected error: {e}")
         return False
 
+
 def main():
     print(f"=== Weather Widget Backup Tool ({TIMESTAMP}) ===")
-    devices = get_devices()
+    devices = get_unique_devices()
     if not devices:
         print("[!] No devices found.")
         sys.exit(1)
-        
+
     print(f"[*] Backing up {len(devices)} devices in parallel...")
     processed = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(devices)) as executor:
         futures = {executor.submit(backup_device, s): s for s in devices}
         for future in concurrent.futures.as_completed(futures):
-            if future.result(): processed += 1
-            
-    print(f"[*] Summary: {processed}/{len(devices)} devices backed up to {BACKUP_ROOT}/")
+            if future.result():
+                processed += 1
+
+    print(
+        f"[*] Summary: {processed}/{len(devices)} devices backed up to {BACKUP_ROOT}/"
+    )
+
 
 if __name__ == "__main__":
     main()
