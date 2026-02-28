@@ -474,44 +474,16 @@ object TemperatureGraphRenderer {
         }
 
         // Day of week indicators
-        val dayLabelIndices = mutableListOf<Int>()
-        val dayLabels = mutableListOf<String>()
         val dayLabelHour = 8
+        val dayY = heightPx - dpToPx(context, 14f)
         hours.forEachIndexed { index, hour ->
             if (hour.dateTime.hour == dayLabelHour) {
-                dayLabelIndices.add(index)
-                dayLabels.add(hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()))
+                val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+                val centerX = originalPoints[index].first
+                val textWidth = dayLabelTextPaint.measureText(dayText)
+                canvas.drawText(dayText, centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f), dayY, dayLabelTextPaint)
             }
         }
-
-        // Leading day label if 8am for the same day is not in view
-        if (hours.isNotEmpty() && hours.first().dateTime.hour != dayLabelHour) {
-            val firstDate = hours.first().dateTime.toLocalDate()
-            val sameDayAnchorExists = hours.any {
-                it.dateTime.hour == dayLabelHour && it.dateTime.toLocalDate() == firstDate
-            }
-            if (!sameDayAnchorExists) {
-                dayLabelIndices.add(0, -1) // -1 marks leading label
-                dayLabels.add(0, hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()))
-            }
-        }
-
-        GraphRenderUtils.drawDayLabels(
-            canvas = canvas,
-            points = originalPoints,
-            dayLabelIndices = dayLabelIndices,
-            dayLabels = dayLabels,
-            drawnLabelBounds = drawnLabelBounds,
-            drawnIconBounds = drawnIconBounds,
-            graphTop = graphTop,
-            graphBottom = graphBottom,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            dayLabelTextPaint = dayLabelTextPaint,
-            nowX = nowX,
-            nowLabelTextPaint = nowLabelTextPaint,
-            dpToPx = { dpToPx(context, it) }
-        )
 
         GraphRenderUtils.drawNowIndicator(
             canvas,
