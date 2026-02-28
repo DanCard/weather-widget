@@ -464,6 +464,7 @@ class ForecastRepository
             sourceId: String
         ) {
             val todayDate = LocalDate.now()
+            val todayDateString = todayDate.toString()
             val now = ZonedDateTime.now()
             val forecastsToSave = weatherForecasts.filter { forecast ->
                 val date = runCatching { LocalDate.parse(forecast.targetDate) }.getOrNull()
@@ -480,9 +481,11 @@ class ForecastRepository
             }.mapNotNull { forecast ->
                 if (forecast.highTemp == null && forecast.lowTemp == null) return@mapNotNull null
                 
-                // Consistently round temperatures to Float-wrapped integers
-                val highTempRounded = forecast.highTemp?.roundToInt()?.toFloat()
-                val lowTempRounded = forecast.lowTemp?.roundToInt()?.toFloat()
+                // Preserve full decimal precision for Today's forecast to improve accuracy tracking.
+                // Continue rounding future days to integers for UI consistency and storage.
+                val isToday = forecast.targetDate == todayDateString
+                val highTempSaved = if (isToday) forecast.highTemp else forecast.highTemp?.roundToInt()?.toFloat()
+                val lowTempSaved = if (isToday) forecast.lowTemp else forecast.lowTemp?.roundToInt()?.toFloat()
                 
                 ForecastEntity(
                     targetDate = forecast.targetDate,
@@ -490,8 +493,8 @@ class ForecastRepository
                     locationLat = latitude,
                     locationLon = longitude,
                     locationName = "",
-                    highTemp = highTempRounded,
-                    lowTemp = lowTempRounded,
+                    highTemp = highTempSaved,
+                    lowTemp = lowTempSaved,
                     condition = forecast.condition,
                     isClimateNormal = forecast.isClimateNormal,
                     source = sourceId,

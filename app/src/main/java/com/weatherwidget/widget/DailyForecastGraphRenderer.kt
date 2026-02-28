@@ -331,7 +331,7 @@ object DailyForecastGraphRenderer {
 
                 // Draw Low Temp Label
                 val lowLabel =
-                    formatTempLabel(lowTemp!!, day.isToday)
+                    formatTempLabel(lowTemp!!, day.isToday || day.isPast)
                 val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
                 canvas.drawText(lowLabel, centerX, lowTempY, tempPaint)
 
@@ -433,7 +433,7 @@ object DailyForecastGraphRenderer {
             // Draw high label if available
             if (day.high != null) {
                 val highLabel =
-                    formatTempLabel(day.high, day.isToday)
+                    formatTempLabel(day.high, day.isToday || day.isPast)
                 // If we have a Y position, use it. Otherwise (shouldn't happen here), skip.
                 highY?.let { y ->
                     val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
@@ -464,9 +464,9 @@ object DailyForecastGraphRenderer {
 
     private fun formatTempLabel(
         actual: Float,
-        isToday: Boolean,
+        allowDecimals: Boolean,
     ): String {
-        if (!isToday) return "${actual.roundToInt()}°"
+        if (!allowDecimals) return "${actual.roundToInt()}°"
         val rounded = actual.roundToInt()
         return if (kotlin.math.abs(actual - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", actual)
     }

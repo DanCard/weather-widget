@@ -116,10 +116,17 @@ object DailyViewLogic {
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val weather = weatherByDate[dateStr]
             val isToday = date == today
+            val isPast = date.isBefore(today)
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             
-            var highLabel: String? = formatTempLabel(weather?.highTemp)
-            var lowLabel: String? = formatTempLabel(weather?.lowTemp)
+            // Round future days to integers to maintain UI consistency.
+            // Today and historical days are permitted to show decimals for precision.
+            val formatTemp = if (isToday || isPast) ::formatTempLabel else { v: Float? -> 
+                v?.roundToInt()?.let { "$it°" } 
+            }
+            
+            var highLabel: String? = formatTemp(weather?.highTemp)
+            var lowLabel: String? = formatTemp(weather?.lowTemp)
 
             if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
