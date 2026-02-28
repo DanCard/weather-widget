@@ -7,7 +7,7 @@ import android.util.TypedValue
 import java.time.LocalDateTime
 
 object TemperatureGraphRenderer {
-    private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 1.5f
 
     data class HourData(
@@ -128,6 +128,16 @@ object TemperatureGraphRenderer {
         val withinWindow: Boolean,
     )
 
+    data class DayLabelPlacementDebug(
+        val side: String,       // "LEFT" or "RIGHT"
+        val dayText: String,
+        val date: java.time.LocalDate,
+        val x: Float,
+        val y: Float,
+        val placement: String,  // "TOP", "MIDDLE", "BOTTOM"
+        val isToday: Boolean,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<HourData>,
@@ -139,6 +149,7 @@ object TemperatureGraphRenderer {
         observedTempFetchedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
+        onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -187,10 +198,11 @@ object TemperatureGraphRenderer {
         // Expected Truth Line (Ghost Dashed Curve)
         val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            alpha = 100 // ~39% opacity (increased from 60 for better visibility as requested)
+            alpha = 55 // ~22% opacity
             strokeWidth = dpToPx(context, 1.2f)
+            strokeCap = Paint.Cap.ROUND
             style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 3f), dpToPx(context, 2f)), 0f)
+            pathEffect = DashPathEffect(floatArrayOf(0.1f, dpToPx(context, 4f)), 0f)
         }
 
         // Gradient fill under the Expected Truth (Reality)
@@ -239,7 +251,7 @@ object TemperatureGraphRenderer {
         val nowLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#BBFF9F0A")
-                textSize = dpToPx(context, 16.5f * labelScale)
+                textSize = dpToPx(context, 15.5f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
                 setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
@@ -248,10 +260,14 @@ object TemperatureGraphRenderer {
         val dayLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#88FFFFFF")
-                val dayLabelScale = bitmapScale.coerceIn(0.5f, 1f)
-                textSize = dpToPx(context, 10.0f * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER)
+                textSize = dpToPx(context, 19.5f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            }
+
+        val todayDayLabelPaint =
+            Paint(dayLabelTextPaint).apply {
+                color = Color.parseColor("#BBFF9F0A")
             }
 
         // --- Build paths ---
@@ -473,16 +489,70 @@ object TemperatureGraphRenderer {
             }
         }
 
-        // Day of week indicators
-        val dayLabelHour = 8
-        val dayY = heightPx - dpToPx(context, 14f)
-        hours.forEachIndexed { index, hour ->
-            if (hour.dateTime.hour == dayLabelHour) {
-                val dayText = hour.dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-                val centerX = originalPoints[index].first
-                val textWidth = dayLabelTextPaint.measureText(dayText)
-                canvas.drawText(dayText, centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f), dayY, dayLabelTextPaint)
+        // Day of week indicators — left and right edges, cascade: TOP → MIDDLE → BOTTOM
+        val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
+        val dayLabelTextHeight = fm.descent - fm.ascent
+        val dayYTop    = graphTop + dayLabelTextHeight
+        val dayYMid    = (graphTop + graphBottom) / 2f
+        val dayYBottom = heightPx - dpToPx(context, 14f)
+
+        fun dayBounds(x: Float, y: Float, textWidth: Float): RectF =
+            RectF(x - textWidth / 2f, y + fm.ascent, x + textWidth / 2f, y + fm.descent)
+
+        val drawnDayLabelBounds = mutableListOf<RectF>()
+
+        fun collides(bounds: RectF): Boolean =
+            drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
+            drawnIconBounds.any { RectF.intersects(it, bounds) } ||
+            drawnDayLabelBounds.any { RectF.intersects(it, bounds) }
+
+        val today = java.time.LocalDate.now()
+
+        data class DayCandidate(val date: java.time.LocalDate, val x: Float, val dayText: String)
+        val leftDate  = hours.first().dateTime.toLocalDate()
+        val rightDate = hours.last().dateTime.toLocalDate()
+        val leftText  = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+        val leftTextWidth  = (if (leftDate  == today) todayDayLabelPaint else dayLabelTextPaint).measureText(leftText)
+        val rightTextWidth = (if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint).measureText(rightText)
+
+        val dayCandidates = listOf(
+            DayCandidate(leftDate,  leftTextWidth / 2f,            leftText),
+            DayCandidate(rightDate, widthPx - rightTextWidth / 2f, rightText),
+        )
+
+        for ((candidateIndex, candidate) in dayCandidates.withIndex()) {
+            val side = if (candidateIndex == 0) "LEFT" else "RIGHT"
+            val isToday = candidate.date == today
+            val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
+            val textWidth = paint.measureText(candidate.dayText)
+
+            // 1. Try TOP
+            val topBounds = dayBounds(candidate.x, dayYTop, textWidth)
+            if (!collides(topBounds)) {
+                canvas.drawText(candidate.dayText, candidate.x, dayYTop, paint)
+                drawnDayLabelBounds.add(topBounds)
+                Log.d("DayLabel", "Day=${candidate.dayText} side=$side x=${candidate.x} placement=TOP")
+                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.dayText, candidate.date, candidate.x, dayYTop, "TOP", isToday))
+                continue
             }
+
+            // 2. Try MIDDLE
+            val midBounds = dayBounds(candidate.x, dayYMid, textWidth)
+            if (!collides(midBounds)) {
+                canvas.drawText(candidate.dayText, candidate.x, dayYMid, paint)
+                drawnDayLabelBounds.add(midBounds)
+                Log.d("DayLabel", "Day=${candidate.dayText} side=$side x=${candidate.x} placement=MIDDLE")
+                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.dayText, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday))
+                continue
+            }
+
+            // 3. BOTTOM — always draw
+            val botBounds = dayBounds(candidate.x, dayYBottom, textWidth)
+            canvas.drawText(candidate.dayText, candidate.x, dayYBottom, paint)
+            drawnDayLabelBounds.add(botBounds)
+            Log.d("DayLabel", "Day=${candidate.dayText} side=$side x=${candidate.x} placement=BOTTOM")
+            onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.dayText, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday))
         }
 
         GraphRenderUtils.drawNowIndicator(

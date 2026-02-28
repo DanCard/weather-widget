@@ -8,6 +8,23 @@ import kotlin.math.roundToInt
 object DailyForecastGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
 
+    /**
+     * Fired once for each bar drawn, for testing and debugging.
+     *
+     * @param date      ISO date string of the day (e.g. "2024-01-15")
+     * @param barType   "TODAY", "HISTORY", "FUTURE", "CLIMATE", "FORECAST_OVERLAY"
+     * @param highY     canvas Y of the top of the bar (lower value = higher on screen)
+     * @param lowY      canvas Y of the bottom of the bar
+     * @param centerX   canvas X center of the day column
+     */
+    data class BarDrawnDebug(
+        val date: String,
+        val barType: String,
+        val highY: Float,
+        val lowY: Float,
+        val centerX: Float,
+    )
+
     data class DayData(
         val date: String, // ISO date string (e.g. "2024-01-15")
         val label: String,
@@ -33,6 +50,7 @@ object DailyForecastGraphRenderer {
         widthPx: Int,
         heightPx: Int,
         bitmapScale: Float = 1f,
+        onBarDrawn: ((BarDrawnDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -379,9 +397,16 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, lowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, forecastHighY, centerX + tripleBarOffset, forecastLowY, todayTripleBluePaint)
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, lowY, centerX))
                 } else {
                     // Full data: draw vertical bar (no caps as requested)
                     canvas.drawLine(centerX, highY, centerX, lowY, paint)
+                    val barType = when {
+                        day.isPast -> "HISTORY"
+                        day.isClimateNormal -> "CLIMATE"
+                        else -> "FUTURE"
+                    }
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, lowY, centerX))
                 }
             } else if (highY != null) {
                 if (day.isToday) {
@@ -392,10 +417,13 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, highY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, highY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, forecastHighY, centerX + tripleBarOffset, forecastHighY, todayTripleBluePaint)
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, highY, centerX))
                 } else {
                     // Only high temp: draw point/small segment?
                     // Using a 1-pixel line to mark the spot if no range exists
                     canvas.drawLine(centerX, highY, centerX, highY, paint)
+                    val barType = if (day.isPast) "HISTORY" else if (day.isClimateNormal) "CLIMATE" else "FUTURE"
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, highY, centerX))
                 }
             } else if (lowY != null) {
                 if (day.isToday) {
@@ -406,9 +434,12 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX - tripleBarOffset, lowY, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, lowY, centerX, lowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, forecastLowY, centerX + tripleBarOffset, forecastLowY, todayTripleBluePaint)
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", lowY, lowY, centerX))
                 } else {
                     // Only low temp
                     canvas.drawLine(centerX, lowY, centerX, lowY, paint)
+                    val barType = if (day.isPast) "HISTORY" else if (day.isClimateNormal) "CLIMATE" else "FUTURE"
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, lowY, lowY, centerX))
                 }
             }
 
@@ -428,6 +459,9 @@ object DailyForecastGraphRenderer {
 
                 // Draw the forecast bar (simple vertical line)
                 canvas.drawLine(forecastX, forecastHighY, forecastX, forecastLowY, forecastBarPaint)
+                if (!day.isToday) {
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", forecastHighY, forecastLowY, forecastX))
+                }
             }
 
             // Draw high label if available
