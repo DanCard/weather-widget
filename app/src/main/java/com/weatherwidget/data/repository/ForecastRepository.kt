@@ -288,13 +288,15 @@ class ForecastRepository
             val precipProbabilityMap = mutableMapOf<String, Int>()
             val highTempSourceMap = mutableMapOf<String, String>()
             val lowTempSourceMap = mutableMapOf<String, String>()
+            val periodTimeMap = mutableMapOf<String, Pair<String?, String?>>()
 
             initPrecipFromHourly(hourlyPeriods, precipProbabilityMap)
             initConditionsFromHourly(hourlyPeriods, conditionMap, conditionSourceMap)
-            
+
             val todayForecastPeriods = applyForecastPeriods(
-                forecastPeriods, todayDateString, temperatureMap, conditionMap, 
-                conditionSourceMap, highTempSourceMap, lowTempSourceMap, precipProbabilityMap
+                forecastPeriods, todayDateString, temperatureMap, conditionMap,
+                conditionSourceMap, highTempSourceMap, lowTempSourceMap, precipProbabilityMap,
+                periodTimeMap
             )
             logTodayDiagnostics(
                 todayDateString, temperatureMap, highTempSourceMap, lowTempSourceMap, 
@@ -302,6 +304,7 @@ class ForecastRepository
             )
 
             temperatureMap.map { (dateString, temperatures) ->
+                val (pStart, pEnd) = periodTimeMap[dateString] ?: (null to null)
                 ForecastEntity(
                     targetDate = dateString,
                     forecastDate = todayDateString,
@@ -313,7 +316,9 @@ class ForecastRepository
                     condition = conditionMap[dateString] ?: "Unknown",
                     isClimateNormal = false,
                     source = WeatherSource.NWS.id,
-                    precipProbability = precipProbabilityMap[dateString]
+                    precipProbability = precipProbabilityMap[dateString],
+                    periodStartTime = pStart,
+                    periodEndTime = pEnd,
                 )
             }
         }
@@ -387,27 +392,33 @@ class ForecastRepository
             conditionSourceMap: MutableMap<String, String>,
             highTempSourceMap: MutableMap<String, String>,
             lowTempSourceMap: MutableMap<String, String>,
-            precipProbabilityMap: MutableMap<String, Int>
+            precipProbabilityMap: MutableMap<String, Int>,
+            periodTimeMap: MutableMap<String, Pair<String?, String?>>
         ): List<NwsApi.ForecastPeriod> {
             val todayPeriods = mutableListOf<NwsApi.ForecastPeriod>()
             forecastPeriods.forEach { period ->
                 val dateString = extractNwsForecastDate(period.startTime) ?: return@forEach
                 if (dateString == todayDateString) todayPeriods.add(period)
-                
-                val currentTemps = temperatureMap[dateString] ?: (null to null)
+
                 val probability = period.precipProbability
                 if (probability != null && !precipProbabilityMap.containsKey(dateString)) {
                     precipProbabilityMap[dateString] = probability
                 }
-                
+
                 if (period.isDaytime) {
+                    val currentTemps = temperatureMap[dateString] ?: (null to null)
                     temperatureMap[dateString] = period.temperature.toFloat() to currentTemps.second
                     highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                    periodTimeMap[dateString] = period.startTime to period.endTime
                 } else {
-                    temperatureMap[dateString] = currentTemps.first to period.temperature.toFloat()
-                    lowTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                    // The overnight low physically occurs in the early morning of the following day.
+                    // Use the endTime's date (not startTime's) so the low is attributed correctly.
+                    val lowDateString = extractNwsForecastDate(period.endTime) ?: dateString
+                    val currentLowTemps = temperatureMap[lowDateString] ?: (null to null)
+                    temperatureMap[lowDateString] = currentLowTemps.first to period.temperature.toFloat()
+                    lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
                 }
-                
+
                 if (conditionMap[dateString] == null) {
                     conditionMap[dateString] = period.shortForecast
                     conditionSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
@@ -453,9 +464,19 @@ class ForecastRepository
             sourceId: String
         ) {
             val todayDate = LocalDate.now()
+            val now = ZonedDateTime.now()
             val forecastsToSave = weatherForecasts.filter { forecast ->
                 val date = runCatching { LocalDate.parse(forecast.targetDate) }.getOrNull()
-                date != null && !date.isBefore(todayDate) && !forecast.isClimateNormal
+                if (date == null || date.isBefore(todayDate) || forecast.isClimateNormal) return@filter false
+                // Exclude entries whose daytime period has already ended — NWS overwrites elapsed
+                // periods with observed reality, so snapshotting them would corrupt accuracy tracking
+                // by making tomorrow's "forecast vs actual" comparison observed-vs-observed.
+                val periodEnd = runCatching { ZonedDateTime.parse(forecast.periodEndTime) }.getOrNull()
+                if (periodEnd != null && periodEnd.isBefore(now)) {
+                    appLogDao.log("SNAPSHOT_SKIP_ELAPSED", "date=${forecast.targetDate} source=${forecast.source} periodEnd=${forecast.periodEndTime}")
+                    return@filter false
+                }
+                true
             }.mapNotNull { forecast ->
                 if (forecast.highTemp == null && forecast.lowTemp == null) return@mapNotNull null
                 
@@ -701,8 +722,16 @@ class ForecastRepository
 
         private suspend fun persistNwsPeriodSummary(url: String, forecastPeriods: List<NwsApi.ForecastPeriod>) {
             if (forecastPeriods.isEmpty()) return
-            val compactSummary = forecastPeriods.take(NWS_PERIOD_SUMMARY_COUNT).mapIndexed { index, period -> 
-                "$index:${period.name}@${period.startTime}=${period.temperature}" 
+            val now = ZonedDateTime.now()
+            val compactSummary = forecastPeriods.take(NWS_PERIOD_SUMMARY_COUNT).mapIndexed { index, period ->
+                val start = runCatching { ZonedDateTime.parse(period.startTime) }.getOrNull()
+                val end = runCatching { ZonedDateTime.parse(period.endTime) }.getOrNull()
+                val marker = when {
+                    end != null && end.isBefore(now) -> "PAST"
+                    start != null && start.isBefore(now) -> "ACTIVE"
+                    else -> "FUTURE"
+                }
+                "$index[$marker]:${period.name}@${period.startTime}..${period.endTime}=${period.temperature}"
             }.joinToString("; ")
             appLogDao.log("NWS_PERIOD_SUMMARY", "url=$url first8=$compactSummary")
         }

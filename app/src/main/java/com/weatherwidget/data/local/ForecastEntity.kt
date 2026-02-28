@@ -24,5 +24,7 @@ data class ForecastEntity(
     val isClimateNormal: Boolean = false, // Historical averages
     val source: String, // Database storage: "NWS", "OPEN_METEO", "WEATHER_API", or "GENERIC_GAP"
     val precipProbability: Int? = null, // Rain chance percentage (0-100)
+    val periodStartTime: String? = null,  // NWS only: ISO-8601 start of the daytime forecast period
+    val periodEndTime: String? = null,    // NWS only: ISO-8601 end of the daytime forecast period
     val fetchedAt: Long = System.currentTimeMillis(),
 )

@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class],
-    version = 27,
+    version = 28,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -68,6 +68,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_24_25,
                             MIGRATION_25_26,
                             MIGRATION_26_27,
+                            MIGRATION_27_28,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -878,6 +879,14 @@ abstract class WeatherDatabase : RoomDatabase() {
                     db.execSQL("UPDATE forecasts SET source = 'OPEN_METEO' WHERE source = 'Open-Meteo'")
                     db.execSQL("UPDATE forecasts SET source = 'WEATHER_API' WHERE source = 'WeatherAPI'")
                     db.execSQL("UPDATE forecasts SET source = 'Generic' WHERE source = 'GENERIC_GAP'")
+                }
+            }
+
+        val MIGRATION_27_28 =
+            object : Migration(27, 28) {
+                override fun migrate(database: SupportSQLiteDatabase) {
+                    database.execSQL("ALTER TABLE forecasts ADD COLUMN periodStartTime TEXT")
+                    database.execSQL("ALTER TABLE forecasts ADD COLUMN periodEndTime TEXT")
                 }
             }
     }

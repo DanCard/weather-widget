@@ -85,7 +85,7 @@ class NwsMiddayOverrideTest {
     fun `fetchFromNws prioritizes midday hourly condition for future dates`() = runTest {
         val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://api.weather.gov/gridpoints/MTR/93,87/forecast", "https://obs.api")
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(NwsApi.ForecastPeriod("Tomorrow", "${tomorrow}T06:00:00-08:00", 64, "F", "Patchy Fog then Slight Chance Light Rain", true))
+        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(NwsApi.ForecastPeriod("Tomorrow", "${tomorrow}T06:00:00-08:00", "${tomorrow}T18:00:00-08:00", 64, "F", "Patchy Fog then Slight Chance Light Rain", true))
         coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
             NwsApi.HourlyForecastPeriod("${tomorrow}T08:00:00-08:00", 54f, "Patchy Fog"),
             NwsApi.HourlyForecastPeriod("${tomorrow}T13:00:00-08:00", 64f, "Partly Sunny"),

@@ -213,6 +213,7 @@ class NwsApi
                 ForecastPeriod(
                     name = name,
                     startTime = startTime,
+                    endTime = endTime,
                     temperature = temperature,
                     temperatureUnit = temperatureUnit,
                     shortForecast = shortForecast,
@@ -304,6 +305,7 @@ class NwsApi
         data class ForecastPeriod(
             val name: String,
             val startTime: String,
+            val endTime: String,
             val temperature: Int,
             val temperatureUnit: String,
             val shortForecast: String,
