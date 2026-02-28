@@ -162,6 +162,120 @@ internal object GraphRenderUtils {
     }
 
     /**
+     * Draws day labels with a priority-based placement:
+     * 1) Top of graph if no collisions.
+     * 2) Above navigation arrows (middle-ish) if no collisions.
+     * 3) Bottom area (fallback, ignore collisions).
+     */
+    fun drawDayLabels(
+        canvas: Canvas,
+        points: List<Pair<Float, Float>>,
+        dayLabelIndices: List<Int>,
+        dayLabels: List<String>,
+        drawnLabelBounds: List<android.graphics.RectF>,
+        drawnIconBounds: List<android.graphics.RectF>,
+        graphTop: Float,
+        graphBottom: Float,
+        widthPx: Int,
+        heightPx: Int,
+        dayLabelTextPaint: Paint,
+        nowX: Float?,
+        nowLabelTextPaint: Paint?,
+        dpToPx: (Float) -> Float,
+    ) {
+        val padding = dpToPx(4f)
+        val dayLabelHeight = dayLabelTextPaint.textSize
+        val graphHeight = graphBottom - graphTop
+        
+        // Potential Y positions (baseline)
+        // 1. Top: Just below top padding, but above the curve
+        val yTop = graphTop + dayLabelHeight + dpToPx(2f)
+        
+        // 2. Above Arrows: Navigation arrows are centered vertically and ~80dp tall.
+        // We place this above the center line.
+        val yAboveArrows = heightPx / 2f - dpToPx(42f)
+        
+        // 3. Bottom: Original fallback position at the very bottom
+        val yBottom = heightPx - dpToPx(14f)
+
+        // NOW label bounds for collision detection
+        val nowBounds = if (nowX != null && nowLabelTextPaint != null) {
+            val textWidth = nowLabelTextPaint.measureText("NOW")
+            val lineHeight = graphHeight * 0.6f
+            val lineTop = graphTop + (graphHeight - lineHeight) / 2f
+            android.graphics.RectF(
+                nowX - textWidth / 2f - padding, 
+                lineTop - nowLabelTextPaint.textSize - dpToPx(2f) - padding, 
+                nowX + textWidth / 2f + padding, 
+                lineTop + padding
+            )
+        } else null
+
+        dayLabelIndices.forEachIndexed { i, index ->
+            val dayText = dayLabels[i]
+            val centerX = if (index == -1) {
+                // Leading label (leftmost edge)
+                dayLabelTextPaint.measureText(dayText) / 2f + dpToPx(2f)
+            } else {
+                points[index].first
+            }
+            
+            val textWidth = dayLabelTextPaint.measureText(dayText)
+            val clampedX = centerX.coerceIn(textWidth / 2f + padding, widthPx - textWidth / 2f - padding)
+            
+            // Try Top
+            if (canPlaceDayLabel(clampedX, yTop, textWidth, dayLabelHeight, drawnLabelBounds, drawnIconBounds, nowBounds, points, index, padding)) {
+                canvas.drawText(dayText, clampedX, yTop, dayLabelTextPaint)
+            } else if (yAboveArrows > yTop + dayLabelHeight && 
+                       canPlaceDayLabel(clampedX, yAboveArrows, textWidth, dayLabelHeight, drawnLabelBounds, drawnIconBounds, nowBounds, points, index, padding)) {
+                // Try Above Arrows (if it's distinct from Top)
+                canvas.drawText(dayText, clampedX, yAboveArrows, dayLabelTextPaint)
+            } else {
+                // Fallback to Bottom
+                canvas.drawText(dayText, clampedX, yBottom, dayLabelTextPaint)
+            }
+        }
+    }
+
+    private fun canPlaceDayLabel(
+        x: Float,
+        baselineY: Float,
+        textWidth: Float,
+        textHeight: Float,
+        drawnLabelBounds: List<android.graphics.RectF>,
+        drawnIconBounds: List<android.graphics.RectF>,
+        nowBounds: android.graphics.RectF?,
+        points: List<Pair<Float, Float>>,
+        index: Int,
+        padding: Float
+    ): Boolean {
+        val bounds = android.graphics.RectF(x - textWidth / 2f - padding, baselineY - textHeight - padding, x + textWidth / 2f + padding, baselineY + padding)
+        
+        // Check labels and icons
+        if (drawnLabelBounds.any { android.graphics.RectF.intersects(it, bounds) }) return false
+        if (drawnIconBounds.any { android.graphics.RectF.intersects(it, bounds) }) return false
+        if (nowBounds != null && android.graphics.RectF.intersects(nowBounds, bounds)) return false
+        
+        // Check curve collision
+        if (index != -1) {
+            val window = 2
+            for (i in (index - window).coerceAtLeast(0)..(index + window).coerceAtMost(points.size - 1)) {
+                val curveY = points[i].second
+                if (curveY > bounds.top && curveY < bounds.bottom) return false
+            }
+        } else {
+            // Leading label: check against points near the start
+            val window = 2
+            for (i in 0..window.coerceAtMost(points.size - 1)) {
+                val curveY = points[i].second
+                if (curveY > bounds.top && curveY < bounds.bottom) return false
+            }
+        }
+        
+        return true
+    }
+
+    /**
      * Applies a 3-point weighted moving average [0.25, 0.5, 0.25] to smooth out
      * "stair-step" data plateaus. Multiple iterations create a progressively
      * smoother, more fluid curve.
