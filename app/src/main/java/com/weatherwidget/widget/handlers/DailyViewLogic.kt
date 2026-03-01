@@ -72,6 +72,7 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
+        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap()
     ): List<TextDayData> {
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -80,7 +81,16 @@ object DailyViewLogic {
             val date = effectiveCenter.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val weather = weatherByDate[dateStr]
-            val hasData = weather != null && weather.highTemp != null && weather.lowTemp != null
+            val isToday = date == today
+            val isPast = date.isBefore(today)
+            
+            // For future days, we need both high and low.
+            // For today and past days, we can show partial data (High-only or Low-only).
+            val hasData = if (!isToday && !isPast) {
+                weather != null && weather.highTemp != null && weather.lowTemp != null
+            } else {
+                (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(dateStr)
+            }
             
             val isVisible = when {
                 numColumns >= 7 -> true
@@ -128,7 +138,13 @@ object DailyViewLogic {
             var highLabel: String? = formatTemp(weather?.highTemp)
             var lowLabel: String? = formatTemp(weather?.lowTemp)
 
-            if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
+            if (isPast) {
+                val actual = dailyActuals[dateStr]
+                if (actual != null) {
+                    highLabel = formatTempLabel(actual.highTemp)
+                    lowLabel = formatTempLabel(actual.lowTemp)
+                }
+            } else if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather
                 )
@@ -142,7 +158,7 @@ object DailyViewLogic {
                 date = date,
                 dateStr = dateStr,
                 isVisible = isVisible,
-                hasData = weather != null && weather.highTemp != null && weather.lowTemp != null,
+                hasData = (weather != null && weather.highTemp != null && weather.lowTemp != null) || dailyActuals.containsKey(dateStr),
                 label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 weather = weather,
                 rainSummary = displayedSummaries[index],
@@ -169,6 +185,7 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
+        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap()
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
@@ -177,27 +194,52 @@ object DailyViewLogic {
         dayOffsets.forEach { offset ->
             val date = centerDate.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val weather = weatherByDate[dateStr] ?: return@forEach
+            val weather = weatherByDate[dateStr]
+            val actual = dailyActuals[dateStr]
 
-            if (weather.highTemp == null && weather.lowTemp == null) return@forEach
+            if (weather == null && actual == null) return@forEach
+            
+            // For future days, we need both high and low.
+            // For today and past days, we can show partial data (High-only or Low-only).
+            val isToday = date == today
+            val isPastDate = date.isBefore(today)
+            if (!isToday && !isPastDate) {
+                if (weather?.highTemp == null || weather?.lowTemp == null) return@forEach
+            } else {
+                // Today/Past: Must have at least ONE temperature source
+                if (weather?.highTemp == null && weather?.lowTemp == null && actual == null) return@forEach
+            }
 
             val forecasts = forecastSnapshots[dateStr] ?: emptyList()
-            val forecast = forecasts.filter { it.source == displaySource.id }.maxByOrNull { it.fetchedAt }
+            // Prefer the latest COMPLETE snapshot (both high and low) for historical comparison,
+            // as NWS midday fetches often drop the morning low.
+            val forecast = forecasts
+                .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
+                .filter { it.highTemp != null && it.lowTemp != null }
+                .maxByOrNull { it.fetchedAt }
+                ?: forecasts.filter { it.source == displaySource.id }.maxByOrNull { it.fetchedAt }
                 ?: forecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }.maxByOrNull { it.fetchedAt }
 
             val label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            val isPastDate = date.isBefore(today)
-            val isToday = date == today
 
             val showComparison = (isPastDate || (isToday && isEveningMode)) &&
                 forecast != null
 
-            var finalHigh: Float? = weather.highTemp
-            var finalLow: Float? = weather.lowTemp
+            var finalHigh: Float? = weather?.highTemp
+            var finalLow: Float? = weather?.lowTemp
             var fHigh: Float? = null
             var fLow: Float? = null
 
-            if (isToday && hourlyForecasts.isNotEmpty()) {
+            if (isPastDate) {
+                if (actual != null) {
+                    finalHigh = actual.highTemp
+                    finalLow = actual.lowTemp
+                }
+                if (showComparison) {
+                    fHigh = forecast?.highTemp
+                    fLow = forecast?.lowTemp
+                }
+            } else if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather
                 )
@@ -210,9 +252,9 @@ object DailyViewLogic {
                 fLow = forecast?.lowTemp
             }
 
-            val effectiveCondition = if (isToday) {
+            val effectiveCondition = if (isToday && weather != null) {
                 getEffectiveCondition(now, todayStr, displaySource, hourlyForecasts, weather)
-            } else weather.condition
+            } else weather?.condition ?: actual?.condition
             
             val iconRes = WeatherIconMapper.getIconResource(effectiveCondition)
 
@@ -220,7 +262,7 @@ object DailyViewLogic {
                 RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, now)
             } else null
             
-            val precip = if (isToday) todayNext8HourPrecipProbability else weather.precipProbability
+            val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             val hasRainForecast = DayClickHelper.hasRainForecast(rawRainSummary, precip)
             
             val nearTermLimit = today.plusDays(2)
@@ -244,7 +286,7 @@ object DailyViewLogic {
                     isMixed = WeatherIconMapper.isMixed(iconRes),
                     isToday = isToday,
                     isPast = isPastDate,
-                    isClimateNormal = weather.isClimateNormal,
+                    isClimateNormal = weather?.isClimateNormal ?: false,
                     forecastHigh = fHigh,
                     forecastLow = fLow,
                     rainSummary = rainSummary,

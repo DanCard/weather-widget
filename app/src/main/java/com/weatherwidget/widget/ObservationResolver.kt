@@ -1,7 +1,10 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.CurrentTempEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import java.time.Instant
+import java.time.ZoneId
 
 /**
  * Helper for resolving the most recent observed temperature from current temp records.
@@ -13,6 +16,13 @@ object ObservationResolver {
         val observedAt: Long,
         val source: String,
         val rowFetchedAt: Long,
+    )
+
+    data class DailyActual(
+        val date: String,
+        val highTemp: Float,
+        val lowTemp: Float,
+        val condition: String,
     )
 
     /**
@@ -36,5 +46,38 @@ object ObservationResolver {
                     rowFetchedAt = entity.fetchedAt,
                 )
             }
+    }
+
+    /**
+     * Aggregates raw timestamped observations into actual daily highs and lows.
+     */
+    fun aggregateObservationsToDaily(
+        observations: List<ObservationEntity>
+    ): List<DailyActual> {
+        val local = ZoneId.systemDefault()
+
+        val observationsByDate = observations.groupBy { obs ->
+            Instant.ofEpochMilli(obs.timestamp)
+                .atZone(local)
+                .toLocalDate()
+                .toString()
+        }
+
+        return observationsByDate.mapNotNull { (date, obs) ->
+            if (obs.isEmpty()) return@mapNotNull null
+
+            val highTemp = obs.maxOf { it.temperature }
+            val lowTemp = obs.minOf { it.temperature }
+
+            val conditions = obs.map { it.condition }
+            val mostCommon = conditions.groupingBy { it }.eachCount().maxByOrNull { it.value }
+
+            DailyActual(
+                date = date,
+                highTemp = highTemp,
+                lowTemp = lowTemp,
+                condition = mostCommon?.key ?: "Unknown"
+            )
+        }
     }
 }

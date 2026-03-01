@@ -398,6 +398,7 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX, highY, centerX, lowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, forecastHighY, centerX + tripleBarOffset, forecastLowY, todayTripleBluePaint)
                     onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, lowY, centerX))
+                    android.util.Log.d("DailyForecastGraph", "Drawn triple (today): date=${day.date}, high=${day.high}, low=${day.low}, fHigh=${day.forecastHigh}, fLow=${day.forecastLow}")
                 } else {
                     // Full data: draw vertical bar (no caps as requested)
                     canvas.drawLine(centerX, highY, centerX, lowY, paint)

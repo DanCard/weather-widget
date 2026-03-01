@@ -171,7 +171,8 @@ object WidgetIntentRouter {
         val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val currentTemps = database.currentTempDao().getCurrentTemps(todayStr, lat, lon)
+        val ctCurrentTemps = database.currentTempDao().getCurrentTemps(todayStr, lat, lon)
+        val dailyActuals = getDailyActuals(database, lat, lon)
 
         withContext(Dispatchers.Main) {
             DailyViewHandler.updateWidget(
@@ -181,7 +182,8 @@ object WidgetIntentRouter {
                 weatherList,
                 forecastSnapshots,
                 hourlyForecasts,
-                currentTemps,
+                ctCurrentTemps,
+                dailyActuals,
             )
         }
     }
@@ -363,8 +365,9 @@ object WidgetIntentRouter {
 
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
+            val dailyActuals = getDailyActuals(database, lat, lon)
             withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps)
+                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals)
             }
         }
 
@@ -430,10 +433,23 @@ object WidgetIntentRouter {
 
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
+            val dailyActuals = getDailyActuals(database, lat, lon)
             withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps)
+                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals)
             }
         }
+    }
+
+    private suspend fun getDailyActuals(
+        database: WeatherDatabase,
+        lat: Double,
+        lon: Double,
+    ): Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> {
+        val local = ZoneId.systemDefault()
+        val startTs = LocalDate.now().minusDays(30).atStartOfDay(local).toEpochSecond() * 1000
+        val endTs = LocalDate.now().plusDays(1).atStartOfDay(local).toEpochSecond() * 1000
+        val observations = database.observationDao().getObservationsInRange(startTs, endTs, lat, lon)
+        return com.weatherwidget.widget.ObservationResolver.aggregateObservationsToDaily(observations).associateBy { it.date }
     }
 
     private suspend fun sourceDataMissingForCurrentWindow(
@@ -558,8 +574,9 @@ object WidgetIntentRouter {
 
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
+            val dailyActuals = getDailyActuals(database, lat, lon)
             withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps)
+                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals)
             }
         }
     }
@@ -652,7 +669,8 @@ object WidgetIntentRouter {
                 withContext(Dispatchers.Main) {
                     val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps)
+                val dailyActuals = getDailyActuals(database, lat, lon)
+                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals)
                 }
                 Log.d(TAG, "handleSetView: daily update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
@@ -719,8 +737,9 @@ object WidgetIntentRouter {
 
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
+            val dailyActuals = getDailyActuals(database, lat, lon)
             withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps)
+                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals)
             }
         }
     }

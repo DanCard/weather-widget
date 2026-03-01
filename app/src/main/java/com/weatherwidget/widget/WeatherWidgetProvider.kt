@@ -104,6 +104,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         latestWeather.locationLon,
                     )
 
+                    val local = java.time.ZoneId.systemDefault()
+                    val obsStartTs = LocalDate.now().minusDays(30).atStartOfDay(local).toEpochSecond() * 1000
+                    val obsEndTs = LocalDate.now().plusDays(1).atStartOfDay(local).toEpochSecond() * 1000
+                    val observations = database.observationDao().getObservationsInRange(
+                        obsStartTs,
+                        obsEndTs,
+                        latestWeather.locationLat,
+                        latestWeather.locationLon,
+                    )
+                    val dailyActuals = ObservationResolver.aggregateObservationsToDaily(observations).associateBy { it.date }
+
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetWithData(
                             context = context,
@@ -113,6 +124,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             forecastSnapshots = forecastSnapshots,
                             hourlyForecasts = hourlyForecasts,
                             currentTemps = currentTemps,
+                            dailyActuals = dailyActuals,
                         )
                     }
 
@@ -623,6 +635,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             forecastSnapshots: Map<String, List<ForecastEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
+            dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
         ) {
             val stateManager = WidgetStateManager(context)
             val viewMode = stateManager.getViewMode(appWidgetId)
@@ -683,6 +696,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             forecastSnapshots,
                             hourlyForecasts,
                             currentTemps,
+                            dailyActuals,
                         )
                     }
                 }

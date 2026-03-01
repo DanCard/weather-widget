@@ -92,6 +92,7 @@ object DailyViewHandler : WidgetViewHandler {
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity>,
+        dailyActuals: Map<String, ObservationResolver.DailyActual>,
     ) {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -221,7 +222,8 @@ object DailyViewHandler : WidgetViewHandler {
             val days = DailyViewLogic.prepareGraphDays(
                 now, centerDate, today, weatherByDate, forecastSnapshots,
                 numColumns, displaySource, isEveningMode, skipHistory,
-                hourlyForecasts, stateManager, appWidgetId, precipProb
+                hourlyForecasts, stateManager, appWidgetId, precipProb,
+                dailyActuals
             )
 
             // Mark rain as shown if today's rain is in the list
@@ -250,7 +252,7 @@ object DailyViewHandler : WidgetViewHandler {
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
                 hourlyForecasts, numColumns, displaySource, skipHistory,
-                stateManager, appWidgetId, precipProb
+                stateManager, appWidgetId, precipProb, dailyActuals
             )
 
             setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
@@ -362,11 +364,12 @@ object DailyViewHandler : WidgetViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>, numColumns: Int,
         displaySource: WeatherSource, skipHistory: Boolean,
         stateManager: WidgetStateManager?, appWidgetId: Int,
-        todayNext8HourPrecipProbability: Int?
+        todayNext8HourPrecipProbability: Int?,
+        dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap()
     ): List<Triple<Int, String, Boolean>> {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
-            displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability
+            displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals
         )
 
         val dayIds = listOf(

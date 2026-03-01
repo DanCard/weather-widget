@@ -111,7 +111,7 @@ class AccuracyCalculator
 
             val observations = observationDao.getObservationsInRange(startTs, endTs, lat, lon)
 
-            val dailyActuals = aggregateObservationsToDaily(observations)
+            val dailyActuals = com.weatherwidget.widget.ObservationResolver.aggregateObservationsToDaily(observations)
 
             val forecasts = forecastDao.getForecastsInRangeBySource(startDateStr, endDateStr, lat, lon, source.id)
 
@@ -136,7 +136,7 @@ class AccuracyCalculator
                     val fHigh = forecast.highTemp
                     val fLow = forecast.lowTemp
 
-                    if (aHigh != null && aLow != null && fHigh != null && fLow != null) {
+                    if (fHigh != null && fLow != null) {
                         val roundedActualHigh = aHigh.roundToInt()
                         val roundedActualLow = aLow.roundToInt()
                         val roundedForecastHigh = fHigh.roundToInt()
@@ -161,43 +161,6 @@ class AccuracyCalculator
             }
 
             return dailyAccuracies.sortedBy { it.date }
-        }
-
-        private data class DailyActual(
-            val date: String,
-            val highTemp: Float,
-            val lowTemp: Float,
-            val condition: String,
-        )
-
-        private fun aggregateObservationsToDaily(
-            observations: List<ObservationEntity>
-        ): List<DailyActual> {
-            val local = ZoneId.systemDefault()
-
-            val observationsByDate = observations.groupBy { obs ->
-                Instant.ofEpochMilli(obs.timestamp)
-                    .atZone(local)
-                    .toLocalDate()
-                    .toString()
-            }
-
-            return observationsByDate.mapNotNull { (date, obs) ->
-                if (obs.isEmpty()) return@mapNotNull null
-
-                val highTemp = obs.maxOf { it.temperature }
-                val lowTemp = obs.minOf { it.temperature }
-
-                val conditions = obs.map { it.condition }
-                val mostCommon = conditions.groupingBy { it }.eachCount().maxByOrNull { it.value }
-
-                DailyActual(
-                    date = date,
-                    highTemp = highTemp,
-                    lowTemp = lowTemp,
-                    condition = mostCommon?.key ?: "Unknown"
-                )
-            }
         }
 
         private fun calculateScore(avgError: Double): Double {
