@@ -55,12 +55,13 @@ object ObservationResolver {
         observations: List<ObservationEntity>
     ): List<DailyActual> {
         val local = ZoneId.systemDefault()
+        val dateFormatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
 
         val observationsByDate = observations.groupBy { obs ->
             Instant.ofEpochMilli(obs.timestamp)
                 .atZone(local)
                 .toLocalDate()
-                .toString()
+                .format(dateFormatter)
         }
 
         return observationsByDate.mapNotNull { (date, obs) ->

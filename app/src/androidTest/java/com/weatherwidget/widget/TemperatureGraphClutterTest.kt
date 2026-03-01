@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.time.LocalDateTime
@@ -18,12 +19,12 @@ import java.time.LocalDateTime
  * Verifies that minor humps/peaks (e.g., 1 degree changes) don't trigger labels.
  */
 @RunWith(AndroidJUnit4::class)
-class TemperatureGraphClutterTest {
+class TemperatureGraphClutterTest : IsolatedIntegrationTest("temp_graph_clutter") {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val context = instrumentation.targetContext
 
     @Before
-    fun clearLogs() {
+    override fun setup() {
+        super.setup()
         runShellCommand("logcat -c")
     }
 

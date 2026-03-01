@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.local.*
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -13,7 +14,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 @RunWith(AndroidJUnit4::class)
-class NwsHistoryIntegrationTest {
+class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integration") {
 
     private val today = LocalDate.now()
     private val yesterday = today.minusDays(1)
@@ -117,39 +118,54 @@ class NwsHistoryIntegrationTest {
     }
 
     @Test
-    fun today_remains_visible_with_only_partial_nws_data() = runBlocking {
-        // Scenario: NWS fetch at 2pm only returns "Today" (High) and "Tonight" (Tomorrow Low).
-        // The widget should still show the "Today" column.
+    fun today_triple_line_uses_observations_to_fill_hourly_gaps() = runBlocking {
+        // Scenario: NWS Hourly fetch at midday only has hours from 11am onwards.
+        // The blue forecast line should still extend down to the morning low (from observations).
         
         val todayStr = today.toString()
-        val todayForecast = ForecastEntity(
+        val middayWeather = ForecastEntity(
             targetDate = todayStr,
             forecastDate = todayStr,
-            highTemp = 68f,
-            lowTemp = null, // Morning low is in the past
-            condition = "Foggy",
+            highTemp = 66f,
+            lowTemp = null, // Missing!
+            condition = "Sunny",
             source = WeatherSource.NWS.id,
             locationLat = 37.42,
             locationLon = -122.08
         )
 
+        // Only afternoon hours
+        val hourly = listOf(
+            HourlyForecastEntity(today.atTime(12, 0).formatISO(), 37.42, -122.08, 62f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L),
+            HourlyForecastEntity(today.atTime(14, 0).formatISO(), 37.42, -122.08, 66f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L)
+        )
+
+        // But we have a morning observation!
+        val obs = listOf(
+            ObservationEntity("KSJC", "San Jose", today.atTime(6, 0).toEpochMs(), 52f, "Clear", 37.42, -122.08)
+        )
+        val dailyActuals = ObservationResolver.aggregateObservationsToDaily(obs).associateBy { it.date }
+
         val days = DailyViewLogic.prepareGraphDays(
-            now = today.atTime(14, 0),
+            now = today.atTime(13, 0),
             centerDate = today,
             today = today,
-            weatherByDate = mapOf(todayStr to todayForecast),
-            forecastSnapshots = mapOf(todayStr to listOf(todayForecast)),
+            weatherByDate = mapOf(todayStr to middayWeather),
+            forecastSnapshots = mapOf(todayStr to listOf(middayWeather)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
             isEveningMode = false,
             skipHistory = false,
-            hourlyForecasts = emptyList(),
-            dailyActuals = emptyMap()
+            hourlyForecasts = hourly,
+            dailyActuals = dailyActuals
         )
 
         val result = days.find { it.date == todayStr }
-        assertNotNull("Today column should be visible even with missing low temp", result)
-        assertEquals(68f, result!!.high)
-        assertTrue("Day should be marked as today", result.isToday)
+        assertNotNull(result)
+        assertEquals("Observed low should be 52", 52f, result!!.low)
+        assertEquals("Forecast low (blue bar) should also reach down to 52", 52f, result.forecastLow)
     }
+
+    private fun LocalDateTime.formatISO() = this.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+    private fun LocalDateTime.toEpochMs() = this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 }

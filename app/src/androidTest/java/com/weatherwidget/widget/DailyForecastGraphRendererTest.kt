@@ -1,7 +1,7 @@
 package com.weatherwidget.widget
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -17,8 +17,7 @@ import org.junit.runner.RunWith
  * logical properties (barType, relative Y positions) instead of pixel colors.
  */
 @RunWith(AndroidJUnit4::class)
-class DailyForecastGraphRendererTest {
-    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_renderer") {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

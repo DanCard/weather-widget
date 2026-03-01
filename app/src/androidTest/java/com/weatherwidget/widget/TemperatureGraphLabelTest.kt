@@ -8,6 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.time.LocalDateTime
@@ -20,12 +21,12 @@ import java.time.LocalDateTime
  * renderer. Log lines are annotated in TemperatureGraphRenderer.kt.
  */
 @RunWith(AndroidJUnit4::class)
-class TemperatureGraphLabelTest {
+class TemperatureGraphLabelTest : IsolatedIntegrationTest("temp_graph_label") {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val context = instrumentation.targetContext
 
     @Before
-    fun clearLogs() {
+    override fun setup() {
+        super.setup()
         runShellCommand("logcat -c")
     }
 

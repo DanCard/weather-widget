@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.AndroidTestDatabase
 import com.weatherwidget.testutil.AndroidTestWidgetState
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -27,33 +28,23 @@ import org.junit.runner.RunWith
  * Verifies that the activity correctly uses the weather source from the widget that launched it.
  */
 @RunWith(AndroidJUnit4::class)
-class WeatherObservationsSourceIntegrationTest {
-    companion object {
-        private const val TEST_DB_SUFFIX = "weather_observations_source"
-        private const val TEST_PREFS_SUFFIX = "weather_observations_source"
-    }
+class WeatherObservationsSourceIntegrationTest : IsolatedIntegrationTest("weather_observations_source") {
 
-    private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
-    private lateinit var db: WeatherDatabase
     private val testWidgetId = 12345
 
     @Before
-    fun setup() {
-        context = ApplicationProvider.getApplicationContext()
-        db = AndroidTestDatabase.useIsolatedDatabase(TEST_DB_SUFFIX)
-        AndroidTestWidgetState.useIsolatedPrefs(TEST_PREFS_SUFFIX, context)
+    override fun setup() {
+        super.setup()
         stateManager = WidgetStateManager(context, db.appLogDao())
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
         stateManager.clearWidgetState(testWidgetId)
     }
 
     @After
-    fun cleanup() {
+    override fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        db.close()
-        AndroidTestDatabase.cleanup(TEST_DB_SUFFIX, context)
-        AndroidTestWidgetState.cleanup(TEST_PREFS_SUFFIX, context)
+        super.cleanup()
     }
 
     @Test

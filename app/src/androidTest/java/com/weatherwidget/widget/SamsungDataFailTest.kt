@@ -1,7 +1,7 @@
 package com.weatherwidget.widget
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,8 +12,7 @@ import java.time.LocalDateTime
  * The 4-5am transition (77% -> 91%) was not being labeled.
  */
 @RunWith(AndroidJUnit4::class)
-class SamsungDataFailTest {
-    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+class SamsungDataFailTest : IsolatedIntegrationTest("samsung_data_fail") {
 
     @Test
     fun samsungNwsData_labelsFiveAmPeak() {

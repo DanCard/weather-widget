@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.testutil.AndroidTestWidgetState
+import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
@@ -25,30 +26,23 @@ import org.junit.runner.RunWith
  * that zoom state persists across widget updates, and resets appropriately.
  */
 @RunWith(AndroidJUnit4::class)
-class ZoomCycleTest {
-    companion object {
-        private const val TEST_PREFS_SUFFIX = "zoom_cycle"
-    }
+class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
 
-    private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private val testWidgetId = 99992
 
     @Before
-    fun setup() {
-        context = ApplicationProvider.getApplicationContext()
-        AndroidTestWidgetState.useIsolatedPrefs(TEST_PREFS_SUFFIX, context)
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
+    override fun setup() {
+        super.setup()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
     }
 
     @After
-    fun cleanup() {
+    override fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        AndroidTestWidgetState.cleanup(TEST_PREFS_SUFFIX, context)
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+        super.cleanup()
     }
 
     @Test

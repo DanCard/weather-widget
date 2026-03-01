@@ -13,20 +13,12 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * Pure logic for the daily forecast view, separated from Android UI components for testability.
+ * Pure business logic for the daily forecast view, extracted for testability.
  */
 object DailyViewLogic {
-    private fun formatTempLabel(v: Float?): String? {
-        if (v == null) return null
-        val rounded = v.roundToInt()
-        val diff = abs(v - rounded.toFloat())
-        return if (diff < 0.01f) "$rounded°" else String.format("%.1f°", v)
-    }
-
 
     data class TextDayData(
         val dayIndex: Int,
@@ -43,22 +35,6 @@ object DailyViewLogic {
         val highLabel: String?,
         val lowLabel: String?
     )
-
-    fun getEffectiveCondition(
-        now: LocalDateTime,
-        todayStr: String,
-        displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        dailyWeather: ForecastEntity?
-    ): String? {
-        val currentHourKey = com.weatherwidget.util.WeatherTimeUtils.toHourlyForecastKey(now)
-        val currentHourForecast = hourlyForecasts.filter { it.dateTime == currentHourKey }.let { forecasts ->
-            forecasts.find { it.source == displaySource.id }
-                ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
-                ?: forecasts.firstOrNull()
-        }
-        return currentHourForecast?.condition ?: dailyWeather?.condition
-    }
 
     fun prepareTextDays(
         now: LocalDateTime,
@@ -139,14 +115,19 @@ object DailyViewLogic {
             var lowLabel: String? = formatTemp(weather?.lowTemp)
 
             if (isPast) {
-                val actual = dailyActuals[dateStr]
-                if (actual != null) {
-                    highLabel = formatTempLabel(actual.highTemp)
-                    lowLabel = formatTempLabel(actual.lowTemp)
-                }
-            } else if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
+                val obsHigh = dailyActuals[dateStr]?.highTemp
+                val obsLow = dailyActuals[dateStr]?.lowTemp
+                val fcstHigh = weather?.highTemp
+                val fcstLow = weather?.lowTemp
+
+                val finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
+                val finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
+
+                highLabel = formatTempLabel(finalHigh)
+                lowLabel = formatTempLabel(finalLow)
+            } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
-                    hourlyForecasts, today, now, displaySource, weather
+                    hourlyForecasts, today, now, displaySource, weather, dailyActuals
                 )
                 
                 highLabel = formatTempLabel(tripleValues.observedHigh) ?: highLabel
@@ -158,7 +139,11 @@ object DailyViewLogic {
                 date = date,
                 dateStr = dateStr,
                 isVisible = isVisible,
-                hasData = (weather != null && weather.highTemp != null && weather.lowTemp != null) || dailyActuals.containsKey(dateStr),
+                hasData = if (!isToday && !isPast) {
+                    weather != null && weather.highTemp != null && weather.lowTemp != null
+                } else {
+                    (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(dateStr)
+                },
                 label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 weather = weather,
                 rainSummary = displayedSummaries[index],
@@ -191,23 +176,23 @@ object DailyViewLogic {
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        dayOffsets.forEach { offset ->
+        dayOffsets.forEachIndexed { index, offset ->
             val date = centerDate.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val weather = weatherByDate[dateStr]
             val actual = dailyActuals[dateStr]
 
-            if (weather == null && actual == null) return@forEach
+            if (weather == null && actual == null) return@forEachIndexed
             
             // For future days, we need both high and low.
             // For today and past days, we can show partial data (High-only or Low-only).
             val isToday = date == today
             val isPastDate = date.isBefore(today)
             if (!isToday && !isPastDate) {
-                if (weather?.highTemp == null || weather?.lowTemp == null) return@forEach
+                if (weather?.highTemp == null || weather?.lowTemp == null) return@forEachIndexed
             } else {
                 // Today/Past: Must have at least ONE temperature source
-                if (weather?.highTemp == null && weather?.lowTemp == null && actual == null) return@forEach
+                if (weather?.highTemp == null && weather?.lowTemp == null && actual == null) return@forEachIndexed
             }
 
             val forecasts = forecastSnapshots[dateStr] ?: emptyList()
@@ -231,17 +216,24 @@ object DailyViewLogic {
             var fLow: Float? = null
 
             if (isPastDate) {
-                if (actual != null) {
-                    finalHigh = actual.highTemp
-                    finalLow = actual.lowTemp
-                }
+                // Merge raw observations and forecast snapshots to find the absolute truth.
+                // If observations are missing (device off), fall back to forecast.
+                // If forecast is partial, use observations to fill the gap.
+                val obsHigh = actual?.highTemp
+                val obsLow = actual?.lowTemp
+                val fcstHigh = weather?.highTemp
+                val fcstLow = weather?.lowTemp
+
+                finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
+                finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
+
                 if (showComparison) {
                     fHigh = forecast?.highTemp
                     fLow = forecast?.lowTemp
                 }
-            } else if (isToday && hourlyForecasts.isNotEmpty() && weather != null) {
+            } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
-                    hourlyForecasts, today, now, displaySource, weather
+                    hourlyForecasts, today, now, displaySource, weather, dailyActuals
                 )
                 finalHigh = tripleValues.observedHigh
                 finalLow = tripleValues.observedLow
@@ -292,9 +284,32 @@ object DailyViewLogic {
                     rainSummary = rainSummary,
                     dailyPrecipProbability = precip,
                     hasRainForecast = hasRainForecast,
+                    columnIndex = index
                 )
             )
         }
         return days
+    }
+
+    internal fun getEffectiveCondition(
+        now: LocalDateTime,
+        todayStr: String,
+        displaySource: WeatherSource,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        fallbackWeather: ForecastEntity?,
+    ): String? {
+        val nowHourStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val currentHourly = hourlyForecasts.find { 
+            it.dateTime == nowHourStr && 
+            (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id) 
+        }
+        
+        return currentHourly?.condition ?: fallbackWeather?.condition
+    }
+
+    private fun formatTempLabel(v: Float?): String? {
+        if (v == null) return null
+        val rounded = v.roundToInt()
+        return if (kotlin.math.abs(v - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", v)
     }
 }

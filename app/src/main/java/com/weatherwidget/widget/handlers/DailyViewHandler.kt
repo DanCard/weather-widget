@@ -94,6 +94,7 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<CurrentTempEntity>,
         dailyActuals: Map<String, ObservationResolver.DailyActual>,
     ) {
+        Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId")
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -113,7 +114,7 @@ object DailyViewHandler : WidgetViewHandler {
         Log.d(
             TAG,
             "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
-                "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}",
+                "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}",
         )
 
         // Setup common click actions
@@ -204,9 +205,7 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         // Set up navigation click handlers
-        val availableDates = weatherByDate.filter { (_, weather) ->
-            weather.highTemp != null || weather.lowTemp != null
-        }.keys
+        val availableDates = weatherList.map { it.targetDate }.toSet() + dailyActuals.keys
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)
 
         // Use graph mode for 2+ rows
@@ -239,7 +238,7 @@ object DailyViewHandler : WidgetViewHandler {
             val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
             val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
 
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx, bitmapScale)
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx, bitmapScale, numColumns)
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource)

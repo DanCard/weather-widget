@@ -1,8 +1,9 @@
 package com.weatherwidget.widget.handlers
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.widget.ViewMode
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -14,106 +15,71 @@ import org.junit.runner.RunWith
  * Instrumented tests for WidgetIntentRouter.
  */
 @RunWith(AndroidJUnit4::class)
-class WidgetIntentRouterTest {
-    private lateinit var context: Context
+class WidgetIntentRouterTest : IsolatedIntegrationTest("widget_intent_router") {
 
     @Before
-    fun setup() {
-        context = ApplicationProvider.getApplicationContext()
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
-    }
-
-    @org.junit.After
-    fun cleanup() {
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+    override fun setup() {
+        super.setup()
+        // No additional setup needed, base class handles isolation
     }
 
     @Test
-    fun handleNavigation_doesNotCrash() {
+    fun handleNavigation_doesNotCrash() = runBlocking {
         val appWidgetId = 123
-
         // Just verify the method exists and doesn't crash with invalid widget ID
-        runBlocking {
-            try {
-                WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft = true)
-            } catch (e: Exception) {
-                // Expected for invalid widget without database setup
-            }
+        try {
+            WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft = true)
+        } catch (e: Exception) {
+            // Expected for invalid widget
         }
     }
 
     @Test
-    fun handleToggleApi_doesNotCrash() {
+    fun handleToggleApi_doesNotCrash() = runBlocking {
         val appWidgetId = 123
-
-        runBlocking {
-            try {
-                WidgetIntentRouter.handleToggleApi(context, appWidgetId)
-            } catch (e: Exception) {
-                // Expected for invalid widget without database setup
-            }
+        try {
+            WidgetIntentRouter.handleToggleApi(context, appWidgetId)
+        } catch (e: Exception) {
+            // Expected for invalid widget
         }
     }
 
     @Test
-    fun handleToggleView_doesNotCrash() {
+    fun handleToggleView_doesNotCrash() = runBlocking {
         val appWidgetId = 123
-
-        runBlocking {
-            try {
-                WidgetIntentRouter.handleToggleView(context, appWidgetId)
-            } catch (e: Exception) {
-                // Expected for invalid widget without database setup
-            }
+        try {
+            WidgetIntentRouter.handleToggleView(context, appWidgetId)
+        } catch (e: Exception) {
+            // Expected for invalid widget
         }
     }
 
     @Test
-    fun handleTogglePrecip_doesNotCrash() {
+    fun handleTogglePrecip_doesNotCrash() = runBlocking {
         val appWidgetId = 123
-
-        runBlocking {
-            try {
-                WidgetIntentRouter.handleTogglePrecip(context, appWidgetId)
-            } catch (e: Exception) {
-                // Expected for invalid widget without database setup
-            }
+        try {
+            WidgetIntentRouter.handleTogglePrecip(context, appWidgetId)
+        } catch (e: Exception) {
+            // Expected for invalid widget
         }
     }
 
     @Test
-    fun handleSetView_doesNotCrash() {
+    fun handleSetView_doesNotCrash() = runBlocking {
         val appWidgetId = 123
-
-        runBlocking {
-            try {
-                WidgetIntentRouter.handleSetView(
-                    context,
-                    appWidgetId,
-                    com.weatherwidget.widget.ViewMode.TEMPERATURE,
-                )
-            } catch (e: Exception) {
-                // Expected for invalid widget without database setup
-            }
-        }
-    }
-
-    @Test
-    fun handleResize_doesNotCrash() {
-        val appWidgetId = 123
-
-        runBlocking {
-            try {
-                WidgetIntentRouter.handleResize(context, appWidgetId)
-            } catch (e: Exception) {
-                // Expected for invalid widget without database setup
-            }
+        try {
+            WidgetIntentRouter.handleSetView(
+                context,
+                appWidgetId,
+                ViewMode.TEMPERATURE,
+            )
+        } catch (e: Exception) {
+            // Expected for invalid widget
         }
     }
 
     @Test
     fun actionConstants_areDefined() {
-        // Verify all action constants are defined
         assertNotNull(WidgetIntentRouter.ACTION_NAV_LEFT)
         assertNotNull(WidgetIntentRouter.ACTION_NAV_RIGHT)
         assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_API)

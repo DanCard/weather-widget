@@ -156,6 +156,8 @@ cleanup() {
 
     # Always keep emulator running (avoids re-launch overhead on next run)
     if [ -n "${EMULATOR_SERIAL:-}" ]; then
+        echo -e "${YELLOW}Killing app process to reset test state...${NC}"
+        $ADB_BIN -s "$EMULATOR_SERIAL" shell am force-stop com.weatherwidget || true
         echo -e "${YELLOW}Keeping emulator running${NC}"
         echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
     fi

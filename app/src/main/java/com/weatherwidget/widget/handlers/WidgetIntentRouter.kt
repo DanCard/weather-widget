@@ -113,10 +113,15 @@ object WidgetIntentRouter {
         val (numColumns, _) = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val isEveningMode = NavigationUtils.isEveningMode()
 
-        val availableDates =
-            weatherByDate.filter { (_, weather) ->
-                weather.highTemp != null || weather.lowTemp != null
-            }.keys.map { LocalDate.parse(it) }.sorted()
+        val availableForecastDates = weatherList.map { it.targetDate }.toSet()
+        
+        val dailyActuals = getDailyActuals(database, lat, lon)
+        val availableObsDates = dailyActuals.keys
+        
+        val availableDates = (availableForecastDates + availableObsDates)
+            .map { LocalDate.parse(it) }
+            .distinct()
+            .sorted()
 
         val minDate = availableDates.firstOrNull()
         val maxDate = availableDates.lastOrNull()
@@ -131,7 +136,7 @@ object WidgetIntentRouter {
                     numColumns = numColumns,
                     isEveningMode = isEveningMode,
                 )
-            canNavigate = minDate != null && !minDate.isAfter(newLeftmost)
+            canNavigate = minDate != null && minDate.isBefore(newLeftmost.plusDays(1))
             navDebug = "LEFT: newLeftmost=$newLeftmost, minDate=$minDate"
         } else {
             val (_, newRightmost) =
@@ -141,7 +146,7 @@ object WidgetIntentRouter {
                     numColumns = numColumns,
                     isEveningMode = isEveningMode,
                 )
-            canNavigate = maxDate != null && !maxDate.isBefore(newRightmost)
+            canNavigate = maxDate != null && maxDate.isAfter(newRightmost.minusDays(1))
             navDebug = "RIGHT: newRightmost=$newRightmost, maxDate=$maxDate"
         }
 
@@ -172,7 +177,6 @@ object WidgetIntentRouter {
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val ctCurrentTemps = database.currentTempDao().getCurrentTemps(todayStr, lat, lon)
-        val dailyActuals = getDailyActuals(database, lat, lon)
 
         withContext(Dispatchers.Main) {
             DailyViewHandler.updateWidget(

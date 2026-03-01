@@ -30,16 +30,29 @@ abstract class WeatherDatabase : RoomDatabase() {
         private var INSTANCE: WeatherDatabase? = null
         @Volatile
         private var databaseNameOverride: String? = null
+        @Volatile
+        private var isTesting = false
 
         private const val DEFAULT_DATABASE_NAME = "weather_database"
+        private const val DEFAULT_TEST_DATABASE_NAME = "weather_database_test_default"
 
         fun getDatabase(context: Context): WeatherDatabase {
             return INSTANCE ?: synchronized(this) {
+                // If we are in a test environment and no specific override is set,
+                // use a default test database name instead of the production one.
+                val dbName = if (databaseNameOverride != null) {
+                    databaseNameOverride
+                } else if (isTesting) {
+                    DEFAULT_TEST_DATABASE_NAME
+                } else {
+                    DEFAULT_DATABASE_NAME
+                }
+
                 val instance =
                     Room.databaseBuilder(
                         context.applicationContext,
                         WeatherDatabase::class.java,
-                        databaseNameOverride ?: DEFAULT_DATABASE_NAME,
+                        dbName!!,
                     )
                         .addMigrations(
                             MIGRATION_1_2,
@@ -100,6 +113,12 @@ abstract class WeatherDatabase : RoomDatabase() {
                 INSTANCE = instance
                 instance
             }
+        }
+
+        @Synchronized
+        fun setIsTesting(enabled: Boolean) {
+            resetInstanceForTesting()
+            isTesting = enabled
         }
 
         @Synchronized
