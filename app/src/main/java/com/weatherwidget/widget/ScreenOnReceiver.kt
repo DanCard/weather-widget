@@ -33,7 +33,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
     private fun handlePowerConnected(context: Context) {
         val now = System.currentTimeMillis()
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
         val lastRefreshMs = prefs.getLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, 0L)
         val elapsedMs = now - lastRefreshMs
 

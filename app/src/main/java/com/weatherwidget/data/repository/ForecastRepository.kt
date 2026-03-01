@@ -57,7 +57,7 @@ class ForecastRepository
         )
 
         private val syncMutex = Mutex()
-        private val prefs by lazy { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
+        private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
         companion object {
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes

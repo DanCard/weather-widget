@@ -156,8 +156,6 @@ cleanup() {
 
     # Always keep emulator running (avoids re-launch overhead on next run)
     if [ -n "${EMULATOR_SERIAL:-}" ]; then
-        echo -e "${YELLOW}Killing app process to reset test state...${NC}"
-        $ADB_BIN -s "$EMULATOR_SERIAL" shell am force-stop com.weatherwidget || true
         echo -e "${YELLOW}Keeping emulator running${NC}"
         echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
     fi
@@ -279,7 +277,7 @@ cd "$PROJECT_DIR"
 if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = false ]; then
     mapfile -t CONNECTED_EMULATORS < <($ADB_BIN devices | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
     if [ "${#CONNECTED_EMULATORS[@]}" -gt 1 ]; then
-        echo -e "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC}"
+        echo -en "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC} "
         echo -e "${YELLOW}Running tests sequentially on each emulator...${NC}"
         OVERALL_STATUS=0
         for serial in "${CONNECTED_EMULATORS[@]}"; do
@@ -301,7 +299,7 @@ if [ -n "${EMULATOR_TESTS_TARGET_SERIAL:-}" ]; then
     EMULATOR_SERIAL="$EMULATOR_TESTS_TARGET_SERIAL"
     if ! echo "$ALL_DEVICES" | grep -qx "$EMULATOR_SERIAL"; then
         echo -e "${RED}Error: Requested emulator serial not connected: $EMULATOR_SERIAL${NC}"
-        echo "Connected devices:"
+        echo -n "Connected devices: "
         $ADB_BIN devices
         exit 1
     fi
@@ -329,6 +327,16 @@ fi
 DEVICE_MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
 DEVICE_BRAND=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
 echo -en "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC} \t"
+
+# Pre-test cleanup to avoid stale app-side workers/jobs mutating live widget state
+# while instrumentation initializes.
+echo -e "${YELLOW}Pre-test cleanup: stopping app + canceling scheduled jobs${NC}"
+$ADB_BIN -s "$ANDROID_SERIAL" shell am force-stop com.weatherwidget >/dev/null 2>&1 || true
+$ADB_BIN -s "$ANDROID_SERIAL" shell am force-stop com.weatherwidget.test >/dev/null 2>&1 || true
+$ADB_BIN -s "$ANDROID_SERIAL" shell cmd jobscheduler stop com.weatherwidget >/dev/null 2>&1 || true
+$ADB_BIN -s "$ANDROID_SERIAL" shell cmd jobscheduler cancel com.weatherwidget >/dev/null 2>&1 || true
+$ADB_BIN -s "$ANDROID_SERIAL" shell cmd jobscheduler stop com.weatherwidget.test >/dev/null 2>&1 || true
+$ADB_BIN -s "$ANDROID_SERIAL" shell cmd jobscheduler cancel com.weatherwidget.test >/dev/null 2>&1 || true
 
 # Build gradle command - use ANDROID_SERIAL to target specific device
 GRADLE_CMD=":app:connectedDebugAndroidTest"
@@ -607,7 +615,7 @@ if [ -f "$TEST_RESULTS_LOG" ] && [ "$TEST_SUCCESS" = true ] && [ "$FAILED" -eq 0
         echo -e "${BLUE}Per-class pass summary:${NC}"
         while IFS=$'\t' read -r class_name pass_count; do
             [ -z "$class_name" ] && continue
-            echo -e "  ${GREEN}${class_name}${NC} > Passed ${pass_count} tests"
+            echo -en "  ${GREEN}${class_name}${NC} > Passed ${pass_count} \t"
         done <<< "$CLASS_PASS_SUMMARY"
     fi
 fi

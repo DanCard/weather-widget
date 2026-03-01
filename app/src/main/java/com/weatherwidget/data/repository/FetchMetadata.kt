@@ -13,7 +13,7 @@ object FetchMetadata {
     private const val KEY_LAST_CURRENT_TEMP_FETCH = "last_current_temp_fetch_time"
 
     private fun getPrefs(context: Context): SharedPreferences {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
     }
 
     fun getLastFullFetchTime(context: Context): Long {

@@ -129,7 +129,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     private fun saveLocationAlias(lat: Double, lon: Double, name: String) {
-        val prefs = getSharedPreferences("weather_widget_prefs", android.content.Context.MODE_PRIVATE)
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, "weather_widget_prefs")
         val key = String.format("alias_%.3f_%.3f", lat, lon)
         prefs.edit().putString(key, name).apply()
     }

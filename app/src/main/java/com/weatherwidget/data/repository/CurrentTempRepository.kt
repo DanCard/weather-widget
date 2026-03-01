@@ -58,7 +58,7 @@ class CurrentTempRepository
             get() = FetchMetadata.getLastCurrentTempFetchTime(context)
             set(value) = FetchMetadata.setLastCurrentTempFetchTime(context, value)
             
-        private val prefs by lazy { context.getSharedPreferences("weather_prefs", Context.MODE_PRIVATE) }
+        private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
         suspend fun refreshCurrentTemperature(
             latitude: Double, 

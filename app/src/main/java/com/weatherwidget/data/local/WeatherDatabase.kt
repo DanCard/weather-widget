@@ -122,6 +122,9 @@ abstract class WeatherDatabase : RoomDatabase() {
         }
 
         @Synchronized
+        fun isTestingMode(): Boolean = isTesting
+
+        @Synchronized
         fun resetInstanceForTesting() {
             INSTANCE?.close()
             INSTANCE = null

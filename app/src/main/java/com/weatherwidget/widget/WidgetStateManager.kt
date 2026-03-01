@@ -96,7 +96,7 @@ class WidgetStateManager
         }
 
         private val prefs: SharedPreferences by lazy {
-            context.getSharedPreferences(prefsNameOverride ?: PREFS_NAME, Context.MODE_PRIVATE)
+            com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, prefsNameOverride ?: PREFS_NAME)
         }
 
         fun getDateOffset(widgetId: Int): Int {

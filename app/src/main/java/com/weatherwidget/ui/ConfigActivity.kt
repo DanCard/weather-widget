@@ -133,7 +133,7 @@ class ConfigActivity : AppCompatActivity() {
         lat: Double,
         lon: Double,
     ) {
-        val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(this, PREFS_NAME)
         prefs.edit()
             .putFloat("${KEY_LAT_PREFIX}$appWidgetId", lat.toFloat())
             .putFloat("${KEY_LON_PREFIX}$appWidgetId", lon.toFloat())

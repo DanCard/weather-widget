@@ -46,7 +46,7 @@ object PrecipViewHandler {
     /**
      * Update widget with precipitation data.
      */
-    fun updateWidget(
+    suspend fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,

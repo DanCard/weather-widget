@@ -641,7 +641,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          * Main entry point for updating widget with data.
          * Routes to the appropriate handler based on the current view mode.
          */
-        fun updateWidgetWithData(
+        suspend fun updateWidgetWithData(
             context: Context,
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
@@ -705,20 +705,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     )
                 }
                 ViewMode.DAILY -> {
-                    // Use coroutine for suspend function
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                        DailyViewHandler.updateWidget(
-                            context,
-                            appWidgetManager,
-                            appWidgetId,
-                            weatherList,
-                            forecastSnapshots,
-                            hourlyForecasts,
-                            currentTemps,
-                            dailyActuals,
-                            repository
-                        )
-                    }
+                    DailyViewHandler.updateWidget(
+                        context,
+                        appWidgetManager,
+                        appWidgetId,
+                        weatherList,
+                        forecastSnapshots,
+                        hourlyForecasts,
+                        currentTemps,
+                        dailyActuals,
+                        repository
+                    )
                 }
             }
         }

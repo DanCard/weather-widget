@@ -182,18 +182,16 @@ object WidgetIntentRouter {
         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val ctCurrentTemps = database.currentTempDao().getCurrentTemps(todayStr, lat, lon)
 
-        withContext(Dispatchers.Main) {
-            DailyViewHandler.updateWidget(
-                context,
-                appWidgetManager,
-                appWidgetId,
-                weatherList,
-                forecastSnapshots,
-                hourlyForecasts,
-                ctCurrentTemps,
-                dailyActuals,
-            )
-        }
+        DailyViewHandler.updateWidget(
+            context,
+            appWidgetManager,
+            appWidgetId,
+            weatherList,
+            forecastSnapshots,
+            hourlyForecasts,
+            ctCurrentTemps,
+            dailyActuals,
+        )
     }
 
     /**
@@ -377,9 +375,7 @@ object WidgetIntentRouter {
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
             val dailyActuals = getDailyActuals(database, lat, lon)
-            withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
-            }
+            DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
         }
 
         if (missingDataForSelectedSource) {
@@ -446,9 +442,7 @@ object WidgetIntentRouter {
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
             val dailyActuals = getDailyActuals(database, lat, lon)
-            withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
-            }
+            DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
         }
     }
 
@@ -504,6 +498,11 @@ object WidgetIntentRouter {
     }
 
     private fun enqueueForcedRefresh(context: Context, reason: String = "manual_refresh") {
+        if (disableRefreshForTesting) {
+            Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
+            return
+        }
+
         val workRequest =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                 .setInputData(
@@ -588,9 +587,7 @@ object WidgetIntentRouter {
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
             val dailyActuals = getDailyActuals(database, lat, lon)
-            withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
-            }
+            DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
         }
     }
 
@@ -680,12 +677,10 @@ object WidgetIntentRouter {
                 val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
-                withContext(Dispatchers.Main) {
-                    val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
                 val dailyActuals = getDailyActuals(database, lat, lon)
                 DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
-                }
                 Log.d(TAG, "handleSetView: daily update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
         }
@@ -753,9 +748,7 @@ object WidgetIntentRouter {
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
             val dailyActuals = getDailyActuals(database, lat, lon)
-            withContext(Dispatchers.Main) {
-                DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
-            }
+            DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
         }
     }
 
@@ -789,34 +782,32 @@ object WidgetIntentRouter {
             centerTime = centerTime,
         )
 
-        withContext(Dispatchers.Main) {
-            if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
-                PrecipViewHandler.updateWidget(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    hourlyForecasts = hourlyForecasts,
-                    centerTime = centerTime,
-                    displaySource = displaySource,
-                    precipProbability = todayPrecip,
-                    observedCurrentTemp = observation?.temperature,
-                    observedCurrentTempFetchedAt = observation?.observedAt,
-                    repository = repository
-                )
-            } else {
-                TemperatureViewHandler.updateWidget(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    hourlyForecasts = hourlyForecasts,
-                    centerTime = centerTime,
-                    displaySource = displaySource,
-                    precipProbability = todayPrecip,
-                    observedCurrentTemp = observation?.temperature,
-                    observedCurrentTempFetchedAt = observation?.observedAt,
-                    repository = repository
-                )
-            }
+        if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
+            PrecipViewHandler.updateWidget(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                hourlyForecasts = hourlyForecasts,
+                centerTime = centerTime,
+                displaySource = displaySource,
+                precipProbability = todayPrecip,
+                observedCurrentTemp = observation?.temperature,
+                observedCurrentTempFetchedAt = observation?.observedAt,
+                repository = repository
+            )
+        } else {
+            TemperatureViewHandler.updateWidget(
+                context = context,
+                appWidgetManager = appWidgetManager,
+                appWidgetId = appWidgetId,
+                hourlyForecasts = hourlyForecasts,
+                centerTime = centerTime,
+                displaySource = displaySource,
+                precipProbability = todayPrecip,
+                observedCurrentTemp = observation?.temperature,
+                observedCurrentTempFetchedAt = observation?.observedAt,
+                repository = repository
+            )
         }
     }
     private suspend fun logCurrentTempStalenessDebug(

@@ -47,7 +47,7 @@ object TemperatureViewHandler {
     /**
      * Update widget with hourly temperature data.
      */
-    fun updateWidget(
+    suspend fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,

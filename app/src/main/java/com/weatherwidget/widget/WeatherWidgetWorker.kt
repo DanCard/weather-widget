@@ -33,6 +33,11 @@ class WeatherWidgetWorker
         private val appLogDao: AppLogDao,
     ) : CoroutineWorker(context, workerParams) {
         override suspend fun doWork(): Result {
+            if (WeatherDatabase.isTestingMode()) {
+                Log.d(TAG, "Skipping worker execution in test mode")
+                return Result.success()
+            }
+
             val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
             val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
             val currentTempOnly = inputData.getBoolean(KEY_CURRENT_TEMP_ONLY, false)
@@ -172,7 +177,7 @@ class WeatherWidgetWorker
             }
         }
 
-        private fun updateAllWidgets(
+        private suspend fun updateAllWidgets(
             weatherList: List<ForecastEntity>,
             forecastSnapshots: Map<String, List<ForecastEntity>>,
             hourlyForecasts: List<HourlyForecastEntity>,
@@ -193,6 +198,7 @@ class WeatherWidgetWorker
                     hourlyForecasts = hourlyForecasts,
                     currentTemps = currentTemps,
                     dailyActuals = dailyActuals,
+                    repository = weatherRepository
                 )
             }
         }
