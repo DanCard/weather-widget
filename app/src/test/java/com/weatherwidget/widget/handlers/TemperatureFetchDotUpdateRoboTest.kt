@@ -10,6 +10,7 @@ import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -32,7 +33,7 @@ class TemperatureFetchDotUpdateRoboTest {
     }
 
     @Test
-    fun `fetch dot callback updates when observed timestamp changes`() {
+    fun `fetch dot callback updates when observed timestamp changes`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)

@@ -144,6 +144,30 @@ class HeaderPrecipCalculatorTest {
         assertEquals(0, result)
     }
 
+    @Test
+    fun `getPrecipTextSize returns correct sizes based on probability`() {
+        // Base size is 26f
+        // <= 8% -> 26 * 0.7 = 18.2
+        assertEquals(18.2f, HeaderPrecipCalculator.getPrecipTextSize(0), 0.01f)
+        assertEquals(18.2f, HeaderPrecipCalculator.getPrecipTextSize(5), 0.01f)
+        assertEquals(18.2f, HeaderPrecipCalculator.getPrecipTextSize(8), 0.01f)
+
+        // <= 15% -> 26 * 0.8 = 20.8
+        assertEquals(20.8f, HeaderPrecipCalculator.getPrecipTextSize(9), 0.01f)
+        assertEquals(20.8f, HeaderPrecipCalculator.getPrecipTextSize(12), 0.01f)
+        assertEquals(20.8f, HeaderPrecipCalculator.getPrecipTextSize(15), 0.01f)
+
+        // <= 25% -> 26 * 0.9 = 23.4
+        assertEquals(23.4f, HeaderPrecipCalculator.getPrecipTextSize(16), 0.01f)
+        assertEquals(23.4f, HeaderPrecipCalculator.getPrecipTextSize(20), 0.01f)
+        assertEquals(23.4f, HeaderPrecipCalculator.getPrecipTextSize(25), 0.01f)
+
+        // > 25% -> 26
+        assertEquals(26.0f, HeaderPrecipCalculator.getPrecipTextSize(26), 0.01f)
+        assertEquals(26.0f, HeaderPrecipCalculator.getPrecipTextSize(50), 0.01f)
+        assertEquals(26.0f, HeaderPrecipCalculator.getPrecipTextSize(100), 0.01f)
+    }
+
     private fun hourly(
         dateTime: String,
         source: String,

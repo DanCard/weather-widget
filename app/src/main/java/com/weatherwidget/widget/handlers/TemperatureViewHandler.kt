@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
@@ -179,6 +180,8 @@ object TemperatureViewHandler {
         // Show precipitation probability next to current temp when rain is expected
         if (headerPrecipProbability != null && headerPrecipProbability > 0) {
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
+            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
+            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)

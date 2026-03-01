@@ -314,6 +314,71 @@ class CurrentTempRepository
             Location.distanceBetween(lat1, lon1, lat2, lon2, results)
             return results[0] 
         }
+
+        suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) {
+            android.util.Log.d(TAG, "backfillNwsObservationsIfNeeded entered for ($latitude, $longitude)")
+            val localZone = java.time.ZoneId.systemDefault()
+            val now = java.time.ZonedDateTime.now(localZone)
+            
+            // Check specifically for yesterday's data (the most important part of "initial history")
+            val yesterday = now.minusDays(1).toLocalDate()
+            val startTs = yesterday.atStartOfDay(localZone).toInstant().toEpochMilli()
+            val endTs = yesterday.plusDays(1).atStartOfDay(localZone).toInstant().toEpochMilli()
+            
+            android.util.Log.d(TAG, "Checking for yesterday's observations ($yesterday)")
+            val yesterdayObservations = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
+            android.util.Log.d(TAG, "Found ${yesterdayObservations.size} observations for yesterday")
+            
+            // If we have at least 10 observations for yesterday, consider it "populated".
+            // NWS stations usually report hourly or more, so 10 is a safe "not empty" threshold.
+            if (yesterdayObservations.size >= 10) {
+                android.util.Log.d(TAG, "Skipping backfill: yesterday's history already exists (${yesterdayObservations.size} points)")
+                return
+            }
+            
+            android.util.Log.i(TAG, "Insufficient history for yesterday (${yesterdayObservations.size} points), backfilling last 48 hours")
+            val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
+            if (gridPoint == null) {
+                android.util.Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
+                return
+            }
+            
+            val stations = getSortedObservationStations(gridPoint.observationStationsUrl ?: "")
+            android.util.Log.d(TAG, "Found ${stations.size} stations to try")
+            if (stations.isEmpty()) return
+            
+            // Fetch a wider window (48h) to ensure we cover all of yesterday and today's partials
+            val startTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.minusDays(2).toInstant())
+            val endTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
+            
+            for (stationInfo in stations.take(3)) {
+                android.util.Log.d(TAG, "Attempting backfill from station ${stationInfo.id}")
+                try {
+                    val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
+                    android.util.Log.d(TAG, "Station ${stationInfo.id} returned ${observations.size} observations")
+                    if (observations.isNotEmpty()) {
+                        val entities = observations.map { obs ->
+                            com.weatherwidget.data.local.ObservationEntity(
+                                stationId = stationInfo.id,
+                                stationName = obs.stationName.ifEmpty { stationInfo.name },
+                                timestamp = java.time.OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
+                                temperature = (obs.temperatureCelsius * 1.8f) + 32f,
+                                condition = obs.textDescription,
+                                locationLat = latitude,
+                                locationLon = longitude,
+                                distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f,
+                                stationType = stationInfo.type.name
+                            )
+                        }
+                        observationDao.insertAll(entities)
+                        android.util.Log.i(TAG, "Successfully backfilled ${entities.size} observations from ${stationInfo.id}")
+                        break
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w(TAG, "Failed to backfill from ${stationInfo.id}: ${e.message}")
+                }
+            }
+        }
     }
 
 internal data class CurrentReadingPayload(

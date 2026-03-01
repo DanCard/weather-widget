@@ -15,6 +15,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.slot
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,7 +32,7 @@ import java.util.Locale
 class TemperatureViewHandlerCenterTimeTest {
 
     @Test
-    fun `updateWidget uses now for header temp while keeping centerTime day label`() {
+    fun `updateWidget uses now for header temp while keeping centerTime day label`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val widgetId = 777
         val stateManager = WidgetStateManager(context)

@@ -41,7 +41,7 @@ class HistoryIconVisibilityRoboTest {
     }
 
     @Test
-    fun `history icon is visible in hourly temperature mode`() {
+    fun `history icon is visible in hourly temperature mode`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)

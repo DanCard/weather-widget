@@ -45,4 +45,13 @@ object HeaderPrecipCalculator {
 
         return fallbackDailyProbability
     }
+
+    fun getPrecipTextSize(precipProb: Int): Float {
+        return when {
+            precipProb <= 8 -> 26f * 0.7f
+            precipProb <= 15 -> 26f * 0.8f
+            precipProb <= 25 -> 26f * 0.9f
+            else -> 26f
+        }
+    }
 }

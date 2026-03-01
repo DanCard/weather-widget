@@ -100,6 +100,12 @@ class WeatherWidgetWorker
                         // Fetch hourly forecasts for interpolation
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
 
+                        // Backfill NWS history if this is a new location or no history exists
+                        if (targetSourceId == com.weatherwidget.data.model.WeatherSource.NWS.id || (targetSourceId == null && weatherList.any { it.source == com.weatherwidget.data.model.WeatherSource.NWS.id })) {
+                            Log.d(TAG, "doWork: Triggering NWS backfill check")
+                            weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)
+                        }
+
                         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                         val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
                             .getCurrentTemps(todayStr, location.first, location.second)

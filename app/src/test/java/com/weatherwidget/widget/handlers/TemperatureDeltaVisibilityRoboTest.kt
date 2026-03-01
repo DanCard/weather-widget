@@ -16,6 +16,7 @@ import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -39,7 +40,7 @@ class TemperatureDeltaVisibilityRoboTest {
     }
 
     @Test
-    fun `delta badge is visible and orange for positive delta`() {
+    fun `delta badge is visible and orange for positive delta`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
@@ -90,7 +91,7 @@ class TemperatureDeltaVisibilityRoboTest {
     }
 
     @Test
-    fun `delta badge is blue for negative delta`() {
+    fun `delta badge is blue for negative delta`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
@@ -140,7 +141,7 @@ class TemperatureDeltaVisibilityRoboTest {
     }
 
     @Test
-    fun `delta badge is hidden when delta is below threshold`() {
+    fun `delta badge is hidden when delta is below threshold`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
@@ -187,7 +188,7 @@ class TemperatureDeltaVisibilityRoboTest {
     }
 
     @Test
-    fun `delta badge is hidden when now line is not visible`() {
+    fun `delta badge is hidden when now line is not visible`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)

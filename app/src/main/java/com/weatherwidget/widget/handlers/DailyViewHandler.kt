@@ -171,6 +171,8 @@ object DailyViewHandler : WidgetViewHandler {
             )
         if (precipProb != null && precipProb > 0) {
             views.setTextViewText(R.id.precip_probability, "$precipProb%")
+            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(precipProb)
+            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)

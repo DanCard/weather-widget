@@ -124,4 +124,7 @@ class WeatherRepository
         @androidx.annotation.VisibleForTesting
         internal suspend fun fetchDayObservations(stationsUrl: String, date: java.time.LocalDate) = 
             forecastRepository.fetchDayObservations(stationsUrl, date)
+
+        suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) = 
+            currentTempRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
     }
