@@ -45,7 +45,11 @@ import java.util.concurrent.TimeUnit
  * - [WidgetIntentRouter]: Routes intent actions to appropriate handlers
  * - [WidgetSizeCalculator]: Calculates widget dimensions
  */
+@dagger.hilt.android.AndroidEntryPoint
 class WeatherWidgetProvider : AppWidgetProvider() {
+    @javax.inject.Inject
+    lateinit var repository: com.weatherwidget.data.repository.WeatherRepository
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -125,6 +129,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             hourlyForecasts = hourlyForecasts,
                             currentTemps = currentTemps,
                             dailyActuals = dailyActuals,
+                            repository = repository
                         )
                     }
 
@@ -157,7 +162,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                WidgetIntentRouter.handleResize(context, appWidgetId)
+                WidgetIntentRouter.handleResize(context, appWidgetId, repository)
             } finally {
                 pendingResult.finish()
             }
@@ -210,7 +215,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
             ACTION_SHOW_OBSERVATIONS -> handleShowObservationsAction(context, intent)
+            ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
         }
+    }
+
+    private fun handleShowToastAction(context: Context, intent: Intent) {
+        val message = intent.getStringExtra(EXTRA_TOAST_MESSAGE) ?: "No additional data"
+        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     private fun handleShowObservationsAction(context: Context, intent: Intent) {
@@ -367,7 +378,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val isLeft = intent.action == ACTION_NAV_LEFT
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft)
+                    WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft, repository)
                 } finally {
                     pendingResult.finish()
                 }
@@ -389,7 +400,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    WidgetIntentRouter.handleToggleApi(context, appWidgetId)
+                    WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
                 } finally {
                     pendingResult.finish()
                 }
@@ -411,7 +422,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    WidgetIntentRouter.handleToggleView(context, appWidgetId)
+                    WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
                 } finally {
                     pendingResult.finish()
                 }
@@ -433,7 +444,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    WidgetIntentRouter.handleTogglePrecip(context, appWidgetId)
+                    WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
                 } finally {
                     pendingResult.finish()
                 }
@@ -460,7 +471,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
-                    WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset)
+                    WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset, repository)
                 } finally {
                     pendingResult.finish()
                 }
@@ -490,8 +501,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         } catch (_: Exception) {
                             ViewMode.DAILY
                         }
-                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset)
-                } finally {
+                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
+                    } finally {
+
                     pendingResult.finish()
                 }
             }
@@ -588,10 +600,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
         const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
         const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
+        const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
         const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
+        const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
         const val HOUR_ZONE_COUNT = 12
 
         /**
@@ -636,6 +650,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
             dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
+            repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         ) {
             val stateManager = WidgetStateManager(context)
             val viewMode = stateManager.getViewMode(appWidgetId)
@@ -658,9 +673,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         appWidgetId = appWidgetId,
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
+                        displaySource = displaySource,
                         precipProbability = targetPrecip,
                         observedCurrentTemp = observation?.temperature,
                         observedCurrentTempFetchedAt = observation?.observedAt,
+                        repository = repository
                     )
                 }
                 ViewMode.PRECIPITATION -> {
@@ -680,9 +697,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         appWidgetId = appWidgetId,
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
+                        displaySource = displaySource,
                         precipProbability = targetPrecip,
                         observedCurrentTemp = observation?.temperature,
                         observedCurrentTempFetchedAt = observation?.observedAt,
+                        repository = repository
                     )
                 }
                 ViewMode.DAILY -> {
@@ -697,6 +716,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             hourlyForecasts,
                             currentTemps,
                             dailyActuals,
+                            repository
                         )
                     }
                 }

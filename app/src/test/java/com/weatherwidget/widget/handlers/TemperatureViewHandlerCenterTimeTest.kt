@@ -71,6 +71,7 @@ class TemperatureViewHandlerCenterTimeTest {
             appWidgetId = widgetId,
             hourlyForecasts = hourly,
             centerTime = centerTime,
+            displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
             precipProbability = 0,
         )
 

@@ -34,23 +34,23 @@ class NavigationUtilsTest {
 
     @Test
     fun testGetDayOffsets_Wide() {
-        // 7 columns: [-1, 0, 1, 2, 3, 4]
-        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L), NavigationUtils.getDayOffsets(7))
+        // 7 columns: [-1, 0, 1, 2, 3, 4, 5]
+        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L), NavigationUtils.getDayOffsets(7))
         assertEquals(-1, NavigationUtils.getMinOffset(7))
-        assertEquals(4, NavigationUtils.getMaxOffset(7))
+        assertEquals(5, NavigationUtils.getMaxOffset(7))
     }
 
     @Test
     fun testGetDayOffsets_ExtraWide_Foldable() {
-        // 8 columns: capped at 7 days [-1, 0, 1, 2, 3, 4, 5]
-        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L), NavigationUtils.getDayOffsets(8))
+        // 8 columns: 8 days [-1, 0, 1, 2, 3, 4, 5, 6]
+        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L, 6L), NavigationUtils.getDayOffsets(8))
         assertEquals(-1, NavigationUtils.getMinOffset(8))
-        assertEquals(5, NavigationUtils.getMaxOffset(8))
+        assertEquals(6, NavigationUtils.getMaxOffset(8))
 
-        // 10 columns: still capped at 7 days [-1, 0, 1, 2, 3, 4, 5]
-        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L), NavigationUtils.getDayOffsets(10))
+        // 10 columns: 10 days [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L), NavigationUtils.getDayOffsets(10))
         assertEquals(-1, NavigationUtils.getMinOffset(10))
-        assertEquals(5, NavigationUtils.getMaxOffset(10))
+        assertEquals(8, NavigationUtils.getMaxOffset(10))
     }
 
     @Test

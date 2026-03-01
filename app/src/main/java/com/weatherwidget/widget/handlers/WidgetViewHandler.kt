@@ -32,6 +32,7 @@ interface WidgetViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity> = emptyList(),
         dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     )
 
     /**

@@ -53,11 +53,14 @@ object TemperatureViewHandler {
         appWidgetId: Int,
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
+        displaySource: WeatherSource,
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
         observedCurrentTempFetchedAt: Long? = null,
         onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
+        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     ) {
+
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -304,43 +307,66 @@ object TemperatureViewHandler {
         appWidgetId: Int,
         stateManager: WidgetStateManager,
     ) {
-        val leftIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_NAV_LEFT
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-        val leftPendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                appWidgetId * 2,
-                leftIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
-        views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
-
-        val rightIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_NAV_RIGHT
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-        val rightPendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                appWidgetId * 2 + 1,
-                rightIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
-        views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
-
         val canLeft = stateManager.canNavigateHourlyLeft(appWidgetId)
         val canRight = stateManager.canNavigateHourlyRight(appWidgetId)
 
-        views.setViewVisibility(R.id.nav_left, if (canLeft) View.VISIBLE else View.INVISIBLE)
-        views.setViewVisibility(R.id.nav_left_zone, if (canLeft) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.nav_right, if (canRight) View.VISIBLE else View.INVISIBLE)
-        views.setViewVisibility(R.id.nav_right_zone, if (canRight) View.VISIBLE else View.GONE)
+        // Always show the left arrow
+        views.setViewVisibility(R.id.nav_left, View.VISIBLE)
+        views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
+
+        if (canLeft) {
+            val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_NAV_LEFT
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val leftPendingIntent = PendingIntent.getBroadcast(
+                context, WidgetRequestCodes.navLeft(appWidgetId), leftIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
+            views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
+        } else {
+            val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = WeatherWidgetProvider.ACTION_SHOW_TOAST
+                putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "No additional history available")
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val toastPendingIntent = PendingIntent.getBroadcast(
+                context, WidgetRequestCodes.navLeft(appWidgetId), toastIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.nav_left, toastPendingIntent)
+            views.setOnClickPendingIntent(R.id.nav_left_zone, toastPendingIntent)
+        }
+
+        // Always show the right arrow
+        views.setViewVisibility(R.id.nav_right, View.VISIBLE)
+        views.setViewVisibility(R.id.nav_right_zone, View.VISIBLE)
+
+        if (canRight) {
+            val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_NAV_RIGHT
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val rightPendingIntent = PendingIntent.getBroadcast(
+                context, WidgetRequestCodes.navRight(appWidgetId), rightIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
+            views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
+        } else {
+            val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = WeatherWidgetProvider.ACTION_SHOW_TOAST
+                putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "No more forecast available")
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val toastPendingIntent = PendingIntent.getBroadcast(
+                context, WidgetRequestCodes.navRight(appWidgetId), toastIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.nav_right, toastPendingIntent)
+            views.setOnClickPendingIntent(R.id.nav_right_zone, toastPendingIntent)
+        }
     }
 
     private fun setupCurrentTempToggle(
@@ -356,7 +382,7 @@ object TemperatureViewHandler {
         val togglePendingIntent =
             PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 2 + 200,
+                WidgetRequestCodes.viewToggle(appWidgetId),
                 toggleIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -371,7 +397,7 @@ object TemperatureViewHandler {
         val precipPendingIntent =
             PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 2 + 300,
+                WidgetRequestCodes.precipToggle(appWidgetId),
                 precipIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -393,7 +419,7 @@ object TemperatureViewHandler {
         val togglePendingIntent =
             PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 2 + 100,
+                WidgetRequestCodes.apiToggle(appWidgetId),
                 toggleIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -474,7 +500,7 @@ object TemperatureViewHandler {
         val settingsPendingIntent =
             PendingIntent.getActivity(
                 context,
-                appWidgetId * 2 + 900,
+                WidgetRequestCodes.settings(appWidgetId),
                 settingsIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )

@@ -513,6 +513,30 @@
             android:layout_weight="1"
             android:background="@android:color/transparent"
             android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day8_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day9_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/graph_day10_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@android:color/transparent"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- Graph hour touch zones (for per-zone click handling in hourly/precip graph mode) -->

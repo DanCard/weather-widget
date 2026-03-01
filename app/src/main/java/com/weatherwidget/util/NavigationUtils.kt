@@ -78,16 +78,12 @@ object NavigationUtils {
      * @return List of offsets (e.g., -1 for yesterday, 0 for today, 1 for tomorrow).
      */
     fun getDayOffsets(numColumns: Int, skipHistory: Boolean = false): List<Long> {
-        // In evening mode with skipHistory, start from today (0) instead of yesterday (-1)
-        val startOffset = if (skipHistory) 0L else -1L
+        // In evening mode with skipHistory, start from today (0) instead of yesterday (-1).
+        // On very narrow widgets (1-2 columns), also start from today to prioritize immediate forecast.
+        val startOffset = if (skipHistory || numColumns <= 2) 0L else -1L
 
         return when {
-            numColumns >= 8 -> if (skipHistory) listOf(0L, 1L, 2L, 3L, 4L, 5L, 6L) else listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L) // 7 days
-            numColumns == 7 -> if (skipHistory) listOf(0L, 1L, 2L, 3L, 4L, 5L) else listOf(-1L, 0L, 1L, 2L, 3L, 4L) // 6 days
-            numColumns == 6 -> if (skipHistory) listOf(0L, 1L, 2L, 3L, 4L, 5L) else listOf(-1L, 0L, 1L, 2L, 3L, 4L) // 6 days
-            numColumns == 5 -> if (skipHistory) listOf(0L, 1L, 2L, 3L, 4L) else listOf(-1L, 0L, 1L, 2L, 3L) // 5 days
-            numColumns == 4 -> if (skipHistory) listOf(0L, 1L, 2L, 3L) else listOf(-1L, 0L, 1L, 2L) // 4 days
-            numColumns == 3 -> if (skipHistory) listOf(0L, 1L, 2L) else listOf(-1L, 0L, 1L) // 3 days
+            numColumns >= 3 -> (0 until numColumns.toLong()).map { startOffset + it }
             numColumns == 2 -> listOf(0L, 1L) // 2 days - always starts with today
             else -> listOf(0L) // 1 day - always shows today
         }

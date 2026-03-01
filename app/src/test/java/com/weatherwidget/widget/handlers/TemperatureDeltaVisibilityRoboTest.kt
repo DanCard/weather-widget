@@ -73,6 +73,7 @@ class TemperatureDeltaVisibilityRoboTest {
             appWidgetId = appWidgetId,
             hourlyForecasts = hourly,
             centerTime = now,
+            displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 71.2f,
             observedCurrentTempFetchedAt = System.currentTimeMillis()
@@ -122,6 +123,7 @@ class TemperatureDeltaVisibilityRoboTest {
             appWidgetId = appWidgetId,
             hourlyForecasts = hourly,
             centerTime = now,
+            displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 69.1f,
             observedCurrentTempFetchedAt = System.currentTimeMillis()
@@ -171,6 +173,7 @@ class TemperatureDeltaVisibilityRoboTest {
             appWidgetId = appWidgetId,
             hourlyForecasts = hourly,
             centerTime = now,
+            displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 70.05f,
             observedCurrentTempFetchedAt = System.currentTimeMillis()
@@ -217,6 +220,7 @@ class TemperatureDeltaVisibilityRoboTest {
             appWidgetId = appWidgetId,
             hourlyForecasts = hourly,
             centerTime = now.plusHours(24), // Graph window excludes current hour -> no NOW line
+            displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 72.0f,
             observedCurrentTempFetchedAt = System.currentTimeMillis(),

@@ -563,7 +563,7 @@ class ForecastRepository
             return gapEntities
         }
 
-        private suspend fun getHistoricalNormalsByMonthDay(latitude: Double, longitude: Double): Map<MonthDay, Pair<Int, Int>> {
+        suspend fun getHistoricalNormalsByMonthDay(latitude: Double, longitude: Double): Map<MonthDay, Pair<Int, Int>> {
             val locationKey = "${(latitude * 10).roundToInt() / 10.0}_${(longitude * 10).roundToInt() / 10.0}"
             val cachedNormals = climateNormalDao.getNormalsForLocation(locationKey)
             

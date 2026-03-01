@@ -99,6 +99,9 @@ class WeatherRepository
         val lastNetworkFetchTimeMs: Long get() = FetchMetadata.getLastFullFetchTime(context)
         val lastSuccessfulCheckTimeMs: Long get() = FetchMetadata.getLastSuccessfulCheckTimeMs(context)
 
+        suspend fun getHistoricalNormalsByMonthDay(latitude: Double, longitude: Double) = 
+            forecastRepository.getHistoricalNormalsByMonthDay(latitude, longitude)
+
         @androidx.annotation.VisibleForTesting
         internal suspend fun saveForecastSnapshot(
             weatherForecasts: List<ForecastEntity>, 

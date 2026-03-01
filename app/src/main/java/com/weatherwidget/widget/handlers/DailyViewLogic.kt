@@ -170,7 +170,8 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap()
+        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap()
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
@@ -179,7 +180,10 @@ object DailyViewLogic {
         dayOffsets.forEachIndexed { index, offset ->
             val date = centerDate.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val weather = weatherByDate[dateStr]
+            
+            // Try preferred source first, then any available source for the given date.
+            // This ensures we fill all columns if data exists anywhere in the DB.
+            val weather = weatherByDate[dateStr] ?: forecastSnapshots[dateStr]?.firstOrNull()
             val actual = dailyActuals[dateStr]
 
             if (weather == null && actual == null) return@forEachIndexed
@@ -205,15 +209,15 @@ object DailyViewLogic {
                 ?: forecasts.filter { it.source == displaySource.id }.maxByOrNull { it.fetchedAt }
                 ?: forecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }.maxByOrNull { it.fetchedAt }
 
-            val label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 
-            val showComparison = (isPastDate || (isToday && isEveningMode)) &&
-                forecast != null
+            val showComparison = (isPastDate || (isToday && isEveningMode))
 
             var finalHigh: Float? = weather?.highTemp
             var finalLow: Float? = weather?.lowTemp
             var fHigh: Float? = null
             var fLow: Float? = null
+            var isClimateOverlay = false
 
             if (isPastDate) {
                 // Merge raw observations and forecast snapshots to find the absolute truth.
@@ -230,6 +234,20 @@ object DailyViewLogic {
                 if (showComparison) {
                     fHigh = forecast?.highTemp
                     fLow = forecast?.lowTemp
+                    
+                    // Fallback to climate normal if no real snapshot exists
+                    if (fHigh == null || fLow == null) {
+                        val normal = climateNormals[java.time.MonthDay.from(date)]
+                        if (normal != null) {
+                            fHigh = normal.first.toFloat()
+                            fLow = normal.second.toFloat()
+                            isClimateOverlay = true
+                        } else if (weather?.isClimateNormal == true) {
+                            fHigh = fcstHigh
+                            fLow = fcstLow
+                            isClimateOverlay = true
+                        }
+                    }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
@@ -278,7 +296,7 @@ object DailyViewLogic {
                     isMixed = WeatherIconMapper.isMixed(iconRes),
                     isToday = isToday,
                     isPast = isPastDate,
-                    isClimateNormal = weather?.isClimateNormal ?: false,
+                    isClimateNormal = isClimateOverlay,
                     forecastHigh = fHigh,
                     forecastLow = fLow,
                     rainSummary = rainSummary,

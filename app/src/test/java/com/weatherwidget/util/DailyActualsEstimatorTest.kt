@@ -50,8 +50,8 @@ class DailyActualsEstimatorTest {
         // High should be the expected high from hourly data (68) because it's before 4 PM
         assertEquals(68f, valuesEarly.observedHigh!!, 0.01f)
 
-        // Full-day prediction: low=45, high=65 (from fallbackWeather)
-        assertEquals(45f, valuesEarly.forecastLow!!, 0.01f)
+        // Full-day prediction: low=38 (from hourly), high=65 (from fallbackWeather)
+        assertEquals(38f, valuesEarly.forecastLow!!, 0.01f)
         assertEquals(65f, valuesEarly.forecastHigh!!, 0.01f)
 
         // Scenario 2: After 4:00 PM (e.g., 5:00 PM)
