@@ -120,8 +120,17 @@ object DailyViewLogic {
                 val fcstHigh = weather?.highTemp
                 val fcstLow = weather?.lowTemp
 
-                val finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
-                val finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
+                val finalHigh: Float?
+                val finalLow: Float?
+                if (displaySource == WeatherSource.NWS && fcstHigh != null && fcstLow != null) {
+                    // NWS mode: trust NWS daily endpoint value first if complete.
+                    finalHigh = fcstHigh
+                    finalLow = fcstLow
+                } else {
+                    // If incomplete or other source, use the most extreme values.
+                    finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
+                    finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
+                }
 
                 highLabel = formatTempLabel(finalHigh)
                 lowLabel = formatTempLabel(finalLow)
@@ -129,9 +138,9 @@ object DailyViewLogic {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather, dailyActuals
                 )
-                
-                highLabel = formatTempLabel(tripleValues.observedHigh) ?: highLabel
-                lowLabel = formatTempLabel(tripleValues.observedLow) ?: lowLabel
+
+                highLabel = formatTempLabel(tripleValues.observedHigh) ?: formatTempLabel(weather?.highTemp)
+                lowLabel = formatTempLabel(tripleValues.observedLow) ?: formatTempLabel(weather?.lowTemp)
             }
 
             TextDayData(
@@ -228,8 +237,15 @@ object DailyViewLogic {
                 val fcstHigh = weather?.highTemp
                 val fcstLow = weather?.lowTemp
 
-                finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
-                finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
+                if (displaySource == WeatherSource.NWS && fcstHigh != null && fcstLow != null) {
+                    // NWS mode: keep past-day highs/lows anchored to official NWS daily endpoint if complete.
+                    finalHigh = fcstHigh
+                    finalLow = fcstLow
+                } else {
+                    // If NWS is partial (missing high or low), or for other sources, use the most extreme values.
+                    finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
+                    finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
+                }
 
                 if (showComparison) {
                     fHigh = forecast?.highTemp

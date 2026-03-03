@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class],
-    version = 28,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class],
+    version = 29,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -24,6 +24,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun observationDao(): ObservationDao
 
     abstract fun currentTempDao(): CurrentTempDao
+
+    abstract fun apiUsageDao(): ApiUsageDao
 
     companion object {
         @Volatile
@@ -82,6 +84,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_25_26,
                             MIGRATION_26_27,
                             MIGRATION_27_28,
+                            MIGRATION_28_29,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -909,6 +912,22 @@ abstract class WeatherDatabase : RoomDatabase() {
                 override fun migrate(database: SupportSQLiteDatabase) {
                     database.execSQL("ALTER TABLE forecasts ADD COLUMN periodStartTime TEXT")
                     database.execSQL("ALTER TABLE forecasts ADD COLUMN periodEndTime TEXT")
+                }
+            }
+
+        val MIGRATION_28_29 =
+            object : Migration(28, 29) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS api_usage_stats (
+                            date TEXT NOT NULL,
+                            apiSource TEXT NOT NULL,
+                            callCount INTEGER NOT NULL,
+                            PRIMARY KEY(date, apiSource)
+                        )
+                        """.trimIndent(),
+                    )
                 }
             }
     }

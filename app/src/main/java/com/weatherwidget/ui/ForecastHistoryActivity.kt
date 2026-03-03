@@ -22,6 +22,8 @@ import kotlinx.coroutines.withContext
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.ForecastEvolutionRenderer
@@ -32,6 +34,7 @@ import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Date
 import java.util.Locale
@@ -54,6 +57,9 @@ import androidx.work.WorkManager
 class ForecastHistoryActivity : AppCompatActivity() {
     @Inject
     lateinit var forecastDao: ForecastDao
+
+    @Inject
+    lateinit var observationDao: ObservationDao
 
     // forecastDao is also used for actual weather lookups (previously weatherDao)
 
@@ -110,6 +116,52 @@ class ForecastHistoryActivity : AppCompatActivity() {
             } else {
                 ActualLookupMode.ANY_SOURCE
             }
+
+        internal fun selectLatestCompleteActualFromForecasts(forecasts: List<ForecastEntity>): ForecastEntity? =
+            forecasts
+                .asSequence()
+                .filter { it.highTemp != null && it.lowTemp != null }
+                .maxByOrNull { it.fetchedAt }
+
+        internal fun isNwsObservationStation(stationId: String): Boolean =
+            !stationId.startsWith("OPEN_METEO_") && !stationId.startsWith("WEATHER_API_")
+
+        internal fun buildActualFromNwsObservations(
+            targetDate: String,
+            lat: Double,
+            lon: Double,
+            observations: List<ObservationEntity>,
+        ): ForecastEntity? {
+            val nwsObservations = observations.filter { isNwsObservationStation(it.stationId) }
+            if (nwsObservations.isEmpty()) {
+                return null
+            }
+
+            val highTemp = nwsObservations.maxOf { it.temperature }
+            val lowTemp = nwsObservations.minOf { it.temperature }
+            val condition =
+                nwsObservations
+                    .map { it.condition }
+                    .groupingBy { it }
+                    .eachCount()
+                    .maxByOrNull { it.value }
+                    ?.key ?: "Observed"
+            val fetchedAt = nwsObservations.maxOfOrNull { it.fetchedAt } ?: System.currentTimeMillis()
+
+            return ForecastEntity(
+                targetDate = targetDate,
+                forecastDate = targetDate,
+                locationLat = lat,
+                locationLon = lon,
+                locationName = "",
+                highTemp = highTemp,
+                lowTemp = lowTemp,
+                condition = condition,
+                isClimateNormal = false,
+                source = WeatherSource.NWS.id,
+                fetchedAt = fetchedAt,
+            )
+        }
     }
 
     enum class GraphMode {
@@ -230,13 +282,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     when (resolveActualLookupMode(date, requestedSource)) {
                         ActualLookupMode.NONE -> null
                         ActualLookupMode.SOURCE_SPECIFIC ->
-                            forecastDao.getForecastsInRangeBySource(
-                                targetDate,
-                                targetDate,
-                                lat,
-                                lon,
-                                checkNotNull(requestedSource).id,
-                            ).maxByOrNull { it.fetchedAt }
+                            resolveSourceSpecificActual(
+                                targetDate = targetDate,
+                                lat = lat,
+                                lon = lon,
+                                requestedSource = checkNotNull(requestedSource),
+                            )
                         ActualLookupMode.ANY_SOURCE ->
                             forecastDao.getForecastForDate(targetDate, lat, lon)
                     }
@@ -248,6 +299,45 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 Log.e(TAG, "Error loading forecast history", e)
             }
         }
+    }
+
+    private suspend fun resolveSourceSpecificActual(
+        targetDate: String,
+        lat: Double,
+        lon: Double,
+        requestedSource: WeatherSource,
+    ): ForecastEntity? {
+        if (requestedSource != WeatherSource.NWS) {
+            return forecastDao
+                .getForecastsInRangeBySource(targetDate, targetDate, lat, lon, requestedSource.id)
+                .maxByOrNull { it.fetchedAt }
+        }
+
+        val nwsForecasts = forecastDao.getForecastsInRangeBySource(targetDate, targetDate, lat, lon, WeatherSource.NWS.id)
+        val nwsFromForecastEndpoint = selectLatestCompleteActualFromForecasts(nwsForecasts)
+        if (nwsFromForecastEndpoint != null) {
+            Log.d(
+                TAG,
+                "Resolved NWS actual from forecast endpoint for $targetDate: high=${nwsFromForecastEndpoint.highTemp}, low=${nwsFromForecastEndpoint.lowTemp}",
+            )
+            return nwsFromForecastEndpoint
+        }
+
+        val targetLocalDate = LocalDate.parse(targetDate)
+        val localZone = ZoneId.systemDefault()
+        val startTs = targetLocalDate.atStartOfDay(localZone).toEpochSecond() * 1000
+        val endTs = targetLocalDate.plusDays(1).atStartOfDay(localZone).toEpochSecond() * 1000
+        val observations = observationDao.getObservationsInRange(startTs, endTs, lat, lon)
+        val nwsFromObservations = buildActualFromNwsObservations(targetDate, lat, lon, observations)
+        if (nwsFromObservations != null) {
+            Log.d(
+                TAG,
+                "Resolved NWS actual from NWS observations fallback for $targetDate: high=${nwsFromObservations.highTemp}, low=${nwsFromObservations.lowTemp}",
+            )
+        } else {
+            Log.d(TAG, "No NWS actual available for $targetDate from forecast endpoint or NWS observations")
+        }
+        return nwsFromObservations
     }
 
     private fun displayData(

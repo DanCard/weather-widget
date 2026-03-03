@@ -188,4 +188,13 @@ class DatabaseMigrationTest {
             WeatherDatabase.MIGRATION_18_19,
         )
     }
+
+    @Test
+    fun migrate28to29() {
+        helper.createDatabase(testDb, 28).apply {
+            close()
+        }
+
+        helper.runMigrationsAndValidate(testDb, 29, true, WeatherDatabase.MIGRATION_28_29)
+    }
 }

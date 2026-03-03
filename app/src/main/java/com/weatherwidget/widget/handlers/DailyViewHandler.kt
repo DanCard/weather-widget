@@ -76,7 +76,23 @@ object DailyViewHandler : WidgetViewHandler {
         dailyActuals: Map<String, ObservationResolver.DailyActual>,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
     ) {
-        Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId")
+        updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, repository, LocalDateTime.now())
+    }
+
+    @VisibleForTesting
+    suspend fun updateWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        weatherList: List<ForecastEntity>,
+        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        currentTemps: List<CurrentTempEntity>,
+        dailyActuals: Map<String, ObservationResolver.DailyActual>,
+        repository: com.weatherwidget.data.repository.WeatherRepository?,
+        now: LocalDateTime
+    ) {
+        Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -85,10 +101,9 @@ object DailyViewHandler : WidgetViewHandler {
         val stateManager = WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
-        val isEveningMode = NavigationUtils.isEveningMode()
+        val isEveningMode = NavigationUtils.isEveningMode(now.toLocalTime())
         
         // Single source of truth for time in this update cycle
-        val now = LocalDateTime.now()
         val today = now.toLocalDate()
         val skipHistory = NavigationUtils.shouldSkipHistory(isEveningMode, dateOffset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, isEveningMode)

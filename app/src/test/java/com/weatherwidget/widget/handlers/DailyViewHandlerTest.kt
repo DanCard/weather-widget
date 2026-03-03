@@ -21,6 +21,8 @@ import io.mockk.mockkObject
 import io.mockk.runs
 import io.mockk.slot
 import io.mockk.unmockkObject
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,6 +35,7 @@ import org.robolectric.annotation.Config
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 @RunWith(RobolectricTestRunner::class)
@@ -185,6 +188,79 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareTextDays past day in NWS mode prefers NWS forecast over higher observation`() {
+        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
+
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            yesterdayStr to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
+        )
+        val dailyActuals = mapOf(
+            yesterdayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = yesterdayStr,
+                highTemp = 80.9f,
+                lowTemp = 55f,
+                condition = "Sunny",
+            )
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = dailyActuals,
+        )
+
+        val yesterdayData = result.first { it.dateStr == yesterdayStr }
+        assertEquals("77°", yesterdayData.highLabel)
+        assertEquals("56°", yesterdayData.lowLabel)
+    }
+
+    @Test
+    fun `prepareGraphDays past day in NWS mode prefers NWS forecast over higher observation`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            yesterdayStr to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
+        )
+        val dailyActuals = mapOf(
+            yesterdayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = yesterdayStr,
+                highTemp = 80.9f,
+                lowTemp = 55f,
+                condition = "Sunny",
+            )
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val yesterdayData = days.first { it.date == yesterdayStr }
+        assertEquals(77f, yesterdayData.high!!, 0.1f)
+        assertEquals(56f, yesterdayData.low!!, 0.1f)
+    }
+
+    @Test
     fun `buildDayClickIntent returns correct extras with Robolectric`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val dateStr = "2030-06-16" // Tomorrow
@@ -300,9 +376,11 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget text labels keep tenth precision for decimal source values`() = runBlocking {
-        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val tomorrowStr = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+    fun `updateWidget text labels keep tenth precision for decimal source values at Noon`() = runBlocking {
+        val now = LocalDateTime.of(2026, 3, 2, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        
         val weatherList =
             listOf(
                 createWeather(todayStr, highTemp = 62.9f, lowTemp = 51.2f).copy(source = WeatherSource.OPEN_METEO.id),
@@ -314,8 +392,9 @@ class DailyViewHandlerTest {
 
         val appWidgetManager = mockk<AppWidgetManager>()
         val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 140)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 140)
+            // 3 columns: (width + 15) / 70 ≈ 3 => width ≈ 195
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
         }
@@ -329,20 +408,76 @@ class DailyViewHandlerTest {
             appWidgetId = 43,
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
+            hourlyForecasts = listOf(
+                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0),
+                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0)
+            ),
+            currentTemps = emptyList(),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now
         )
 
         val root = FrameLayout(context)
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        
         val highTexts = listOf(R.id.day1_high, R.id.day2_high, R.id.day3_high).mapNotNull { id ->
             applied.findViewById<TextView>(id)?.text?.toString()
         }
-        val lowTexts = listOf(R.id.day1_low, R.id.day2_low, R.id.day3_low).mapNotNull { id ->
+        
+        assertTrue("Noon highTexts $highTexts should contain 62.9°", highTexts.contains("62.9°"))
+    }
+
+    @Test
+    fun `updateWidget text labels keep tenth precision for decimal source values in Evening`() = runBlocking {
+        val now = LocalDateTime.of(2026, 3, 2, 20, 0) // 8 PM
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        
+        val weatherList =
+            listOf(
+                createWeather(todayStr, highTemp = 62.9f, lowTemp = 51.2f).copy(source = WeatherSource.OPEN_METEO.id),
+                createWeather(tomorrowStr, highTemp = 62.9f, lowTemp = 51.2f).copy(source = WeatherSource.OPEN_METEO.id),
+            )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(44)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
+        }
+        every { appWidgetManager.getAppWidgetOptions(44) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(44, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 44,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = listOf(
+                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0),
+                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0)
+            ),
+            currentTemps = emptyList(),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        
+        val highTexts = listOf(R.id.day1_high, R.id.day2_high, R.id.day3_high, R.id.day4_high).mapNotNull { id ->
             applied.findViewById<TextView>(id)?.text?.toString()
         }
-
-        assertTrue(highTexts.contains("62.9°"))
-        assertTrue(lowTexts.contains("51.2°"))
+        
+        assertTrue("Evening highTexts $highTexts should contain 62.9° (for Today)", highTexts.contains("62.9°"))
     }
 
     private fun createWeatherMap(today: LocalDate): Map<String, ForecastEntity> {

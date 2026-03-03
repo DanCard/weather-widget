@@ -1,6 +1,7 @@
 package com.weatherwidget.di
 
 import android.content.Context
+import com.weatherwidget.data.local.ApiUsageDao
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.CurrentTempDao
@@ -23,8 +24,11 @@ import io.ktor.client.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.*
+import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Singleton
 
 @Module
@@ -40,7 +44,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideHttpClient(json: Json): HttpClient =
+    fun provideHttpClient(json: Json, apiUsageDao: ApiUsageDao): HttpClient =
         HttpClient(Android) {
             install(ContentNegotiation) {
                 json(json)
@@ -49,6 +53,21 @@ object AppModule {
                 requestTimeoutMillis = 30_000
                 connectTimeoutMillis = 10_000
                 socketTimeoutMillis = 30_000
+            }
+        }.apply {
+            plugin(HttpSend).intercept { request ->
+                val host = request.url.host
+                val source = when {
+                    host.contains("weather.gov") -> "NWS"
+                    host.contains("open-meteo.com") -> "OPEN_METEO"
+                    host.contains("weatherapi.com") -> "WEATHER_API"
+                    else -> "UNKNOWN"
+                }
+                if (source != "UNKNOWN") {
+                    val date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    apiUsageDao.logCall(date, source)
+                }
+                execute(request)
             }
         }
 
@@ -81,6 +100,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideCurrentTempDao(database: WeatherDatabase): CurrentTempDao = database.currentTempDao()
+
+    @Provides
+    @Singleton
+    fun provideApiUsageDao(database: WeatherDatabase): ApiUsageDao = database.apiUsageDao()
 
     @Provides
     @Singleton

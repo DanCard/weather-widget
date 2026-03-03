@@ -18,8 +18,8 @@ object NavigationUtils {
      * Checks if current time is in "evening mode" (6 PM or later).
      * In evening mode, the widget shows today+forecast instead of yesterday+today.
      */
-    fun isEveningMode(): Boolean {
-        return LocalTime.now().hour >= EVENING_MODE_START_HOUR
+    fun isEveningMode(time: LocalTime = LocalTime.now()): Boolean {
+        return time.hour >= EVENING_MODE_START_HOUR
     }
 
     /**
