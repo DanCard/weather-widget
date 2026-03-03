@@ -58,17 +58,9 @@ class OpenMeteoIntegrationTest {
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
         
-        return ForecastRepository(
-            context, 
-            db.forecastDao(), 
-            db.hourlyForecastDao(), 
-            db.appLogDao(), 
-            mockk(relaxed = true), // NwsApi
-            openMeteoApi, 
-            mockk(relaxed = true), // WeatherApi
-            widgetStateManager, 
-            db.climateNormalDao(), 
-            db.observationDao()
+        return ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(relaxed = true), // NwsApi
+            openMeteoApi, mockk(relaxed = true), mockk(relaxed = true), // WeatherApi
+            widgetStateManager, db.climateNormalDao(), db.observationDao()
         )
     }
 

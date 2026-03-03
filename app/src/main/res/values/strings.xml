@@ -26,6 +26,7 @@
     <string name="api_sources_title">Weather Data Sources</string>
     <string name="api_sources_description">Enable/disable and reorder sources. Hidden sources still fetch when charging for accuracy tracking.</string>
     <string name="must_keep_one_source">At least one source must remain enabled</string>
+    <string name="api_source_silurian_desc">Silurian.ai — shown as Silur (global coverage)</string>
     <string name="api_source_nws_desc">National Weather Service (US only)</string>
     <string name="api_source_openmeteo_desc">Open-Meteo — shown as Meteo (global coverage)</string>
     <string name="api_source_weatherapi_desc">WeatherAPI — shown as WAPI (global coverage)</string>

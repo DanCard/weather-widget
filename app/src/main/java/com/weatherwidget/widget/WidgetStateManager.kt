@@ -53,7 +53,7 @@ class WidgetStateManager
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
-            private const val DEFAULT_VISIBLE_SOURCES = "NWS,WEATHER_API,OPEN_METEO"
+            private const val DEFAULT_VISIBLE_SOURCES = "SILURIAN,NWS,WEATHER_API,OPEN_METEO"
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
@@ -144,6 +144,7 @@ class WidgetStateManager
          */
         fun getVisibleSourcesOrder(): List<WeatherSource> {
             migrateApiPreferenceIfNeeded()
+            migrateSilurianIfNeeded()
             val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, DEFAULT_VISIBLE_SOURCES) ?: DEFAULT_VISIBLE_SOURCES
             val sources = raw.split(",")
                 .mapNotNull { id ->
@@ -154,6 +155,31 @@ class WidgetStateManager
                 .filter { it != WeatherSource.GENERIC_GAP }
                 .distinct()
             return sources.ifEmpty { listOf(WeatherSource.NWS) }
+        }
+
+        /** Ensures SILURIAN is injected into existing source lists. */
+        private fun migrateSilurianIfNeeded() {
+            if (prefs.getBoolean("silurian_migration_done_v2", false)) return
+            
+            val currentOrder = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
+            if (currentOrder != null) {
+                // Remove any old typos or duplicates, then add SILURIAN at the start
+                val sources = currentOrder.split(",")
+                    .map { it.trim() }
+                    .filter { it != "SILURION" && it != "SILURIAN" }
+                    .toMutableList()
+                
+                sources.add(0, "SILURIAN")
+                val newOrder = sources.joinToString(",")
+                
+                prefs.edit()
+                    .putString(KEY_VISIBLE_SOURCES_ORDER, newOrder)
+                    .putBoolean("silurian_migration_done_v2", true)
+                    .apply()
+                Log.d("SOURCE_ORDER", "migrateSilurian: Injected SILURIAN into order: $newOrder")
+            } else {
+                prefs.edit().putBoolean("silurian_migration_done_v2", true).apply()
+            }
         }
 
         fun setVisibleSourcesOrder(sources: List<WeatherSource>) {

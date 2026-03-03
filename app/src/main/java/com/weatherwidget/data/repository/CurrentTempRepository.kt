@@ -14,6 +14,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -45,6 +46,7 @@ class CurrentTempRepository
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
         private val weatherApi: WeatherApi,
+        private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
         private val temperatureInterpolator: TemperatureInterpolator,
     ) {
@@ -111,14 +113,45 @@ class CurrentTempRepository
             }
         }
 
-        private suspend fun fetchFromSource(source: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? = 
+        private suspend fun fetchFromSource(source: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? =
             when (source) {
                 WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> fetchNwsCurrent(latitude, longitude)
+                WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
                 else -> null
             }
 
+        private suspend fun fetchSilurianCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
+            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
+            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
+                async {
+                    val reading = runCatching { silurianApi.getForecast(point.first, point.second, 1) }.getOrNull()
+                    if (reading?.currentTemp != null) {
+                        val stationId = if (point.third == "Current") "SILURIAN_MAIN" else "SILURIAN_$index"
+                        val obsTime = reading.currentObservedAt ?: System.currentTimeMillis()
+                        observationDao.insertAll(listOf(
+                            ObservationEntity(
+                                stationId = stationId,
+                                stationName = "Silurian: ${point.third}",
+                                timestamp = obsTime,
+                                temperature = reading.currentTemp,
+                                condition = reading.currentCondition ?: "Unknown",
+                                locationLat = latitude,
+                                locationLon = longitude
+                            )
+                        ))
+                    }
+                    reading
+                }
+            }.map { it.await() }
+
+            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
+                if (reading.currentTemp != null) {
+                    CurrentReadingPayload(WeatherSource.SILURIAN, reading.currentTemp, reading.currentCondition, reading.currentObservedAt)
+                } else null
+            }
+        }
         private suspend fun fetchOpenMeteoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
             val deferredReadings = pointsOfInterest.mapIndexed { index, point ->

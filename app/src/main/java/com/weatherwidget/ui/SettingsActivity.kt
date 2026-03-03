@@ -57,9 +57,10 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /** All configurable weather sources (excludes GENERIC_GAP). */
-    private val allSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
+    private val allSources = listOf(WeatherSource.SILURIAN, WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
 
     private fun sourceDescription(source: WeatherSource): String = when (source) {
+        WeatherSource.SILURIAN -> getString(R.string.api_source_silurian_desc)
         WeatherSource.NWS -> getString(R.string.api_source_nws_desc)
         WeatherSource.OPEN_METEO -> getString(R.string.api_source_openmeteo_desc)
         WeatherSource.WEATHER_API -> getString(R.string.api_source_weatherapi_desc)

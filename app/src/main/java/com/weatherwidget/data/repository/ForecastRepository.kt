@@ -15,6 +15,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -45,6 +46,7 @@ class ForecastRepository
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
         private val weatherApi: WeatherApi,
+        private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
         private val climateNormalDao: ClimateNormalDao,
         private val observationDao: ObservationDao,
@@ -109,11 +111,12 @@ class ForecastRepository
                     }
 
                     // Perform parallel fetches from all APIs
-                    val (nwsForecasts, meteoForecasts, wapiForecasts) = fetchFromAllApis(
+                    val (nwsForecasts, meteoForecasts, wapiForecasts, silurianForecasts) = fetchFromAllApis(
                         latitude, longitude, locationName,
                         shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts),
                         shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts),
                         shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts),
+                        shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts),
                         onCurrentTempCallback
                     )
 
@@ -122,6 +125,7 @@ class ForecastRepository
                     nwsForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
                     meteoForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
                     wapiForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
+                    silurianForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
                     
                     // If any expected source is missing from both the fresh fetch AND the cache, 
                     // we need to fill from today onwards
@@ -152,7 +156,7 @@ class ForecastRepository
         }
 
         private fun requiresNetworkFetch(forecasts: List<ForecastEntity>): Boolean {
-            val sourcesToCheck = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
+            val sourcesToCheck = listOf(WeatherSource.SILURIAN, WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
             return sourcesToCheck.any { source ->
                 val isNeeded = widgetStateManager.isSourceVisible(source) || isPlugged()
                 isNeeded && isStale(source, forecasts)
@@ -169,6 +173,13 @@ class ForecastRepository
             return System.currentTimeMillis() - lastSourceFetchTime >= threshold
         }
 
+        private data class FetchResult(
+            val nws: List<ForecastEntity>?,
+            val meteo: List<ForecastEntity>?,
+            val wapi: List<ForecastEntity>?,
+            val silurian: List<ForecastEntity>?
+        )
+
         private suspend fun fetchFromAllApis(
             latitude: Double,
             longitude: Double,
@@ -176,8 +187,9 @@ class ForecastRepository
             shouldFetchNws: Boolean,
             shouldFetchMeteo: Boolean,
             shouldFetchWapi: Boolean,
+            shouldFetchSilurian: Boolean,
             onCurrentTempCallback: (suspend (String, Float, Long, String?) -> Unit)?
-        ): Triple<List<ForecastEntity>?, List<ForecastEntity>?, List<ForecastEntity>?> = coroutineScope {
+        ): FetchResult = coroutineScope {
             val nwsDeferred = if (shouldFetchNws) async {
                 try { fetchFromNws(latitude, longitude, locationName) } catch (exception: Exception) { 
                     appLogDao.log("FETCH_NWS_FAIL", "${exception.message}", "WARN")
@@ -255,16 +267,52 @@ class ForecastRepository
                 }
             } else null
 
+            val silurianDeferred = if (shouldFetchSilurian) async {
+                try {
+                    val result = silurianApi.getForecast(latitude, longitude, 14)
+                    if (result.hourly.isNotEmpty()) {
+                        saveSilurianHourlyForecasts(result.hourly, latitude, longitude)
+                    }
+                    if (result.currentTemp != null && onCurrentTempCallback != null) {
+                        onCurrentTempCallback(
+                            WeatherSource.SILURIAN.id,
+                            result.currentTemp,
+                            result.currentObservedAt ?: System.currentTimeMillis(),
+                            result.currentCondition
+                        )
+                    }
+                    result.daily.map { day ->
+                        ForecastEntity(
+                            targetDate = day.date,
+                            forecastDate = LocalDate.now().toString(),
+                            locationLat = latitude,
+                            locationLon = longitude,
+                            locationName = locationName,
+                            highTemp = day.highTemp.toFloat(),
+                            lowTemp = day.lowTemp.toFloat(),
+                            condition = day.condition,
+                            isClimateNormal = false,
+                            source = WeatherSource.SILURIAN.id,
+                            precipProbability = day.precipProbability
+                        )
+                    }
+                } catch (exception: Exception) {
+                    appLogDao.log("FETCH_SILURIAN_FAIL", "${exception.message}", "WARN")
+                    null
+                }
+            } else null
             val nwsForecasts = nwsDeferred?.await()
             val meteoForecasts = meteoDeferred?.await()
             val wapiForecasts = wapiDeferred?.await()
+            val silurianForecasts = silurianDeferred?.await()
 
             // Save snapshots with deduplication logic
             nwsForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.NWS.id) }
             meteoForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.OPEN_METEO.id) }
             wapiForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.WEATHER_API.id) }
+            silurianForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.SILURIAN.id) }
 
-            Triple(nwsForecasts, meteoForecasts, wapiForecasts)
+            FetchResult(nwsForecasts, meteoForecasts, wapiForecasts, silurianForecasts)
         }
 
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String): List<ForecastEntity> = coroutineScope {
@@ -704,14 +752,21 @@ class ForecastRepository
                 ) 
             })
 
-        private suspend fun saveWeatherApiHourlyForecasts(hourlyData: List<WeatherApi.HourlyForecast>, latitude: Double, longitude: Double) = 
-            saveHourlyEntities(hourlyData.map { 
+        private suspend fun saveWeatherApiHourlyForecasts(hourlyData: List<WeatherApi.HourlyForecast>, latitude: Double, longitude: Double) =
+            saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature, it.condition, 
+                    it.dateTime, latitude, longitude, it.temperature, it.condition,
                     WeatherSource.WEATHER_API.id, it.precipProbability, System.currentTimeMillis()
-                ) 
+                )
             })
 
+        private suspend fun saveSilurianHourlyForecasts(hourlyData: List<SilurianApi.HourlyForecast>, latitude: Double, longitude: Double) =
+            saveHourlyEntities(hourlyData.map {
+                HourlyForecastEntity(
+                    it.dateTimeString, latitude, longitude, it.temperature, it.condition,
+                    WeatherSource.SILURIAN.id, it.precipProbability, System.currentTimeMillis()
+                )
+            })
         private suspend fun saveNwsHourlyForecasts(hourlyPeriods: List<NwsApi.HourlyForecastPeriod>, latitude: Double, longitude: Double) = 
             saveHourlyEntities(hourlyPeriods.mapNotNull { period -> 
                 val dateTimeString = runCatching { 

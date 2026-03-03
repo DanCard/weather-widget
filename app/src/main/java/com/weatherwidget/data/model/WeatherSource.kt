@@ -32,6 +32,11 @@ enum class WeatherSource(
         shortDisplayName = "C",
         supportsHourly = false,
     ),
+    SILURIAN(
+        id = "SILURIAN",
+        displayName = "Silurian",
+        shortDisplayName = "Silur",
+    ),
     ;
 
     companion object {
@@ -44,6 +49,7 @@ enum class WeatherSource(
                 "NWS" -> NWS
                 "Open-Meteo", "OPEN_METEO" -> OPEN_METEO
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
+                "Silurian", "SILURIAN" -> SILURIAN
                 else -> NWS
             }
 
@@ -55,6 +61,7 @@ enum class WeatherSource(
                 "NWS" -> NWS
                 "OPEN_METEO" -> OPEN_METEO
                 "WEATHER_API" -> WEATHER_API
+                "SILURIAN" -> SILURIAN
                 "Generic" -> GENERIC_GAP
                 else -> NWS
             }

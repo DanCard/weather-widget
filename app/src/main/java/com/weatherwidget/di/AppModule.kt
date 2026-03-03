@@ -14,6 +14,7 @@ import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.Module
 import dagger.Provides
@@ -58,6 +59,7 @@ object AppModule {
             plugin(HttpSend).intercept { request ->
                 val host = request.url.host
                 val source = when {
+                    host.contains("silurian.ai") -> "SILURIAN"
                     host.contains("weather.gov") -> "NWS"
                     host.contains("open-meteo.com") -> "OPEN_METEO"
                     host.contains("weatherapi.com") -> "WEATHER_API"
@@ -115,12 +117,13 @@ object AppModule {
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
         weatherApi: WeatherApi,
+        silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
         climateNormalDao: ClimateNormalDao,
         observationDao: ObservationDao,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao
     )
 
     @Provides
@@ -134,10 +137,11 @@ object AppModule {
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
         weatherApi: WeatherApi,
+        silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
     ): CurrentTempRepository = CurrentTempRepository(
         context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator()
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator()
     )
 
     @Provides
@@ -167,4 +171,11 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
     ): WeatherApi = WeatherApi(httpClient, json)
+
+    @Provides
+    @Singleton
+    fun provideSilurianApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): SilurianApi = SilurianApi(httpClient, json)
 }

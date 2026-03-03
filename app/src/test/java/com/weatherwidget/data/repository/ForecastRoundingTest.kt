@@ -30,17 +30,7 @@ class ForecastRoundingTest {
     fun setup() {
         db = TestDatabase.create()
         val context = RuntimeEnvironment.getApplication()
-        repository = ForecastRepository(
-            context, 
-            db.forecastDao(), 
-            db.hourlyForecastDao(), 
-            db.appLogDao(), 
-            mockk(), 
-            mockk(), 
-            mockk(), 
-            mockk(relaxed = true), 
-            db.climateNormalDao(), 
-            db.observationDao()
+        repository = ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(), mockk(), mockk(), mockk(relaxed = true), mockk(relaxed = true), db.climateNormalDao(), db.observationDao()
         )
     }
 

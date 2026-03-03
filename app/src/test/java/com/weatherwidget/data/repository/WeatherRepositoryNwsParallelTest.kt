@@ -53,8 +53,8 @@ class WeatherRepositoryNwsParallelTest {
         observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao)
-        val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator)
+        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao)
+        val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator)
 
         repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, currentTempDao)
 

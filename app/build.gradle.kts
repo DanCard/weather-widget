@@ -21,6 +21,10 @@ val weatherApiKey =
     (localProperties.getProperty("WEATHER_API_KEY")
         ?: System.getenv("WEATHER_API_KEY")
         ?: "")
+val silurianApiKey =
+    (localProperties.getProperty("SILURIAN_API_KEY")
+        ?: System.getenv("SILURIAN_API_KEY")
+        ?: "")
 
 ktlint {
     version.set("1.2.1")
@@ -52,6 +56,7 @@ android {
 
         testInstrumentationRunner = "com.weatherwidget.WeatherWidgetTestRunner"
         buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
+        buildConfigField("String", "SILURIAN_API_KEY", "\"$silurianApiKey\"")
     }
 
     buildFeatures {

@@ -67,14 +67,8 @@ class WeatherRepositoryTest {
         observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        forecastRepository = ForecastRepository(
-            context, forecastDao, hourlyForecastDao, appLogDao,
-            nwsApi, openMeteoApi, weatherApi, widgetStateManager, climateNormalDao, observationDao
-        )
-        currentTempRepository = CurrentTempRepository(
-            context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
-            nwsApi, openMeteoApi, weatherApi, widgetStateManager, temperatureInterpolator
-        )
+        forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao)
+        currentTempRepository = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator)
 
         repository =
             WeatherRepository(
