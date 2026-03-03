@@ -48,6 +48,7 @@ object HeaderPrecipCalculator {
 
     fun getPrecipTextSize(precipProb: Int): Float {
         return when {
+            precipProb <= 4 -> 26f * 0.6f
             precipProb <= 8 -> 26f * 0.7f
             precipProb <= 15 -> 26f * 0.8f
             precipProb <= 25 -> 26f * 0.9f
