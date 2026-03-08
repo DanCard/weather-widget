@@ -92,7 +92,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                                     super.onCreate(db)
                                     db.execSQL(
                                         "INSERT INTO app_logs (timestamp, tag, message, level) VALUES (?, ?, ?, ?)",
-                                        arrayOf(System.currentTimeMillis(), "DB_CREATE", "Database created from scratch", "INFO"),
+                                        arrayOf<Any>(System.currentTimeMillis(), "DB_CREATE", "Database created from scratch", "INFO"),
                                     )
                                 }
 
@@ -100,7 +100,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                                     super.onDestructiveMigration(db)
                                     db.execSQL(
                                         "INSERT INTO app_logs (timestamp, tag, message, level) VALUES (?, ?, ?, ?)",
-                                        arrayOf(
+                                        arrayOf<Any>(
                                             System.currentTimeMillis(),
                                             "DB_DESTRUCTIVE_MIGRATION",
                                             "Database wiped due to missing migration path",

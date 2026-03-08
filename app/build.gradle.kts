@@ -1,11 +1,10 @@
 import java.io.File
-import java.util.concurrent.Executors
 import java.util.Properties
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -18,13 +17,17 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { localProperties.load(it) }
 }
 val weatherApiKey =
-    (localProperties.getProperty("WEATHER_API_KEY")
-        ?: System.getenv("WEATHER_API_KEY")
-        ?: "")
+    (
+        localProperties.getProperty("WEATHER_API_KEY")
+            ?: System.getenv("WEATHER_API_KEY")
+            ?: ""
+    )
 val silurianApiKey =
-    (localProperties.getProperty("SILURIAN_API_KEY")
-        ?: System.getenv("SILURIAN_API_KEY")
-        ?: "")
+    (
+        localProperties.getProperty("SILURIAN_API_KEY")
+            ?: System.getenv("SILURIAN_API_KEY")
+            ?: ""
+    )
 
 ktlint {
     version.set("1.2.1")
@@ -78,8 +81,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-    kotlinOptions {
-        jvmTarget = "21"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        }
     }
 
     packaging {
@@ -91,7 +96,7 @@ android {
     }
 
     sourceSets {
-        getByName("androidTest").assets.srcDirs("$projectDir/schemas")
+        getByName("androidTest").assets.directories.add("$projectDir/schemas")
     }
 
     testOptions {
@@ -167,6 +172,7 @@ dependencies {
     androidTestImplementation(libs.room.testing)
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.ktor.client.mock)
+    androidTestImplementation(libs.serialization.json)
 }
 
 ksp {
@@ -183,9 +189,10 @@ tasks.register("installDebugSmart") {
             command: List<String>,
             timeoutSeconds: Long = 10,
         ): String {
-            val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
+            val process =
+                ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start()
             val completed = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
             if (!completed) {
                 process.destroyForcibly()
@@ -195,36 +202,40 @@ tasks.register("installDebugSmart") {
         }
 
         val sdkRoot = System.getenv("ANDROID_SDK_ROOT") ?: "${System.getProperty("user.home")}/.Android/Sdk"
-        val adbPath = listOf("$sdkRoot/platform-tools/adb", "adb")
-            .firstOrNull { candidate ->
-                runCatching { File(candidate).exists() || candidate == "adb" }.getOrDefault(false)
-            }
-            ?: error("adb not found. Install platform-tools or set ANDROID_SDK_ROOT.")
+        val adbPath =
+            listOf("$sdkRoot/platform-tools/adb", "adb")
+                .firstOrNull { candidate ->
+                    runCatching { File(candidate).exists() || candidate == "adb" }.getOrDefault(false)
+                }
+                ?: error("adb not found. Install platform-tools or set ANDROID_SDK_ROOT.")
 
         val devicesOutput = runCommand(listOf(adbPath, "devices"))
-        val deviceLines = devicesOutput
-            .lineSequence()
-            .drop(1)
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .toList()
+        val deviceLines =
+            devicesOutput
+                .lineSequence()
+                .drop(1)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toList()
 
         fun parseAdbDeviceLine(line: String): Pair<String, String>? {
-            val match = Regex("^(.*)\\s+(device|offline|unauthorized)\\s*$").find(line)
-                ?: return null
+            val match =
+                Regex("^(.*)\\s+(device|offline|unauthorized)\\s*$").find(line)
+                    ?: return null
             val serial = match.groupValues[1].trim()
             val state = match.groupValues[2]
             if (serial.isEmpty()) return null
             return serial to state
         }
 
-        val targetSerials = deviceLines
-            .mapNotNull { line ->
-                val parsed = parseAdbDeviceLine(line) ?: return@mapNotNull null
-                val (serial, state) = parsed
-                if (state == "device") serial else null
-            }
-            .toList()
+        val targetSerials =
+            deviceLines
+                .mapNotNull { line ->
+                    val parsed = parseAdbDeviceLine(line) ?: return@mapNotNull null
+                    val (serial, state) = parsed
+                    if (state == "device") serial else null
+                }
+                .toList()
 
         if (targetSerials.isEmpty()) {
             error("No online Android devices found for install.")
@@ -242,45 +253,48 @@ tasks.register("installDebugSmart") {
         val executor = Executors.newFixedThreadPool(maxParallel)
 
         try {
-            val futures = targetSerials.map { serial ->
-                executor.submit<String> {
-                    if (serial.startsWith("emulator-")) {
-                        runCommand(listOf(adbPath, "-s", serial, "wait-for-device"), timeoutSeconds = 20)
-                        runCommand(listOf(adbPath, "-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"), timeoutSeconds = 3)
-                        runCommand(listOf(adbPath, "-s", serial, "shell", "input", "keyevent", "82"), timeoutSeconds = 3)
+            val futures =
+                targetSerials.map { serial ->
+                    executor.submit<String> {
+                        if (serial.startsWith("emulator-")) {
+                            runCommand(listOf(adbPath, "-s", serial, "wait-for-device"), timeoutSeconds = 20)
+                            runCommand(listOf(adbPath, "-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"), timeoutSeconds = 3)
+                            runCommand(listOf(adbPath, "-s", serial, "shell", "input", "keyevent", "82"), timeoutSeconds = 3)
 
-                        var sdkLevel: String? = null
-                        repeat(30) {
-                            val sdk = runCommand(
-                                listOf(adbPath, "-s", serial, "shell", "getprop", "ro.build.version.sdk"),
-                                timeoutSeconds = 3,
-                            ).replace("\r", "")
-                            if (sdk.matches(Regex("\\d+"))) {
-                                sdkLevel = sdk
-                                return@repeat
+                            var sdkLevel: String? = null
+                            repeat(30) {
+                                val sdk =
+                                    runCommand(
+                                        listOf(adbPath, "-s", serial, "shell", "getprop", "ro.build.version.sdk"),
+                                        timeoutSeconds = 3,
+                                    ).replace("\r", "")
+                                if (sdk.matches(Regex("\\d+"))) {
+                                    sdkLevel = sdk
+                                    return@repeat
+                                }
+                                Thread.sleep(1000)
                             }
-                            Thread.sleep(1000)
+
+                            if (sdkLevel != null) {
+                                logger.lifecycle("Emulator $serial SDK detected: $sdkLevel")
+                            } else {
+                                logger.warn("Could not read emulator SDK level for $serial; install may fail if emulator is paused.")
+                            }
                         }
 
-                        if (sdkLevel != null) {
-                            logger.lifecycle("Emulator $serial SDK detected: $sdkLevel")
+                        val installOutput =
+                            runCommand(
+                                listOf(adbPath, "-s", serial, "install", "-r", "-t", apkFile.absolutePath),
+                                timeoutSeconds = 120,
+                            )
+                        if (!installOutput.contains("Success")) {
+                            "$serial -> ${installOutput.ifBlank { "no output" }}"
                         } else {
-                            logger.warn("Could not read emulator SDK level for $serial; install may fail if emulator is paused.")
+                            logger.lifecycle("Install success on $serial")
+                            ""
                         }
-                    }
-
-                    val installOutput = runCommand(
-                        listOf(adbPath, "-s", serial, "install", "-r", "-t", apkFile.absolutePath),
-                        timeoutSeconds = 120,
-                    )
-                    if (!installOutput.contains("Success")) {
-                        "$serial -> ${installOutput.ifBlank { "no output" }}"
-                    } else {
-                        logger.lifecycle("Install success on $serial")
-                        ""
                     }
                 }
-            }
 
             futures.forEach { future ->
                 val failure = future.get()

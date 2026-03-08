@@ -1,27 +1,17 @@
 #!/bin/bash
 # Query all weather database backups for forecast information across all devices
 
-TODAY="2026-02-04"
+TODAY=$(date +%Y-%m-%d)
 BACKUP_ROOT="backups"
 
-# Find all weather databases in the backup directory
-DB_PATHS=$(ls -1 backups/*/databases/weather_database 2>/dev/null)
-
-if [ -z "$DB_PATHS" ]; then
-    echo "Error: No backups found in $BACKUP_ROOT"
-    exit 1
-fi
-
-echo "================================================================"
-echo "CROSS-DEVICE FORECAST SUMMARY"
-echo "Target Date: $TODAY"
-echo "Generated: $(date)"
-echo "================================================================"
-printf "%-30s | %-10s | %-10s | %-10s\n" "Device/Backup" "Snapshots" "HourlyPts" "Actuals"
-echo "----------------------------------------------------------------"
-
-for DB in $DB_PATHS; do
+# Find all weather databases in the backup directory, handling spaces
+find "$BACKUP_ROOT" -name "weather_database" -path "*/databases/*" -print0 | while IFS= read -r -d '' DB; do
     FOLDER=$(echo "$DB" | cut -d'/' -f2)
+    # Check if DB is valid sqlite file
+    if ! sqlite3 "$DB" "PRAGMA integrity_check;" > /dev/null 2>&1; then
+        # printf "%-30s | %-10s | %-10s | %-10s\n" "${FOLDER:0:30}" "MALFORMED" "-" "-"
+        continue
+    fi
     STATS=$(sqlite3 "$DB" "SELECT (SELECT count(*) FROM forecast_snapshots WHERE targetDate = '$TODAY'), (SELECT count(*) FROM hourly_forecasts WHERE dateTime LIKE '$TODAY%'), (SELECT count(*) FROM weather_data WHERE date = '$TODAY');")
     
     SNAPSHOTS=$(echo "$STATS" | cut -d'|' -f1)
@@ -38,12 +28,17 @@ echo "----------------------------------------------------------------"
 printf "%-25s | %-10s | %-5s / %-5s | %-15s\n" "Device" "Source" "High" "Low" "Last Updated"
 echo "----------------------------------------------------------------"
 
-for DB in $DB_PATHS; do
+find "$BACKUP_ROOT" -name "weather_database" -path "*/databases/*" -print0 | while IFS= read -r -d '' DB; do
     FOLDER=$(echo "$DB" | cut -d'/' -f2)
     DEV_ID=$(echo "$FOLDER" | cut -d'_' -f2,3)
     
+    # Check if DB is valid sqlite file
+    if ! sqlite3 "$DB" "PRAGMA integrity_check;" > /dev/null 2>&1; then
+        continue
+    fi
+
     # Run query and store results in a temporary file to avoid pipe/EOF issues
-    sqlite3 -csv "$DB" "SELECT '$DEV_ID', source, highTemp, lowTemp, datetime(fetchedAt/1000, 'unixepoch', 'localtime') FROM forecast_snapshots WHERE targetDate = '$TODAY' GROUP BY source ORDER BY fetchedAt DESC;" > /tmp/weather_query.csv
+    sqlite3 -csv "$DB" "SELECT '$DEV_ID', source, highTemp, lowTemp, datetime(max(fetchedAt)/1000, 'unixepoch', 'localtime') FROM forecast_snapshots WHERE targetDate = '$TODAY' GROUP BY source ORDER BY max(fetchedAt) DESC;" > /tmp/weather_query.csv
     
     while IFS=, read -r dev src high low fetched; do
         # Strip quotes added by -csv mode if present

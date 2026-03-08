@@ -1008,17 +1008,16 @@ object PrecipitationGraphRenderer {
                         preferBelow = preferEndLabelBelow,
                     )
 
-                                if (placement != null) {
-                                    canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
-                                    drawnLabelBounds.add(placement.bounds.toRectF())
-                                    val mode = if (placement.usedFallback) "fallback" else "preferred"
-                                    val side = if (placement.baselineY < endPointY) "above" else "below"
-                                    // Below used in test.  Do not delete!
-                                    val logMsg = "PLACED end label: $endLabelText at right edge ($mode, $side)"
-                                    Log.d("PrecipGraph", logMsg)
-                                    onDebugLog?.invoke(logMsg)
-                                }
-                 else {
+                if (placement != null) {
+                    canvas.drawText(endLabelText, placement.x, placement.baselineY, percentLabelPaint)
+                    drawnLabelBounds.add(placement.bounds.toRectF())
+                    val mode = if (placement.usedFallback) "fallback" else "preferred"
+                    val side = if (placement.baselineY < endPointY) "above" else "below"
+                    // Below used in test.  Do not delete!
+                    val logMsg = "PLACED end label: $endLabelText at right edge ($mode, $side)"
+                    Log.d("PrecipGraph", logMsg)
+                    onDebugLog?.invoke(logMsg)
+                } else {
                     Log.d("PrecipGraph", "SKIPPED end label: $endLabelText no available non-overlapping slot")
                 }
             }

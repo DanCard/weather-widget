@@ -156,7 +156,7 @@ class ForecastRepository
         }
 
         private fun requiresNetworkFetch(forecasts: List<ForecastEntity>): Boolean {
-            val sourcesToCheck = listOf(WeatherSource.SILURIAN, WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
+            val sourcesToCheck = listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
             return sourcesToCheck.any { source ->
                 val isNeeded = widgetStateManager.isSourceVisible(source) || isPlugged()
                 isNeeded && isStale(source, forecasts)

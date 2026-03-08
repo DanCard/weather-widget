@@ -1,10 +1,10 @@
 # GEMINI.md - Weather Widget Project Context
 
 ## Project Overview
-**Weather Widget** is a specialized Android application designed exclusively as a home screen widget (no launcher activity). It provides high-accuracy weather forecasts by aggregating data from two primary sources: the **National Weather Service (NWS)** and **Open-Meteo**.
+**Weather Widget** is a home screen widget (no launcher activity). It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, weapther api, and silurian.ai.
 
 ### Key Features
-- **Dual-API Support**: Side-by-side comparison and toggling between NWS (US-only) and Open-Meteo (Global).
+- **Multiple API Support**: Comparison and toggling between NWS (US-only), Open-Meteo (Global), weather api, and silurian.ai.
 - **Two-Tier Update System**: Separates lightweight UI updates (temperature interpolation) from battery-heavy network fetches.
 - **Dynamic Rendering**: Custom-drawn graphs for Daily (forecast bars) and Hourly (Bezier temperature curves) views.
 - **Accuracy Tracking**: Compares historical forecasts against actual observations to provide reliability scores.

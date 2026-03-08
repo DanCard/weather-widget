@@ -507,20 +507,45 @@ SKIPPED=0
 
 # Prefer a fresh XML summary from this run when available, even if Gradle
 # returned BUILD FAILED because some tests failed.
-RESULTS_DIR="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
+# AGP 8.x and below: app/build/outputs/androidTest-results/connected/debug
+# AGP 9.x and above: app/build/test-results/connected/debug
+RESULTS_DIR_OLD="$PROJECT_DIR/app/build/outputs/androidTest-results/connected/debug"
+RESULTS_DIR_NEW="$PROJECT_DIR/app/build/test-results/connected/debug"
 LATEST_REPORT_XML=""
-if [ -d "$RESULTS_DIR" ] && [ -f "$TEST_RESULTS_LOG" ]; then
-    LATEST_REPORT_XML=$(find "$RESULTS_DIR" -maxdepth 1 -name 'TEST-*.xml' -newer "$TEST_RESULTS_LOG" -print 2>/dev/null | sort | tail -1 || true)
+
+find_latest_xml() {
+    local dir=$1
+    if [ -d "$dir" ]; then
+        # Use find to list XMLs, then use stat to find newest, handles spaces
+        find "$dir" -maxdepth 1 -name 'TEST-*.xml' -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-
+    fi
+}
+
+LATEST_REPORT_XML=$(find_latest_xml "$RESULTS_DIR_NEW")
+if [ -z "$LATEST_REPORT_XML" ]; then
+    LATEST_REPORT_XML=$(find_latest_xml "$RESULTS_DIR_OLD")
 fi
 
 if [ -n "$LATEST_REPORT_XML" ]; then
-    TESTSUITE_LINE=$(grep -m1 '<testsuite ' "$LATEST_REPORT_XML" || true)
-    if [ -n "$TESTSUITE_LINE" ]; then
-        TOTAL=$(echo "$TESTSUITE_LINE" | sed -n 's/.* tests="\([0-9]\+\)".*/\1/p')
-        FAILED=$(echo "$TESTSUITE_LINE" | sed -n 's/.* failures="\([0-9]\+\)".*/\1/p')
-        ERRORS=$(echo "$TESTSUITE_LINE" | sed -n 's/.* errors="\([0-9]\+\)".*/\1/p')
-        SKIPPED=$(echo "$TESTSUITE_LINE" | sed -n 's/.* skipped="\([0-9]\+\)".*/\1/p')
+    # Try <testsuites> aggregate tag first
+    TESTSUITES_LINE=$(grep -m1 '<testsuites ' "$LATEST_REPORT_XML" || true)
+    if [ -n "$TESTSUITES_LINE" ]; then
+        TOTAL=$(echo "$TESTSUITES_LINE" | sed -n 's/.* tests="\([0-9]\+\)".*/\1/p')
+        FAILED=$(echo "$TESTSUITES_LINE" | sed -n 's/.* failures="\([0-9]\+\)".*/\1/p')
+        ERRORS=$(echo "$TESTSUITES_LINE" | sed -n 's/.* errors="\([0-9]\+\)".*/\1/p')
+        SKIPPED=$(echo "$TESTSUITES_LINE" | sed -n 's/.* skipped="\([0-9]\+\)".*/\1/p')
+    else
+        # Fallback to the first <testsuite> tag if aggregate is missing
+        TESTSUITE_LINE=$(grep -m1 '<testsuite ' "$LATEST_REPORT_XML" || true)
+        if [ -n "$TESTSUITE_LINE" ]; then
+            TOTAL=$(echo "$TESTSUITE_LINE" | sed -n 's/.* tests="\([0-9]\+\)".*/\1/p')
+            FAILED=$(echo "$TESTSUITE_LINE" | sed -n 's/.* failures="\([0-9]\+\)".*/\1/p')
+            ERRORS=$(echo "$TESTSUITE_LINE" | sed -n 's/.* errors="\([0-9]\+\)".*/\1/p')
+            SKIPPED=$(echo "$TESTSUITE_LINE" | sed -n 's/.* skipped="\([0-9]\+\)".*/\1/p')
+        fi
+    fi
 
+    if [ -n "$TOTAL" ]; then
         TOTAL=${TOTAL:-0}
         FAILED=${FAILED:-0}
         ERRORS=${ERRORS:-0}
@@ -667,6 +692,10 @@ if [ "$FAILED" -gt 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
         }
     ' "$TEST_RESULTS_LOG" | head -20
 fi
+
+# Recover widget state after tests (pre-test cleanup stops app/workers)
+echo -e "${BLUE}Triggering widget refresh to recover UI...${NC}"
+$ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -n com.weatherwidget/.widget.WeatherWidgetProvider >/dev/null 2>&1 || true
 
 # Return appropriate exit code
 if [ "$TEST_SUCCESS" = true ]; then
