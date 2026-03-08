@@ -1,6 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > **📖 For detailed architecture documentation, see [ARCHITECTURE.md](ARCHITECTURE.md)**
 > - Complete system architecture and data flow

@@ -1,15 +1,11 @@
-# AGENTS.md
-
-This file provides guidance to AI agents working on this repository.
-
 ## Project Overview
 
 **Weather Widget** is an Android widget-only application that displays weather forecasts with dual-API support (NWS and Open-Meteo). The app has no launcher activity - users interact entirely through the resizable home screen widget.
 
 ### Key Features
-- **Dual API Sources**: Fetches from both NWS (US-only, official government data) and Open-Meteo (global, no API key)
+- **Multiple API Sources**: Fetches from NWS (US-only, official government data), Open-Meteo (global, no API key), openweather api, and silurian.
 - **Resizable Widget**: Adapts layout from 1x1 (single day) to 8+ columns (7+ days)
-- **Two View Modes**: Daily view (forecast bars) and Hourly view (temperature curve)
+- **Multiple View Modes**: Daily view (forecast bars), Hourly view (temperature curve), and more
 - **Temperature Interpolation**: Smooth current temperature display using hourly forecast data
 - **Forecast Accuracy Tracking**: Compares predictions vs actual observations
 - **Forecast History Viewer**: Activity to inspect forecast evolution and compare with actuals
@@ -115,31 +111,9 @@ app/src/main/java/com/weatherwidget/
 
 ## Code Style Guidelines
 
-### Import Organization
-- Group imports in this order:
-  1. Android/framework imports (`android.*`, `androidx.*`)
-  2. Third-party library imports (`kotlinx.*`, `io.ktor.*`, `dagger.*`)
-  3. Project imports (`com.weatherwidget.*`)
-- Sort alphabetically within groups
-- Use blank line between groups
-
 ### Formatting
-- **4-space indentation** (no tabs)
 - Use Kotlin idioms over Java-style code
 - Use data classes for value objects
-- Use `val` by default, `var` only when necessary
-- Use string templates (`"$value"`) over concatenation
-- Prefer explicit return types on public functions
-
-### Naming Conventions
-| Element | Convention | Example |
-|---------|------------|---------|
-| Classes | PascalCase | `WeatherRepository` |
-| Functions | camelCase | `getWeatherData` |
-| Properties | camelCase | `weatherDao` |
-| Constants | UPPER_SNAKE_CASE | `TAG`, `MONTH_IN_MILLIS` |
-| Private constants | UPPER_SNAKE_CASE in companion object | `WORK_NAME` |
-| Test functions | Backtick-wrapped descriptive sentences | `` `getWeatherData returns cached data when not forcing refresh` `` |
 
 ### Logging
 - Define `private const val TAG = "ClassName"` at top of file
@@ -150,10 +124,7 @@ app/src/main/java/com/weatherwidget/
 - Log important state transitions and data fetches
 
 ### Error Handling
-- Use `try-catch` blocks for API calls and I/O operations
-- Return `Result<T>` for functions that can fail (e.g., `suspend fun getWeatherData(): Result<List<WeatherEntity>>`)
 - Don't silently swallow exceptions - log them
-- For database operations, Room handles errors; wrap DAO calls when needed
 
 ### Dependency Injection
 - Use Hilt for DI
@@ -170,9 +141,6 @@ app/src/main/java/com/weatherwidget/
 - Use `goAsync()` in BroadcastReceivers to avoid ANRs
 
 ### Database (Room)
-- Entities in `data/local` package
-- Use composite primary keys when needed (e.g., `(date, source)` allows storing both APIs' data)
-- DAOs return `suspend` functions or `Flow<T>`
 - Add migrations in `WeatherDatabase.kt` when changing schema
 - Use `OnConflictStrategy.REPLACE` for upserts
 
@@ -190,34 +158,7 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 ### Hard Gate Rules
 - Do not guess at root cause.
 - Do not propose or implement a fix until evidence is collected.
-- Evidence must be gathered in this order:
-  1. Database state first
-  2. Logs second
-  3. Hypothesis and fix proposal third
 - If database and logs are not accessible, stop and ask for the exact missing command/data needed.
-
-### Required Investigation Sequence
-1. **Check database state first (source of truth):**
-   - For issues described as **current/latest/now/today** (for example staleness/freshness), use the **live device DB first**.
-   - Backups are fallback-only for these cases: use them only when live access is unavailable, or when the user asks for historical analysis.
-   - If a backup is used for a current issue, explicitly state the backup timestamp and that it may be stale.
-   - Prefer existing scripts:
-     - `scripts/query_captured_today.sh`
-     - `scripts/query_forecasts.sh [optional_db_path]`
-     - `scripts/query_forecasts_all.sh`
-   - If scripts are insufficient, run direct `sqlite3` queries against:
-     - live device DB (pulled via `adb` / `run-as` when available),
-     - `backups/<timestamp>/databases/weather_database`
-     - or device DB extracted into `backups/`.
-
-2. **Correlate with logs second:**
-   - Query persisted diagnostic logs from `app_logs` when available.
-   - Use targeted tags (for example `SYNC_START`, `SYNC_SUCCESS`, `SYNC_FAILURE`, `SYNC_EXCEPTION`, or NWS diagnostic tags).
-   - Use `adb logcat` when issue requires runtime-only events not captured in DB.
-
-3. **Only then propose action:**
-   - Separate facts from inference.
-   - Include the exact command(s) used and the key result rows/lines that support the conclusion.
 
 ### Required Response Format For Debug Tasks
 - `Evidence`: concrete DB/log findings only.
@@ -229,10 +170,6 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 - Ask for one concrete unblock step (for example, backup path, device id, or permission to run a specific diagnostic command), then wait.
 
 ## Testing Guidelines
-
-### Test Framework
-- JUnit 4 with mockk for mocking
-- Coroutines test library for async code
 
 ### Test Structure
 ```kotlin
@@ -254,12 +191,8 @@ class TemperatureInterpolatorTest {
 ```
 
 ### Testing Conventions
-- Use `mockk(relaxed = true)` for dependencies where behavior isn't critical
-- Setup common test state in `@Before` method
 - Write descriptive test names using backticks explaining behavior
 - Test happy paths and edge cases
-- Use `assertEquals(expected, actual)` ordering (expected first)
-- Use `runTest` for coroutine tests
 
 ## Widget Development
 
@@ -310,7 +243,6 @@ override fun onAppWidgetOptionsChanged(...) {
 ## Data Model
 
 ### WeatherEntity
-- Primary key: `(date, source)` - allows comparison between NWS and Open-Meteo
 - Tracks `isActual` flag to distinguish observations from forecasts
 - `fetchedAt` timestamp for staleness checking
 - Nullable `highTemp`/`lowTemp` for partial data handling
@@ -331,13 +263,11 @@ override fun onAppWidgetOptionsChanged(...) {
 
 ## Device Identification
 
-When working with multiple connected devices, **always verify device identity** using manufacturer/model properties rather than assuming based on device ID format:
-
 ```bash
 # List connected devices
 adb devices
 
-# Verify device identity (CRITICAL - do not assume based on ID format)
+# Verify device identity
 adb -s <device_id> shell "getprop ro.product.manufacturer && getprop ro.product.model"
 ```
 
