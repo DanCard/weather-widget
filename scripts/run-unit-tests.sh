@@ -11,6 +11,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -en "${BLUE}Running unit tests...${NC} \t"
+START_TIME=$(date +%s)
 
 FORCE_FLAG=""
 if [[ "$1" == "--force" ]]; then
@@ -24,9 +25,11 @@ rm -rf "$RESULTS_DIR"
 
 # Run gradle and strip blank lines + per-test PASSED lines for a compact view
 # We keep failures and other diagnostics visible.
-./gradlew :app:test $FORCE_FLAG --console=plain | awk 'NF && $0 !~ / > .* PASSED$/'
+./gradlew :app:testDebugUnitTest $FORCE_FLAG --console=plain | awk 'NF && $0 !~ / > .* PASSED$/'
 
 EXIT_CODE=${PIPESTATUS[0]}
+END_TIME=$(date +%s)
+DURATION_SECONDS=$((END_TIME - START_TIME))
 
 # Parse results from XML files
 TOTAL=0
@@ -84,6 +87,7 @@ if [ "$TOTAL" -gt 0 ]; then
         done
     fi
     echo -e "  Total:   $TOTAL"
+    echo -e "  Duration: ${DURATION_SECONDS}s"
     echo -e "  ${GREEN}Passed:  $PASSED${NC}"
     if [ "$FAILED" -gt 0 ]; then
         echo -e "  ${RED}Failed:  $FAILED${NC}"
@@ -107,6 +111,7 @@ else
     else
         echo -e "${YELLOW}  ⚠ No test results found${NC}"
     fi
+    echo -e "  Duration: ${DURATION_SECONDS}s"
 fi
 
 exit $EXIT_CODE

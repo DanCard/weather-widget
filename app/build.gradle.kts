@@ -108,6 +108,9 @@ android {
 }
 
 tasks.withType<Test> {
+    // Use a modest level of parallelism to speed up unit tests without
+    // overwhelming Robolectric or exposing too much shared-state contention.
+    maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceIn(1, 4)
     testLogging {
         events("passed", "skipped", "failed", "standardOut", "standardError")
         showStandardStreams = true
