@@ -23,6 +23,7 @@ object DailyForecastGraphRenderer {
         val highY: Float,
         val lowY: Float,
         val centerX: Float,
+        val color: Int,
     )
 
     data class DayData(
@@ -37,6 +38,7 @@ object DailyForecastGraphRenderer {
         val isToday: Boolean = false,
         val isPast: Boolean = false, // Is this a historical day?
         val isClimateNormal: Boolean = false, // Is this long-range climate data?
+        val isSourceGapFallback: Boolean = false, // Is this day shown from the generic gap filler?
         val forecastHigh: Float? = null, // Single forecast
         val forecastLow: Float? = null, // Single forecast
         val rainSummary: String? = null, // e.g. "2pm" — start of first rain window
@@ -183,6 +185,13 @@ object DailyForecastGraphRenderer {
                 strokeCap = Paint.Cap.ROUND
             }
 
+        val gapFallbackBarPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#34C759")
+                strokeWidth = barWidth
+                strokeCap = Paint.Cap.ROUND
+            }
+
         val forecastBarOffset = barWidth * 1.2f
 
         val dayLabelTextSize = dpToPx(context, baseDayLabelSize * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER)
@@ -262,7 +271,11 @@ object DailyForecastGraphRenderer {
                         val iconX = centerX - iconSize / 2f
                         drawable.setBounds(iconX.toInt(), iconY.toInt(), (iconX + iconSize).toInt(), (iconY + iconSize).toInt())
                         if (!day.isRainy && !day.isMixed) {
-                            val tint = if (day.isSunny) Color.parseColor("#FFD60A") else Color.parseColor("#AAAAAA")
+                            val tint = if (day.isSunny) {
+                                Color.parseColor("#FFD60A")
+                            } else {
+                                Color.parseColor("#AAAAAA")
+                            }
                             drawable.setTint(tint)
                         }
                         drawable.draw(canvas)
@@ -286,6 +299,7 @@ object DailyForecastGraphRenderer {
             val paint = when {
                 day.isToday -> todayBarPaint
                 day.isPast -> historyBarPaint
+                day.isSourceGapFallback -> gapFallbackBarPaint
                 else -> barPaint
             }
 
@@ -307,7 +321,7 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, effectiveLowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, effectiveLowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveFLowY, todayTripleBluePaint)
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, effectiveLowY, centerX))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, effectiveLowY, centerX, todayTripleOrangePaint.color))
                 } else {
                     // Ensure at least a small bar if high == low (6dp minimum height)
                     val minBarHeight = dpToPx(context, 6f)
@@ -317,7 +331,7 @@ object DailyForecastGraphRenderer {
                     
                     canvas.drawLine(centerX, highY, centerX, effectiveLowY, paint)
                     val barType = if (day.isPast) "HISTORY" else "FUTURE"
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, effectiveLowY, centerX))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, effectiveLowY, centerX, paint.color))
                 }
             } else if (highY != null) {
                 val minBarHeight = dpToPx(context, 6f)
@@ -334,12 +348,12 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, highY + minBarHeight, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, highY + minBarHeight, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveLowY, todayTripleBluePaint)
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, highY + minBarHeight, centerX))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, highY + minBarHeight, centerX, todayTripleOrangePaint.color))
                 } else {
                     val effectiveLowY = highY + minBarHeight
                     canvas.drawLine(centerX, highY, centerX, effectiveLowY, paint)
                     val barType = if (day.isPast) "HISTORY" else "FUTURE"
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, effectiveLowY, centerX))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, effectiveLowY, centerX, paint.color))
                 }
             } else if (lowY != null) {
                 val minBarHeight = dpToPx(context, 6f)
@@ -356,12 +370,12 @@ object DailyForecastGraphRenderer {
                     canvas.drawLine(centerX - tripleBarOffset, lowY - minBarHeight, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, lowY - minBarHeight, centerX, lowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, effectiveFHighY, centerX + tripleBarOffset, fLowY, todayTripleBluePaint)
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", lowY - minBarHeight, lowY, centerX))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", lowY - minBarHeight, lowY, centerX, todayTripleOrangePaint.color))
                 } else {
                     val effectiveHighY = lowY - minBarHeight
                     canvas.drawLine(centerX, effectiveHighY, centerX, lowY, paint)
                     val barType = if (day.isPast) "HISTORY" else "FUTURE"
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, effectiveHighY, lowY, centerX))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, effectiveHighY, lowY, centerX, paint.color))
                 }
             }
 
@@ -377,7 +391,7 @@ object DailyForecastGraphRenderer {
                 
                 android.util.Log.d("DailyGraphRenderer", "  Drawing Day ${day.date}: [FORECAST] fHighY=$fHighY, fLowY=$effectiveFLowY, centerX=$forecastX, isClimate=${day.isClimateNormal}")
                 canvas.drawLine(forecastX, fHighY, forecastX, effectiveFLowY, overlayPaint)
-                onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX))
+                onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
             }
 
             if (day.high != null) {

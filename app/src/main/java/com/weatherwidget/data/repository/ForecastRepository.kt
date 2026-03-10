@@ -164,7 +164,7 @@ class ForecastRepository
         }
 
         private fun isStale(source: WeatherSource, forecasts: List<ForecastEntity>): Boolean {
-            val lastSourceFetchTime = forecasts.filter { it.source == source.id }.maxOfOrNull { it.fetchedAt } ?: 0L
+            val lastSourceFetchTime = forecasts.filter { it.source == source.id }.maxOfOrNull { it.batchFetchedAt } ?: 0L
             val visibleSources = widgetStateManager.getVisibleSourcesOrder()
             val position = visibleSources.indexOf(source)
             
@@ -306,11 +306,11 @@ class ForecastRepository
             val wapiForecasts = wapiDeferred?.await()
             val silurianForecasts = silurianDeferred?.await()
 
-            // Save snapshots with deduplication logic
-            nwsForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.NWS.id) }
-            meteoForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.OPEN_METEO.id) }
-            wapiForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.WEATHER_API.id) }
-            silurianForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.SILURIAN.id) }
+            // Save each provider fetch as a coherent batch with a shared batchFetchedAt.
+            nwsForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.NWS.id, System.currentTimeMillis()) }
+            meteoForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.OPEN_METEO.id, System.currentTimeMillis()) }
+            wapiForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.WEATHER_API.id, System.currentTimeMillis()) }
+            silurianForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.SILURIAN.id, System.currentTimeMillis()) }
 
             FetchResult(nwsForecasts, meteoForecasts, wapiForecasts, silurianForecasts)
         }
@@ -509,7 +509,8 @@ class ForecastRepository
             weatherForecasts: List<ForecastEntity>, 
             latitude: Double, 
             longitude: Double, 
-            sourceId: String
+            sourceId: String,
+            batchFetchedAt: Long = System.currentTimeMillis(),
         ) {
             val todayDate = LocalDate.now()
             val todayDateString = todayDate.toString()
@@ -547,6 +548,7 @@ class ForecastRepository
                     isClimateNormal = forecast.isClimateNormal,
                     source = sourceId,
                     precipProbability = forecast.precipProbability,
+                    batchFetchedAt = batchFetchedAt,
                     fetchedAt = System.currentTimeMillis()
                 )
             }
@@ -561,8 +563,8 @@ class ForecastRepository
                     source = sourceId
                 )
                 
-                // associateBy picks the first occurrence. 
-                // Since DAO orders by fetchedAt DESC, this will be the latest record for each targetDate.
+                // associateBy picks the first occurrence.
+                // Since DAO orders by batchFetchedAt DESC, then fetchedAt DESC, this is the latest row for each targetDate.
                 val latestByDate = existingForecasts.associateBy { it.targetDate }
                 
                 val changedForecasts = forecastsToSave.filter { newlyFetched ->
@@ -809,7 +811,19 @@ class ForecastRepository
             val gapData = forecastDao.getForecastsInRangeBySource(startDate, endDate, latitude, longitude, WeatherSource.GENERIC_GAP.id)
             val sourceData = forecastDao.getForecastsInRangeBySource(startDate, endDate, latitude, longitude, source.id)
             
-            return (gapData + sourceData).associateBy { it.targetDate }.values.sortedBy { it.targetDate }
+            val latestBatchFetchedAt = sourceData.maxOfOrNull { it.batchFetchedAt }
+            val liveSourceData = if (latestBatchFetchedAt != null) {
+                sourceData.filter { it.batchFetchedAt == latestBatchFetchedAt }
+            } else {
+                emptyList()
+            }
+
+            val latestSourceByDate = liveSourceData.groupBy { it.targetDate }.mapValues { (_, rows) -> rows.first() }
+            val latestGapByDate = gapData.groupBy { it.targetDate }.mapValues { (_, rows) -> rows.first() }
+
+            return (latestGapByDate.keys + latestSourceByDate.keys)
+                .sorted()
+                .mapNotNull { date -> latestSourceByDate[date] ?: latestGapByDate[date] }
         }
 
         suspend fun getForecastForDate(dateString: String, latitude: Double, longitude: Double) = 

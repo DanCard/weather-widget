@@ -31,6 +31,7 @@ object DailyViewLogic {
         val rainSummary: String?,
         val showRain: Boolean,
         val isToday: Boolean,
+        val isSourceGapFallback: Boolean,
         val hasRainForecast: Boolean,
         val highLabel: String?,
         val lowLabel: String?
@@ -158,6 +159,7 @@ object DailyViewLogic {
                 rainSummary = displayedSummaries[index],
                 showRain = index == firstRainDayIndex,
                 isToday = isToday,
+                isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
                 hasRainForecast = DayClickHelper.hasRainForecast(rawSummaries[index], precip),
                 highLabel = highLabel,
                 lowLabel = lowLabel
@@ -313,6 +315,7 @@ object DailyViewLogic {
                     isToday = isToday,
                     isPast = isPastDate,
                     isClimateNormal = isClimateOverlay,
+                    isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
                     forecastHigh = fHigh,
                     forecastLow = fLow,
                     rainSummary = rainSummary,

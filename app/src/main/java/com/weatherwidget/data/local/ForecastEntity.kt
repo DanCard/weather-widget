@@ -9,7 +9,8 @@ import androidx.room.Index
     indices = [
         Index(value = ["locationLat", "locationLon"]),
         Index(value = ["targetDate"]),
-        Index(value = ["targetDate", "source", "locationLat", "locationLon", "forecastDate", "fetchedAt"])
+        Index(value = ["targetDate", "source", "locationLat", "locationLon", "forecastDate", "fetchedAt"]),
+        Index(value = ["source", "locationLat", "locationLon", "batchFetchedAt"]),
     ],
 )
 data class ForecastEntity(
@@ -26,5 +27,6 @@ data class ForecastEntity(
     val precipProbability: Int? = null, // Rain chance percentage (0-100)
     val periodStartTime: String? = null,  // NWS only: ISO-8601 start of the daytime forecast period
     val periodEndTime: String? = null,    // NWS only: ISO-8601 end of the daytime forecast period
+    val batchFetchedAt: Long = System.currentTimeMillis(), // Shared across all rows from one provider fetch batch
     val fetchedAt: Long = System.currentTimeMillis(),
 )

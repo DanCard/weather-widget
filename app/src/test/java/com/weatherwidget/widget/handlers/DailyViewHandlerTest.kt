@@ -261,6 +261,57 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareTextDays marks generic fallback days`() {
+        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
+
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today.format(DateTimeFormatter.ISO_LOCAL_DATE) to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            tomorrowStr to createWeather(tomorrowStr).copy(source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS
+        )
+
+        assertTrue(result.first { it.dateStr == tomorrowStr }.isSourceGapFallback)
+    }
+
+    @Test
+    fun `prepareGraphDays marks generic fallback days`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today.format(DateTimeFormatter.ISO_LOCAL_DATE) to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            tomorrowStr to createWeather(tomorrowStr).copy(source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList()
+        )
+
+        assertTrue(result.first { it.date == tomorrowStr }.isSourceGapFallback)
+    }
+
+    @Test
     fun `buildDayClickIntent returns correct extras with Robolectric`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val dateStr = "2030-06-16" // Tomorrow
