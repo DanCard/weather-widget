@@ -8,6 +8,7 @@
 #   ./scripts/emulator-tests.sh -q                 # Run headless (quiet/no window)
 #   ./scripts/emulator-tests.sh -e EMULATOR_NAME   # Use specific emulator
 #   ./scripts/emulator-tests.sh -c CLASS_NAME      # Run specific test class
+#   ./scripts/emulator-tests.sh -d DURATION        # Set test timeout (e.g. 10m, 450s, 1h)
 #   ./scripts/emulator-tests.sh -u                 # Allow Gradle to uninstall test APKs after run
 #   ./scripts/emulator-tests.sh -h                 # Show help
 #
@@ -30,6 +31,26 @@ debug_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
 }
 
+parse_duration_seconds() {
+    local value=$1
+    local number=""
+    local unit=""
+
+    if [[ "$value" =~ ^([0-9]+)([smh]?)$ ]]; then
+        number="${BASH_REMATCH[1]}"
+        unit="${BASH_REMATCH[2]}"
+    else
+        return 1
+    fi
+
+    case "$unit" in
+        ""|"s") echo "$number" ;;
+        "m") echo $((number * 60)) ;;
+        "h") echo $((number * 3600)) ;;
+        *) return 1 ;;
+    esac
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -42,19 +63,29 @@ EMULATOR_NAME=""
 EMULATOR_NAME_EXPLICIT=false
 TEST_CLASS=""
 SHOW_HELP=false
+TEST_TIMEOUT_ARG=""
 
 LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
 
-while getopts "e:c:quh" opt; do
+while getopts "e:c:d:quh" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG"; EMULATOR_NAME_EXPLICIT=true ;;
         c) TEST_CLASS="$OPTARG" ;;
+        d) TEST_TIMEOUT_ARG="$OPTARG" ;;
         q) VISIBLE_MODE=false ;;
         u) LEAVE_APKS_INSTALLED=false ;;
         h) SHOW_HELP=true ;;
         *) SHOW_HELP=true ;;
     esac
 done
+
+if [ -n "$TEST_TIMEOUT_ARG" ]; then
+    if ! TEST_TIMEOUT=$(parse_duration_seconds "$TEST_TIMEOUT_ARG"); then
+        echo -e "${RED}Error: Invalid duration '$TEST_TIMEOUT_ARG'${NC}"
+        echo "Use an integer number of seconds, or add s/m/h (examples: 300, 90s, 10m, 1h)"
+        exit 1
+    fi
+fi
 
 # Show help
 if [ "$SHOW_HELP" = true ]; then
@@ -67,6 +98,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo "  -u             Allow APK uninstall after tests (default: preserve installed APKs)"
     echo "  -e EMULATOR    Use specific emulator (default: $DEFAULT_EMULATOR)"
     echo "  -c CLASS       Run specific test class (e.g., com.weatherwidget.WidgetSizeCalculatorTest)"
+    echo "  -d DURATION    Test timeout (default: ${TEST_TIMEOUT}s; accepts 300, 90s, 10m, 1h)"
     echo "  -h             Show this help"
     echo ""
     echo "Examples:"
@@ -74,6 +106,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo "  $(basename "$0") -q                           # Headless mode (no GUI window)"
     echo "  $(basename "$0") -e Medium_Phone_API_36      # Use phone emulator"
     echo "  $(basename "$0") -c WidgetSizeCalculatorTest # Run specific test class"
+    echo "  $(basename "$0") -d 15m                       # Allow up to 15 minutes for tests"
     exit 0
 fi
 
@@ -347,6 +380,7 @@ else
     echo -en "${YELLOW}Running all instrumented tests${NC} \t"
 fi
 echo -e "${YELLOW}APK install step: connectedDebugAndroidTest builds and installs the application APK and the instrumentation test APK on $ANDROID_SERIAL (Gradle may skip unchanged tasks)${NC}"
+echo -e "${YELLOW}Test timeout: ${TEST_TIMEOUT}s${NC}"
 
 # Run tests with timeout - show output in real-time
 TEST_START=$(date +%s)
