@@ -16,6 +16,8 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
@@ -239,6 +241,19 @@ object DailyViewHandler : WidgetViewHandler {
                 stateManager.markRainShown(appWidgetId, todayStr)
             }
 
+            logDailyRenderSummary(
+                context = context,
+                appWidgetId = appWidgetId,
+                dateOffset = dateOffset,
+                displaySource = displaySource,
+                numColumns = numColumns,
+                numRows = numRows,
+                useGraph = true,
+                isEveningMode = isEveningMode,
+                centerDate = centerDate,
+                visibleDates = days.map { it.date },
+            )
+
             // Render graph
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
@@ -261,6 +276,19 @@ object DailyViewHandler : WidgetViewHandler {
                 context, views, now, centerDate, today, weatherByDate,
                 hourlyForecasts, numColumns, displaySource, skipHistory,
                 stateManager, appWidgetId, precipProb, dailyActuals
+            )
+
+            logDailyRenderSummary(
+                context = context,
+                appWidgetId = appWidgetId,
+                dateOffset = dateOffset,
+                displaySource = displaySource,
+                numColumns = numColumns,
+                numRows = numRows,
+                useGraph = false,
+                isEveningMode = isEveningMode,
+                centerDate = centerDate,
+                visibleDates = visibleDaysInfo.map { it.second },
             )
 
             setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
@@ -291,6 +319,27 @@ object DailyViewHandler : WidgetViewHandler {
         )
         views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
         views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
+    }
+
+    private suspend fun logDailyRenderSummary(
+        context: Context,
+        appWidgetId: Int,
+        dateOffset: Int,
+        displaySource: WeatherSource,
+        numColumns: Int,
+        numRows: Int,
+        useGraph: Boolean,
+        isEveningMode: Boolean,
+        centerDate: LocalDate,
+        visibleDates: List<String>,
+    ) {
+        val mode = if (useGraph) "GRAPH" else "TEXT"
+        val datesSummary = visibleDates.joinToString(",").ifEmpty { "<none>" }
+        val tag = if (visibleDates.isEmpty()) "DAILY_RENDER_EMPTY" else "DAILY_RENDER"
+        WeatherDatabase.getDatabase(context).appLogDao().log(
+            tag,
+            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows evening=$isEveningMode center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
+        )
     }
 
     private fun setupSettingsShortcut(context: Context, views: RemoteViews, appWidgetId: Int) {

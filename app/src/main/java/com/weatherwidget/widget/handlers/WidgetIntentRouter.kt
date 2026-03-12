@@ -9,7 +9,6 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
@@ -93,6 +92,7 @@ object WidgetIntentRouter {
         val forecastDao = database.forecastDao()
         val snapshotDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
+        val appLogDao = database.appLogDao()
 
         val latestWeather = forecastDao.getLatestWeather()
         refreshIfStale(context, latestWeather?.fetchedAt, "daily_nav")
@@ -158,8 +158,16 @@ object WidgetIntentRouter {
             "cols=$numColumns, evening=$isEveningMode, source=${displaySource.id}, " +
             "dates=${availableDates.size}(${minDate}..${maxDate}), " +
             "$navDebug, canNavigate=$canNavigate")
+        appLogDao.log(
+            "DAILY_NAV_ATTEMPT",
+            "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns rows=${WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId).rows} evening=$isEveningMode source=${displaySource.id} minDate=$minDate maxDate=$maxDate $navDebug canNavigate=$canNavigate"
+        )
 
         if (!canNavigate) {
+            appLogDao.log(
+                "DAILY_NAV_BLOCKED",
+                "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns evening=$isEveningMode source=${displaySource.id} minDate=$minDate maxDate=$maxDate"
+            )
             return
         }
 
@@ -170,6 +178,10 @@ object WidgetIntentRouter {
                 stateManager.navigateRight(appWidgetId)
             }
         Log.d(TAG, "handleDailyNavigation: Navigated to offset $newOffset for widget $appWidgetId")
+        appLogDao.log(
+            "DAILY_NAV_APPLY",
+            "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset->$newOffset source=${displaySource.id}"
+        )
 
         val forecastSnapshots =
             forecastDao.getForecastsInRange(historyStart, thirtyDays, lat, lon)
