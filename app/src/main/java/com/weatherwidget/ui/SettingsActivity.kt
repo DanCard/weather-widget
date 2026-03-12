@@ -12,12 +12,17 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 
 import dagger.hilt.android.AndroidEntryPoint
 
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.WidgetStateManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import javax.inject.Inject
 
@@ -25,6 +30,11 @@ import javax.inject.Inject
 class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
+
+    @Inject
+    lateinit var weatherRepository: WeatherRepository
+
+    private var latestLocation: Pair<Double, Double>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,15 +83,30 @@ class SettingsActivity : AppCompatActivity() {
      */
     private fun setupApiSourcesList() {
         val container = findViewById<LinearLayout>(R.id.api_sources_container)
-        rebuildSourceRows(container)
+        lifecycleScope.launch(Dispatchers.IO) {
+            latestLocation = weatherRepository.getLatestLocation()
+            withContext(Dispatchers.Main) {
+                rebuildSourceRows(container)
+            }
+        }
     }
 
     private fun rebuildSourceRows(container: LinearLayout) {
         container.removeAllViews()
-        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+        val location = latestLocation
+        val visibleSources = if (location != null) {
+            widgetStateManager.getEffectiveVisibleSourcesOrder(location.first, location.second)
+        } else {
+            widgetStateManager.getVisibleSourcesOrder()
+        }
 
         // Build full ordered list: visible sources first (in order), then hidden sources
-        val hiddenSources = allSources.filter { it !in visibleSources }
+        val availableSources = if (location != null && visibleSources.none { it == WeatherSource.OPEN_METEO }) {
+            allSources.filter { it != WeatherSource.OPEN_METEO }
+        } else {
+            allSources
+        }
+        val hiddenSources = availableSources.filter { it !in visibleSources }
         val orderedSources = visibleSources + hiddenSources
 
         for ((index, source) in orderedSources.withIndex()) {

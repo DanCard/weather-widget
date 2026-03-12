@@ -223,7 +223,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        cachedRequestedSource = requestedSource ?: firstVisibleSource()
+        cachedRequestedSource = requestedSource?.takeIf { it in effectiveVisibleSources() } ?: firstVisibleSource()
         updateApiSourceButton()
 
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
@@ -667,7 +667,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun cycleApiSource() {
-        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+        val visibleSources = effectiveVisibleSources()
         if (visibleSources.isEmpty()) {
             return
         }
@@ -713,7 +713,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     private fun firstVisibleSource(): WeatherSource? {
-        return widgetStateManager.getVisibleSourcesOrder().firstOrNull()
+        return effectiveVisibleSources().firstOrNull()
+    }
+
+    private fun effectiveVisibleSources(): List<WeatherSource> {
+        return widgetStateManager.getEffectiveVisibleSourcesOrder(targetLat, targetLon)
     }
 
         private fun updateFreshnessCard() {
@@ -749,7 +753,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         // Forecast staleness policy for current battery state
         val policyText = when {
             isCharging -> {
-                val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+                val visibleSources = effectiveVisibleSources()
                 val apiIndex = visibleSources.indexOf(cachedRequestedSource ?: visibleSources.firstOrNull())
                 when (apiIndex) {
                     0 -> getString(R.string.forecast_policy_charging_1h)

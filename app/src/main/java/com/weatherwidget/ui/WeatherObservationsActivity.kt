@@ -36,6 +36,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private lateinit var adapter: ObservationAdapter
     private var currentSource: WeatherSource = WeatherSource.NWS
     private var appWidgetId: Int = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+    private var activeLocation: Pair<Double, Double>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,10 +52,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
 
         appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        activeLocation = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            widgetStateManager.getWidgetLocation(appWidgetId)
+        } else {
+            null
+        }
         currentSource = if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             widgetStateManager.getCurrentDisplaySource(appWidgetId)
         } else {
-            widgetStateManager.getVisibleSourcesOrder().firstOrNull() ?: WeatherSource.NWS
+            effectiveVisibleSources().firstOrNull() ?: WeatherSource.NWS
         }
         updateApiButton()
 
@@ -78,7 +84,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     private fun cycleSource() {
-        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
+        val visibleSources = effectiveVisibleSources()
         if (visibleSources.isEmpty()) return
         
         val currentIndex = visibleSources.indexOf(currentSource)
@@ -92,6 +98,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
         updateApiButton()
         loadObservations()
         loadFetchLogs()
+    }
+
+    private fun effectiveVisibleSources(): List<WeatherSource> {
+        val location = activeLocation
+        return if (location != null) {
+            widgetStateManager.getEffectiveVisibleSourcesOrder(location.first, location.second)
+        } else {
+            widgetStateManager.getVisibleSourcesOrder()
+        }
     }
 
     override fun onDestroy() {

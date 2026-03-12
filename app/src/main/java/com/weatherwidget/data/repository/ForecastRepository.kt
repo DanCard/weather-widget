@@ -16,6 +16,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.util.NwsCoverageCache
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -83,7 +84,7 @@ class ForecastRepository
             try {
                 // Initial check without locking
                 var cachedForecasts = getCachedData(latitude, longitude)
-                if (!forceRefresh && !requiresNetworkFetch(cachedForecasts)) {
+                if (!forceRefresh && !requiresNetworkFetch(latitude, longitude, cachedForecasts)) {
                     return Result.success(cachedForecasts)
                 }
 
@@ -92,7 +93,7 @@ class ForecastRepository
                 syncMutex.withLock {
                     // Re-read data after acquiring lock to ensure another thread didn't just update it
                     cachedForecasts = getCachedData(latitude, longitude)
-                    if (!forceRefresh && !requiresNetworkFetch(cachedForecasts)) {
+                    if (!forceRefresh && !requiresNetworkFetch(latitude, longitude, cachedForecasts)) {
                         return Result.success(cachedForecasts)
                     }
 
@@ -103,6 +104,7 @@ class ForecastRepository
                     }
 
                     appLogDao.log("NET_FETCH_START", "force=$forceRefresh target=$targetSourceId")
+                    val nwsCovered = NwsCoverageCache.isNwsCovered(context, nwsApi, appLogDao, latitude, longitude)
                     
                     fun shouldForceSource(source: WeatherSource): Boolean {
                         if (!forceRefresh) return false
@@ -114,7 +116,7 @@ class ForecastRepository
                     val (nwsForecasts, meteoForecasts, wapiForecasts, silurianForecasts) = fetchFromAllApis(
                         latitude, longitude, locationName,
                         shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts),
-                        shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts),
+                        !nwsCovered && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
                         shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts),
                         shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts),
                         onCurrentTempCallback
@@ -155,10 +157,14 @@ class ForecastRepository
             }
         }
 
-        private fun requiresNetworkFetch(forecasts: List<ForecastEntity>): Boolean {
+        private fun requiresNetworkFetch(
+            latitude: Double,
+            longitude: Double,
+            forecasts: List<ForecastEntity>,
+        ): Boolean {
             val sourcesToCheck = listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
             return sourcesToCheck.any { source ->
-                val isNeeded = widgetStateManager.isSourceVisible(source) || isPlugged()
+                val isNeeded = widgetStateManager.isSourceVisible(source, latitude, longitude) || (isPlugged() && source != WeatherSource.OPEN_METEO)
                 isNeeded && isStale(source, forecasts)
             }
         }

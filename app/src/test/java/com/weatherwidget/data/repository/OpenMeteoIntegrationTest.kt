@@ -2,15 +2,14 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
-import com.weatherwidget.testutil.TestData.LAT
-import com.weatherwidget.testutil.TestData.LON
 import com.weatherwidget.testutil.TestDatabase
-import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.*
 import io.ktor.client.engine.mock.*
 import io.ktor.http.*
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -30,6 +29,8 @@ class OpenMeteoIntegrationTest {
     private lateinit var db: WeatherDatabase
     private lateinit var repository: ForecastRepository
     private val json = Json { ignoreUnknownKeys = true }
+    private val testLat = 51.5074
+    private val testLon = -0.1278
 
     private val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
     private val tomorrow = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -53,12 +54,14 @@ class OpenMeteoIntegrationTest {
         }
         val httpClient = HttpClient(mockEngine)
         val openMeteoApi = OpenMeteoApi(httpClient, json)
+        val nwsApi = mockk<NwsApi>()
+        coEvery { nwsApi.getGridPoint(any(), any()) } throws Exception("NWS unavailable for integration test")
         
         val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
         
-        return ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(relaxed = true), // NwsApi
+        return ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), nwsApi,
             openMeteoApi, mockk(relaxed = true), mockk(relaxed = true), // WeatherApi
             widgetStateManager, db.climateNormalDao(), db.observationDao()
         )
@@ -69,8 +72,8 @@ class OpenMeteoIntegrationTest {
         // Mock response with 72.4 for today and 72.6 for tomorrow
         val mockResponse = """
             {
-                "latitude": $LAT,
-                "longitude": $LON,
+                "latitude": $testLat,
+                "longitude": $testLon,
                 "timezone": "UTC",
                 "current": {
                     "time": "${today}T12:00",
@@ -96,10 +99,10 @@ class OpenMeteoIntegrationTest {
         repository = createRepository(mockResponse)
 
         // Trigger full network fetch
-        repository.getWeatherData(LAT, LON, "Test Location", forceRefresh = true)
+        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
 
         // Query the 'forecasts' table (snapshots)
-        val snapshots = db.forecastDao().getForecastsInRange(today, tomorrow, LAT, LON)
+        val snapshots = db.forecastDao().getForecastsInRange(today, tomorrow, testLat, testLon)
             .filter { it.source == "OPEN_METEO" }
             .sortedBy { it.targetDate }
 
