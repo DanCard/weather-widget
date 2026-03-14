@@ -90,9 +90,15 @@ object DailyActualsEstimator {
             actualHighSoFar
         }
 
+        val finalObservedLow = if (displaySource == WeatherSource.NWS) {
+            listOfNotNull(actualLowSoFar, forecastLow).minOrNull()
+        } else {
+            actualLowSoFar ?: forecastLow
+        }
+
         return TodayTripleLineValues(
             observedHigh = finalObservedHigh ?: forecastHigh,
-            observedLow = actualLowSoFar ?: forecastLow,
+            observedLow = finalObservedLow,
             forecastHigh = forecastHigh,
             forecastLow = forecastLow
         )

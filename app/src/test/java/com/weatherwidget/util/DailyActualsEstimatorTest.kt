@@ -127,6 +127,31 @@ class DailyActualsEstimatorTest {
     }
 
     @Test
+    fun calculateTodayTripleLineValues_nwsTodayLow_doesNotRiseAboveForecastLow() {
+        val nwsFallback = fallbackWeather.copy(
+            highTemp = 78f,
+            lowTemp = 49f,
+            source = WeatherSource.NWS.id,
+        )
+        val hourly = listOf(
+            HourlyForecastEntity("2026-02-25T12:00", 0.0, 0.0, 72f, "Sunny", WeatherSource.NWS.id, 0, 0),
+            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 71.4f, "Sunny", WeatherSource.NWS.id, 0, 0),
+            HourlyForecastEntity("2026-02-25T16:00", 0.0, 0.0, 78f, "Sunny", WeatherSource.NWS.id, 0, 0),
+        )
+
+        val values = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourly,
+            today,
+            now,
+            WeatherSource.NWS,
+            nwsFallback,
+        )
+
+        assertEquals(49f, values.forecastLow!!, 0.01f)
+        assertEquals(49f, values.observedLow!!, 0.01f)
+    }
+
+    @Test
     fun calculateTodayTripleLineValues_preservesPrecision() {
         val hourly = listOf(
             // High of 61.7, Low of 58.2
