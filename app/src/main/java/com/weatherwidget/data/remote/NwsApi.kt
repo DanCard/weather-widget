@@ -21,6 +21,54 @@ class NwsApi
             private const val TAG = "NwsApi"
             private const val BASE_URL = "https://api.weather.gov"
             private const val USER_AGENT = "WeatherWidget/1.0 (contact@weatherwidget.app)"
+
+            fun classifyStationType(id: String): StationType {
+                return if (id.length == 4 && (id.startsWith("K") || id.startsWith("P") || id.startsWith("T"))) {
+                    StationType.OFFICIAL
+                } else {
+                    StationType.PERSONAL
+                }
+            }
+
+            fun encodeStationInfo(station: StationInfo): String {
+                return listOf(
+                    station.id,
+                    station.name,
+                    station.lat.toString(),
+                    station.lon.toString(),
+                    station.type.name,
+                ).joinToString("\t")
+            }
+
+            fun decodeStationInfo(serialized: String): StationInfo? {
+                if (serialized.isBlank()) return null
+
+                val tabParts = serialized.split("\t")
+                if (tabParts.size >= 4) {
+                    val id = tabParts[0]
+                    val name = tabParts[1]
+                    val lat = tabParts[2].toDoubleOrNull() ?: return null
+                    val lon = tabParts[3].toDoubleOrNull() ?: return null
+                    val type = tabParts.getOrNull(4)?.let { raw ->
+                        StationType.entries.firstOrNull { it.name == raw }
+                    } ?: classifyStationType(id)
+                    return StationInfo(id = id, name = name, lat = lat, lon = lon, type = type)
+                }
+
+                val commaParts = serialized.split(",")
+                if (commaParts.size < 4) return null
+                val id = commaParts.first()
+                val lat = commaParts[commaParts.size - 2].toDoubleOrNull() ?: return null
+                val lon = commaParts.last().toDoubleOrNull() ?: return null
+                val name = commaParts.subList(1, commaParts.size - 2).joinToString(",").trim()
+                return StationInfo(
+                    id = id,
+                    name = name.ifEmpty { id },
+                    lat = lat,
+                    lon = lon,
+                    type = classifyStationType(id),
+                )
+            }
         }
 
         suspend fun getGridPoint(
@@ -67,11 +115,7 @@ class NwsApi
                 val name = props["name"]?.jsonPrimitive?.content ?: id
                 
                 // Detection logic: Official METAR stations are 4-chars starting with K, P, or T.
-                val type = if (id.length == 4 && (id.startsWith("K") || id.startsWith("P") || id.startsWith("T"))) {
-                    StationType.OFFICIAL
-                } else {
-                    StationType.PERSONAL
-                }
+                val type = classifyStationType(id)
 
                 val geometry = featObj["geometry"]?.jsonObject
                 val coords = geometry?.get("coordinates")?.jsonArray

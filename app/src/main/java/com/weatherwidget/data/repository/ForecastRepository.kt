@@ -712,16 +712,13 @@ class ForecastRepository
             val lastUpdateTimestamp = prefs.getLong(timeKey, 0)
             
             if (cachedStationsString != null && System.currentTimeMillis() - lastUpdateTimestamp < 86400000) {
-                return cachedStationsString.split("|").map { 
-                    val parts = it.split("\t")
-                    NwsApi.StationInfo(parts[0], parts[1], parts[2].toDouble(), parts[3].toDouble())
-                }
+                return cachedStationsString.split("|").mapNotNull(NwsApi.Companion::decodeStationInfo)
             }
             
             val fetchedStations = runCatching { nwsApi.getObservationStations(stationsUrl) }.getOrDefault(emptyList())
             if (fetchedStations.isNotEmpty()) {
                 prefs.edit()
-                    .putString(stationsKey, fetchedStations.joinToString("|") { "${it.id}\t${it.name}\t${it.lat}\t${it.lon}" })
+                    .putString(stationsKey, fetchedStations.joinToString("|", transform = NwsApi.Companion::encodeStationInfo))
                     .putLong(timeKey, System.currentTimeMillis())
                     .apply()
             }

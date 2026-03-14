@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
+import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
@@ -156,16 +157,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     // Fetch detailed multi-station observations from the last 24 hours
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
                     database.observationDao().getRecentObservations(sinceMs)
-                        .filter { !it.stationId.contains("OPEN_METEO_") && !it.stationId.contains("WEATHER_API_") }
+                        .filter { WeatherObservationsSupport.matchesObservationSource(it.stationId, currentSource) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
                         .sortedBy { it.distanceKm }
                 } else {
                     // For other sources, show POIs if they exist, or fallback to the latest single reading
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    val poiPrefix = "${currentSource.id}_"
                     val pois = database.observationDao().getRecentObservations(sinceMs)
-                        .filter { it.stationId.startsWith(poiPrefix) }
+                        .filter { WeatherObservationsSupport.matchesObservationSource(it.stationId, currentSource) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
                         .sortedBy { it.distanceKm }
@@ -218,16 +218,13 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private fun loadFetchLogs() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val tag = if (currentSource == WeatherSource.NWS) "CURR_FETCH_STATION" else "CURR_FETCH_POI"
-                val allLogs = database.appLogDao().getLogsByTag(tag, 100)
-                
-                // Filter logs that belong to the current source
-                val filteredLogs = allLogs.filter { it.message.contains("source=${currentSource.id}") }
+                val filteredLogs = database.appLogDao().getRecentLogs(200)
+                    .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }
                     .take(30)
 
                 val logText = filteredLogs.joinToString("\n") { log ->
                     val time = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(log.timestamp))
-                    "[$time] ${log.message.replace("source=${currentSource.id} ", "")}"
+                    "[$time] ${WeatherObservationsSupport.formatFetchLog(log, currentSource)}"
                 }
                 withContext(Dispatchers.Main) {
                     findViewById<TextView>(R.id.fetch_logs).text = if (logText.isEmpty()) "No recent fetch logs for ${currentSource.shortDisplayName}." else logText
@@ -235,6 +232,56 @@ class WeatherObservationsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading fetch logs", e)
             }
+        }
+    }
+
+    internal object WeatherObservationsSupport {
+        private val runLevelTags = setOf("CURR_FETCH_DONE", "CURR_FETCH_EXCEPTION", "CURR_FETCH_SKIP")
+        private val sourcePrefixes =
+            mapOf(
+                WeatherSource.OPEN_METEO to "OPEN_METEO_",
+                WeatherSource.WEATHER_API to "WEATHER_API_",
+                WeatherSource.SILURIAN to "SILURIAN_",
+            )
+
+        fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
+            when (source) {
+                WeatherSource.NWS -> sourcePrefixes.values.none { prefix -> stationId.startsWith(prefix) }
+                else -> stationId.startsWith(sourcePrefixes[source] ?: return false)
+            }
+
+        fun matchesFetchLog(log: AppLogEntity, source: WeatherSource): Boolean =
+            when (log.tag) {
+                "CURR_FETCH_START" -> log.message.containsTargetSource(source)
+                "CURR_FETCH_ERROR" -> log.message.contains("source=${source.id}")
+                in runLevelTags -> true
+                else -> false
+            }
+
+        fun formatFetchLog(log: AppLogEntity, source: WeatherSource): String {
+            val message =
+                when (log.tag) {
+                    "CURR_FETCH_START" -> log.message
+                    "CURR_FETCH_ERROR" -> log.message.removePrefix("source=${source.id} ")
+                    else -> log.message
+                }
+
+            return when (log.tag) {
+                "CURR_FETCH_START" -> "start $message"
+                "CURR_FETCH_DONE" -> "done $message"
+                "CURR_FETCH_SKIP" -> "skip $message"
+                "CURR_FETCH_ERROR" -> "error $message"
+                "CURR_FETCH_EXCEPTION" -> "exception $message"
+                else -> message
+            }
+        }
+
+        private fun String.containsTargetSource(source: WeatherSource): Boolean {
+            val targets = substringAfter("targets=", missingDelimiterValue = "")
+            if (targets.isEmpty()) return false
+            return targets.split(",")
+                .map { it.trim() }
+                .any { it == source.id }
         }
     }
 
@@ -259,7 +306,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val distanceStr = if (item.distanceKm > 0) String.format(" • %.1f mi", item.distanceKm * 0.621371f) else ""
             holder.stationIdTime.text = "${item.stationId}$distanceStr"
             
-            holder.stationTypeBadge.text = item.stationType
+            holder.stationTypeBadge.text = "Station type: ${item.stationType}"
             if (item.stationType == "OFFICIAL") {
                 holder.stationTypeBadge.setBackgroundResource(R.drawable.rounded_button_blue)
             } else {

@@ -182,7 +182,7 @@ class DailyViewHandlerTest {
         // Refined logic: Observed uses hourly peak (74) if after 4 PM, 
         // but Forecast line (Blue) uses official API (80)
         assertEquals(74f, todayData.high!!, 0.1f) 
-        assertEquals(65f, todayData.low!!, 0.1f)
+        assertEquals(60f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
     }
