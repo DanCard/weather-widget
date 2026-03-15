@@ -143,6 +143,45 @@ class CloudCoverViewModeIntegrationTest : IsolatedIntegrationTest("cloud_cover_v
         )
     }
 
+    @Test
+    fun handleSetView_cloudCoverFallsBackToSourceWithVisibleCloudData() = runBlocking {
+        insertHourlyRows(
+            source = WeatherSource.SILURIAN,
+            cloudCoverProvider = { null },
+            condition = "Mostly Clear",
+        )
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.SILURIAN, WeatherSource.NWS))
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.SILURIAN)
+        stateManager.setHourlyOffset(testWidgetId, 0)
+
+        val now = LocalDateTime.now()
+        val hourlyStart = now.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyEnd = now.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(hourlyStart, hourlyEnd, 37.42, -122.08)
+
+        val resolvedSource = CloudCoverViewHandler.selectCloudCoverSource(
+            hourlyForecasts = hourlyForecasts,
+            requestedSource = WeatherSource.SILURIAN,
+            centerTime = now,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertEquals(
+            "Cloud cover mode should render from a source that has cloud data in the visible window",
+            WeatherSource.NWS,
+            resolvedSource,
+        )
+
+        WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER)
+
+        assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
+        assertEquals(
+            "Render fallback must not mutate the widget's selected API",
+            WeatherSource.SILURIAN,
+            stateManager.getCurrentDisplaySource(testWidgetId),
+        )
+    }
+
     // -------------------------------------------------------------------------
     // toggleCloudCoverMode state machine
     // -------------------------------------------------------------------------
@@ -215,6 +254,18 @@ class CloudCoverViewModeIntegrationTest : IsolatedIntegrationTest("cloud_cover_v
     // -------------------------------------------------------------------------
 
     private fun insertBaseHourlyData() = runBlocking {
+        insertHourlyRows(
+            source = WeatherSource.NWS,
+            cloudCoverProvider = { h -> (30 + h * 2).coerceIn(0, 100) },
+            condition = "Partly Cloudy",
+        )
+    }
+
+    private fun insertHourlyRows(
+        source: WeatherSource,
+        cloudCoverProvider: (Int) -> Int?,
+        condition: String,
+    ) = runBlocking {
         val now = LocalDateTime.now()
         val hourlyDao = db.hourlyForecastDao()
         val forecasts = (-6..30).map { h ->
@@ -225,10 +276,10 @@ class CloudCoverViewModeIntegrationTest : IsolatedIntegrationTest("cloud_cover_v
                 locationLat = 37.42,
                 locationLon = -122.08,
                 temperature = 60f + h,
-                condition = "Partly Cloudy",
-                source = WeatherSource.NWS.id,
+                condition = condition,
+                source = source.id,
                 precipProbability = 20,
-                cloudCover = (30 + h * 2).coerceIn(0, 100),
+                cloudCover = cloudCoverProvider(h),
                 fetchedAt = System.currentTimeMillis(),
             )
         }
