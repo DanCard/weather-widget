@@ -67,6 +67,24 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testGetIconResource_CloudyWithSubOvercastCloudCoverDay() {
+        val res = WeatherIconMapper.getIconResource("Cloudy", isNight = false, cloudCover = 83)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_CloudyWithSubOvercastCloudCoverNight() {
+        val res = WeatherIconMapper.getIconResource("Cloudy", isNight = true, cloudCover = 83)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy_night, res)
+    }
+
+    @Test
+    fun testGetIconResource_CloudyWithNearTotalCloudCoverKeepsCloudy() {
+        val res = WeatherIconMapper.getIconResource("Cloudy", isNight = false, cloudCover = 97)
+        assertEquals(R.drawable.ic_weather_cloudy, res)
+    }
+
+    @Test
     fun testGetIconResource_Fair() {
         // NWS often uses "Fair" for clear/sunny
         val res = WeatherIconMapper.getIconResource("Fair", isNight = false)

@@ -3,15 +3,24 @@ package com.weatherwidget.util
 import com.weatherwidget.R
 
 object WeatherIconMapper {
+    private const val FULLY_CLOUDY_THRESHOLD = 97
+
     fun getIconResource(
         condition: String?,
         isNight: Boolean = false,
+        cloudCover: Int? = null,
     ): Int {
         if (condition == null) return R.drawable.ic_weather_unknown
 
         val lowerCondition = condition.lowercase()
         val normalizedCondition = normalizePatchyFogTransitionCondition(lowerCondition)
         val isSlightChance = normalizedCondition.contains("slight chance") || normalizedCondition.contains("patchy")
+        val isSubOvercastCloudy =
+            normalizedCondition.contains("cloudy") &&
+                !normalizedCondition.contains("mostly cloudy") &&
+                !normalizedCondition.contains("partly") &&
+                cloudCover != null &&
+                cloudCover < FULLY_CLOUDY_THRESHOLD
         
         return when {
             normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") -> {
@@ -48,6 +57,9 @@ object WeatherIconMapper {
             }
             normalizedCondition.contains("overcast") -> {
                 if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
+            }
+            isSubOvercastCloudy -> {
+                if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_mostly_cloudy
             }
             normalizedCondition.contains("cloudy") -> R.drawable.ic_weather_cloudy
             normalizedCondition.contains(

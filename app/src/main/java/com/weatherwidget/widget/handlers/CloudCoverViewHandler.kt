@@ -166,8 +166,12 @@ object CloudCoverViewHandler {
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val isNight = SunPositionUtils.isNight(now, lat, lon)
-        val currentHourCondition = getCurrentHourCondition(hourlyForecasts, effectiveDisplaySource)
-        val iconRes = WeatherIconMapper.getIconResource(currentHourCondition, isNight)
+        val currentHourForecast = getCurrentHourForecast(hourlyForecasts, effectiveDisplaySource)
+        val iconRes = WeatherIconMapper.getIconResource(
+            condition = currentHourForecast?.condition,
+            isNight = isNight,
+            cloudCover = currentHourForecast?.cloudCover,
+        )
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
@@ -278,10 +282,10 @@ object CloudCoverViewHandler {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
-    private fun getCurrentHourCondition(
+    private fun getCurrentHourForecast(
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
-    ): String? {
+    ): HourlyForecastEntity? {
         val currentHourKey = WeatherTimeUtils.toHourlyForecastKey(LocalDateTime.now())
         return hourlyForecasts
             .filter { it.dateTime == currentHourKey }
@@ -289,7 +293,7 @@ object CloudCoverViewHandler {
                 forecasts.find { it.source == displaySource.id }
                     ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
                     ?: forecasts.firstOrNull()
-            }?.condition
+            }
     }
 
     private val HOUR_ZONE_IDS = listOf(
@@ -539,7 +543,11 @@ object CloudCoverViewHandler {
                 val isClosest = absDiff <= 30
                 val showLabel = isClosest || (hourIndex % labelInterval == 0)
                 val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
-                val iconRes = WeatherIconMapper.getIconResource(forecast.condition, isNight)
+                val iconRes = WeatherIconMapper.getIconResource(
+                    condition = forecast.condition,
+                    isNight = isNight,
+                    cloudCover = forecast.cloudCover,
+                )
                 val isSunny = iconRes == R.drawable.ic_weather_clear ||
                     iconRes == R.drawable.ic_weather_mostly_clear ||
                     iconRes == R.drawable.ic_weather_night

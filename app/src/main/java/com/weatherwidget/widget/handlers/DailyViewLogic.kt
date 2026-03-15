@@ -33,6 +33,7 @@ object DailyViewLogic {
         val isToday: Boolean,
         val isSourceGapFallback: Boolean,
         val hasRainForecast: Boolean,
+        val iconRes: Int,
         val highLabel: String?,
         val lowLabel: String?
     )
@@ -144,6 +145,14 @@ object DailyViewLogic {
                 lowLabel = formatTempLabel(tripleValues.observedLow) ?: formatTempLabel(weather?.lowTemp)
             }
 
+            val todayIconForecast =
+                if (isToday) DailyViewHandler.resolveTodayHeaderForecast(now, hourlyForecasts, displaySource) else null
+            val iconRes =
+                WeatherIconMapper.getIconResource(
+                    condition = todayIconForecast?.condition ?: weather?.condition,
+                    cloudCover = todayIconForecast?.cloudCover,
+                )
+
             TextDayData(
                 dayIndex = dayIndex,
                 date = date,
@@ -161,6 +170,7 @@ object DailyViewLogic {
                 isToday = isToday,
                 isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
                 hasRainForecast = DayClickHelper.hasRainForecast(rawSummaries[index], precip),
+                iconRes = iconRes,
                 highLabel = highLabel,
                 lowLabel = lowLabel
             )
@@ -280,9 +290,15 @@ object DailyViewLogic {
                 fLow = forecast?.lowTemp
             }
 
-            val effectiveCondition = weather?.condition ?: actual?.condition
+            val todayIconForecast =
+                if (isToday) DailyViewHandler.resolveTodayHeaderForecast(now, hourlyForecasts, displaySource) else null
+            val effectiveCondition = todayIconForecast?.condition ?: weather?.condition ?: actual?.condition
 
-            val iconRes = WeatherIconMapper.getIconResource(effectiveCondition)
+            val iconRes =
+                WeatherIconMapper.getIconResource(
+                    condition = effectiveCondition,
+                    cloudCover = todayIconForecast?.cloudCover,
+                )
 
             val rawRainSummary = if (!isPastDate) {
                 RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, now)

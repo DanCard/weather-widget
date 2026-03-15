@@ -137,9 +137,15 @@ object DailyViewHandler : WidgetViewHandler {
         // Set weather icon
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val isNight = SunPositionUtils.isNight(now, lat, lon)
+        val todayIconForecast = resolveTodayHeaderForecast(now, hourlyForecasts, displaySource)
+        val iconDateTime = todayIconForecast?.let { LocalDateTime.parse(it.dateTime) } ?: now
+        val isNight = SunPositionUtils.isNight(iconDateTime, lat, lon)
 
-        val iconRes = WeatherIconMapper.getIconResource(weatherByDate[todayStr]?.condition, isNight)
+        val iconRes = WeatherIconMapper.getIconResource(
+            condition = todayIconForecast?.condition ?: weatherByDate[todayStr]?.condition,
+            isNight = isNight,
+            cloudCover = todayIconForecast?.cloudCover,
+        )
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
@@ -373,6 +379,32 @@ object DailyViewHandler : WidgetViewHandler {
         views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
     }
 
+    @VisibleForTesting
+    internal fun resolveTodayHeaderForecast(
+        now: LocalDateTime,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+    ): HourlyForecastEntity? {
+        val today = now.toLocalDate()
+        val forecastsByTime =
+            hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    entry.value.find { it.source == displaySource.id }
+                        ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
+                        ?: entry.value.firstOrNull()
+                }
+
+        val candidateTimes =
+            listOf(
+                now.plusHours(1).takeIf { it.toLocalDate() == today },
+                now,
+            ).filterNotNull()
+
+        return candidateTimes.firstNotNullOfOrNull { candidateTime ->
+            forecastsByTime[WeatherTimeUtils.toHourlyForecastKey(candidateTime)]
+        }
+    }
+
     private fun setupNavigationButtons(
         context: Context, views: RemoteViews, appWidgetId: Int,
         stateManager: WidgetStateManager, availableDates: Set<String>,
@@ -499,7 +531,7 @@ object DailyViewHandler : WidgetViewHandler {
     ) {
         views.setTextViewText(ids.label, data.label)
         
-        val iconRes = WeatherIconMapper.getIconResource(data.weather?.condition)
+        val iconRes = data.iconRes
         views.setImageViewResource(ids.icon, iconRes)
 
         if (!WeatherIconMapper.isRainy(iconRes) && !WeatherIconMapper.isMixed(iconRes)) {

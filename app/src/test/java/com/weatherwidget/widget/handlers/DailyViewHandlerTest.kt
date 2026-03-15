@@ -263,7 +263,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `prepareGraphDays today icon uses daily condition instead of hourly condition`() {
+    fun `prepareGraphDays today icon uses next hour hourly condition`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -276,6 +276,17 @@ class DailyViewHandlerTest {
                 locationLat = 37.7749,
                 locationLon = -122.4194,
                 temperature = 64f,
+                condition = "Rain",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                cloudCover = 90,
+                fetchedAt = 1L,
+            ),
+            HourlyForecastEntity(
+                dateTime = "${todayStr}T13:00",
+                locationLat = 37.7749,
+                locationLon = -122.4194,
+                temperature = 66f,
                 condition = "Clear",
                 source = WeatherSource.NWS.id,
                 precipProbability = 0,
@@ -298,7 +309,7 @@ class DailyViewHandlerTest {
         )
 
         val todayData = days.first { it.date == todayStr }
-        assertEquals(R.drawable.ic_weather_rain, todayData.iconRes)
+        assertEquals(R.drawable.ic_weather_clear, todayData.iconRes)
     }
 
     @Test
@@ -573,7 +584,42 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget daily header icon uses daily condition instead of hourly condition`() = runBlocking {
+    fun `resolveTodayHeaderForecast prefers next hour over current hour`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val forecast = DailyViewHandler.resolveTodayHeaderForecast(
+            now = now,
+            hourlyForecasts = listOf(
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
+                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+            ),
+            displaySource = WeatherSource.NWS,
+        )
+
+        assertEquals("Clear", forecast?.condition)
+        assertEquals("${todayStr}T13:00", forecast?.dateTime)
+    }
+
+    @Test
+    fun `resolveTodayHeaderForecast falls back to current hour when next hour missing`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val forecast = DailyViewHandler.resolveTodayHeaderForecast(
+            now = now,
+            hourlyForecasts = listOf(
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, 1L),
+            ),
+            displaySource = WeatherSource.NWS,
+        )
+
+        assertEquals("Partly Cloudy", forecast?.condition)
+        assertEquals("${todayStr}T12:00", forecast?.dateTime)
+    }
+
+    @Test
+    fun `updateWidget daily header icon uses next hour hourly condition for today`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList = listOf(
@@ -601,7 +647,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
+                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
             ),
             currentTemps = emptyList(),
             dailyActuals = emptyMap(),
@@ -613,11 +660,11 @@ class DailyViewHandlerTest {
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
         val imageView = applied.findViewById<ImageView>(R.id.weather_icon)
 
-        assertEquals(R.drawable.ic_weather_rain, shadowOf(imageView.drawable).createdFromResId)
+        assertEquals(R.drawable.ic_weather_clear, shadowOf(imageView.drawable).createdFromResId)
     }
 
     @Test
-    fun `updateWidget today text icon uses daily condition instead of hourly condition`() = runBlocking {
+    fun `updateWidget today text icon uses next hour hourly condition`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -647,7 +694,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
+                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
             ),
             currentTemps = emptyList(),
             dailyActuals = emptyMap(),
@@ -659,7 +707,7 @@ class DailyViewHandlerTest {
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
         val todayImageView = applied.findViewById<ImageView>(R.id.day2_icon)
 
-        assertEquals(R.drawable.ic_weather_rain, shadowOf(todayImageView.drawable).createdFromResId)
+        assertEquals(R.drawable.ic_weather_clear, shadowOf(todayImageView.drawable).createdFromResId)
     }
 
     private fun createWeatherMap(today: LocalDate): Map<String, ForecastEntity> {
