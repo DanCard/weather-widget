@@ -132,6 +132,7 @@ class WeatherObservationsActivityRobolectricTest {
 
     @Test
     fun `cycling to silurian shows only silurian observations and source error logs`() {
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.WEATHER_API))
         val scenario = launchActivity()
 
         scenario.onActivity { activity ->

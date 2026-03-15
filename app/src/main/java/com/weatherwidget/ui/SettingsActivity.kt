@@ -12,17 +12,12 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
 
 import dagger.hilt.android.AndroidEntryPoint
 
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.WidgetStateManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 import javax.inject.Inject
 
@@ -30,11 +25,6 @@ import javax.inject.Inject
 class SettingsActivity : AppCompatActivity() {
     @Inject
     lateinit var widgetStateManager: WidgetStateManager
-
-    @Inject
-    lateinit var weatherRepository: WeatherRepository
-
-    private var latestLocation: Pair<Double, Double>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +57,7 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     /** All configurable weather sources (excludes GENERIC_GAP). */
-    private val allSources = listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
+    private val allSources = listOf(WeatherSource.NWS, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO, WeatherSource.SILURIAN)
 
     private fun sourceDescription(source: WeatherSource): String = when (source) {
         WeatherSource.SILURIAN -> getString(R.string.api_source_silurian_desc)
@@ -83,29 +73,15 @@ class SettingsActivity : AppCompatActivity() {
      */
     private fun setupApiSourcesList() {
         val container = findViewById<LinearLayout>(R.id.api_sources_container)
-        lifecycleScope.launch(Dispatchers.IO) {
-            latestLocation = weatherRepository.getLatestLocation()
-            withContext(Dispatchers.Main) {
-                rebuildSourceRows(container)
-            }
-        }
+        rebuildSourceRows(container)
     }
 
     private fun rebuildSourceRows(container: LinearLayout) {
         container.removeAllViews()
-        val location = latestLocation
-        val visibleSources = if (location != null) {
-            widgetStateManager.getEffectiveVisibleSourcesOrder(location.first, location.second)
-        } else {
-            widgetStateManager.getVisibleSourcesOrder()
-        }
+        val visibleSources = widgetStateManager.getVisibleSourcesOrder()
 
         // Build full ordered list: visible sources first (in order), then hidden sources
-        val availableSources = if (location != null && visibleSources.none { it == WeatherSource.OPEN_METEO }) {
-            allSources.filter { it != WeatherSource.OPEN_METEO }
-        } else {
-            allSources
-        }
+        val availableSources = allSources
         val hiddenSources = availableSources.filter { it !in visibleSources }
         val orderedSources = visibleSources + hiddenSources
 

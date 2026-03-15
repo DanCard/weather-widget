@@ -16,7 +16,6 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
-import com.weatherwidget.util.NwsCoverageCache
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -116,7 +115,11 @@ class ForecastRepository
                     }
 
                     appLogDao.log("NET_FETCH_START", "force=$forceRefresh target=$targetSourceId")
-                    val nwsCovered = NwsCoverageCache.isNwsCovered(context, nwsApi, appLogDao, latitude, longitude)
+                    val enabledSources = widgetStateManager.getVisibleSourcesOrder().toSet()
+                    if (forceRefresh && targetSourceId != null && targetSourceId !in enabledSources.map { it.id }) {
+                        appLogDao.log("NET_FETCH_SKIP_DISABLED", "target=$targetSourceId")
+                        return Result.success(cachedForecasts)
+                    }
                     
                     fun shouldForceSource(source: WeatherSource): Boolean {
                         if (!forceRefresh) return false
@@ -127,10 +130,10 @@ class ForecastRepository
                     // Perform parallel fetches from all APIs
                     val (nwsForecasts, meteoForecasts, wapiForecasts, silurianForecasts) = fetchFromAllApis(
                         latitude, longitude, locationName,
-                        shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts),
-                        !nwsCovered && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
-                        shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts),
-                        shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts),
+                        WeatherSource.NWS in enabledSources && (shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts)),
+                        WeatherSource.OPEN_METEO in enabledSources && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
+                        WeatherSource.WEATHER_API in enabledSources && (shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts)),
+                        WeatherSource.SILURIAN in enabledSources && (shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts)),
                         onCurrentTempCallback
                     )
 
@@ -176,7 +179,7 @@ class ForecastRepository
         ): Boolean {
             val sourcesToCheck = listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.WEATHER_API, WeatherSource.OPEN_METEO)
             return sourcesToCheck.any { source ->
-                val isNeeded = widgetStateManager.isSourceVisible(source, latitude, longitude) || (isPlugged() && source != WeatherSource.OPEN_METEO)
+                val isNeeded = widgetStateManager.isSourceVisible(source)
                 isNeeded && isStale(source, forecasts)
             }
         }
@@ -659,6 +662,11 @@ class ForecastRepository
                 return cachedNormals.associate { 
                     MonthDay.of(it.monthDay.take(2).toInt(), it.monthDay.takeLast(2).toInt()) to (it.highTemp to it.lowTemp)
                 }
+            }
+
+            if (!widgetStateManager.isSourceVisible(WeatherSource.OPEN_METEO)) {
+                appLogDao.log("CLIMATE_SKIP_DISABLED", "source=${WeatherSource.OPEN_METEO.id}")
+                return emptyMap()
             }
             
             val climateData = openMeteoApi.getClimateForecast(latitude, longitude, "2020-01-01", "2020-12-31")

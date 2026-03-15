@@ -22,7 +22,6 @@ import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import kotlin.math.roundToInt
 
 class WeatherRepositoryTest {
     private lateinit var context: Context
@@ -82,6 +81,15 @@ class WeatherRepositoryTest {
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
         every { widgetStateManager.isSourceVisible(any()) } returns true
+        every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(
+            WeatherSource.NWS,
+            WeatherSource.OPEN_METEO,
+            WeatherSource.WEATHER_API,
+            WeatherSource.SILURIAN,
+        )
+        every { widgetStateManager.getEffectiveVisibleSourcesOrder(any<Double>(), any<Double>()) } answers {
+            widgetStateManager.getVisibleSourcesOrder()
+        }
     }
 
     @Test
@@ -134,6 +142,68 @@ class WeatherRepositoryTest {
             val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, source = WeatherSource.OPEN_METEO)
             assertTrue(result.isSuccess)
             coVerify { currentTempDao.insert(match { it.source == WeatherSource.OPEN_METEO.id && it.temperature == 61.2f }) }
+        }
+
+    @Test
+    fun `refreshCurrentTemperature fetches enabled Open-Meteo when selected by settings`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
+            coEvery { openMeteoApi.getCurrent(any(), any()) } returns OpenMeteoApi.CurrentReading(61.2f, 1)
+            every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
+
+            val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName)
+
+            assertTrue(result.isSuccess)
+            assertEquals(1, result.getOrNull())
+            coVerify(atLeast = 1) { openMeteoApi.getCurrent(any(), any()) }
+            coVerify { currentTempDao.insert(match { it.source == WeatherSource.OPEN_METEO.id }) }
+        }
+
+    @Test
+    fun `refreshCurrentTemperature skips disabled explicit source`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { sharedPrefs.getLong("last_current_temp_fetch_time", 0L) } returns 0L
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
+
+            val result = repository.refreshCurrentTemperature(
+                testLat,
+                testLon,
+                testLocationName,
+                source = WeatherSource.OPEN_METEO,
+            )
+
+            assertTrue(result.isSuccess)
+            assertEquals(0, result.getOrNull())
+            coVerify(exactly = 0) { openMeteoApi.getCurrent(any(), any()) }
+            coVerify(exactly = 0) { currentTempDao.insert(any()) }
+        }
+
+    @Test
+    fun `getWeatherData skips targeted disabled source`() =
+        runTest {
+            val editor = mockk<SharedPreferences.Editor>(relaxed = true)
+            every { sharedPrefs.edit() } returns editor
+            every { sharedPrefs.getLong("last_full_fetch_time", 0L) } returns 0L
+            every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
+            coEvery { forecastDao.getLatestForecastsInRange(any(), any(), testLat, testLon) } returns emptyList()
+
+            val result = repository.getWeatherData(
+                testLat,
+                testLon,
+                testLocationName,
+                forceRefresh = true,
+                targetSourceId = WeatherSource.OPEN_METEO.id,
+            )
+
+            assertTrue(result.isSuccess)
+            assertTrue(result.getOrNull().isNullOrEmpty())
+            coVerify(exactly = 0) { openMeteoApi.getForecast(any(), any(), any()) }
+            coVerify(exactly = 0) { forecastDao.insertAll(any<List<ForecastEntity>>()) }
         }
 
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String = "NWS") =

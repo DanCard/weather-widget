@@ -205,6 +205,42 @@ class WidgetStateManagerTest {
     }
 
     @Test
+    fun `getEffectiveVisibleSourcesOrder preserves Open-Meteo when enabled`() {
+        every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
+
+        val sources = stateManager.getEffectiveVisibleSourcesOrder(37.42, -122.08)
+
+        assertEquals(
+            listOf(
+                com.weatherwidget.data.model.WeatherSource.NWS,
+                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
+                com.weatherwidget.data.model.WeatherSource.WEATHER_API,
+            ),
+            sources
+        )
+    }
+
+    @Test
+    fun `getVisibleSourcesOrder uses new default order`() {
+        every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns null
+
+        val sources = stateManager.getVisibleSourcesOrder()
+
+        assertEquals(
+            listOf(
+                com.weatherwidget.data.model.WeatherSource.NWS,
+                com.weatherwidget.data.model.WeatherSource.WEATHER_API,
+                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
+                com.weatherwidget.data.model.WeatherSource.SILURIAN,
+            ),
+            sources
+        )
+    }
+
+    @Test
     fun `toggleDisplaySource clears current temp delta state`() {
         val widgetId = 1
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
@@ -270,8 +306,8 @@ class WidgetStateManagerTest {
         assertEquals(4, ZoomLevel.WIDE.labelInterval)
         assertEquals(2, ZoomLevel.WIDE.precipSmoothIterations)
 
-        assertEquals(1L, ZoomLevel.NARROW.backHours)
-        assertEquals(3L, ZoomLevel.NARROW.forwardHours)
+        assertEquals(2L, ZoomLevel.NARROW.backHours)
+        assertEquals(2L, ZoomLevel.NARROW.forwardHours)
         assertEquals(2, ZoomLevel.NARROW.navJump)
         assertEquals(1, ZoomLevel.NARROW.labelInterval)
         assertEquals(0, ZoomLevel.NARROW.precipSmoothIterations)

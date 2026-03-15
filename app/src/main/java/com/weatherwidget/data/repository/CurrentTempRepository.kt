@@ -16,7 +16,6 @@ import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.TemperatureInterpolator
-import com.weatherwidget.util.NwsCoverageCache
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
@@ -79,11 +78,11 @@ class CurrentTempRepository
                     }
                     
                     recordHistoricalPoi(latitude, longitude, locationName)
-                    val nwsCovered = NwsCoverageCache.isNwsCovered(context, nwsApi, appLogDao, latitude, longitude)
-                    
-                    val targetSources = (source?.let { listOf(it) } ?: widgetStateManager.getEffectiveVisibleSourcesOrder(latitude, longitude))
+                    val enabledSources = widgetStateManager.getVisibleSourcesOrder()
+                    val targetSources = (source?.let { requested ->
+                        if (requested in enabledSources) listOf(requested) else emptyList()
+                    } ?: enabledSources)
                         .filter { it != WeatherSource.GENERIC_GAP }
-                        .filter { !(nwsCovered && it == WeatherSource.OPEN_METEO) }
                         .distinct()
                         
                     appLogDao.log("CURR_FETCH_START", "reason=$reason targets=${targetSources.joinToString { it.id }}")
