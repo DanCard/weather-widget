@@ -204,6 +204,7 @@ object TemperatureViewHandler {
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
 
             // Use actual widget dimensions for bitmap
             // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
@@ -235,6 +236,9 @@ object TemperatureViewHandler {
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
+            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
 
             // Text mode: show hourly data as text
             updateHourlyTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
@@ -280,9 +284,11 @@ object TemperatureViewHandler {
         hourlyOffset: Int,
     ) {
         if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE) {
-            // Show hour zones, hide graph_view click
+            // Show hour zones only over the graph body, not the bottom icon/label row.
             views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
             views.setOnClickPendingIntent(R.id.graph_view, null)
+            views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
             // WIDE window is offset-8 to offset+16 (24h), 12 zones of 2h each
             // Zone i center = offset + (-7 + 2*i)
@@ -302,8 +308,9 @@ object TemperatureViewHandler {
                 views.setOnClickPendingIntent(zoneId, pendingIntent)
             }
         } else {
-            // NARROW: hide hour zones, single tap on graph_view to zoom out
+            // NARROW: hide hour zones and use the graph body only for zoom-out.
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.VISIBLE)
             val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -314,7 +321,8 @@ object TemperatureViewHandler {
                 zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
+            views.setOnClickPendingIntent(R.id.graph_view, null)
+            views.setOnClickPendingIntent(R.id.graph_body_tap_zone, zoomPendingIntent)
         }
     }
 

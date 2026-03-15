@@ -43,6 +43,47 @@ object CloudCoverViewHandler {
     private const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
 
+    @androidx.annotation.VisibleForTesting
+    internal fun selectCloudCoverSource(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        requestedSource: WeatherSource,
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+    ): WeatherSource {
+        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+        val startHour = alignedCenter.minusHours(zoom.backHours)
+        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+        val windowKeys = buildSet {
+            var currentHour = startHour
+            while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
+                add(currentHour.format(formatter))
+                currentHour = currentHour.plusHours(1)
+            }
+        }
+
+        val cloudCountsBySource = hourlyForecasts
+            .asSequence()
+            .filter { it.cloudCover != null && it.dateTime in windowKeys }
+            .groupingBy { it.source }
+            .eachCount()
+
+        if ((cloudCountsBySource[requestedSource.id] ?: 0) > 0) {
+            return requestedSource
+        }
+
+        val fallbackSourceId = cloudCountsBySource
+            .maxWithOrNull(
+                compareBy<Map.Entry<String, Int>> { it.value }
+                    .thenBy { it.key == WeatherSource.NWS.id }
+                    .thenBy { it.key == WeatherSource.OPEN_METEO.id },
+            )
+            ?.key
+
+        return fallbackSourceId?.let(WeatherSource::fromId) ?: requestedSource
+    }
+
     suspend fun updateWidget(
         context: Context,
         appWidgetManager: AppWidgetManager,
@@ -74,6 +115,7 @@ object CloudCoverViewHandler {
 
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+        val effectiveDisplaySource = selectCloudCoverSource(hourlyForecasts, displaySource, centerTime, zoom)
         setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
 
         setupNavigationButtons(context, views, appWidgetId, stateManager)
@@ -105,20 +147,25 @@ object CloudCoverViewHandler {
         views.setOnClickPendingIntent(R.id.precip_probability, goDailyPending)
         views.setOnClickPendingIntent(R.id.precip_touch_zone, goDailyPending)
 
-        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
-            displaySource.shortDisplayName
+            effectiveDisplaySource.shortDisplayName
         } else {
-            "$dayName • ${displaySource.shortDisplayName}"
+            "$dayName • ${effectiveDisplaySource.shortDisplayName}"
         }
         views.setTextViewText(R.id.api_source, sourceIndicator)
+        if (effectiveDisplaySource != displaySource) {
+            Log.i(
+                TAG,
+                "Falling back cloud cover source from $displaySource to $effectiveDisplaySource for widget $appWidgetId",
+            )
+        }
 
         val now = LocalDateTime.now()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val isNight = SunPositionUtils.isNight(now, lat, lon)
-        val currentHourCondition = getCurrentHourCondition(hourlyForecasts, displaySource)
+        val currentHourCondition = getCurrentHourCondition(hourlyForecasts, effectiveDisplaySource)
         val iconRes = WeatherIconMapper.getIconResource(currentHourCondition, isNight)
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
@@ -145,7 +192,7 @@ object CloudCoverViewHandler {
 
         val currentTempResolution = CurrentTemperatureResolver.resolve(
             now = now,
-            displaySource = displaySource,
+            displaySource = effectiveDisplaySource,
             hourlyForecasts = hourlyForecasts,
             observedCurrentTemp = observedCurrentTemp,
             observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
@@ -172,7 +219,7 @@ object CloudCoverViewHandler {
 
         val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
             hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
+            displaySource = effectiveDisplaySource,
             fallbackDailyProbability = precipProbability,
             referenceTime = centerTime,
         )
@@ -192,7 +239,7 @@ object CloudCoverViewHandler {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
-            val hours = buildCloudHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
+            val hours = buildCloudHourDataList(hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom)
 
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
@@ -220,7 +267,9 @@ object CloudCoverViewHandler {
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
-            updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
+            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
+            updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
@@ -256,7 +305,9 @@ object CloudCoverViewHandler {
     ) {
         if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE) {
             views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
             views.setOnClickPendingIntent(R.id.graph_view, null)
+            views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
             HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
                 val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset)
@@ -273,6 +324,7 @@ object CloudCoverViewHandler {
             }
         } else {
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_body_tap_zone, View.VISIBLE)
             val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -281,7 +333,8 @@ object CloudCoverViewHandler {
                 context, appWidgetId * 2 + 400, zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
+            views.setOnClickPendingIntent(R.id.graph_view, null)
+            views.setOnClickPendingIntent(R.id.graph_body_tap_zone, zoomPendingIntent)
         }
     }
 
