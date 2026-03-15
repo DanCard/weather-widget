@@ -240,9 +240,9 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // WIDE view spans -8..+16 from baseOffset; 12 zones of 2h each
-        // Zone centers: -7, -5, -3, -1, +1, +3, +5, +7, +9, +11, +13, +15
-        val expectedOffsets = listOf(-7, -5, -3, -1, 1, 3, 5, 7, 9, 11, 13, 15)
+        // WIDE view spans -8..+16 from baseOffset; each zone resolves to the earlier
+        // hour in its 2h bucket so narrow mode can center the tapped hour.
+        val expectedOffsets = listOf(-8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14)
 
         for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
             // Reset to WIDE zoom for each zone test
@@ -284,9 +284,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         val baseOffset = 6  // User has navigated 6h forward
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // Tap zone 0 (leftmost): should request a relative change of -7
-        // Wait, zoneIndexToOffset currently returns an ABSOLUTE offset.
-        // Let's test what it actually does with the new router logic.
+        // Tap zone 0 (leftmost): with baseOffset=6 this should target absolute offset -2.
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
@@ -303,7 +301,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         }
 
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
-        assertEquals(-1, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test

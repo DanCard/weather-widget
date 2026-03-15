@@ -119,6 +119,7 @@ object CloudCoverViewHandler {
         setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
 
         setupNavigationButtons(context, views, appWidgetId, stateManager)
+        setupHomeShortcut(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
 
         // Current temp → hourly temp graph
@@ -461,6 +462,28 @@ object CloudCoverViewHandler {
         views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
     }
 
+    private fun setupHomeShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WidgetIntentRouter.ACTION_SET_VIEW
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.DAILY.name)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            WidgetRequestCodes.home(appWidgetId),
+            homeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
+        views.setViewVisibility(R.id.home_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
+    }
+
     private fun setupSettingsShortcut(
         context: Context,
         views: RemoteViews,
@@ -475,7 +498,8 @@ object CloudCoverViewHandler {
         views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
-    private fun buildCloudHourDataList(
+    @androidx.annotation.VisibleForTesting
+    internal fun buildCloudHourDataList(
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
         numColumns: Int,

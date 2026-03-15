@@ -79,6 +79,7 @@ object PrecipViewHandler {
 
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
+        setupHomeShortcut(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
 
         // In precipitation mode: current temp → hourly graph, precip % → daily forecast
@@ -455,6 +456,28 @@ object PrecipViewHandler {
         views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
     }
 
+    private fun setupHomeShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WidgetIntentRouter.ACTION_SET_VIEW
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.DAILY.name)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            WidgetRequestCodes.home(appWidgetId),
+            homeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
+        views.setViewVisibility(R.id.home_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
+    }
+
     private fun setupCurrentStationsShortcut(
         context: Context,
         views: RemoteViews,
@@ -494,7 +517,8 @@ object PrecipViewHandler {
         views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
-    private fun buildPrecipHourDataList(
+    @androidx.annotation.VisibleForTesting
+    internal fun buildPrecipHourDataList(
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
         numColumns: Int,

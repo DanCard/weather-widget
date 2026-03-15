@@ -803,7 +803,19 @@
 
     </FrameLayout>
 
-    <!-- History icon (top-middle) - Only visible in hourly views -->
+    <!-- Home icon (top-middle) - Only visible in hourly views -->
+    <ImageView
+        android:id="@+id/home_icon"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="4dp"
+        android:src="@drawable/ic_home"
+        android:contentDescription="@string/home_forecast"
+        android:tint="#AAFFFFFF"
+        android:visibility="gone" />
+
+    <!-- History icon (top-right of home) - Only visible in hourly views -->
     <ImageView
         android:id="@+id/history_icon"
         android:layout_width="26dp"
@@ -816,7 +828,7 @@
         android:tint="#AAFFFFFF"
         android:visibility="gone" />
 
-    <!-- Current stations icon (to the left of history) -->
+    <!-- Current stations icon (to the left of home) -->
     <ImageView
         android:id="@+id/current_stations_icon"
         android:layout_width="26dp"
@@ -826,6 +838,18 @@
         android:layout_marginEnd="44dp"
         android:src="@drawable/ic_thermometer"
         android:contentDescription="Current Stations"
+        android:visibility="gone" />
+
+    <!-- Larger home touch target -->
+    <FrameLayout
+        android:id="@+id/home_touch_zone"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
         android:visibility="gone" />
 
     <!-- Larger history touch target -->

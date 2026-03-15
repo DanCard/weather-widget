@@ -199,6 +199,8 @@ object DailyViewHandler : WidgetViewHandler {
         setupApiToggle(context, views, appWidgetId, numRows)
         
         // Hide history icon and delta badge in daily mode
+        views.setViewVisibility(R.id.home_icon, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
         views.setViewVisibility(R.id.history_icon, View.GONE)
         views.setViewVisibility(R.id.history_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_stations_icon, View.GONE)

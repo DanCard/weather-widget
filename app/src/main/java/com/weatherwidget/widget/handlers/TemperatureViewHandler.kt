@@ -84,6 +84,7 @@ object TemperatureViewHandler {
 
         // Setup current temp click to toggle view
         setupCurrentTempToggle(context, views, appWidgetId)
+        setupHomeShortcut(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
 
         // Get current display source
@@ -290,8 +291,8 @@ object TemperatureViewHandler {
             views.setOnClickPendingIntent(R.id.graph_view, null)
             views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
-            // WIDE window is offset-8 to offset+16 (24h), 12 zones of 2h each
-            // Zone i center = offset + (-7 + 2*i)
+            // WIDE window is offset-8 to offset+16, with each of the 12 zones targeting
+            // the earlier hour in its 2h bucket so the tapped hour centers in NARROW mode.
             HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
                 val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset)
                 val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -494,6 +495,28 @@ object TemperatureViewHandler {
         views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
     }
 
+    private fun setupHomeShortcut(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+    ) {
+        val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WidgetIntentRouter.ACTION_SET_VIEW
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.DAILY.name)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            WidgetRequestCodes.home(appWidgetId),
+            homeIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
+        views.setViewVisibility(R.id.home_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
+    }
+
     private fun setupCurrentStationsShortcut(
         context: Context,
         views: RemoteViews,
@@ -533,7 +556,8 @@ object TemperatureViewHandler {
         views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
-    private fun buildHourDataList(
+    @androidx.annotation.VisibleForTesting
+    internal fun buildHourDataList(
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
         numColumns: Int,

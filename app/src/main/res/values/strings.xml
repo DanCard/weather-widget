@@ -17,6 +17,7 @@
     <string name="nav_previous">Previous days</string>
     <string name="nav_next">Next days</string>
     <string name="weather_icon_desc">Weather condition icon</string>
+    <string name="home_forecast">Return to daily forecast</string>
     <string name="api_preference">Weather Data Source</string>
     <string name="api_preference_description">Choose which weather API to prefer (fallback to other if unavailable)</string>
     <string name="api_alternate">Alternate - Rotate between NWS, Open-Meteo, and WeatherAPI</string>

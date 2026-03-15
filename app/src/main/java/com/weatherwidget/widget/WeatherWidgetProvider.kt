@@ -610,13 +610,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         /**
          * Calculate the hourly offset that a zone's center represents.
-         * WIDE view spans 24h (-8 to +16 from current offset), split into 12 zones of 2h each.
+         * WIDE view spans roughly 24h (-8 to +16 from current offset), split into 12 zones of 2h each.
+         * We bias the selected offset to the earlier hour in each 2h zone so the tapped hour
+         * appears centered after switching into the symmetric NARROW window.
          * @param zoneIndex 0-based zone index (0..11, left to right)
          * @param currentHourlyOffset the widget's current hourly offset
          * @return the offset to center on when zooming into this zone
          */
         fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int): Int {
-            return currentHourlyOffset + (-7 + 2 * zoneIndex)
+            return currentHourlyOffset + (-8 + 2 * zoneIndex)
         }
         private const val TAG = "WeatherWidgetProvider"
 
