@@ -66,6 +66,18 @@ class ForecastRepository
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes
             private const val NWS_PERIOD_SUMMARY_COUNT = 8
             private const val MAX_RETRIES = 5
+
+            @androidx.annotation.VisibleForTesting
+            internal fun hasMeaningfulHourlyChange(
+                existing: HourlyForecastEntity?,
+                newlyFetched: HourlyForecastEntity,
+            ): Boolean {
+                if (existing == null) return true
+                return existing.temperature != newlyFetched.temperature ||
+                    existing.condition != newlyFetched.condition ||
+                    existing.precipProbability != newlyFetched.precipProbability ||
+                    existing.cloudCover != newlyFetched.cloudCover
+            }
         }
 
         private var lastFetchTime: Long
@@ -760,7 +772,7 @@ class ForecastRepository
             
             val changedEntities = entities.filter { newlyFetched ->
                 val existing = existingByDateTime[newlyFetched.dateTime]
-                existing == null || existing.temperature != newlyFetched.temperature || existing.condition != newlyFetched.condition
+                hasMeaningfulHourlyChange(existing, newlyFetched)
             }
             
             if (changedEntities.isNotEmpty()) {
