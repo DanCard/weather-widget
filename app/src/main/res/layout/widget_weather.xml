@@ -665,7 +665,7 @@
         <FrameLayout
             android:id="@+id/graph_bottom_reserved_space"
             android:layout_width="match_parent"
-            android:layout_height="40dp"
+            android:layout_height="56dp"
             android:background="@android:color/transparent" />
     </LinearLayout>
 
@@ -699,15 +699,14 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- Graph bottom tap zone - overlays icon/label row at bottom of hourly graph to switch cloud cover view -->
+    <!-- Graph bottom tap zone - intentionally taller than the visible icon row to avoid taps leaking into zoom zones -->
     <FrameLayout
         android:id="@+id/graph_bottom_zone"
         android:layout_width="match_parent"
-        android:layout_height="40dp"
+        android:layout_height="56dp"
         android:layout_gravity="bottom"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
-        android:layout_marginBottom="4dp"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true"
