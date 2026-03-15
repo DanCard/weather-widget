@@ -67,7 +67,8 @@ object WidgetIntentRouter {
         Log.d(TAG, "handleNavigation: widget=$appWidgetId, direction=$direction, viewMode=$viewMode")
 
         if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
+            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
+            viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
         ) {
             handleGraphNavigation(context, appWidgetId, isLeft)
         } else {
@@ -328,7 +329,8 @@ object WidgetIntentRouter {
         val now = LocalDateTime.now()
         val currentGraphZoom =
             if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-                viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
+                viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
+                viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
             ) {
                 stateManager.getZoomLevel(appWidgetId)
             } else {
@@ -354,7 +356,8 @@ object WidgetIntentRouter {
             )
 
         if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
+            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
+            viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
         ) {
             val zoom = currentGraphZoom ?: stateManager.getZoomLevel(appWidgetId)
             val centerTime =
@@ -620,7 +623,8 @@ object WidgetIntentRouter {
             stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
         }
         if (targetMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
+            targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
+            targetMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
         ) {
             if (targetOffset != Int.MIN_VALUE) {
                 stateManager.setHourlyOffset(appWidgetId, targetOffset)
@@ -643,7 +647,9 @@ object WidgetIntentRouter {
         val zoom = stateManager.getZoomLevel(appWidgetId)
 
         when (targetMode) {
-            com.weatherwidget.widget.ViewMode.TEMPERATURE -> {
+            com.weatherwidget.widget.ViewMode.TEMPERATURE,
+            com.weatherwidget.widget.ViewMode.PRECIPITATION,
+            com.weatherwidget.widget.ViewMode.CLOUD_COVER -> {
                 val now = LocalDateTime.now()
                 val offset = stateManager.getHourlyOffset(appWidgetId)
                 val centerTime = now.plusHours(offset.toLong())
@@ -658,24 +664,7 @@ object WidgetIntentRouter {
                     )
                 val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                 updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
-                Log.d(TAG, "handleSetView: hourly update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
-            }
-            com.weatherwidget.widget.ViewMode.PRECIPITATION -> {
-                val now = LocalDateTime.now()
-                val offset = stateManager.getHourlyOffset(appWidgetId)
-                val centerTime = now.plusHours(offset.toLong())
-                val hourlyForecasts =
-                    loadGraphWindowHourlyForecasts(
-                        hourlyDao = hourlyDao,
-                        lat = lat,
-                        lon = lon,
-                        centerTime = centerTime,
-                        zoom = zoom,
-                        now = now,
-                    )
-                val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-                updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
-                Log.d(TAG, "handleSetView: precip update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
+                Log.d(TAG, "handleSetView: ${targetMode.name} update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
             com.weatherwidget.widget.ViewMode.DAILY -> {
                 val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -725,7 +714,8 @@ object WidgetIntentRouter {
         logResizeDiagnostics(context, appWidgetManager, appWidgetId, viewMode.name, database.appLogDao())
 
         if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION
+            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
+            viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
         ) {
             val zoom = stateManager.getZoomLevel(appWidgetId)
             val now = LocalDateTime.now()
@@ -794,32 +784,49 @@ object WidgetIntentRouter {
             centerTime = centerTime,
         )
 
-        if (viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
-            PrecipViewHandler.updateWidget(
-                context = context,
-                appWidgetManager = appWidgetManager,
-                appWidgetId = appWidgetId,
-                hourlyForecasts = hourlyForecasts,
-                centerTime = centerTime,
-                displaySource = displaySource,
-                precipProbability = todayPrecip,
-                observedCurrentTemp = observation?.temperature,
-                observedCurrentTempFetchedAt = observation?.observedAt,
-                repository = repository
-            )
-        } else {
-            TemperatureViewHandler.updateWidget(
-                context = context,
-                appWidgetManager = appWidgetManager,
-                appWidgetId = appWidgetId,
-                hourlyForecasts = hourlyForecasts,
-                centerTime = centerTime,
-                displaySource = displaySource,
-                precipProbability = todayPrecip,
-                observedCurrentTemp = observation?.temperature,
-                observedCurrentTempFetchedAt = observation?.observedAt,
-                repository = repository
-            )
+        when (viewMode) {
+            com.weatherwidget.widget.ViewMode.PRECIPITATION -> {
+                PrecipViewHandler.updateWidget(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    hourlyForecasts = hourlyForecasts,
+                    centerTime = centerTime,
+                    displaySource = displaySource,
+                    precipProbability = todayPrecip,
+                    observedCurrentTemp = observation?.temperature,
+                    observedCurrentTempFetchedAt = observation?.observedAt,
+                    repository = repository
+                )
+            }
+            com.weatherwidget.widget.ViewMode.CLOUD_COVER -> {
+                CloudCoverViewHandler.updateWidget(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    hourlyForecasts = hourlyForecasts,
+                    centerTime = centerTime,
+                    displaySource = displaySource,
+                    precipProbability = todayPrecip,
+                    observedCurrentTemp = observation?.temperature,
+                    observedCurrentTempFetchedAt = observation?.observedAt,
+                    repository = repository
+                )
+            }
+            else -> {
+                TemperatureViewHandler.updateWidget(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    hourlyForecasts = hourlyForecasts,
+                    centerTime = centerTime,
+                    displaySource = displaySource,
+                    precipProbability = todayPrecip,
+                    observedCurrentTemp = observation?.temperature,
+                    observedCurrentTempFetchedAt = observation?.observedAt,
+                    repository = repository
+                )
+            }
         }
     }
     private suspend fun logCurrentTempStalenessDebug(

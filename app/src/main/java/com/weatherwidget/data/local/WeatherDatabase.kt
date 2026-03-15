@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class],
-    version = 30,
+    version = 31,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -86,6 +86,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_27_28,
                             MIGRATION_28_29,
                             MIGRATION_29_30,
+                            MIGRATION_30_31,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -940,6 +941,13 @@ abstract class WeatherDatabase : RoomDatabase() {
                     db.execSQL(
                         "CREATE INDEX IF NOT EXISTS index_forecasts_source_locationLat_locationLon_batchFetchedAt ON forecasts(source, locationLat, locationLon, batchFetchedAt)",
                     )
+                }
+            }
+
+        val MIGRATION_30_31 =
+            object : Migration(30, 31) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE hourly_forecasts ADD COLUMN cloudCover INTEGER DEFAULT NULL")
                 }
             }
     }

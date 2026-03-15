@@ -704,6 +704,30 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         repository = repository
                     )
                 }
+                ViewMode.CLOUD_COVER -> {
+                    val now = LocalDateTime.now()
+                    val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+                    val centerTime = now.plusHours(hourlyOffset.toLong())
+                    val targetDateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+                    val targetPrecip =
+                        weatherList
+                            .find { it.targetDate == targetDateStr && it.source == displaySource.id }
+                            ?.precipProbability
+                    val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+                    com.weatherwidget.widget.handlers.CloudCoverViewHandler.updateWidget(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetId = appWidgetId,
+                        hourlyForecasts = hourlyForecasts,
+                        centerTime = centerTime,
+                        displaySource = displaySource,
+                        precipProbability = targetPrecip,
+                        observedCurrentTemp = observation?.temperature,
+                        observedCurrentTempFetchedAt = observation?.observedAt,
+                        repository = repository
+                    )
+                }
                 ViewMode.DAILY -> {
                     DailyViewHandler.updateWidget(
                         context,

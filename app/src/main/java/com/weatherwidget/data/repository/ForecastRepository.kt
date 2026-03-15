@@ -325,9 +325,29 @@ class ForecastRepository
             val grid = nwsApi.getGridPoint(latitude, longitude)
             val forecastDeferred = async { nwsApi.getForecast(grid) }
             val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
-            
+            val skyCoverDeferred = async {
+                runCatching { nwsApi.getSkyCover(grid) }.getOrElse { e ->
+                    Log.w(TAG, "getSkyCover failed: ${e.message}")
+                    emptyMap()
+                }
+            }
+
             val forecastPeriods = forecastDeferred.await()
-            val hourlyPeriods = hourlyDeferred.await()
+            val rawHourlyPeriods = hourlyDeferred.await()
+            val skyCoverMap = skyCoverDeferred.await()
+
+            // Merge sky cover into hourly periods
+            val hourlyPeriods = if (skyCoverMap.isNotEmpty()) {
+                rawHourlyPeriods.map { period ->
+                    val hourKey = runCatching {
+                        ZonedDateTime.parse(period.startTime).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    }.getOrNull()
+                    val cover = hourKey?.let { skyCoverMap[it] }
+                    if (cover != null) period.copy(cloudCover = cover) else period
+                }
+            } else {
+                rawHourlyPeriods
+            }
             val todayDate = LocalDate.now()
             val todayDateString = todayDate.toString()
 
@@ -748,20 +768,20 @@ class ForecastRepository
             }
         }
 
-        private suspend fun saveHourlyForecasts(hourlyData: List<OpenMeteoApi.HourlyForecast>, latitude: Double, longitude: Double) = 
-            saveHourlyEntities(hourlyData.map { 
+        private suspend fun saveHourlyForecasts(hourlyData: List<OpenMeteoApi.HourlyForecast>, latitude: Double, longitude: Double) =
+            saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature, 
-                    openMeteoApi.weatherCodeToCondition(it.weatherCode), 
-                    WeatherSource.OPEN_METEO.id, it.precipProbability, System.currentTimeMillis()
-                ) 
+                    it.dateTime, latitude, longitude, it.temperature,
+                    openMeteoApi.weatherCodeToCondition(it.weatherCode),
+                    WeatherSource.OPEN_METEO.id, it.precipProbability, it.cloudCover, System.currentTimeMillis()
+                )
             })
 
         private suspend fun saveWeatherApiHourlyForecasts(hourlyData: List<WeatherApi.HourlyForecast>, latitude: Double, longitude: Double) =
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.WEATHER_API.id, it.precipProbability, System.currentTimeMillis()
+                    WeatherSource.WEATHER_API.id, it.precipProbability, it.cloudCover, System.currentTimeMillis()
                 )
             })
 
@@ -769,18 +789,18 @@ class ForecastRepository
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTimeString, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.SILURIAN.id, it.precipProbability, System.currentTimeMillis()
+                    WeatherSource.SILURIAN.id, it.precipProbability, it.cloudCover, System.currentTimeMillis()
                 )
             })
-        private suspend fun saveNwsHourlyForecasts(hourlyPeriods: List<NwsApi.HourlyForecastPeriod>, latitude: Double, longitude: Double) = 
-            saveHourlyEntities(hourlyPeriods.mapNotNull { period -> 
-                val dateTimeString = runCatching { 
-                    ZonedDateTime.parse(period.startTime).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")) 
+        private suspend fun saveNwsHourlyForecasts(hourlyPeriods: List<NwsApi.HourlyForecastPeriod>, latitude: Double, longitude: Double) =
+            saveHourlyEntities(hourlyPeriods.mapNotNull { period ->
+                val dateTimeString = runCatching {
+                    ZonedDateTime.parse(period.startTime).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                 }.getOrNull() ?: return@mapNotNull null
                 HourlyForecastEntity(
-                    dateTimeString, latitude, longitude, period.temperature.toFloat(), 
-                    period.shortForecast, WeatherSource.NWS.id, period.precipProbability, System.currentTimeMillis()
-                ) 
+                    dateTimeString, latitude, longitude, period.temperature.toFloat(),
+                    period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, System.currentTimeMillis()
+                )
             })
 
         private suspend fun persistNwsPeriodSummary(url: String, forecastPeriods: List<NwsApi.ForecastPeriod>) {

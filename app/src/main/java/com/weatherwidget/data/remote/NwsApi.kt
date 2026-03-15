@@ -307,6 +307,49 @@ class NwsApi
             }
         }
 
+        /**
+         * Fetch sky cover (cloud cover %) from the raw gridpoints endpoint.
+         * Returns a map of ISO 8601 hour key (e.g. "2026-03-14T14:00") to cover percent (0-100).
+         */
+        suspend fun getSkyCover(gridPoint: GridPointInfo): Map<String, Int> {
+            val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}"
+            val response: String =
+                httpClient.get(url) {
+                    header("User-Agent", USER_AGENT)
+                    header("Accept", "application/json")
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val skyCover = jsonObj["properties"]?.jsonObject?.get("skyCover")?.jsonObject
+            val values = skyCover?.get("values")?.jsonArray ?: return emptyMap()
+
+            val result = mutableMapOf<String, Int>()
+            for (entry in values) {
+                val obj = entry.jsonObject
+                val validTime = obj["validTime"]?.jsonPrimitive?.content ?: continue
+                val value = obj["value"]?.jsonPrimitive?.content?.toDoubleOrNull()?.roundToInt() ?: continue
+
+                // validTime format: "2026-03-14T14:00:00+00:00/PT1H" or "PT3H"
+                val slashIndex = validTime.indexOf('/')
+                if (slashIndex == -1) continue
+                val startTimeStr = validTime.substring(0, slashIndex)
+                val durationStr = validTime.substring(slashIndex + 1)
+
+                // Parse duration hours (PT1H, PT2H, PT3H, etc.)
+                val durationHours = Regex("PT(\\d+)H").find(durationStr)?.groupValues?.get(1)?.toIntOrNull() ?: 1
+
+                // Parse start time and expand intervals
+                val startZdt = runCatching { java.time.ZonedDateTime.parse(startTimeStr) }.getOrNull() ?: continue
+                for (h in 0 until durationHours) {
+                    val hourZdt = startZdt.plusHours(h.toLong())
+                    val hourKey = hourZdt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    result[hourKey] = value
+                }
+            }
+            Log.d(TAG, "getSkyCover: parsed ${result.size} hourly entries from gridpoints")
+            return result
+        }
+
         suspend fun getLatestObservationDetailed(stationId: String): Observation? {
             val response: String =
                 httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
@@ -369,5 +412,6 @@ class NwsApi
             val temperature: Float, // Fahrenheit
             val shortForecast: String,
             val precipProbability: Int? = null,
+            val cloudCover: Int? = null, // Sky cover percentage (0-100)
         )
     }

@@ -139,6 +139,7 @@ class WeatherApi
             val temperature: Float,
             val condition: String,
             val precipProbability: Int? = null,
+            val cloudCover: Int? = null,
         )
 
         data class CurrentReading(

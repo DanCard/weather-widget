@@ -134,6 +134,20 @@ object PrecipViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
+        // Weather icon + bottom graph zone → cloud cover view
+        val goCloudIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = WidgetIntentRouter.ACTION_SET_VIEW
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)
+        }
+        val goCloudPending = PendingIntent.getBroadcast(
+            context, appWidgetId * 100 + 900, goCloudIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
+        views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
+        views.setOnClickPendingIntent(R.id.graph_bottom_zone, goCloudPending)
+
         // Setup API toggle
         setupApiToggle(context, views, appWidgetId, numRows)
 

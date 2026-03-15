@@ -16,6 +16,7 @@ import com.weatherwidget.ui.ForecastHistoryActivity.ButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.buildActualFromNwsObservations
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.hasRequiredHistoryExtras
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.isNwsObservationStation
+import com.weatherwidget.ui.ForecastHistoryActivity.Companion.normalizeSource
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveActualLookupMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.selectLatestCompleteActualFromForecasts
@@ -132,6 +133,25 @@ class ForecastHistoryActivityTest {
                 hasLonExtra = true,
             ),
         )
+    }
+
+    // --- normalizeSource ---
+
+    @Test
+    fun `normalizeSource - maps known history source labels`() {
+        assertEquals(WeatherSource.NWS, normalizeSource("NWS"))
+        assertEquals(WeatherSource.OPEN_METEO, normalizeSource("Open-Meteo"))
+        assertEquals(WeatherSource.OPEN_METEO, normalizeSource("OPEN_METEO"))
+        assertEquals(WeatherSource.WEATHER_API, normalizeSource("WeatherAPI"))
+        assertEquals(WeatherSource.WEATHER_API, normalizeSource("WEATHER_API"))
+        assertEquals(WeatherSource.SILURIAN, normalizeSource("Silurian"))
+        assertEquals(WeatherSource.SILURIAN, normalizeSource("SILURIAN"))
+    }
+
+    @Test
+    fun `normalizeSource - returns null for unknown label`() {
+        assertNull(normalizeSource("Unknown API"))
+        assertNull(normalizeSource(null))
     }
 
     // --- resolveActualLookupMode ---

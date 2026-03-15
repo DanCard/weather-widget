@@ -18,6 +18,7 @@ enum class ViewMode {
     DAILY, // Default: shows daily forecast bars
     TEMPERATURE, // Alternative: shows hourly temperature curve
     PRECIPITATION, // Hourly precipitation probability graph
+    CLOUD_COVER, // Hourly cloud cover percentage graph
 }
 
 enum class ZoomLevel(
@@ -341,6 +342,23 @@ class WidgetStateManager
             // Reset zoom when switching back to DAILY
             if (newMode == ViewMode.DAILY) {
                 setZoomLevel(widgetId, ZoomLevel.WIDE)
+            }
+            return newMode
+        }
+
+        fun toggleCloudCoverMode(widgetId: Int): ViewMode {
+            val currentMode = getViewMode(widgetId)
+            val newMode = if (currentMode == ViewMode.CLOUD_COVER) ViewMode.TEMPERATURE else ViewMode.CLOUD_COVER
+            setViewMode(widgetId, newMode)
+            if (newMode == ViewMode.CLOUD_COVER && currentMode != ViewMode.CLOUD_COVER) {
+                // Preserve hourly offset and zoom when switching between hourly graph modes
+                if (currentMode == ViewMode.DAILY) {
+                    setHourlyOffset(widgetId, 0)
+                    setZoomLevel(widgetId, ZoomLevel.WIDE)
+                }
+            }
+            if (newMode == ViewMode.TEMPERATURE) {
+                // Keep zoom/offset when cycling back to temperature
             }
             return newMode
         }

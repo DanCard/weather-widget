@@ -6,11 +6,15 @@ import android.content.Intent
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
+import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.stats.ComparisonStatistics
 import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.mockk
+import io.mockk.coEvery
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -67,6 +71,16 @@ class HistoryActivitySyncRoboTest {
         
         // Manual injection of required DAOs (mocked) to avoid Hilt @Inject failures during onCreate
         activity.forecastDao = mockk(relaxed = true)
+        activity.observationDao = mockk(relaxed = true)
+        activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
+            coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
+                nwsStats = null,
+                meteoStats = null,
+                weatherApiStats = null,
+                periodStart = "2025-01-01",
+                periodEnd = "2025-01-30",
+            )
+        }
         
         controller.setup()
 
@@ -93,5 +107,39 @@ class HistoryActivitySyncRoboTest {
 
         assertNotNull("Should have sent REFRESH broadcast back to widget", refreshBroadcast)
         assertTrue("Broadcast should be UI_ONLY to avoid extra network calls", refreshBroadcast!!.getBooleanExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, false))
+    }
+
+    @Test
+    fun `activity launched with silurian source keeps silur selected`() {
+        val testWidgetId = 202
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.SILURIAN, WeatherSource.OPEN_METEO))
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.NWS)
+
+        val intent = Intent(context, ForecastHistoryActivity::class.java).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
+            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, "2030-01-01")
+            putExtra(ForecastHistoryActivity.EXTRA_LAT, 37.0)
+            putExtra(ForecastHistoryActivity.EXTRA_LON, -122.0)
+            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, WeatherSource.SILURIAN.displayName)
+        }
+
+        val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
+        val activity = controller.get()
+        activity.forecastDao = mockk(relaxed = true)
+        activity.observationDao = mockk(relaxed = true)
+        activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
+            coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
+                nwsStats = null,
+                meteoStats = null,
+                weatherApiStats = null,
+                periodStart = "2025-01-01",
+                periodEnd = "2025-01-30",
+            )
+        }
+
+        controller.setup()
+
+        assertEquals("Silur", activity.findViewById<View>(R.id.api_source_button).let { it as android.widget.TextView }.text.toString())
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
     }
 }

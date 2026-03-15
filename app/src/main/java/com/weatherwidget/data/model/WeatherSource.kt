@@ -42,16 +42,23 @@ enum class WeatherSource(
     companion object {
         /**
          * Maps a display source string (from UI/SharedPreferences) to WeatherSource.
-         * Handles both "NWS" and "Open-Meteo" formats.
+         * Returns null for unknown inputs so callers can preserve explicit fallback behavior.
          */
-        fun fromDisplaySource(displaySource: String): WeatherSource =
+        fun fromDisplaySourceOrNull(displaySource: String?): WeatherSource? =
             when (displaySource) {
                 "NWS" -> NWS
                 "Open-Meteo", "OPEN_METEO" -> OPEN_METEO
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 "Silurian", "SILURIAN" -> SILURIAN
-                else -> NWS
+                else -> null
             }
+
+        /**
+         * Maps a display source string (from UI/SharedPreferences) to WeatherSource.
+         * Handles both "NWS" and "Open-Meteo" formats.
+         */
+        fun fromDisplaySource(displaySource: String): WeatherSource =
+            fromDisplaySourceOrNull(displaySource) ?: NWS
 
         /**
          * Maps a database ID to WeatherSource.

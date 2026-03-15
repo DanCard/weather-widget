@@ -36,7 +36,7 @@ class OpenMeteoApi
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max")
-                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability")
+                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability,cloud_cover")
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
@@ -97,6 +97,10 @@ class OpenMeteoApi
                 hourly?.get("precipitation_probability")?.jsonArray?.map {
                     it.jsonPrimitive.content.toIntOrNull()
                 } ?: emptyList()
+            val hourlyCloudCover =
+                hourly?.get("cloud_cover")?.jsonArray?.map {
+                    it.jsonPrimitive.content.toIntOrNull()
+                } ?: emptyList()
 
             val hourlyForecasts =
                 hourlyTimes.mapIndexedNotNull { index, time ->
@@ -108,6 +112,7 @@ class OpenMeteoApi
                             temperature = temp,
                             weatherCode = code,
                             precipProbability = hourlyPrecipProbs.getOrNull(index),
+                            cloudCover = hourlyCloudCover.getOrNull(index),
                         )
                     } else {
                         null
@@ -252,6 +257,7 @@ class OpenMeteoApi
             val temperature: Float,
             val weatherCode: Int,
             val precipProbability: Int? = null,
+            val cloudCover: Int? = null,
         )
 
         data class CurrentReading(

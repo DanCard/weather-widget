@@ -56,6 +56,7 @@ class SilurianApi @Inject constructor(
         val temperature: Float,
         val condition: String,
         val precipProbability: Int,
+        val cloudCover: Int? = null,
     )
 
     suspend fun getForecast(
@@ -117,10 +118,11 @@ class SilurianApi @Inject constructor(
                 val temp = entry["temperature"]?.jsonPrimitive?.floatOrNull ?: 0f
                 val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
                 val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
+                val cloudCover = entry["cloud_cover"]?.jsonPrimitive?.doubleOrNull?.toInt()
 
                 // Format: 2026-03-03T08:00:00 -> 2026-03-03T08:00
                 val formattedTime = time.take(16)
-                HourlyForecast(formattedTime, temp, condition, precip)
+                HourlyForecast(formattedTime, temp, condition, precip, cloudCover)
             }
         } else emptyList()
 

@@ -667,6 +667,20 @@
         android:clickable="true"
         android:focusable="true" />
 
+    <!-- Graph bottom tap zone - overlays icon/label row at bottom of hourly graph to switch cloud cover view -->
+    <FrameLayout
+        android:id="@+id/graph_bottom_zone"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:layout_marginBottom="4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
     <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/precip_touch_zone"

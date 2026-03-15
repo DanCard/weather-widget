@@ -220,6 +220,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
             views.setViewVisibility(R.id.graph_day_zones, View.VISIBLE)
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
 
             val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
             val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
@@ -271,6 +272,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
 
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,

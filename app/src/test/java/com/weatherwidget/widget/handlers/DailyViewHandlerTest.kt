@@ -460,8 +460,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0),
-                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0)
+                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
+                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
             ),
             currentTemps = emptyList(),
             dailyActuals = emptyMap(),
@@ -512,8 +512,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0),
-                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0)
+                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
+                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
             ),
             currentTemps = emptyList(),
             dailyActuals = emptyMap(),

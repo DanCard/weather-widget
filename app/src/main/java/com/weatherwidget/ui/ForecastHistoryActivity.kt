@@ -104,6 +104,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
             hasLonExtra: Boolean,
         ): Boolean = targetDate != null && hasLatExtra && hasLonExtra
 
+        internal fun normalizeSource(rawSource: String?): WeatherSource? =
+            WeatherSource.fromDisplaySourceOrNull(rawSource)
+
         fun resolveActualLookupMode(
             date: LocalDate,
             requestedSource: WeatherSource?,
@@ -655,15 +658,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     private fun dpToPx(dp: Int): Int {
         return (dp * resources.displayMetrics.density).toInt()
-    }
-
-    private fun normalizeSource(rawSource: String?): WeatherSource? {
-        return when (rawSource) {
-            "NWS" -> WeatherSource.NWS
-            "Open-Meteo", "OPEN_METEO" -> WeatherSource.OPEN_METEO
-            "WeatherAPI", "WEATHER_API" -> WeatherSource.WEATHER_API
-            else -> null
-        }
     }
 
     private fun cycleApiSource() {
