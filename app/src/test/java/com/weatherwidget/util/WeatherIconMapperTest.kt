@@ -108,6 +108,12 @@ class WeatherIconMapperTest {
     @Test
     fun testGetIconResource_FogThenSunny() {
         val res = WeatherIconMapper.getIconResource("Patchy Fog then Partly Sunny", isNight = false)
-        assertEquals(R.drawable.ic_weather_fog_sunny, res)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_PatchyFogWithoutThenStillUsesFog() {
+        val res = WeatherIconMapper.getIconResource("Patchy Fog", isNight = false)
+        assertEquals(R.drawable.ic_weather_fog, res)
     }
 }

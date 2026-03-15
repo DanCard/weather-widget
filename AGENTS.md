@@ -306,6 +306,13 @@ done
 - User phrase mapping: when the user says "look at emulator", assume the emulator is already running.
 - Default inspection actions: take a screenshot and/or inspect runtime logs with `adb logcat`.
 
+### Runtime Source Discovery
+- For live widget/API mismatch questions, do not ask the user for the location first if runtime context can provide it.
+- Default order of operations: inspect a running emulator, otherwise inspect connected devices, otherwise start an available emulator.
+- Verify the actual device/emulator identity with `adb shell getprop` instead of inferring from the serial format.
+- Collect evidence from app state, widget state, logs, and the active NWS/Open-Meteo endpoint before asking the user follow-up questions.
+- Only ask the user for location or endpoint details after those runtime discovery paths are exhausted.
+
 ### Manual Testing
 1. Build and install: `./gradlew installDebug`
 2. On device/emulator: Long-press home screen → "Widgets"
