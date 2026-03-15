@@ -10,6 +10,9 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 class NwsApiTest {
     private lateinit var json: Json
@@ -164,5 +167,56 @@ class NwsApiTest {
             val periods = api.getForecast(gridPoint)
 
             assertTrue(periods.isEmpty())
+        }
+
+    @Test
+    fun `getSkyCover converts UTC valid times into local hourly keys`() =
+        runTest {
+            val gridResponse =
+                """
+                {
+                    "properties": {
+                        "skyCover": {
+                            "values": [
+                                {
+                                    "validTime": "2026-03-14T14:00:00+00:00/PT2H",
+                                    "value": 22
+                                }
+                            ]
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = gridResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
+            val result = api.getSkyCover(gridPoint)
+
+            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+            val firstLocalHour = ZonedDateTime.parse("2026-03-14T14:00:00+00:00")
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .format(formatter)
+            val secondLocalHour = ZonedDateTime.parse("2026-03-14T15:00:00+00:00")
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .format(formatter)
+
+            assertEquals(22, result[firstLocalHour])
+            assertEquals(22, result[secondLocalHour])
         }
 }

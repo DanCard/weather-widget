@@ -341,7 +341,7 @@ class NwsApi
                 // Parse start time and expand intervals
                 val startZdt = runCatching { java.time.ZonedDateTime.parse(startTimeStr) }.getOrNull() ?: continue
                 for (h in 0 until durationHours) {
-                    val hourZdt = startZdt.plusHours(h.toLong())
+                    val hourZdt = startZdt.plusHours(h.toLong()).withZoneSameInstant(java.time.ZoneId.systemDefault())
                     val hourKey = hourZdt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
                     result[hourKey] = value
                 }

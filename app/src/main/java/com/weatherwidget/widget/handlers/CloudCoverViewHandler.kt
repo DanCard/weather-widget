@@ -62,7 +62,13 @@ object CloudCoverViewHandler {
 
         val stateManager = WidgetStateManager(context)
 
-        Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
+        val sourceRows = hourlyForecasts.count { it.source == displaySource.id }
+        val sourceRowsWithCloudCover = hourlyForecasts.count { it.source == displaySource.id && it.cloudCover != null }
+        Log.d(
+            TAG,
+            "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}, " +
+                "source=$displaySource sourceRows=$sourceRows sourceRowsWithCloudCover=$sourceRowsWithCloudCover",
+        )
 
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
@@ -448,7 +454,7 @@ object CloudCoverViewHandler {
             val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val forecast = forecastsByTime[hourKey]
 
-            if (forecast != null) {
+            if (forecast?.cloudCover != null) {
                 val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
                 val absDiff = kotlin.math.abs(diffMinutes)
                 val isClosest = absDiff <= 30
@@ -470,7 +476,7 @@ object CloudCoverViewHandler {
                 hours.add(
                     CloudCoverGraphRenderer.CloudHourData(
                         dateTime = currentHour,
-                        cloudCover = forecast.cloudCover ?: 0,
+                        cloudCover = forecast.cloudCover,
                         label = formatHourLabel(currentHour),
                         iconRes = iconRes,
                         isNight = isNight,
@@ -544,8 +550,8 @@ object CloudCoverViewHandler {
                 views.setTextViewText(ids.first, label)
                 views.setViewVisibility(ids.second, View.GONE)
 
-                if (forecast != null) {
-                    val cloud = forecast.cloudCover ?: 0
+                if (forecast?.cloudCover != null) {
+                    val cloud = forecast.cloudCover
                     views.setTextViewText(ids.third, "$cloud%")
                     views.setTextViewText(ids.fourth, "")
                 } else {

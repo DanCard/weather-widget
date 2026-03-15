@@ -78,6 +78,7 @@ class WeatherApi
                             temperature = hourObj["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return@mapNotNull null,
                             condition = hourObj["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                             precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
+                            cloudCover = hourObj["cloud"]?.jsonPrimitive?.content?.toIntOrNull(),
                         )
                     }
                 }

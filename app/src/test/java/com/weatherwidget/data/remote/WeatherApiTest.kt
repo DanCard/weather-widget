@@ -71,6 +71,7 @@ class WeatherApiTest {
                             "time": "2026-02-24 00:00",
                             "temp_f": 52.2,
                             "chance_of_rain": 10,
+                            "cloud": 67,
                             "condition": {
                               "text": "Clear"
                             }
@@ -125,6 +126,7 @@ class WeatherApiTest {
             assertEquals(52.2f, forecast.hourly[0].temperature)
             assertEquals("Clear", forecast.hourly[0].condition)
             assertEquals(10, forecast.hourly[0].precipProbability)
+            assertEquals(67, forecast.hourly[0].cloudCover)
 
             assertEquals("2026-02-24T13:00", forecast.hourly[1].dateTime)
             assertEquals(66.8f, forecast.hourly[1].temperature)
@@ -172,6 +174,7 @@ class WeatherApiTest {
             assertEquals(1, forecast.hourly.size)
             assertNull(forecast.daily[0].precipProbability)
             assertNull(forecast.hourly[0].precipProbability)
+            assertNull(forecast.hourly[0].cloudCover)
         }
 
     @Test
