@@ -46,7 +46,10 @@ object WeatherIconMapper {
             normalizedCondition.contains("partly") -> {
                 if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
             }
-            normalizedCondition.contains("cloudy") || normalizedCondition.contains("overcast") -> R.drawable.ic_weather_cloudy
+            normalizedCondition.contains("overcast") -> {
+                if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
+            }
+            normalizedCondition.contains("cloudy") -> R.drawable.ic_weather_cloudy
             normalizedCondition.contains(
                 "wind",
             ) || normalizedCondition.contains("breez") || normalizedCondition.contains("gale") -> R.drawable.ic_weather_wind
