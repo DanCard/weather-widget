@@ -182,7 +182,8 @@ object CloudCoverViewHandler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goTempIconPending)
-        views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+        views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
+        views.setOnClickPendingIntent(R.id.graph_bottom_zone, goTempIconPending)
 
         setupApiToggle(context, views, appWidgetId, numRows)
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
@@ -270,6 +271,7 @@ object CloudCoverViewHandler {
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
             updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
         }
 
