@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.TextView
 import android.content.Context
 import android.content.Intent
@@ -30,6 +31,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlinx.coroutines.runBlocking
@@ -258,6 +260,45 @@ class DailyViewHandlerTest {
         val yesterdayData = days.first { it.date == yesterdayStr }
         assertEquals(77f, yesterdayData.high!!, 0.1f)
         assertEquals(56f, yesterdayData.low!!, 0.1f)
+    }
+
+    @Test
+    fun `prepareGraphDays today icon uses daily condition instead of hourly condition`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            todayStr to createWeather(todayStr).copy(condition = "Rain")
+        )
+        val hourlyForecasts = listOf(
+            HourlyForecastEntity(
+                dateTime = "${todayStr}T12:00",
+                locationLat = 37.7749,
+                locationLon = -122.4194,
+                temperature = 64f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                cloudCover = 0,
+                fetchedAt = 1L,
+            )
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = hourlyForecasts,
+        )
+
+        val todayData = days.first { it.date == todayStr }
+        assertEquals(R.drawable.ic_weather_rain, todayData.iconRes)
     }
 
     @Test
@@ -529,6 +570,96 @@ class DailyViewHandlerTest {
         }
         
         assertTrue("Evening highTexts $highTexts should contain 62.9° (for Today)", highTexts.contains("62.9°"))
+    }
+
+    @Test
+    fun `updateWidget daily header icon uses daily condition instead of hourly condition`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList = listOf(
+            createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(condition = "Rain")
+        )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(45)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 140)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 140)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
+        }
+        every { appWidgetManager.getAppWidgetOptions(45) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(45, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 45,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = listOf(
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
+            ),
+            currentTemps = emptyList(),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val imageView = applied.findViewById<ImageView>(R.id.weather_icon)
+
+        assertEquals(R.drawable.ic_weather_rain, shadowOf(imageView.drawable).createdFromResId)
+    }
+
+    @Test
+    fun `updateWidget today text icon uses daily condition instead of hourly condition`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList = listOf(
+            createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(condition = "Rain"),
+            createWeather(tomorrowStr, highTemp = 71f, lowTemp = 56f).copy(condition = "Clear"),
+        )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(46)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
+        }
+        every { appWidgetManager.getAppWidgetOptions(46) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(46, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 46,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = listOf(
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
+            ),
+            currentTemps = emptyList(),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val todayImageView = applied.findViewById<ImageView>(R.id.day2_icon)
+
+        assertEquals(R.drawable.ic_weather_rain, shadowOf(todayImageView.drawable).createdFromResId)
     }
 
     private fun createWeatherMap(today: LocalDate): Map<String, ForecastEntity> {

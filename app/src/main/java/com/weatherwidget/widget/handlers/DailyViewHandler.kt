@@ -139,9 +139,7 @@ object DailyViewHandler : WidgetViewHandler {
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val isNight = SunPositionUtils.isNight(now, lat, lon)
 
-        val currentHourCondition = DailyViewLogic.getEffectiveCondition(now, todayStr, displaySource, hourlyForecasts, weatherByDate[todayStr])
-
-        val iconRes = WeatherIconMapper.getIconResource(currentHourCondition, isNight)
+        val iconRes = WeatherIconMapper.getIconResource(weatherByDate[todayStr]?.condition, isNight)
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
@@ -501,12 +499,7 @@ object DailyViewHandler : WidgetViewHandler {
     ) {
         views.setTextViewText(ids.label, data.label)
         
-        val todayStr = now.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val currentHourCondition = if (data.isToday) {
-            DailyViewLogic.getEffectiveCondition(now, todayStr, displaySource, hourlyForecasts, data.weather)
-        } else data.weather?.condition
-
-        val iconRes = WeatherIconMapper.getIconResource(currentHourCondition)
+        val iconRes = WeatherIconMapper.getIconResource(data.weather?.condition)
         views.setImageViewResource(ids.icon, iconRes)
 
         if (!WeatherIconMapper.isRainy(iconRes) && !WeatherIconMapper.isMixed(iconRes)) {

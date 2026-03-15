@@ -280,10 +280,8 @@ object DailyViewLogic {
                 fLow = forecast?.lowTemp
             }
 
-            val effectiveCondition = if (isToday && weather != null) {
-                getEffectiveCondition(now, todayStr, displaySource, hourlyForecasts, weather)
-            } else weather?.condition ?: actual?.condition
-            
+            val effectiveCondition = weather?.condition ?: actual?.condition
+
             val iconRes = WeatherIconMapper.getIconResource(effectiveCondition)
 
             val rawRainSummary = if (!isPastDate) {
@@ -326,22 +324,6 @@ object DailyViewLogic {
             )
         }
         return days
-    }
-
-    internal fun getEffectiveCondition(
-        now: LocalDateTime,
-        todayStr: String,
-        displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        fallbackWeather: ForecastEntity?,
-    ): String? {
-        val nowHourStr = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val currentHourly = hourlyForecasts.find { 
-            it.dateTime == nowHourStr && 
-            (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id) 
-        }
-        
-        return currentHourly?.condition ?: fallbackWeather?.condition
     }
 
     private fun formatTempLabel(v: Float?): String? {
