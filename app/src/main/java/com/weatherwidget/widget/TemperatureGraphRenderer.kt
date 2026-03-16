@@ -179,14 +179,21 @@ object TemperatureGraphRenderer {
         val allTemps = hours.map { it.temperature } +
             hours.mapNotNull { it.actualTemperature } +
             expectedHours.map { it.temperature }
-        val minTemp = (allTemps.minOrNull() ?: 0f)
-        val maxTemp = (allTemps.maxOrNull() ?: 100f)
+        val rawMin = (allTemps.minOrNull() ?: 0f)
+        val rawMax = (allTemps.maxOrNull() ?: 100f)
+        val rawRange = (rawMax - rawMin).coerceAtLeast(1f)
+
+        // Add 10% buffer at top and bottom to ensure raw peaks don't hit graph edges
+        // and to leave room for labels (especially now that truth curve is unsmoothed).
+        val buffer = (rawRange * 0.1f).coerceAtLeast(3f)
+        val minTemp = rawMin - buffer
+        val maxTemp = rawMax + buffer
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
         val density = context.resources.displayMetrics.density
         
         // Layout zones
-        val topPadding = dpToPx(context, 12f)
+        val topPadding = dpToPx(context, 24f)
         val iconSizeDp = 16f
         val iconSize = dpToPx(context, iconSizeDp).toInt()
         val labelHeight = dpToPx(context, 10f)
