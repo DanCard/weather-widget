@@ -343,9 +343,16 @@ object TemperatureGraphRenderer {
         // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + anchorDelta.
         val smoothedExpectedTemps = smoothedForecastTemps.map { it + anchorDelta }
 
+        // --- Original Curve (Solid Line + Labels) ---
+        // For the solid actual line (past) and for labels (full width), we show actual history
+        // where available, falling back to raw forecast (without delta) to match label expectations.
+        val rawOriginalTemps = hours.map { it.actualTemperature ?: it.temperature }
+        val smoothedOriginalTemps = GraphRenderUtils.smoothValues(rawOriginalTemps, iterations = 1)
+
         // Keep backward-compat names for the rest of the function
+        // smoothedActualOrForecastTemps is used for transitionX and fetch dot calculations.
+        // smoothedTruthTemps is the raw actuals/forecast+delta mix.
         val smoothedActualOrForecastTemps = smoothedTruthTemps
-        val smoothedOriginalTemps = smoothedTruthTemps
 
         val originalPoints = mutableListOf<Pair<Float, Float>>()
         val forecastPoints = mutableListOf<Pair<Float, Float>>()
@@ -353,7 +360,7 @@ object TemperatureGraphRenderer {
 
         hours.indices.forEach { index ->
             val x = hourWidth * index + hourWidth / 2
-            val yOriginal = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
+            val yOriginal = graphTop + graphHeight * (1 - (smoothedOriginalTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yOriginal)
             val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)
             forecastPoints.add(x to yForecast)
