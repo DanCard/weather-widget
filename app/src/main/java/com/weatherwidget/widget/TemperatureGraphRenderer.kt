@@ -146,6 +146,12 @@ object TemperatureGraphRenderer {
         val isToday: Boolean,
     )
 
+    data class PointsDebug(
+        val original: List<Pair<Float, Float>>,
+        val forecast: List<Pair<Float, Float>>,
+        val expected: List<Pair<Float, Float>>,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<HourData>,
@@ -159,6 +165,7 @@ object TemperatureGraphRenderer {
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onGhostLineDebug: ((GhostLineDebug) -> Unit)? = null,
+        onPointsResolved: ((PointsDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -304,13 +311,18 @@ object TemperatureGraphRenderer {
         val smoothedForecastTemps = GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1)
 
         // Truth curve (Reality) — Actuals where available, corrected forecast elsewhere.
-        // This ensures the solid actual line and ghost line are part of the same smoothed curve and meet perfectly.
-        val rawTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
-        val smoothedTruthTemps = GraphRenderUtils.smoothValues(rawTruthTemps, iterations = 1)
+        // Parallelism: We ensure the ghost line is a pure translation of the forecast line
+        // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + delta.
+        val smoothedExpectedTemps = smoothedForecastTemps.map { it + effectiveDelta }
+
+        // For the solid actual line (past), we show actual history.
+        // If we remove smoothing from truth to satisfy the parallelism mandate,
+        // we use raw actuals for the past and raw forecast+delta for the future to ensure they meet.
+        // NOTE: The user explicitly said "Remove smoothing if that helps with issue".
+        val smoothedTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         // Keep backward-compat names for the rest of the function
         val smoothedActualOrForecastTemps = smoothedTruthTemps
-        val smoothedExpectedTemps = smoothedTruthTemps
         val smoothedOriginalTemps = smoothedTruthTemps
 
         val originalPoints = mutableListOf<Pair<Float, Float>>()
@@ -323,9 +335,17 @@ object TemperatureGraphRenderer {
             originalPoints.add(x to yOriginal)
             val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)
             forecastPoints.add(x to yForecast)
-            val yExpected = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
+            val yExpected = graphTop + graphHeight * (1 - (smoothedExpectedTemps[index] - minTemp) / tempRange)
             expectedPoints.add(x to yExpected)
         }
+
+        onPointsResolved?.invoke(
+            PointsDebug(
+                original = originalPoints,
+                forecast = forecastPoints,
+                expected = expectedPoints,
+            )
+        )
 
         val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
