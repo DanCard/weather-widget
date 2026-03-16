@@ -7,6 +7,9 @@ import kotlin.math.roundToInt
 
 object DailyForecastGraphRenderer {
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+    private const val BASE_DAY_WIDTH_DP = 70f
+    private const val MIN_DAY_LABEL_WIDTH_SCALE = 0.96f
+    private const val MAX_DAY_LABEL_WIDTH_SCALE = 1.04f
 
     /**
      * Fired once for each bar drawn, for testing and debugging.
@@ -79,9 +82,9 @@ object DailyForecastGraphRenderer {
         val heightDp = heightPx / density
 
         // Width-based scale factor: ensure day labels fit (base ~70dp per day)
-        val baseDayWidthDp = 70f
         val dayWidthDp = widthDp / columns
-        val widthScaleFactor = (dayWidthDp / baseDayWidthDp).coerceIn(1.0f, 1.2f) // Cap at 1.2x
+        val widthScaleFactor = (dayWidthDp / BASE_DAY_WIDTH_DP).coerceIn(1.0f, 1.2f) // Cap at 1.2x
+        val dayLabelWidthScale = computeDayLabelWidthScale(dayWidthDp)
 
         // Height-based scale factor: scale fonts up with widget height
         val heightScaleFactor =
@@ -101,14 +104,14 @@ object DailyForecastGraphRenderer {
 
         // Scale text sizes with widget height
         val baseDayLabelSize = 12.5f
-        val baseTempLabelSize = 11.5f
+        val baseTempLabelSize = 10.5f
 
         // Icon size
         val iconSizeDp = 16f
         val iconSize = dpToPx(context, iconSizeDp).toInt()
 
         // Calculate layout height components
-        val dayLabelScale = bitmapScale.coerceIn(0.5f, 1f)
+        val dayLabelScale = bitmapScale.coerceIn(0.5f, 1f) * dayLabelWidthScale
         val dayLabelHeight = dpToPx(context, baseDayLabelSize * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER)
         val tempLabelHeight = dpToPx(context, baseTempLabelSize * heightScaleFactor)
 
@@ -407,6 +410,10 @@ object DailyForecastGraphRenderer {
 
     private fun dpToPx(context: Context, dp: Float): Float {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
+    }
+
+    internal fun computeDayLabelWidthScale(dayWidthDp: Float): Float {
+        return (dayWidthDp / BASE_DAY_WIDTH_DP).coerceIn(MIN_DAY_LABEL_WIDTH_SCALE, MAX_DAY_LABEL_WIDTH_SCALE)
     }
 
     private fun formatTempLabel(actual: Float, allowDecimals: Boolean): String {
