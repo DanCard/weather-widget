@@ -93,6 +93,50 @@ class WeatherApi
             )
         }
 
+        /**
+         * Fetches historical hourly data for a specific date.
+         * @param date ISO date string e.g. "2026-03-15"
+         */
+        suspend fun getHistory(
+            lat: Double,
+            lon: Double,
+            date: String,
+        ): List<HourlyForecast> {
+            val apiKey = BuildConfig.WEATHER_API_KEY
+            if (apiKey.isBlank()) return emptyList()
+
+            val response: String =
+                httpClient.get("$BASE_URL/history.json") {
+                    parameter("key", apiKey)
+                    parameter("q", "$lat,$lon")
+                    parameter("dt", date)
+                    parameter("aqi", "no")
+                    parameter("alerts", "no")
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val forecastDays =
+                jsonObj["forecast"]?.jsonObject?.get("forecastday")?.jsonArray ?: emptyList()
+
+            return forecastDays.flatMap { dayElement ->
+                val hours = dayElement.jsonObject["hour"]?.jsonArray ?: emptyList()
+                hours.mapNotNull { hourElement ->
+                    val hourObj = hourElement.jsonObject
+                    val rawTime = hourObj["time"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                    val dateTime = rawTime.replace(" ", "T")
+                    val normalizedDateTime = if (dateTime.length >= 13) "${dateTime.substring(0, 13)}:00" else return@mapNotNull null
+
+                    HourlyForecast(
+                        dateTime = normalizedDateTime,
+                        temperature = hourObj["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return@mapNotNull null,
+                        condition = hourObj["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
+                        precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
+                        cloudCover = hourObj["cloud"]?.jsonPrimitive?.content?.toIntOrNull(),
+                    )
+                }
+            }
+        }
+
         suspend fun getCurrent(
             lat: Double,
             lon: Double,

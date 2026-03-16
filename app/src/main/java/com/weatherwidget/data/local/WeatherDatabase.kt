@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class],
-    version = 31,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class, HourlyActualEntity::class],
+    version = 32,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -26,6 +26,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun currentTempDao(): CurrentTempDao
 
     abstract fun apiUsageDao(): ApiUsageDao
+
+    abstract fun hourlyActualDao(): HourlyActualDao
 
     companion object {
         @Volatile
@@ -87,6 +89,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_28_29,
                             MIGRATION_29_30,
                             MIGRATION_30_31,
+                            MIGRATION_31_32,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -948,6 +951,27 @@ abstract class WeatherDatabase : RoomDatabase() {
             object : Migration(30, 31) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE hourly_forecasts ADD COLUMN cloudCover INTEGER DEFAULT NULL")
+                }
+            }
+
+        val MIGRATION_31_32 =
+            object : Migration(31, 32) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS hourly_actuals (
+                            dateTime TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            temperature REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            source TEXT NOT NULL,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(dateTime, source, locationLat, locationLon)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_hourly_actuals_locationLat_locationLon ON hourly_actuals(locationLat, locationLon)")
                 }
             }
     }

@@ -6,6 +6,8 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.CurrentTempEntity
+import com.weatherwidget.data.local.HourlyActualDao
+import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
@@ -41,6 +43,7 @@ class CurrentTempRepository
         @ApplicationContext private val context: Context,
         private val currentTempDao: CurrentTempDao,
         private val observationDao: ObservationDao,
+        private val hourlyActualDao: HourlyActualDao,
         private val hourlyForecastDao: HourlyForecastDao,
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
@@ -132,17 +135,17 @@ class CurrentTempRepository
                     if (reading?.currentTemp != null) {
                         val stationId = if (point.third == "Current") "SILURIAN_MAIN" else "SILURIAN_$index"
                         val obsTime = reading.currentObservedAt ?: System.currentTimeMillis()
-                        observationDao.insertAll(listOf(
-                            ObservationEntity(
-                                stationId = stationId,
-                                stationName = "Silurian: ${point.third}",
-                                timestamp = obsTime,
-                                temperature = reading.currentTemp,
-                                condition = reading.currentCondition ?: "Unknown",
-                                locationLat = latitude,
-                                locationLon = longitude
-                            )
-                        ))
+                        val obsEntity = ObservationEntity(
+                            stationId = stationId,
+                            stationName = "Silurian: ${point.third}",
+                            timestamp = obsTime,
+                            temperature = reading.currentTemp,
+                            condition = reading.currentCondition ?: "Unknown",
+                            locationLat = latitude,
+                            locationLon = longitude
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                        hourlyActualDao.insertAll(listOf(observationToActual(obsEntity, com.weatherwidget.data.model.WeatherSource.SILURIAN.id)))
                     }
                     reading
                 }
@@ -162,19 +165,19 @@ class CurrentTempRepository
                     if (reading != null) {
                         val condition = reading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) } ?: "Unknown"
                         val stationId = if (point.third == "Current") "OPEN_METEO_MAIN" else "OPEN_METEO_$index"
-                        observationDao.insertAll(listOf(
-                            ObservationEntity(
-                                stationId, 
-                                "Meteo: ${point.third}", 
-                                reading.observedAt ?: System.currentTimeMillis(), 
-                                reading.temperature, 
-                                condition, 
-                                latitude, 
-                                longitude, 
-                                calculateDistance(latitude, longitude, point.first, point.second) / 1000f, 
-                                "OFFICIAL"
-                            )
-                        ))
+                        val obsEntity = ObservationEntity(
+                            stationId,
+                            "Meteo: ${point.third}",
+                            reading.observedAt ?: System.currentTimeMillis(),
+                            reading.temperature,
+                            condition,
+                            latitude,
+                            longitude,
+                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
+                            "OFFICIAL"
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                        hourlyActualDao.insertAll(listOf(observationToActual(obsEntity, com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id)))
                     }
                     reading
                 }
@@ -197,19 +200,19 @@ class CurrentTempRepository
                     val reading = runCatching { weatherApi.getCurrent(point.first, point.second) }.getOrNull()
                     if (reading != null) {
                         val stationId = if (point.third == "Current") "WEATHER_API_MAIN" else "WEATHER_API_$index"
-                        observationDao.insertAll(listOf(
-                            ObservationEntity(
-                                stationId, 
-                                "WAPI: ${point.third}", 
-                                reading.observedAt ?: System.currentTimeMillis(), 
-                                reading.temperature, 
-                                reading.condition ?: "Unknown", 
-                                latitude, 
-                                longitude, 
-                                calculateDistance(latitude, longitude, point.first, point.second) / 1000f, 
-                                "OFFICIAL"
-                            )
-                        ))
+                        val obsEntity = ObservationEntity(
+                            stationId,
+                            "WAPI: ${point.third}",
+                            reading.observedAt ?: System.currentTimeMillis(),
+                            reading.temperature,
+                            reading.condition ?: "Unknown",
+                            latitude,
+                            longitude,
+                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
+                            "OFFICIAL"
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                        hourlyActualDao.insertAll(listOf(observationToActual(obsEntity, com.weatherwidget.data.model.WeatherSource.WEATHER_API.id)))
                     }
                     reading
                 }
@@ -229,19 +232,19 @@ class CurrentTempRepository
                 async {
                     val observation = runCatching { nwsApi.getLatestObservationDetailed(stationInfo.id) }.getOrNull()
                     if (observation != null) {
-                        observationDao.insertAll(listOf(
-                            ObservationEntity(
-                                stationInfo.id, 
-                                observation.stationName, 
-                                OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(), 
-                                (observation.temperatureCelsius * 1.8f) + 32f, 
-                                observation.textDescription, 
-                                latitude, 
-                                longitude, 
-                                calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f, 
-                                stationInfo.type.name
-                            )
-                        ))
+                        val obsEntity = ObservationEntity(
+                            stationInfo.id,
+                            observation.stationName,
+                            OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
+                            (observation.temperatureCelsius * 1.8f) + 32f,
+                            observation.textDescription,
+                            latitude,
+                            longitude,
+                            calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f,
+                            stationInfo.type.name
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                        hourlyActualDao.insertAll(listOf(observationToActual(obsEntity, com.weatherwidget.data.model.WeatherSource.NWS.id)))
                     }
                     observation
                 }
@@ -347,8 +350,48 @@ class CurrentTempRepository
             return results[0] 
         }
 
+        /** Convert an ObservationEntity to a HourlyActualEntity keyed by its hour. */
+        private fun observationToActual(obs: ObservationEntity, source: String): HourlyActualEntity {
+            val hourKey = java.time.Instant.ofEpochMilli(obs.timestamp)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+                .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            return HourlyActualEntity(
+                dateTime = hourKey,
+                locationLat = obs.locationLat,
+                locationLon = obs.locationLon,
+                temperature = obs.temperature,
+                condition = obs.condition,
+                source = source,
+                fetchedAt = obs.fetchedAt,
+            )
+        }
+
+        /**
+         * One-time seed: if hourly_actuals has no NWS data for this location but observations exist,
+         * convert all existing observations to actuals. Runs once on first call after the feature launch.
+         */
+        private suspend fun seedActualsFromObservationsIfNeeded(latitude: Double, longitude: Double) {
+            val oneMonthAgo = System.currentTimeMillis() - 2592000000L
+            val existing = hourlyActualDao.getActualsInRange(
+                startDateTime = "2000-01-01T00:00",
+                endDateTime = "2099-12-31T23:00",
+                source = com.weatherwidget.data.model.WeatherSource.NWS.id,
+                lat = latitude,
+                lon = longitude,
+            )
+            if (existing.isNotEmpty()) return // already seeded
+            val observations = observationDao.getRecentObservations(oneMonthAgo)
+            if (observations.isEmpty()) return
+            val actuals = observations.map { observationToActual(it, com.weatherwidget.data.model.WeatherSource.NWS.id) }
+            hourlyActualDao.insertAll(actuals)
+            android.util.Log.i(TAG, "Seeded ${actuals.size} hourly actuals from existing observations")
+        }
+
         suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) {
             android.util.Log.d(TAG, "backfillNwsObservationsIfNeeded entered for ($latitude, $longitude)")
+            seedActualsFromObservationsIfNeeded(latitude, longitude)
             val localZone = java.time.ZoneId.systemDefault()
             val now = java.time.ZonedDateTime.now(localZone)
             
@@ -403,6 +446,29 @@ class CurrentTempRepository
                             )
                         }
                         observationDao.insertAll(entities)
+                        // Also write to hourly_actuals (bucketed to the nearest hour key)
+                        val hourlyActuals = observations.mapNotNull { obs ->
+                            val epochMs = runCatching {
+                                java.time.OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli()
+                            }.getOrNull() ?: return@mapNotNull null
+                            val hourKey = java.time.Instant.ofEpochMilli(epochMs)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDateTime()
+                                .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                                .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                            HourlyActualEntity(
+                                dateTime = hourKey,
+                                locationLat = latitude,
+                                locationLon = longitude,
+                                temperature = (obs.temperatureCelsius * 1.8f) + 32f,
+                                condition = obs.textDescription,
+                                source = com.weatherwidget.data.model.WeatherSource.NWS.id,
+                                fetchedAt = System.currentTimeMillis(),
+                            )
+                        }
+                        if (hourlyActuals.isNotEmpty()) {
+                            hourlyActualDao.insertAll(hourlyActuals)
+                        }
                         android.util.Log.i(TAG, "Successfully backfilled ${entities.size} observations from ${stationInfo.id}")
                         break
                     }

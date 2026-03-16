@@ -70,7 +70,7 @@ object WidgetIntentRouter {
             viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
             viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
         ) {
-            handleGraphNavigation(context, appWidgetId, isLeft)
+            handleGraphNavigation(context, appWidgetId, isLeft, repository)
         } else {
             handleDailyNavigation(context, appWidgetId, isLeft, repository)
         }
@@ -249,6 +249,7 @@ object WidgetIntentRouter {
             )
 
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+        android.util.Log.d("ActualsDebug", "handleGraphNavigation: offset=$newOffset, centerTime=$centerTime, forecastCount=${hourlyForecasts.size}, source=${displaySource.id}, lat=$lat, lon=$lon, repoNull=${repository == null}")
         updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
     }
 
@@ -618,7 +619,10 @@ object WidgetIntentRouter {
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
+        val previousMode = stateManager.getViewMode(appWidgetId)
+        val previousZoom = stateManager.getZoomLevel(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
+        android.util.Log.d("ActualsDebug", "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom widget=$appWidgetId")
         if (targetMode == com.weatherwidget.widget.ViewMode.DAILY) {
             stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
         }
@@ -626,6 +630,11 @@ object WidgetIntentRouter {
             targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
             targetMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
         ) {
+            // Reset to WIDE only when entering from daily — preserves zoom when navigating
+            // between hourly view types (temperature ↔ precipitation ↔ cloud cover)
+            if (previousMode == com.weatherwidget.widget.ViewMode.DAILY) {
+                stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
+            }
             if (targetOffset != Int.MIN_VALUE) {
                 stateManager.setHourlyOffset(appWidgetId, targetOffset)
             }

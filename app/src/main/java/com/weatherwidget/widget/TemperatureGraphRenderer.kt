@@ -12,7 +12,7 @@ object TemperatureGraphRenderer {
 
     data class HourData(
         val dateTime: LocalDateTime,
-        val temperature: Float,
+        val temperature: Float,          // Forecast temperature (drives the dashed forecast line)
         val label: String, // "12a", "1p", "2p"
         val iconRes: Int? = null,
         val isNight: Boolean = false,
@@ -21,6 +21,8 @@ object TemperatureGraphRenderer {
         val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true, // Only at intervals
+        val isActual: Boolean = false,           // True when actualTemperature is available
+        val actualTemperature: Float? = null,    // Observed actual temp (past hours only)
     )
 
     // Temperature-to-color thresholds
@@ -156,11 +158,13 @@ object TemperatureGraphRenderer {
 
         if (hours.isEmpty()) return bitmap
 
-        // Expected (Corrected) Hours
+        // Expected (Corrected) Hours — delta applied to forecast for ghost line
         val expectedHours = hours.map { it.copy(temperature = it.temperature + (appliedDelta ?: 0f)) }
 
-        // Find temperature range for scaling (using BOTH original and expected temps)
-        val allTemps = hours.map { it.temperature } + expectedHours.map { it.temperature }
+        // Find temperature range for scaling (forecast + actuals + expected)
+        val allTemps = hours.map { it.temperature } +
+            hours.mapNotNull { it.actualTemperature } +
+            expectedHours.map { it.temperature }
         val minTemp = (allTemps.minOrNull() ?: 0f)
         val maxTemp = (allTemps.maxOrNull() ?: 100f)
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
@@ -184,9 +188,10 @@ object TemperatureGraphRenderer {
 
         // --- Paints ---
 
-        // Original Forecast Line (Main Colorful Curve)
-        val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
-        val originalCurvePaint =
+        val curveStrokeDp = 1f
+
+        // Actual observed line — solid gradient, primary in past portion
+        val actualLinePaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 strokeWidth = dpToPx(context, curveStrokeDp)
                 style = Paint.Style.STROKE
@@ -195,7 +200,21 @@ object TemperatureGraphRenderer {
                 shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
             }
 
-        // Expected Truth Line (Ghost Dashed Curve)
+        // Forecast line — thin dashed gradient, runs full width
+        val forecastDashedPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                strokeWidth = dpToPx(context, 1f)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+                shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 8f), dpToPx(context, 4f)), 0f)
+            }
+
+        // Keep backward-compat alias for label-placement code below that references originalCurvePaint
+        val originalCurvePaint = actualLinePaint
+
+        // Expected Truth Line (Ghost Dashed Curve) — future only
         val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
             alpha = 55 // ~22% opacity
@@ -271,29 +290,41 @@ object TemperatureGraphRenderer {
             }
 
         // --- Build paths ---
-        val rawOriginalTemps = hours.map { it.temperature }
-        val smoothedOriginalTemps = GraphRenderUtils.smoothValues(rawOriginalTemps, iterations = 1)
-        
+
+        // Forecast curve — pure forecast temps, runs full width (thin dashed)
+        val rawForecastTemps = hours.map { it.temperature }
+        val smoothedForecastTemps = GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1)
+
+        // Actual curve — actual where available, forecast fallback for smooth tangents (solid, past only)
+        val rawActualOrForecastTemps = hours.map { it.actualTemperature ?: it.temperature }
+        val smoothedActualOrForecastTemps = GraphRenderUtils.smoothValues(rawActualOrForecastTemps, iterations = 1)
+
+        // Expected (ghost) curve — forecast + delta correction
         val rawExpectedTemps = expectedHours.map { it.temperature }
         val smoothedExpectedTemps = GraphRenderUtils.smoothValues(rawExpectedTemps, iterations = 1)
 
+        // Use actualOrForecast for originalPoints so labels sit on the actual line in the past
+        val smoothedOriginalTemps = smoothedActualOrForecastTemps
+
         val originalPoints = mutableListOf<Pair<Float, Float>>()
+        val forecastPoints = mutableListOf<Pair<Float, Float>>()
         val expectedPoints = mutableListOf<Pair<Float, Float>>()
 
         hours.indices.forEach { index ->
             val x = hourWidth * index + hourWidth / 2
-            
-            val yOriginal = graphTop + graphHeight * (1 - (smoothedOriginalTemps[index] - minTemp) / tempRange)
+            val yOriginal = graphTop + graphHeight * (1 - (smoothedActualOrForecastTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yOriginal)
-            
+            val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)
+            forecastPoints.add(x to yForecast)
             val yExpected = graphTop + graphHeight * (1 - (smoothedExpectedTemps[index] - minTemp) / tempRange)
             expectedPoints.add(x to yExpected)
         }
 
         val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+        val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
         val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
 
-        // Compute NOW x-position relative to original points
+        // Compute NOW x-position first (needed to anchor transitionX)
         val nowX =
             GraphRenderUtils.computeNowX(
                 items = hours,
@@ -305,18 +336,35 @@ object TemperatureGraphRenderer {
             )
         val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
 
-        // Draw Expected Truth fill and Ghost line (Dashed) only when NOW line is visible.
+        // Transition X: where solid actual line ends (last observed data point)
+        val lastActualIndex = hours.indexOfLast { it.isActual }
+        val transitionX: Float? = if (lastActualIndex >= 0) originalPoints[lastActualIndex].first else null
+        android.util.Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, transitionX=$transitionX, widthPx=$widthPx")
+
+        // --- Draw fill ---
+        // Fill is always under the forecast line (full width at low opacity)
+        canvas.drawPath(forecastFillPath, expectedFillPaint)
+
+        // --- Draw ghost line (future only, when delta is active) ---
         if (nowIndicatorVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f) {
-            canvas.drawPath(expectedFillPath, expectedFillPaint)
+            val clipLeft = transitionX ?: 0f
+            canvas.save()
+            canvas.clipRect(clipLeft, 0f, widthPx.toFloat(), heightPx.toFloat())
             canvas.drawPath(expectedPath, ghostPaint)
-        } else {
-            // If no visible delta context, draw original fill only.
-            val (_, originalFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
-            canvas.drawPath(originalFillPath, expectedFillPaint)
+            canvas.restore()
         }
 
-        // Draw Original Forecast colorful curve on top
-        canvas.drawPath(originalPath, originalCurvePaint)
+        // --- Draw forecast line (thin dashed, full width) ---
+        canvas.drawPath(forecastPath, forecastDashedPaint)
+
+        // --- Draw actual line (solid, past portion only) ---
+        if (transitionX != null) {
+            canvas.save()
+            canvas.clipRect(0f, 0f, transitionX + dpToPx(context, 1f), heightPx.toFloat())
+            canvas.drawPath(originalPath, actualLinePaint)
+            canvas.restore()
+        }
+        // If no actuals: only the forecast dashed line is shown (fresh install)
 
         // --- Draw labels, icons, current-time indicator ---
         val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
@@ -564,16 +612,16 @@ object TemperatureGraphRenderer {
             nowLabelTextPaint,
         ) { dpToPx(context, it) }
 
-        // Draw "Last Fetch Dot" on the Expected Truth (Ghost) line
+        // Draw "Last Fetch Dot" — positioned at observedTempFetchedAt on the actual curve
         if (observedTempFetchedAt != null) {
             val fetchTime = java.time.Instant.ofEpochMilli(observedTempFetchedAt)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDateTime()
-            
+
             val fetchX = GraphRenderUtils.computeXForTime(
                 targetTime = fetchTime,
-                items = expectedHours,
-                points = expectedPoints,
+                items = hours,
+                points = originalPoints,
                 hourWidth = hourWidth,
                 dateTimeOf = { it.dateTime }
             )
@@ -584,19 +632,19 @@ object TemperatureGraphRenderer {
                     withinWindow = fetchX != null,
                 ),
             )
-            
-            Log.d("TempGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${expectedHours.first().dateTime} to ${expectedHours.last().dateTime}")
-            
+
+            Log.d("TempGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${hours.first().dateTime} to ${hours.last().dateTime}")
+
             if (fetchX != null) {
-                // Find Y on the smoothed expected curve
-                val fetchIdx = expectedHours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
-                if (fetchIdx != -1 && fetchIdx < smoothedExpectedTemps.lastIndex) {
-                    val baseTemp = smoothedExpectedTemps[fetchIdx]
-                    val nextTemp = smoothedExpectedTemps[fetchIdx + 1]
-                    val fraction = java.time.Duration.between(expectedHours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+                // Find Y on the actual curve (not the ghost curve)
+                val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
+                if (fetchIdx != -1 && fetchIdx < smoothedActualOrForecastTemps.lastIndex) {
+                    val baseTemp = smoothedActualOrForecastTemps[fetchIdx]
+                    val nextTemp = smoothedActualOrForecastTemps[fetchIdx + 1]
+                    val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
                     val interpolatedFetchTemp = baseTemp + (nextTemp - baseTemp) * fraction
                     val fetchY = graphTop + graphHeight * (1 - (interpolatedFetchTemp - minTemp) / tempRange)
-                    
+
                     val dotRadius = dpToPx(context, 3.2f * labelScale)
                     val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
 
@@ -604,25 +652,22 @@ object TemperatureGraphRenderer {
                         color = tempToColor(interpolatedFetchTemp)
                         style = Paint.Style.FILL
                     }
-                    
                     canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
-                    
-                    // High-contrast white border
+
                     val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.WHITE
                         style = Paint.Style.STROKE
                         strokeWidth = dpToPx(context, 1.5f * labelScale)
                     }
                     canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
-                    
-                    // Darker outer ring for better visibility on light backgrounds
+
                     val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = Color.parseColor("#44000000")
                         style = Paint.Style.STROKE
                         strokeWidth = dpToPx(context, 0.5f * labelScale)
                     }
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + ringPaint.strokeWidth/2f, outerRingPaint)
-                    
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + ringPaint.strokeWidth / 2f, outerRingPaint)
+
                     // On zoomed-in view, show the exact age
                     if (hours.size <= 8) {
                         val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
@@ -631,27 +676,20 @@ object TemperatureGraphRenderer {
                                 val h = ageMinutes / 60
                                 val m = ageMinutes % 60
                                 if (m > 0) "${h}h ${m}m" else "${h}h"
-                            } else {
-                                "${ageMinutes}m"
-                            }
-                            
+                            } else "${ageMinutes}m"
+
                             val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                                 color = Color.parseColor("#BBFFFFFF")
                                 textSize = dpToPx(context, 10f * labelScale)
                                 textAlign = Paint.Align.LEFT
                                 setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                             }
-                            
                             val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
                             val textY = fetchY + ageTextPaint.textSize / 3f
-                            
                             val textWidth = ageTextPaint.measureText(ageText)
                             val finalX = if (textX + textWidth > widthPx) {
                                 clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
-                            } else {
-                                textX
-                            }
-                            
+                            } else textX
                             canvas.drawText(ageText, finalX, textY, ageTextPaint)
                         }
                     }

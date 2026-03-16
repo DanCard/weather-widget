@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -126,6 +127,14 @@ class WeatherRepository
         internal suspend fun fetchDayObservations(stationsUrl: String, date: java.time.LocalDate) = 
             forecastRepository.fetchDayObservations(stationsUrl, date)
 
-        suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) = 
+        suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
             currentTempRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
+
+        suspend fun getHourlyActuals(
+            startDateTime: String,
+            endDateTime: String,
+            source: String,
+            latitude: Double,
+            longitude: Double,
+        ): List<HourlyActualEntity> = forecastRepository.getHourlyActuals(startDateTime, endDateTime, source, latitude, longitude)
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.HourlyActualDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.CurrentTempDao
@@ -66,8 +67,8 @@ class WeatherRepositoryTest {
         observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao)
-        currentTempRepository = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator)
+        forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, mockk(relaxed = true), appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao)
+        currentTempRepository = CurrentTempRepository(context, currentTempDao, observationDao, mockk(relaxed = true), hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator)
 
         repository =
             WeatherRepository(

@@ -298,7 +298,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         context.startActivity(settingsIntent)
                         return@launch
                     }
-                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset)
+                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
                 }
             } finally {
                 pendingResult.finish()

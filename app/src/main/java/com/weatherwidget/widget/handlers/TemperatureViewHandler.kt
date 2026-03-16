@@ -10,6 +10,7 @@ import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
+import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.SettingsActivity
@@ -156,7 +157,24 @@ object TemperatureViewHandler {
         val useGraph = rawRows >= 1.4f
         val graphHours =
             if (useGraph) {
-                buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
+                // Query actuals for the graph's time window (WIDE: backHours=8)
+                val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+                val graphStart = alignedCenter.minusHours(zoom.backHours)
+                val graphEnd = alignedCenter.plusHours(zoom.forwardHours)
+                val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+                val actuals = repository?.getHourlyActuals(
+                    startDateTime = graphStart.format(fmt),
+                    endDateTime = graphEnd.format(fmt),
+                    source = displaySource.id,
+                    latitude = lat,
+                    longitude = lon,
+                ) ?: emptyList()
+                android.util.Log.d("ActualsDebug", "getHourlyActuals: widget=$appWidgetId ${actuals.size} rows, window=[${graphStart.format(fmt)}..${graphEnd.format(fmt)}], zoom=$zoom, source=${displaySource.id}, lat=$lat, lon=$lon, repoNull=${repository == null}")
+                val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, actuals)
+                val actualCount = hourData.count { it.isActual }
+                android.util.Log.d("ActualsDebug", "buildHourDataList: ${hourData.size} hours, $actualCount isActual=true")
+                hourData
             } else {
                 emptyList()
             }
@@ -568,9 +586,13 @@ object TemperatureViewHandler {
         numColumns: Int,
         displaySource: WeatherSource,
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
+        actuals: List<HourlyActualEntity> = emptyList(),
     ): List<TemperatureGraphRenderer.HourData> {
         val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
+
+        // Index actuals by dateTime for O(1) lookup
+        val actualsByTime = actuals.associateBy { it.dateTime }
 
         // Group by dateTime and prefer the selected source, fallback to generic gap
         val forecastsByTime =
@@ -629,10 +651,11 @@ object TemperatureViewHandler {
                         iconRes == R.drawable.ic_weather_partly_cloudy_night ||
                         iconRes == R.drawable.ic_weather_fog_cloudy
 
+                val actual = actualsByTime[hourKey]
                 hours.add(
                     TemperatureGraphRenderer.HourData(
                         dateTime = currentHour,
-                        temperature = forecast.temperature,
+                        temperature = forecast.temperature,          // always forecast
                         label = formatHourLabel(currentHour),
                         iconRes = iconRes,
                         isNight = isNight,
@@ -641,6 +664,8 @@ object TemperatureViewHandler {
                         isMixed = isMixed,
                         isCurrentHour = isCurrentHour,
                         showLabel = showLabel,
+                        isActual = actual != null,
+                        actualTemperature = actual?.temperature,     // null for future hours
                     ),
                 )
                 hourIndex++

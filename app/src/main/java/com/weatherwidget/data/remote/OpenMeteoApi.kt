@@ -40,7 +40,7 @@ class OpenMeteoApi
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
-                    parameter("past_days", 0) // Disabled historical data to save space
+                    parameter("past_days", 2) // Include 2 days of history for actuals
                     parameter("forecast_days", days)
                 }.body()
 

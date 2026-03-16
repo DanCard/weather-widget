@@ -1,6 +1,7 @@
 package com.weatherwidget.testutil
 
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 
@@ -61,6 +62,23 @@ object TestData {
         locationLon = lon,
         distanceKm = distanceKm,
         stationType = stationType,
+        fetchedAt = fetchedAt,
+    )
+
+    fun hourlyActual(
+        dateTime: String = "2026-02-20T14:00",
+        temperature: Float = 65f,
+        source: String = "NWS",
+        lat: Double = LAT,
+        lon: Double = LON,
+        fetchedAt: Long = System.currentTimeMillis(),
+    ) = HourlyActualEntity(
+        dateTime = dateTime,
+        locationLat = lat,
+        locationLon = lon,
+        temperature = temperature,
+        condition = "Clear",
+        source = source,
         fetchedAt = fetchedAt,
     )
 

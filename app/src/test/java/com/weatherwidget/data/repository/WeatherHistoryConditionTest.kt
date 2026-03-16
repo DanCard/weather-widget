@@ -21,7 +21,7 @@ class WeatherHistoryConditionTest {
     fun setup() {
         context = mockk(relaxed = true)
         nwsApi = mockk()
-        forecastRepo = ForecastRepository(context, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), nwsApi, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
+        forecastRepo = ForecastRepository(context, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), nwsApi, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
         repository =
             WeatherRepository(
                 context,
