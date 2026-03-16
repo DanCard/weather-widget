@@ -127,7 +127,13 @@ object TemperatureGraphRenderer {
     data class FetchDotDebug(
         val observedTempFetchedAt: Long,
         val fetchX: Float?,
+        val fetchY: Float? = null,
         val withinWindow: Boolean,
+    )
+
+    data class GhostLineDebug(
+        val startX: Float,
+        val startY: Float,
     )
 
     data class DayLabelPlacementDebug(
@@ -152,6 +158,7 @@ object TemperatureGraphRenderer {
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
+        onGhostLineDebug: ((GhostLineDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -290,21 +297,21 @@ object TemperatureGraphRenderer {
             }
 
         // --- Build paths ---
+        val effectiveDelta = appliedDelta ?: 0f
 
         // Forecast curve — pure forecast temps, runs full width (thin dashed)
         val rawForecastTemps = hours.map { it.temperature }
         val smoothedForecastTemps = GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1)
 
-        // Actual curve — actual where available, forecast fallback for smooth tangents (solid, past only)
-        val rawActualOrForecastTemps = hours.map { it.actualTemperature ?: it.temperature }
-        val smoothedActualOrForecastTemps = GraphRenderUtils.smoothValues(rawActualOrForecastTemps, iterations = 1)
+        // Truth curve (Reality) — Actuals where available, corrected forecast elsewhere.
+        // This ensures the solid actual line and ghost line are part of the same smoothed curve and meet perfectly.
+        val rawTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
+        val smoothedTruthTemps = GraphRenderUtils.smoothValues(rawTruthTemps, iterations = 1)
 
-        // Expected (ghost) curve — forecast + delta correction
-        val rawExpectedTemps = expectedHours.map { it.temperature }
-        val smoothedExpectedTemps = GraphRenderUtils.smoothValues(rawExpectedTemps, iterations = 1)
-
-        // Use actualOrForecast for originalPoints so labels sit on the actual line in the past
-        val smoothedOriginalTemps = smoothedActualOrForecastTemps
+        // Keep backward-compat names for the rest of the function
+        val smoothedActualOrForecastTemps = smoothedTruthTemps
+        val smoothedExpectedTemps = smoothedTruthTemps
+        val smoothedOriginalTemps = smoothedTruthTemps
 
         val originalPoints = mutableListOf<Pair<Float, Float>>()
         val forecastPoints = mutableListOf<Pair<Float, Float>>()
@@ -312,11 +319,11 @@ object TemperatureGraphRenderer {
 
         hours.indices.forEach { index ->
             val x = hourWidth * index + hourWidth / 2
-            val yOriginal = graphTop + graphHeight * (1 - (smoothedActualOrForecastTemps[index] - minTemp) / tempRange)
+            val yOriginal = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yOriginal)
             val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)
             forecastPoints.add(x to yForecast)
-            val yExpected = graphTop + graphHeight * (1 - (smoothedExpectedTemps[index] - minTemp) / tempRange)
+            val yExpected = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
             expectedPoints.add(x to yExpected)
         }
 
@@ -364,6 +371,26 @@ object TemperatureGraphRenderer {
 
         // --- Draw ghost line — projects from observation dot into the future ---
         if (nowIndicatorVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f && fetchDotX != null) {
+            val fetchTime = java.time.Instant.ofEpochMilli(observedTempFetchedAt!!)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+            val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
+            val fraction = if (fetchIdx != -1 && fetchIdx < smoothedExpectedTemps.lastIndex) {
+                java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+            } else null
+            val interpolatedExpectedTemp = if (fraction != null && fetchIdx != -1 && fetchIdx < smoothedExpectedTemps.lastIndex) {
+                val baseTemp = smoothedExpectedTemps[fetchIdx]
+                val nextTemp = smoothedExpectedTemps[fetchIdx + 1]
+                baseTemp + (nextTemp - baseTemp) * fraction
+            } else null
+            val expectedY = if (interpolatedExpectedTemp != null) {
+                graphTop + graphHeight * (1 - (interpolatedExpectedTemp - minTemp) / tempRange)
+            } else null
+
+            if (expectedY != null) {
+                onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX, expectedY))
+            }
+
             canvas.save()
             canvas.clipRect(fetchDotX, 0f, widthPx.toFloat(), heightPx.toFloat())
             canvas.drawPath(expectedPath, ghostPaint)
@@ -641,13 +668,6 @@ object TemperatureGraphRenderer {
                 hourWidth = hourWidth,
                 dateTimeOf = { it.dateTime }
             )
-            onFetchDotResolved?.invoke(
-                FetchDotDebug(
-                    observedTempFetchedAt = observedTempFetchedAt,
-                    fetchX = fetchX,
-                    withinWindow = fetchX != null,
-                ),
-            )
 
             Log.d("TempGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${hours.first().dateTime} to ${hours.last().dateTime}")
 
@@ -666,6 +686,15 @@ object TemperatureGraphRenderer {
                 } else null
                 if (interpolatedFetchTemp != null) {
                     val fetchY = graphTop + graphHeight * (1 - (interpolatedFetchTemp - minTemp) / tempRange)
+
+                    onFetchDotResolved?.invoke(
+                        FetchDotDebug(
+                            observedTempFetchedAt = observedTempFetchedAt,
+                            fetchX = fetchX,
+                            fetchY = fetchY,
+                            withinWindow = true,
+                        ),
+                    )
 
                     val dotRadius = dpToPx(context, 3.2f * labelScale)
                     val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
