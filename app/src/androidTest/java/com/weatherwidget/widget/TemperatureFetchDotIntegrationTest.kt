@@ -59,8 +59,8 @@ class TemperatureFetchDotIntegrationTest {
         assertEquals(secondObservedAt, events[1].observedTempFetchedAt)
         assertTrue(events[0].withinWindow)
         assertTrue(events[1].withinWindow)
-        assertNotNull(events[0].fetchX)
-        assertNotNull(events[1].fetchX)
-        assertTrue("Later timestamp should resolve to the right", events[1].fetchX!! > events[0].fetchX!!)
+        assertNotNull(events[0].fetchDotX)
+        assertNotNull(events[1].fetchDotX)
+        assertTrue("Later timestamp should resolve to the right", events[1].fetchDotX!! > events[0].fetchDotX!!)
     }
 }
