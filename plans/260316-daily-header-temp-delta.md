@@ -1,5 +1,9 @@
 # Add Daily Header Temperature Delta
 
+## Opportunity
+The temp delta in the hourly temperature graph is interesting.
+Would like to see this in the daily forecast view.
+
 ## Summary
 - Surface the existing `current_temp_delta` badge in daily mode using `CurrentTemperatureResolver.appliedDelta`.
 - Keep the meaning identical to hourly mode: observed current temperature minus interpolated hourly estimate.

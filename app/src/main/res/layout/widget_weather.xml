@@ -803,6 +803,18 @@
 
     </FrameLayout>
 
+    <!-- Enlarged API touch zone to catch near-miss taps below the header label -->
+    <FrameLayout
+        android:id="@+id/api_touch_zone"
+        android:layout_width="112dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="44dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
+
     <!-- Home icon (top-middle) - Only visible in hourly views -->
     <ImageView
         android:id="@+id/home_icon"

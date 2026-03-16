@@ -454,6 +454,7 @@ object TemperatureViewHandler {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
+        views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
 
         val textSizeSp =
             when {
