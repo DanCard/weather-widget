@@ -310,16 +310,38 @@ object TemperatureGraphRenderer {
         val rawForecastTemps = hours.map { it.temperature }
         val smoothedForecastTemps = GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1)
 
+        // Calculate trueDelta at fetch time to anchor the ghost line exactly to the observation dot.
+        // effectiveDelta (from CurrentTemperatureResolver) might be decayed or based on current time.
+        // For the graph, we want the ghost line to project FROM the dot.
+        val fetchTime = observedTempFetchedAt?.let {
+            java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+        }
+        val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
+        val fetchFraction = if (fetchTime != null && fetchIdx != -1 && fetchIdx < smoothedForecastTemps.lastIndex) {
+            java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+        } else null
+        
+        val interpolatedForecastAtFetch = if (fetchFraction != null && fetchIdx != -1) {
+            smoothedForecastTemps[fetchIdx] + (smoothedForecastTemps[fetchIdx + 1] - smoothedForecastTemps[fetchIdx]) * fetchFraction
+        } else null
+
+        // If we have an actual temperature at or near fetch time, we use it to calculate the anchor delta.
+        // Most reliable: use the interpolated truth temp at fetch time.
+        val rawTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
+        val smoothedTruthTemps = rawTruthTemps // No smoothing for truth as per user mandate
+
+        val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
+            smoothedTruthTemps[fetchIdx] + (smoothedTruthTemps[fetchIdx + 1] - smoothedTruthTemps[fetchIdx]) * fetchFraction
+        } else null
+
+        val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
+            interpolatedTruthAtFetch - interpolatedForecastAtFetch
+        } else effectiveDelta
+
         // Truth curve (Reality) — Actuals where available, corrected forecast elsewhere.
         // Parallelism: We ensure the ghost line is a pure translation of the forecast line
-        // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + delta.
-        val smoothedExpectedTemps = smoothedForecastTemps.map { it + effectiveDelta }
-
-        // For the solid actual line (past), we show actual history.
-        // If we remove smoothing from truth to satisfy the parallelism mandate,
-        // we use raw actuals for the past and raw forecast+delta for the future to ensure they meet.
-        // NOTE: The user explicitly said "Remove smoothing if that helps with issue".
-        val smoothedTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
+        // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + anchorDelta.
+        val smoothedExpectedTemps = smoothedForecastTemps.map { it + anchorDelta }
 
         // Keep backward-compat names for the rest of the function
         val smoothedActualOrForecastTemps = smoothedTruthTemps
