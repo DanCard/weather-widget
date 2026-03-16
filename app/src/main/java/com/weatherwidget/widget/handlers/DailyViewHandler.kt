@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
 import android.util.Log
 import android.util.TypedValue
 import android.view.View
@@ -179,6 +180,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
+            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
         }
 
         // Show precipitation probability next to current temp when rain is expected
@@ -190,13 +192,30 @@ object DailyViewHandler : WidgetViewHandler {
                 fallbackDailyProbability = todayWeather?.precipProbability,
                 referenceTime = now,
             )
-        if (precipProb != null && precipProb > 0) {
+        val isPrecipVisible = precipProb != null && precipProb > 0
+        if (isPrecipVisible) {
             views.setTextViewText(R.id.precip_probability, "$precipProb%")
             val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(precipProb)
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
+        }
+
+        val delta = currentTempResolution.appliedDelta
+        if (
+            currentTemp != null &&
+            !isPrecipVisible &&
+            delta != null &&
+            kotlin.math.abs(delta) >= 0.1f
+        ) {
+            val deltaText = String.format("%+.1f", delta)
+            val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
+            views.setTextViewText(R.id.current_temp_delta, deltaText)
+            views.setTextColor(R.id.current_temp_delta, deltaColor)
+            views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
         }
 
         // Setup API source toggle click handler
@@ -209,7 +228,6 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.history_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_stations_icon, View.GONE)
         views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         // Set up navigation click handlers
         val availableDates = weatherList.map { it.targetDate }.toSet() + dailyActuals.keys

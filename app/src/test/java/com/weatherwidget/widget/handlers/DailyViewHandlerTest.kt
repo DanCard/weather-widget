@@ -1,7 +1,9 @@
 package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
+import android.graphics.Color
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -10,6 +12,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
+import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -581,6 +584,117 @@ class DailyViewHandlerTest {
         }
         
         assertTrue("Evening highTexts $highTexts should contain 62.9° (for Today)", highTexts.contains("62.9°"))
+    }
+
+    @Test
+    fun `updateWidget daily header shows delta when precip is absent`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(47)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
+        }
+        every { appWidgetManager.getAppWidgetOptions(47) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(47, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 47,
+            weatherList = listOf(createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f)),
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = listOf(
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+            ),
+            currentTemps = listOf(
+                CurrentTempEntity(
+                    date = todayStr,
+                    source = WeatherSource.NWS.id,
+                    locationLat = 37.7749,
+                    locationLon = -122.4194,
+                    temperature = 71f,
+                    observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    condition = "Clear",
+                    fetchedAt = 1L,
+                ),
+            ),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now,
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
+
+        assertEquals(View.VISIBLE, deltaBadge.visibility)
+        assertEquals("+1.0", deltaBadge.text.toString())
+        assertEquals(Color.parseColor("#FF6B35"), deltaBadge.currentTextColor)
+    }
+
+    @Test
+    fun `updateWidget daily header hides delta when precip is visible`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(48)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
+        }
+        every { appWidgetManager.getAppWidgetOptions(48) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(48, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 48,
+            weatherList = listOf(createWeather(todayStr, precipProbability = 65, highTemp = 70f, lowTemp = 55f)),
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = listOf(
+                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
+                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
+            ),
+            currentTemps = listOf(
+                CurrentTempEntity(
+                    date = todayStr,
+                    source = WeatherSource.NWS.id,
+                    locationLat = 37.7749,
+                    locationLon = -122.4194,
+                    temperature = 71f,
+                    observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    condition = "Clear",
+                    fetchedAt = 1L,
+                ),
+            ),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now,
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
+        val precipBadge = applied.findViewById<TextView>(R.id.precip_probability)
+
+        assertEquals(View.GONE, deltaBadge.visibility)
+        assertEquals(View.VISIBLE, precipBadge.visibility)
+        assertEquals("65%", precipBadge.text.toString())
     }
 
     @Test

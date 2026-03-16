@@ -38,7 +38,7 @@ class WeatherObservationsActivityRobolectricTest {
     private val widgetId = 4201
     private val lat = 37.416885
     private val lon = -122.088776
-    private val now = 1_773_525_950_000L
+    private var now = 0L
     private val dbName = "weather_observations_activity_test_db"
 
     @Before
@@ -50,6 +50,8 @@ class WeatherObservationsActivityRobolectricTest {
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
+
+        now = System.currentTimeMillis()
 
         database = WeatherDatabase.getDatabase(context)
         stateManager = WidgetStateManager(context, database.appLogDao())
