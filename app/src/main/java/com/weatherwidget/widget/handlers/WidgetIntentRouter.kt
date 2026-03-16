@@ -263,6 +263,12 @@ object WidgetIntentRouter {
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     ) {
         val stateManager = WidgetStateManager(context)
+        val viewMode = stateManager.getViewMode(appWidgetId)
+        Log.d(TAG, "handleCycleZoom: viewMode=$viewMode widget=$appWidgetId")
+        if (viewMode == com.weatherwidget.widget.ViewMode.DAILY) {
+            Log.w(TAG, "handleCycleZoom: ignoring — widget $appWidgetId is in DAILY mode (stale PendingIntent)")
+            return
+        }
         val oldZoom = stateManager.getZoomLevel(appWidgetId)
         val newZoom = stateManager.cycleZoomLevel(appWidgetId)
 
@@ -275,7 +281,7 @@ object WidgetIntentRouter {
             stateManager.setHourlyOffset(appWidgetId, zoomCenterOffset)
             Log.d(TAG, "handleCycleZoom: Re-centered to absolute offset $zoomCenterOffset for widget $appWidgetId")
         }
-        Log.d(TAG, "handleCycleZoom: Cycled $oldZoom→$newZoom for widget $appWidgetId")
+        Log.d(TAG, "handleCycleZoom: $oldZoom -> $newZoom, zoomCenterOffset=$zoomCenterOffset widget=$appWidgetId")
 
         val database = WeatherDatabase.getDatabase(context)
         val hourlyDao = database.hourlyForecastDao()
@@ -634,9 +640,11 @@ object WidgetIntentRouter {
             // between hourly view types (temperature ↔ precipitation ↔ cloud cover)
             if (previousMode == com.weatherwidget.widget.ViewMode.DAILY) {
                 stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
+                android.util.Log.d(TAG, "handleSetView: RESET zoom to WIDE (was $previousZoom, previousMode=$previousMode)")
             }
             if (targetOffset != Int.MIN_VALUE) {
                 stateManager.setHourlyOffset(appWidgetId, targetOffset)
+                android.util.Log.d(TAG, "handleSetView: set hourlyOffset=$targetOffset")
             }
         }
         Log.d(TAG, "handleSetView: start mode=$targetMode offset=$targetOffset widget=$appWidgetId")

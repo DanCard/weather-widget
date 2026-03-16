@@ -824,6 +824,56 @@ class DailyViewHandlerTest {
         assertEquals(R.drawable.ic_weather_clear, shadowOf(todayImageView.drawable).createdFromResId)
     }
 
+    @Test
+    fun `updateWidget graph mode hides hourly tap zones to prevent stale CYCLE_ZOOM`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(50)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        // 200x200 gives 2+ rows → graph mode
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 200)
+        }
+        every { appWidgetManager.getAppWidgetOptions(50) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(50, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 50,
+            weatherList = listOf(
+                createWeather(todayStr, highTemp = 70f, lowTemp = 55f),
+                createWeather(tomorrowStr, highTemp = 72f, lowTemp = 56f),
+            ),
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActuals = emptyMap(),
+            repository = null,
+            now = now,
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+
+        // These views carry ACTION_CYCLE_ZOOM handlers from TemperatureViewHandler.
+        // DailyViewHandler must explicitly hide them to prevent stale PendingIntents
+        // from firing when the user taps the daily graph.
+        val bodyTapZone = applied.findViewById<View>(R.id.graph_body_tap_zone)
+        val hourZones = applied.findViewById<View>(R.id.graph_hour_zones)
+
+        assertEquals("graph_body_tap_zone must be GONE in daily mode", View.GONE, bodyTapZone.visibility)
+        assertEquals("graph_hour_zones must be GONE in daily mode", View.GONE, hourZones.visibility)
+    }
+
     private fun createWeatherMap(today: LocalDate): Map<String, ForecastEntity> {
         return (-1..5).associate { offset ->
             val date = today.plusDays(offset.toLong())

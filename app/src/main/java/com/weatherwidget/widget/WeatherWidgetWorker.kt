@@ -14,6 +14,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -66,6 +67,7 @@ class WeatherWidgetWorker
                     isOpportunisticContext = opportunisticCurrentTemp,
                     reason = currentTempReason,
                     force = forceRefresh,
+                    targetSource = targetSourceId?.let(WeatherSource::fromId),
                 )
             }
 
@@ -244,6 +246,7 @@ class WeatherWidgetWorker
             isOpportunisticContext: Boolean,
             reason: String,
             force: Boolean = false,
+            targetSource: WeatherSource? = null,
         ): Result {
             return try {
                 val isManual = reason.contains("manual") || reason.contains("force") || force
@@ -267,6 +270,7 @@ class WeatherWidgetWorker
                             latitude = location.first,
                             longitude = location.second,
                             locationName = getLocationName(location.first, location.second),
+                            source = targetSource,
                             reason = reason,
                             forceRefresh = force,
                         )

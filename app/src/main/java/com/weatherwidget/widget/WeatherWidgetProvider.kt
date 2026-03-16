@@ -298,6 +298,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         context.startActivity(settingsIntent)
                         return@launch
                     }
+                    Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
                     WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
                 }
             } finally {
@@ -466,7 +467,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         } else {
             null
         }
-        Log.d(TAG, "onReceive: Cycle Zoom action for widget $appWidgetId, centerOffset=$zoomCenterOffset")
+        val currentMode = WidgetStateManager(context).getViewMode(appWidgetId)
+        val currentZoom = WidgetStateManager(context).getZoomLevel(appWidgetId)
+        Log.d(TAG, "handleCycleZoomAction: widget=$appWidgetId centerOffset=$zoomCenterOffset currentMode=$currentMode currentZoom=$currentZoom")
+        if (currentMode == com.weatherwidget.widget.ViewMode.DAILY) {
+            Log.e(TAG, "BUG: CYCLE_ZOOM fired while in DAILY mode! This should be ACTION_DAY_CLICK. Extras: ${intent.extras}")
+        }
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
@@ -656,6 +662,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         ) {
             val stateManager = WidgetStateManager(context)
             val viewMode = stateManager.getViewMode(appWidgetId)
+            Log.d(TAG, "updateWidgetInternal: widget=$appWidgetId viewMode=$viewMode zoom=${stateManager.getZoomLevel(appWidgetId)}")
 
             when (viewMode) {
                 ViewMode.TEMPERATURE -> {

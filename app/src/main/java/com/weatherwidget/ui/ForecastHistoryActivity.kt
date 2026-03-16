@@ -48,10 +48,14 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import android.content.Context
 import android.os.BatteryManager
 import android.widget.Toast
+import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
+import java.util.UUID
 
 @AndroidEntryPoint
 class ForecastHistoryActivity : AppCompatActivity() {
@@ -763,7 +767,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         // Refresh button
         refreshButton.setOnClickListener {
-            val workRequest =
+            val forecastRefreshWork =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()
@@ -772,34 +776,94 @@ class ForecastHistoryActivity : AppCompatActivity() {
                             .build(),
                     )
                     .build()
-            
+            val currentRefreshWork =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, true)
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "history_manual_refresh")
+                            .putString(WeatherWidgetWorker.KEY_TARGET_SOURCE, cachedRequestedSource?.id)
+                            .build(),
+                    )
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build(),
+                    )
+                    .build()
+
             val workManager = WorkManager.getInstance(this)
             workManager.enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_ONE_TIME,
                 ExistingWorkPolicy.REPLACE,
-                workRequest,
+                forecastRefreshWork,
             )
-            
+            workManager.enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
+                ExistingWorkPolicy.REPLACE,
+                currentRefreshWork,
+            )
+
             Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
             refreshButton.isEnabled = false
-            
-            // Observe the work to reload data when it finishes
-            workManager.getWorkInfoByIdLiveData(workRequest.id).observe(this) { workInfo ->
-                if (workInfo != null && workInfo.state.isFinished) {
-                    refreshButton.isEnabled = true
-                    if (workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) {
-                        loadData(
-                            targetDate = targetDate,
-                            lat = targetLat,
-                            lon = targetLon,
-                            date = targetLocalDate,
-                            requestedSource = cachedRequestedSource,
-                        )
-                        loadAccuracySummary(targetLat, targetLon)
-                    }
+
+            observeRefreshCompletion(
+                workManager = workManager,
+                refreshButton = refreshButton,
+                forecastWorkId = forecastRefreshWork.id,
+                currentWorkId = currentRefreshWork.id,
+            )
+        }
+    }
+
+    private fun observeRefreshCompletion(
+        workManager: WorkManager,
+        refreshButton: Button,
+        forecastWorkId: UUID,
+        currentWorkId: UUID,
+    ) {
+        var forecastFinished = false
+        var currentFinished = false
+        var refreshSucceeded = false
+        var handled = false
+
+        fun onFinished(workInfo: WorkInfo?, isForecastWork: Boolean) {
+            if (workInfo == null || !workInfo.state.isFinished || handled) return
+
+            if (isForecastWork) {
+                forecastFinished = true
+            } else {
+                currentFinished = true
+            }
+            refreshSucceeded = refreshSucceeded || workInfo.state == WorkInfo.State.SUCCEEDED
+
+            if (forecastFinished && currentFinished) {
+                handled = true
+                refreshButton.isEnabled = true
+                if (refreshSucceeded) {
+                    reloadHistoryScreen()
                 }
             }
         }
+
+        workManager.getWorkInfoByIdLiveData(forecastWorkId).observe(this) { workInfo ->
+            onFinished(workInfo, isForecastWork = true)
+        }
+        workManager.getWorkInfoByIdLiveData(currentWorkId).observe(this) { workInfo ->
+            onFinished(workInfo, isForecastWork = false)
+        }
+    }
+
+    private fun reloadHistoryScreen() {
+        loadData(
+            targetDate = targetDate,
+            lat = targetLat,
+            lon = targetLon,
+            date = targetLocalDate,
+            requestedSource = cachedRequestedSource,
+        )
+        loadAccuracySummary(targetLat, targetLon)
     }
 
     private fun formatRelativeTime(durationMs: Long): String {
