@@ -336,20 +336,36 @@ object TemperatureGraphRenderer {
             )
         val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
 
-        // Transition X: where solid actual line ends (last observed data point)
+        // Transition X: where solid actual line ends
+        // Capped at the earlier of NOW and the last observation fetch time,
+        // because isActual can be true for hours beyond the real observation window (e.g. WAPI)
         val lastActualIndex = hours.indexOfLast { it.isActual }
-        val transitionX: Float? = if (lastActualIndex >= 0) originalPoints[lastActualIndex].first else null
-        android.util.Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, transitionX=$transitionX, widthPx=$widthPx")
+        val rawTransitionX: Float? = if (lastActualIndex >= 0) originalPoints[lastActualIndex].first else null
+        val fetchDotX: Float? = if (observedTempFetchedAt != null) {
+            val fetchTime = java.time.Instant.ofEpochMilli(observedTempFetchedAt)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+            GraphRenderUtils.computeXForTime(
+                targetTime = fetchTime,
+                items = hours,
+                points = originalPoints,
+                hourWidth = hourWidth,
+                dateTimeOf = { it.dateTime },
+            )
+        } else null
+        val transitionX: Float? = rawTransitionX?.let { raw ->
+            listOfNotNull(raw, nowX, fetchDotX).min()
+        }
+        android.util.Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, fetchDotX=$fetchDotX, rawTransitionX=$rawTransitionX, transitionX=$transitionX, widthPx=$widthPx")
 
         // --- Draw fill ---
         // Fill is always under the forecast line (full width at low opacity)
         canvas.drawPath(forecastFillPath, expectedFillPaint)
 
-        // --- Draw ghost line (future only, when delta is active) ---
-        if (nowIndicatorVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f) {
-            val clipLeft = transitionX ?: 0f
+        // --- Draw ghost line — projects from observation dot into the future ---
+        if (nowIndicatorVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f && fetchDotX != null) {
             canvas.save()
-            canvas.clipRect(clipLeft, 0f, widthPx.toFloat(), heightPx.toFloat())
+            canvas.clipRect(fetchDotX, 0f, widthPx.toFloat(), heightPx.toFloat())
             canvas.drawPath(expectedPath, ghostPaint)
             canvas.restore()
         }
@@ -636,13 +652,19 @@ object TemperatureGraphRenderer {
             Log.d("TempGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${hours.first().dateTime} to ${hours.last().dateTime}")
 
             if (fetchX != null) {
-                // Find Y on the actual curve (not the ghost curve)
+                // Place dot at the observed temperature Y if available (direct reading),
+                // otherwise interpolate from the actual curve
                 val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
-                if (fetchIdx != -1 && fetchIdx < smoothedActualOrForecastTemps.lastIndex) {
+                val fraction = if (fetchIdx != -1 && fetchIdx < smoothedActualOrForecastTemps.lastIndex) {
+                    java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+                } else null
+                // Position dot on the solid actual curve so it visually sits on the line.
+                val interpolatedFetchTemp = if (fraction != null && fetchIdx != -1 && fetchIdx < smoothedActualOrForecastTemps.lastIndex) {
                     val baseTemp = smoothedActualOrForecastTemps[fetchIdx]
                     val nextTemp = smoothedActualOrForecastTemps[fetchIdx + 1]
-                    val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
-                    val interpolatedFetchTemp = baseTemp + (nextTemp - baseTemp) * fraction
+                    baseTemp + (nextTemp - baseTemp) * fraction
+                } else null
+                if (interpolatedFetchTemp != null) {
                     val fetchY = graphTop + graphHeight * (1 - (interpolatedFetchTemp - minTemp) / tempRange)
 
                     val dotRadius = dpToPx(context, 3.2f * labelScale)

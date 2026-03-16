@@ -12,7 +12,9 @@ import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
+import io.mockk.slot
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -78,6 +80,59 @@ class TemperatureGraphRendererFetchDotTest {
 
         // Hidden NOW indicator should force original-only fill + curve (2 paths).
         verify(exactly = 2) { anyConstructed<Canvas>().drawPath(any(), any()) }
+    }
+
+    @Test
+    fun `fetch dot Y sits on the ghost curve at observation point`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 26, 10, 0)
+        // Forecast temps flat at 60. observedTemp is 65 (different from curve).
+        // The dot should sit on the 60° curve, NOT at the 65° observation value,
+        // because visually the dot marks position on the solid line.
+        val hours = (0..7).map { offset ->
+            TemperatureGraphRenderer.HourData(
+                dateTime = start.plusHours(offset.toLong()),
+                temperature = 60f,
+                label = "${(10 + offset) % 24}h",
+                showLabel = true,
+                isCurrentHour = offset == 3,
+            )
+        }
+        val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        // Render WITH observedTemp=65
+        val yWithTemp = mutableListOf<Float>()
+        every { anyConstructed<Canvas>().drawCircle(any(), capture(yWithTemp), any(), any()) } returns Unit
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 300,
+            currentTime = start.plusHours(3),
+            observedTempFetchedAt = observedAtMs,
+        )
+
+        assert(yWithTemp.size >= 3) { "Expected 3 drawCircle calls for fetch dot, got ${yWithTemp.size}" }
+        val dotYWithTemp = yWithTemp[0]
+        assertEquals("All dot circles at same Y", dotYWithTemp, yWithTemp[1], 0.01f)
+
+        // Render WITHOUT observedTemp — dot should be at same Y (both use curve)
+        val yWithout = mutableListOf<Float>()
+        every { anyConstructed<Canvas>().drawCircle(any(), capture(yWithout), any(), any()) } returns Unit
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 300,
+            currentTime = start.plusHours(3),
+            observedTempFetchedAt = observedAtMs,
+        )
+
+        val dotYWithout = yWithout[0]
+        // Both should be at the same Y since both use the curve
+        assertEquals("Dot Y should be same with or without observedTemp", dotYWithTemp, dotYWithout, 0.01f)
     }
 
     private fun mockContext(): Context {

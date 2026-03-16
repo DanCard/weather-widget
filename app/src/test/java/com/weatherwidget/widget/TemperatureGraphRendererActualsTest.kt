@@ -10,9 +10,11 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 
@@ -87,6 +89,8 @@ class TemperatureGraphRendererActualsTest {
         val start = LocalDateTime.of(2026, 2, 20, 10, 0)
         // Mark hour index 5 as current hour so NOW indicator is visible
         val hours = buildHours(start, actualsCount = 3, markCurrentHour = true, currentHourIndex = 5)
+        // Ghost line requires an observation (fetchDotX) to project from
+        val observedAtMs = start.plusHours(4).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -95,6 +99,7 @@ class TemperatureGraphRendererActualsTest {
             heightPx = 300,
             currentTime = start.plusHours(5),
             appliedDelta = 2.0f,
+            observedTempFetchedAt = observedAtMs,
         )
 
         verify(exactly = 4) { anyConstructed<Canvas>().drawPath(any(), any()) }
@@ -142,6 +147,81 @@ class TemperatureGraphRendererActualsTest {
         )
 
         verify(exactly = 3) { anyConstructed<Canvas>().drawPath(any(), any()) }
+    }
+
+    // -------------------------------------------------------------------
+    // Test 6: Actual line does not extend past NOW even when isActual
+    //         hours exist in the future
+    // -------------------------------------------------------------------
+    @Test
+    fun `actual line clipRect does not extend past NOW when actuals span future hours`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 20, 10, 0)
+        // currentTime is at hour index 3 (13:00), but actuals go through index 6 (16:00)
+        // This simulates WAPI returning "actual" data for future hours
+        val hours = buildHours(start, actualsCount = 7, markCurrentHour = true, currentHourIndex = 3)
+
+        val clipRights = mutableListOf<Float>()
+        every {
+            anyConstructed<Canvas>().clipRect(any<Float>(), any<Float>(), capture(clipRights), any<Float>())
+        } returns true
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 300,
+            currentTime = start.plusHours(3),
+        )
+
+        val hourWidth = 800f / 8f
+        val nowApproxX = hourWidth * 3 + hourWidth / 2  // ~350
+        val lastActualApproxX = hourWidth * 6 + hourWidth / 2  // ~650
+
+        // The actual line clipRect is the one that clips to the LEFT side (right edge < widthPx)
+        val actualLineClips = clipRights.filter { it < 800f - 1f }
+        assertTrue("Expected at least one clipRect for actual line", actualLineClips.isNotEmpty())
+        val actualLineRight = actualLineClips.maxOrNull()!!
+        assertTrue(
+            "Actual line clip right ($actualLineRight) should be near NOW (~$nowApproxX) not at lastActual (~$lastActualApproxX)",
+            actualLineRight < nowApproxX + 10f
+        )
+    }
+
+    @Test
+    fun `actual line clipRect stops at fetch dot when observation is older than NOW`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 20, 10, 0)
+        // currentTime at index 5 (15:00), actuals through index 5,
+        // but observation was fetched at 14:00 (index 4) — 1 hour stale
+        val hours = buildHours(start, actualsCount = 6, markCurrentHour = true, currentHourIndex = 5)
+        val fetchedAtMs = start.plusHours(4).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val clipRights = mutableListOf<Float>()
+        every {
+            anyConstructed<Canvas>().clipRect(any<Float>(), any<Float>(), capture(clipRights), any<Float>())
+        } returns true
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 300,
+            currentTime = start.plusHours(5),
+            observedTempFetchedAt = fetchedAtMs,
+        )
+
+        val hourWidth = 800f / 8f
+        val fetchApproxX = hourWidth * 4 + hourWidth / 2  // ~450
+        val nowApproxX = hourWidth * 5 + hourWidth / 2    // ~550
+
+        val actualLineClips = clipRights.filter { it < 800f - 1f }
+        assertTrue("Expected at least one clipRect for actual line", actualLineClips.isNotEmpty())
+        val actualLineRight = actualLineClips.maxOrNull()!!
+        assertTrue(
+            "Actual line clip right ($actualLineRight) should be near fetchDot (~$fetchApproxX) not NOW (~$nowApproxX)",
+            actualLineRight < fetchApproxX + 10f
+        )
     }
 
     // -------------------------------------------------------------------
