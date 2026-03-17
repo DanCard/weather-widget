@@ -223,7 +223,12 @@ class ForecastRepository
             
             val meteoDeferred = if (shouldFetchMeteo) async {
                 try {
-                    val result = openMeteoApi.getForecast(latitude, longitude, 7)
+                    val result = openMeteoApi.getForecast(
+                        latitude, 
+                        longitude, 
+                        7, 
+                        historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS
+                    )
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyForecasts(result.hourly, latitude, longitude)
                     }
@@ -262,10 +267,10 @@ class ForecastRepository
                     if (result.hourly.isNotEmpty()) {
                         saveWeatherApiHourlyForecasts(result.hourly, latitude, longitude)
                     }
-                    // Fetch history for yesterday and today to populate hourly_actuals
+                    // Fetch history to populate hourly_actuals
                     val today = LocalDate.now()
-                    val yesterday = today.minusDays(1)
-                    for (date in listOf(yesterday, today)) {
+                    val historyDates = (WeatherConfig.ACTUALS_HISTORY_DAYS - 1 downTo 0).map { today.minusDays(it.toLong()) }
+                    for (date in historyDates) {
                         try {
                             val historyHours = weatherApi.getHistory(latitude, longitude, date.toString())
                             if (historyHours.isNotEmpty()) {
@@ -813,7 +818,7 @@ class ForecastRepository
             val now = LocalDateTime.now()
             val nowKey = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val fetchedAt = System.currentTimeMillis()
-            // Past hours from Open-Meteo (past_days=2) are actual observations
+            // Past hours from Open-Meteo (past_days=ACTUALS_HISTORY_DAYS) are actual observations
             val actuals = hourlyData.filter { it.dateTime < nowKey }.map {
                 HourlyActualEntity(
                     it.dateTime, latitude, longitude, it.temperature,

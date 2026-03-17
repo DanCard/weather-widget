@@ -30,6 +30,7 @@ class OpenMeteoApi
             lat: Double,
             lon: Double,
             days: Int = 7,
+            historyDays: Int = 0,
         ): WeatherForecast {
             val response: String =
                 httpClient.get("$BASE_URL/forecast") {
@@ -40,7 +41,7 @@ class OpenMeteoApi
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
-                    parameter("past_days", 2) // Include 2 days of history for actuals
+                    parameter("past_days", historyDays) // Include variable history for actuals
                     parameter("forecast_days", days)
                 }.body()
 

@@ -422,8 +422,8 @@ class CurrentTempRepository
             android.util.Log.d(TAG, "Found ${stations.size} stations to try")
             if (stations.isEmpty()) return
             
-            // Fetch a wider window (48h) to ensure we cover all of yesterday and today's partials
-            val startTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.minusDays(2).toInstant())
+            // Fetch a wider window based on configuration to ensure we cover all of the required partials
+            val startTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.minusDays(WeatherConfig.NWS_BACKFILL_DAYS.toLong()).toInstant())
             val endTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
             
             for (stationInfo in stations.take(3)) {
