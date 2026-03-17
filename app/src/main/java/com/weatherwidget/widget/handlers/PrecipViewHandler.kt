@@ -293,38 +293,23 @@ object PrecipViewHandler {
         zoom: com.weatherwidget.widget.ZoomLevel,
         hourlyOffset: Int,
     ) {
-        if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE) {
-            views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
-            views.setOnClickPendingIntent(R.id.graph_view, null)
+        views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
+        views.setOnClickPendingIntent(R.id.graph_view, null)
 
-            HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
-                val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset)
-                val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = ACTION_CYCLE_ZOOM
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
-                }
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    appWidgetId * 100 + 500 + i,
-                    zoomIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
-                views.setOnClickPendingIntent(zoneId, pendingIntent)
-            }
-        } else {
-            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+        HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
+            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset, zoom)
             val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
-            val zoomPendingIntent = PendingIntent.getBroadcast(
+            val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 2 + 400,
+                appWidgetId * 100 + 500 + i,
                 zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.graph_view, zoomPendingIntent)
+            views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
     }
 

@@ -272,11 +272,8 @@ object WidgetIntentRouter {
         val oldZoom = stateManager.getZoomLevel(appWidgetId)
         val newZoom = stateManager.cycleZoomLevel(appWidgetId)
 
-        // When zooming IN (WIDE→NARROW) and a center offset was provided, re-center
-        if (oldZoom == com.weatherwidget.widget.ZoomLevel.WIDE &&
-            newZoom == com.weatherwidget.widget.ZoomLevel.NARROW &&
-            zoomCenterOffset != null
-        ) {
+        // When a center offset is provided by a tap zone, re-center the view
+        if (zoomCenterOffset != null) {
             // The zoomCenterOffset is the pre-calculated absolute offset of the tapped zone.
             stateManager.setHourlyOffset(appWidgetId, zoomCenterOffset)
             Log.d(TAG, "handleCycleZoom: Re-centered to absolute offset $zoomCenterOffset for widget $appWidgetId")

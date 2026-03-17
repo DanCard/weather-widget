@@ -170,21 +170,21 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
     }
 
     @Test
-    fun handleCycleZoom_zoomOut_ignoresOffset() {
+    fun handleCycleZoom_zoomOut_usesOffset() {
         // Start in NARROW zoom
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
         stateManager.setHourlyOffset(testWidgetId, 9)
 
-        // Zoom out — offset param should be ignored since we're going NARROW→WIDE
+        // Zoom out — offset param should be USED to re-center
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
             } catch (_: Exception) {}
         }
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
-        // Offset should remain 9, not changed to 0
-        assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
+        // Offset should be changed to 0
+        assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test
@@ -252,7 +252,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
             assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
             // Step 1: Build intent (same as setupZoomTapZones)
-            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, baseOffset)
+            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, baseOffset, ZoomLevel.WIDE)
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
@@ -285,7 +285,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
         // Tap zone 0 (leftmost): with baseOffset=6 this should target absolute offset -2.
-        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset)
+        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
@@ -305,20 +305,22 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
     }
 
     @Test
-    fun zoneIntentRoundTrip_narrowZoomOut_noOffsetExtra() {
+    fun zoneIntentRoundTrip_narrowZoomOut_usesOffsetExtra() {
         // Start in NARROW
         stateManager.cycleZoomLevel(testWidgetId)
-        stateManager.setHourlyOffset(testWidgetId, 9)
+        val baseOffset = 0
+        stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // Build intent without EXTRA_ZOOM_CENTER_OFFSET (same as NARROW tap)
+        // Test clicking the left-most zone (zone 0) in NARROW mode.
+        // NARROW maps zone 0 to offset -2.
+        val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.NARROW)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
+            putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
         }
 
-        // Extract: should be null since no extra
-        assertFalse(intent.hasExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET))
-        val extractedOffset: Int? = null
+        val extractedOffset = intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
 
         runBlocking {
             try {
@@ -327,6 +329,6 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         }
 
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
-        assertEquals(9, stateManager.getHourlyOffset(testWidgetId))  // Preserved
+        assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))  // Recentered to tap location
     }
 }

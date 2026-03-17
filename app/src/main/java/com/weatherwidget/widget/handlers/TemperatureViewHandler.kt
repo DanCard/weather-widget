@@ -297,7 +297,7 @@ object TemperatureViewHandler {
 
     /**
      * WIDE zoom: 12 zones overlay the graph, each encoding the center hour for NARROW zoom.
-     * NARROW zoom: single tap on graph_view zooms back out (no offset needed).
+     * NARROW zoom: 12 zones overlay the graph, each encoding the center hour for WIDE zoom.
      */
     private fun setupZoomTapZones(
         context: Context,
@@ -306,46 +306,26 @@ object TemperatureViewHandler {
         zoom: com.weatherwidget.widget.ZoomLevel,
         hourlyOffset: Int,
     ) {
-        if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE) {
-            // Show hour zones only over the graph body, not the bottom icon/label row.
-            views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
-            views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
-            views.setOnClickPendingIntent(R.id.graph_view, null)
-            views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
+        // Show hour zones only over the graph body, not the bottom icon/label row.
+        views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
+        views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
+        views.setOnClickPendingIntent(R.id.graph_view, null)
+        views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
-            // WIDE window is offset-8 to offset+16, with each of the 12 zones targeting
-            // the earlier hour in its 2h bucket so the tapped hour centers in NARROW mode.
-            HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
-                val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset)
-                val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = ACTION_CYCLE_ZOOM
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
-                }
-                val pendingIntent = PendingIntent.getBroadcast(
-                    context,
-                    appWidgetId * 100 + 500 + i,
-                    zoomIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
-                views.setOnClickPendingIntent(zoneId, pendingIntent)
-            }
-        } else {
-            // NARROW: hide hour zones and use the graph body only for zoom-out.
-            views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
-            views.setViewVisibility(R.id.graph_body_tap_zone, View.VISIBLE)
+        HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
+            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset, zoom)
             val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
-            val zoomPendingIntent = PendingIntent.getBroadcast(
+            val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 2 + 400,
+                appWidgetId * 100 + 500 + i,
                 zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            views.setOnClickPendingIntent(R.id.graph_view, null)
-            views.setOnClickPendingIntent(R.id.graph_body_tap_zone, zoomPendingIntent)
+            views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
     }
 

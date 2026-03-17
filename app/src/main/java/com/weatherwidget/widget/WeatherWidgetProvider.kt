@@ -617,14 +617,20 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         /**
          * Calculate the hourly offset that a zone's center represents.
          * WIDE view spans roughly 24h (-8 to +16 from current offset), split into 12 zones of 2h each.
-         * We bias the selected offset to the earlier hour in each 2h zone so the tapped hour
-         * appears centered after switching into the symmetric NARROW window.
+         * NARROW view spans roughly 4h (-2 to +2), split into 12 zones of 1/3h each.
+         * We bias the selected offset so the tapped hour appears centered after switching zooms.
          * @param zoneIndex 0-based zone index (0..11, left to right)
          * @param currentHourlyOffset the widget's current hourly offset
-         * @return the offset to center on when zooming into this zone
+         * @param zoom the current zoom level of the widget
+         * @return the offset to center on when zooming into/out of this zone
          */
-        fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int): Int {
-            return currentHourlyOffset + (-8 + 2 * zoneIndex)
+        fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int, zoom: ZoomLevel = ZoomLevel.WIDE): Int {
+            return if (zoom == ZoomLevel.WIDE) {
+                currentHourlyOffset + (-8 + 2 * zoneIndex)
+            } else {
+                val offsetFloat = -2f + (zoneIndex + 0.5f) / 3f
+                currentHourlyOffset + Math.round(offsetFloat)
+            }
         }
         private const val TAG = "WeatherWidgetProvider"
 
