@@ -455,6 +455,23 @@ object TemperatureGraphRenderer {
             canvas.restore()
         }
 
+        val fetchY: Float? = if (interpolatedTruthAtFetch != null) {
+            graphTop + graphHeight * (1 - (interpolatedTruthAtFetch - minTemp) / tempRange)
+        } else {
+            null
+        }
+        val fetchDotWithinWindow = fetchDotX != null && fetchY != null
+        if (observedTempFetchedAt != null) {
+            onFetchDotResolved?.invoke(
+                FetchDotDebug(
+                    observedTempFetchedAt = observedTempFetchedAt,
+                    fetchDotX = fetchDotX,
+                    fetchY = fetchY,
+                    withinWindow = fetchDotWithinWindow,
+                ),
+            )
+        }
+
         // --- Draw labels, icons, current-time indicator ---
         val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
 
@@ -690,23 +707,13 @@ object TemperatureGraphRenderer {
 
         // Draw "Last Fetch Dot"
         if (observedTempFetchedAt != null && fetchDotX != null) {
-            if (interpolatedTruthAtFetch != null) {
-                val fetchY = graphTop + graphHeight * (1 - (interpolatedTruthAtFetch - minTemp) / tempRange)
-
-                onFetchDotResolved?.invoke(
-                    FetchDotDebug(
-                        observedTempFetchedAt = observedTempFetchedAt,
-                        fetchDotX = fetchDotX,
-                        fetchY = fetchY,
-                        withinWindow = true,
-                    ),
-                )
-
+            val resolvedFetchTemp = interpolatedTruthAtFetch
+            if (fetchY != null && resolvedFetchTemp != null) {
                 val dotRadius = dpToPx(context, 3.2f * labelScale)
                 val clampedFetchX = fetchDotX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
 
                 val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = tempToColor(interpolatedTruthAtFetch)
+                    color = tempToColor(resolvedFetchTemp)
                     style = Paint.Style.FILL
                 }
                 canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
