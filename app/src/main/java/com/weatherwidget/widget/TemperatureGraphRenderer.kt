@@ -384,9 +384,14 @@ object TemperatureGraphRenderer {
             )
         )
 
-        val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+        // Build paths. 
+        // Reality paths (Actual solid line, Ghost projection line) use JAGAGED paths (linear segments)
+        // to ensure they perfectly match the linear interpolation used for the fetch dot grounding.
+        val (originalPath, _) = GraphRenderUtils.buildJaggedPath(originalPoints, graphBottom)
+        val (expectedPath, expectedFillPath) = GraphRenderUtils.buildJaggedPath(expectedPoints, graphBottom)
+
+        // Forecast line (thin dashed background) stays smoothed for visual fluidness.
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
-        val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
 
         // Compute NOW x-position first (needed to anchor transitionX)
         val nowX =

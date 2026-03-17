@@ -7,6 +7,31 @@ import java.time.Duration
 import java.time.LocalDateTime
 
 internal object GraphRenderUtils {
+    fun buildJaggedPath(
+        points: List<Pair<Float, Float>>,
+        graphBottom: Float,
+    ): Pair<Path, Path> {
+        val curvePath = Path()
+        val fillPath = Path()
+        if (points.isEmpty()) return curvePath to fillPath
+
+        curvePath.moveTo(points[0].first, points[0].second)
+        fillPath.moveTo(points[0].first, points[0].second)
+
+        for (i in 1 until points.size) {
+            curvePath.lineTo(points[i].first, points[i].second)
+            fillPath.lineTo(points[i].first, points[i].second)
+        }
+
+        if (points.size > 1) {
+            fillPath.lineTo(points.last().first, graphBottom)
+            fillPath.lineTo(points[0].first, graphBottom)
+            fillPath.close()
+        }
+
+        return curvePath to fillPath
+    }
+
     fun buildSmoothCurveAndFillPaths(
         points: List<Pair<Float, Float>>,
         graphBottom: Float,
