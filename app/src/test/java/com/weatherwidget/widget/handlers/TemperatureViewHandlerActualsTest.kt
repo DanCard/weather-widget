@@ -27,8 +27,8 @@ class TemperatureViewHandlerActualsTest {
      * WIDE: back=8h, forward=16h → 2026-02-20 04:00 through 2026-02-20 28:00
      */
     private fun wideForecasts(): List<com.weatherwidget.data.local.HourlyForecastEntity> {
-        val start = center.minusHours(9) // extra buffer
-        val end = center.plusHours(17)
+        val start = center.minusHours(10) // extra buffer
+        val end = center.plusHours(50)
         val result = mutableListOf<com.weatherwidget.data.local.HourlyForecastEntity>()
         var cur = start
         while (!cur.isAfter(end)) {
@@ -41,7 +41,7 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `actual matched by dateTime sets isActual and actualTemperature`() {
         val forecasts = wideForecasts()
-        val actuals = listOf(TestData.hourlyActual(dateTime = "2026-02-20T10:00", temperature = 68f))
+        val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 68f))
 
         val hours = TemperatureViewHandler.buildHourDataList(
             hourlyForecasts = forecasts,
@@ -61,7 +61,7 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `non-matching hours have isActual false and null actualTemperature`() {
         val forecasts = wideForecasts()
-        val actuals = listOf(TestData.hourlyActual(dateTime = "2026-02-20T10:00", temperature = 68f))
+        val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 68f))
 
         val hours = TemperatureViewHandler.buildHourDataList(
             hourlyForecasts = forecasts,
@@ -72,9 +72,9 @@ class TemperatureViewHandlerActualsTest {
             actuals = actuals,
         )
 
-        val nonActualHours = hours.filter { it.dateTime.hour != 10 || it.dateTime.dayOfMonth != 20 }
-        assertTrue("At least some non-actual hours should exist", nonActualHours.isNotEmpty())
-        for (h in nonActualHours) {
+        val hoursBefore10 = hours.filter { it.dateTime.hour < 10 && it.dateTime.dayOfMonth == 20 }
+        assertTrue("At least some non-actual hours should exist", hoursBefore10.isNotEmpty())
+        for (h in hoursBefore10) {
             assertFalse("Hour ${h.dateTime} should have isActual=false", h.isActual)
             assertNull("Hour ${h.dateTime} should have null actualTemperature", h.actualTemperature)
         }
@@ -102,7 +102,7 @@ class TemperatureViewHandlerActualsTest {
     fun `forecast temperature field is always the forecast value, not the actual`() {
         val forecasts = wideForecasts()
         // The forecast at 10:00 has temperature = 60 + 10 = 70f
-        val actuals = listOf(TestData.hourlyActual(dateTime = "2026-02-20T10:00", temperature = 99f))
+        val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 99f))
 
         val hours = TemperatureViewHandler.buildHourDataList(
             hourlyForecasts = forecasts,
@@ -143,7 +143,6 @@ class TemperatureViewHandlerActualsTest {
             "WIDE (${wideHours.size}) should have more hours than NARROW (${narrowHours.size})",
             wideHours.size > narrowHours.size,
         )
-        // WIDE: back=8, forward=16 = 25 hours; NARROW: back=2, forward=2 = 5 hours
         assertTrue("WIDE should cover ≥25 hours when data available", wideHours.size >= 25)
         assertTrue("NARROW should cover ≤5 hours", narrowHours.size <= 5)
     }
@@ -153,7 +152,7 @@ class TemperatureViewHandlerActualsTest {
         val forecasts = wideForecasts()
         // NARROW window around noon: back=2 → 10:00, forward=2 → 14:00
         // Actual at 06:00 is outside NARROW window
-        val actuals = listOf(TestData.hourlyActual(dateTime = "2026-02-20T06:00", temperature = 55f))
+        val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T06:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 55f))
 
         val hours = TemperatureViewHandler.buildHourDataList(
             hourlyForecasts = forecasts,

@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -915,7 +916,14 @@ class ForecastRepository
             source: String,
             latitude: Double,
             longitude: Double,
-        ) = hourlyActualDao.getActualsInRange(startDateTime, endDateTime, source, latitude, longitude)
+        ): List<HourlyActualEntity> = hourlyActualDao.getActualsInRange(startDateTime, endDateTime, source, latitude, longitude)
+
+        suspend fun getObservationsInRange(
+            startTimestamp: Long,
+            endTimestamp: Long,
+            latitude: Double,
+            longitude: Double,
+        ): List<ObservationEntity> = observationDao.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
 
         suspend fun getCachedData(latitude: Double, longitude: Double) =
             forecastDao.getLatestForecastsInRange(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), latitude, longitude)

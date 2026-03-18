@@ -204,7 +204,10 @@ object TemperatureGraphRenderer {
         val graphBottom = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        val hourWidth = widthPx.toFloat() / hours.size
+        val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
+        val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
+        val timeRangeHours = if (maxTimeEpoch > minTimeEpoch) (maxTimeEpoch - minTimeEpoch) / 3600f else hours.size.toFloat() - 1f
+        val hourWidth = widthPx.toFloat() / (timeRangeHours + 1f).coerceAtLeast(1f)
 
         // --- Paints ---
 
@@ -353,7 +356,7 @@ object TemperatureGraphRenderer {
         // We show raw actual history or raw forecast (no delta) in the label text.
         // We keep smoothing here so the label placement is visually fluid.
         val rawLabelTemps = hours.map { it.actualTemperature ?: it.temperature }
-        val smoothedLabelTemps = GraphRenderUtils.smoothValues(rawLabelTemps, iterations = 1)
+        val smoothedLabelTemps = rawLabelTemps
 
         // Keep backward-compat name for transitionX and fetch dot grounding
         val smoothedActualOrForecastTemps = smoothedTruthTemps
@@ -363,7 +366,8 @@ object TemperatureGraphRenderer {
         val expectedPoints = mutableListOf<Pair<Float, Float>>()
 
         hours.indices.forEach { index ->
-            val x = hourWidth * index + hourWidth / 2
+            val pointEpoch = hours[index].dateTime.toEpochSecond(java.time.ZoneOffset.UTC)
+            val x = hourWidth / 2f + ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
             // Use Truth Y for the solid line path so it meets the dot
             val yTruth = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yTruth)
@@ -576,8 +580,8 @@ object TemperatureGraphRenderer {
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
         significantLocalExtrema.forEach { idx ->
             if (idx !in specialIndices) {
-                val labelText = String.format("%.0f", smoothedLabelTemps[idx])
-                if (specialIndices.none { Math.abs(idx - it) <= 3 && String.format("%.0f", smoothedLabelTemps[it]) == labelText }) specialIndices.add(idx)
+                val labelText = String.format("%.1f", smoothedLabelTemps[idx])
+                if (specialIndices.none { Math.abs(idx - it) <= 3 && String.format("%.1f", smoothedLabelTemps[it]) == labelText }) specialIndices.add(idx)
             }
         }
         if (0 !in specialIndices) specialIndices.add(0)
@@ -598,7 +602,7 @@ object TemperatureGraphRenderer {
 
         for (idx in specialIndices) {
             val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) centerOfRun(idx) else originalPoints[idx].first to originalPoints[idx].second
-            val label = String.format("%.0f°", smoothedLabelTemps[idx])
+            val label = String.format("%.1f°", smoothedLabelTemps[idx])
             val textWidth = tempLabelTextPaint.measureText(label)
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)

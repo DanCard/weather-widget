@@ -1,6 +1,7 @@
 ## Project Overview
 
-**Weather Widget** is an Android widget-only application that displays weather forecasts with dual-API support (NWS and Open-Meteo). The app has no launcher activity - users interact entirely through the resizable home screen widget.
+**Weather Widget** is an Android widget-only application that displays weather forecasts with multiple API support.
+The app has no launcher activity - users interact entirely through the resizable home screen widget.
 
 ### Key Features
 - **Multiple API Sources**: Fetches from NWS (US-only, official government data), Open-Meteo (global, no API key), openweather api, and silurian.
@@ -152,22 +153,12 @@ app/src/main/java/com/weatherwidget/
 - Log API calls via `ApiLogger`
 
 ## Evidence-First Debug Protocol
-
 For bug reports, regressions, "why is this happening?" analysis, and data mismatch investigations:
 
 ### Hard Gate Rules
 - Do not guess at root cause.
 - Do not propose or implement a fix until evidence is collected.
 - If database and logs are not accessible, stop and ask for the exact missing command/data needed.
-
-### Required Response Format For Debug Tasks
-- `Evidence`: concrete DB/log findings only.
-- `Inference`: what the evidence implies, including confidence.
-- `Action`: next command to run or patch to apply.
-
-### No-Evidence Behavior
-- If evidence cannot be collected, do not propose a fix.
-- Ask for one concrete unblock step (for example, backup path, device id, or permission to run a specific diagnostic command), then wait.
 
 ## Testing Guidelines
 

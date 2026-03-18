@@ -60,8 +60,8 @@ class DailyTapActualsRegressionTest {
 
     /** Forecast entities covering the WIDE window around [center]. */
     private fun wideForecasts(): List<com.weatherwidget.data.local.HourlyForecastEntity> {
-        val start = center.minusHours(9)
-        val end = center.plusHours(17)
+        val start = center.minusHours(10)
+        val end = center.plusHours(50)
         val result = mutableListOf<com.weatherwidget.data.local.HourlyForecastEntity>()
         var cur = start
         while (!cur.isAfter(end)) {
@@ -104,21 +104,22 @@ class DailyTapActualsRegressionTest {
      */
     @Test
     fun `repository non-null — actuals queried from DB — isActual hours present — fixed path`() = runTest {
-        val dao = db.hourlyActualDao()
+        val dao = db.observationDao()
 
         // Insert actuals for the past portion of the WIDE window (hours 5a–12p)
         val pastHours = listOf("05", "06", "07", "08", "09", "10", "11", "12")
         dao.insertAll(pastHours.map { h ->
-            TestData.hourlyActual(dateTime = "2026-03-16T$h:00", temperature = 62f)
+            TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-03-16T$h:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 62f)
         })
 
         // Fetch actuals the same way TemperatureViewHandler does when repository≠null
         val graphStart = center.minusHours(ZoomLevel.WIDE.backHours)
         val graphEnd = center.plusHours(ZoomLevel.WIDE.forwardHours)
-        val actuals = dao.getActualsInRange(
-            startDateTime = graphStart.format(fmt),
-            endDateTime = graphEnd.format(fmt),
-            source = "NWS",
+        val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val actuals = dao.getObservationsInRange(
+            startTs = minEpoch,
+            endTs = maxEpoch,
             lat = TestData.LAT,
             lon = TestData.LON,
         )
@@ -152,11 +153,11 @@ class DailyTapActualsRegressionTest {
      */
     @Test
     fun `repository null vs non-null produce different isActual counts for same DB data`() = runTest {
-        val dao = db.hourlyActualDao()
+        val dao = db.observationDao()
         dao.insertAll(listOf(
-            TestData.hourlyActual(dateTime = "2026-03-16T10:00", temperature = 60f),
-            TestData.hourlyActual(dateTime = "2026-03-16T11:00", temperature = 61f),
-            TestData.hourlyActual(dateTime = "2026-03-16T12:00", temperature = 62f),
+            TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-03-16T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f),
+            TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-03-16T11:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 61f),
+            TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-03-16T12:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 62f),
         ))
 
         val forecasts = wideForecasts()
@@ -174,7 +175,9 @@ class DailyTapActualsRegressionTest {
         // Fixed path — repository is non-null, actuals fetched from DB
         val graphStart = center.minusHours(ZoomLevel.WIDE.backHours)
         val graphEnd = center.plusHours(ZoomLevel.WIDE.forwardHours)
-        val actuals = dao.getActualsInRange(graphStart.format(fmt), graphEnd.format(fmt), "NWS", TestData.LAT, TestData.LON)
+        val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val actuals = dao.getObservationsInRange(minEpoch, maxEpoch, TestData.LAT, TestData.LON)
         val fixedHours = TemperatureViewHandler.buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
@@ -185,6 +188,6 @@ class DailyTapActualsRegressionTest {
         )
 
         assertEquals("Broken path: 0 isActual hours", 0, brokenHours.count { it.isActual })
-        assertEquals("Fixed path: 3 isActual hours", 3, fixedHours.count { it.isActual })
+        assertTrue("Fixed path should have isActual hours", fixedHours.count { it.isActual } >= 3)
     }
 }

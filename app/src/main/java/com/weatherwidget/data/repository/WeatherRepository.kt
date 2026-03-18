@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -137,4 +138,11 @@ class WeatherRepository
             latitude: Double,
             longitude: Double,
         ): List<HourlyActualEntity> = forecastRepository.getHourlyActuals(startDateTime, endDateTime, source, latitude, longitude)
+
+        suspend fun getObservationsInRange(
+            startTimestamp: Long,
+            endTimestamp: Long,
+            latitude: Double,
+            longitude: Double,
+        ): List<ObservationEntity> = forecastRepository.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
     }

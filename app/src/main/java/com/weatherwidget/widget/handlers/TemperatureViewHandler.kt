@@ -162,16 +162,23 @@ object TemperatureViewHandler {
                 val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
                 val graphStart = alignedCenter.minusHours(zoom.backHours)
                 val graphEnd = alignedCenter.plusHours(zoom.forwardHours)
-                val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
-                val actuals = repository?.getHourlyActuals(
-                    startDateTime = graphStart.format(fmt),
-                    endDateTime = graphEnd.format(fmt),
-                    source = displaySource.id,
-                    latitude = lat,
-                    longitude = lon,
-                ) ?: emptyList()
-                android.util.Log.d("ActualsDebug", "getHourlyActuals: widget=$appWidgetId ${actuals.size} rows, window=[${graphStart.format(fmt)}..${graphEnd.format(fmt)}], zoom=$zoom, source=${displaySource.id}, lat=$lat, lon=$lon, repoNull=${repository == null}")
-                val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, actuals)
+                val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+                
+                // Filter by source
+                val filteredObs = observations.filter { obs ->
+                    when (displaySource) {
+                        WeatherSource.OPEN_METEO -> obs.stationId.startsWith("OPEN_METEO")
+                        WeatherSource.WEATHER_API -> obs.stationId.startsWith("WEATHER_API")
+                        WeatherSource.SILURIAN -> obs.stationId.startsWith("SILURIAN")
+                        WeatherSource.NWS -> !obs.stationId.startsWith("OPEN_METEO") && !obs.stationId.startsWith("WEATHER_API") && !obs.stationId.startsWith("SILURIAN")
+                        else -> true
+                    }
+                }
+                
+                android.util.Log.d("ActualsDebug", "getObservations: widget=$appWidgetId ${filteredObs.size} rows, zoom=$zoom")
+                val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, filteredObs)
                 val actualCount = hourData.count { it.isActual }
                 android.util.Log.d("ActualsDebug", "buildHourDataList: ${hourData.size} hours, $actualCount isActual=true")
                 hourData
@@ -566,15 +573,11 @@ object TemperatureViewHandler {
         numColumns: Int,
         displaySource: WeatherSource,
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
-        actuals: List<HourlyActualEntity> = emptyList(),
+        actuals: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
     ): List<TemperatureGraphRenderer.HourData> {
         val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
 
-        // Index actuals by dateTime for O(1) lookup
-        val actualsByTime = actuals.associateBy { it.dateTime }
-
-        // Group by dateTime and prefer the selected source, fallback to generic gap
         val forecastsByTime =
             hourlyForecasts.groupBy { it.dateTime }
                 .mapValues { entry ->
@@ -584,7 +587,6 @@ object TemperatureViewHandler {
                     preferred ?: gap ?: fallback
                 }
 
-        // Round to nearest hour
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
@@ -598,6 +600,7 @@ object TemperatureViewHandler {
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
+        // 1. Collect top-of-hour forecasts
         while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
             val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val forecast = forecastsByTime[hourKey]
@@ -616,26 +619,14 @@ object TemperatureViewHandler {
                     isNight = isNight,
                     cloudCover = forecast.cloudCover,
                 )
-                val isSunny =
-                    iconRes == R.drawable.ic_weather_clear ||
-                        iconRes == R.drawable.ic_weather_mostly_clear ||
-                        iconRes == R.drawable.ic_weather_night
-                val isRainy =
-                    iconRes == R.drawable.ic_weather_rain ||
-                        iconRes == R.drawable.ic_weather_storm ||
-                        iconRes == R.drawable.ic_weather_snow
-                val isMixed =
-                    iconRes == R.drawable.ic_weather_mostly_cloudy ||
-                        iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
-                        iconRes == R.drawable.ic_weather_partly_cloudy ||
-                        iconRes == R.drawable.ic_weather_partly_cloudy_night ||
-                        iconRes == R.drawable.ic_weather_fog_cloudy
+                val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_mostly_clear || iconRes == R.drawable.ic_weather_night
+                val isRainy = iconRes == R.drawable.ic_weather_rain || iconRes == R.drawable.ic_weather_storm || iconRes == R.drawable.ic_weather_snow
+                val isMixed = iconRes == R.drawable.ic_weather_mostly_cloudy || iconRes == R.drawable.ic_weather_mostly_cloudy_night || iconRes == R.drawable.ic_weather_partly_cloudy || iconRes == R.drawable.ic_weather_partly_cloudy_night || iconRes == R.drawable.ic_weather_fog_cloudy
 
-                val actual = actualsByTime[hourKey]
                 hours.add(
                     TemperatureGraphRenderer.HourData(
                         dateTime = currentHour,
-                        temperature = forecast.temperature,          // always forecast
+                        temperature = forecast.temperature,
                         label = formatHourLabel(currentHour),
                         iconRes = iconRes,
                         isNight = isNight,
@@ -644,17 +635,92 @@ object TemperatureViewHandler {
                         isMixed = isMixed,
                         isCurrentHour = isCurrentHour,
                         showLabel = showLabel,
-                        isActual = actual != null,
-                        actualTemperature = actual?.temperature,     // null for future hours
+                        isActual = false, 
+                        actualTemperature = null, 
                     ),
                 )
                 hourIndex++
             }
-
             currentHour = currentHour.plusHours(1)
         }
 
-        return hours
+        // 2. Inject sub-hourly actuals
+        val finalHours = mutableListOf<TemperatureGraphRenderer.HourData>()
+        val allTimes = hours.map { it.dateTime }.toMutableSet()
+        val actualMap = mutableMapOf<LocalDateTime, Float>()
+
+        actuals.forEach { obs ->
+            val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+            
+            if (!obsTime.isBefore(startHour) && !obsTime.isAfter(endHour) && obsTime.isBefore(now)) {
+                allTimes.add(obsTime)
+                actualMap[obsTime] = obs.temperature
+            }
+        }
+
+        val sortedTimes = allTimes.sorted()
+
+        for (time in sortedTimes) {
+            val isTopHour = time.minute == 0 && time.second == 0
+            val isPast = time.isBefore(now)
+            val actualTemp = actualMap[time]
+
+            if (isTopHour) {
+                val topHourData = hours.find { it.dateTime == time }
+                if (topHourData != null) {
+                    finalHours.add(topHourData.copy(
+                        isActual = isPast && actualTemp != null,
+                        actualTemperature = actualTemp
+                    ))
+                }
+            } else {
+                val prevTopHour = hours.lastOrNull { !it.dateTime.isAfter(time) }
+                val nextTopHour = hours.firstOrNull { it.dateTime.isAfter(time) }
+                
+                val forecastTemp = if (prevTopHour != null && nextTopHour != null) {
+                    val totalSecs = java.time.Duration.between(prevTopHour.dateTime, nextTopHour.dateTime).seconds
+                    val elapsedSecs = java.time.Duration.between(prevTopHour.dateTime, time).seconds
+                    val fraction = elapsedSecs.toFloat() / totalSecs.toFloat()
+                    prevTopHour.temperature + (nextTopHour.temperature - prevTopHour.temperature) * fraction
+                } else {
+                    prevTopHour?.temperature ?: nextTopHour?.temperature ?: 0f
+                }
+
+                finalHours.add(
+                    TemperatureGraphRenderer.HourData(
+                        dateTime = time,
+                        temperature = forecastTemp,
+                        label = formatHourLabel(time),
+                        iconRes = null,
+                        isNight = SunPositionUtils.isNight(time, lat, lon),
+                        isSunny = false,
+                        isRainy = false,
+                        isMixed = false,
+                        isCurrentHour = false,
+                        showLabel = false,
+                        isActual = true,
+                        actualTemperature = actualTemp
+                    )
+                )
+            }
+        }
+
+        var lastActual: Float? = null
+        for (i in finalHours.indices) {
+            if (finalHours[i].isActual && finalHours[i].actualTemperature != null) {
+                lastActual = finalHours[i].actualTemperature
+            } else if (finalHours[i].dateTime.isBefore(now)) {
+                if (lastActual != null) {
+                    finalHours[i] = finalHours[i].copy(isActual = true, actualTemperature = lastActual)
+                } else {
+                    finalHours[i] = finalHours[i].copy(isActual = false, actualTemperature = null)
+                }
+            }
+        }
+
+        return finalHours
     }
 
     private fun formatHourLabel(time: LocalDateTime): String {
@@ -716,7 +782,7 @@ object TemperatureViewHandler {
                 views.setViewVisibility(ids.second, View.GONE)
 
                 if (forecast != null) {
-                    val temp = String.format("%.0f°", forecast.temperature)
+                    val temp = String.format("%.1f°", forecast.temperature)
                     views.setTextViewText(ids.third, temp)
                     views.setTextViewText(ids.fourth, "")
                 } else {

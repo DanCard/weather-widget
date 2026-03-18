@@ -57,8 +57,8 @@ class TemperatureGhostLineTest {
         
         assertEquals("Raw temperature should be 70 (API)", 70f, startLabel!!.rawTemperature, 0.01f)
         
-        // Labels should now represent the SMOOTHED ORIGINAL temperature
-        val expectedSmoothedValue = 70f * 0.75f + 75f * 0.25f
-        assertEquals("Label should be Smoothed Original value, ignoring Delta", expectedSmoothedValue, startLabel.temperature, 0.1f)
+        // Labels should now represent the ORIGINAL temperature (smoothing removed)
+        val expectedValue = 70f
+        assertEquals("Label should be Original value, ignoring Delta", expectedValue, startLabel.temperature, 0.1f)
     }
 }
