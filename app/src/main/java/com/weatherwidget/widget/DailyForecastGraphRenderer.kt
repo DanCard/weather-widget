@@ -73,8 +73,8 @@ object DailyForecastGraphRenderer {
         // Find temperature range for scaling (ignore nulls)
         val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow) }
         // Remove buffer so the lowest temp hits the bottom exactly
-        val minTemp = (allTemps.minOrNull() ?: 0).toFloat()
-        val maxTemp = (allTemps.maxOrNull() ?: 100).toFloat()
+        val minTemp = allTemps.minOrNull() ?: 0f
+        val maxTemp = allTemps.maxOrNull() ?: 100f
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
         
         android.util.Log.d("DailyGraphRenderer", "renderGraph: days=${days.size}, minTemp=$minTemp, maxTemp=$maxTemp, tempRange=$tempRange, widthPx=$widthPx, heightPx=$heightPx")
