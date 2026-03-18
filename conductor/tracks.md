@@ -6,3 +6,4 @@ This file tracks the various work tracks for the project.
 |----|-------|--------|------|
 | T-LAB-01 | Fix missing 6am min temperature label | Done | [plan](./tracks/T-LAB-01/plan.md) |
 | T-UI-02 | Change 'Today' label to day name and highlight | Done | [plan](./tracks/T-UI-02/plan.md) |
+| T-FIX-03 | Triple Bar Today Fix & NWS Backfill Enhancement | Done | [plan](./tracks/T-FIX-03/plan.md) |
