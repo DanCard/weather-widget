@@ -6,7 +6,6 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.ForecastDao
-import com.weatherwidget.data.local.HourlyActualDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.WeatherDatabase
@@ -110,15 +109,10 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideHourlyActualDao(database: WeatherDatabase): HourlyActualDao = database.hourlyActualDao()
-
-    @Provides
-    @Singleton
     fun provideForecastRepository(
         @ApplicationContext context: Context,
         forecastDao: ForecastDao,
         hourlyForecastDao: HourlyForecastDao,
-        hourlyActualDao: HourlyActualDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
@@ -128,7 +122,7 @@ object AppModule {
         climateNormalDao: ClimateNormalDao,
         observationDao: ObservationDao,
     ): ForecastRepository = ForecastRepository(
-        context, forecastDao, hourlyForecastDao, hourlyActualDao, appLogDao,
+        context, forecastDao, hourlyForecastDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao
     )
 
@@ -138,7 +132,6 @@ object AppModule {
         @ApplicationContext context: Context,
         currentTempDao: CurrentTempDao,
         observationDao: ObservationDao,
-        hourlyActualDao: HourlyActualDao,
         hourlyForecastDao: HourlyForecastDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
@@ -147,7 +140,7 @@ object AppModule {
         silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
     ): CurrentTempRepository = CurrentTempRepository(
-        context, currentTempDao, observationDao, hourlyActualDao, hourlyForecastDao, appLogDao,
+        context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator()
     )
 

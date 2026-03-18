@@ -7,8 +7,6 @@ import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ClimateNormalEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
-import com.weatherwidget.data.local.HourlyActualDao
-import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationDao
@@ -45,7 +43,6 @@ class ForecastRepository
         @ApplicationContext private val context: Context,
         private val forecastDao: ForecastDao,
         private val hourlyForecastDao: HourlyForecastDao,
-        private val hourlyActualDao: HourlyActualDao,
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
@@ -267,19 +264,6 @@ class ForecastRepository
                     val result = weatherApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
                         saveWeatherApiHourlyForecasts(result.hourly, latitude, longitude)
-                    }
-                    // Fetch history to populate hourly_actuals
-                    val today = LocalDate.now()
-                    val historyDates = (WeatherConfig.ACTUALS_HISTORY_DAYS - 1 downTo 0).map { today.minusDays(it.toLong()) }
-                    for (date in historyDates) {
-                        try {
-                            val historyHours = weatherApi.getHistory(latitude, longitude, date.toString())
-                            if (historyHours.isNotEmpty()) {
-                                saveWeatherApiActuals(historyHours, latitude, longitude)
-                            }
-                        } catch (e: Exception) {
-                            appLogDao.log("WAPI_HISTORY_FAIL", "date=$date ${e.message}", "WARN")
-                        }
                     }
                     if (result.currentTemp != null && onCurrentTempCallback != null) {
                         onCurrentTempCallback(
@@ -810,24 +794,8 @@ class ForecastRepository
             }
         }
 
-        private suspend fun saveHourlyActuals(actuals: List<HourlyActualEntity>) {
-            if (actuals.isEmpty()) return
-            hourlyActualDao.insertAll(actuals)
-        }
-
         private suspend fun saveHourlyForecasts(hourlyData: List<OpenMeteoApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val now = LocalDateTime.now()
-            val nowKey = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val fetchedAt = System.currentTimeMillis()
-            // Past hours from Open-Meteo (past_days=ACTUALS_HISTORY_DAYS) are actual observations
-            val actuals = hourlyData.filter { it.dateTime < nowKey }.map {
-                HourlyActualEntity(
-                    it.dateTime, latitude, longitude, it.temperature,
-                    openMeteoApi.weatherCodeToCondition(it.weatherCode),
-                    WeatherSource.OPEN_METEO.id, fetchedAt
-                )
-            }
-            saveHourlyActuals(actuals)
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature,
@@ -847,29 +815,8 @@ class ForecastRepository
             })
         }
 
-        private suspend fun saveWeatherApiActuals(hourlyData: List<WeatherApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val fetchedAt = System.currentTimeMillis()
-            val actuals = hourlyData.map {
-                HourlyActualEntity(
-                    it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.WEATHER_API.id, fetchedAt
-                )
-            }
-            saveHourlyActuals(actuals)
-        }
-
         private suspend fun saveSilurianHourlyForecasts(hourlyData: List<SilurianApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val now = LocalDateTime.now()
-            val nowKey = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
             val fetchedAt = System.currentTimeMillis()
-            // Silurian past hours (if included in response) are treated as actuals
-            val actuals = hourlyData.filter { it.dateTimeString < nowKey }.map {
-                HourlyActualEntity(
-                    it.dateTimeString, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.SILURIAN.id, fetchedAt
-                )
-            }
-            saveHourlyActuals(actuals)
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTimeString, latitude, longitude, it.temperature, it.condition,
@@ -909,14 +856,6 @@ class ForecastRepository
             val status = batteryStatusIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
             return status == android.os.BatteryManager.BATTERY_STATUS_CHARGING
         }
-
-        suspend fun getHourlyActuals(
-            startDateTime: String,
-            endDateTime: String,
-            source: String,
-            latitude: Double,
-            longitude: Double,
-        ): List<HourlyActualEntity> = hourlyActualDao.getActualsInRange(startDateTime, endDateTime, source, latitude, longitude)
 
         suspend fun getObservationsInRange(
             startTimestamp: Long,
@@ -966,7 +905,6 @@ class ForecastRepository
             val logsCutoffTimestamp = System.currentTimeMillis() - 259200000L // 72 hours
             forecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
             hourlyForecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
-            hourlyActualDao.deleteOldActuals(oneMonthAgoTimestamp)
             observationDao.deleteOldObservations(oneMonthAgoTimestamp)
             appLogDao.deleteOldLogs(logsCutoffTimestamp)
         }

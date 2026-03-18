@@ -472,10 +472,11 @@ object WidgetIntentRouter {
         lat: Double,
         lon: Double,
     ): DailyActualsBySource {
-        val start = LocalDate.now().minusDays(30).atStartOfDay().format(HOUR_FORMATTER)
-        val end = LocalDate.now().plusDays(1).atStartOfDay().minusHours(1).format(HOUR_FORMATTER)
-        val actuals = database.hourlyActualDao().getActualsInRangeAllSources(start, end, lat, lon)
-        return com.weatherwidget.widget.ObservationResolver.aggregateHourlyActualsToDailyBySource(actuals)
+        val zone = ZoneId.systemDefault()
+        val startTs = LocalDate.now().minusDays(30).atStartOfDay(zone).toInstant().toEpochMilli()
+        val endTs = LocalDate.now().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val observations = database.observationDao().getObservationsInRange(startTs, endTs, lat, lon)
+        return com.weatherwidget.widget.ObservationResolver.aggregateObservationsToDailyBySource(observations)
     }
 
     private suspend fun sourceDataMissingForCurrentWindow(

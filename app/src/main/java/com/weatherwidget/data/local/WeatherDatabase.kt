@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class, HourlyActualEntity::class],
-    version = 32,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class],
+    version = 33,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -26,8 +26,6 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun currentTempDao(): CurrentTempDao
 
     abstract fun apiUsageDao(): ApiUsageDao
-
-    abstract fun hourlyActualDao(): HourlyActualDao
 
     companion object {
         @Volatile
@@ -90,6 +88,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_29_30,
                             MIGRATION_30_31,
                             MIGRATION_31_32,
+                            MIGRATION_32_33,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -972,6 +971,13 @@ abstract class WeatherDatabase : RoomDatabase() {
                         """.trimIndent(),
                     )
                     db.execSQL("CREATE INDEX IF NOT EXISTS index_hourly_actuals_locationLat_locationLon ON hourly_actuals(locationLat, locationLon)")
+                }
+            }
+
+        val MIGRATION_32_33 =
+            object : Migration(32, 33) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("DROP TABLE IF EXISTS hourly_actuals")
                 }
             }
     }

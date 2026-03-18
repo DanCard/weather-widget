@@ -8,6 +8,8 @@ import android.view.View
 import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
@@ -37,6 +39,7 @@ class HistoryIconVisibilityRoboTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        try { WorkManager.initialize(context, Configuration.Builder().build()) } catch (_: IllegalStateException) { }
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(appWidgetId)
     }

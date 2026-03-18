@@ -1,7 +1,6 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.CurrentTempEntity
-import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.Instant
@@ -87,23 +86,39 @@ object ObservationResolver {
     }
 
     /**
-     * Aggregates source-scoped hourly actuals into daily highs and lows.
+     * Aggregates raw observations into daily highs and lows, grouped by inferred source.
+     * Source is inferred from stationId prefix (mirrors TemperatureViewHandler.matchesObservationSource).
      */
-    fun aggregateHourlyActualsToDailyBySource(
-        actuals: List<HourlyActualEntity>,
+    fun aggregateObservationsToDailyBySource(
+        observations: List<ObservationEntity>,
     ): DailyActualsBySource {
-        return actuals
-            .groupBy { it.source }
-            .mapValues { (_, sourceActuals) ->
-                sourceActuals
-                    .groupBy { it.dateTime.substringBefore('T') }
-                    .mapNotNull { (date, dayActuals) ->
-                        if (dayActuals.isEmpty()) return@mapNotNull null
+        val local = ZoneId.systemDefault()
+        val dateFormatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
 
-                        val highTemp = dayActuals.maxOf { it.temperature }
-                        val lowTemp = dayActuals.minOf { it.temperature }
+        fun inferSource(stationId: String): String = when {
+            stationId.startsWith("OPEN_METEO") -> WeatherSource.OPEN_METEO.id
+            stationId.startsWith("WEATHER_API") -> WeatherSource.WEATHER_API.id
+            stationId.startsWith("SILURIAN") -> WeatherSource.SILURIAN.id
+            else -> WeatherSource.NWS.id
+        }
+
+        return observations
+            .groupBy { inferSource(it.stationId) }
+            .mapValues { (_, sourceObs) ->
+                sourceObs
+                    .groupBy { obs ->
+                        Instant.ofEpochMilli(obs.timestamp)
+                            .atZone(local)
+                            .toLocalDate()
+                            .format(dateFormatter)
+                    }
+                    .mapNotNull { (date, dayObs) ->
+                        if (dayObs.isEmpty()) return@mapNotNull null
+
+                        val highTemp = dayObs.maxOf { it.temperature }
+                        val lowTemp = dayObs.minOf { it.temperature }
                         val mostCommonCondition =
-                            dayActuals
+                            dayObs
                                 .map { it.condition }
                                 .groupingBy { it }
                                 .eachCount()
