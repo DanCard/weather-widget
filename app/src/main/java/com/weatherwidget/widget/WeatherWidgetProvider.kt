@@ -250,8 +250,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index")
 
+        val receiveTimeMs = System.currentTimeMillis()
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
+            val coroutineStartMs = System.currentTimeMillis()
             try {
                 val database = WeatherDatabase.getDatabase(context)
                 database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
@@ -270,6 +272,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                     context.startActivity(historyIntent)
+                    val totalMs = System.currentTimeMillis() - receiveTimeMs
+                    val coroutineDelayMs = coroutineStartMs - receiveTimeMs
+                    database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
+                    if (totalMs > 500) {
+                        database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
+                    }
                 } else {
                     // Future day click was already setup with ACTION_SET_VIEW extras
                     val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
@@ -301,6 +309,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
                     Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
                     WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
+                    val totalMs = System.currentTimeMillis() - receiveTimeMs
+                    val coroutineDelayMs = coroutineStartMs - receiveTimeMs
+                    database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
+                    if (totalMs > 500) {
+                        database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
+                    }
                 }
             } finally {
                 pendingResult.finish()

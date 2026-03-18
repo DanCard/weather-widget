@@ -5,16 +5,20 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
+import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
@@ -172,11 +176,22 @@ object TemperatureViewHandler {
                 val graphEnd = alignedCenter.plusHours(zoom.forwardHours)
                 val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
                 val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val obsStartMs = SystemClock.elapsedRealtime()
                 val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+                val afterObsMs = SystemClock.elapsedRealtime()
                 Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${observations.size}, zoom=$zoom")
                 val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, observations)
+                val afterBlendMs = SystemClock.elapsedRealtime()
                 val actualCount = hourData.count { it.isActual }
                 Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
+                val obsBlendMs = afterBlendMs - obsStartMs
+                if (obsBlendMs > 100) {
+                    val database = WeatherDatabase.getDatabase(context)
+                    database.appLogDao().log(
+                        "TEMP_OBS_SLOW",
+                        "widget=$appWidgetId obsQuery=${afterObsMs - obsStartMs}ms blend=${afterBlendMs - afterObsMs}ms total=${obsBlendMs}ms",
+                    )
+                }
                 hourData
             } else {
                 emptyList()
@@ -247,6 +262,7 @@ object TemperatureViewHandler {
                 )
 
             // Render temperature graph
+            val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = TemperatureGraphRenderer.renderGraph(
                 context = context,
                 hours = graphHours,
@@ -258,6 +274,14 @@ object TemperatureViewHandler {
                 observedTempFetchedAt = observedCurrentTempFetchedAt,
                 onFetchDotResolved = onFetchDotResolved,
             )
+            val renderMs = SystemClock.elapsedRealtime() - renderStartMs
+            if (renderMs > 100) {
+                val database = WeatherDatabase.getDatabase(context)
+                database.appLogDao().log(
+                    "TEMP_RENDER_SLOW",
+                    "widget=$appWidgetId renderMs=${renderMs}ms size=${widthPx}x${heightPx}",
+                )
+            }
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -587,21 +611,21 @@ object TemperatureViewHandler {
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
-        val selectedSeries = selectObservationSeries(actuals, displaySource, startHour, endHour)
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val blendedActuals = blendObservationSeries(actuals, displaySource, lat, lon, startHour, endHour)
+        val stationCount = actuals.filter { matchesObservationSource(it, displaySource) }
+            .map { it.stationId }.toSet().size
         Log.d(
             TAG,
-            "buildHourDataList: source=${displaySource.id}, selectedStation=${selectedSeries.stationId ?: "<none>"}, " +
-                "stationType=${selectedSeries.stationType ?: "<unknown>"}, points=${selectedSeries.observations.size}, " +
-                "rejectedGroups=${selectedSeries.rejectedGroupCount}"
+            "buildHourDataList: source=${displaySource.id}, IDW blend from $stationCount stations, " +
+                "blendedPoints=${blendedActuals.size}"
         )
 
         val labelInterval = zoom.labelInterval
 
         var currentHour = startHour
         var hourIndex = 0
-
-        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
         // 1. Collect top-of-hour forecasts
         while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
@@ -652,7 +676,7 @@ object TemperatureViewHandler {
         val allTimes = hours.map { it.dateTime }.toMutableSet()
         val actualMap = mutableMapOf<LocalDateTime, Float>()
 
-        selectedSeries.observations.forEach { obs ->
+        blendedActuals.forEach { obs ->
             val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDateTime()
@@ -769,6 +793,81 @@ object TemperatureViewHandler {
             },
             rejectedGroupCount = (grouped.size - 1).coerceAtLeast(0),
         )
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun blendObservationSeries(
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        displaySource: WeatherSource,
+        userLat: Double,
+        userLon: Double,
+        startHour: LocalDateTime,
+        endHour: LocalDateTime,
+    ): List<com.weatherwidget.data.local.ObservationEntity> {
+        val zoneId = java.time.ZoneId.systemDefault()
+        val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
+        val endMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
+
+        val filtered = observations
+            .filter { matchesObservationSource(it, displaySource) }
+            .filter { it.timestamp in startMs..endMs }
+            .sortedBy { it.timestamp }
+
+        if (filtered.isEmpty()) return emptyList()
+
+        val windowMs = 15 * 60 * 1000L   // ±15 min blending window
+        val dedupMs = 5 * 60 * 1000L     // skip points within 5 min of a prior emission
+
+        val consumed = BooleanArray(filtered.size)
+        val result = mutableListOf<com.weatherwidget.data.local.ObservationEntity>()
+        var lastEmittedMs = 0L  // epoch 0; all real timestamps are well after this
+
+        for (i in filtered.indices) {
+            if (consumed[i]) continue
+
+            val primary = filtered[i]
+            // Gather peers within ±15 min (other stations only)
+            val peers = mutableListOf<com.weatherwidget.data.local.ObservationEntity>()
+            peers.add(primary)
+            for (j in filtered.indices) {
+                if (j == i || consumed[j]) continue
+                if (filtered[j].stationId == primary.stationId) continue
+                if (kotlin.math.abs(filtered[j].timestamp - primary.timestamp) <= windowMs) {
+                    peers.add(filtered[j])
+                }
+            }
+
+            // Dedup: skip if too close to last emitted point
+            if (primary.timestamp - lastEmittedMs < dedupMs) {
+                // Mark all peers consumed to avoid them spawning near-duplicate points
+                for (peer in peers) {
+                    val idx = filtered.indexOf(peer)
+                    if (idx >= 0) consumed[idx] = true
+                }
+                consumed[i] = true
+                continue
+            }
+
+            val blendedTemp = if (peers.size == 1) {
+                primary.temperature
+            } else {
+                SpatialInterpolator.interpolateIDW(userLat, userLon, peers, primary.timestamp)
+                    ?: primary.temperature
+            }
+
+            result.add(primary.copy(temperature = blendedTemp))
+            lastEmittedMs = primary.timestamp
+            consumed[i] = true
+            // Mark peers consumed so they don't generate their own output points
+            for (peer in peers) {
+                if (peer !== primary) {
+                    val idx = filtered.indexOf(peer)
+                    if (idx >= 0) consumed[idx] = true
+                }
+            }
+        }
+
+        return result
     }
 
     private fun matchesObservationSource(

@@ -172,7 +172,7 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `mixed NWS stations pick one consistent series by coverage`() {
+    fun `mixed NWS stations IDW-blend nearby observations`() {
         val forecasts = wideForecasts()
         val actuals = listOf(
             observationAt("2026-02-20T09:10", 61f, stationId = "KPAO", distanceKm = 2f),
@@ -190,12 +190,22 @@ class TemperatureViewHandlerActualsTest {
             actuals = actuals,
         )
 
-        val hour10 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:10") })
-        val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:10") })
+        // T10:05 (KSFO primary) and T10:10 (KPAO) are within ±15 min → blended at T10:05
+        // KPAO is 2km away, KSFO is 10km → blend is weighted heavily toward KPAO (62f)
+        // IDW weights: w_KSFO=1/100, w_KPAO=1/4 → blended ≈ 62.7f
+        val blendedPoint = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:05") }) {
+            "Expected blended point at T10:05"
+        }
+        assertNotEquals("Blend should not be dominated by far station", 80f, blendedPoint.actualTemperature)
+        val blendedTemp = blendedPoint.actualTemperature!!
+        assertTrue("Blended temp should be closer to near station (62f) than far station (80f)", blendedTemp < 70f)
 
-        assertEquals(62f, hour10.actualTemperature)
+        // T10:10 is consumed by the blend — should not appear as a separate point
+        assertNull("T10:10 should be consumed into the T10:05 blend", hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:10") })
+
+        // T11:10 is isolated (no peer within ±15 min) — should remain unchanged
+        val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:10") })
         assertEquals(63f, hour11.actualTemperature)
-        assertNotEquals("Rejected station should not supply the actual", 80f, hour10.actualTemperature)
     }
 
     @Test

@@ -17,6 +17,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -228,36 +229,46 @@ class CurrentTempRepository
             val stations = getSortedObservationStations(gridPoint.observationStationsUrl ?: "")
             if (stations.isEmpty()) return@coroutineScope null
             
-            val deferredObservations = stations.take(MAX_RETRIES).map { stationInfo ->
+            val successfulEntities = stations.take(MAX_RETRIES).map { stationInfo ->
                 async {
                     val observation = runCatching { nwsApi.getLatestObservationDetailed(stationInfo.id) }.getOrNull()
-                    if (observation != null) {
-                        val obsEntity = ObservationEntity(
-                            stationInfo.id,
-                            observation.stationName,
-                            OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
-                            (observation.temperatureCelsius * 1.8f) + 32f,
-                            observation.textDescription,
-                            latitude,
-                            longitude,
-                            calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f,
-                            stationInfo.type.name
-                        )
-                        observationDao.insertAll(listOf(obsEntity))
-                        hourlyActualDao.insertAll(listOf(observationToActual(obsEntity, com.weatherwidget.data.model.WeatherSource.NWS.id)))
-                    }
-                    observation
+                        ?: return@async null
+                    val obsEntity = ObservationEntity(
+                        stationInfo.id,
+                        observation.stationName,
+                        OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
+                        (observation.temperatureCelsius * 1.8f) + 32f,
+                        observation.textDescription,
+                        latitude,
+                        longitude,
+                        calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f,
+                        stationInfo.type.name
+                    )
+                    observationDao.insertAll(listOf(obsEntity))
+                    hourlyActualDao.insertAll(listOf(observationToActual(obsEntity, com.weatherwidget.data.model.WeatherSource.NWS.id)))
+                    obsEntity
                 }
-            }.map { it.await() }
-            
-            deferredObservations.firstNotNullOfOrNull { it }?.let { observation ->
-                CurrentReadingPayload(
-                    WeatherSource.NWS, 
-                    (observation.temperatureCelsius * 1.8f) + 32f, 
-                    observation.textDescription, 
-                    OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli()
-                ) 
-            }
+            }.mapNotNull { it.await() }
+
+            if (successfulEntities.isEmpty()) return@coroutineScope null
+
+            val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, successfulEntities)
+                ?: return@coroutineScope null
+
+            // Use the closest station's condition (conditions don't interpolate)
+            val closest = successfulEntities.minBy { it.distanceKm }
+
+            // Log contributing stations and their weights for debugging
+            val stationSummary = successfulEntities.joinToString { "${it.stationId}(${it.distanceKm}km)" }
+            appLogDao.log("NWS_IDW", "blended=${blendedTemp}°F from ${successfulEntities.size} stations: $stationSummary")
+            Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary")
+
+            CurrentReadingPayload(
+                WeatherSource.NWS,
+                blendedTemp,
+                closest.condition,
+                successfulEntities.maxOf { it.timestamp },
+            )
         }
 
         private fun getPointsOfInterest(latitude: Double, longitude: Double): List<Triple<Double, Double, String>> {

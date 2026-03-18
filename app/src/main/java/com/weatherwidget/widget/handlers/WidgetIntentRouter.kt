@@ -653,6 +653,7 @@ object WidgetIntentRouter {
         val snapshotDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
+        val afterLatestMs = SystemClock.elapsedRealtime()
         refreshIfStale(context, latestWeather?.fetchedAt, "daily_nav")
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
@@ -677,9 +678,21 @@ object WidgetIntentRouter {
                         zoom = zoom,
                         now = now,
                     )
+                val afterHourlyMs = SystemClock.elapsedRealtime()
                 val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                 updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
-                Log.d(TAG, "handleSetView: ${targetMode.name} update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
+                val afterUpdateMs = SystemClock.elapsedRealtime()
+                Log.d(TAG, "handleSetView: ${targetMode.name} update complete in ${afterUpdateMs - startMs}ms")
+                val totalMs = afterUpdateMs - startMs
+                if (totalMs > 200) {
+                    database.appLogDao().log(
+                        "SET_VIEW_SLOW",
+                        "widget=$appWidgetId total=${totalMs}ms " +
+                            "latestWeather=${afterLatestMs - startMs}ms " +
+                            "hourlyLoad=${afterHourlyMs - afterLatestMs}ms " +
+                            "viewUpdate=${afterUpdateMs - afterHourlyMs}ms",
+                    )
+                }
             }
             com.weatherwidget.widget.ViewMode.DAILY -> {
                 val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
