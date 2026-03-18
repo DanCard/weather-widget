@@ -68,6 +68,7 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX = "widget_current_temp_delta_source_"
             private const val KEY_CURRENT_TEMP_DELTA_LAT_PREFIX = "widget_current_temp_delta_lat_"
             private const val KEY_CURRENT_TEMP_DELTA_LON_PREFIX = "widget_current_temp_delta_lon_"
+            private const val KEY_MISSING_ACTUALS_REFRESH_PREFIX = "widget_missing_actuals_refresh_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
@@ -274,6 +275,17 @@ class WidgetStateManager
                 .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId")
                 .apply()
+        }
+
+        fun shouldRefreshMissingActuals(widgetId: Int, sourceId: String, cooldownMs: Long): Boolean {
+            val key = "$KEY_MISSING_ACTUALS_REFRESH_PREFIX${widgetId}_$sourceId"
+            val lastRequested = prefs.getLong(key, 0L)
+            return System.currentTimeMillis() - lastRequested >= cooldownMs
+        }
+
+        fun markMissingActualsRefreshRequested(widgetId: Int, sourceId: String) {
+            val key = "$KEY_MISSING_ACTUALS_REFRESH_PREFIX${widgetId}_$sourceId"
+            prefs.edit().putLong(key, System.currentTimeMillis()).apply()
         }
 
         /**

@@ -20,7 +20,9 @@ object DailyActualsEstimator {
         val observedHigh: Float?,
         val observedLow: Float?,
         val forecastHigh: Float?,
-        val forecastLow: Float?
+        val forecastLow: Float?,
+        val snapshotHigh: Float? = null,
+        val snapshotLow: Float? = null,
     )
 
     /**
@@ -33,6 +35,7 @@ object DailyActualsEstimator {
      * @param now The current local date-time (for filtering "so far").
      * @param displaySource The primary weather source for this widget.
      * @param fallbackWeather The daily weather entity to use if hourly data is missing.
+     * @param currentTemp The most recently observed current temperature.
      */
     fun calculateTodayTripleLineValues(
         hourlyForecasts: List<HourlyForecastEntity>,
@@ -40,7 +43,10 @@ object DailyActualsEstimator {
         @Suppress("UNUSED_PARAMETER") now: LocalDateTime,
         displaySource: WeatherSource,
         fallbackWeather: ForecastEntity?,
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap()
+        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        currentTemp: Float? = null,
+        snapshotHigh: Float? = null,
+        snapshotLow: Float? = null,
     ): TodayTripleLineValues {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         // Filter all hourly data for today
@@ -50,10 +56,9 @@ object DailyActualsEstimator {
         }
 
         // 1. Observed so far (history/current)
-        // Use only source-scoped actuals. Do not substitute forecast values.
         val actual = dailyActuals[todayStr]
-        val actualHighSoFar = actual?.highTemp
-        val actualLowSoFar = actual?.lowTemp
+        val observedHigh = listOfNotNull(actual?.highTemp, currentTemp).maxOrNull()
+        val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
 
         // 2. Full-day prediction (including both past and future hours)
         val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
@@ -67,10 +72,12 @@ object DailyActualsEstimator {
         ).minOrNull()
 
         return TodayTripleLineValues(
-            observedHigh = actualHighSoFar,
-            observedLow = actualLowSoFar,
+            observedHigh = observedHigh,
+            observedLow = observedLow,
             forecastHigh = forecastHigh,
-            forecastLow = forecastLow
+            forecastLow = forecastLow,
+            snapshotHigh = snapshotHigh,
+            snapshotLow = snapshotLow
         )
     }
 

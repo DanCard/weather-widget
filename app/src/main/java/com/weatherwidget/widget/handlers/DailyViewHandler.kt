@@ -43,6 +43,7 @@ import kotlin.math.min
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
     private const val CELL_HEIGHT_DP = 90
+    private const val MISSING_ACTUALS_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private data class DayIds(
         val container: Int,
         val label: Int,
@@ -119,12 +120,29 @@ object DailyViewHandler : WidgetViewHandler {
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dailyActuals = dailyActualsBySource[displaySource.id].orEmpty()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         Log.d(
             TAG,
             "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
                 "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
+
+        if (dailyActuals[todayStr] == null &&
+            stateManager.shouldRefreshMissingActuals(appWidgetId, displaySource.id, MISSING_ACTUALS_REFRESH_COOLDOWN_MS)
+        ) {
+            stateManager.markMissingActualsRefreshRequested(appWidgetId, displaySource.id)
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "MISSING_ACTUALS_FETCH",
+                "widget=$appWidgetId source=${displaySource.id} missing today actuals, enqueueing worker",
+                "INFO"
+            )
+            WeatherWidgetProvider.triggerImmediateUpdate(
+                context = context,
+                forceRefresh = true,
+                reason = "missing_actuals_${displaySource.id}",
+            )
+        }
 
         // Build weather map: prefer the selected display source, fallback to generic gap
         val weatherByDate =
@@ -134,7 +152,6 @@ object DailyViewHandler : WidgetViewHandler {
                 .mapValues { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
 
         // Set API source indicator
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)
 
         // Set weather icon
@@ -257,7 +274,7 @@ object DailyViewHandler : WidgetViewHandler {
                 now, centerDate, today, weatherByDate, forecastSnapshots,
                 numColumns, displaySource, isEveningMode, skipHistory,
                 hourlyForecasts, stateManager, appWidgetId, precipProb,
-                dailyActuals, climateNormals
+                dailyActuals, climateNormals, currentTemps
             )
             Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns. Day dates: ${days.map { it.date }}")
             days.forEach { day ->
@@ -310,7 +327,7 @@ object DailyViewHandler : WidgetViewHandler {
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
                 hourlyForecasts, numColumns, displaySource, skipHistory,
-                stateManager, appWidgetId, precipProb, dailyActuals
+                stateManager, appWidgetId, precipProb, dailyActuals, currentTemps
             )
 
             logDailyRenderSummary(
@@ -518,11 +535,13 @@ object DailyViewHandler : WidgetViewHandler {
         displaySource: WeatherSource, skipHistory: Boolean,
         stateManager: WidgetStateManager?, appWidgetId: Int,
         todayNext8HourPrecipProbability: Int?,
-        dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap()
+        dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
+        currentTemps: List<CurrentTempEntity> = emptyList()
     ): List<Triple<Int, String, Boolean>> {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
-            displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals
+            displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals,
+            currentTemps
         )
 
         val dayIds = listOf(

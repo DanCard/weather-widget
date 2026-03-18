@@ -543,31 +543,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         )
     }
 
-    private fun triggerImmediateUpdate(
-        context: Context,
-        forceRefresh: Boolean = false,
-        reason: String = "unspecified",
-    ) {
-        Log.d(TAG, "triggerImmediateUpdate: Enqueueing full/forced worker (reason=$reason, force=$forceRefresh)")
-        val workRequest =
-            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                .setInputData(
-                    Data.Builder()
-                        .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, forceRefresh)
-                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
-                        .build(),
-                )
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WORK_NAME_ONE_TIME,
-            ExistingWorkPolicy.KEEP,
-            workRequest,
-        )
-        Log.d(TAG, "triggerImmediateUpdate: Worker enqueued with id=${workRequest.id}")
-    }
-
     private fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
         Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker (reason=$reason)")
         val workRequest =
@@ -614,6 +589,30 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
         const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
         const val HOUR_ZONE_COUNT = 12
+        internal fun triggerImmediateUpdate(
+            context: Context,
+            forceRefresh: Boolean = false,
+            reason: String = "unspecified",
+        ) {
+            Log.d(TAG, "triggerImmediateUpdate: Enqueueing full/forced worker (reason=$reason, force=$forceRefresh)")
+            val workRequest =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, forceRefresh)
+                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                            .build(),
+                    )
+                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME_ONE_TIME,
+                ExistingWorkPolicy.KEEP,
+                workRequest,
+            )
+            Log.d(TAG, "triggerImmediateUpdate: Worker enqueued with id=${workRequest.id}")
+        }
 
         /**
          * Calculate the hourly offset that a zone's center represents.

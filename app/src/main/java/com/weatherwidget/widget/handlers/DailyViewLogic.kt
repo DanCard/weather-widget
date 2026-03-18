@@ -51,7 +51,8 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap()
+        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
     ): List<TextDayData> {
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -124,8 +125,12 @@ object DailyViewLogic {
                 highLabel = formatTempLabel(obsHigh)
                 lowLabel = formatTempLabel(obsLow)
             } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
+                val observedCurrentTemp = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
+                    currentTemps, displaySource
+                )
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
-                    hourlyForecasts, today, now, displaySource, weather, dailyActuals
+                    hourlyForecasts, today, now, displaySource, weather, dailyActuals,
+                    currentTemp = observedCurrentTemp?.temperature
                 )
 
                 val visibleHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
@@ -186,7 +191,8 @@ object DailyViewLogic {
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
         dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
-        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap()
+        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
+        currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
@@ -232,6 +238,8 @@ object DailyViewLogic {
             var finalLow: Float? = weather?.lowTemp
             var fHigh: Float? = null
             var fLow: Float? = null
+            var snapshotHigh: Float? = null
+            var snapshotLow: Float? = null
             var isClimateOverlay = false
             var isTodayForecastFallback = false
 
@@ -258,13 +266,31 @@ object DailyViewLogic {
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
+                // Find a snapshot from ~24h ago for the "Snapshot" bar
+                val yesterdaySameTime = now.minusHours(24)
+                val snapshot = forecasts
+                    .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
+                    .filter { it.highTemp != null && it.lowTemp != null }
+                    .filter { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.fetchedAt), java.time.ZoneId.systemDefault()).isBefore(yesterdaySameTime) }
+                    .maxByOrNull { it.fetchedAt }
+                    ?: forecasts.filter { it.highTemp != null && it.lowTemp != null }.minByOrNull { it.fetchedAt }
+
+                val observedCurrentTemp = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
+                    currentTemps, displaySource
+                )
+
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
-                    hourlyForecasts, today, now, displaySource, weather, dailyActuals
+                    hourlyForecasts, today, now, displaySource, weather, dailyActuals,
+                    currentTemp = observedCurrentTemp?.temperature,
+                    snapshotHigh = snapshot?.highTemp,
+                    snapshotLow = snapshot?.lowTemp
                 )
                 finalHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
                 finalLow = tripleValues.observedLow ?: tripleValues.forecastLow
                 fHigh = tripleValues.forecastHigh
                 fLow = tripleValues.forecastLow
+                snapshotHigh = tripleValues.snapshotHigh
+                snapshotLow = tripleValues.snapshotLow
                 isTodayForecastFallback =
                     tripleValues.observedHigh == null &&
                         tripleValues.observedLow == null &&
@@ -321,6 +347,8 @@ object DailyViewLogic {
                     hasRainForecast = hasRainForecast,
                     columnIndex = index,
                     isTodayForecastFallback = isTodayForecastFallback,
+                    snapshotHigh = snapshotHigh,
+                    snapshotLow = snapshotLow,
                 )
             )
         }

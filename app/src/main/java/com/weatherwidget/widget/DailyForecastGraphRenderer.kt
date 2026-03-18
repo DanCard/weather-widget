@@ -49,6 +49,8 @@ object DailyForecastGraphRenderer {
         val hasRainForecast: Boolean = false, // Unsuppressed rain signal for click routing
         val columnIndex: Int? = null, // Inherent position in the grid
         val isTodayForecastFallback: Boolean = false,
+        val snapshotHigh: Float? = null,
+        val snapshotLow: Float? = null,
     )
 
     fun renderGraph(
@@ -69,7 +71,7 @@ object DailyForecastGraphRenderer {
         val columns = if (numColumns > 0) numColumns else days.size
 
         // Find temperature range for scaling (ignore nulls)
-        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow) }
+        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow) }
         // Remove buffer so the lowest temp hits the bottom exactly
         val minTemp = (allTemps.minOrNull() ?: 0).toFloat()
         val maxTemp = (allTemps.maxOrNull() ?: 100).toFloat()
@@ -307,39 +309,54 @@ object DailyForecastGraphRenderer {
                 else -> barPaint
             }
 
-            if (highY != null && lowY != null) {
+            if (day.high != null && day.low != null) {
                 if (day.isToday) {
+                    val sHighY = (day.snapshotHigh ?: day.forecastHigh)?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: highY!!
+                    val sLowY = (day.snapshotLow ?: day.forecastLow)?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: lowY!!
+                    
                     val fHighY = day.forecastHigh?.let {
                         graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
-                    } ?: highY
+                    } ?: highY!!
                     val fLowY = day.forecastLow?.let {
                         graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
-                    } ?: lowY
+                    } ?: lowY!!
 
                     val minBarHeight = dpToPx(context, 6f)
-                    val effectiveLowY = if (kotlin.math.abs(highY - lowY) < minBarHeight) highY + minBarHeight else lowY
+                    val effectiveSLowY = if (kotlin.math.abs(sHighY - sLowY) < minBarHeight) sHighY + minBarHeight else sLowY
+                    val effectiveLowY = if (kotlin.math.abs(highY!! - lowY!!) < minBarHeight) highY!! + minBarHeight else lowY!!
                     val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
 
-                    android.util.Log.d("DailyGraphRenderer", "  Drawing Day ${day.date}: [TODAY] highY=$highY, lowY=$effectiveLowY, centerX=$centerX")
+                    android.util.Log.d("DailyGraphRenderer", "  Drawing Day ${day.date}: [TODAY] sHighY=$sHighY, highY=$highY, fHighY=$fHighY, minTemp=$minTemp, maxTemp=$maxTemp")
 
-                    canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, effectiveLowY, todayTripleYellowPaint)
-                    canvas.drawLine(centerX, highY, centerX, effectiveLowY, todayTripleOrangePaint)
+                    canvas.drawLine(centerX - tripleBarOffset, sHighY, centerX - tripleBarOffset, effectiveSLowY, todayTripleYellowPaint)
+                    canvas.drawLine(centerX, highY!!, centerX, effectiveLowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveFLowY, todayTripleBluePaint)
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, effectiveLowY, centerX, todayTripleOrangePaint.color))
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY!!, effectiveLowY, centerX, todayTripleOrangePaint.color))
                 } else {
                     // Ensure at least a small bar if high == low (6dp minimum height)
                     val minBarHeight = dpToPx(context, 6f)
-                    val effectiveLowY = if (kotlin.math.abs(highY - lowY) < minBarHeight) highY + minBarHeight else lowY
+                    val effectiveLowY = if (kotlin.math.abs(highY!! - lowY!!) < minBarHeight) highY + minBarHeight else lowY
                     
                     android.util.Log.d("DailyGraphRenderer", "  Drawing Day ${day.date}: [HIST/FUT] highY=$highY, lowY=$effectiveLowY, centerX=$centerX")
                     
-                    canvas.drawLine(centerX, highY, centerX, effectiveLowY, paint)
+                    canvas.drawLine(centerX, highY!!, centerX, effectiveLowY, paint)
                     val barType = if (day.isPast) "HISTORY" else "FUTURE"
                     onBarDrawn?.invoke(BarDrawnDebug(day.date, barType, highY, effectiveLowY, centerX, paint.color))
                 }
             } else if (highY != null) {
                 val minBarHeight = dpToPx(context, 6f)
                 if (day.isToday) {
+                    val sHighY = (day.snapshotHigh ?: day.forecastHigh)?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: highY
+                    val sLowY = (day.snapshotLow ?: day.forecastLow)?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: (highY + minBarHeight)
+                    
                     val fHighY = day.forecastHigh?.let {
                         graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
                     } ?: highY
@@ -347,11 +364,12 @@ object DailyForecastGraphRenderer {
                         graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
                     } ?: highY
 
-                    val effectiveLowY = if (kotlin.math.abs(highY - fLowY) < minBarHeight) highY + minBarHeight else fLowY
+                    val effectiveSLowY = if (kotlin.math.abs(sHighY - sLowY) < minBarHeight) sHighY + minBarHeight else sLowY
+                    val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
                     
-                    canvas.drawLine(centerX - tripleBarOffset, highY, centerX - tripleBarOffset, highY + minBarHeight, todayTripleYellowPaint)
+                    canvas.drawLine(centerX - tripleBarOffset, sHighY, centerX - tripleBarOffset, effectiveSLowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, highY, centerX, highY + minBarHeight, todayTripleOrangePaint)
-                    canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveLowY, todayTripleBluePaint)
+                    canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveFLowY, todayTripleBluePaint)
                     onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY, highY + minBarHeight, centerX, todayTripleOrangePaint.color))
                 } else {
                     val effectiveLowY = highY + minBarHeight
@@ -362,6 +380,13 @@ object DailyForecastGraphRenderer {
             } else if (lowY != null) {
                 val minBarHeight = dpToPx(context, 6f)
                 if (day.isToday) {
+                    val sHighY = (day.snapshotHigh ?: day.forecastHigh)?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: (lowY - minBarHeight)
+                    val sLowY = (day.snapshotLow ?: day.forecastLow)?.let {
+                        graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
+                    } ?: lowY
+                    
                     val fHighY = day.forecastHigh?.let {
                         graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
                     } ?: lowY
@@ -369,9 +394,10 @@ object DailyForecastGraphRenderer {
                         graphTop + graphHeight * (1 - (it - minTemp).toFloat() / tempRange)
                     } ?: lowY
                     
+                    val effectiveSHighY = if (kotlin.math.abs(sHighY - sLowY) < minBarHeight) sLowY - minBarHeight else sHighY
                     val effectiveFHighY = if (kotlin.math.abs(fHighY - lowY) < minBarHeight) lowY - minBarHeight else fHighY
 
-                    canvas.drawLine(centerX - tripleBarOffset, lowY - minBarHeight, centerX - tripleBarOffset, lowY, todayTripleYellowPaint)
+                    canvas.drawLine(centerX - tripleBarOffset, effectiveSHighY, centerX - tripleBarOffset, sLowY, todayTripleYellowPaint)
                     canvas.drawLine(centerX, lowY - minBarHeight, centerX, lowY, todayTripleOrangePaint)
                     canvas.drawLine(centerX + tripleBarOffset, effectiveFHighY, centerX + tripleBarOffset, fLowY, todayTripleBluePaint)
                     onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", lowY - minBarHeight, lowY, centerX, todayTripleOrangePaint.color))

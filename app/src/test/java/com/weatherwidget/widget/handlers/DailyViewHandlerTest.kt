@@ -200,6 +200,63 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareGraphDays includes snapshot and current temp for today`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        
+        val weatherByDate = mapOf(
+            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+        )
+        
+        // Snapshot from 24h ago
+        val snapshots = mapOf(
+            todayStr to listOf(
+                createWeather(todayStr, highTemp = 82f, lowTemp = 62f).copy(
+                    fetchedAt = now.minusHours(25).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                )
+            )
+        )
+
+        val currentTemps = listOf(
+            CurrentTempEntity(
+                date = todayStr,
+                source = WeatherSource.NWS.id,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                temperature = 75f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                condition = "Clear",
+                fetchedAt = 1L
+            )
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = snapshots,
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = emptyMap(),
+            currentTemps = currentTemps
+        )
+
+        val todayData = days.first { it.date == todayStr }
+        assertEquals(82f, todayData.snapshotHigh!!, 0.1f)
+        assertEquals(62f, todayData.snapshotLow!!, 0.1f)
+        // Observed High should include currentTemp (75) even if dailyActuals is empty
+        assertEquals(75f, todayData.high!!, 0.1f)
+        assertEquals(75f, todayData.low!!, 0.1f)
+        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
+        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+    }
+
+    @Test
     fun `prepareGraphDays today falls back to forecast when source actuals are missing`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()

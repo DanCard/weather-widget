@@ -6,6 +6,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -28,6 +30,7 @@ class WidgetStateManagerTest {
         every { editor.putString(any(), any()) } returns editor
         every { editor.putFloat(any(), any()) } returns editor
         every { editor.putLong(any(), any()) } returns editor
+        every { prefs.getLong(any(), any()) } returns 0L
         every { editor.remove(any()) } returns editor
         
         stateManager = WidgetStateManager(context)
@@ -334,5 +337,39 @@ class WidgetStateManagerTest {
         assertEquals(2, ZoomLevel.NARROW.navJump)
         assertEquals(1, ZoomLevel.NARROW.labelInterval)
         assertEquals(0, ZoomLevel.NARROW.precipSmoothIterations)
+    }
+
+    @Test
+    fun `shouldRefreshMissingActuals respects cooldown`() {
+        val widgetId = 5
+        val source = "NWS"
+        val now = System.currentTimeMillis()
+        every { prefs.getLong(any(), any()) } returns now
+
+        val result = stateManager.shouldRefreshMissingActuals(widgetId, source, 5_000L)
+
+        assertFalse(result)
+    }
+
+    @Test
+    fun `shouldRefreshMissingActuals returns true after cooldown expires`() {
+        val widgetId = 7
+        val source = "WEATHER_API"
+        val past = System.currentTimeMillis() - 10_000L
+        every { prefs.getLong(any(), any()) } returns past
+
+        val result = stateManager.shouldRefreshMissingActuals(widgetId, source, 5_000L)
+
+        assertTrue(result)
+    }
+
+    @Test
+    fun `markMissingActualsRefreshRequested writes timestamp`() {
+        val widgetId = 3
+        val source = "OPEN_METEO"
+
+        stateManager.markMissingActualsRefreshRequested(widgetId, source)
+
+        verify { editor.putLong("widget_missing_actuals_refresh_${widgetId}_$source", any()) }
     }
 }

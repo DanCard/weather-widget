@@ -395,23 +395,36 @@ class CurrentTempRepository
             val localZone = java.time.ZoneId.systemDefault()
             val now = java.time.ZonedDateTime.now(localZone)
             
-            // Check specifically for yesterday's data (the most important part of "initial history")
+            // Check for yesterday's data
             val yesterday = now.minusDays(1).toLocalDate()
-            val startTs = yesterday.atStartOfDay(localZone).toInstant().toEpochMilli()
-            val endTs = yesterday.plusDays(1).atStartOfDay(localZone).toInstant().toEpochMilli()
+            val startTsYesterday = yesterday.atStartOfDay(localZone).toInstant().toEpochMilli()
+            val endTsYesterday = yesterday.plusDays(1).atStartOfDay(localZone).toInstant().toEpochMilli()
             
-            android.util.Log.d(TAG, "Checking for yesterday's observations ($yesterday)")
-            val yesterdayObservations = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
-            android.util.Log.d(TAG, "Found ${yesterdayObservations.size} observations for yesterday")
+            val yesterdayObservations = observationDao.getObservationsInRange(startTsYesterday, endTsYesterday, latitude, longitude)
+            val isYesterdayPopulated = yesterdayObservations.size >= 10
             
-            // If we have at least 10 observations for yesterday, consider it "populated".
-            // NWS stations usually report hourly or more, so 10 is a safe "not empty" threshold.
-            if (yesterdayObservations.size >= 10) {
-                android.util.Log.d(TAG, "Skipping backfill: yesterday's history already exists (${yesterdayObservations.size} points)")
+            // Also check for today's data density
+            val today = now.toLocalDate()
+            val startTsToday = today.atStartOfDay(localZone).toInstant().toEpochMilli()
+            val endTsToday = now.toInstant().toEpochMilli()
+            
+            val todayObservations = observationDao.getObservationsInRange(startTsToday, endTsToday, latitude, longitude)
+            val currentHour = now.hour
+            val isTodayPopulated = when {
+                currentHour < 2 -> true // Too early to judge today
+                currentHour < 6 -> todayObservations.size >= 2
+                currentHour < 12 -> todayObservations.size >= 4
+                else -> todayObservations.size >= 8
+            }
+
+            android.util.Log.d(TAG, "History check: yesterdayCount=${yesterdayObservations.size}, todayCount=${todayObservations.size}, hour=$currentHour")
+            
+            if (isYesterdayPopulated && isTodayPopulated) {
+                android.util.Log.d(TAG, "Skipping backfill: both yesterday and today already have sufficient data")
                 return
             }
             
-            android.util.Log.i(TAG, "Insufficient history for yesterday (${yesterdayObservations.size} points), backfilling last 48 hours")
+            android.util.Log.i(TAG, "Insufficient history (yesterdayPopulated=$isYesterdayPopulated, todayPopulated=$isTodayPopulated), backfilling last 48 hours")
             val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
             if (gridPoint == null) {
                 android.util.Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
