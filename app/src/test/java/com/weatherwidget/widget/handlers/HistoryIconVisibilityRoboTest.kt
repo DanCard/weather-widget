@@ -97,7 +97,10 @@ class HistoryIconVisibilityRoboTest {
             appWidgetId = appWidgetId,
             weatherList = emptyList(),
             forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList()
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
         )
 
         val root = FrameLayout(context)

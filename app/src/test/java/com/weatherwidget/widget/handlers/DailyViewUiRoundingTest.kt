@@ -2,8 +2,6 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WidgetStateManager
-import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -18,7 +16,7 @@ class DailyViewUiRoundingTest {
     private val tomorrowStr = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
     @Test
-    fun `UI preserves today and history decimals but rounds tomorrow even if DB has decimals`() {
+    fun `UI preserves today and history actual decimals but rounds tomorrow forecast`() {
         val now = LocalDateTime.now()
         val displaySource = WeatherSource.OPEN_METEO
         val yesterday = today.minusDays(1)
@@ -38,7 +36,21 @@ class DailyViewUiRoundingTest {
             weatherByDate = weatherByDate,
             hourlyForecasts = emptyList(),
             numColumns = 7,
-            displaySource = displaySource
+            displaySource = displaySource,
+            dailyActuals = mapOf(
+                yesterdayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = yesterdayStr,
+                    highTemp = 72.4f,
+                    lowTemp = 50.6f,
+                    condition = "Clear",
+                ),
+                todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = todayStr,
+                    highTemp = 72.4f,
+                    lowTemp = 50.6f,
+                    condition = "Clear",
+                ),
+            )
         )
 
         // 1. Verify History (Should show decimal)

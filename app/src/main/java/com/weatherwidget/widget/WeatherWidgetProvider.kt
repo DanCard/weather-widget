@@ -108,16 +108,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         latestWeather.locationLon,
                     )
 
-                    val local = java.time.ZoneId.systemDefault()
-                    val obsStartTs = LocalDate.now().minusDays(30).atStartOfDay(local).toEpochSecond() * 1000
-                    val obsEndTs = LocalDate.now().plusDays(1).atStartOfDay(local).toEpochSecond() * 1000
-                    val observations = database.observationDao().getObservationsInRange(
-                        obsStartTs,
-                        obsEndTs,
+                    val actualStart = LocalDate.now().minusDays(30).atStartOfDay()
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
+                    val actualEnd = LocalDate.now().plusDays(1).atStartOfDay().minusHours(1)
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
+                    val hourlyActuals = database.hourlyActualDao().getActualsInRangeAllSources(
+                        actualStart,
+                        actualEnd,
                         latestWeather.locationLat,
                         latestWeather.locationLon,
                     )
-                    val dailyActuals = ObservationResolver.aggregateObservationsToDaily(observations).associateBy { it.date }
+                    val dailyActualsBySource = ObservationResolver.aggregateHourlyActualsToDailyBySource(hourlyActuals)
 
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetWithData(
@@ -128,7 +129,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             forecastSnapshots = forecastSnapshots,
                             hourlyForecasts = hourlyForecasts,
                             currentTemps = currentTemps,
-                            dailyActuals = dailyActuals,
+                            dailyActualsBySource = dailyActualsBySource,
                             repository = repository
                         )
                     }
@@ -663,7 +664,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             forecastSnapshots: Map<String, List<ForecastEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
-            dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
+            dailyActualsBySource: DailyActualsBySource = emptyMap(),
             repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         ) {
             val stateManager = WidgetStateManager(context)
@@ -752,7 +753,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         forecastSnapshots,
                         hourlyForecasts,
                         currentTemps,
-                        dailyActuals,
+                        dailyActualsBySource,
                         repository
                     )
                 }

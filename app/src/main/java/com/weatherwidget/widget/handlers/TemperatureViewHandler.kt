@@ -46,6 +46,14 @@ object TemperatureViewHandler {
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
     private const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
 
+    internal data class SelectedObservationSeries(
+        val stationId: String?,
+        val stationName: String?,
+        val stationType: String?,
+        val observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        val rejectedGroupCount: Int,
+    )
+
     /**
      * Update widget with hourly temperature data.
      */
@@ -165,22 +173,10 @@ object TemperatureViewHandler {
                 val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
                 val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
                 val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
-                
-                // Filter by source
-                val filteredObs = observations.filter { obs ->
-                    when (displaySource) {
-                        WeatherSource.OPEN_METEO -> obs.stationId.startsWith("OPEN_METEO")
-                        WeatherSource.WEATHER_API -> obs.stationId.startsWith("WEATHER_API")
-                        WeatherSource.SILURIAN -> obs.stationId.startsWith("SILURIAN")
-                        WeatherSource.NWS -> !obs.stationId.startsWith("OPEN_METEO") && !obs.stationId.startsWith("WEATHER_API") && !obs.stationId.startsWith("SILURIAN")
-                        else -> true
-                    }
-                }
-                
-                android.util.Log.d("ActualsDebug", "getObservations: widget=$appWidgetId ${filteredObs.size} rows, zoom=$zoom")
-                val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, filteredObs)
+                Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${observations.size}, zoom=$zoom")
+                val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, observations)
                 val actualCount = hourData.count { it.isActual }
-                android.util.Log.d("ActualsDebug", "buildHourDataList: ${hourData.size} hours, $actualCount isActual=true")
+                Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
                 hourData
             } else {
                 emptyList()
@@ -591,6 +587,13 @@ object TemperatureViewHandler {
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val selectedSeries = selectObservationSeries(actuals, displaySource, startHour, endHour)
+        Log.d(
+            TAG,
+            "buildHourDataList: source=${displaySource.id}, selectedStation=${selectedSeries.stationId ?: "<none>"}, " +
+                "stationType=${selectedSeries.stationType ?: "<unknown>"}, points=${selectedSeries.observations.size}, " +
+                "rejectedGroups=${selectedSeries.rejectedGroupCount}"
+        )
 
         val labelInterval = zoom.labelInterval
 
@@ -649,7 +652,7 @@ object TemperatureViewHandler {
         val allTimes = hours.map { it.dateTime }.toMutableSet()
         val actualMap = mutableMapOf<LocalDateTime, Float>()
 
-        actuals.forEach { obs ->
+        selectedSeries.observations.forEach { obs ->
             val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDateTime()
@@ -722,6 +725,71 @@ object TemperatureViewHandler {
 
         return finalHours
     }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun selectObservationSeries(
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        displaySource: WeatherSource,
+        startHour: LocalDateTime,
+        endHour: LocalDateTime,
+    ): SelectedObservationSeries {
+        val sourceObservations = observations.filter { matchesObservationSource(it, displaySource) }
+        if (sourceObservations.isEmpty()) {
+            return SelectedObservationSeries(
+                stationId = null,
+                stationName = null,
+                stationType = null,
+                observations = emptyList(),
+                rejectedGroupCount = 0,
+            )
+        }
+
+        val grouped = sourceObservations.groupBy { it.stationId }
+        val selectedEntry = grouped.entries.maxWithOrNull(
+            compareBy<Map.Entry<String, List<com.weatherwidget.data.local.ObservationEntity>>>(
+                { entry -> entry.value.map { observationHour(it) }.toSet().size },
+                { entry -> entry.value.size },
+                { entry -> -entry.value.minOfOrNull { it.distanceKm }!! },
+                { entry -> entry.value.maxOf { it.timestamp } },
+                { entry -> -entry.key.hashCode() },
+            )
+        )
+
+        val chosen = selectedEntry?.value.orEmpty().sortedBy { it.timestamp }
+        val metadata = chosen.firstOrNull()
+        return SelectedObservationSeries(
+            stationId = selectedEntry?.key,
+            stationName = metadata?.stationName,
+            stationType = metadata?.stationType,
+            observations = chosen.filter { obs ->
+                val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime()
+                !obsTime.isBefore(startHour) && !obsTime.isAfter(endHour)
+            },
+            rejectedGroupCount = (grouped.size - 1).coerceAtLeast(0),
+        )
+    }
+
+    private fun matchesObservationSource(
+        observation: com.weatherwidget.data.local.ObservationEntity,
+        displaySource: WeatherSource,
+    ): Boolean =
+        when (displaySource) {
+            WeatherSource.OPEN_METEO -> observation.stationId.startsWith("OPEN_METEO")
+            WeatherSource.WEATHER_API -> observation.stationId.startsWith("WEATHER_API")
+            WeatherSource.SILURIAN -> observation.stationId.startsWith("SILURIAN")
+            WeatherSource.NWS -> !observation.stationId.startsWith("OPEN_METEO") &&
+                !observation.stationId.startsWith("WEATHER_API") &&
+                !observation.stationId.startsWith("SILURIAN")
+            else -> true
+        }
+
+    private fun observationHour(observation: com.weatherwidget.data.local.ObservationEntity): LocalDateTime =
+        java.time.Instant.ofEpochMilli(observation.timestamp)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toLocalDateTime()
+            .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
 
     private fun formatHourLabel(time: LocalDateTime): String {
         val hour = time.hour

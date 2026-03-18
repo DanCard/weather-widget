@@ -180,20 +180,80 @@ class DailyViewHandlerTest {
             displaySource = WeatherSource.NWS,
             isEveningMode = true,
             skipHistory = false,
-            hourlyForecasts = hourlyForecasts
+            hourlyForecasts = hourlyForecasts,
+            dailyActuals = mapOf(
+                todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = todayStr,
+                    highTemp = 74f,
+                    lowTemp = 65f,
+                    condition = "Clear",
+                )
+            )
         )
 
         val todayData = days.first { it.date == todayStr }
-        // Refined logic: Observed uses hourly peak (74) if after 4 PM, 
-        // but Forecast line (Blue) uses official API (80)
+        // Observed uses source-specific actuals; forecast stays API-specific.
         assertEquals(74f, todayData.high!!, 0.1f) 
-        assertEquals(60f, todayData.low!!, 0.1f)
+        assertEquals(65f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
     }
 
     @Test
-    fun `prepareTextDays past day in NWS mode prefers NWS forecast over higher observation`() {
+    fun `prepareGraphDays today falls back to forecast when source actuals are missing`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherByDate = mapOf(
+            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+        )
+
+        val hourlyForecasts = listOf(
+            HourlyForecastEntity(
+                dateTime = today.atTime(5, 0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")),
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                temperature = 60f,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                fetchedAt = 1L
+            ),
+            HourlyForecastEntity(
+                dateTime = today.atTime(14, 0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")),
+                condition = "Sunny",
+                source = WeatherSource.NWS.id,
+                temperature = 74f,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                fetchedAt = 1L
+            ),
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = hourlyForecasts,
+            dailyActuals = emptyMap(),
+        )
+
+        val todayData = days.first { it.date == todayStr }
+        assertEquals(80f, todayData.high!!, 0.1f)
+        assertEquals(60f, todayData.low!!, 0.1f)
+        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
+        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertTrue(todayData.isTodayForecastFallback)
+    }
+
+    @Test
+    fun `prepareTextDays past day shows source-specific actuals`() {
         every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
@@ -224,12 +284,40 @@ class DailyViewHandlerTest {
         )
 
         val yesterdayData = result.first { it.dateStr == yesterdayStr }
-        assertEquals("77°", yesterdayData.highLabel)
-        assertEquals("56°", yesterdayData.lowLabel)
+        assertEquals("80.9°", yesterdayData.highLabel)
+        assertEquals("55°", yesterdayData.lowLabel)
     }
 
     @Test
-    fun `prepareGraphDays past day in NWS mode prefers NWS forecast over higher observation`() {
+    fun `prepareTextDays today falls back to forecast labels when source actuals are missing`() {
+        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
+
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            todayStr to createWeather(todayStr, highTemp = 80.9f, lowTemp = 60.2f)
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = emptyMap(),
+        )
+
+        val todayData = result.first { it.dateStr == todayStr }
+        assertEquals("80.9°", todayData.highLabel)
+        assertEquals("60.2°", todayData.lowLabel)
+        assertTrue(todayData.isTodayForecastFallback)
+    }
+
+    @Test
+    fun `prepareGraphDays past day shows source-specific actuals`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val yesterday = today.minusDays(1)
@@ -261,8 +349,8 @@ class DailyViewHandlerTest {
         )
 
         val yesterdayData = days.first { it.date == yesterdayStr }
-        assertEquals(77f, yesterdayData.high!!, 0.1f)
-        assertEquals(56f, yesterdayData.low!!, 0.1f)
+        assertEquals(80.9f, yesterdayData.high!!, 0.1f)
+        assertEquals(55f, yesterdayData.low!!, 0.1f)
     }
 
     @Test
@@ -482,7 +570,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget text labels keep tenth precision for decimal source values at Noon`() = runBlocking {
+    fun `updateWidget text labels show today forecast without source actuals at Noon`() = runBlocking {
         val now = LocalDateTime.of(2026, 3, 2, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -519,7 +607,7 @@ class DailyViewHandlerTest {
                 HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
             ),
             currentTemps = emptyList(),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now
         )
@@ -531,11 +619,11 @@ class DailyViewHandlerTest {
             applied.findViewById<TextView>(id)?.text?.toString()
         }
         
-        assertTrue("Noon highTexts $highTexts should contain 62.9°", highTexts.contains("62.9°"))
+        assertTrue("Noon highTexts $highTexts should contain today's forecast value", highTexts.contains("62.9°"))
     }
 
     @Test
-    fun `updateWidget text labels keep tenth precision for decimal source values in Evening`() = runBlocking {
+    fun `updateWidget text labels show today forecast without source actuals in Evening`() = runBlocking {
         val now = LocalDateTime.of(2026, 3, 2, 20, 0) // 8 PM
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -571,7 +659,7 @@ class DailyViewHandlerTest {
                 HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
             ),
             currentTemps = emptyList(),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now
         )
@@ -583,7 +671,7 @@ class DailyViewHandlerTest {
             applied.findViewById<TextView>(id)?.text?.toString()
         }
         
-        assertTrue("Evening highTexts $highTexts should contain 62.9° (for Today)", highTexts.contains("62.9°"))
+        assertTrue("Evening highTexts $highTexts should contain 62.9° for Today", highTexts.contains("62.9°"))
     }
 
     @Test
@@ -627,7 +715,7 @@ class DailyViewHandlerTest {
                     fetchedAt = 1L,
                 ),
             ),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now,
         )
@@ -682,7 +770,7 @@ class DailyViewHandlerTest {
                     fetchedAt = 1L,
                 ),
             ),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now,
         )
@@ -765,7 +853,7 @@ class DailyViewHandlerTest {
                 HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
             ),
             currentTemps = emptyList(),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now
         )
@@ -812,7 +900,7 @@ class DailyViewHandlerTest {
                 HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
             ),
             currentTemps = emptyList(),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now
         )
@@ -856,7 +944,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             hourlyForecasts = emptyList(),
             currentTemps = emptyList(),
-            dailyActuals = emptyMap(),
+            dailyActualsBySource = emptyMap(),
             repository = null,
             now = now,
         )

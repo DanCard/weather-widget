@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.widget.BatteryFetchStrategy
+import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -121,7 +122,7 @@ object WidgetIntentRouter {
         val availableForecastDates = weatherList.map { it.targetDate }.toSet()
         
         val dailyActuals = getDailyActuals(database, lat, lon)
-        val availableObsDates = dailyActuals.keys
+        val availableObsDates = dailyActuals.values.flatMap { it.keys }.toSet()
         
         val availableDates = (availableForecastDates + availableObsDates)
             .map { LocalDate.parse(it) }
@@ -204,6 +205,7 @@ object WidgetIntentRouter {
             hourlyForecasts,
             ctCurrentTemps,
             dailyActuals,
+            repository,
         )
     }
 
@@ -469,12 +471,11 @@ object WidgetIntentRouter {
         database: WeatherDatabase,
         lat: Double,
         lon: Double,
-    ): Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> {
-        val local = ZoneId.systemDefault()
-        val startTs = LocalDate.now().minusDays(30).atStartOfDay(local).toEpochSecond() * 1000
-        val endTs = LocalDate.now().plusDays(1).atStartOfDay(local).toEpochSecond() * 1000
-        val observations = database.observationDao().getObservationsInRange(startTs, endTs, lat, lon)
-        return com.weatherwidget.widget.ObservationResolver.aggregateObservationsToDaily(observations).associateBy { it.date }
+    ): DailyActualsBySource {
+        val start = LocalDate.now().minusDays(30).atStartOfDay().format(HOUR_FORMATTER)
+        val end = LocalDate.now().plusDays(1).atStartOfDay().minusHours(1).format(HOUR_FORMATTER)
+        val actuals = database.hourlyActualDao().getActualsInRangeAllSources(start, end, lat, lon)
+        return com.weatherwidget.widget.ObservationResolver.aggregateHourlyActualsToDailyBySource(actuals)
     }
 
     private suspend fun sourceDataMissingForCurrentWindow(

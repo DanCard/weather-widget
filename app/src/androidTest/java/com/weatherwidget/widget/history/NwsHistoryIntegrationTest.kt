@@ -21,8 +21,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
     private val yesterdayStr = yesterday.toString()
 
     @Test
-    fun nws_history_bar_uses_observations_to_fill_midday_gaps() = runBlocking {
-        // Scenario: Midday fetch for yesterday has a high but no low (dropped by NWS API)
+    fun nws_history_bar_uses_source_specific_actuals() = runBlocking {
+        // Scenario: source-specific actuals exist for yesterday.
         
         // 1. Setup partial NWS forecast snapshot
         val partialForecast = ForecastEntity(
@@ -36,14 +36,14 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             locationLon = -122.08
         )
 
-        // 2. Setup raw station observations (The Actual Truth)
-        val obs = listOf(
-            ObservationEntity("KSJC", "San Jose", yesterday.atTime(6, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), 52f, "Clear", 37.42, -122.08),
-            ObservationEntity("KSJC", "San Jose", yesterday.atTime(14, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), 78f, "Sunny", 37.42, -122.08)
+        val dailyActuals = mapOf(
+            yesterdayStr to ObservationResolver.DailyActual(
+                date = yesterdayStr,
+                highTemp = 78f,
+                lowTemp = 52f,
+                condition = "Sunny",
+            )
         )
-
-        // 3. Aggregate Actuals using the new shared logic
-        val dailyActuals = ObservationResolver.aggregateObservationsToDaily(obs).associateBy { it.date }
 
         // 4. Run Logic to prepare graph days
         val days = DailyViewLogic.prepareGraphDays(
@@ -62,8 +62,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
 
         val result = days.find { it.date == yesterdayStr }
         assertNotNull("Yesterday should be present in the graph data", result)
-        assertEquals("Should use MAX observation for primary bar high", 78f, result!!.high)
-        assertEquals("Should use MIN observation for primary bar low", 52f, result.low)
+        assertEquals("Should use source-specific actual high for primary bar high", 78f, result!!.high)
+        assertEquals("Should use source-specific actual low for primary bar low", 52f, result.low)
         assertEquals("Should still show the forecast high in the comparison overlay", 77f, result.forecastHigh)
         assertNull("Forecast low should remain null as provided in the snapshot", result.forecastLow)
     }
@@ -118,9 +118,7 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
     }
 
     @Test
-    fun today_triple_line_uses_observations_to_fill_hourly_gaps() = runBlocking {
-        // Scenario: NWS Hourly fetch at midday only has hours from 11am onwards.
-        // The blue forecast line should still extend down to the morning low (from observations).
+    fun today_triple_line_uses_source_specific_actuals_only() = runBlocking {
         
         val todayStr = today.toString()
         val middayWeather = ForecastEntity(
@@ -140,11 +138,14 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             HourlyForecastEntity(today.atTime(14, 0).formatISO(), 37.42, -122.08, 66f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L)
         )
 
-        // But we have a morning observation!
-        val obs = listOf(
-            ObservationEntity("KSJC", "San Jose", today.atTime(6, 0).toEpochMs(), 52f, "Clear", 37.42, -122.08)
+        val dailyActuals = mapOf(
+            todayStr to ObservationResolver.DailyActual(
+                date = todayStr,
+                highTemp = 52f,
+                lowTemp = 52f,
+                condition = "Clear",
+            )
         )
-        val dailyActuals = ObservationResolver.aggregateObservationsToDaily(obs).associateBy { it.date }
 
         val days = DailyViewLogic.prepareGraphDays(
             now = today.atTime(13, 0),
@@ -163,9 +164,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
         val result = days.find { it.date == todayStr }
         assertNotNull(result)
         assertEquals("Observed low should be 52", 52f, result!!.low)
-        assertEquals("Forecast low (blue bar) should also reach down to 52", 52f, result.forecastLow)
+        assertEquals("Forecast low falls back to the selected provider's hourly forecast low", 62f, result.forecastLow)
     }
 
     private fun LocalDateTime.formatISO() = this.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-    private fun LocalDateTime.toEpochMs() = this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 }

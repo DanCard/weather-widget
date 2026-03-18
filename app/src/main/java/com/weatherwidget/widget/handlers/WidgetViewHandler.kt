@@ -5,6 +5,7 @@ import android.content.Context
 import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.WidgetStateManager
 
 /**
@@ -31,7 +32,7 @@ interface WidgetViewHandler {
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity> = emptyList(),
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        dailyActualsBySource: DailyActualsBySource = emptyMap(),
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     )
 

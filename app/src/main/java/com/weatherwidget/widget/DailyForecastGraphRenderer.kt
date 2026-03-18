@@ -48,6 +48,7 @@ object DailyForecastGraphRenderer {
         val dailyPrecipProbability: Int? = null, // From ForecastEntity, used for click routing
         val hasRainForecast: Boolean = false, // Unsuppressed rain signal for click routing
         val columnIndex: Int? = null, // Inherent position in the grid
+        val isTodayForecastFallback: Boolean = false,
     )
 
     fun renderGraph(
@@ -398,10 +399,15 @@ object DailyForecastGraphRenderer {
             }
 
             if (day.high != null) {
-                val highLabel = formatTempLabel(day.high, day.isToday || day.isPast)
+                val displayHigh = if (day.isToday && day.forecastHigh != null) maxOf(day.high, day.forecastHigh) else day.high
+                val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
                 highY?.let { y ->
+                    val labelY = if (day.isToday && day.forecastHigh != null && day.forecastHigh > day.high) {
+                        val fHighY = graphTop + graphHeight * (1 - (day.forecastHigh - minTemp).toFloat() / tempRange)
+                        minOf(y, fHighY)
+                    } else y
                     val tempPaint = if (day.isToday) todayTempTextPaint else tempTextPaint
-                    canvas.drawText(highLabel, centerX, y - dpToPx(context, 6f * scaleFactor), tempPaint)
+                    canvas.drawText(highLabel, centerX, labelY - dpToPx(context, 6f * scaleFactor), tempPaint)
                 }
             }
         }

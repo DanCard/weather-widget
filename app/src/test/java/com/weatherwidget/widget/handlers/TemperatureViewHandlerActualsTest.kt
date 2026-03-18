@@ -5,10 +5,12 @@ import com.weatherwidget.testutil.TestData
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -168,4 +170,88 @@ class TemperatureViewHandlerActualsTest {
         assertNull("Hour 06 should not appear in NARROW window", hour06)
         assertTrue("No hours should be isActual", hours.none { it.isActual })
     }
+
+    @Test
+    fun `mixed NWS stations pick one consistent series by coverage`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T09:10", 61f, stationId = "KPAO", distanceKm = 2f),
+            observationAt("2026-02-20T10:10", 62f, stationId = "KPAO", distanceKm = 2f),
+            observationAt("2026-02-20T11:10", 63f, stationId = "KPAO", distanceKm = 2f),
+            observationAt("2026-02-20T10:05", 80f, stationId = "KSFO", distanceKm = 10f),
+        )
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+
+        val hour10 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:10") })
+        val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:10") })
+
+        assertEquals(62f, hour10.actualTemperature)
+        assertEquals(63f, hour11.actualTemperature)
+        assertNotEquals("Rejected station should not supply the actual", 80f, hour10.actualTemperature)
+    }
+
+    @Test
+    fun `single series selection applies to non NWS sources too`() {
+        val forecasts = wideForecasts().map {
+            it.copy(source = WeatherSource.OPEN_METEO.id)
+        }
+        val actuals = listOf(
+            observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
+            observationAt("2026-02-20T11:05", 71f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
+            observationAt("2026-02-20T10:25", 55f, stationId = "OPEN_METEO_1", distanceKm = 8f),
+        )
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.OPEN_METEO,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+
+        val hour10 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:05") })
+        val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:05") })
+
+        assertEquals(70f, hour10.actualTemperature)
+        assertEquals(71f, hour11.actualTemperature)
+    }
+
+    @Test
+    fun `when coverage ties nearest station wins`() {
+        val selected = TemperatureViewHandler.selectObservationSeries(
+            observations = listOf(
+                observationAt("2026-02-20T10:05", 61f, stationId = "KNEAR", distanceKm = 1f),
+                observationAt("2026-02-20T11:05", 62f, stationId = "KNEAR", distanceKm = 1f),
+                observationAt("2026-02-20T10:10", 71f, stationId = "KFAR", distanceKm = 9f),
+                observationAt("2026-02-20T11:10", 72f, stationId = "KFAR", distanceKm = 9f),
+            ),
+            displaySource = WeatherSource.NWS,
+            startHour = LocalDateTime.parse("2026-02-20T10:00"),
+            endHour = LocalDateTime.parse("2026-02-20T12:00"),
+        )
+
+        assertEquals("KNEAR", selected.stationId)
+        assertEquals(2, selected.observations.size)
+    }
+
+    private fun observationAt(
+        dateTime: String,
+        temperature: Float,
+        stationId: String,
+        distanceKm: Float,
+    ) = TestData.observation(
+        stationId = stationId,
+        timestamp = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        temperature = temperature,
+        distanceKm = distanceKm,
+    )
 }

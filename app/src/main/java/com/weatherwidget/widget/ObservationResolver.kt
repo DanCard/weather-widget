@@ -1,10 +1,14 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.CurrentTempEntity
+import com.weatherwidget.data.local.HourlyActualEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.Instant
 import java.time.ZoneId
+
+typealias DailyActualMap = Map<String, ObservationResolver.DailyActual>
+typealias DailyActualsBySource = Map<String, DailyActualMap>
 
 /**
  * Helper for resolving the most recent observed temperature from current temp records.
@@ -80,5 +84,41 @@ object ObservationResolver {
                 condition = mostCommon?.key ?: "Unknown"
             )
         }
+    }
+
+    /**
+     * Aggregates source-scoped hourly actuals into daily highs and lows.
+     */
+    fun aggregateHourlyActualsToDailyBySource(
+        actuals: List<HourlyActualEntity>,
+    ): DailyActualsBySource {
+        return actuals
+            .groupBy { it.source }
+            .mapValues { (_, sourceActuals) ->
+                sourceActuals
+                    .groupBy { it.dateTime.substringBefore('T') }
+                    .mapNotNull { (date, dayActuals) ->
+                        if (dayActuals.isEmpty()) return@mapNotNull null
+
+                        val highTemp = dayActuals.maxOf { it.temperature }
+                        val lowTemp = dayActuals.minOf { it.temperature }
+                        val mostCommonCondition =
+                            dayActuals
+                                .map { it.condition }
+                                .groupingBy { it }
+                                .eachCount()
+                                .maxByOrNull { it.value }
+                                ?.key
+                                ?: "Unknown"
+
+                        date to DailyActual(
+                            date = date,
+                            highTemp = highTemp,
+                            lowTemp = lowTemp,
+                            condition = mostCommonCondition,
+                        )
+                    }
+                    .toMap()
+            }
     }
 }

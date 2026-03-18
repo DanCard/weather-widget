@@ -28,6 +28,7 @@ import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -76,10 +77,10 @@ object DailyViewHandler : WidgetViewHandler {
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity>,
-        dailyActuals: Map<String, ObservationResolver.DailyActual>,
+        dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
     ) {
-        updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, repository, LocalDateTime.now())
+        updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActualsBySource, repository, LocalDateTime.now())
     }
 
     @VisibleForTesting
@@ -91,7 +92,7 @@ object DailyViewHandler : WidgetViewHandler {
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<CurrentTempEntity>,
-        dailyActuals: Map<String, ObservationResolver.DailyActual>,
+        dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
         now: LocalDateTime
     ) {
@@ -111,18 +112,19 @@ object DailyViewHandler : WidgetViewHandler {
         val skipHistory = NavigationUtils.shouldSkipHistory(isEveningMode, dateOffset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, isEveningMode)
 
-        Log.d(
-            TAG,
-            "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
-                "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}",
-        )
-
         // Setup common click actions
         setupCurrentTempToggle(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
 
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+        val dailyActuals = dailyActualsBySource[displaySource.id].orEmpty()
+
+        Log.d(
+            TAG,
+            "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
+                "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
+        )
 
         // Build weather map: prefer the selected display source, fallback to generic gap
         val weatherByDate =
@@ -259,7 +261,12 @@ object DailyViewHandler : WidgetViewHandler {
             )
             Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns. Day dates: ${days.map { it.date }}")
             days.forEach { day ->
-                Log.d(TAG, "  Day: ${day.date} [${day.label}] High=${day.high}, Low=${day.low}, fcstHigh=${day.forecastHigh}, fcstLow=${day.forecastLow}")
+                Log.d(
+                    TAG,
+                    "  Day: ${day.date} [${day.label}] High=${day.high}, Low=${day.low}, " +
+                        "fcstHigh=${day.forecastHigh}, fcstLow=${day.forecastLow}, " +
+                        "todayForecastFallback=${day.isTodayForecastFallback}",
+                )
             }
 
             // Mark rain as shown if today's rain is in the list

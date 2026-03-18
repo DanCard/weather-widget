@@ -35,7 +35,8 @@ object DailyViewLogic {
         val hasRainForecast: Boolean,
         val iconRes: Int,
         val highLabel: String?,
-        val lowLabel: String?
+        val lowLabel: String?,
+        val isTodayForecastFallback: Boolean = false,
     )
 
     fun prepareTextDays(
@@ -115,34 +116,26 @@ object DailyViewLogic {
             
             var highLabel: String? = formatTemp(weather?.highTemp)
             var lowLabel: String? = formatTemp(weather?.lowTemp)
+            var isTodayForecastFallback = false
 
             if (isPast) {
                 val obsHigh = dailyActuals[dateStr]?.highTemp
                 val obsLow = dailyActuals[dateStr]?.lowTemp
-                val fcstHigh = weather?.highTemp
-                val fcstLow = weather?.lowTemp
-
-                val finalHigh: Float?
-                val finalLow: Float?
-                if (displaySource == WeatherSource.NWS && fcstHigh != null && fcstLow != null) {
-                    // NWS mode: trust NWS daily endpoint value first if complete.
-                    finalHigh = fcstHigh
-                    finalLow = fcstLow
-                } else {
-                    // If incomplete or other source, use the most extreme values.
-                    finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
-                    finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
-                }
-
-                highLabel = formatTempLabel(finalHigh)
-                lowLabel = formatTempLabel(finalLow)
+                highLabel = formatTempLabel(obsHigh)
+                lowLabel = formatTempLabel(obsLow)
             } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather, dailyActuals
                 )
 
-                highLabel = formatTempLabel(tripleValues.observedHigh) ?: formatTempLabel(weather?.highTemp)
-                lowLabel = formatTempLabel(tripleValues.observedLow) ?: formatTempLabel(weather?.lowTemp)
+                val visibleHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
+                val visibleLow = tripleValues.observedLow ?: tripleValues.forecastLow
+                highLabel = formatTempLabel(visibleHigh)
+                lowLabel = formatTempLabel(visibleLow)
+                isTodayForecastFallback =
+                    tripleValues.observedHigh == null &&
+                        tripleValues.observedLow == null &&
+                        (visibleHigh != null || visibleLow != null)
             }
 
             val todayIconForecast =
@@ -172,7 +165,8 @@ object DailyViewLogic {
                 hasRainForecast = DayClickHelper.hasRainForecast(rawSummaries[index], precip),
                 iconRes = iconRes,
                 highLabel = highLabel,
-                lowLabel = lowLabel
+                lowLabel = lowLabel,
+                isTodayForecastFallback = isTodayForecastFallback,
             )
         }
     }
@@ -214,7 +208,7 @@ object DailyViewLogic {
             val isToday = date == today
             val isPastDate = date.isBefore(today)
             if (!isToday && !isPastDate) {
-                if (weather?.highTemp == null || weather?.lowTemp == null) return@forEachIndexed
+                if (weather?.highTemp == null || weather.lowTemp == null) return@forEachIndexed
             } else {
                 // Today/Past: Must have at least ONE temperature source
                 if (weather?.highTemp == null && weather?.lowTemp == null && actual == null) return@forEachIndexed
@@ -239,25 +233,11 @@ object DailyViewLogic {
             var fHigh: Float? = null
             var fLow: Float? = null
             var isClimateOverlay = false
+            var isTodayForecastFallback = false
 
             if (isPastDate) {
-                // Merge raw observations and forecast snapshots to find the absolute truth.
-                // If observations are missing (device off), fall back to forecast.
-                // If forecast is partial, use observations to fill the gap.
-                val obsHigh = actual?.highTemp
-                val obsLow = actual?.lowTemp
-                val fcstHigh = weather?.highTemp
-                val fcstLow = weather?.lowTemp
-
-                if (displaySource == WeatherSource.NWS && fcstHigh != null && fcstLow != null) {
-                    // NWS mode: keep past-day highs/lows anchored to official NWS daily endpoint if complete.
-                    finalHigh = fcstHigh
-                    finalLow = fcstLow
-                } else {
-                    // If NWS is partial (missing high or low), or for other sources, use the most extreme values.
-                    finalHigh = listOfNotNull(obsHigh, fcstHigh).maxOrNull()
-                    finalLow = listOfNotNull(obsLow, fcstLow).minOrNull()
-                }
+                finalHigh = actual?.highTemp
+                finalLow = actual?.lowTemp
 
                 if (showComparison) {
                     fHigh = forecast?.highTemp
@@ -271,8 +251,8 @@ object DailyViewLogic {
                             fLow = normal.second.toFloat()
                             isClimateOverlay = true
                         } else if (weather?.isClimateNormal == true) {
-                            fHigh = fcstHigh
-                            fLow = fcstLow
+                            fHigh = weather.highTemp
+                            fLow = weather.lowTemp
                             isClimateOverlay = true
                         }
                     }
@@ -281,10 +261,14 @@ object DailyViewLogic {
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather, dailyActuals
                 )
-                finalHigh = tripleValues.observedHigh
-                finalLow = tripleValues.observedLow
+                finalHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
+                finalLow = tripleValues.observedLow ?: tripleValues.forecastLow
                 fHigh = tripleValues.forecastHigh
                 fLow = tripleValues.forecastLow
+                isTodayForecastFallback =
+                    tripleValues.observedHigh == null &&
+                        tripleValues.observedLow == null &&
+                        (finalHigh != null || finalLow != null)
             } else if (showComparison) {
                 fHigh = forecast?.highTemp
                 fLow = forecast?.lowTemp
@@ -335,7 +319,8 @@ object DailyViewLogic {
                     rainSummary = rainSummary,
                     dailyPrecipProbability = precip,
                     hasRainForecast = hasRainForecast,
-                    columnIndex = index
+                    columnIndex = index,
+                    isTodayForecastFallback = isTodayForecastFallback,
                 )
             )
         }

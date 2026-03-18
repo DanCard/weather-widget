@@ -45,7 +45,15 @@ class TripleLinePrecisionTest {
             today = today,
             now = now,
             displaySource = displaySource,
-            fallbackWeather = forecastFromSnapshot
+            fallbackWeather = forecastFromSnapshot,
+            dailyActuals = mapOf(
+                todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = todayStr,
+                    highTemp = 71.5f,
+                    lowTemp = 70.0f,
+                    condition = "Clear",
+                )
+            ),
         )
 
         // VERIFICATION
@@ -56,9 +64,9 @@ class TripleLinePrecisionTest {
         assertEquals("Forecast low should retain decimal precision from snapshot", 
             50.6f, result.forecastLow!!, 0.001f)
 
-        // Observed high (at 12pm, it should still show the hourly peak of 73.1)
+        // Observed values come from source-specific actuals, not forecast-hourly peaks.
         assertEquals("Observed high should retain hourly precision", 
-            73.1f, result.observedHigh!!, 0.001f)
+            71.5f, result.observedHigh!!, 0.001f)
             
         // Observed low (so far at 12pm, the lowest is 70.0)
         assertEquals("Observed low should retain hourly precision", 

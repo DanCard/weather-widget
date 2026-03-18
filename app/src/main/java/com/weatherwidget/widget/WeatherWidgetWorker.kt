@@ -153,14 +153,15 @@ class WeatherWidgetWorker
         private suspend fun fetchDailyActuals(
             lat: Double,
             lon: Double,
-        ): Map<String, ObservationResolver.DailyActual> {
+        ): DailyActualsBySource {
             return try {
-                val local = java.time.ZoneId.systemDefault()
-                val startTs = LocalDate.now().minusDays(30).atStartOfDay(local).toEpochSecond() * 1000
-                val endTs = LocalDate.now().plusDays(1).atStartOfDay(local).toEpochSecond() * 1000
-                val observations = WeatherDatabase.getDatabase(context).observationDao()
-                    .getObservationsInRange(startTs, endTs, lat, lon)
-                ObservationResolver.aggregateObservationsToDaily(observations).associateBy { it.date }
+                val start = LocalDate.now().minusDays(30).atStartOfDay()
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
+                val end = LocalDate.now().plusDays(1).atStartOfDay().minusHours(1)
+                    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
+                val actuals = WeatherDatabase.getDatabase(context).hourlyActualDao()
+                    .getActualsInRangeAllSources(start, end, lat, lon)
+                ObservationResolver.aggregateHourlyActualsToDailyBySource(actuals)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch daily actuals", e)
                 emptyMap()
@@ -190,7 +191,7 @@ class WeatherWidgetWorker
             forecastSnapshots: Map<String, List<ForecastEntity>>,
             hourlyForecasts: List<HourlyForecastEntity>,
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
-            dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
+            dailyActuals: DailyActualsBySource = emptyMap(),
         ) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -205,7 +206,7 @@ class WeatherWidgetWorker
                     forecastSnapshots = forecastSnapshots,
                     hourlyForecasts = hourlyForecasts,
                     currentTemps = currentTemps,
-                    dailyActuals = dailyActuals,
+                    dailyActualsBySource = dailyActuals,
                     repository = weatherRepository
                 )
             }
