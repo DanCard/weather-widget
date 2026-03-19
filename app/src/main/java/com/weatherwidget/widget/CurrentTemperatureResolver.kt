@@ -23,6 +23,13 @@ data class CurrentTemperatureResolution(
     val shouldClearStoredDelta: Boolean,
 )
 
+data class QuickCurrentTemperature(
+    val displayTemp: Float?,
+    val estimatedTemp: Float?,
+    val observedTemp: Float?,
+    val isStaleEstimate: Boolean,
+)
+
 /**
  * Resolves widget header temperature from two sources:
  * - estimated current temperature from hourly interpolation,
@@ -155,6 +162,28 @@ object CurrentTemperatureResolver {
             appliedDelta = appliedDelta,
             updatedDeltaState = updatedDeltaState,
             shouldClearStoredDelta = storedDeltaState != null && !scopeMatch,
+        )
+    }
+
+    fun resolveQuick(
+        now: LocalDateTime,
+        displaySource: WeatherSource,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        observedCurrentTemp: Float?,
+    ): QuickCurrentTemperature {
+        val estimatedTemp =
+            interpolator.getInterpolatedTemperature(
+                hourlyForecasts = hourlyForecasts,
+                targetTime = now,
+                source = displaySource,
+            )
+        val displayTemp = observedCurrentTemp ?: estimatedTemp
+        val isStaleEstimate = observedCurrentTemp == null && estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
+        return QuickCurrentTemperature(
+            displayTemp = displayTemp,
+            estimatedTemp = estimatedTemp,
+            observedTemp = observedCurrentTemp,
+            isStaleEstimate = isStaleEstimate,
         )
     }
 

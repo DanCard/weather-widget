@@ -160,12 +160,13 @@ class TemperatureGraphLabelTest : IsolatedIntegrationTest("temp_graph_label") {
         val hours = buildHours(temps)
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
-        // Use tall bitmap (400px) to ensure room above (12dp padding = 36-48px)
+        // The hourly graph now stretches farther toward both the top and bottom edges.
+        // Use a taller bitmap so the preferred "above peak" placement is actually feasible.
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
-            heightPx = 400,
+            heightPx = 700,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
             onLabelPlaced = { placements.add(it) }
         )
@@ -182,11 +183,13 @@ class TemperatureGraphLabelTest : IsolatedIntegrationTest("temp_graph_label") {
         val hours = buildHours(temps)
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
+        // The hourly graph now stretches farther toward both the top and bottom edges.
+        // Use a taller bitmap so the preferred "below valley" placement is actually feasible.
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
             widthPx = 700,
-            heightPx = 400,
+            heightPx = 700,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
             onLabelPlaced = { placements.add(it) }
         )

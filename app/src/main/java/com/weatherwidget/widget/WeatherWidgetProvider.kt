@@ -95,6 +95,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 var currentTempQueryMs = 0L
                 var extremesQueryMs = 0L
                 var staleCheckMs = 0L
+                val stateManager = WidgetStateManager(context)
+                val widgetViewModes =
+                    appWidgetIds
+                        .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                        .associateWith { stateManager.getViewMode(it) }
+                val needsDailyData = needsDailyStartupData(widgetViewModes.values)
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
@@ -116,11 +122,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             latestWeather.locationLon,
                         )
                     forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
-                    val snapshotQueryStartMs = SystemClock.elapsedRealtime()
                     val forecastSnapshots =
-                        forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
-                            .groupBy { it.targetDate }
-                    snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
+                        if (needsDailyData) {
+                            val snapshotQueryStartMs = SystemClock.elapsedRealtime()
+                            forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
+                                .groupBy { it.targetDate }
+                                .also {
+                                    snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
+                                }
+                        } else {
+                            emptyMap()
+                        }
 
                     // Get hourly forecasts for interpolation and rain analysis
                     val now = LocalDateTime.now()
@@ -145,17 +157,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     )
                     currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
 
-                    val historyStartDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    val tomorrowDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    val extremesQueryStartMs = SystemClock.elapsedRealtime()
-                    val extremes = database.dailyExtremeDao().getExtremesInRange(
-                        historyStartDate,
-                        tomorrowDate,
-                        latestWeather.locationLat,
-                        latestWeather.locationLon,
-                    )
-                    extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
-                    val dailyActualsBySource = ObservationResolver.extremesToDailyActualsBySource(extremes)
+                    val dailyActualsBySource =
+                        if (needsDailyData) {
+                            val historyStartDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            val tomorrowDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            val extremesQueryStartMs = SystemClock.elapsedRealtime()
+                            val extremes = database.dailyExtremeDao().getExtremesInRange(
+                                historyStartDate,
+                                tomorrowDate,
+                                latestWeather.locationLat,
+                                latestWeather.locationLon,
+                            )
+                            extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
+                            ObservationResolver.extremesToDailyActualsBySource(extremes)
+                        } else {
+                            emptyMap()
+                        }
 
                     for (appWidgetId in appWidgetIds) {
                         val job = launch {
@@ -178,8 +195,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     // 2. Check if data is stale and needs background fetch
                     val staleCheckStartMs = SystemClock.elapsedRealtime()
                     if (DataFreshness.isDataStale(context)) {
-                        Log.d(TAG, "onUpdate: Data is stale, triggering background fetch")
-                        triggerImmediateUpdate(context, reason = "on_update_stale")
+                        Log.d(TAG, "onUpdate: Data is stale, deferring background fetch until after startup paint")
+                        triggerImmediateUpdate(
+                            context,
+                            reason = "on_update_stale",
+                            initialDelayMs = STARTUP_STALE_REFRESH_DELAY_MS,
+                        )
                     } else {
                         Log.d(TAG, "onUpdate: Data is fresh, skipped fetch")
                     }
@@ -686,13 +707,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
         const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
         const val HOUR_ZONE_COUNT = 12
+        private const val STARTUP_STALE_REFRESH_DELAY_MS = 1_500L
+
+        internal fun needsDailyStartupData(viewModes: Collection<ViewMode>): Boolean =
+            viewModes.any { it == ViewMode.DAILY }
+
         internal fun triggerImmediateUpdate(
             context: Context,
             forceRefresh: Boolean = false,
             reason: String = "unspecified",
+            initialDelayMs: Long = 0L,
         ) {
-            Log.d(TAG, "triggerImmediateUpdate: Enqueueing full/forced worker (reason=$reason, force=$forceRefresh)")
-            val workRequest =
+            Log.d(
+                TAG,
+                "triggerImmediateUpdate: Enqueueing full/forced worker (reason=$reason, force=$forceRefresh, delayMs=$initialDelayMs)",
+            )
+            val builder =
                 OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()
@@ -700,8 +730,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
                             .build(),
                     )
-                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                    .build()
+            if (initialDelayMs > 0) {
+                builder.setInitialDelay(initialDelayMs, TimeUnit.MILLISECONDS)
+            } else {
+                builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            }
+            val workRequest = builder.build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WORK_NAME_ONE_TIME,
@@ -794,6 +828,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         observedCurrentTempFetchedAt = observation?.observedAt,
                         repository = repository,
                         startupToken = startupToken,
+                        deferCurrentTempResolution = startupToken != null,
                     )
                 }
                 ViewMode.PRECIPITATION -> {

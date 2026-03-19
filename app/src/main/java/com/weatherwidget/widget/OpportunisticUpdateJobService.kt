@@ -7,12 +7,14 @@ import android.app.job.JobService
 import android.content.ComponentName
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
+import com.weatherwidget.WeatherWidgetApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -31,6 +33,12 @@ class OpportunisticUpdateJobService : JobService() {
 
     override fun onStartJob(params: JobParameters): Boolean {
         Log.d(TAG, "Opportunistic update job started")
+        val processAgeMs = WeatherWidgetApp.processAgeMs(SystemClock.elapsedRealtime())
+        if (processAgeMs < STARTUP_GRACE_PERIOD_MS) {
+            Log.d(TAG, "Skipping opportunistic startup churn; processAgeMs=$processAgeMs")
+            jobFinished(params, false)
+            return false
+        }
 
         job =
             CoroutineScope(Dispatchers.IO).launch {
@@ -82,6 +90,7 @@ class OpportunisticUpdateJobService : JobService() {
     companion object {
         private const val TAG = "OpportunisticUpdateJob"
         private const val JOB_ID = 1002
+        private const val STARTUP_GRACE_PERIOD_MS = 15_000L
 
         /**
          * Schedule opportunistic UI updates using JobScheduler.
