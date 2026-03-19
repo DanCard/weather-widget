@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -33,6 +34,7 @@ import java.time.temporal.ChronoUnit
 object WidgetIntentRouter {
     private const val TAG = "WidgetIntentRouter"
     private val HOUR_FORMATTER: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+    private const val STALE_REFRESH_DEBOUNCE_MS = 30 * 1000L
     @Volatile
     private var disableRefreshForTesting = false
 
@@ -47,6 +49,14 @@ object WidgetIntentRouter {
     const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
     const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
     const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
+
+    @VisibleForTesting
+    internal data class RefreshScheduleDecision(
+        val shouldEnqueue: Boolean,
+        val policy: ExistingWorkPolicy,
+        val reason: String,
+        val skipReason: String? = null,
+    )
 
     fun setDisableRefreshForTesting(disabled: Boolean) {
         disableRefreshForTesting = disabled
@@ -413,17 +423,19 @@ object WidgetIntentRouter {
         appWidgetId: Int,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     ) {
+        val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val newMode = stateManager.toggleViewMode(appWidgetId)
         Log.d(TAG, "handleToggleView: Toggled to $newMode for widget $appWidgetId")
 
         val database = WeatherDatabase.getDatabase(context)
+        val appLogDao = database.appLogDao()
         val forecastDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
         val snapshotDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, "daily_nav")
+        val afterLatestMs = SystemClock.elapsedRealtime()
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -446,10 +458,22 @@ object WidgetIntentRouter {
 
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
             updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
+            val totalMs = SystemClock.elapsedRealtime() - startMs
+            appLogDao.log(
+                "TOGGLE_VIEW_TIMING",
+                "widget=$appWidgetId mode=${newMode.name} latestWeather=${afterLatestMs - startMs}ms total=${totalMs}ms",
+            )
+            if (totalMs > 200) {
+                appLogDao.log(
+                    "TOGGLE_VIEW_SLOW",
+                    "widget=$appWidgetId mode=${newMode.name} total=${totalMs}ms latestWeather=${afterLatestMs - startMs}ms",
+                )
+            }
         } else {
             val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
 
+            val loadStartMs = SystemClock.elapsedRealtime()
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
                 forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
@@ -463,8 +487,23 @@ object WidgetIntentRouter {
             val ctTodayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val ctCurrentTemps = database.currentTempDao().getCurrentTemps(ctTodayStr, lat, lon)
             val dailyActuals = getDailyActuals(database, lat, lon)
+            val afterLoadMs = SystemClock.elapsedRealtime()
             DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
+            val afterUpdateMs = SystemClock.elapsedRealtime()
+            val totalMs = afterUpdateMs - startMs
+            appLogDao.log(
+                "TOGGLE_VIEW_TIMING",
+                "widget=$appWidgetId mode=${newMode.name} latestWeather=${afterLatestMs - startMs}ms dataLoad=${afterLoadMs - loadStartMs}ms viewUpdate=${afterUpdateMs - afterLoadMs}ms total=${totalMs}ms",
+            )
+            if (totalMs > 200) {
+                appLogDao.log(
+                    "TOGGLE_VIEW_SLOW",
+                    "widget=$appWidgetId mode=${newMode.name} total=${totalMs}ms latestWeather=${afterLatestMs - startMs}ms dataLoad=${afterLoadMs - loadStartMs}ms viewUpdate=${afterUpdateMs - afterLoadMs}ms",
+                )
+            }
         }
+
+        refreshIfStale(context, latestWeather?.fetchedAt, "toggle_view", appLogDao)
     }
 
     private suspend fun getDailyActuals(
@@ -517,7 +556,11 @@ object WidgetIntentRouter {
         return sourceDaily.isEmpty() || sourceHourly.isEmpty() || !hasRequiredFutureCoverage
     }
 
-    private fun enqueueForcedRefresh(context: Context, reason: String = "manual_refresh") {
+    private fun enqueueForcedRefresh(
+        context: Context,
+        reason: String = "manual_refresh",
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE,
+    ) {
         if (disableRefreshForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
             return
@@ -535,19 +578,88 @@ object WidgetIntentRouter {
 
         WorkManager.getInstance(context).enqueueUniqueWork(
             WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-            ExistingWorkPolicy.REPLACE,
+            policy,
             workRequest,
         )
     }
 
-    private fun refreshIfStale(context: Context, latestFetchedAt: Long?, reason: String) {
+    @VisibleForTesting
+    internal fun buildRefreshScheduleDecision(
+        latestFetchedAt: Long?,
+        nowMs: Long,
+        reason: String,
+        lastEnqueueForReasonMs: Long?,
+    ): RefreshScheduleDecision {
+        if (!BatteryFetchStrategy.shouldRefreshStaleData(latestFetchedAt, nowMs)) {
+            return RefreshScheduleDecision(
+                shouldEnqueue = false,
+                policy = ExistingWorkPolicy.KEEP,
+                reason = reason,
+                skipReason = "fresh_data",
+            )
+        }
+
+        if (reason == "manual_refresh") {
+            return RefreshScheduleDecision(
+                shouldEnqueue = true,
+                policy = ExistingWorkPolicy.REPLACE,
+                reason = reason,
+            )
+        }
+
+        if (lastEnqueueForReasonMs != null && nowMs - lastEnqueueForReasonMs < STALE_REFRESH_DEBOUNCE_MS) {
+            return RefreshScheduleDecision(
+                shouldEnqueue = false,
+                policy = ExistingWorkPolicy.KEEP,
+                reason = reason,
+                skipReason = "debounced",
+            )
+        }
+
+        return RefreshScheduleDecision(
+            shouldEnqueue = true,
+            policy = ExistingWorkPolicy.KEEP,
+            reason = reason,
+        )
+    }
+
+    private suspend fun refreshIfStale(
+        context: Context,
+        latestFetchedAt: Long?,
+        reason: String,
+        appLogDao: com.weatherwidget.data.local.AppLogDao? = null,
+    ) {
         if (disableRefreshForTesting) {
             return
         }
-        if (BatteryFetchStrategy.shouldRefreshStaleData(latestFetchedAt, System.currentTimeMillis())) {
-            val ageMin = (System.currentTimeMillis() - (latestFetchedAt ?: 0L)) / 1000 / 60
-            Log.d(TAG, "STALE_REFRESH: Data is ${ageMin}min old, enqueueing refresh on $reason")
-            enqueueForcedRefresh(context, reason = "stale_on_$reason")
+        val nowMs = System.currentTimeMillis()
+        val staleReason = "stale_on_$reason"
+        val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
+        val lastEnqueueMs = prefs.getLong("last_enqueue_$staleReason", -1L).takeIf { it >= 0L }
+        val decision = buildRefreshScheduleDecision(
+            latestFetchedAt = latestFetchedAt,
+            nowMs = nowMs,
+            reason = staleReason,
+            lastEnqueueForReasonMs = lastEnqueueMs,
+        )
+        if (!decision.shouldEnqueue) {
+            appLogDao?.let {
+                it.log(
+                    "STALE_REFRESH_SKIP",
+                    "reason=${decision.reason} skip=${decision.skipReason}",
+                )
+            }
+            return
+        }
+        val ageMin = (nowMs - (latestFetchedAt ?: 0L)) / 1000 / 60
+        Log.d(TAG, "STALE_REFRESH: Data is ${ageMin}min old, enqueueing refresh on ${decision.reason}")
+        prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
+        enqueueForcedRefresh(context, reason = decision.reason, policy = decision.policy)
+        appLogDao?.let {
+            it.log(
+                "STALE_REFRESH_ENQUEUE",
+                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin",
+            )
         }
     }
 

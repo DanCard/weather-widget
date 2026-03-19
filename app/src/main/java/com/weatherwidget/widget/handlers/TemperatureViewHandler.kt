@@ -496,6 +496,7 @@ object TemperatureViewHandler {
             Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = ACTION_TOGGLE_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(WeatherWidgetProvider.EXTRA_INTERACTION_SOURCE, "current_temp_header")
             }
         val togglePendingIntent =
             PendingIntent.getBroadcast(

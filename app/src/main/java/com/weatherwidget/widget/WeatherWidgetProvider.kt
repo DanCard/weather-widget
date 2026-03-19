@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -433,10 +434,26 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             )
         Log.d(TAG, "onReceive: Toggle View action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+            val interactionSource = intent.getStringExtra(EXTRA_INTERACTION_SOURCE) ?: "unknown"
+            val receiveTimeMs = System.currentTimeMillis()
             val pendingResult = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 try {
+                    val database = WeatherDatabase.getDatabase(context)
+                    val handlerStartMs = SystemClock.elapsedRealtime()
                     WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
+                    val handlerMs = SystemClock.elapsedRealtime() - handlerStartMs
+                    val totalMs = System.currentTimeMillis() - receiveTimeMs
+                    database.appLogDao().log(
+                        "TOGGLE_VIEW_TIMING",
+                        "widget=$appWidgetId source=$interactionSource total=${totalMs}ms handler=${handlerMs}ms",
+                    )
+                    if (totalMs > 500) {
+                        database.appLogDao().log(
+                            "TOGGLE_VIEW_SLOW",
+                            "widget=$appWidgetId source=$interactionSource total=${totalMs}ms handler=${handlerMs}ms",
+                        )
+                    }
                 } finally {
                     pendingResult.finish()
                 }
@@ -646,6 +663,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
         }
         private const val TAG = "WeatherWidgetProvider"
+        const val EXTRA_INTERACTION_SOURCE = "com.weatherwidget.EXTRA_INTERACTION_SOURCE"
 
         /**
          * Update widget with loading state.

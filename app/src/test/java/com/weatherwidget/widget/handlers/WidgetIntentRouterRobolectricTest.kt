@@ -3,7 +3,9 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -28,6 +30,56 @@ class WidgetIntentRouterRobolectricTest {
     @Test
     fun `router set-view extra key matches provider contract`() {
         assertEquals(WeatherWidgetProvider.EXTRA_TARGET_VIEW, WidgetIntentRouter.EXTRA_TARGET_VIEW)
+    }
+
+    @Test
+    fun `buildRefreshScheduleDecision uses replace for manual refresh`() {
+        val now = System.currentTimeMillis()
+
+        val decision = WidgetIntentRouter.buildRefreshScheduleDecision(
+            latestFetchedAt = now - 5 * 60 * 60 * 1000L,
+            nowMs = now,
+            reason = "manual_refresh",
+            lastEnqueueForReasonMs = now - 1_000L,
+        )
+
+        assertTrue(decision.shouldEnqueue)
+        assertEquals(androidx.work.ExistingWorkPolicy.REPLACE, decision.policy)
+        assertEquals("manual_refresh", decision.reason)
+        assertNull(decision.skipReason)
+    }
+
+    @Test
+    fun `buildRefreshScheduleDecision uses keep for stale toggle refresh`() {
+        val now = System.currentTimeMillis()
+
+        val decision = WidgetIntentRouter.buildRefreshScheduleDecision(
+            latestFetchedAt = now - 5 * 60 * 60 * 1000L,
+            nowMs = now,
+            reason = "stale_on_toggle_view",
+            lastEnqueueForReasonMs = null,
+        )
+
+        assertTrue(decision.shouldEnqueue)
+        assertEquals(androidx.work.ExistingWorkPolicy.KEEP, decision.policy)
+        assertEquals("stale_on_toggle_view", decision.reason)
+        assertNull(decision.skipReason)
+    }
+
+    @Test
+    fun `buildRefreshScheduleDecision debounces repeated stale refreshes`() {
+        val now = System.currentTimeMillis()
+
+        val decision = WidgetIntentRouter.buildRefreshScheduleDecision(
+            latestFetchedAt = now - 5 * 60 * 60 * 1000L,
+            nowMs = now,
+            reason = "stale_on_toggle_view",
+            lastEnqueueForReasonMs = now - 5_000L,
+        )
+
+        assertFalse(decision.shouldEnqueue)
+        assertEquals(androidx.work.ExistingWorkPolicy.KEEP, decision.policy)
+        assertEquals("debounced", decision.skipReason)
     }
 
     @Test
