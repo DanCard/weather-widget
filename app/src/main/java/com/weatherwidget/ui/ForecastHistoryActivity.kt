@@ -232,6 +232,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         Log.d(TAG, "Loading forecast history for $safeTargetDate at $lat, $lon (source=$requestedSource)")
 
         findViewById<ImageButton>(R.id.back_button).setOnClickListener { finish() }
+        findViewById<TextView>(R.id.title).setOnClickListener { finish() }
+        findViewById<TextView>(R.id.date_subtitle).setOnClickListener { finish() }
         findViewById<View>(R.id.api_source_button).setOnClickListener {
             cycleApiSource()
         }

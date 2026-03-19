@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import android.util.TypedValue
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
@@ -60,5 +61,58 @@ class TemperatureGhostLineTest {
         // Labels should now represent the ORIGINAL temperature (smoothing removed)
         val expectedValue = 70f
         assertEquals("Label should be Original value, ignoring Delta", expectedValue, startLabel.temperature, 0.1f)
+    }
+
+    @Test
+    fun hottestPoint_rendersHighEnoughToOverlapHeaderRegion() {
+        val hours = buildHours(listOf(52f, 58f, 67f, 91f, 72f, 64f, 59f, 55f))
+        var points: TemperatureGraphRenderer.PointsDebug? = null
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 320,
+            currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
+            onPointsResolved = { points = it },
+        )
+
+        val resolved = requireNotNull(points) { "Expected graph points to be reported" }
+        val highestY = resolved.original.minOf { it.second }
+        val overlapThresholdPx =
+            TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                40f,
+                context.resources.displayMetrics,
+            )
+
+        assertTrue(
+            "The hottest point should render high enough to visually overlap the header region. highestY=$highestY threshold=$overlapThresholdPx",
+            highestY < overlapThresholdPx,
+        )
+    }
+
+    @Test
+    fun coldestPoint_rendersLowEnoughToUseFooterSpace() {
+        val hours = buildHours(listOf(52f, 58f, 67f, 91f, 72f, 64f, 59f, 55f))
+        var points: TemperatureGraphRenderer.PointsDebug? = null
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 320,
+            currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
+            onPointsResolved = { points = it },
+        )
+
+        val resolved = requireNotNull(points) { "Expected graph points to be reported" }
+        val lowestY = resolved.original.maxOf { it.second }
+        val footerUseThresholdPx = 220f
+
+        assertTrue(
+            "The coldest point should render low enough to consume the footer area visually. lowestY=$lowestY threshold=$footerUseThresholdPx",
+            lowestY > footerUseThresholdPx,
+        )
     }
 }

@@ -9,6 +9,12 @@ import java.time.LocalDateTime
 object TemperatureGraphRenderer {
 
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 1.5f
+    private const val GRAPH_TOP_PADDING_DP = 8f
+    private const val GRAPH_BOTTOM_OVERLAP_DP = 10f
+    private const val TOP_TEMP_BUFFER_RATIO = 0.1f
+    private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
+    private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
+    private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 1.5f
 
     data class HourData(
         val dateTime: LocalDateTime,
@@ -183,17 +189,18 @@ object TemperatureGraphRenderer {
         val rawMax = (allTemps.maxOrNull() ?: 100f)
         val rawRange = (rawMax - rawMin).coerceAtLeast(1f)
 
-        // Add 10% buffer at top and bottom to ensure raw peaks don't hit graph edges
-        // and to leave room for labels (especially now that truth curve is unsmoothed).
-        val buffer = (rawRange * 0.1f).coerceAtLeast(3f)
-        val minTemp = rawMin - buffer
-        val maxTemp = rawMax + buffer
+        // Keep more headroom above peaks for labels, but use a smaller bottom buffer so the
+        // graph can visually consume more of the footer area while footer touch targets stay on top.
+        val topBuffer = (rawRange * TOP_TEMP_BUFFER_RATIO).coerceAtLeast(MIN_TOP_TEMP_BUFFER_DEGREES)
+        val bottomBuffer = (rawRange * BOTTOM_TEMP_BUFFER_RATIO).coerceAtLeast(MIN_BOTTOM_TEMP_BUFFER_DEGREES)
+        val minTemp = rawMin - bottomBuffer
+        val maxTemp = rawMax + topBuffer
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
         val density = context.resources.displayMetrics.density
         
         // Layout zones
-        val topPadding = dpToPx(context, 24f)
+        val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP)
         val iconSizeDp = 16f
         val iconSize = dpToPx(context, iconSizeDp).toInt()
         val labelHeight = dpToPx(context, 10f)
@@ -201,7 +208,8 @@ object TemperatureGraphRenderer {
         val iconBottomPad = dpToPx(context, 1f)
 
         val graphTop = topPadding
-        val graphBottom = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
+        val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
+        val graphBottom = (footerTop + dpToPx(context, GRAPH_BOTTOM_OVERLAP_DP)).coerceAtMost(heightPx.toFloat() - labelHeight)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
@@ -497,7 +505,7 @@ object TemperatureGraphRenderer {
             if (hour.iconRes != null) {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
                 if (drawable != null) {
-                    val iconY = graphBottom + iconTopPad
+                    val iconY = footerTop + iconTopPad
                     val iconX = clampedX - iconSize / 2f
                     val iconRect = RectF(iconX, iconY, iconX + iconSize, iconY + iconSize)
                     drawnIconBounds.add(iconRect)

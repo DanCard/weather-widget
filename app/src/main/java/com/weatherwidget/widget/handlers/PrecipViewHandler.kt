@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import android.view.View
@@ -20,6 +21,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.PrecipitationGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -58,8 +60,9 @@ object PrecipViewHandler {
         observedCurrentTemp: Float? = null,
         observedCurrentTempFetchedAt: Long? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        startupToken: String? = null,
     ) {
-
+        val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -164,6 +167,7 @@ object PrecipViewHandler {
         views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
+        val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
                 now = now,
@@ -175,6 +179,7 @@ object PrecipViewHandler {
                 currentLat = lat,
                 currentLon = lon,
             )
+        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (currentTempResolution.shouldClearStoredDelta) {
             stateManager.clearCurrentTempDeltaState(appWidgetId)
         }
@@ -215,13 +220,17 @@ object PrecipViewHandler {
         // Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
+        var buildHoursMs = 0L
+        var renderMs = 0L
 
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
 
             // Build precipitation hour data list
+            val buildHoursStartMs = SystemClock.elapsedRealtime()
             val hours = buildPrecipHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
+            buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 
             // Use actual widget dimensions for bitmap
             // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
@@ -238,6 +247,7 @@ object PrecipViewHandler {
 
             // Render precipitation graph
             val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
+            val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = PrecipitationGraphRenderer.renderGraph(
                 context = context,
                 hours = hours,
@@ -249,6 +259,7 @@ object PrecipViewHandler {
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 observedTempFetchedAt = observedCurrentTempFetchedAt
             )
+            renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
@@ -259,6 +270,25 @@ object PrecipViewHandler {
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+        val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
+        WidgetPerfLogger.logIfSlow(
+            appLogDao = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).appLogDao(),
+            thresholdMs = WidgetPerfLogger.WIDGET_RENDER_SLOW_MS,
+            totalMs = totalMs,
+            appLogTag = WidgetPerfLogger.TAG_WIDGET_RENDER_PERF,
+            message = WidgetPerfLogger.kv(
+                "token" to startupToken,
+                "widget" to appWidgetId,
+                "view" to "PRECIPITATION",
+                "useGraph" to useGraph,
+                "resolveMs" to resolveMs,
+                "buildHoursMs" to buildHoursMs,
+                "renderMs" to renderMs,
+                "hourlyCount" to hourlyForecasts.size,
+                "totalMs" to totalMs,
+            ),
+            debugTag = TAG,
+        )
     }
 
     /**

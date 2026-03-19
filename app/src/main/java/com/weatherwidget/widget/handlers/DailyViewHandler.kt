@@ -8,6 +8,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import android.view.View
@@ -33,6 +34,7 @@ import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import java.time.LocalDate
@@ -82,7 +84,45 @@ object DailyViewHandler : WidgetViewHandler {
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
     ) {
-        updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActualsBySource, repository, LocalDateTime.now())
+        updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            weatherList = weatherList,
+            forecastSnapshots = forecastSnapshots,
+            hourlyForecasts = hourlyForecasts,
+            currentTemps = currentTemps,
+            dailyActualsBySource = dailyActualsBySource,
+            repository = repository,
+            now = LocalDateTime.now(),
+        )
+    }
+
+    suspend fun updateWidget(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        weatherList: List<ForecastEntity>,
+        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        currentTemps: List<CurrentTempEntity>,
+        dailyActualsBySource: DailyActualsBySource,
+        repository: com.weatherwidget.data.repository.WeatherRepository?,
+        startupToken: String? = null,
+    ) {
+        updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            weatherList = weatherList,
+            forecastSnapshots = forecastSnapshots,
+            hourlyForecasts = hourlyForecasts,
+            currentTemps = currentTemps,
+            dailyActualsBySource = dailyActualsBySource,
+            repository = repository,
+            now = LocalDateTime.now(),
+            startupToken = startupToken,
+        )
     }
 
     @VisibleForTesting
@@ -96,9 +136,11 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<CurrentTempEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
-        now: LocalDateTime
+        now: LocalDateTime,
+        startupToken: String? = null,
     ) {
         Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
+        val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -167,6 +209,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
 
+        val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
                 now = now,
@@ -178,6 +221,7 @@ object DailyViewHandler : WidgetViewHandler {
                 currentLat = lat,
                 currentLon = lon,
             )
+        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (currentTempResolution.shouldClearStoredDelta) {
             stateManager.clearCurrentTempDeltaState(appWidgetId)
         }
@@ -253,6 +297,8 @@ object DailyViewHandler : WidgetViewHandler {
         // Use graph mode for 2+ rows
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
+        var prepareMs = 0L
+        var renderMs = 0L
 
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
@@ -266,12 +312,14 @@ object DailyViewHandler : WidgetViewHandler {
             val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
             val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
 
+            val prepareStartMs = SystemClock.elapsedRealtime()
             val days = DailyViewLogic.prepareGraphDays(
                 now, centerDate, today, weatherByDate, forecastSnapshots,
                 numColumns, displaySource, isEveningMode, skipHistory,
                 hourlyForecasts, stateManager, appWidgetId, precipProb,
                 dailyActuals, climateNormals, currentTemps
             )
+            prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
             Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns. Day dates: ${days.map { it.date }}")
             days.forEach { day ->
                 Log.d(
@@ -350,7 +398,9 @@ object DailyViewHandler : WidgetViewHandler {
             val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
             val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
 
+            val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx, bitmapScale, days.size)
+            renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource)
@@ -385,6 +435,26 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+        val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
+        WidgetPerfLogger.logIfSlow(
+            appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+            thresholdMs = WidgetPerfLogger.WIDGET_RENDER_SLOW_MS,
+            totalMs = totalMs,
+            appLogTag = WidgetPerfLogger.TAG_WIDGET_RENDER_PERF,
+            message = WidgetPerfLogger.kv(
+                "token" to startupToken,
+                "widget" to appWidgetId,
+                "view" to "DAILY",
+                "useGraph" to useGraph,
+                "resolveMs" to resolveMs,
+                "prepareMs" to prepareMs,
+                "renderMs" to renderMs,
+                "forecastCount" to weatherList.size,
+                "hourlyCount" to hourlyForecasts.size,
+                "totalMs" to totalMs,
+            ),
+            debugTag = TAG,
+        )
     }
 
     private suspend fun requestMissingActualsRefresh(

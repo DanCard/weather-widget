@@ -30,6 +30,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDate
@@ -98,8 +99,9 @@ object TemperatureViewHandler {
         observedCurrentTempFetchedAt: Long? = null,
         onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        startupToken: String? = null,
     ) {
-
+        val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
@@ -174,6 +176,7 @@ object TemperatureViewHandler {
         // Setup Current Stations shortcut
         setupCurrentStationsShortcut(context, views, appWidgetId)
 
+        val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
                 now = now,
@@ -185,6 +188,7 @@ object TemperatureViewHandler {
                 currentLat = lat,
                 currentLon = lon,
             )
+        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (currentTempResolution.shouldClearStoredDelta) {
             stateManager.clearCurrentTempDeltaState(appWidgetId)
         }
@@ -192,6 +196,9 @@ object TemperatureViewHandler {
         val currentTemp = currentTempResolution.displayTemp
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
+        var obsQueryMs = 0L
+        var buildHourDataMs = 0L
+        var renderMs = 0L
         val graphHours =
             if (useGraph) {
                 // Query actuals for the graph's time window (WIDE: backHours=8)
@@ -204,6 +211,7 @@ object TemperatureViewHandler {
                 val obsStartMs = SystemClock.elapsedRealtime()
                 val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
                 val afterObsMs = SystemClock.elapsedRealtime()
+                obsQueryMs = afterObsMs - obsStartMs
                 Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${observations.size}, zoom=$zoom")
                 val database = WeatherDatabase.getDatabase(context)
                 maybeEnqueueHourlyObservationBackfill(
@@ -217,6 +225,7 @@ object TemperatureViewHandler {
                     observations = observations,
                     repositoryPresent = repository != null,
                 )
+                val buildHourDataStartMs = SystemClock.elapsedRealtime()
                 val blendDebugLines = mutableListOf<String>()
                 val hourData = buildHourDataList(
                     hourlyForecasts,
@@ -228,6 +237,7 @@ object TemperatureViewHandler {
                     onBlendDebug = { line -> blendDebugLines += line },
                 )
                 val afterBlendMs = SystemClock.elapsedRealtime()
+                buildHourDataMs = afterBlendMs - buildHourDataStartMs
                 val actualCount = hourData.count { it.isActual }
                 Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
                 val stationIds = observations
@@ -337,7 +347,7 @@ object TemperatureViewHandler {
                 observedTempFetchedAt = observedCurrentTempFetchedAt,
                 onFetchDotResolved = onFetchDotResolved,
             )
-            val renderMs = SystemClock.elapsedRealtime() - renderStartMs
+            renderMs = SystemClock.elapsedRealtime() - renderStartMs
             if (renderMs > 100) {
                 val database = WeatherDatabase.getDatabase(context)
                 database.appLogDao().log(
@@ -358,6 +368,26 @@ object TemperatureViewHandler {
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+        val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
+        WidgetPerfLogger.logIfSlow(
+            appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+            thresholdMs = WidgetPerfLogger.PIPELINE_SLOW_MS,
+            totalMs = totalMs,
+            appLogTag = WidgetPerfLogger.TAG_TEMP_PIPELINE_PERF,
+            message = WidgetPerfLogger.kv(
+                "token" to startupToken,
+                "widget" to appWidgetId,
+                "view" to "TEMPERATURE",
+                "useGraph" to useGraph,
+                "resolveMs" to resolveMs,
+                "obsQueryMs" to obsQueryMs,
+                "buildHourDataMs" to buildHourDataMs,
+                "renderMs" to renderMs,
+                "hours" to graphHours.size,
+                "totalMs" to totalMs,
+            ),
+            debugTag = TAG,
+        )
     }
 
     /**

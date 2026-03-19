@@ -38,6 +38,9 @@ interface AppLogDao {
     @Query("SELECT * FROM app_logs WHERE tag = :tag ORDER BY timestamp DESC, id DESC LIMIT :limit")
     suspend fun getLogsByTag(tag: String, limit: Int): List<AppLogEntity>
 
+    @Query("SELECT * FROM app_logs WHERE tag IN ('DB_CREATE', 'DB_DESTRUCTIVE_MIGRATION') ORDER BY timestamp DESC, id DESC LIMIT 1")
+    suspend fun getLatestDatabaseLifecycleEvent(): AppLogEntity?
+
     @Query("DELETE FROM app_logs WHERE timestamp < :cutoff")
     suspend fun deleteOldLogs(cutoff: Long)
 
