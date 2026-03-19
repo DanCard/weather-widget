@@ -49,6 +49,7 @@ class WidgetStateManager
         }
         companion object {
             private const val PREFS_NAME = "widget_state_prefs"
+            const val DEFAULT_TEST_PREFS_NAME = "widget_state_prefs_android_test"
             @Volatile
             private var prefsNameOverride: String? = null
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"

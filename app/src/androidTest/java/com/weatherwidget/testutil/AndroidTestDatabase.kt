@@ -5,21 +5,24 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.weatherwidget.data.local.WeatherDatabase
 
 /**
- * Ensures instrumented tests use an isolated on-device Room database instead of
- * the app's shared production database file.
+ * Ensures instrumented tests use the shared instrumentation database that Hilt
+ * wires at process start, then clears it between tests.
+ *
+ * Per-test database-name overrides are unsafe for connected test suites because
+ * the app process and its Hilt singletons are reused across test classes.
  */
 object AndroidTestDatabase {
     fun useIsolatedDatabase(nameSuffix: String): WeatherDatabase {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val dbName = "weather_database_android_test_$nameSuffix"
-        context.deleteDatabase(dbName)
-        WeatherDatabase.setDatabaseNameOverrideForTesting(dbName)
-        return WeatherDatabase.getDatabase(context)
+        return WeatherDatabase.getDatabase(context).also { database ->
+            database.clearAllTables()
+        }
     }
 
-    fun cleanup(nameSuffix: String, context: Context = InstrumentationRegistry.getInstrumentation().targetContext) {
-        val dbName = "weather_database_android_test_$nameSuffix"
-        WeatherDatabase.setDatabaseNameOverrideForTesting(null)
-        context.deleteDatabase(dbName)
+    fun cleanup(
+        nameSuffix: String,
+        context: Context = InstrumentationRegistry.getInstrumentation().targetContext,
+    ) {
+        WeatherDatabase.getDatabase(context).clearAllTables()
     }
 }

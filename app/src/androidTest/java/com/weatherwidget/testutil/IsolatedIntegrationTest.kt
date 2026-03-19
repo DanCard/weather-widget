@@ -31,8 +31,7 @@ abstract class IsolatedIntegrationTest(private val nameSuffix: String) {
 
     @After
     open fun cleanup() {
-        // 1. Close and delete the test database
-        db.close()
+        // 1. Clear shared test storage without closing process-wide singletons.
         AndroidTestDatabase.cleanup(nameSuffix, context)
         
         // 2. Clean up preferences
