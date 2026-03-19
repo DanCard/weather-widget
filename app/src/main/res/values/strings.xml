@@ -12,6 +12,7 @@
     <string name="settings">Settings</string>
     <string name="app_logs">App Logs</string>
     <string name="back">Back</string>
+    <string name="refresh">Refresh</string>
     <string name="refresh_now">Refresh data</string>
     <string name="refresh_now_enqueued_toast">Data refresh queued</string>
     <string name="nav_previous">Previous days</string>

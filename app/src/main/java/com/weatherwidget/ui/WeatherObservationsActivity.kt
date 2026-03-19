@@ -16,8 +16,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ObservationEntity
-import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
@@ -26,12 +26,29 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class WeatherObservationsActivity : AppCompatActivity() {
     private val TAG = "WeatherObservations"
-    private val database: WeatherDatabase by lazy { WeatherDatabase.getDatabase(applicationContext) }
-    private val widgetStateManager: WidgetStateManager by lazy { WidgetStateManager(applicationContext, database.appLogDao()) }
+    
+    @Inject
+    lateinit var weatherRepository: WeatherRepository
+    
+    @Inject
+    lateinit var widgetStateManager: WidgetStateManager
+
+    @Inject
+    lateinit var observationDao: com.weatherwidget.data.local.ObservationDao
+
+    @Inject
+    lateinit var appLogDao: com.weatherwidget.data.local.AppLogDao
+
+    @Inject
+    lateinit var forecastDao: com.weatherwidget.data.local.ForecastDao
+
+    @Inject
+    lateinit var currentTempDao: com.weatherwidget.data.local.CurrentTempDao
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
@@ -72,12 +89,51 @@ class WeatherObservationsActivity : AppCompatActivity() {
             cycleSource()
         }
 
+        findViewById<View>(R.id.refresh_button).setOnClickListener {
+            refreshData()
+        }
+
         findViewById<View>(R.id.settings_button).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
         loadObservations()
         loadFetchLogs()
+    }
+
+    private fun refreshData() {
+        lifecycleScope.launch {
+            val location = activeLocation ?: withContext(Dispatchers.IO) {
+                weatherRepository.getLatestLocation()
+            }
+            
+            if (location == null) {
+                android.widget.Toast.makeText(this@WeatherObservationsActivity, "No location available to refresh", android.widget.Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            
+            findViewById<View>(R.id.refresh_button).isEnabled = false
+            findViewById<View>(R.id.refresh_button).alpha = 0.5f
+            
+            withContext(Dispatchers.IO) {
+                weatherRepository.refreshCurrentTemperature(
+                    location.first,
+                    location.second,
+                    "Manual Refresh",
+                    source = currentSource,
+                    reason = "user_observations_screen",
+                    forceRefresh = true
+                )
+            }
+            
+            loadObservations()
+            loadFetchLogs()
+            
+            findViewById<View>(R.id.refresh_button).isEnabled = true
+            findViewById<View>(R.id.refresh_button).alpha = 1.0f
+            
+            android.widget.Toast.makeText(this@WeatherObservationsActivity, "Refreshed ${currentSource.shortDisplayName}", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun updateApiButton() {
@@ -156,7 +212,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 val observations = if (currentSource == WeatherSource.NWS) {
                     // Fetch detailed multi-station observations from the last 24 hours
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    database.observationDao().getRecentObservations(sinceMs)
+                    observationDao.getRecentObservations(sinceMs)
                         .filter { WeatherObservationsSupport.matchesObservationSource(it.stationId, currentSource) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
@@ -164,7 +220,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 } else {
                     // For other sources, show POIs if they exist, or fallback to the latest single reading
                     val sinceMs = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
-                    val pois = database.observationDao().getRecentObservations(sinceMs)
+                    val pois = observationDao.getRecentObservations(sinceMs)
                         .filter { WeatherObservationsSupport.matchesObservationSource(it.stationId, currentSource) }
                         .groupBy { it.stationId }
                         .map { it.value.first() }
@@ -174,9 +230,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
                         pois
                     } else {
                         val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                        val latest = database.forecastDao().getLatestWeatherBySource(currentSource.id)
+                        val latest = forecastDao.getLatestWeatherBySource(currentSource.id)
                         val currentTemp = if (latest != null) {
-                            database.currentTempDao().getCurrentTemp(todayStr, currentSource.id, latest.locationLat, latest.locationLon)
+                            currentTempDao.getCurrentTemp(todayStr, currentSource.id, latest.locationLat, latest.locationLon)
                         } else null
                         if (latest != null && currentTemp != null) {
                             listOf(ObservationEntity(
@@ -218,7 +274,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private fun loadFetchLogs() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val filteredLogs = database.appLogDao().getRecentLogs(200)
+                val filteredLogs = appLogDao.getRecentLogs(200)
                     .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }
                     .take(30)
 
