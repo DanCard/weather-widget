@@ -120,17 +120,20 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val dailyActualsBySource = ObservationResolver.extremesToDailyActualsBySource(extremes)
 
                     for (appWidgetId in appWidgetIds) {
-                        updateWidgetWithData(
-                            context = context,
-                            appWidgetManager = appWidgetManager,
-                            appWidgetId = appWidgetId,
-                            weatherList = weatherList,
-                            forecastSnapshots = forecastSnapshots,
-                            hourlyForecasts = hourlyForecasts,
-                            currentTemps = currentTemps,
-                            dailyActualsBySource = dailyActualsBySource,
-                            repository = repository
-                        )
+                        val job = launch {
+                            updateWidgetWithData(
+                                context = context,
+                                appWidgetManager = appWidgetManager,
+                                appWidgetId = appWidgetId,
+                                weatherList = weatherList,
+                                forecastSnapshots = forecastSnapshots,
+                                hourlyForecasts = hourlyForecasts,
+                                currentTemps = currentTemps,
+                                dailyActualsBySource = dailyActualsBySource,
+                                repository = repository
+                            )
+                        }
+                        WidgetUpdateTracker.trackJob(appWidgetId, job)
                     }
 
                     // 2. Check if data is stale and needs background fetch
@@ -160,13 +163,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         Log.d(TAG, "onAppWidgetOptionsChanged: widgetId=$appWidgetId")
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        val job = CoroutineScope(Dispatchers.IO).launch {
             try {
                 WidgetIntentRouter.handleResize(context, appWidgetId, repository)
             } finally {
                 pendingResult.finish()
             }
         }
+        WidgetUpdateTracker.trackJob(appWidgetId, job)
     }
 
     override fun onEnabled(context: Context) {

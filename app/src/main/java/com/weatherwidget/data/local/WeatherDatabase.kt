@@ -4,12 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.RoomDatabase.JournalMode
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 35,
+    version = 36,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -93,6 +94,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_32_33,
                             MIGRATION_33_34,
                             MIGRATION_34_35,
+                            MIGRATION_35_36,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -119,6 +121,7 @@ abstract class WeatherDatabase : RoomDatabase() {
 
                             },
                         )
+                        .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                         .fallbackToDestructiveMigration()
                         .build()
                 INSTANCE = instance
@@ -1013,6 +1016,20 @@ abstract class WeatherDatabase : RoomDatabase() {
                     )
                     db.execSQL(
                         "CREATE INDEX IF NOT EXISTS index_daily_extremes_date_locationLat_locationLon ON daily_extremes(date, locationLat, locationLon)",
+                    )
+                }
+            }
+
+        val MIGRATION_35_36 =
+            object : Migration(35, 36) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // Replace several redundant indices on forecasts table with one optimized composite index
+                    db.execSQL("DROP INDEX IF EXISTS index_forecasts_targetDate")
+                    db.execSQL("DROP INDEX IF EXISTS index_forecasts_targetDate_source_locationLat_locationLon_forecastDate_fetchedAt")
+                    db.execSQL("DROP INDEX IF EXISTS index_forecasts_source_locationLat_locationLon_batchFetchedAt")
+
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt ON forecasts(targetDate, source, locationLat, locationLon, batchFetchedAt)",
                     )
                 }
             }

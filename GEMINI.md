@@ -106,6 +106,12 @@ The project follows a **pure function extraction** philosophy to maximize testab
 - **Daily Forecast UI (2026-02-17)**: 
     - Replaced "Today" label with the abbreviated day name (e.g., "Tue") for consistency.
     - Highlighted the current day's label and temperature values with a bright light orange (`#FFEACC`) to make it distinct.
+- **Samsung Performance & DB Concurrency (2026-03-19)**:
+    - **Query Optimization**: Replaced multiple redundant indices on the `forecasts` table with a single optimized composite index: `(targetDate, source, locationLat, locationLon, batchFetchedAt)`. Reduced data processing by restricting `getForecastsInRange` to the latest batch per source.
+    - **Concurrency**: Explicitly enabled **Write-Ahead Logging (WAL)** in `WeatherDatabase` to prevent background syncs from blocking UI reads.
+    - **Job Tracking**: Implemented `WidgetUpdateTracker` to automatically cancel stale update coroutines when a new update or resize event arrives.
+    - **Scheduling**: Eliminated the redundant manual `OneTimeWorkRequest` loop in `WeatherWidgetWorker` and implemented a 5-minute sync cooldown.
+    - **UI Responsiveness**: Added a 250ms debounce to `handleResize` to stabilize UI updates on foldable devices.
 
 ### API & Data Characteristics
 - **Data Types**: NWS returns integer temperatures; Open-Meteo returns decimals.

@@ -240,4 +240,26 @@ class DatabaseMigrationTest {
         assert(cursor.getFloat(1) == 50.0f) { "Expected lowTemp=50.0 but got ${cursor.getFloat(1)}" }
         cursor.close()
     }
+
+    @Test
+    fun migrate35to36() {
+        helper.createDatabase(testDb, 35).apply {
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 36, true, WeatherDatabase.MIGRATION_35_36)
+        
+        // Verify the new index exists on the forecasts table
+        val cursor = db.query("PRAGMA index_list(forecasts)")
+        var found = false
+        while (cursor.moveToNext()) {
+            val name = cursor.getString(cursor.getColumnIndex("name"))
+            if (name == "index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt") {
+                found = true
+                break
+            }
+        }
+        cursor.close()
+        assert(found) { "Optimized composite index should exist after migration 35 to 36" }
+    }
 }

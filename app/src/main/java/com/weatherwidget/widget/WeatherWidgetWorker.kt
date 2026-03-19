@@ -69,6 +69,13 @@ class WeatherWidgetWorker
                     "obsBackfillOnly=$observationBackfillMode, lastFullFetch=${lastFullFetchAge}s ago",
             )
 
+            // Cooldown: skip full background syncs if one finished very recently (last 5 mins)
+            // Does not apply to forced (user-triggered) or UI-only updates.
+            if (!forceRefresh && !uiOnlyRefresh && !currentTempOnly && !observationBackfillMode && lastFullFetchAge in 0..300) {
+                appLogDao.log("SYNC_SKIP", "reason=cooldown age=${lastFullFetchAge}s", "INFO")
+                return Result.success()
+            }
+
             if (observationBackfillMode) {
                 return handleObservationBackfillWork(
                     latitude = backfillLat,
@@ -157,7 +164,6 @@ class WeatherWidgetWorker
                         }
 
                         if (!uiOnlyRefresh) {
-                            scheduleNextUpdate()
                             // Schedule next UI update after data fetch
                             val uiScheduler = UIUpdateScheduler(context)
                             uiScheduler.scheduleNextUpdate()
@@ -244,7 +250,7 @@ class WeatherWidgetWorker
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
             for (appWidgetId in appWidgetIds) {
-                launch {
+                val job = launch {
                     WeatherWidgetProvider.updateWidgetWithData(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -257,36 +263,8 @@ class WeatherWidgetWorker
                         repository = weatherRepository
                     )
                 }
+                WidgetUpdateTracker.trackJob(appWidgetId, job)
             }
-        }
-
-        private fun scheduleNextUpdate() {
-            val intervalMinutes = getUpdateIntervalMinutes() ?: run {
-                Log.d(TAG, "BATTERY_SAVE: Below 50%, skipping scheduled update")
-                return
-            }
-
-            val constraints =
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-
-            val workRequest =
-                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                    .setInitialDelay(intervalMinutes, TimeUnit.MINUTES)
-                    .setInputData(
-                        Data.Builder()
-                            .putString(KEY_CURRENT_TEMP_REASON, "scheduled_loop")
-                            .build()
-                    )
-                    .setConstraints(constraints)
-                    .build()
-
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                "weather_widget_next_update",
-                ExistingWorkPolicy.REPLACE,
-                workRequest,
-            )
         }
 
         private suspend fun handleCurrentTempOnlyWork(
@@ -406,27 +384,6 @@ class WeatherWidgetWorker
         private fun isScreenInteractive(): Boolean {
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
             return powerManager.isInteractive
-        }
-
-        private fun getUpdateIntervalMinutes(): Long? {
-            val batteryStatus: Intent? =
-                IntentFilter(Intent.ACTION_BATTERY_CHANGED).let { filter ->
-                    context.registerReceiver(null, filter)
-                }
-
-            val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-            val isCharging =
-                status == BatteryManager.BATTERY_STATUS_CHARGING ||
-                    status == BatteryManager.BATTERY_STATUS_FULL
-
-            val level =
-                batteryStatus?.let { intent ->
-                    val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
-                    val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                    level * 100 / scale
-                } ?: 100
-
-            return BatteryFetchStrategy.computeFetchInterval(isCharging, level)
         }
 
         private fun getLocationName(

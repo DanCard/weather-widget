@@ -1,7 +1,7 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 35,
+    "version": 36,
     "identityHash": "b6365dfb5d021f9612ba140f2f96cd69",
     "entities": [
       {
@@ -117,39 +117,17 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_locationLat_locationLon` ON `${TABLE_NAME}` (`locationLat`, `locationLon`)"
           },
           {
-            "name": "index_forecasts_targetDate",
-            "unique": false,
-            "columnNames": [
-              "targetDate"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate` ON `${TABLE_NAME}` (`targetDate`)"
-          },
-          {
-            "name": "index_forecasts_targetDate_source_locationLat_locationLon_forecastDate_fetchedAt",
+            "name": "index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt",
             "unique": false,
             "columnNames": [
               "targetDate",
               "source",
               "locationLat",
               "locationLon",
-              "forecastDate",
-              "fetchedAt"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_forecastDate_fetchedAt` ON `${TABLE_NAME}` (`targetDate`, `source`, `locationLat`, `locationLon`, `forecastDate`, `fetchedAt`)"
-          },
-          {
-            "name": "index_forecasts_source_locationLat_locationLon_batchFetchedAt",
-            "unique": false,
-            "columnNames": [
-              "source",
-              "locationLat",
-              "locationLon",
               "batchFetchedAt"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_source_locationLat_locationLon_batchFetchedAt` ON `${TABLE_NAME}` (`source`, `locationLat`, `locationLon`, `batchFetchedAt`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt` ON `${TABLE_NAME}` (`targetDate`, `source`, `locationLat`, `locationLon`, `batchFetchedAt`)"
           }
         ]
       },

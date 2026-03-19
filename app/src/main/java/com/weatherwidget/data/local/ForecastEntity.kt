@@ -8,9 +8,7 @@ import androidx.room.Index
     primaryKeys = ["targetDate", "forecastDate", "locationLat", "locationLon", "source", "fetchedAt"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),
-        Index(value = ["targetDate"]),
-        Index(value = ["targetDate", "source", "locationLat", "locationLon", "forecastDate", "fetchedAt"]),
-        Index(value = ["source", "locationLat", "locationLon", "batchFetchedAt"]),
+        Index(value = ["targetDate", "source", "locationLat", "locationLon", "batchFetchedAt"]),
     ],
 )
 data class ForecastEntity(
