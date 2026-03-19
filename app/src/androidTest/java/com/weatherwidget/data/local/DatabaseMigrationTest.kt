@@ -197,4 +197,47 @@ class DatabaseMigrationTest {
 
         helper.runMigrationsAndValidate(testDb, 29, true, WeatherDatabase.MIGRATION_28_29)
     }
+
+    @Test
+    fun migrate33to34() {
+        helper.createDatabase(testDb, 33).apply {
+            execSQL(
+                """
+                INSERT INTO observations (stationId, stationName, timestamp, temperature, `condition`, locationLat, locationLon, distanceKm, stationType, fetchedAt)
+                VALUES ('KTEST', 'Test Station', ${System.currentTimeMillis()}, 65.0, 'Clear', 37.42, -122.08, 5.0, 'ASOS', ${System.currentTimeMillis()})
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 34, true, WeatherDatabase.MIGRATION_33_34)
+        val cursor = db.query("SELECT maxTempLast24h, minTempLast24h FROM observations LIMIT 1")
+        cursor.moveToFirst()
+        // Columns exist and are null (not populated by migration)
+        assert(cursor.isNull(cursor.getColumnIndex("maxTempLast24h")))
+        assert(cursor.isNull(cursor.getColumnIndex("minTempLast24h")))
+        cursor.close()
+    }
+
+    @Test
+    fun migrate34to35() {
+        helper.createDatabase(testDb, 34).apply {
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 35, true, WeatherDatabase.MIGRATION_34_35)
+
+        // Verify table exists and can accept a row
+        db.execSQL(
+            """
+            INSERT INTO daily_extremes (date, source, locationLat, locationLon, highTemp, lowTemp, `condition`, updatedAt)
+            VALUES ('2026-03-18', 'NWS', 37.42, -122.08, 72.0, 50.0, 'Clear', ${System.currentTimeMillis()})
+            """.trimIndent(),
+        )
+        val cursor = db.query("SELECT highTemp, lowTemp FROM daily_extremes WHERE date = '2026-03-18'")
+        cursor.moveToFirst()
+        assert(cursor.getFloat(0) == 72.0f) { "Expected highTemp=72.0 but got ${cursor.getFloat(0)}" }
+        assert(cursor.getFloat(1) == 50.0f) { "Expected lowTemp=50.0 but got ${cursor.getFloat(1)}" }
+        cursor.close()
+    }
 }

@@ -1,12 +1,10 @@
 package com.weatherwidget.stats
 
+import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
-import com.weatherwidget.data.local.ObservationDao
-import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
-import java.time.Instant
+import com.weatherwidget.widget.ObservationResolver
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,7 +16,7 @@ class AccuracyCalculator
     @Inject
     constructor(
         private val forecastDao: ForecastDao,
-        private val observationDao: ObservationDao,
+        private val dailyExtremeDao: DailyExtremeDao,
     ) {
         companion object {
             private const val PERFECT_THRESHOLD = 1.0
@@ -105,13 +103,9 @@ class AccuracyCalculator
             val startDateStr = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
             val endDateStr = endDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-            val local = ZoneId.systemDefault()
-            val startTs = startDate.atStartOfDay(local).toEpochSecond() * 1000
-            val endTs = endDate.plusDays(1).atStartOfDay(local).toEpochSecond() * 1000
-
-            val observations = observationDao.getObservationsInRange(startTs, endTs, lat, lon)
-
-            val dailyActuals = com.weatherwidget.widget.ObservationResolver.aggregateObservationsToDaily(observations)
+            val extremes = dailyExtremeDao.getExtremesInRange(startDateStr, endDateStr, lat, lon)
+                .filter { it.source == source.id }
+            val dailyActuals = ObservationResolver.extremesToDailyActuals(extremes)
 
             val forecasts = forecastDao.getForecastsInRangeBySource(startDateStr, endDateStr, lat, lon, source.id)
 

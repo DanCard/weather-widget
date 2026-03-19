@@ -5,8 +5,6 @@ import com.weatherwidget.data.remote.NwsApi
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
@@ -14,23 +12,19 @@ import java.time.LocalDate
 class WeatherHistoryConditionTest {
     private lateinit var context: Context
     private lateinit var nwsApi: NwsApi
-    private lateinit var forecastRepo: ForecastRepository
-    private lateinit var repository: WeatherRepository
+    private lateinit var observationRepo: ObservationRepository
 
     @Before
     fun setup() {
         context = mockk(relaxed = true)
         nwsApi = mockk()
-        forecastRepo = ForecastRepository(context, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), nwsApi, mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true))
-        repository =
-            WeatherRepository(
-                context,
-                forecastRepo,
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-                mockk(relaxed = true),
-            )
+        observationRepo = ObservationRepository(
+            context = context,
+            observationDao = mockk(relaxed = true),
+            dailyExtremeDao = mockk(relaxed = true),
+            appLogDao = mockk(relaxed = true),
+            nwsApi = nwsApi
+        )
     }
 
     @Test
@@ -44,7 +38,7 @@ class WeatherHistoryConditionTest {
                     NwsApi.Observation("2026-02-04T18:00:00Z", 20.0f, "Clear"),
                     NwsApi.Observation("2026-02-04T19:00:00Z", 21.0f, "Sunny"),
                 )
-            val result = forecastRepo.fetchDayObservations(stationsUrl, date)
+            val result = observationRepo.fetchDayObservations(stationsUrl, date)
             assertEquals("Sunny", result?.condition)
         }
 
@@ -60,7 +54,7 @@ class WeatherHistoryConditionTest {
                     NwsApi.Observation("2026-02-04T20:00:00Z", 22.0f, "Mostly Sunny"),
                     NwsApi.Observation("2026-02-04T21:00:00Z", 23.0f, "Partly Cloudy"),
                 )
-            val result = forecastRepo.fetchDayObservations("url", date)
+            val result = observationRepo.fetchDayObservations("url", date)
             assertEquals("Mostly Sunny (25%)", result?.condition)
         }
 }

@@ -66,18 +66,11 @@ class WeatherRepositoryTest {
         observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao)
-        currentTempRepository = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator)
+        forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao, mockk(relaxed = true), mockk(relaxed = true))
+        currentTempRepository = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
 
         repository =
-            WeatherRepository(
-                context,
-                forecastRepository,
-                currentTempRepository,
-                forecastDao,
-                appLogDao,
-                currentTempDao
-            )
+            WeatherRepository(context, forecastRepository, currentTempRepository, forecastDao, appLogDao, currentTempDao, mockk(relaxed = true))
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
         every { widgetStateManager.isSourceVisible(any()) } returns true

@@ -8,8 +8,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class],
-    version = 33,
+    entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, CurrentTempEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
+    version = 35,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -26,6 +26,8 @@ abstract class WeatherDatabase : RoomDatabase() {
     abstract fun currentTempDao(): CurrentTempDao
 
     abstract fun apiUsageDao(): ApiUsageDao
+
+    abstract fun dailyExtremeDao(): DailyExtremeDao
 
     companion object {
         @Volatile
@@ -89,6 +91,8 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_30_31,
                             MIGRATION_31_32,
                             MIGRATION_32_33,
+                            MIGRATION_33_34,
+                            MIGRATION_34_35,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -978,6 +982,38 @@ abstract class WeatherDatabase : RoomDatabase() {
             object : Migration(32, 33) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("DROP TABLE IF EXISTS hourly_actuals")
+                }
+            }
+
+        val MIGRATION_33_34 =
+            object : Migration(33, 34) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE observations ADD COLUMN maxTempLast24h REAL")
+                    db.execSQL("ALTER TABLE observations ADD COLUMN minTempLast24h REAL")
+                }
+            }
+
+        val MIGRATION_34_35 =
+            object : Migration(34, 35) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS daily_extremes (
+                            date TEXT NOT NULL,
+                            source TEXT NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            highTemp REAL NOT NULL,
+                            lowTemp REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            updatedAt INTEGER NOT NULL,
+                            PRIMARY KEY(date, source, locationLat, locationLon)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_daily_extremes_date_locationLat_locationLon ON daily_extremes(date, locationLat, locationLon)",
+                    )
                 }
             }
     }

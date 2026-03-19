@@ -202,11 +202,18 @@ class NwsApi
 
                 val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
 
+                val maxTempObj = props["maxTemperatureLast24Hours"]?.jsonObject
+                val maxTempValue = maxTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+                val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
+                val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+
                 if (tempValue != null) {
                     Observation(
                         timestamp = timestamp,
                         temperatureCelsius = tempValue.toFloat(),
                         textDescription = textDescription,
+                        maxTempLast24hCelsius = maxTempValue,
+                        minTempLast24hCelsius = minTempValue,
                     )
                 } else {
                     null
@@ -368,12 +375,19 @@ class NwsApi
 
             val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
 
+            val maxTempObj = props["maxTemperatureLast24Hours"]?.jsonObject
+            val maxTempValue = maxTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+            val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
+            val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+
             return if (tempValue != null) {
                 Observation(
                     timestamp = timestamp,
                     temperatureCelsius = tempValue.toFloat(),
                     textDescription = textDescription,
                     stationName = stationName,
+                    maxTempLast24hCelsius = maxTempValue,
+                    minTempLast24hCelsius = minTempValue,
                 )
             } else {
                 Log.d("NwsApi", "getLatestObservationDetailed: station=$stationId has null temperature value")
@@ -405,6 +419,8 @@ class NwsApi
             val temperatureCelsius: Float,
             val textDescription: String,
             val stationName: String = "",
+            val maxTempLast24hCelsius: Float? = null,
+            val minTempLast24hCelsius: Float? = null,
         )
 
         data class HourlyForecastPeriod(

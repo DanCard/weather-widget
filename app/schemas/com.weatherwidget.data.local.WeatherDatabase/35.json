@@ -1,0 +1,611 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 35,
+    "identityHash": "3fa17b3244eb549c02e6165a293ce002",
+    "entities": [
+      {
+        "tableName": "forecasts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`targetDate` TEXT NOT NULL, `forecastDate` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `locationName` TEXT NOT NULL, `highTemp` REAL, `lowTemp` REAL, `condition` TEXT NOT NULL, `isClimateNormal` INTEGER NOT NULL, `source` TEXT NOT NULL, `precipProbability` INTEGER, `periodStartTime` TEXT, `periodEndTime` TEXT, `batchFetchedAt` INTEGER NOT NULL, `fetchedAt` INTEGER NOT NULL, PRIMARY KEY(`targetDate`, `forecastDate`, `locationLat`, `locationLon`, `source`, `fetchedAt`))",
+        "fields": [
+          {
+            "fieldPath": "targetDate",
+            "columnName": "targetDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "forecastDate",
+            "columnName": "forecastDate",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLat",
+            "columnName": "locationLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLon",
+            "columnName": "locationLon",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationName",
+            "columnName": "locationName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "highTemp",
+            "columnName": "highTemp",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lowTemp",
+            "columnName": "lowTemp",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "condition",
+            "columnName": "condition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isClimateNormal",
+            "columnName": "isClimateNormal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "precipProbability",
+            "columnName": "precipProbability",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "periodStartTime",
+            "columnName": "periodStartTime",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "periodEndTime",
+            "columnName": "periodEndTime",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "batchFetchedAt",
+            "columnName": "batchFetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "targetDate",
+            "forecastDate",
+            "locationLat",
+            "locationLon",
+            "source",
+            "fetchedAt"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_forecasts_locationLat_locationLon",
+            "unique": false,
+            "columnNames": [
+              "locationLat",
+              "locationLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_locationLat_locationLon` ON `${TABLE_NAME}` (`locationLat`, `locationLon`)"
+          },
+          {
+            "name": "index_forecasts_targetDate",
+            "unique": false,
+            "columnNames": [
+              "targetDate"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate` ON `${TABLE_NAME}` (`targetDate`)"
+          },
+          {
+            "name": "index_forecasts_targetDate_source_locationLat_locationLon_forecastDate_fetchedAt",
+            "unique": false,
+            "columnNames": [
+              "targetDate",
+              "source",
+              "locationLat",
+              "locationLon",
+              "forecastDate",
+              "fetchedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_forecastDate_fetchedAt` ON `${TABLE_NAME}` (`targetDate`, `source`, `locationLat`, `locationLon`, `forecastDate`, `fetchedAt`)"
+          },
+          {
+            "name": "index_forecasts_source_locationLat_locationLon_batchFetchedAt",
+            "unique": false,
+            "columnNames": [
+              "source",
+              "locationLat",
+              "locationLon",
+              "batchFetchedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_forecasts_source_locationLat_locationLon_batchFetchedAt` ON `${TABLE_NAME}` (`source`, `locationLat`, `locationLon`, `batchFetchedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "hourly_forecasts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`dateTime` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `temperature` REAL NOT NULL, `condition` TEXT NOT NULL, `source` TEXT NOT NULL, `precipProbability` INTEGER, `cloudCover` INTEGER, `fetchedAt` INTEGER NOT NULL, PRIMARY KEY(`dateTime`, `source`, `locationLat`, `locationLon`))",
+        "fields": [
+          {
+            "fieldPath": "dateTime",
+            "columnName": "dateTime",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLat",
+            "columnName": "locationLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLon",
+            "columnName": "locationLon",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temperature",
+            "columnName": "temperature",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "condition",
+            "columnName": "condition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "precipProbability",
+            "columnName": "precipProbability",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cloudCover",
+            "columnName": "cloudCover",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "dateTime",
+            "source",
+            "locationLat",
+            "locationLon"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_hourly_forecasts_locationLat_locationLon",
+            "unique": false,
+            "columnNames": [
+              "locationLat",
+              "locationLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_hourly_forecasts_locationLat_locationLon` ON `${TABLE_NAME}` (`locationLat`, `locationLon`)"
+          }
+        ]
+      },
+      {
+        "tableName": "app_logs",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `timestamp` INTEGER NOT NULL, `tag` TEXT NOT NULL, `message` TEXT NOT NULL, `level` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "message",
+            "columnName": "message",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "level",
+            "columnName": "level",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "climate_normals",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`monthDay` TEXT NOT NULL, `locationKey` TEXT NOT NULL, `highTemp` INTEGER NOT NULL, `lowTemp` INTEGER NOT NULL, `fetchedAt` INTEGER NOT NULL, PRIMARY KEY(`monthDay`, `locationKey`))",
+        "fields": [
+          {
+            "fieldPath": "monthDay",
+            "columnName": "monthDay",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationKey",
+            "columnName": "locationKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "highTemp",
+            "columnName": "highTemp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lowTemp",
+            "columnName": "lowTemp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "monthDay",
+            "locationKey"
+          ]
+        }
+      },
+      {
+        "tableName": "observations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stationId` TEXT NOT NULL, `stationName` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `temperature` REAL NOT NULL, `condition` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `distanceKm` REAL NOT NULL, `stationType` TEXT NOT NULL, `fetchedAt` INTEGER NOT NULL, `maxTempLast24h` REAL, `minTempLast24h` REAL, PRIMARY KEY(`stationId`, `timestamp`))",
+        "fields": [
+          {
+            "fieldPath": "stationId",
+            "columnName": "stationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationName",
+            "columnName": "stationName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temperature",
+            "columnName": "temperature",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "condition",
+            "columnName": "condition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLat",
+            "columnName": "locationLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLon",
+            "columnName": "locationLon",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "distanceKm",
+            "columnName": "distanceKm",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stationType",
+            "columnName": "stationType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "maxTempLast24h",
+            "columnName": "maxTempLast24h",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "minTempLast24h",
+            "columnName": "minTempLast24h",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "stationId",
+            "timestamp"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_observations_locationLat_locationLon",
+            "unique": false,
+            "columnNames": [
+              "locationLat",
+              "locationLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_observations_locationLat_locationLon` ON `${TABLE_NAME}` (`locationLat`, `locationLon`)"
+          },
+          {
+            "name": "index_observations_timestamp_locationLat_locationLon",
+            "unique": false,
+            "columnNames": [
+              "timestamp",
+              "locationLat",
+              "locationLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_observations_timestamp_locationLat_locationLon` ON `${TABLE_NAME}` (`timestamp`, `locationLat`, `locationLon`)"
+          }
+        ]
+      },
+      {
+        "tableName": "current_temp",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `source` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `temperature` REAL NOT NULL, `observedAt` INTEGER NOT NULL, `condition` TEXT, `fetchedAt` INTEGER NOT NULL, PRIMARY KEY(`date`, `source`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLat",
+            "columnName": "locationLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLon",
+            "columnName": "locationLon",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temperature",
+            "columnName": "temperature",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedAt",
+            "columnName": "observedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "condition",
+            "columnName": "condition",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "fetchedAt",
+            "columnName": "fetchedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date",
+            "source"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_current_temp_locationLat_locationLon",
+            "unique": false,
+            "columnNames": [
+              "locationLat",
+              "locationLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_current_temp_locationLat_locationLon` ON `${TABLE_NAME}` (`locationLat`, `locationLon`)"
+          }
+        ]
+      },
+      {
+        "tableName": "api_usage_stats",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `apiSource` TEXT NOT NULL, `callCount` INTEGER NOT NULL, PRIMARY KEY(`date`, `apiSource`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "apiSource",
+            "columnName": "apiSource",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "callCount",
+            "columnName": "callCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date",
+            "apiSource"
+          ]
+        }
+      },
+      {
+        "tableName": "daily_extremes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` TEXT NOT NULL, `source` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `highTemp` REAL NOT NULL, `lowTemp` REAL NOT NULL, `condition` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`))",
+        "fields": [
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLat",
+            "columnName": "locationLat",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locationLon",
+            "columnName": "locationLon",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "highTemp",
+            "columnName": "highTemp",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lowTemp",
+            "columnName": "lowTemp",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "condition",
+            "columnName": "condition",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "date",
+            "source",
+            "locationLat",
+            "locationLon"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_extremes_date_locationLat_locationLon",
+            "unique": false,
+            "columnNames": [
+              "date",
+              "locationLat",
+              "locationLon"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_extremes_date_locationLat_locationLon` ON `${TABLE_NAME}` (`date`, `locationLat`, `locationLon`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3fa17b3244eb549c02e6165a293ce002')"
+    ]
+  }
+}

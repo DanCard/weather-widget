@@ -6,6 +6,7 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.CurrentTempEntity
+import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
@@ -17,10 +18,12 @@ import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
@@ -50,6 +53,8 @@ class CurrentTempRepository
         private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
         private val temperatureInterpolator: TemperatureInterpolator,
+        private val dailyExtremeDao: DailyExtremeDao,
+        private val observationRepository: ObservationRepository,
     ) {
         private val syncMutex = Mutex()
         companion object { 
@@ -120,7 +125,7 @@ class CurrentTempRepository
             when (source) {
                 WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
-                WeatherSource.NWS -> fetchNwsCurrent(latitude, longitude)
+                WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
                 WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
                 else -> null
             }
@@ -218,52 +223,6 @@ class CurrentTempRepository
             }
         }
 
-        private suspend fun fetchNwsCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
-            val gridPoint = nwsApi.getGridPoint(latitude, longitude)
-            val stations = getSortedObservationStations(gridPoint.observationStationsUrl ?: "")
-            if (stations.isEmpty()) return@coroutineScope null
-            
-            val successfulEntities = stations.take(MAX_RETRIES).map { stationInfo ->
-                async {
-                    val observation = runCatching { nwsApi.getLatestObservationDetailed(stationInfo.id) }.getOrNull()
-                        ?: return@async null
-                    val obsEntity = ObservationEntity(
-                        stationInfo.id,
-                        observation.stationName,
-                        OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
-                        (observation.temperatureCelsius * 1.8f) + 32f,
-                        observation.textDescription,
-                        latitude,
-                        longitude,
-                        calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f,
-                        stationInfo.type.name
-                    )
-                    observationDao.insertAll(listOf(obsEntity))
-                    obsEntity
-                }
-            }.mapNotNull { it.await() }
-
-            if (successfulEntities.isEmpty()) return@coroutineScope null
-
-            val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, successfulEntities)
-                ?: return@coroutineScope null
-
-            // Use the closest station's condition (conditions don't interpolate)
-            val closest = successfulEntities.minBy { it.distanceKm }
-
-            // Log contributing stations and their weights for debugging
-            val stationSummary = successfulEntities.joinToString { "${it.stationId}(${it.distanceKm}km)" }
-            appLogDao.log("NWS_IDW", "blended=${blendedTemp}°F from ${successfulEntities.size} stations: $stationSummary")
-            Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary")
-
-            CurrentReadingPayload(
-                WeatherSource.NWS,
-                blendedTemp,
-                closest.condition,
-                successfulEntities.maxOf { it.timestamp },
-            )
-        }
-
         private fun getPointsOfInterest(latitude: Double, longitude: Double): List<Triple<Double, Double, String>> {
             val points = mutableListOf(
                 Triple(latitude, longitude, "Current"), 
@@ -306,28 +265,6 @@ class CurrentTempRepository
             return temperatureInterpolator.getNextUpdateTime(time, tempDiff)
         }
 
-        private suspend fun getSortedObservationStations(stationsUrl: String): List<NwsApi.StationInfo> {
-            if (stationsUrl.isEmpty()) return emptyList()
-            
-            val stationsKey = "observation_stations_v3_${stationsUrl.hashCode()}"
-            val timeKey = "observation_stations_time_v3_${stationsUrl.hashCode()}"
-            val cachedStationsString = prefs.getString(stationsKey, null)
-            val lastUpdateTimestamp = prefs.getLong(timeKey, 0)
-            
-            if (cachedStationsString != null && System.currentTimeMillis() - lastUpdateTimestamp < 86400000) {
-                return cachedStationsString.split("|").mapNotNull(NwsApi.Companion::decodeStationInfo)
-            }
-            
-            val fetchedStations = runCatching { nwsApi.getObservationStations(stationsUrl) }.getOrDefault(emptyList())
-            if (fetchedStations.isNotEmpty()) {
-                prefs.edit()
-                    .putString(stationsKey, fetchedStations.joinToString("|", transform = NwsApi.Companion::encodeStationInfo))
-                    .putLong(timeKey, System.currentTimeMillis())
-                    .apply()
-            }
-            return fetchedStations
-        }
-
         @androidx.annotation.VisibleForTesting
         internal fun recordHistoricalPoi(latitude: Double, longitude: Double, name: String) {
             val poiStrings = prefs.getString("historical_pois", "")!!.split(";").filter { it.isNotEmpty() }.toMutableList()
@@ -348,88 +285,10 @@ class CurrentTempRepository
                     }.getOrNull() 
                 }
 
-        fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float { 
+        fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
             val results = FloatArray(1)
             Location.distanceBetween(lat1, lon1, lat2, lon2, results)
-            return results[0] 
-        }
-
-        suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) {
-            android.util.Log.d(TAG, "backfillNwsObservationsIfNeeded entered for ($latitude, $longitude)")
-            val localZone = java.time.ZoneId.systemDefault()
-            val now = java.time.ZonedDateTime.now(localZone)
-            
-            // Check for yesterday's data
-            val yesterday = now.minusDays(1).toLocalDate()
-            val startTsYesterday = yesterday.atStartOfDay(localZone).toInstant().toEpochMilli()
-            val endTsYesterday = yesterday.plusDays(1).atStartOfDay(localZone).toInstant().toEpochMilli()
-            
-            val yesterdayObservations = observationDao.getObservationsInRange(startTsYesterday, endTsYesterday, latitude, longitude)
-            val isYesterdayPopulated = yesterdayObservations.size >= 10
-            
-            // Also check for today's data density
-            val today = now.toLocalDate()
-            val startTsToday = today.atStartOfDay(localZone).toInstant().toEpochMilli()
-            val endTsToday = now.toInstant().toEpochMilli()
-            
-            val todayObservations = observationDao.getObservationsInRange(startTsToday, endTsToday, latitude, longitude)
-            val currentHour = now.hour
-            val isTodayPopulated = when {
-                currentHour < 2 -> true // Too early to judge today
-                currentHour < 6 -> todayObservations.size >= 2
-                currentHour < 12 -> todayObservations.size >= 4
-                else -> todayObservations.size >= 8
-            }
-
-            android.util.Log.d(TAG, "History check: yesterdayCount=${yesterdayObservations.size}, todayCount=${todayObservations.size}, hour=$currentHour")
-            
-            if (isYesterdayPopulated && isTodayPopulated) {
-                android.util.Log.d(TAG, "Skipping backfill: both yesterday and today already have sufficient data")
-                return
-            }
-            
-            android.util.Log.i(TAG, "Insufficient history (yesterdayPopulated=$isYesterdayPopulated, todayPopulated=$isTodayPopulated), backfilling last 48 hours")
-            val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
-            if (gridPoint == null) {
-                android.util.Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
-                return
-            }
-            
-            val stations = getSortedObservationStations(gridPoint.observationStationsUrl ?: "")
-            android.util.Log.d(TAG, "Found ${stations.size} stations to try")
-            if (stations.isEmpty()) return
-            
-            // Fetch a wider window based on configuration to ensure we cover all of the required partials
-            val startTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.minusDays(WeatherConfig.NWS_BACKFILL_DAYS.toLong()).toInstant())
-            val endTimeStr = java.time.format.DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
-            
-            for (stationInfo in stations.take(3)) {
-                android.util.Log.d(TAG, "Attempting backfill from station ${stationInfo.id}")
-                try {
-                    val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
-                    android.util.Log.d(TAG, "Station ${stationInfo.id} returned ${observations.size} observations")
-                    if (observations.isNotEmpty()) {
-                        val entities = observations.map { obs ->
-                            com.weatherwidget.data.local.ObservationEntity(
-                                stationId = stationInfo.id,
-                                stationName = obs.stationName.ifEmpty { stationInfo.name },
-                                timestamp = java.time.OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
-                                temperature = (obs.temperatureCelsius * 1.8f) + 32f,
-                                condition = obs.textDescription,
-                                locationLat = latitude,
-                                locationLon = longitude,
-                                distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f,
-                                stationType = stationInfo.type.name
-                            )
-                        }
-                        observationDao.insertAll(entities)
-                        android.util.Log.i(TAG, "Successfully backfilled ${entities.size} observations from ${stationInfo.id}")
-                        break
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w(TAG, "Failed to backfill from ${stationInfo.id}: ${e.message}")
-                }
-            }
+            return results[0]
         }
     }
 

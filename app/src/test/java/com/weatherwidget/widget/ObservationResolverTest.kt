@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.CurrentTempEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -91,6 +92,124 @@ class ObservationResolverTest {
 
         assertNull(resolved)
     }
+
+    // --- aggregateObservationsToDaily tests ---
+
+    @Test
+    fun `aggregateObservationsToDaily uses official 24h extremes when present`() {
+        val dayMillis = 1_700_000_000_000L // arbitrary fixed epoch in a single calendar day
+        val obs = listOf(
+            observation(timestamp = dayMillis,       temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f),
+            observation(timestamp = dayMillis + 3600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(1, result.size)
+        assertEquals(74f, result[0].highTemp)
+        assertEquals(38f, result[0].lowTemp)
+    }
+
+    @Test
+    fun `aggregateObservationsToDaily falls back to spot readings when official extremes are null`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis,       temperature = 55f, maxTempLast24h = null, minTempLast24h = null),
+            observation(timestamp = dayMillis + 3600_000, temperature = 62f, maxTempLast24h = null, minTempLast24h = null),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(1, result.size)
+        assertEquals(62f, result[0].highTemp)
+        assertEquals(55f, result[0].lowTemp)
+    }
+
+    @Test
+    fun `aggregateObservationsToDaily handles mixed null and non-null official extremes`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis,       temperature = 55f, maxTempLast24h = 70f, minTempLast24h = null),
+            observation(timestamp = dayMillis + 3600_000, temperature = 62f, maxTempLast24h = null, minTempLast24h = 39f),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(1, result.size)
+        // officialHighs = [70f] -> max = 70f; officialLows = [39f] -> min = 39f
+        assertEquals(70f, result[0].highTemp)
+        assertEquals(39f, result[0].lowTemp)
+    }
+
+    // --- computeDailyExtremes tests ---
+
+    @Test
+    fun `computeDailyExtremes returns correct entity using official 24h extremes`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f, stationId = "KTEST"),
+            observation(timestamp = dayMillis + 3_600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f, stationId = "KTEST"),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        val entity = result[0]
+        assertEquals(74f, entity.highTemp)
+        assertEquals(38f, entity.lowTemp)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS.id, entity.source)
+        assertEquals(37.42, entity.locationLat, 0.001)
+    }
+
+    @Test
+    fun `computeDailyExtremes falls back to spot readings when official extremes are null`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = null, minTempLast24h = null, stationId = "KTEST"),
+            observation(timestamp = dayMillis + 3_600_000, temperature = 63f, maxTempLast24h = null, minTempLast24h = null, stationId = "KTEST"),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(63f, result[0].highTemp)
+        assertEquals(55f, result[0].lowTemp)
+    }
+
+    @Test
+    fun `computeDailyExtremes groups NWS and Open-Meteo observations into separate entities`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 70f, minTempLast24h = 40f, stationId = "KTEST"),
+            observation(timestamp = dayMillis + 1_800_000, temperature = 60f, maxTempLast24h = 68f, minTempLast24h = 42f, stationId = "OPEN_METEO_MAIN"),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+
+        assertEquals(2, result.size)
+        val nwsEntity = result.first { it.source == com.weatherwidget.data.model.WeatherSource.NWS.id }
+        val meteoEntity = result.first { it.source == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id }
+        assertEquals(70f, nwsEntity.highTemp)
+        assertEquals(68f, meteoEntity.highTemp)
+    }
+
+    private fun observation(
+        timestamp: Long,
+        temperature: Float,
+        maxTempLast24h: Float?,
+        minTempLast24h: Float?,
+        stationId: String = "KTEST",
+    ): ObservationEntity = ObservationEntity(
+        stationId = stationId,
+        stationName = "Test Station",
+        timestamp = timestamp,
+        temperature = temperature,
+        condition = "Clear",
+        locationLat = 37.42,
+        locationLon = -122.08,
+        maxTempLast24h = maxTempLast24h,
+        minTempLast24h = minTempLast24h,
+    )
 
     private fun currentTemp(
         source: String,

@@ -5,12 +5,14 @@ import com.weatherwidget.data.local.ApiUsageDao
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.CurrentTempDao
+import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.CurrentTempRepository
 import com.weatherwidget.data.repository.ForecastRepository
+import com.weatherwidget.data.repository.ObservationRepository
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
@@ -109,6 +111,22 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideDailyExtremeDao(database: WeatherDatabase): DailyExtremeDao = database.dailyExtremeDao()
+
+    @Provides
+    @Singleton
+    fun provideObservationRepository(
+        @ApplicationContext context: Context,
+        observationDao: ObservationDao,
+        dailyExtremeDao: DailyExtremeDao,
+        appLogDao: AppLogDao,
+        nwsApi: NwsApi,
+    ): ObservationRepository = ObservationRepository(
+        context, observationDao, dailyExtremeDao, appLogDao, nwsApi
+    )
+
+    @Provides
+    @Singleton
     fun provideForecastRepository(
         @ApplicationContext context: Context,
         forecastDao: ForecastDao,
@@ -121,9 +139,11 @@ object AppModule {
         widgetStateManager: WidgetStateManager,
         climateNormalDao: ClimateNormalDao,
         observationDao: ObservationDao,
+        dailyExtremeDao: DailyExtremeDao,
+        observationRepository: ObservationRepository,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository
     )
 
     @Provides
@@ -139,9 +159,11 @@ object AppModule {
         weatherApi: WeatherApi,
         silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
+        dailyExtremeDao: DailyExtremeDao,
+        observationRepository: ObservationRepository,
     ): CurrentTempRepository = CurrentTempRepository(
         context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator()
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator(), dailyExtremeDao, observationRepository
     )
 
     @Provides

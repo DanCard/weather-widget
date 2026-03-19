@@ -20,12 +20,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import com.weatherwidget.R
+import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
@@ -64,6 +66,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     @Inject
     lateinit var observationDao: ObservationDao
+
+    @Inject
+    lateinit var dailyExtremeDao: DailyExtremeDao
 
     // forecastDao is also used for actual weather lookups (previously weatherDao)
 
@@ -532,9 +537,54 @@ class ForecastHistoryActivity : AppCompatActivity() {
         return if (abs(value - rounded.toFloat()) < 0.01f) "$rounded°" else String.format("%.1f°", value)
     }
 
+    /**
+     * Checks whether daily_extremes is missing entries that raw observations could fill.
+     * Called before accuracy display so users see accurate data even if the app was just
+     * installed or data was never pre-computed (e.g. upgrading from pre-35 schema).
+     */
+    private suspend fun backfillDailyExtremesIfNeeded(lat: Double, lon: Double) {
+        val zone = ZoneId.systemDefault()
+        val endDate = LocalDate.now()
+        val startDate = endDate.minusDays(30)
+        val startDateStr = startDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+        val endDateStr = endDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val existingExtremes = dailyExtremeDao.getExtremesInRange(startDateStr, endDateStr, lat, lon)
+        val existingDates = existingExtremes.map { it.date }.toSet()
+
+        // Query all observations for the 30-day window in one pass
+        val startTs = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endTs = endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val observations = observationDao.getObservationsInRange(startTs, endTs, lat, lon)
+        if (observations.isEmpty()) return
+
+        // Determine which observation dates are not yet represented in daily_extremes
+        val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
+        val observedDates = observations.map { obs ->
+            java.time.Instant.ofEpochMilli(obs.timestamp).atZone(zone).toLocalDate().format(formatter)
+        }.toSet()
+
+        val missingDates = observedDates - existingDates
+        if (missingDates.isEmpty()) return
+
+        Log.d(TAG, "Backfilling daily_extremes for ${missingDates.size} missing date(s): $missingDates")
+
+        // Filter observations to only missing days, then compute and insert
+        val missingObservations = observations.filter { obs ->
+            val date = java.time.Instant.ofEpochMilli(obs.timestamp).atZone(zone).toLocalDate().format(formatter)
+            date in missingDates
+        }
+        val extremes = ObservationResolver.computeDailyExtremes(missingObservations, lat, lon)
+        if (extremes.isNotEmpty()) {
+            dailyExtremeDao.insertAll(extremes)
+            Log.d(TAG, "Backfilled ${extremes.size} daily_extremes entries")
+        }
+    }
+
     private fun loadAccuracySummary(lat: Double, lon: Double) {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
+                backfillDailyExtremesIfNeeded(lat, lon)
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
                 val hasAnyData =
                     (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||

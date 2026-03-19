@@ -29,6 +29,7 @@ class WeatherRepository
         private val forecastDao: ForecastDao,
         private val appLogDao: AppLogDao,
         private val currentTempDao: CurrentTempDao,
+        private val observationRepository: ObservationRepository,
     ) {
         suspend fun getWeatherData(
             latitude: Double,
@@ -124,12 +125,11 @@ class WeatherRepository
             currentTempRepository.recordHistoricalPoi(latitude, longitude, name)
             
         @androidx.annotation.VisibleForTesting
-        internal suspend fun fetchDayObservations(stationsUrl: String, date: java.time.LocalDate) = 
-            forecastRepository.fetchDayObservations(stationsUrl, date)
+        internal suspend fun fetchDayObservations(stationsUrl: String, date: java.time.LocalDate) =
+            observationRepository.fetchDayObservations(stationsUrl, date)
 
         suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
-            currentTempRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
-
+            observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
         suspend fun getObservationsInRange(
             startTimestamp: Long,
             endTimestamp: Long,

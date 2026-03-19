@@ -183,9 +183,16 @@ object TemperatureViewHandler {
                 val afterBlendMs = SystemClock.elapsedRealtime()
                 val actualCount = hourData.count { it.isActual }
                 Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
+                val stationIds = observations
+                    .filter { matchesObservationSource(it, displaySource) }
+                    .map { it.stationId }.toSet()
+                val database = WeatherDatabase.getDatabase(context)
+                database.appLogDao().log(
+                    "IDW_BLEND",
+                    "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
+                )
                 val obsBlendMs = afterBlendMs - obsStartMs
                 if (obsBlendMs > 100) {
-                    val database = WeatherDatabase.getDatabase(context)
                     database.appLogDao().log(
                         "TEMP_OBS_SLOW",
                         "widget=$appWidgetId obsQuery=${afterObsMs - obsStartMs}ms blend=${afterBlendMs - afterObsMs}ms total=${obsBlendMs}ms",
@@ -852,6 +859,26 @@ object TemperatureViewHandler {
             } else {
                 SpatialInterpolator.interpolateIDW(userLat, userLon, peers, primary.timestamp)
                     ?: primary.temperature
+            }
+
+            // Log IDW blend details for each emitted point
+            if (Log.isLoggable("IDW_BLEND", Log.DEBUG)) {
+                val timeStr = java.time.Instant.ofEpochMilli(primary.timestamp)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .toLocalDateTime()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                if (peers.size == 1) {
+                    Log.d("IDW_BLEND", "emit t=$timeStr anchor=${primary.stationId}(${primary.temperature}°,${primary.distanceKm}km) no_peers → $blendedTemp°")
+                } else {
+                    val weightSum = peers.sumOf { 1.0 / (it.distanceKm * it.distanceKm) }
+                    val anchorW = (1.0 / (primary.distanceKm * primary.distanceKm)) / weightSum
+                    val anchorStr = "${primary.stationId}(${primary.temperature}°,${String.format("%.1f", primary.distanceKm)}km,w=${String.format("%.2f", anchorW)})"
+                    val peerStr = peers.filter { it !== primary }.joinToString(",") { p ->
+                        val w = (1.0 / (p.distanceKm * p.distanceKm)) / weightSum
+                        "${p.stationId}(${p.temperature}°,${String.format("%.1f", p.distanceKm)}km,w=${String.format("%.2f", w)})"
+                    }
+                    Log.d("IDW_BLEND", "emit t=$timeStr anchor=$anchorStr peers=[$peerStr] → ${String.format("%.1f", blendedTemp)}°")
+                }
             }
 
             result.add(primary.copy(temperature = blendedTemp))

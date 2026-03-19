@@ -53,10 +53,11 @@ class WeatherRepositoryNwsParallelTest {
         observationDao = mockk(relaxed = true)
         currentTempDao = mockk(relaxed = true)
 
-        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao)
-        val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator)
+        val observationRepo = ObservationRepository(context, observationDao, mockk(relaxed = true), appLogDao, nwsApi)
+        val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao, mockk(relaxed = true), observationRepo)
+        val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), observationRepo)
 
-        repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, currentTempDao)
+        repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, currentTempDao, observationRepo)
 
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
         every { widgetStateManager.isSourceVisible(WeatherSource.NWS) } returns true

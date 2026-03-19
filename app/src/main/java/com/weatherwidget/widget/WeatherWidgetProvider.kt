@@ -108,16 +108,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         latestWeather.locationLon,
                     )
 
-                    val zone = java.time.ZoneId.systemDefault()
-                    val actualStartTs = LocalDate.now().minusDays(30).atStartOfDay(zone).toInstant().toEpochMilli()
-                    val actualEndTs = LocalDate.now().plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-                    val observations = database.observationDao().getObservationsInRange(
-                        actualStartTs,
-                        actualEndTs,
+                    val historyStartDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val tomorrowDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val extremes = database.dailyExtremeDao().getExtremesInRange(
+                        historyStartDate,
+                        tomorrowDate,
                         latestWeather.locationLat,
                         latestWeather.locationLon,
                     )
-                    val dailyActualsBySource = ObservationResolver.aggregateObservationsToDailyBySource(observations)
+                    val dailyActualsBySource = ObservationResolver.extremesToDailyActualsBySource(extremes)
 
                     for (appWidgetId in appWidgetIds) {
                         updateWidgetWithData(
