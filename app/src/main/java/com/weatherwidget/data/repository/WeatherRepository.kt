@@ -124,10 +124,6 @@ class WeatherRepository
         internal fun recordHistoricalPoi(latitude: Double, longitude: Double, name: String) = 
             currentTempRepository.recordHistoricalPoi(latitude, longitude, name)
             
-        @androidx.annotation.VisibleForTesting
-        internal suspend fun fetchDayObservations(stationsUrl: String, date: java.time.LocalDate) =
-            observationRepository.fetchDayObservations(stationsUrl, date)
-
         suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
             observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
         suspend fun getObservationsInRange(

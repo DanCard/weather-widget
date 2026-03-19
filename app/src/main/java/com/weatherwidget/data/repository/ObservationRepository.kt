@@ -37,13 +37,6 @@ class ObservationRepository @Inject constructor(
 ) {
     private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
-    internal data class ObservationResult(
-        val highTemp: Float,
-        val lowTemp: Float,
-        val stationId: String,
-        val condition: String
-    )
-
     companion object {
         private const val MAX_RETRIES = 5
     }
@@ -128,68 +121,6 @@ class ObservationRepository @Inject constructor(
         observationDao.insertAll(listOf(obsEntity))
         recomputeDailyExtremesForDay(latitude, longitude, obsEntity.timestamp)
         return obsEntity
-    }
-
-    internal suspend fun fetchDayObservations(stationUrl: String, date: LocalDate): ObservationResult? {
-        if (stationUrl.isEmpty()) return null
-        return fetchDayObservations(getSortedObservationStations(stationUrl), date)
-    }
-
-    internal suspend fun fetchDayObservations(stations: List<NwsApi.StationInfo>, date: LocalDate): ObservationResult? {
-        val localZone = ZoneId.systemDefault()
-        val startTimeStr = date.atStartOfDay(localZone).format(DateTimeFormatter.ISO_INSTANT)
-        val endTimeStr = date.plusDays(1).atStartOfDay(localZone).format(DateTimeFormatter.ISO_INSTANT)
-
-        for (stationInfo in stations.take(MAX_RETRIES)) {
-            try {
-                val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
-                if (observations.isEmpty()) {
-                    appLogDao.log("NWS_STATION_FAIL", "station=${stationInfo.id} date=$date reason=empty_observations", "WARN")
-                    continue
-                }
-
-                val temperaturesF = observations.map { (it.temperatureCelsius * 1.8f) + 32f }
-                val highTemp = temperaturesF.maxOrNull() ?: continue
-                val lowTemp = temperaturesF.minOrNull() ?: continue
-
-                val daylightObservations = observations.filter {
-                    runCatching { ZonedDateTime.parse(it.timestamp).withZoneSameInstant(localZone).hour }.getOrDefault(12) in 7..19
-                }.ifEmpty { observations }
-
-                val hasPrecipitation = daylightObservations.any {
-                    val description = it.textDescription.lowercase()
-                    description.contains("rain") || description.contains("shower") || description.contains("storm") || description.contains("snow")
-                }
-
-                val cloudScores = daylightObservations.map {
-                    val description = it.textDescription.lowercase()
-                    when {
-                        description.contains("mostly cloudy") -> 75
-                        description.contains("mostly clear") || description.contains("mostly sunny") -> 25
-                        description.contains("partly") -> 50
-                        description.contains("cloudy") || description.contains("overcast") -> 100
-                        description.contains("fair") || description.contains("sunny") || description.contains("clear") -> 0
-                        else -> 50
-                    }
-                }
-
-                val averageCloudScore = if (cloudScores.isNotEmpty()) cloudScores.average() else 50.0
-                val baseCondition = if (hasPrecipitation) "Rain" else when {
-                    averageCloudScore <= 15 -> "Sunny"
-                    averageCloudScore <= 35 -> "Mostly Sunny"
-                    averageCloudScore <= 65 -> "Partly Cloudy"
-                    averageCloudScore <= 85 -> "Mostly Cloudy"
-                    else -> "Cloudy"
-                }
-
-                val finalCondition = if (averageCloudScore == 0.0 || averageCloudScore == 100.0) baseCondition else "$baseCondition (${averageCloudScore.roundToInt()}%)"
-
-                return ObservationResult(highTemp, lowTemp, stationInfo.id, finalCondition)
-            } catch (exception: Exception) {
-                appLogDao.log("NWS_STATION_FAIL", "station=${stationInfo.id} date=$date reason=${exception.message}", "WARN")
-            }
-        }
-        return null
     }
 
     private suspend fun getSortedObservationStations(stationsUrl: String): List<NwsApi.StationInfo> {
