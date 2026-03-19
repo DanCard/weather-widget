@@ -83,6 +83,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         updateApiButton()
 
         findViewById<View>(R.id.back_button).setOnClickListener { finish() }
+        findViewById<TextView>(R.id.title).setOnClickListener { finish() }
         findViewById<Button>(R.id.close_button).setOnClickListener { finish() }
 
         findViewById<TextView>(R.id.api_source_button).setOnClickListener {
