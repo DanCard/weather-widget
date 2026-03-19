@@ -28,11 +28,12 @@ That method:
 1. Filter observations to the selected source and visible time window.
 2. Build one local time series per station with `buildStationTimeSeries(...)`.
 3. Insert short-gap interpolated points into those station-local series when appropriate.
-4. Gather all timestamps from all station-local series, including interpolated ones.
-5. For each candidate timestamp, ask every station for its nearest local point within the allowed window.
-6. If only one station contributes, emit that station’s temperature directly.
-7. If multiple stations contribute, run inverse-distance weighting (IDW) across those station-local points.
-8. Emit a blended observation for that timestamp and log the full cohort details.
+4. For NWS station blending, briefly extrapolate forward after a station’s last observation using the forecast trend.
+5. Gather all timestamps from all station-local series, including interpolated and extrapolated ones.
+6. For each candidate timestamp, ask every station for its nearest local point within the allowed window.
+7. If only one station contributes, emit that station’s temperature directly.
+8. If multiple stations contribute, run inverse-distance weighting (IDW) across those station-local points.
+9. Emit a blended observation for that timestamp and log the full cohort details.
 
 ## Station-Local Interpolation
 
@@ -41,20 +42,41 @@ That method:
 For each pair of consecutive observations in a station:
 
 - If the gap is `<= 15 minutes`, no interpolation is added.
-- If the gap is `> 15 minutes` and `<= 30 minutes`, exactly one midpoint sample is inserted.
-- If the gap is `> 30 minutes`, nothing is inserted and the gap is logged.
+- If the gap is `> 15 minutes` and `<= 60 minutes`, interpolated points are inserted every `15 minutes`.
+- If the gap is `> 60 minutes`, nothing is inserted and the gap is logged.
 
-The interpolated midpoint uses simple linear interpolation between the two real observations.
+Each interpolated point uses simple linear interpolation between the two real endpoint observations.
 
 Example:
 
 - `03:55 = 60.8F`
-- `04:15 = 59.0F`
+- `04:40 = 59.0F`
 
-This produces a midpoint near `04:05` with a linearly interpolated temperature.
+This produces interpolated points near `04:10` and `04:25`, each with linearly interpolated temperatures.
 
 Interpolated station-local points are marked with `sourceKind = "interpolated"`.
 Real observations are marked with `sourceKind = "observed"`.
+
+## Forecast-Guided Extrapolation
+
+For `NWS` only, the station-local series can also extend forward after a station’s last observation.
+
+This is used for dropout handling when there is no later station observation available for interpolation.
+
+Rules:
+
+- Extrapolation is only forward from the station’s last observation.
+- It runs in `15-minute` steps.
+- It is capped at `1 hour`.
+- It uses the forecast trend, not the forecast absolute temperature.
+
+The model is:
+
+- `synthetic_station_temp(t) = last_station_temp + (forecast(t) - forecast(last_obs_time))`
+
+That preserves the station’s local offset while following the forecast’s expected temperature change.
+
+Extrapolated station-local points are marked with `sourceKind = "forecast_extrapolated"`.
 
 ## Timestamp Resolution
 
@@ -65,7 +87,7 @@ For each candidate time, `resolveStationPointForTimestamp(...)`:
 - finds the nearest point in a given station’s local series
 - accepts it only if it is within `15 minutes` of the target time
 
-This means a station does not need a raw observation at the exact target minute. It only needs a station-local point close enough to participate, and that point may be real or interpolated.
+This means a station does not need a raw observation at the exact target minute. It only needs a station-local point close enough to participate, and that point may be real, interpolated, or forecast-extrapolated.
 
 ## Blending Step
 
@@ -88,7 +110,7 @@ That caused a failure mode like this:
 
 If `KNUQ` is warmer than `AW020`, the history line jumps up when `KNUQ` is present and down when it is missing.
 
-After this change, `KNUQ` can still contribute at nearby timestamps through its station-local interpolated midpoint, so the cohort is more stable across adjacent windows.
+After this change, `KNUQ` can still contribute at nearby timestamps through station-local interpolated points, and dropouts such as isolated `LOAC1` participation can be held forward briefly with forecast-guided extrapolation. The cohort is therefore more stable across adjacent windows.
 
 This reduces station-dropout jaggedness without smoothing the final line itself.
 
@@ -98,9 +120,11 @@ This implementation is intentionally limited:
 
 - It does not smooth the final rendered curve.
 - It only fills moderate station-local gaps.
-- It inserts at most one midpoint for a gap.
+- It inserts synthetic points at a fixed `15-minute` cadence, not at arbitrary density.
 - It does not create a dense per-minute station model.
-- Gaps larger than `30 minutes` are left unfilled.
+- Gaps larger than `60 minutes` are left unfilled.
+- Forecast-guided extrapolation is limited to `NWS`.
+- Forecast-guided extrapolation is capped at `1 hour` after the last observation.
 
 So this is a continuity improvement, not a full resampling system.
 
@@ -110,6 +134,7 @@ The implementation includes explicit diagnostics to make future debugging easier
 
 - `window source=... stations=... breakdown=[...]`
 - `station_interpolate station=... at=... temp=... from=.....`
+- `station_extrapolate station=... at=... temp=... fromObs=... forecastDelta=...`
 - `station_gap station=... gapMin=... from=.....`
 - `emit t=... single_station=...`
 - `emit t=... blended=... stations=[...] cohortChanged=...`
@@ -118,6 +143,7 @@ These logs make it possible to determine:
 
 - which stations were available in the visible window
 - where interpolation was inserted
+- where forecast-guided extrapolation was inserted
 - which gaps were too large to bridge
 - which station cohort produced each emitted graph point
 - when the cohort changed
@@ -133,9 +159,12 @@ Important coverage:
 - `mixed NWS stations IDW-blend nearby observations`
 - `blend diagnostics log both single-station and cohort-change emissions`
 - `station-local interpolation keeps intermittent station in later blend windows`
+- `station-local interpolation fills multi-step gaps up to one hour`
+- `forecast-guided extrapolation keeps last station briefly after dropout`
 
 These verify that:
 
 - far stations influence blends without dominating them
 - interpolation/debug logs are emitted
 - an intermittent station still affects later blend windows instead of dropping out immediately
+- a dropped NWS station can be held forward briefly using forecast trend

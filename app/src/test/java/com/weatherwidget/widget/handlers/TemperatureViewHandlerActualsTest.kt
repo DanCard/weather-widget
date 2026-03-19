@@ -203,7 +203,9 @@ class TemperatureViewHandlerActualsTest {
         assertTrue("10:10 blend should remain warmer than the close station's 62F point due to the far-station contribution", blended1010 > 62f)
 
         val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:10") })
-        assertEquals(63f, hour11.actualTemperature)
+        val blended11 = requireNotNull(hour11.actualTemperature)
+        assertTrue("11:10 should stay near the close station instead of the far 80F station", blended11 < 70f)
+        assertTrue("11:10 can still be slightly warmer than the close station due to one-hour extrapolation of the far station", blended11 > 63f)
     }
 
     @Test
@@ -254,6 +256,134 @@ class TemperatureViewHandlerActualsTest {
         val blended = requireNotNull(point1025.actualTemperature)
         assertTrue("Interpolated KNUQ should keep the 10:25 blend above AW020-only 56F", blended > 57f)
         assertTrue("Interpolated KNUQ should keep the 10:25 blend below warmest station 62F", blended < 62f)
+    }
+
+    @Test
+    fun `station-local interpolation fills multi-step gaps up to one hour`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:35", 56f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:15", 60f, stationId = "KNUQ", distanceKm = 3.7f),
+            observationAt("2026-02-20T11:00", 66f, stationId = "KNUQ", distanceKm = 3.7f),
+        )
+        val debugLines = mutableListOf<String>()
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+            onBlendDebug = { debugLines += it },
+        )
+
+        val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
+        val point1045 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:45") })
+        val blended1030 = requireNotNull(point1030.actualTemperature)
+        val blended1045 = requireNotNull(point1045.actualTemperature)
+
+        assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=10:30") })
+        assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=10:45") })
+        assertTrue("10:30 should stay above AW020-only 56-57F because KNUQ is bridged across a >30 minute gap", blended1030 > 58f)
+        assertTrue("10:45 should stay above AW020-only 56F because KNUQ is still bridged before 11:00", blended1045 > 58f)
+        assertTrue("10:45 should remain below KNUQ's eventual 66F endpoint", blended1045 < 66f)
+    }
+
+    @Test
+    fun `forecast-guided extrapolation keeps last station briefly after dropout`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:35", 56f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:15", 60f, stationId = "LOAC1", distanceKm = 3.2f),
+        )
+        val debugLines = mutableListOf<String>()
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+            onBlendDebug = { debugLines += it },
+        )
+
+        val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
+        val extrapolatedBlend = requireNotNull(point1030.actualTemperature)
+
+        assertTrue(debugLines.any { it.contains("station_extrapolate station=LOAC1 at=10:30") })
+        assertTrue(
+            "10:30 should stay above AW020-only 56F because LOAC1 is briefly held forward after dropout",
+            extrapolatedBlend > 56f,
+        )
+        assertTrue(
+            "10:30 should stay below the original LOAC1 60F because forecast-guided extrapolation follows the cooling trend",
+            extrapolatedBlend < 60f,
+        )
+    }
+
+    @Test
+    fun `hourly backfill requested when NWS history has singleton station coverage`() {
+        val observations = listOf(
+            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:15", 58f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:10", 60f, stationId = "LOAC1", distanceKm = 9f),
+        )
+
+        val decision = TemperatureViewHandler.evaluateHourlyBackfillNeed(
+            displaySource = WeatherSource.NWS,
+            graphStart = LocalDateTime.parse("2026-02-20T10:00"),
+            graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
+            observations = observations,
+            now = LocalDateTime.parse("2026-02-20T11:00"),
+        )
+
+        assertTrue(decision.shouldRequest)
+        assertTrue(decision.reason.contains("singleton_stations=LOAC1"))
+    }
+
+    @Test
+    fun `hourly backfill skipped when NWS history is dense and recent`() {
+        val observations = listOf(
+            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:25", 56f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:45", 55f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:15", 60f, stationId = "KNUQ", distanceKm = 3.7f),
+            observationAt("2026-02-20T10:35", 59f, stationId = "KNUQ", distanceKm = 3.7f),
+            observationAt("2026-02-20T10:55", 58f, stationId = "KNUQ", distanceKm = 3.7f),
+        )
+
+        val decision = TemperatureViewHandler.evaluateHourlyBackfillNeed(
+            displaySource = WeatherSource.NWS,
+            graphStart = LocalDateTime.parse("2026-02-20T10:00"),
+            graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
+            observations = observations,
+            now = LocalDateTime.parse("2026-02-20T11:00"),
+        )
+
+        assertFalse(decision.shouldRequest)
+        assertTrue(decision.reason.contains("coverage_ok"))
+    }
+
+    @Test
+    fun `hourly backfill skipped for non NWS sources`() {
+        val observations = listOf(
+            observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
+        )
+
+        val decision = TemperatureViewHandler.evaluateHourlyBackfillNeed(
+            displaySource = WeatherSource.OPEN_METEO,
+            graphStart = LocalDateTime.parse("2026-02-20T10:00"),
+            graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
+            observations = observations,
+            now = LocalDateTime.parse("2026-02-20T11:00"),
+        )
+
+        assertFalse(decision.shouldRequest)
+        assertEquals("non_nws_source", decision.reason)
     }
 
     @Test

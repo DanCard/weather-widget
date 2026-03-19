@@ -10,6 +10,11 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.R
@@ -26,8 +31,10 @@ import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -40,6 +47,8 @@ object TemperatureViewHandler {
     private const val TAG = "TemperatureViewHandler"
     private const val CELL_HEIGHT_DP = 90
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
+    private const val HOURLY_BACKFILL_COOLDOWN_MS = 30 * 60 * 1000L
+    private const val HOURLY_BACKFILL_SOURCE_KEY = "NWS_HOURLY_HISTORY"
 
     // Intent actions
     private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -66,6 +75,12 @@ object TemperatureViewHandler {
         val distanceKm: Float,
         val stationType: String,
         val sourceKind: String,
+    )
+
+    @androidx.annotation.VisibleForTesting
+    internal data class HourlyBackfillDecision(
+        val shouldRequest: Boolean,
+        val reason: String,
     )
 
     /**
@@ -190,6 +205,18 @@ object TemperatureViewHandler {
                 val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
                 val afterObsMs = SystemClock.elapsedRealtime()
                 Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${observations.size}, zoom=$zoom")
+                val database = WeatherDatabase.getDatabase(context)
+                maybeEnqueueHourlyObservationBackfill(
+                    context = context,
+                    database = database,
+                    stateManager = stateManager,
+                    appWidgetId = appWidgetId,
+                    displaySource = displaySource,
+                    graphStart = graphStart,
+                    graphEnd = graphEnd,
+                    observations = observations,
+                    repositoryPresent = repository != null,
+                )
                 val blendDebugLines = mutableListOf<String>()
                 val hourData = buildHourDataList(
                     hourlyForecasts,
@@ -206,7 +233,6 @@ object TemperatureViewHandler {
                 val stationIds = observations
                     .filter { matchesObservationSource(it, displaySource) }
                     .map { it.stationId }.toSet()
-                val database = WeatherDatabase.getDatabase(context)
                 database.appLogDao().log(
                     "IDW_BLEND",
                     "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
@@ -678,6 +704,7 @@ object TemperatureViewHandler {
         }
         val blendedActuals = blendObservationSeries(
             observations = actuals,
+            hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
             userLat = lat,
             userLon = lon,
@@ -820,6 +847,45 @@ object TemperatureViewHandler {
     }
 
     @androidx.annotation.VisibleForTesting
+    internal fun evaluateHourlyBackfillNeed(
+        displaySource: WeatherSource,
+        graphStart: LocalDateTime,
+        graphEnd: LocalDateTime,
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        now: LocalDateTime = LocalDateTime.now(),
+    ): HourlyBackfillDecision {
+        if (displaySource != WeatherSource.NWS) {
+            return HourlyBackfillDecision(false, "non_nws_source")
+        }
+
+        val sourceObservations = observations.filter { matchesObservationSource(it, displaySource) }
+        if (sourceObservations.isEmpty()) {
+            return HourlyBackfillDecision(true, "no_nws_observations")
+        }
+
+        val sourceWindowEnd = minOf(graphEnd, now)
+        val sourceWindowEndMs = sourceWindowEnd.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val sortedTimestamps = sourceObservations.map { it.timestamp }.sorted()
+        val latestGapMin = ((sourceWindowEndMs - sortedTimestamps.last()).coerceAtLeast(0L) / 60_000L)
+        val maxGapMin = sortedTimestamps.zipWithNext { a, b -> (b - a) / 60_000L }.maxOrNull() ?: 0L
+        val singletonStations =
+            sourceObservations.groupBy { it.stationId }
+                .filterValues { rows -> rows.size <= 1 }
+                .keys
+
+        return when {
+            singletonStations.isNotEmpty() ->
+                HourlyBackfillDecision(true, "singleton_stations=${singletonStations.sorted().joinToString(",")}")
+            latestGapMin > 45L ->
+                HourlyBackfillDecision(true, "latest_gap_min=$latestGapMin")
+            maxGapMin > 75L ->
+                HourlyBackfillDecision(true, "max_gap_min=$maxGapMin")
+            else ->
+                HourlyBackfillDecision(false, "coverage_ok latest_gap_min=$latestGapMin max_gap_min=$maxGapMin")
+        }
+    }
+
+    @androidx.annotation.VisibleForTesting
     internal fun selectObservationSeries(
         observations: List<com.weatherwidget.data.local.ObservationEntity>,
         displaySource: WeatherSource,
@@ -867,6 +933,7 @@ object TemperatureViewHandler {
     @androidx.annotation.VisibleForTesting
     internal fun blendObservationSeries(
         observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         userLat: Double,
         userLon: Double,
@@ -886,8 +953,19 @@ object TemperatureViewHandler {
         if (filtered.isEmpty()) return emptyList()
 
         val windowMs = 15 * 60 * 1000L
+        val maxStationInterpolationGapMs = 60 * 60 * 1000L
+        val maxStationExtrapolationGapMs = 60 * 60 * 1000L
         val dedupMs = 5 * 60 * 1000L
-        val stationSeries = buildStationTimeSeries(filtered, windowMs, onBlendDebug)
+        val stationSeries = buildStationTimeSeries(
+            observations = filtered,
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            interpolationStepMs = windowMs,
+            maxInterpolationGapMs = maxStationInterpolationGapMs,
+            maxExtrapolationGapMs = maxStationExtrapolationGapMs,
+            endMs = endMs,
+            onBlendDebug = onBlendDebug,
+        )
         val candidateTimes = stationSeries
             .values
             .flatten()
@@ -970,12 +1048,19 @@ object TemperatureViewHandler {
 
     private fun buildStationTimeSeries(
         observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        interpolationStepMs: Long,
         maxInterpolationGapMs: Long,
+        maxExtrapolationGapMs: Long,
+        endMs: Long,
         onBlendDebug: ((String) -> Unit)?,
     ): Map<String, List<StationTimeSeriesPoint>> =
         observations
             .groupBy { it.stationId }
             .mapValues { (stationId, rows) ->
+                val forecastSeries = hourlyForecastSeries(hourlyForecasts, displaySource)
+                val allowForecastExtrapolation = displaySource == WeatherSource.NWS
                 val sorted = rows.sortedBy { it.timestamp }
                 val points = mutableListOf<StationTimeSeriesPoint>()
                 for (index in sorted.indices) {
@@ -993,40 +1078,43 @@ object TemperatureViewHandler {
                     if (index == sorted.lastIndex) continue
                     val next = sorted[index + 1]
                     val gapMs = next.timestamp - current.timestamp
-                    if (gapMs <= maxInterpolationGapMs) continue
+                    if (gapMs <= interpolationStepMs) continue
 
-                    val midpointTimestamp = current.timestamp + (gapMs / 2)
-                    if (gapMs <= maxInterpolationGapMs * 2) {
-                        val fraction = (midpointTimestamp - current.timestamp).toFloat() / gapMs.toFloat()
-                        val interpolated = current.temperature + (next.temperature - current.temperature) * fraction
-                        val debugLine =
-                            "station_interpolate station=$stationId at=${
-                                java.time.Instant.ofEpochMilli(midpointTimestamp)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .toLocalDateTime()
-                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
-                            } temp=${String.format("%.1f", interpolated)} from=${
-                                java.time.Instant.ofEpochMilli(current.timestamp)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .toLocalDateTime()
-                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
-                            }..${
-                                java.time.Instant.ofEpochMilli(next.timestamp)
-                                    .atZone(java.time.ZoneId.systemDefault())
-                                    .toLocalDateTime()
-                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
-                            }"
-                        Log.d("IDW_BLEND", debugLine)
-                        onBlendDebug?.invoke(debugLine)
-                        points += StationTimeSeriesPoint(
-                            timestamp = midpointTimestamp,
-                            temperature = interpolated,
-                            stationId = stationId,
-                            stationName = current.stationName,
-                            distanceKm = current.distanceKm,
-                            stationType = current.stationType,
-                            sourceKind = "interpolated",
-                        )
+                    if (gapMs <= maxInterpolationGapMs) {
+                        var interpolatedTimestamp = current.timestamp + interpolationStepMs
+                        while (interpolatedTimestamp < next.timestamp) {
+                            val fraction = (interpolatedTimestamp - current.timestamp).toFloat() / gapMs.toFloat()
+                            val interpolated = current.temperature + (next.temperature - current.temperature) * fraction
+                            val debugLine =
+                                "station_interpolate station=$stationId at=${
+                                    java.time.Instant.ofEpochMilli(interpolatedTimestamp)
+                                        .atZone(java.time.ZoneId.systemDefault())
+                                        .toLocalDateTime()
+                                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                                } temp=${String.format("%.1f", interpolated)} from=${
+                                    java.time.Instant.ofEpochMilli(current.timestamp)
+                                        .atZone(java.time.ZoneId.systemDefault())
+                                        .toLocalDateTime()
+                                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                                }..${
+                                    java.time.Instant.ofEpochMilli(next.timestamp)
+                                        .atZone(java.time.ZoneId.systemDefault())
+                                        .toLocalDateTime()
+                                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                                }"
+                            Log.d("IDW_BLEND", debugLine)
+                            onBlendDebug?.invoke(debugLine)
+                            points += StationTimeSeriesPoint(
+                                timestamp = interpolatedTimestamp,
+                                temperature = interpolated,
+                                stationId = stationId,
+                                stationName = current.stationName,
+                                distanceKm = current.distanceKm,
+                                stationType = current.stationType,
+                                sourceKind = "interpolated",
+                            )
+                            interpolatedTimestamp += interpolationStepMs
+                        }
                     } else {
                         val debugLine =
                             "station_gap station=$stationId gapMin=${gapMs / 60000} from=${
@@ -1044,8 +1132,176 @@ object TemperatureViewHandler {
                         onBlendDebug?.invoke(debugLine)
                     }
                 }
+                val last = sorted.lastOrNull()
+                if (allowForecastExtrapolation && last != null) {
+                    addForecastGuidedExtrapolatedPoints(
+                        stationId = stationId,
+                        lastObservation = last,
+                        forecastSeries = forecastSeries,
+                        interpolationStepMs = interpolationStepMs,
+                        maxExtrapolationGapMs = maxExtrapolationGapMs,
+                        endMs = endMs,
+                        points = points,
+                        onBlendDebug = onBlendDebug,
+                    )
+                }
                 points.sortedBy { it.timestamp }
             }
+
+    private fun addForecastGuidedExtrapolatedPoints(
+        stationId: String,
+        lastObservation: com.weatherwidget.data.local.ObservationEntity,
+        forecastSeries: List<HourlyForecastEntity>,
+        interpolationStepMs: Long,
+        maxExtrapolationGapMs: Long,
+        endMs: Long,
+        points: MutableList<StationTimeSeriesPoint>,
+        onBlendDebug: ((String) -> Unit)?,
+    ) {
+        val baseForecastTemp = forecastTemperatureAt(forecastSeries, lastObservation.timestamp) ?: return
+        val maxTimestamp = minOf(lastObservation.timestamp + maxExtrapolationGapMs, endMs)
+        var extrapolatedTimestamp = lastObservation.timestamp + interpolationStepMs
+        while (extrapolatedTimestamp <= maxTimestamp) {
+            val targetForecastTemp = forecastTemperatureAt(forecastSeries, extrapolatedTimestamp) ?: break
+            val extrapolated = lastObservation.temperature + (targetForecastTemp - baseForecastTemp)
+            val debugLine =
+                "station_extrapolate station=$stationId at=${
+                    java.time.Instant.ofEpochMilli(extrapolatedTimestamp)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                } temp=${String.format("%.1f", extrapolated)} fromObs=${
+                    java.time.Instant.ofEpochMilli(lastObservation.timestamp)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                } forecastDelta=${String.format("%.1f", targetForecastTemp - baseForecastTemp)}"
+            Log.d("IDW_BLEND", debugLine)
+            onBlendDebug?.invoke(debugLine)
+            points += StationTimeSeriesPoint(
+                timestamp = extrapolatedTimestamp,
+                temperature = extrapolated,
+                stationId = stationId,
+                stationName = lastObservation.stationName,
+                distanceKm = lastObservation.distanceKm,
+                stationType = lastObservation.stationType,
+                sourceKind = "forecast_extrapolated",
+            )
+            extrapolatedTimestamp += interpolationStepMs
+        }
+    }
+
+    private fun hourlyForecastSeries(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+    ): List<HourlyForecastEntity> =
+        hourlyForecasts
+            .groupBy { it.dateTime }
+            .mapNotNull { (_, rows) ->
+                val preferred = rows.find { it.source == displaySource.id }
+                val gap = rows.find { it.source == WeatherSource.GENERIC_GAP.id }
+                val fallback = rows.firstOrNull()
+                preferred ?: gap ?: fallback
+            }
+            .sortedBy { it.dateTime }
+
+    private fun forecastTemperatureAt(
+        forecastSeries: List<HourlyForecastEntity>,
+        targetTimestamp: Long,
+    ): Float? {
+        if (forecastSeries.isEmpty()) return null
+        val zoneId = java.time.ZoneId.systemDefault()
+        val targetTime = java.time.Instant.ofEpochMilli(targetTimestamp).atZone(zoneId).toLocalDateTime()
+        val exact = forecastSeries.find { forecastDateTime(it) == targetTime }
+        if (exact != null) return exact.temperature
+
+        val before = forecastSeries.lastOrNull { forecastDateTime(it)?.let { dateTime -> !dateTime.isAfter(targetTime) } == true }
+        val after = forecastSeries.firstOrNull { forecastDateTime(it)?.let { dateTime -> !dateTime.isBefore(targetTime) } == true }
+        if (before == null || after == null) return null
+        val beforeDateTime = forecastDateTime(before) ?: return null
+        val afterDateTime = forecastDateTime(after) ?: return null
+        if (beforeDateTime == afterDateTime) return before.temperature
+
+        val totalSeconds = java.time.Duration.between(beforeDateTime, afterDateTime).seconds
+        if (totalSeconds <= 0) return null
+        val elapsedSeconds = java.time.Duration.between(beforeDateTime, targetTime).seconds
+        val fraction = elapsedSeconds.toFloat() / totalSeconds.toFloat()
+        return before.temperature + (after.temperature - before.temperature) * fraction
+    }
+
+    private fun forecastDateTime(forecast: HourlyForecastEntity): LocalDateTime? =
+        runCatching { LocalDateTime.parse(forecast.dateTime) }.getOrNull()
+
+    private suspend fun maybeEnqueueHourlyObservationBackfill(
+        context: Context,
+        database: WeatherDatabase,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        graphStart: LocalDateTime,
+        graphEnd: LocalDateTime,
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        repositoryPresent: Boolean,
+    ) {
+        if (!repositoryPresent) return
+
+        val decision = evaluateHourlyBackfillNeed(displaySource, graphStart, graphEnd, observations)
+        if (!decision.shouldRequest) {
+            database.appLogDao().log(
+                "OBS_HOURLY_BACKFILL_SKIP",
+                "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason}",
+                "INFO",
+            )
+            return
+        }
+
+        if (!stateManager.shouldRefreshMissingActuals(appWidgetId, HOURLY_BACKFILL_SOURCE_KEY, HOURLY_BACKFILL_COOLDOWN_MS)) {
+            database.appLogDao().log(
+                "OBS_HOURLY_BACKFILL_SKIP",
+                "widget=$appWidgetId source=${displaySource.id} reason=cooldown ${decision.reason}",
+                "INFO",
+            )
+            return
+        }
+
+        val lat = observations.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = observations.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val request =
+            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                .setInputData(
+                    androidx.work.Data.Builder()
+                        .putBoolean(WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_ONLY, true)
+                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LAT, lat)
+                        .putDouble(WeatherWidgetWorker.KEY_BACKFILL_LON, lon)
+                        .putLong(
+                            WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_HOURS,
+                            WeatherWidgetWorker.DEFAULT_OBSERVATION_BACKFILL_HOURS,
+                        )
+                        .putString(
+                            WeatherWidgetWorker.KEY_OBSERVATION_BACKFILL_REASON,
+                            "temperature_graph_sparse_history widget=$appWidgetId reason=${decision.reason}",
+                        )
+                        .build(),
+                )
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build(),
+                )
+                .build()
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WeatherWidgetProvider.WORK_NAME_OBSERVATION_BACKFILL,
+            ExistingWorkPolicy.KEEP,
+            request,
+        )
+        stateManager.markMissingActualsRefreshRequested(appWidgetId, HOURLY_BACKFILL_SOURCE_KEY)
+        database.appLogDao().log(
+            "OBS_HOURLY_BACKFILL_REQ",
+            "widget=$appWidgetId source=${displaySource.id} reason=${decision.reason} graphStart=$graphStart graphEnd=$graphEnd",
+            "INFO",
+        )
+    }
 
     private fun resolveStationPointForTimestamp(
         points: List<StationTimeSeriesPoint>,

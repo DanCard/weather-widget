@@ -584,6 +584,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val WORK_NAME = "weather_widget_update"
         const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
         const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
+        const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
         const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
         const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"

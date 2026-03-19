@@ -156,10 +156,11 @@ The new behavior in `blendObservationSeries(...)`:
 
 1. Filters observations to the active source and visible graph window.
 2. Builds one local time series per station with `buildStationTimeSeries(...)`.
-3. Adds interpolated midpoint samples for moderate station-local gaps.
-4. Uses the union of all station-local timestamps, including interpolated ones, as candidate graph times.
-5. For each candidate time, resolves one nearby point per station via `resolveStationPointForTimestamp(...)`.
-6. Emits either:
+3. Adds interpolated `15-minute` synthetic samples for moderate station-local gaps.
+4. For NWS, adds forecast-guided forward extrapolation after a station’s last observation.
+5. Uses the union of all station-local timestamps, including interpolated and extrapolated ones, as candidate graph times.
+6. For each candidate time, resolves one nearby point per station via `resolveStationPointForTimestamp(...)`.
+7. Emits either:
    - a direct single-station point, or
    - an IDW-blended point across all contributing station-local points.
 
@@ -174,17 +175,32 @@ This stores:
 - timestamp
 - temperature
 - station metadata
-- source kind: `observed` or `interpolated`
+- source kind: `observed`, `interpolated`, or `forecast_extrapolated`
 
 ### Gap Rules
 
 The station-local interpolation rules are:
 
 - gap `<= 15 minutes`: no interpolation
-- gap `> 15 minutes` and `<= 30 minutes`: insert one midpoint sample
-- gap `> 30 minutes`: do not interpolate, log the gap
+- gap `> 15 minutes` and `<= 60 minutes`: insert synthetic points every `15 minutes`
+- gap `> 60 minutes`: do not interpolate, log the gap
 
-The midpoint temperature is linearly interpolated between the two real observations.
+Each inserted point is linearly interpolated between the two real observations.
+
+### Extrapolation Rules
+
+For NWS only, a station can also be held forward after its last observation.
+
+Rules:
+
+- forward only
+- `15-minute` steps
+- capped at `1 hour`
+- uses forecast delta rather than forecast absolute temperature
+
+Formula:
+
+- `synthetic_station_temp(t) = last_station_temp + (forecast(t) - forecast(last_obs_time))`
 
 ### Why This Helps
 
@@ -205,6 +221,7 @@ After the change:
 Added:
 
 - `station_interpolate station=... at=... temp=... from=.....`
+- `station_extrapolate station=... at=... temp=... fromObs=... forecastDelta=...`
 - `station_gap station=... gapMin=... from=.....`
 
 These logs allow reconstruction of where gap-bridging did and did not occur.
@@ -220,6 +237,10 @@ was updated with:
 - adjustments to `mixed NWS stations IDW-blend nearby observations`
 - a new test:
   - `station-local interpolation keeps intermittent station in later blend windows`
+- a new test:
+  - `station-local interpolation fills multi-step gaps up to one hour`
+- a new test:
+  - `forecast-guided extrapolation keeps last station briefly after dropout`
 
 That new test verifies that an intermittent station still influences a later blend point instead of dropping out immediately.
 
@@ -299,6 +320,7 @@ These changes have not yet been committed or pushed in this session.
 - The implemented approach reduces dropout-driven jumps without smoothing the final line.
 - The chosen interpolation is intentionally conservative:
   - station-local only
-  - short-gap only
-  - midpoint only
-  - no long-gap reconstruction
+  - short-gap interpolation up to `60 minutes`
+  - fixed `15-minute` synthetic cadence
+  - forecast-guided NWS extrapolation up to `1 hour`
+  - no unbounded reconstruction

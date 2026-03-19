@@ -127,6 +127,11 @@ class WeatherRepository
             
         suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
             observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
+        internal suspend fun backfillRecentNwsObservations(
+            latitude: Double,
+            longitude: Double,
+            lookbackHours: Long,
+        ) = observationRepository.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
         suspend fun recomputeDailyExtremesFromStoredObservations(
             latitude: Double,
             longitude: Double,

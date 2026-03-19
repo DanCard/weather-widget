@@ -45,6 +45,11 @@ class WeatherWidgetWorker
             val opportunisticCurrentTemp = inputData.getBoolean(KEY_CURRENT_TEMP_OPPORTUNISTIC, false)
             val currentTempReason = inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"
             val targetSourceId = inputData.getString(KEY_TARGET_SOURCE)
+            val observationBackfillMode = inputData.getBoolean(KEY_OBSERVATION_BACKFILL_ONLY, false)
+            val backfillLat = inputData.getDouble(KEY_BACKFILL_LAT, DEFAULT_LAT)
+            val backfillLon = inputData.getDouble(KEY_BACKFILL_LON, DEFAULT_LON)
+            val backfillHours = inputData.getLong(KEY_OBSERVATION_BACKFILL_HOURS, DEFAULT_OBSERVATION_BACKFILL_HOURS)
+            val backfillReason = inputData.getString(KEY_OBSERVATION_BACKFILL_REASON) ?: "unspecified"
 
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -57,8 +62,18 @@ class WeatherWidgetWorker
                 "SYNC_START",
                 "uiOnly=$uiOnlyRefresh, force=$forceRefresh, currentOnly=$currentTempOnly, " +
                     "opportunistic=$opportunisticCurrentTemp, battery=$batteryLevel%, plugged=$isPlugged, " +
-                    "interactive=$isScreenInteractive, reason=$currentTempReason, lastFullFetch=${lastFullFetchAge}s ago",
+                    "interactive=$isScreenInteractive, reason=$currentTempReason, " +
+                    "obsBackfillOnly=$observationBackfillMode, lastFullFetch=${lastFullFetchAge}s ago",
             )
+
+            if (observationBackfillMode) {
+                return handleObservationBackfillWork(
+                    latitude = backfillLat,
+                    longitude = backfillLon,
+                    lookbackHours = backfillHours,
+                    reason = backfillReason,
+                )
+            }
 
             if (currentTempOnly) {
                 return handleCurrentTempOnlyWork(
@@ -297,6 +312,36 @@ class WeatherWidgetWorker
             }
         }
 
+        private suspend fun handleObservationBackfillWork(
+            latitude: Double,
+            longitude: Double,
+            lookbackHours: Long,
+            reason: String,
+        ): Result {
+            return try {
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_RUN",
+                    "reason=$reason lat=$latitude lon=$longitude lookbackHours=$lookbackHours",
+                    "INFO",
+                )
+                val result = weatherRepository.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_RESULT",
+                    "reason=$reason stations=${result.stationsTried} rows=${result.rowsFetched} affectedDates=${result.affectedDates.sorted()}",
+                    "INFO",
+                )
+                refreshWidgetsFromCache()
+                Result.success()
+            } catch (e: Exception) {
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_EXCEPTION",
+                    "reason=$reason ${e.javaClass.simpleName}: ${e.message}",
+                    "ERROR",
+                )
+                Result.retry()
+            }
+        }
+
         private suspend fun refreshWidgetsFromCache() {
             val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
             val weatherList =
@@ -373,5 +418,11 @@ class WeatherWidgetWorker
             const val KEY_CURRENT_TEMP_OPPORTUNISTIC = "current_temp_opportunistic"
             const val KEY_CURRENT_TEMP_REASON = "current_temp_reason"
             const val KEY_TARGET_SOURCE = "target_source"
+            const val KEY_OBSERVATION_BACKFILL_ONLY = "observation_backfill_only"
+            const val KEY_OBSERVATION_BACKFILL_HOURS = "observation_backfill_hours"
+            const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
+            const val KEY_BACKFILL_LAT = "backfill_lat"
+            const val KEY_BACKFILL_LON = "backfill_lon"
+            const val DEFAULT_OBSERVATION_BACKFILL_HOURS = 12L
         }
     }

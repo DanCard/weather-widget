@@ -34,6 +34,12 @@ class ObservationRepository @Inject constructor(
     private val appLogDao: AppLogDao,
     private val nwsApi: NwsApi
 ) {
+    internal data class RecentBackfillResult(
+        val stationsTried: Int,
+        val rowsFetched: Int,
+        val affectedDates: Set<LocalDate>,
+    )
+
     private val prefs by lazy { com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs") }
 
     companion object {
@@ -236,6 +242,109 @@ class ObservationRepository @Inject constructor(
         if (remainingDates.isNotEmpty()) {
             Log.w(TAG, "Backfill completed but official NWS daily_extremes still missing for $remainingDates")
         }
+    }
+
+    internal suspend fun backfillRecentNwsObservations(
+        latitude: Double,
+        longitude: Double,
+        lookbackHours: Long,
+    ): RecentBackfillResult {
+        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        val startTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.minusHours(lookbackHours).toInstant())
+        val endTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
+
+        appLogDao.log(
+            "OBS_HOURLY_BACKFILL_START",
+            "lat=$latitude lon=$longitude lookbackHours=$lookbackHours start=$startTimeStr end=$endTimeStr",
+            "INFO",
+        )
+
+        val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
+        if (gridPoint?.observationStationsUrl.isNullOrBlank()) {
+            appLogDao.log(
+                "OBS_HOURLY_BACKFILL_FAIL",
+                "lat=$latitude lon=$longitude reason=missing_gridpoint_or_stations_url",
+                "WARN",
+            )
+            return RecentBackfillResult(stationsTried = 0, rowsFetched = 0, affectedDates = emptySet())
+        }
+
+        val stations = getSortedObservationStations(checkNotNull(gridPoint?.observationStationsUrl))
+        if (stations.isEmpty()) {
+            appLogDao.log(
+                "OBS_HOURLY_BACKFILL_FAIL",
+                "lat=$latitude lon=$longitude reason=no_stations",
+                "WARN",
+            )
+            return RecentBackfillResult(stationsTried = 0, rowsFetched = 0, affectedDates = emptySet())
+        }
+
+        var totalRows = 0
+        val affectedDates = mutableSetOf<LocalDate>()
+        val localZone = ZoneId.systemDefault()
+        val stationsToTry = stations.take(MAX_RETRIES)
+
+        for (stationInfo in stationsToTry) {
+            try {
+                val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_STATION",
+                    "station=${stationInfo.id} rows=${observations.size} lookbackHours=$lookbackHours",
+                    "INFO",
+                )
+                if (observations.isEmpty()) continue
+
+                val distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f
+                val entities =
+                    observations.map { obs ->
+                        ObservationEntity(
+                            stationId = stationInfo.id,
+                            stationName = obs.stationName.ifEmpty { stationInfo.name },
+                            timestamp = OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
+                            temperature = (obs.temperatureCelsius * 1.8f) + 32f,
+                            condition = obs.textDescription,
+                            locationLat = latitude,
+                            locationLon = longitude,
+                            distanceKm = distanceKm,
+                            stationType = stationInfo.type.name,
+                            maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+                            minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+                        )
+                    }
+                observationDao.insertAll(entities)
+                totalRows += entities.size
+                affectedDates += entities.map { entity ->
+                    java.time.Instant.ofEpochMilli(entity.timestamp).atZone(localZone).toLocalDate()
+                }
+            } catch (e: Exception) {
+                appLogDao.log(
+                    "OBS_HOURLY_BACKFILL_STATION_FAIL",
+                    "station=${stationInfo.id} ${e.message}",
+                    "WARN",
+                )
+                Log.w(TAG, "Hourly observation backfill failed for ${stationInfo.id}: ${e.message}")
+            }
+        }
+
+        if (affectedDates.isNotEmpty()) {
+            recomputeDailyExtremesFromStoredObservations(
+                latitude = latitude,
+                longitude = longitude,
+                startDate = affectedDates.min(),
+                endDateInclusive = affectedDates.max(),
+            )
+        }
+
+        appLogDao.log(
+            "OBS_HOURLY_BACKFILL_DONE",
+            "lat=$latitude lon=$longitude stations=${stationsToTry.size} rows=$totalRows affectedDates=${affectedDates.sorted()}",
+            "INFO",
+        )
+        return RecentBackfillResult(
+            stationsTried = stationsToTry.size,
+            rowsFetched = totalRows,
+            affectedDates = affectedDates,
+        )
     }
 
     internal suspend fun recomputeDailyExtremesFromStoredObservations(
