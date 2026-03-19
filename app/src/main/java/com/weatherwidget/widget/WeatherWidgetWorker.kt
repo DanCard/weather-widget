@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.util.Log
+import android.os.SystemClock
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
 import com.weatherwidget.data.local.AppLogDao
@@ -18,6 +19,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -93,6 +96,7 @@ class WeatherWidgetWorker
             }
 
             return try {
+                val startMs = SystemClock.elapsedRealtime()
                 val location =
                     weatherRepository.getLatestLocation()
                         ?: (DEFAULT_LAT to DEFAULT_LON)
@@ -110,18 +114,22 @@ class WeatherWidgetWorker
 
                 result.fold(
                     onSuccess = { weatherList ->
+                        val afterWeatherMs = SystemClock.elapsedRealtime()
                         Log.d(TAG, "doWork: Got ${weatherList.size} weather entries")
 
                         // Fetch forecast snapshots for comparison
                         val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
                         // Fetch hourly forecasts for interpolation
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+                        val afterHourlyMs = SystemClock.elapsedRealtime()
 
                         // Backfill NWS history if this is a new location or no history exists
-                        if (targetSourceId == com.weatherwidget.data.model.WeatherSource.NWS.id || (targetSourceId == null && weatherList.any { it.source == com.weatherwidget.data.model.WeatherSource.NWS.id })) {
+                        // ONLY perform if not a UI-only refresh to avoid blocking during frequent updates
+                        if (!uiOnlyRefresh && (targetSourceId == com.weatherwidget.data.model.WeatherSource.NWS.id || (targetSourceId == null && weatherList.any { it.source == com.weatherwidget.data.model.WeatherSource.NWS.id }))) {
                             Log.d(TAG, "doWork: Triggering NWS backfill check")
                             weatherRepository.backfillNwsObservationsIfNeeded(location.first, location.second)
                         }
+                        val afterBackfillMs = SystemClock.elapsedRealtime()
 
                         val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                         val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
@@ -129,8 +137,25 @@ class WeatherWidgetWorker
 
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
-                        val dailyActuals = fetchDailyActuals(location.first, location.second)
+                        val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = !uiOnlyRefresh)
+                        val afterActualsMs = SystemClock.elapsedRealtime()
+                        
                         updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
+                        val afterUpdateMs = SystemClock.elapsedRealtime()
+
+                        val totalMs = afterUpdateMs - startMs
+                        if (totalMs > 500) {
+                            appLogDao.log(
+                                "SYNC_PERF",
+                                "uiOnly=$uiOnlyRefresh total=${totalMs}ms " +
+                                    "weather=${afterWeatherMs - startMs}ms " +
+                                    "hourly=${afterHourlyMs - afterWeatherMs}ms " +
+                                    "backfill=${afterBackfillMs - afterHourlyMs}ms " +
+                                    "actuals=${afterActualsMs - afterBackfillMs}ms " +
+                                    "widgets=${afterUpdateMs - afterActualsMs}ms"
+                            )
+                        }
+
                         if (!uiOnlyRefresh) {
                             scheduleNextUpdate()
                             // Schedule next UI update after data fetch
@@ -168,11 +193,16 @@ class WeatherWidgetWorker
         private suspend fun fetchDailyActuals(
             lat: Double,
             lon: Double,
+            recompute: Boolean = true,
         ): DailyActualsBySource {
             return try {
                 val startLocalDate = LocalDate.now().minusDays(30)
                 val endLocalDate = LocalDate.now().plusDays(1)
-                weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startLocalDate, endLocalDate)
+                
+                if (recompute) {
+                    weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startLocalDate, endLocalDate)
+                }
+                
                 val startDate = startLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val endDate = endLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val extremes = WeatherDatabase.getDatabase(context).dailyExtremeDao()
@@ -208,23 +238,25 @@ class WeatherWidgetWorker
             hourlyForecasts: List<HourlyForecastEntity>,
             currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
             dailyActuals: DailyActualsBySource = emptyMap(),
-        ) {
+        ) = coroutineScope {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
             val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
 
             for (appWidgetId in appWidgetIds) {
-                WeatherWidgetProvider.updateWidgetWithData(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    appWidgetId = appWidgetId,
-                    weatherList = weatherList,
-                    forecastSnapshots = forecastSnapshots,
-                    hourlyForecasts = hourlyForecasts,
-                    currentTemps = currentTemps,
-                    dailyActualsBySource = dailyActuals,
-                    repository = weatherRepository
-                )
+                launch {
+                    WeatherWidgetProvider.updateWidgetWithData(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        appWidgetId = appWidgetId,
+                        weatherList = weatherList,
+                        forecastSnapshots = forecastSnapshots,
+                        hourlyForecasts = hourlyForecasts,
+                        currentTemps = currentTemps,
+                        dailyActualsBySource = dailyActuals,
+                        repository = weatherRepository
+                    )
+                }
             }
         }
 
@@ -352,7 +384,7 @@ class WeatherWidgetWorker
                     networkAllowed = false,
                 ).getOrDefault(emptyList())
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-            val dailyActuals = fetchDailyActuals(location.first, location.second)
+            val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = false)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
             val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
