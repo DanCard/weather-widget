@@ -39,6 +39,7 @@ import kotlin.math.min
 object TemperatureViewHandler {
     private const val TAG = "TemperatureViewHandler"
     private const val CELL_HEIGHT_DP = 90
+    private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
 
     // Intent actions
     private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -55,6 +56,16 @@ object TemperatureViewHandler {
         val stationType: String?,
         val observations: List<com.weatherwidget.data.local.ObservationEntity>,
         val rejectedGroupCount: Int,
+    )
+
+    private data class StationTimeSeriesPoint(
+        val timestamp: Long,
+        val temperature: Float,
+        val stationId: String,
+        val stationName: String,
+        val distanceKm: Float,
+        val stationType: String,
+        val sourceKind: String,
     )
 
     /**
@@ -179,7 +190,16 @@ object TemperatureViewHandler {
                 val observations = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
                 val afterObsMs = SystemClock.elapsedRealtime()
                 Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${observations.size}, zoom=$zoom")
-                val hourData = buildHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom, observations)
+                val blendDebugLines = mutableListOf<String>()
+                val hourData = buildHourDataList(
+                    hourlyForecasts,
+                    centerTime,
+                    numColumns,
+                    displaySource,
+                    zoom,
+                    observations,
+                    onBlendDebug = { line -> blendDebugLines += line },
+                )
                 val afterBlendMs = SystemClock.elapsedRealtime()
                 val actualCount = hourData.count { it.isActual }
                 Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
@@ -191,6 +211,17 @@ object TemperatureViewHandler {
                     "IDW_BLEND",
                     "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
                 )
+                blendDebugLines
+                    .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
+                    .forEach { line ->
+                        database.appLogDao().log("TEMP_ACTUALS_DEBUG", line)
+                    }
+                if (blendDebugLines.size > MAX_PERSISTED_BLEND_DEBUG_LINES) {
+                    database.appLogDao().log(
+                        "TEMP_ACTUALS_DEBUG",
+                        "omitted=${blendDebugLines.size - MAX_PERSISTED_BLEND_DEBUG_LINES} additional blend debug lines",
+                    )
+                }
                 val obsBlendMs = afterBlendMs - obsStartMs
                 if (obsBlendMs > 100) {
                     database.appLogDao().log(
@@ -600,6 +631,7 @@ object TemperatureViewHandler {
         displaySource: WeatherSource,
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
         actuals: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+        onBlendDebug: ((String) -> Unit)? = null,
     ): List<TemperatureGraphRenderer.HourData> {
         val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
@@ -619,9 +651,40 @@ object TemperatureViewHandler {
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val blendedActuals = blendObservationSeries(actuals, displaySource, lat, lon, startHour, endHour)
-        val stationCount = actuals.filter { matchesObservationSource(it, displaySource) }
-            .map { it.stationId }.toSet().size
+        val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
+        val stationCount = sourceActuals.map { it.stationId }.toSet().size
+        if (sourceActuals.isNotEmpty()) {
+            val stationBreakdown = sourceActuals
+                .groupBy { it.stationId }
+                .entries
+                .sortedBy { it.key }
+                .joinToString("; ") { (stationId, rows) ->
+                    val minTime = java.time.Instant.ofEpochMilli(rows.minOf { it.timestamp })
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                    val maxTime = java.time.Instant.ofEpochMilli(rows.maxOf { it.timestamp })
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime()
+                        .format(DateTimeFormatter.ofPattern("HH:mm"))
+                    "$stationId rows=${rows.size} span=$minTime-$maxTime"
+                }
+            val summary =
+                "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=${sourceActuals.size} stations=$stationCount breakdown=[$stationBreakdown]"
+            Log.d("IDW_BLEND", summary)
+            onBlendDebug?.invoke(summary)
+        } else {
+            onBlendDebug?.invoke("window source=${displaySource.id} start=$startHour end=$endHour sourceRows=0 stations=0")
+        }
+        val blendedActuals = blendObservationSeries(
+            observations = actuals,
+            displaySource = displaySource,
+            userLat = lat,
+            userLon = lon,
+            startHour = startHour,
+            endHour = endHour,
+            onBlendDebug = onBlendDebug,
+        )
         Log.d(
             TAG,
             "buildHourDataList: source=${displaySource.id}, IDW blend from $stationCount stations, " +
@@ -809,6 +872,7 @@ object TemperatureViewHandler {
         userLon: Double,
         startHour: LocalDateTime,
         endHour: LocalDateTime,
+        onBlendDebug: ((String) -> Unit)? = null,
     ): List<com.weatherwidget.data.local.ObservationEntity> {
         val zoneId = java.time.ZoneId.systemDefault()
         val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
@@ -821,79 +885,175 @@ object TemperatureViewHandler {
 
         if (filtered.isEmpty()) return emptyList()
 
-        val windowMs = 15 * 60 * 1000L   // ±15 min blending window
-        val dedupMs = 5 * 60 * 1000L     // skip points within 5 min of a prior emission
-
-        val consumed = BooleanArray(filtered.size)
+        val windowMs = 15 * 60 * 1000L
+        val dedupMs = 5 * 60 * 1000L
+        val stationSeries = buildStationTimeSeries(filtered, windowMs, onBlendDebug)
+        val candidateTimes = stationSeries
+            .values
+            .flatten()
+            .map { it.timestamp }
+            .distinct()
+            .sorted()
         val result = mutableListOf<com.weatherwidget.data.local.ObservationEntity>()
-        var lastEmittedMs = 0L  // epoch 0; all real timestamps are well after this
+        var lastEmittedMs = 0L
+        var previousCohortStations: Set<String>? = null
 
-        for (i in filtered.indices) {
-            if (consumed[i]) continue
-
-            val primary = filtered[i]
-            // Gather peers within ±15 min (other stations only)
-            val peers = mutableListOf<com.weatherwidget.data.local.ObservationEntity>()
-            peers.add(primary)
-            for (j in filtered.indices) {
-                if (j == i || consumed[j]) continue
-                if (filtered[j].stationId == primary.stationId) continue
-                if (kotlin.math.abs(filtered[j].timestamp - primary.timestamp) <= windowMs) {
-                    peers.add(filtered[j])
-                }
-            }
-
-            // Dedup: skip if too close to last emitted point
-            if (primary.timestamp - lastEmittedMs < dedupMs) {
-                // Mark all peers consumed to avoid them spawning near-duplicate points
-                for (peer in peers) {
-                    val idx = filtered.indexOf(peer)
-                    if (idx >= 0) consumed[idx] = true
-                }
-                consumed[i] = true
+        for (targetTs in candidateTimes) {
+            if (targetTs - lastEmittedMs < dedupMs) {
                 continue
             }
-
-            val blendedTemp = if (peers.size == 1) {
-                primary.temperature
-            } else {
-                SpatialInterpolator.interpolateIDW(userLat, userLon, peers, primary.timestamp)
-                    ?: primary.temperature
+            val peers = stationSeries.values.mapNotNull { points ->
+                resolveStationPointForTimestamp(points, targetTs, windowMs)
             }
+            if (peers.isEmpty()) continue
 
-            // Log IDW blend details for each emitted point
-            if (Log.isLoggable("IDW_BLEND", Log.DEBUG)) {
-                val timeStr = java.time.Instant.ofEpochMilli(primary.timestamp)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDateTime()
-                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+            val anchor = peers.minByOrNull { kotlin.math.abs(it.timestamp - targetTs) } ?: continue
+            val blendedTemp = if (peers.size == 1) {
+                peers.first().temperature
+            } else {
+                val peerEntities = peers.map { point ->
+                    com.weatherwidget.data.local.ObservationEntity(
+                        stationId = point.stationId,
+                        stationName = point.stationName,
+                        timestamp = point.timestamp,
+                        temperature = point.temperature,
+                        condition = point.sourceKind,
+                        locationLat = userLat,
+                        locationLon = userLon,
+                        distanceKm = point.distanceKm,
+                        stationType = point.stationType,
+                    )
+                }
+                SpatialInterpolator.interpolateIDW(userLat, userLon, peerEntities, targetTs)
+                    ?: anchor.temperature
+            }
+            val timeStr = java.time.Instant.ofEpochMilli(targetTs)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+            val cohortStations = peers.map { it.stationId }.toSortedSet()
+            val debugLine =
                 if (peers.size == 1) {
-                    Log.d("IDW_BLEND", "emit t=$timeStr anchor=${primary.stationId}(${primary.temperature}°,${primary.distanceKm}km) no_peers → $blendedTemp°")
+                    val point = peers.first()
+                    "emit t=$timeStr single_station=${point.stationId} temp=${String.format("%.1f", point.temperature)} distanceKm=${String.format("%.1f", point.distanceKm)} blended=${String.format("%.1f", blendedTemp)} source=${point.sourceKind}"
                 } else {
                     val weightSum = peers.sumOf { 1.0 / (it.distanceKm * it.distanceKm) }
-                    val anchorW = (1.0 / (primary.distanceKm * primary.distanceKm)) / weightSum
-                    val anchorStr = "${primary.stationId}(${primary.temperature}°,${String.format("%.1f", primary.distanceKm)}km,w=${String.format("%.2f", anchorW)})"
-                    val peerStr = peers.filter { it !== primary }.joinToString(",") { p ->
+                    val peerStr = peers.joinToString(",") { p ->
                         val w = (1.0 / (p.distanceKm * p.distanceKm)) / weightSum
-                        "${p.stationId}(${p.temperature}°,${String.format("%.1f", p.distanceKm)}km,w=${String.format("%.2f", w)})"
+                        "${p.stationId}:${String.format("%.1f", p.temperature)}F@${String.format("%.1f", p.distanceKm)}km(w=${String.format("%.2f", w)},${p.sourceKind})"
                     }
-                    Log.d("IDW_BLEND", "emit t=$timeStr anchor=$anchorStr peers=[$peerStr] → ${String.format("%.1f", blendedTemp)}°")
+                    val cohortChanged = previousCohortStations != cohortStations
+                    "emit t=$timeStr blended=${String.format("%.1f", blendedTemp)} stations=[${peerStr}] cohortChanged=$cohortChanged"
                 }
-            }
+            Log.d("IDW_BLEND", debugLine)
+            onBlendDebug?.invoke(debugLine)
+            previousCohortStations = cohortStations
 
-            result.add(primary.copy(temperature = blendedTemp))
-            lastEmittedMs = primary.timestamp
-            consumed[i] = true
-            // Mark peers consumed so they don't generate their own output points
-            for (peer in peers) {
-                if (peer !== primary) {
-                    val idx = filtered.indexOf(peer)
-                    if (idx >= 0) consumed[idx] = true
-                }
-            }
+            result.add(
+                com.weatherwidget.data.local.ObservationEntity(
+                    stationId = anchor.stationId,
+                    stationName = anchor.stationName,
+                    timestamp = targetTs,
+                    temperature = blendedTemp,
+                    condition = anchor.sourceKind,
+                    locationLat = userLat,
+                    locationLon = userLon,
+                    distanceKm = anchor.distanceKm,
+                    stationType = anchor.stationType,
+                ),
+            )
+            lastEmittedMs = targetTs
         }
 
         return result
+    }
+
+    private fun buildStationTimeSeries(
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        maxInterpolationGapMs: Long,
+        onBlendDebug: ((String) -> Unit)?,
+    ): Map<String, List<StationTimeSeriesPoint>> =
+        observations
+            .groupBy { it.stationId }
+            .mapValues { (stationId, rows) ->
+                val sorted = rows.sortedBy { it.timestamp }
+                val points = mutableListOf<StationTimeSeriesPoint>()
+                for (index in sorted.indices) {
+                    val current = sorted[index]
+                    points += StationTimeSeriesPoint(
+                        timestamp = current.timestamp,
+                        temperature = current.temperature,
+                        stationId = stationId,
+                        stationName = current.stationName,
+                        distanceKm = current.distanceKm,
+                        stationType = current.stationType,
+                        sourceKind = "observed",
+                    )
+
+                    if (index == sorted.lastIndex) continue
+                    val next = sorted[index + 1]
+                    val gapMs = next.timestamp - current.timestamp
+                    if (gapMs <= maxInterpolationGapMs) continue
+
+                    val midpointTimestamp = current.timestamp + (gapMs / 2)
+                    if (gapMs <= maxInterpolationGapMs * 2) {
+                        val fraction = (midpointTimestamp - current.timestamp).toFloat() / gapMs.toFloat()
+                        val interpolated = current.temperature + (next.temperature - current.temperature) * fraction
+                        val debugLine =
+                            "station_interpolate station=$stationId at=${
+                                java.time.Instant.ofEpochMilli(midpointTimestamp)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                            } temp=${String.format("%.1f", interpolated)} from=${
+                                java.time.Instant.ofEpochMilli(current.timestamp)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                            }..${
+                                java.time.Instant.ofEpochMilli(next.timestamp)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                            }"
+                        Log.d("IDW_BLEND", debugLine)
+                        onBlendDebug?.invoke(debugLine)
+                        points += StationTimeSeriesPoint(
+                            timestamp = midpointTimestamp,
+                            temperature = interpolated,
+                            stationId = stationId,
+                            stationName = current.stationName,
+                            distanceKm = current.distanceKm,
+                            stationType = current.stationType,
+                            sourceKind = "interpolated",
+                        )
+                    } else {
+                        val debugLine =
+                            "station_gap station=$stationId gapMin=${gapMs / 60000} from=${
+                                java.time.Instant.ofEpochMilli(current.timestamp)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                            }..${
+                                java.time.Instant.ofEpochMilli(next.timestamp)
+                                    .atZone(java.time.ZoneId.systemDefault())
+                                    .toLocalDateTime()
+                                    .format(DateTimeFormatter.ofPattern("HH:mm"))
+                            }"
+                        Log.d("IDW_BLEND", debugLine)
+                        onBlendDebug?.invoke(debugLine)
+                    }
+                }
+                points.sortedBy { it.timestamp }
+            }
+
+    private fun resolveStationPointForTimestamp(
+        points: List<StationTimeSeriesPoint>,
+        targetTs: Long,
+        windowMs: Long,
+    ): StationTimeSeriesPoint? {
+        val exactOrNearest = points.minByOrNull { kotlin.math.abs(it.timestamp - targetTs) } ?: return null
+        return if (kotlin.math.abs(exactOrNearest.timestamp - targetTs) <= windowMs) exactOrNearest else null
     }
 
     private fun matchesObservationSource(

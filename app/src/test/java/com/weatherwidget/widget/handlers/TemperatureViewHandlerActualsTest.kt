@@ -190,9 +190,6 @@ class TemperatureViewHandlerActualsTest {
             actuals = actuals,
         )
 
-        // T10:05 (KSFO primary) and T10:10 (KPAO) are within ±15 min → blended at T10:05
-        // KPAO is 2km away, KSFO is 10km → blend is weighted heavily toward KPAO (62f)
-        // IDW weights: w_KSFO=1/100, w_KPAO=1/4 → blended ≈ 62.7f
         val blendedPoint = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:05") }) {
             "Expected blended point at T10:05"
         }
@@ -200,12 +197,63 @@ class TemperatureViewHandlerActualsTest {
         val blendedTemp = blendedPoint.actualTemperature!!
         assertTrue("Blended temp should be closer to near station (62f) than far station (80f)", blendedTemp < 70f)
 
-        // T10:10 is consumed by the blend — should not appear as a separate point
-        assertNull("T10:10 should be consumed into the T10:05 blend", hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:10") })
+        val hour1010 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:10") })
+        val blended1010 = requireNotNull(hour1010.actualTemperature)
+        assertTrue("10:10 blend should stay near the close station instead of the far 80F station", blended1010 < 70f)
+        assertTrue("10:10 blend should remain warmer than the close station's 62F point due to the far-station contribution", blended1010 > 62f)
 
-        // T11:10 is isolated (no peer within ±15 min) — should remain unchanged
         val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:10") })
         assertEquals(63f, hour11.actualTemperature)
+    }
+
+    @Test
+    fun `blend diagnostics log both single-station and cohort-change emissions`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:15", 60f, stationId = "KNUQ", distanceKm = 3.7f),
+            observationAt("2026-02-20T10:25", 56f, stationId = "AW020", distanceKm = 2.9f),
+        )
+        val debugLines = mutableListOf<String>()
+
+        TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+            onBlendDebug = { debugLines += it },
+        )
+
+        assertTrue(debugLines.any { it.contains("window source=NWS") && it.contains("AW020") && it.contains("KNUQ") })
+        assertTrue(debugLines.any { it.contains("station_interpolate") || it.contains("single_station=AW020") })
+        assertTrue(debugLines.any { it.contains("cohortChanged=true") && it.contains("KNUQ") })
+    }
+
+    @Test
+    fun `station-local interpolation keeps intermittent station in later blend windows`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:25", 56f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:15", 60f, stationId = "KNUQ", distanceKm = 3.7f),
+            observationAt("2026-02-20T10:35", 62f, stationId = "KNUQ", distanceKm = 3.7f),
+        )
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+
+        val point1025 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:25") })
+        val blended = requireNotNull(point1025.actualTemperature)
+        assertTrue("Interpolated KNUQ should keep the 10:25 blend above AW020-only 56F", blended > 57f)
+        assertTrue("Interpolated KNUQ should keep the 10:25 blend below warmest station 62F", blended < 62f)
     }
 
     @Test
