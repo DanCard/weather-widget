@@ -814,6 +814,9 @@ class ForecastRepository
 
         suspend fun getForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
             forecastDao.getForecastsInRange(startDate, endDate, latitude, longitude)
+
+        suspend fun getAllForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) =
+            forecastDao.getAllForecastsInRange(startDate, endDate, latitude, longitude)
             
         suspend fun getWeatherRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
             forecastDao.getForecastsInRange(startDate, endDate, latitude, longitude)

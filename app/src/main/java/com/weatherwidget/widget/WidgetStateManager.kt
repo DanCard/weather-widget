@@ -69,7 +69,7 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX = "widget_current_temp_delta_source_"
             private const val KEY_CURRENT_TEMP_DELTA_LAT_PREFIX = "widget_current_temp_delta_lat_"
             private const val KEY_CURRENT_TEMP_DELTA_LON_PREFIX = "widget_current_temp_delta_lon_"
-            private const val KEY_MISSING_ACTUALS_REFRESH_PREFIX = "widget_missing_actuals_refresh_"
+            private const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
@@ -278,15 +278,31 @@ class WidgetStateManager
                 .apply()
         }
 
-        fun shouldRefreshMissingActuals(widgetId: Int, sourceId: String, cooldownMs: Long): Boolean {
-            val key = "$KEY_MISSING_ACTUALS_REFRESH_PREFIX${widgetId}_$sourceId"
+        fun shouldRefreshMissingData(
+            widgetId: Int,
+            sourceId: String,
+            refreshType: String,
+            cooldownMs: Long,
+        ): Boolean {
+            val key = "$KEY_MISSING_DATA_REFRESH_PREFIX${widgetId}_${sourceId}_$refreshType"
             val lastRequested = prefs.getLong(key, 0L)
             return System.currentTimeMillis() - lastRequested >= cooldownMs
         }
 
-        fun markMissingActualsRefreshRequested(widgetId: Int, sourceId: String) {
-            val key = "$KEY_MISSING_ACTUALS_REFRESH_PREFIX${widgetId}_$sourceId"
+        fun markMissingDataRefreshRequested(
+            widgetId: Int,
+            sourceId: String,
+            refreshType: String,
+        ) {
+            val key = "$KEY_MISSING_DATA_REFRESH_PREFIX${widgetId}_${sourceId}_$refreshType"
             prefs.edit().putLong(key, System.currentTimeMillis()).apply()
+        }
+
+        fun shouldRefreshMissingActuals(widgetId: Int, sourceId: String, cooldownMs: Long): Boolean =
+            shouldRefreshMissingData(widgetId, sourceId, "actuals", cooldownMs)
+
+        fun markMissingActualsRefreshRequested(widgetId: Int, sourceId: String) {
+            markMissingDataRefreshRequested(widgetId, sourceId, "actuals")
         }
 
         /**

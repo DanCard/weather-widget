@@ -87,7 +87,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             latestWeather.locationLon,
                         )
                     val forecastSnapshots =
-                        forecastDao.getForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
+                        forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
                             .groupBy { it.targetDate }
 
                     // Get hourly forecasts for interpolation and rain analysis

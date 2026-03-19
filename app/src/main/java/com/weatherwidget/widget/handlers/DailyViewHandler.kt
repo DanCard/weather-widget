@@ -44,6 +44,7 @@ object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
     private const val CELL_HEIGHT_DP = 90
     private const val MISSING_ACTUALS_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
+    private const val MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private data class DayIds(
         val container: Int,
         val label: Int,
@@ -277,7 +278,30 @@ object DailyViewHandler : WidgetViewHandler {
                     TAG,
                     "  Day: ${day.date} [${day.label}] High=${day.high}, Low=${day.low}, " +
                         "fcstHigh=${day.forecastHigh}, fcstLow=${day.forecastLow}, " +
+                        "snapshotHigh=${day.snapshotHigh}, snapshotLow=${day.snapshotLow}, " +
                         "todayForecastFallback=${day.isTodayForecastFallback}",
+                )
+            }
+
+            val missingTodaySnapshot = days.firstOrNull { day ->
+                day.isToday &&
+                    day.forecastHigh != null &&
+                    day.forecastLow != null &&
+                    day.snapshotHigh == null &&
+                    day.snapshotLow == null
+            }
+            if (missingTodaySnapshot != null) {
+                requestMissingDataRefresh(
+                    context = context,
+                    stateManager = stateManager,
+                    appWidgetId = appWidgetId,
+                    displaySource = displaySource,
+                    refreshType = "today_snapshot",
+                    cooldownMs = MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS,
+                    logTag = "MISSING_TODAY_SNAPSHOT_FETCH",
+                    forceRefresh = false,
+                    reason = "missing_today_snapshot_${displaySource.id}",
+                    message = "widget=$appWidgetId source=${displaySource.id} missing today snapshot for ${missingTodaySnapshot.date}, enqueueing worker",
                 )
             }
 
@@ -371,19 +395,41 @@ object DailyViewHandler : WidgetViewHandler {
         reasonSuffix: String,
         message: String,
     ) {
-        if (!stateManager.shouldRefreshMissingActuals(appWidgetId, displaySource.id, MISSING_ACTUALS_REFRESH_COOLDOWN_MS)) {
-            return
-        }
-        stateManager.markMissingActualsRefreshRequested(appWidgetId, displaySource.id)
-        WeatherDatabase.getDatabase(context).appLogDao().log(
-            "MISSING_ACTUALS_FETCH",
-            message,
-            "INFO"
-        )
-        WeatherWidgetProvider.triggerImmediateUpdate(
+        requestMissingDataRefresh(
             context = context,
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            displaySource = displaySource,
+            refreshType = "actuals_$reasonSuffix",
+            cooldownMs = MISSING_ACTUALS_REFRESH_COOLDOWN_MS,
+            logTag = "MISSING_ACTUALS_FETCH",
             forceRefresh = true,
             reason = "missing_actuals_${displaySource.id}_$reasonSuffix",
+            message = message,
+        )
+    }
+
+    private suspend fun requestMissingDataRefresh(
+        context: Context,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        refreshType: String,
+        cooldownMs: Long,
+        logTag: String,
+        forceRefresh: Boolean,
+        reason: String,
+        message: String,
+    ) {
+        if (!stateManager.shouldRefreshMissingData(appWidgetId, displaySource.id, refreshType, cooldownMs)) {
+            return
+        }
+        stateManager.markMissingDataRefreshRequested(appWidgetId, displaySource.id, refreshType)
+        WeatherDatabase.getDatabase(context).appLogDao().log(logTag, message, "INFO")
+        WeatherWidgetProvider.triggerImmediateUpdate(
+            context = context,
+            forceRefresh = forceRefresh,
+            reason = reason,
         )
     }
 

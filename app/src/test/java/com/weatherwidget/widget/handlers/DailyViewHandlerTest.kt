@@ -263,6 +263,46 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareGraphDays today ignores Generic fallback snapshot when source snapshot is missing`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherByDate = mapOf(
+            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+        )
+
+        val snapshots = mapOf(
+            todayStr to listOf(
+                createWeather(todayStr, highTemp = 62f, lowTemp = 48f).copy(
+                    source = WeatherSource.GENERIC_GAP.id,
+                    fetchedAt = now.minusHours(25).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                )
+            )
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = snapshots,
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = emptyMap(),
+        )
+
+        val todayData = days.first { it.date == todayStr }
+        assertEquals(null, todayData.snapshotHigh)
+        assertEquals(null, todayData.snapshotLow)
+        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
+        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+    }
+
+    @Test
     fun `prepareGraphDays today falls back to forecast when source actuals are missing`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
@@ -863,11 +903,12 @@ class DailyViewHandlerTest {
         mockkStatic(WorkManager::class)
         val workManager = mockk<WorkManager>(relaxed = true)
         every { WorkManager.getInstance(any()) } returns workManager
+        val requests = mutableListOf<OneTimeWorkRequest>()
         every {
             workManager.enqueueUniqueWork(
                 any(),
                 any<ExistingWorkPolicy>(),
-                any<OneTimeWorkRequest>(),
+                capture(requests),
             )
         } returns mockk(relaxed = true)
 
@@ -899,6 +940,79 @@ class DailyViewHandlerTest {
             now = now,
         )
 
+        verify(atLeast = 1) {
+            workManager.enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
+                ExistingWorkPolicy.KEEP,
+                any<OneTimeWorkRequest>(),
+            )
+        }
+        assertTrue(
+            requests.any {
+                it.workSpec.input.getBoolean(com.weatherwidget.widget.WeatherWidgetWorker.KEY_FORCE_REFRESH, false) &&
+                    it.workSpec.input.getString(com.weatherwidget.widget.WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON) == "missing_actuals_NWS_history"
+            },
+        )
+    }
+
+    @Test
+    fun `updateWidget enqueues non-forced refresh when today snapshot is missing`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(50)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS))
+
+        mockkStatic(WorkManager::class)
+        val workManager = mockk<WorkManager>(relaxed = true)
+        every { WorkManager.getInstance(any()) } returns workManager
+        val requestSlot = slot<OneTimeWorkRequest>()
+        every {
+            workManager.enqueueUniqueWork(
+                any(),
+                any<ExistingWorkPolicy>(),
+                capture(requestSlot),
+            )
+        } returns mockk(relaxed = true)
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
+        }
+        every { appWidgetManager.getAppWidgetOptions(50) } returns options
+        every { appWidgetManager.updateAppWidget(50, any<android.widget.RemoteViews>()) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 50,
+            weatherList = listOf(
+                createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f),
+                createWeather(tomorrowStr, precipProbability = 0, highTemp = 72f, lowTemp = 56f),
+            ),
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = mapOf(
+                WeatherSource.NWS.id to mapOf(
+                    todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                        date = todayStr,
+                        highTemp = 71f,
+                        lowTemp = 54f,
+                        condition = "Clear",
+                    ),
+                ),
+            ),
+            repository = null,
+            now = now,
+        )
+
         verify(exactly = 1) {
             workManager.enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_ONE_TIME,
@@ -906,6 +1020,8 @@ class DailyViewHandlerTest {
                 any<OneTimeWorkRequest>(),
             )
         }
+        assertFalse(requestSlot.captured.workSpec.input.getBoolean(com.weatherwidget.widget.WeatherWidgetWorker.KEY_FORCE_REFRESH, true))
+        assertEquals("missing_today_snapshot_NWS", requestSlot.captured.workSpec.input.getString(com.weatherwidget.widget.WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON))
     }
 
     @Test

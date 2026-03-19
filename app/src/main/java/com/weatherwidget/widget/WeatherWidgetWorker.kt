@@ -188,7 +188,7 @@ class WeatherWidgetWorker
             return try {
                 val startDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val endDate = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val snapshots = weatherRepository.getForecastsInRange(startDate, endDate, lat, lon)
+                val snapshots = weatherRepository.getAllForecastsInRange(startDate, endDate, lat, lon)
                 snapshots.groupBy { it.targetDate }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch forecast snapshots", e)

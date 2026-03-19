@@ -196,7 +196,7 @@ object WidgetIntentRouter {
         )
 
         val forecastSnapshots =
-            forecastDao.getForecastsInRange(historyStart, thirtyDays, lat, lon)
+            forecastDao.getAllForecastsInRange(historyStart, thirtyDays, lat, lon)
                 .groupBy { it.targetDate }
 
         val now = LocalDateTime.now()
@@ -396,7 +396,7 @@ object WidgetIntentRouter {
 
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
-                forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
 
             val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
@@ -476,7 +476,7 @@ object WidgetIntentRouter {
             val loadStartMs = SystemClock.elapsedRealtime()
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
-                forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()
@@ -709,7 +709,7 @@ object WidgetIntentRouter {
             val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
-                forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
             val now = LocalDateTime.now()
             val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
@@ -811,7 +811,7 @@ object WidgetIntentRouter {
                 val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
                 val forecastSnapshots =
-                    forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                    forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                         .groupBy { it.targetDate }
                 val now = LocalDateTime.now()
                 val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
@@ -880,7 +880,7 @@ object WidgetIntentRouter {
 
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
-                forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
+                forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()

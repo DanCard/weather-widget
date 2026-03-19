@@ -92,6 +92,9 @@ class WeatherRepository
             
         suspend fun getForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
             forecastRepository.getForecastsInRange(startDate, endDate, latitude, longitude)
+
+        suspend fun getAllForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) =
+            forecastRepository.getAllForecastsInRange(startDate, endDate, latitude, longitude)
             
         suspend fun getWeatherRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
             forecastRepository.getWeatherRange(startDate, endDate, latitude, longitude)

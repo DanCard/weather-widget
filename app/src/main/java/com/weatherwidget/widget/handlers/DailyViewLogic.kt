@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import android.util.Log
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -19,6 +20,7 @@ import kotlin.math.roundToInt
  * Pure business logic for the daily forecast view, extracted for testability.
  */
 object DailyViewLogic {
+    private const val TAG = "DailyViewLogic"
 
     data class TextDayData(
         val dayIndex: Int,
@@ -270,11 +272,16 @@ object DailyViewLogic {
                 // Find a snapshot from ~24h ago for the "Snapshot" bar
                 val yesterdaySameTime = now.minusHours(24)
                 val snapshot = forecasts
-                    .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
+                    .filter { it.source == displaySource.id }
                     .filter { it.highTemp != null && it.lowTemp != null }
                     .filter { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.fetchedAt), java.time.ZoneId.systemDefault()).isBefore(yesterdaySameTime) }
                     .maxByOrNull { it.fetchedAt }
-                    ?: forecasts.filter { it.highTemp != null && it.lowTemp != null }.minByOrNull { it.fetchedAt }
+                Log.d(
+                    TAG,
+                    "prepareGraphDays: today snapshot ${if (snapshot != null) "hit" else "miss"} " +
+                        "date=$dateStr source=${displaySource.id} snapshotHigh=${snapshot?.highTemp} snapshotLow=${snapshot?.lowTemp} " +
+                        "snapshotFetchedAt=${snapshot?.fetchedAt}",
+                )
 
                 val observedCurrentTemp = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
                     currentTemps, displaySource
