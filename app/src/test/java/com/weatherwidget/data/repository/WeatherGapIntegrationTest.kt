@@ -52,12 +52,14 @@ class WeatherGapIntegrationTest {
 
     @Test
     fun `getCachedDataBySource returns provider for overlapping dates and generic for provider gaps`() = runTest {
+        val providerBatchFetchedAt = 1_000L
+        val gapBatchFetchedAt = 2_000L
         db.forecastDao().insertAll(
             listOf(
-                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f),
-                forecast(todayStr, WeatherSource.GENERIC_GAP, 65f, 45f, isClimateNormal = true),
-                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f),
-                forecast(dayAfterTomorrowStr, WeatherSource.GENERIC_GAP, 67f, 47f, isClimateNormal = true),
+                forecast(todayStr, WeatherSource.SILURIAN, 70f, 50f, batchFetchedAt = providerBatchFetchedAt, fetchedAt = 10_000L),
+                forecast(todayStr, WeatherSource.GENERIC_GAP, 65f, 45f, isClimateNormal = true, batchFetchedAt = gapBatchFetchedAt, fetchedAt = 20_000L),
+                forecast(tomorrowStr, WeatherSource.SILURIAN, 71f, 51f, batchFetchedAt = providerBatchFetchedAt, fetchedAt = 10_001L),
+                forecast(dayAfterTomorrowStr, WeatherSource.GENERIC_GAP, 67f, 47f, isClimateNormal = true, batchFetchedAt = gapBatchFetchedAt, fetchedAt = 20_001L),
             ),
         )
 

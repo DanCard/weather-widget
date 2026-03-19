@@ -136,6 +136,37 @@ class DailyGapFallbackGraphIntegrationTest {
         )
     }
 
+    @Test
+    fun `renderGraph uses yellow for today actual bar and orange for today snapshot bar`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val todayStr = LocalDateTime.of(2030, 6, 15, 12, 0).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val day = DailyForecastGraphRenderer.DayData(
+            date = todayStr,
+            label = "Today",
+            high = 74f,
+            low = 65f,
+            isToday = true,
+            forecastHigh = 80f,
+            forecastLow = 60f,
+            snapshotHigh = 82f,
+            snapshotLow = 62f,
+        )
+
+        val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
+        DailyForecastGraphRenderer.renderGraph(
+            context = context,
+            days = listOf(day),
+            widthPx = 400,
+            heightPx = 300,
+            bitmapScale = 1f,
+            numColumns = 1,
+            onBarDrawn = drawnBars::add,
+        )
+
+        val todayBar = drawnBars.single { it.date == todayStr && it.barType == "TODAY" }
+        assertEquals(Color.parseColor("#FFD60A"), todayBar.color)
+    }
+
     private fun forecast(
         date: String,
         highTemp: Float,

@@ -370,6 +370,6 @@ class WidgetStateManagerTest {
 
         stateManager.markMissingActualsRefreshRequested(widgetId, source)
 
-        verify { editor.putLong("widget_missing_actuals_refresh_${widgetId}_$source", any()) }
+        verify { editor.putLong("widget_missing_data_refresh_${widgetId}_${source}_actuals", any()) }
     }
 }
