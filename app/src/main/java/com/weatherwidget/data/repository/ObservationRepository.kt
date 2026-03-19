@@ -23,7 +23,6 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.roundToInt
 
 private const val TAG = "ObservationRepository"
 
@@ -151,33 +150,29 @@ class ObservationRepository @Inject constructor(
         val now = ZonedDateTime.now(localZone)
 
         val yesterday = now.minusDays(1).toLocalDate()
-        val startTsYesterday = yesterday.atStartOfDay(localZone).toInstant().toEpochMilli()
-        val endTsYesterday = yesterday.plusDays(1).atStartOfDay(localZone).toInstant().toEpochMilli()
-
-        val yesterdayObservations = observationDao.getObservationsInRange(startTsYesterday, endTsYesterday, latitude, longitude)
-        val isYesterdayPopulated = yesterdayObservations.size >= 10
-
         val today = now.toLocalDate()
-        val startTsToday = today.atStartOfDay(localZone).toInstant().toEpochMilli()
-        val endTsToday = now.toInstant().toEpochMilli()
-
-        val todayObservations = observationDao.getObservationsInRange(startTsToday, endTsToday, latitude, longitude)
         val currentHour = now.hour
-        val isTodayPopulated = when {
-            currentHour < 2 -> true
-            currentHour < 6 -> todayObservations.size >= 2
-            currentHour < 12 -> todayObservations.size >= 4
-            else -> todayObservations.size >= 8
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val requiredDates = buildSet {
+            add(yesterdayStr)
+            if (currentHour >= 2) add(todayStr)
         }
+        val existingDates =
+            dailyExtremeDao.getExtremesInRange(yesterdayStr, todayStr, latitude, longitude)
+                .filter { it.source == WeatherSource.NWS.id }
+                .map { it.date }
+                .toSet()
+        val missingDates = requiredDates - existingDates
 
-        Log.d(TAG, "History check: yesterdayCount=${yesterdayObservations.size}, todayCount=${todayObservations.size}, hour=$currentHour")
+        Log.d(TAG, "History check: requiredDates=$requiredDates existingDates=$existingDates missingDates=$missingDates hour=$currentHour")
 
-        if (isYesterdayPopulated && isTodayPopulated) {
-            Log.d(TAG, "Skipping backfill: both yesterday and today already have sufficient data")
+        if (missingDates.isEmpty()) {
+            Log.d(TAG, "Skipping backfill: required NWS daily_extremes rows already exist")
             return
         }
 
-        Log.i(TAG, "Insufficient history (yesterdayPopulated=$isYesterdayPopulated, todayPopulated=$isTodayPopulated), backfilling last 48 hours")
+        Log.i(TAG, "Missing NWS daily_extremes for $missingDates, backfilling last 48 hours")
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
         if (gridPoint == null) {
             Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
@@ -190,6 +185,7 @@ class ObservationRepository @Inject constructor(
 
         val startTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.minusDays(WeatherConfig.NWS_BACKFILL_DAYS.toLong()).toInstant())
         val endTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
+        val remainingDates = missingDates.toMutableSet()
 
         for (stationInfo in stations.take(3)) {
             Log.d(TAG, "Attempting backfill from station ${stationInfo.id}")
@@ -216,18 +212,47 @@ class ObservationRepository @Inject constructor(
                     observationDao.insertAll(entities)
                     Log.i(TAG, "Successfully backfilled ${entities.size} observations from ${stationInfo.id}")
                     val distinctDayTimestamps = entities.map { e ->
-                        val zone = ZoneId.systemDefault()
-                        java.time.Instant.ofEpochMilli(e.timestamp).atZone(zone).toLocalDate()
-                            .atStartOfDay(zone).toInstant().toEpochMilli()
+                        java.time.Instant.ofEpochMilli(e.timestamp).atZone(localZone).toLocalDate()
+                            .atStartOfDay(localZone).toInstant().toEpochMilli()
                     }.distinct()
                     for (dayTs in distinctDayTimestamps) {
                         recomputeDailyExtremesForDay(latitude, longitude, dayTs + 3_600_000L)
                     }
-                    break
+                    val refreshedDates =
+                        dailyExtremeDao.getExtremesInRange(yesterdayStr, todayStr, latitude, longitude)
+                            .filter { it.source == WeatherSource.NWS.id }
+                            .map { it.date }
+                            .toSet()
+                    remainingDates.removeAll(refreshedDates)
+                    if (remainingDates.isEmpty()) {
+                        break
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to backfill from ${stationInfo.id}: ${e.message}")
             }
+        }
+
+        if (remainingDates.isNotEmpty()) {
+            Log.w(TAG, "Backfill completed but official NWS daily_extremes still missing for $remainingDates")
+        }
+    }
+
+    internal suspend fun recomputeDailyExtremesFromStoredObservations(
+        latitude: Double,
+        longitude: Double,
+        startDate: LocalDate,
+        endDateInclusive: LocalDate,
+    ) {
+        val zone = ZoneId.systemDefault()
+        val startTs = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endTs = endDateInclusive.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val observations = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
+        if (observations.isEmpty()) return
+
+        val extremes = ObservationResolver.computeDailyExtremes(observations, latitude, longitude)
+        if (extremes.isNotEmpty()) {
+            dailyExtremeDao.insertAll(extremes)
         }
     }
 

@@ -219,4 +219,84 @@ class NwsApiTest {
             assertEquals(22, result[firstLocalHour])
             assertEquals(22, result[secondLocalHour])
         }
+
+    @Test
+    fun `getLatestObservationDetailed falls back when latest temp is null`() =
+        runTest {
+            val latestResponse =
+                """
+                {
+                    "properties": {
+                        "stationName": "Moffett Field",
+                        "timestamp": "2026-03-19T03:15:00+00:00",
+                        "textDescription": "Unknown",
+                        "temperature": {
+                            "unitCode": "wmoUnit:degC",
+                            "value": null
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val fallbackResponse =
+                """
+                {
+                    "features": [
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-03-19T02:35:00+00:00",
+                                "textDescription": "Unknown",
+                                "temperature": {
+                                    "value": null
+                                }
+                            }
+                        },
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-03-19T02:55:00+00:00",
+                                "textDescription": "Clear",
+                                "temperature": {
+                                    "value": 22.0
+                                }
+                            }
+                        }
+                    ]
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler { request ->
+                            if (request.url.encodedPath.endsWith("/latest")) {
+                                respond(
+                                    content = latestResponse,
+                                    status = HttpStatusCode.OK,
+                                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                                )
+                            } else if (request.url.encodedPath.contains("/observations") && request.url.parameters["limit"] == "10") {
+                                respond(
+                                    content = fallbackResponse,
+                                    status = HttpStatusCode.OK,
+                                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                                )
+                            } else {
+                                respond("Not Found", HttpStatusCode.NotFound)
+                            }
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val obs = api.getLatestObservationDetailed("KNUQ")
+
+            assertNotNull(obs)
+            assertEquals(22.0f, obs!!.temperatureCelsius)
+            assertEquals("2026-03-19T02:55:00+00:00", obs.timestamp)
+        }
 }

@@ -1,8 +1,14 @@
 package com.weatherwidget.util
 
 import android.util.Log
+import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.Duration
 import java.time.format.DateTimeFormatter
@@ -21,24 +27,100 @@ private const val TAG = "TemperatureInterpolator"
 @Singleton
 class TemperatureInterpolator
     @Inject
-    constructor() {
+    constructor(
+        private val appLogDao: AppLogDao? = null,
+    ) {
         companion object {
             private val HOUR_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+            @Volatile
+            private var defaultAppLogDao: AppLogDao? = null
 
             /**
              * Minimum temperature difference (in degrees) to trigger interpolation.
              * Below this threshold, just use the nearest hour's temperature.
              */
             const val INTERPOLATION_THRESHOLD = 1
+
+            fun setDefaultAppLogDao(appLogDao: AppLogDao?) {
+                defaultAppLogDao = appLogDao
+            }
+        }
+
+        private val logScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        private fun debugLog(message: String) {
+            Log.d(TAG, message)
+            val dao = appLogDao ?: defaultAppLogDao ?: return
+            logScope.launch {
+                dao.log(TAG, message)
+            }
         }
 
         /**
          * Get the interpolated temperature for the given time.
          *
-         * @param hourlyForecasts List of hourly forecast data points, should be sorted by dateTime
-         * @param targetTime The time to interpolate for
-         * @param source Optional source filter. If null, uses all available sources.
-         * @return The interpolated temperature, or null if insufficient data
+         * This routine turns hourly forecast rows into a minute-level current-temperature estimate.
+         *
+         * High-level behavior:
+         * 1. If no hourly rows exist, return null.
+         * 2. If a source is requested, collapse rows by hour and prefer:
+         *    a. the requested source for that hour,
+         *    b. otherwise Generic Gap fallback for that hour,
+         *    c. otherwise the first row for that hour.
+         * 3. Snap the target time down to the current hour and compute the next hour.
+         * 4. Look up rows for exactly those 2 hour buckets.
+         * 5. If only one bucket exists, return that bucket's temperature directly.
+         * 6. If neither bucket exists, return the closest hourly row in absolute time.
+         * 7. If both buckets exist:
+         *    a. compute the temperature difference,
+         *    b. if the difference is below INTERPOLATION_THRESHOLD, return the current-hour temperature,
+         *    c. otherwise linearly interpolate using targetTime.minute / 60.
+         *
+         * Pseudocode:
+         * ```
+         * if hourlyForecasts is empty:
+         *     return null
+         *
+         * filtered = hourlyForecasts
+         * if source != null:
+         *     for each hour bucket:
+         *         choose requested-source row
+         *         else choose generic-gap row
+         *         else choose first row
+         *
+         * targetHour = truncate targetTime to hour
+         * nextHour = targetHour + 1 hour
+         *
+         * current = row at targetHour
+         * next = row at nextHour
+         *
+         * if current exists and next missing:
+         *     return current.temperature
+         * if current missing and next exists:
+         *     return next.temperature
+         * if both missing:
+         *     return closest row by absolute time distance
+         *
+         * diff = next.temperature - current.temperature
+         * if abs(diff) < INTERPOLATION_THRESHOLD:
+         *     return current.temperature
+         *
+         * factor = targetTime.minute / 60.0
+         * return current.temperature + diff * factor
+         * ```
+         *
+         * Notes:
+         * - `targetTime` is truncated to the hour only for bucket lookup.
+         *   The original minute value is still used as the interpolation factor.
+         * - The interpolation is linear, not spline/smoothed interpolation.
+         * - When hourly coverage is incomplete, the function prefers a sensible direct fallback
+         *   instead of inventing a value from non-adjacent hours.
+         *
+         * @param hourlyForecasts Hourly forecast data points keyed by hourly timestamps.
+         * @param targetTime The time to estimate.
+         * @param source Optional source preference; when provided, rows are reduced per hour using
+         * source-first then generic-gap fallback selection.
+         * @return Interpolated or fallback temperature, or null if no hourly data exists.
          */
         fun getInterpolatedTemperature(
             hourlyForecasts: List<HourlyForecastEntity>,
@@ -49,7 +131,7 @@ class TemperatureInterpolator
 
             // Filter by source if specified, otherwise prefer the specified source with fallback
             val sourcesInData = hourlyForecasts.map { it.source }.distinct()
-            Log.d(TAG, "getInterpolatedTemperature: source=$source, sourcesInData=$sourcesInData, totalForecasts=${hourlyForecasts.size}")
+            debugLog("getInterpolatedTemperature: source=$source, sourcesInData=$sourcesInData, totalForecasts=${hourlyForecasts.size}")
 
             val filteredForecasts =
                 if (source != null) {
@@ -64,11 +146,35 @@ class TemperatureInterpolator
                 } else {
                     hourlyForecasts
                 }
-            Log.d(
-                TAG,
+            debugLog(
                 "getInterpolatedTemperature: filteredForecasts=${filteredForecasts.size}, sources=${filteredForecasts.map { it.source }.distinct()}",
             )
 
+            /*
+            Snaps targetTime down to the start of the current hour so the interpolator can look up the two hourly forecast
+            buckets that surround “now”.
+
+            At app/src/main/java/com/weatherwidget/util/TemperatureInterpolator.kt:96, if targetTime is 2026-03-18T10:37,
+            truncatedTo(ChronoUnit.HOURS) makes it 2026-03-18T10:00. Then the code uses:
+
+            - targetHour = 10:00
+            - nextHour = 11:00
+
+            and looks for forecast rows keyed exactly as "yyyy-MM-dd'T'HH:00" for those two hours.
+
+            That matters because the hourly forecast table stores one value per whole hour, not per minute. Without truncation,
+            the lookup would try to match 10:37, which does not exist in the hourly data. The interpolation factor is then taken
+            from the minute component separately:
+
+            - minutesIntoHour = 37
+            - factor = 37 / 60.0
+
+            So the logic is:
+
+            1. Find the bounding hourly points at 10:00 and 11:00.
+            2. Use the original minutes 37 to interpolate between them.
+
+            */
             // Find the two surrounding data points
             val targetHour = targetTime.truncatedTo(ChronoUnit.HOURS)
             val nextHour = targetHour.plusHours(1)
@@ -79,8 +185,7 @@ class TemperatureInterpolator
             val currentHourForecast = filteredForecasts.find { it.dateTime == targetHourStr }
             val nextHourForecast = filteredForecasts.find { it.dateTime == nextHourStr }
 
-            Log.d(
-                TAG,
+            debugLog(
                 "getInterpolatedTemperature: currentHour=$targetHourStr found=${currentHourForecast?.source}:${currentHourForecast?.temperature}, nextHour=$nextHourStr found=${nextHourForecast?.source}:${nextHourForecast?.temperature}",
             )
 
@@ -106,7 +211,7 @@ class TemperatureInterpolator
 
             // If difference is below threshold, just return current hour temp
             if (kotlin.math.abs(tempDiff) < INTERPOLATION_THRESHOLD) {
-                Log.d(TAG, "Below threshold, returning currentTemp=$currentTemp")
+                debugLog("Below threshold, returning currentTemp=$currentTemp")
                 return currentTemp
             }
 
@@ -116,8 +221,7 @@ class TemperatureInterpolator
 
             // Linear interpolation
             val interpolatedTemp = currentTemp + (tempDiff * factor)
-            Log.d(
-                TAG,
+            debugLog(
                 "Interpolating: time=${targetTime.hour}:${targetTime.minute}, " +
                     "current=$currentTemp@$targetHourStr, next=$nextTemp@$nextHourStr, " +
                     "factor=$factor, result=$interpolatedTemp",

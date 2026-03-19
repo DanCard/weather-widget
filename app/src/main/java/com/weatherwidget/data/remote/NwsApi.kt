@@ -5,6 +5,7 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -357,21 +358,13 @@ class NwsApi
             return result
         }
 
-        suspend fun getLatestObservationDetailed(stationId: String): Observation? {
-            val response: String =
-                httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/geo+json")
-                }.body()
-
-            val jsonObj = json.parseToJsonElement(response).jsonObject
-            val props = jsonObj["properties"]?.jsonObject ?: return null
+        private fun parseObservationProperties(props: JsonObject, defaultStationName: String): Observation? {
             val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return null
-            val stationName = props["stationName"]?.jsonPrimitive?.content ?: stationId
+            val stationName = props["stationName"]?.jsonPrimitive?.content ?: defaultStationName
 
             // Temperature is in a value object with unitCode
             val tempObj = props["temperature"]?.jsonObject
-            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
+            val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull() ?: return null
 
             val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
 
@@ -380,17 +373,74 @@ class NwsApi
             val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
             val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
 
-            return if (tempValue != null) {
-                Observation(
-                    timestamp = timestamp,
-                    temperatureCelsius = tempValue.toFloat(),
-                    textDescription = textDescription,
-                    stationName = stationName,
-                    maxTempLast24hCelsius = maxTempValue,
-                    minTempLast24hCelsius = minTempValue,
-                )
-            } else {
-                Log.d("NwsApi", "getLatestObservationDetailed: station=$stationId has null temperature value")
+            return Observation(
+                timestamp = timestamp,
+                temperatureCelsius = tempValue.toFloat(),
+                textDescription = textDescription,
+                stationName = stationName,
+                maxTempLast24hCelsius = maxTempValue,
+                minTempLast24hCelsius = minTempValue,
+            )
+        }
+
+        suspend fun getLatestObservationDetailed(stationId: String): Observation? {
+            var primaryObs: Observation? = null
+            var primaryFailed = false
+            
+            try {
+                val response: String =
+                    httpClient.get("$BASE_URL/stations/$stationId/observations/latest") {
+                        header("User-Agent", USER_AGENT)
+                        header("Accept", "application/geo+json")
+                    }.body()
+
+                val jsonObj = json.parseToJsonElement(response).jsonObject
+                val props = jsonObj["properties"]?.jsonObject
+                
+                if (props != null) {
+                    primaryObs = parseObservationProperties(props, stationId)
+                    if (primaryObs == null) {
+                        Log.d("NwsApi", "getLatestObservationDetailed: station=$stationId latest has null temperature value. Triggering fallback.")
+                        primaryFailed = true
+                    }
+                } else {
+                    primaryFailed = true
+                }
+            } catch (e: Exception) {
+                Log.w("NwsApi", "getLatestObservationDetailed: Error fetching latest for $stationId: ${e.message}. Triggering fallback.")
+                primaryFailed = true
+            }
+
+            if (primaryFailed) {
+                return getRecentValidObservationDetailed(stationId)
+            }
+            return primaryObs
+        }
+
+        private suspend fun getRecentValidObservationDetailed(stationId: String, limit: Int = 10): Observation? {
+            return try {
+                val response: String =
+                    httpClient.get("$BASE_URL/stations/$stationId/observations?limit=$limit") {
+                        header("User-Agent", USER_AGENT)
+                        header("Accept", "application/geo+json")
+                    }.body()
+
+                val jsonObj = json.parseToJsonElement(response).jsonObject
+                val features = jsonObj["features"]?.jsonArray ?: return null
+
+                for (feature in features) {
+                    val props = feature.jsonObject["properties"]?.jsonObject ?: continue
+                    val obs = parseObservationProperties(props, stationId)
+                    if (obs != null) {
+                        Log.d("NwsApi", "getRecentValidObservationDetailed: Fallback for $stationId found valid data from ${obs.timestamp}")
+                        return obs
+                    }
+                }
+                
+                Log.w("NwsApi", "getRecentValidObservationDetailed: Fallback for $stationId found no valid data in last $limit observations")
+                null
+            } catch (e: Exception) {
+                Log.e("NwsApi", "getRecentValidObservationDetailed: Fallback query failed for $stationId: ${e.message}")
                 null
             }
         }

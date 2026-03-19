@@ -206,29 +206,30 @@ object DailyViewLogic {
             // This ensures we fill all columns if data exists anywhere in the DB.
             val weather = weatherByDate[dateStr] ?: forecastSnapshots[dateStr]?.firstOrNull()
             val actual = dailyActuals[dateStr]
-
-            if (weather == null && actual == null) return@forEachIndexed
-            
-            // For future days, we need both high and low.
-            // For today and past days, we can show partial data (High-only or Low-only).
-            val isToday = date == today
-            val isPastDate = date.isBefore(today)
-            if (!isToday && !isPastDate) {
-                if (weather?.highTemp == null || weather.lowTemp == null) return@forEachIndexed
-            } else {
-                // Today/Past: Must have at least ONE temperature source
-                if (weather?.highTemp == null && weather?.lowTemp == null && actual == null) return@forEachIndexed
-            }
-
             val forecasts = forecastSnapshots[dateStr] ?: emptyList()
-            // Prefer the latest COMPLETE snapshot (both high and low) for historical comparison,
-            // as NWS midday fetches often drop the morning low.
             val forecast = forecasts
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
                 .filter { it.highTemp != null && it.lowTemp != null }
                 .maxByOrNull { it.fetchedAt }
                 ?: forecasts.filter { it.source == displaySource.id }.maxByOrNull { it.fetchedAt }
                 ?: forecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }.maxByOrNull { it.fetchedAt }
+
+            val isToday = date == today
+            val isPastDate = date.isBefore(today)
+            if (weather == null && actual == null && forecast == null) return@forEachIndexed
+            
+            // For future days, we need both high and low.
+            // For today and past days, we can show partial data (High-only or Low-only).
+            if (!isToday && !isPastDate) {
+                if (weather?.highTemp == null || weather.lowTemp == null) return@forEachIndexed
+            } else {
+                // Today/Past: Must have at least ONE temperature source.
+                // Past days remain drawable when actual extremes are missing as long as
+                // forecast-history data exists for the comparison bar.
+                if (weather?.highTemp == null && weather?.lowTemp == null && actual == null && forecast == null) {
+                    return@forEachIndexed
+                }
+            }
 
             val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 

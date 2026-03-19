@@ -155,8 +155,11 @@ class WeatherWidgetWorker
             lon: Double,
         ): DailyActualsBySource {
             return try {
-                val startDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val endDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val startLocalDate = LocalDate.now().minusDays(30)
+                val endLocalDate = LocalDate.now().plusDays(1)
+                weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startLocalDate, endLocalDate)
+                val startDate = startLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val endDate = endLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
                 val extremes = WeatherDatabase.getDatabase(context).dailyExtremeDao()
                     .getExtremesInRange(startDate, endDate, lat, lon)
                 ObservationResolver.extremesToDailyActualsBySource(extremes)

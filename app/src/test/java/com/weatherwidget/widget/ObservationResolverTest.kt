@@ -6,6 +6,7 @@ import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ObservationResolverTest {
@@ -144,7 +145,7 @@ class ObservationResolverTest {
     // --- computeDailyExtremes tests ---
 
     @Test
-    fun `computeDailyExtremes returns correct entity using official 24h extremes`() {
+    fun `computeDailyExtremes prefers official extremes when present`() {
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f, stationId = "KTEST"),
@@ -162,7 +163,7 @@ class ObservationResolverTest {
     }
 
     @Test
-    fun `computeDailyExtremes falls back to spot readings when official extremes are null`() {
+    fun `computeDailyExtremes falls back to spot readings when official extremes are missing`() {
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = null, minTempLast24h = null, stationId = "KTEST"),

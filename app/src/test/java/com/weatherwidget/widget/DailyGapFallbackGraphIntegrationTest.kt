@@ -6,6 +6,8 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -65,6 +67,73 @@ class DailyGapFallbackGraphIntegrationTest {
 
         assertEquals(Color.parseColor("#5AC8FA"), providerBar.color)
         assertEquals(Color.parseColor("#34C759"), fallbackBar.color)
+    }
+
+    @Test
+    fun `renderGraph keeps forecast history bar for past day when extremes are missing`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val fmt = DateTimeFormatter.ISO_LOCAL_DATE
+
+        val yesterdayStr = today.minusDays(1).format(fmt)
+        val todayStr = today.format(fmt)
+        val tomorrowStr = today.plusDays(1).format(fmt)
+
+        val weatherByDate = mapOf(
+            todayStr to forecast(todayStr, 70f, 55f, WeatherSource.NWS),
+            tomorrowStr to forecast(tomorrowStr, 72f, 56f, WeatherSource.NWS),
+        )
+        val forecastSnapshots = mapOf(
+            yesterdayStr to listOf(
+                forecast(
+                    date = yesterdayStr,
+                    highTemp = 68f,
+                    lowTemp = 54f,
+                    source = WeatherSource.NWS,
+                ),
+            ),
+        )
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots.mapValues { it.value },
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = emptyMap(),
+        )
+
+        val yesterday = days.single { it.date == yesterdayStr }
+        assertEquals(null, yesterday.high)
+        assertEquals(null, yesterday.low)
+        assertEquals(68f, yesterday.forecastHigh)
+        assertEquals(54f, yesterday.forecastLow)
+
+        val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
+        DailyForecastGraphRenderer.renderGraph(
+            context = context,
+            days = days,
+            widthPx = 600,
+            heightPx = 300,
+            bitmapScale = 1f,
+            numColumns = days.size,
+            onBarDrawn = drawnBars::add,
+        )
+
+        assertTrue(
+            "Expected forecast-history bar to render for yesterday when extremes are missing",
+            drawnBars.any { it.date == yesterdayStr && it.barType == "FORECAST_OVERLAY" },
+        )
+        assertFalse(
+            "Expected no actual-history bar when extremes are missing",
+            drawnBars.any { it.date == yesterdayStr && it.barType == "HISTORY" },
+        )
     }
 
     private fun forecast(

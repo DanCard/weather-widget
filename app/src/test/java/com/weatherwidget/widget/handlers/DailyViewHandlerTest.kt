@@ -11,12 +11,16 @@ import android.widget.TextView
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequest
+import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.just
@@ -27,6 +31,7 @@ import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,6 +63,7 @@ class DailyViewHandlerTest {
     @After
     fun teardown() {
         unmockkObject(RainAnalyzer)
+        unmockkStatic(WorkManager::class)
     }
 
     @Test
@@ -840,6 +846,66 @@ class DailyViewHandlerTest {
         assertEquals(View.GONE, deltaBadge.visibility)
         assertEquals(View.VISIBLE, precipBadge.visibility)
         assertEquals("65%", precipBadge.text.toString())
+    }
+
+    @Test
+    fun `updateWidget enqueues missing actuals fetch for visible past graph day`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val yesterdayStr = today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(49)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS))
+
+        mockkStatic(WorkManager::class)
+        val workManager = mockk<WorkManager>(relaxed = true)
+        every { WorkManager.getInstance(any()) } returns workManager
+        every {
+            workManager.enqueueUniqueWork(
+                any(),
+                any<ExistingWorkPolicy>(),
+                any<OneTimeWorkRequest>(),
+            )
+        } returns mockk(relaxed = true)
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
+        }
+        every { appWidgetManager.getAppWidgetOptions(49) } returns options
+        every { appWidgetManager.updateAppWidget(49, any<android.widget.RemoteViews>()) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 49,
+            weatherList = listOf(
+                createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f),
+                createWeather(tomorrowStr, precipProbability = 0, highTemp = 72f, lowTemp = 56f),
+            ),
+            forecastSnapshots = mapOf(
+                yesterdayStr to listOf(createWeather(yesterdayStr, precipProbability = 0, highTemp = 68f, lowTemp = 54f)),
+            ),
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
+            now = now,
+        )
+
+        verify(exactly = 1) {
+            workManager.enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
+                ExistingWorkPolicy.KEEP,
+                any<OneTimeWorkRequest>(),
+            )
+        }
     }
 
     @Test

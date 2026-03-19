@@ -200,6 +200,40 @@ object ObservationResolver {
     }
 
     /**
+     * Converts API-provided daily extreme values embedded in raw observations into
+     * [DailyExtremeEntity] rows. Observations without official max/min values are ignored.
+     */
+    fun officialExtremesToDailyEntities(
+        observations: List<ObservationEntity>,
+        locationLat: Double,
+        locationLon: Double,
+    ): List<DailyExtremeEntity> =
+        observations
+            .filter { it.maxTempLast24h != null && it.minTempLast24h != null }
+            .groupBy { obs ->
+                val date = Instant.ofEpochMilli(obs.timestamp)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                    .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                date to inferSource(obs.stationId)
+            }
+            .mapNotNull { (key, dayObs) ->
+                val (date, source) = key
+                val latestOfficialObservation = dayObs.maxByOrNull { it.timestamp } ?: return@mapNotNull null
+
+                DailyExtremeEntity(
+                    date = date,
+                    source = source,
+                    locationLat = locationLat,
+                    locationLon = locationLon,
+                    highTemp = latestOfficialObservation.maxTempLast24h ?: return@mapNotNull null,
+                    lowTemp = latestOfficialObservation.minTempLast24h ?: return@mapNotNull null,
+                    condition = latestOfficialObservation.condition,
+                    updatedAt = latestOfficialObservation.fetchedAt,
+                )
+            }
+
+    /**
      * Maps a list of [DailyExtremeEntity] to [DailyActual] objects.
      */
     fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<DailyActual> =

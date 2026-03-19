@@ -128,19 +128,14 @@ object DailyViewHandler : WidgetViewHandler {
                 "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
 
-        if (dailyActuals[todayStr] == null &&
-            stateManager.shouldRefreshMissingActuals(appWidgetId, displaySource.id, MISSING_ACTUALS_REFRESH_COOLDOWN_MS)
-        ) {
-            stateManager.markMissingActualsRefreshRequested(appWidgetId, displaySource.id)
-            WeatherDatabase.getDatabase(context).appLogDao().log(
-                "MISSING_ACTUALS_FETCH",
-                "widget=$appWidgetId source=${displaySource.id} missing today actuals, enqueueing worker",
-                "INFO"
-            )
-            WeatherWidgetProvider.triggerImmediateUpdate(
+        if (dailyActuals[todayStr] == null) {
+            requestMissingActualsRefresh(
                 context = context,
-                forceRefresh = true,
-                reason = "missing_actuals_${displaySource.id}",
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                displaySource = displaySource,
+                reasonSuffix = "today",
+                message = "widget=$appWidgetId source=${displaySource.id} missing today actuals, enqueueing worker",
             )
         }
 
@@ -286,6 +281,25 @@ object DailyViewHandler : WidgetViewHandler {
                 )
             }
 
+            val missingVisiblePastActuals = days.firstOrNull { day ->
+                day.isPast &&
+                    dailyActuals[day.date] == null &&
+                    day.forecastHigh != null &&
+                    day.forecastLow != null
+            }
+            if (missingVisiblePastActuals != null) {
+                requestMissingActualsRefresh(
+                    context = context,
+                    stateManager = stateManager,
+                    appWidgetId = appWidgetId,
+                    displaySource = displaySource,
+                    reasonSuffix = "history",
+                    message =
+                        "widget=$appWidgetId source=${displaySource.id} missing past actuals for ${missingVisiblePastActuals.date}, " +
+                            "graphing forecast history and enqueueing worker",
+                )
+            }
+
             // Mark rain as shown if today's rain is in the list
             if (days.any { it.isToday && it.rainSummary != null }) {
                 stateManager.markRainShown(appWidgetId, todayStr)
@@ -347,6 +361,30 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         appWidgetManager.updateAppWidget(appWidgetId, views)
+    }
+
+    private suspend fun requestMissingActualsRefresh(
+        context: Context,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        reasonSuffix: String,
+        message: String,
+    ) {
+        if (!stateManager.shouldRefreshMissingActuals(appWidgetId, displaySource.id, MISSING_ACTUALS_REFRESH_COOLDOWN_MS)) {
+            return
+        }
+        stateManager.markMissingActualsRefreshRequested(appWidgetId, displaySource.id)
+        WeatherDatabase.getDatabase(context).appLogDao().log(
+            "MISSING_ACTUALS_FETCH",
+            message,
+            "INFO"
+        )
+        WeatherWidgetProvider.triggerImmediateUpdate(
+            context = context,
+            forceRefresh = true,
+            reason = "missing_actuals_${displaySource.id}_$reasonSuffix",
+        )
     }
 
     private fun setupCurrentTempToggle(context: Context, views: RemoteViews, appWidgetId: Int) {

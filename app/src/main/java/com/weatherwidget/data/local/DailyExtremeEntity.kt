@@ -4,11 +4,10 @@ import androidx.room.Entity
 import androidx.room.Index
 
 /**
- * Pre-computed daily high/low temperature extremes per (date, source, location).
+ * Daily high/low temperature extremes per (date, source, location).
  *
- * Populated after each observation ingestion batch. Using REPLACE on insert means
- * successive ingestion runs recompute and overwrite that day's extremes automatically.
- * Retained for 30 days matching forecast snapshot retention.
+ * Rows prefer official provider-supplied extremes when available and otherwise fall back
+ * to the highest and lowest stored observations for that local day.
  */
 @Entity(
     tableName = "daily_extremes",

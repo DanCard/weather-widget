@@ -17,6 +17,8 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.Module
 import dagger.Provides
@@ -91,7 +93,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAppLogDao(database: WeatherDatabase): AppLogDao = database.appLogDao()
+    fun provideAppLogDao(database: WeatherDatabase): AppLogDao =
+        database.appLogDao().also {
+            TemperatureInterpolator.setDefaultAppLogDao(it)
+            CurrentTemperatureResolver.setDefaultAppLogDao(it)
+        }
+
+    @Provides
+    @Singleton
+    fun provideTemperatureInterpolator(appLogDao: AppLogDao): TemperatureInterpolator =
+        TemperatureInterpolator(appLogDao)
 
     @Provides
     @Singleton
@@ -159,11 +170,12 @@ object AppModule {
         weatherApi: WeatherApi,
         silurianApi: SilurianApi,
         widgetStateManager: WidgetStateManager,
+        temperatureInterpolator: TemperatureInterpolator,
         dailyExtremeDao: DailyExtremeDao,
         observationRepository: ObservationRepository,
     ): CurrentTempRepository = CurrentTempRepository(
         context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, com.weatherwidget.util.TemperatureInterpolator(), dailyExtremeDao, observationRepository
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, temperatureInterpolator, dailyExtremeDao, observationRepository
     )
 
     @Provides

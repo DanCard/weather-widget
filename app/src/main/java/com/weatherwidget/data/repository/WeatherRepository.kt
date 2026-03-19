@@ -15,6 +15,7 @@ import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -126,6 +127,17 @@ class WeatherRepository
             
         suspend fun backfillNwsObservationsIfNeeded(latitude: Double, longitude: Double) =
             observationRepository.backfillNwsObservationsIfNeeded(latitude, longitude)
+        suspend fun recomputeDailyExtremesFromStoredObservations(
+            latitude: Double,
+            longitude: Double,
+            startDate: LocalDate,
+            endDateInclusive: LocalDate,
+        ) = observationRepository.recomputeDailyExtremesFromStoredObservations(
+            latitude,
+            longitude,
+            startDate,
+            endDateInclusive,
+        )
         suspend fun getObservationsInRange(
             startTimestamp: Long,
             endTimestamp: Long,

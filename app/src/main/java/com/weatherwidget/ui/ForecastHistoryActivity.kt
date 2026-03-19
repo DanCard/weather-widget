@@ -26,6 +26,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ForecastEvolutionRenderer
@@ -74,6 +75,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
+
+    @Inject
+    lateinit var weatherRepository: WeatherRepository
 
     companion object {
         const val EXTRA_TARGET_DATE = "target_date"
@@ -538,47 +542,32 @@ class ForecastHistoryActivity : AppCompatActivity() {
     }
 
     /**
-     * Checks whether daily_extremes is missing entries that raw observations could fill.
-     * Called before accuracy display so users see accurate data even if the app was just
-     * installed or data was never pre-computed (e.g. upgrading from pre-35 schema).
+     * Recomputes daily_extremes from already-stored observations before falling back to a
+     * background refresh for dates that still have no recoverable actuals.
      */
     private suspend fun backfillDailyExtremesIfNeeded(lat: Double, lon: Double) {
-        val zone = ZoneId.systemDefault()
         val endDate = LocalDate.now()
         val startDate = endDate.minusDays(30)
         val startDateStr = startDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
         val endDateStr = endDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
 
+        weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate)
         val existingExtremes = dailyExtremeDao.getExtremesInRange(startDateStr, endDateStr, lat, lon)
-        val existingDates = existingExtremes.map { it.date }.toSet()
+        val existingDates = existingExtremes.filter { it.source == WeatherSource.NWS.id }.map { it.date }.toSet()
+        val nwsForecastDates =
+            forecastDao.getForecastsInRangeBySource(startDateStr, endDateStr, lat, lon, WeatherSource.NWS.id)
+                .map { it.targetDate }
+                .toSet()
 
-        // Query all observations for the 30-day window in one pass
-        val startTs = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
-        val endTs = endDate.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val observations = observationDao.getObservationsInRange(startTs, endTs, lat, lon)
-        if (observations.isEmpty()) return
-
-        // Determine which observation dates are not yet represented in daily_extremes
-        val formatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
-        val observedDates = observations.map { obs ->
-            java.time.Instant.ofEpochMilli(obs.timestamp).atZone(zone).toLocalDate().format(formatter)
-        }.toSet()
-
-        val missingDates = observedDates - existingDates
+        val missingDates = nwsForecastDates - existingDates
         if (missingDates.isEmpty()) return
 
-        Log.d(TAG, "Backfilling daily_extremes for ${missingDates.size} missing date(s): $missingDates")
-
-        // Filter observations to only missing days, then compute and insert
-        val missingObservations = observations.filter { obs ->
-            val date = java.time.Instant.ofEpochMilli(obs.timestamp).atZone(zone).toLocalDate().format(formatter)
-            date in missingDates
-        }
-        val extremes = ObservationResolver.computeDailyExtremes(missingObservations, lat, lon)
-        if (extremes.isNotEmpty()) {
-            dailyExtremeDao.insertAll(extremes)
-            Log.d(TAG, "Backfilled ${extremes.size} daily_extremes entries")
-        }
+        Log.d(TAG, "Still missing NWS daily_extremes after local recompute for ${missingDates.size} date(s): $missingDates")
+        WeatherWidgetProvider.triggerImmediateUpdate(
+            context = this,
+            forceRefresh = true,
+            reason = "history_missing_extremes_NWS",
+        )
     }
 
     private fun loadAccuracySummary(lat: Double, lon: Double) {
