@@ -5,8 +5,11 @@ import android.content.SharedPreferences
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -267,7 +270,7 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `toggleDisplaySource clears current temp delta state`() {
+    fun `toggleDisplaySource keeps current temp delta state`() {
         val widgetId = 1
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
@@ -276,13 +279,82 @@ class WidgetStateManagerTest {
 
         stateManager.toggleDisplaySource(widgetId)
 
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_$widgetId") }
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_observed_$widgetId") }
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_fetched_at_$widgetId") }
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_updated_at_$widgetId") }
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_source_$widgetId") }
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_lat_$widgetId") }
+        verify(exactly = 0) { editor.remove("widget_current_temp_delta_lon_$widgetId") }
+    }
+
+    @Test
+    fun `set and get current temp delta state is source scoped`() {
+        val widgetId = 7
+        val nwsState =
+            CurrentTemperatureDeltaState(
+                delta = -5f,
+                lastObservedTemp = 83f,
+                lastObservedFetchedAt = 1000L,
+                updatedAtMs = 1000L,
+                sourceId = WeatherSource.NWS.id,
+                locationLat = 37.42,
+                locationLon = -122.08,
+            )
+
+        every { prefs.contains("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}") } returns true
+        every { prefs.contains("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.NWS.id}") } returns true
+        every { prefs.contains("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.NWS.id}") } returns true
+        every { prefs.contains("widget_current_temp_delta_${widgetId}_${WeatherSource.OPEN_METEO.id}") } returns false
+        every { prefs.contains("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.OPEN_METEO.id}") } returns false
+        every { prefs.contains("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.OPEN_METEO.id}") } returns false
+        every { prefs.getString("widget_current_temp_delta_source_${widgetId}_${WeatherSource.NWS.id}", null) } returns WeatherSource.NWS.id
+        every { prefs.getString("widget_current_temp_delta_lat_${widgetId}_${WeatherSource.NWS.id}", null) } returns "37.42"
+        every { prefs.getString("widget_current_temp_delta_lon_${widgetId}_${WeatherSource.NWS.id}", null) } returns "-122.08"
+        every { prefs.getFloat("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}", 0f) } returns -5f
+        every { prefs.getFloat("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.NWS.id}", 0f) } returns 83f
+        every { prefs.getLong("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.NWS.id}", 0L) } returns 1000L
+        every { prefs.getLong("widget_current_temp_delta_updated_at_${widgetId}_${WeatherSource.NWS.id}", 0L) } returns 1000L
+
+        stateManager.setCurrentTempDeltaState(widgetId, WeatherSource.NWS, nwsState)
+
+        verify { editor.putFloat("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}", -5f) }
+        verify { editor.putString("widget_current_temp_delta_source_${widgetId}_${WeatherSource.NWS.id}", WeatherSource.NWS.id) }
+
+        val restoredNws = stateManager.getCurrentTempDeltaState(widgetId, WeatherSource.NWS)
+        val restoredMeteo = stateManager.getCurrentTempDeltaState(widgetId, WeatherSource.OPEN_METEO)
+
+        assertNotNull(restoredNws)
+        assertEquals(WeatherSource.NWS.id, restoredNws?.sourceId)
+        assertEquals(-5f, restoredNws?.delta ?: 0f, 0.01f)
+        assertNull(restoredMeteo)
+    }
+
+    @Test
+    fun `get current temp delta state migrates matching legacy widget scoped state`() {
+        val widgetId = 9
+        every { prefs.contains("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}") } returns false
+        every { prefs.contains("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.NWS.id}") } returns false
+        every { prefs.contains("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.NWS.id}") } returns false
+        every { prefs.contains("widget_current_temp_delta_$widgetId") } returns true
+        every { prefs.contains("widget_current_temp_delta_observed_$widgetId") } returns true
+        every { prefs.contains("widget_current_temp_delta_fetched_at_$widgetId") } returns true
+        every { prefs.getString("widget_current_temp_delta_source_$widgetId", null) } returns WeatherSource.NWS.id
+        every { prefs.getString("widget_current_temp_delta_lat_$widgetId", null) } returns "37.42"
+        every { prefs.getString("widget_current_temp_delta_lon_$widgetId", null) } returns "-122.08"
+        every { prefs.getFloat("widget_current_temp_delta_$widgetId", 0f) } returns -4f
+        every { prefs.getFloat("widget_current_temp_delta_observed_$widgetId", 0f) } returns 82f
+        every { prefs.getLong("widget_current_temp_delta_fetched_at_$widgetId", 0L) } returns 2000L
+        every { prefs.getLong("widget_current_temp_delta_updated_at_$widgetId", 0L) } returns 3000L
+
+        val migrated = stateManager.getCurrentTempDeltaState(widgetId, WeatherSource.NWS)
+
+        assertNotNull(migrated)
+        assertEquals(WeatherSource.NWS.id, migrated?.sourceId)
+        verify { editor.putFloat("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}", -4f) }
         verify { editor.remove("widget_current_temp_delta_$widgetId") }
         verify { editor.remove("widget_current_temp_delta_observed_$widgetId") }
         verify { editor.remove("widget_current_temp_delta_fetched_at_$widgetId") }
-        verify { editor.remove("widget_current_temp_delta_updated_at_$widgetId") }
-        verify { editor.remove("widget_current_temp_delta_source_$widgetId") }
-        verify { editor.remove("widget_current_temp_delta_lat_$widgetId") }
-        verify { editor.remove("widget_current_temp_delta_lon_$widgetId") }
     }
 
     @Test

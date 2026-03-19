@@ -217,15 +217,15 @@ object DailyViewHandler : WidgetViewHandler {
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentTemp?.temperature,
                 observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
-                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId),
+                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,
             )
         val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (currentTempResolution.shouldClearStoredDelta) {
-            stateManager.clearCurrentTempDeltaState(appWidgetId)
+            stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
         }
-        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
+        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
         val currentTemp = currentTempResolution.displayTemp
 
         if (currentTemp != null) {

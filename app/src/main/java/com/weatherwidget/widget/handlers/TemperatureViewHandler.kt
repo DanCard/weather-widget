@@ -189,7 +189,7 @@ object TemperatureViewHandler {
         // Setup Current Stations shortcut
         setupCurrentStationsShortcut(context, views, appWidgetId)
 
-        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId)
+        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
             if (deferCurrentTempResolution) {
@@ -224,9 +224,9 @@ object TemperatureViewHandler {
         val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (!deferCurrentTempResolution) {
             if (currentTempResolution.shouldClearStoredDelta) {
-                stateManager.clearCurrentTempDeltaState(appWidgetId)
+                stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
             }
-            currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
+            currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
         }
         val currentTemp = currentTempResolution.displayTemp
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
@@ -497,9 +497,9 @@ object TemperatureViewHandler {
             if (refinementTokens[appWidgetId] != token) return@launch
 
             if (refined.shouldClearStoredDelta) {
-                stateManager.clearCurrentTempDeltaState(appWidgetId)
+                stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
             }
-            refined.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
+            refined.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
 
             if (!shouldApplyRefinedHeaderUpdate(quickResolution, refined, isNowLineVisible)) {
                 return@launch

@@ -261,7 +261,8 @@ class WidgetStateManager
         }
 
         fun clearWidgetState(widgetId: Int) {
-            prefs.edit()
+            val editor = prefs.edit()
+            editor
                 .remove("$KEY_DATE_OFFSET_PREFIX$widgetId")
                 .remove("$KEY_DISPLAY_SOURCE_PREFIX$widgetId")
                 .remove("$KEY_VIEW_MODE_PREFIX$widgetId")
@@ -275,7 +276,25 @@ class WidgetStateManager
                 .remove("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId")
-                .apply()
+            prefs.all.keys
+                .filter { key ->
+                    key.startsWith(KEY_CURRENT_TEMP_DELTA_PREFIX) ||
+                        key.startsWith(KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX) ||
+                        key.startsWith(KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX) ||
+                        key.startsWith(KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX) ||
+                        key.startsWith(KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX) ||
+                        key.startsWith(KEY_CURRENT_TEMP_DELTA_LAT_PREFIX) ||
+                        key.startsWith(KEY_CURRENT_TEMP_DELTA_LON_PREFIX)
+                }
+                .filter { key -> key.startsWith("${KEY_CURRENT_TEMP_DELTA_PREFIX}${widgetId}_") ||
+                    key.startsWith("${KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX}${widgetId}_") ||
+                    key.startsWith("${KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX}${widgetId}_") ||
+                    key.startsWith("${KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX}${widgetId}_") ||
+                    key.startsWith("${KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX}${widgetId}_") ||
+                    key.startsWith("${KEY_CURRENT_TEMP_DELTA_LAT_PREFIX}${widgetId}_") ||
+                    key.startsWith("${KEY_CURRENT_TEMP_DELTA_LON_PREFIX}${widgetId}_") }
+                .forEach(editor::remove)
+            editor.apply()
         }
 
         fun shouldRefreshMissingData(
@@ -465,7 +484,6 @@ class WidgetStateManager
             val index = visibleSources.indexOf(source)
             if (index != -1) {
                 prefs.edit().putInt("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", index).apply()
-                clearCurrentTempDeltaState(widgetId)
             }
         }
 
@@ -476,7 +494,6 @@ class WidgetStateManager
         fun toggleDisplaySource(widgetId: Int): WeatherSource {
             val currentStep = getDisplaySourceToggleStep(widgetId)
             prefs.edit().putInt("$KEY_DISPLAY_SOURCE_PREFIX$widgetId", currentStep + 1).apply()
-            clearCurrentTempDeltaState(widgetId)
             return getCurrentDisplaySource(widgetId)
         }
 
@@ -546,14 +563,71 @@ class WidgetStateManager
             return if (prefs.getBoolean(key, false)) 1 else 0
         }
 
-        fun getCurrentTempDeltaState(widgetId: Int): CurrentTemperatureDeltaState? {
-            val deltaKey = "$KEY_CURRENT_TEMP_DELTA_PREFIX$widgetId"
-            val observedKey = "$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$widgetId"
-            val fetchedAtKey = "$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$widgetId"
-            val updatedAtKey = "$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$widgetId"
-            val sourceKey = "$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$widgetId"
-            val latKey = "$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId"
-            val lonKey = "$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId"
+        fun getCurrentTempDeltaState(
+            widgetId: Int,
+            source: WeatherSource,
+        ): CurrentTemperatureDeltaState? {
+            val sourceScoped = readCurrentTempDeltaState(deltaStateSuffix(widgetId, source))
+            if (sourceScoped != null) {
+                return sourceScoped
+            }
+
+            val legacy = readCurrentTempDeltaState(widgetId.toString()) ?: return null
+            if (legacy.sourceId != source.id) {
+                return null
+            }
+
+            setCurrentTempDeltaState(widgetId, source, legacy)
+            clearCurrentTempDeltaState(widgetId)
+            return legacy
+        }
+
+        fun setCurrentTempDeltaState(
+            widgetId: Int,
+            source: WeatherSource,
+            state: CurrentTemperatureDeltaState,
+        ) {
+            val suffix = deltaStateSuffix(widgetId, source)
+            prefs.edit()
+                .putFloat("$KEY_CURRENT_TEMP_DELTA_PREFIX$suffix", state.delta)
+                .putFloat("$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$suffix", state.lastObservedTemp)
+                .putLong("$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$suffix", state.lastObservedFetchedAt)
+                .putLong("$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$suffix", state.updatedAtMs)
+                .putString("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$suffix", state.sourceId)
+                .putString("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$suffix", state.locationLat.toString())
+                .putString("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$suffix", state.locationLon.toString())
+                .apply()
+        }
+
+        fun clearCurrentTempDeltaState(
+            widgetId: Int,
+            source: WeatherSource? = null,
+        ) {
+            val suffix = source?.let { deltaStateSuffix(widgetId, it) } ?: widgetId.toString()
+            prefs.edit()
+                .remove("$KEY_CURRENT_TEMP_DELTA_PREFIX$suffix")
+                .remove("$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$suffix")
+                .remove("$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$suffix")
+                .remove("$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$suffix")
+                .remove("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$suffix")
+                .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$suffix")
+                .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$suffix")
+                .apply()
+        }
+
+        private fun deltaStateSuffix(
+            widgetId: Int,
+            source: WeatherSource,
+        ): String = "${widgetId}_${source.id}"
+
+        private fun readCurrentTempDeltaState(suffix: String): CurrentTemperatureDeltaState? {
+            val deltaKey = "$KEY_CURRENT_TEMP_DELTA_PREFIX$suffix"
+            val observedKey = "$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$suffix"
+            val fetchedAtKey = "$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$suffix"
+            val updatedAtKey = "$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$suffix"
+            val sourceKey = "$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$suffix"
+            val latKey = "$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$suffix"
+            val lonKey = "$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$suffix"
 
             if (!prefs.contains(deltaKey) || !prefs.contains(observedKey) || !prefs.contains(fetchedAtKey)) {
                 return null
@@ -572,32 +646,5 @@ class WidgetStateManager
                 locationLat = lat,
                 locationLon = lon,
             )
-        }
-
-        fun setCurrentTempDeltaState(
-            widgetId: Int,
-            state: CurrentTemperatureDeltaState,
-        ) {
-            prefs.edit()
-                .putFloat("$KEY_CURRENT_TEMP_DELTA_PREFIX$widgetId", state.delta)
-                .putFloat("$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$widgetId", state.lastObservedTemp)
-                .putLong("$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$widgetId", state.lastObservedFetchedAt)
-                .putLong("$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$widgetId", state.updatedAtMs)
-                .putString("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$widgetId", state.sourceId)
-                .putString("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId", state.locationLat.toString())
-                .putString("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId", state.locationLon.toString())
-                .apply()
-        }
-
-        fun clearCurrentTempDeltaState(widgetId: Int) {
-            prefs.edit()
-                .remove("$KEY_CURRENT_TEMP_DELTA_PREFIX$widgetId")
-                .remove("$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$widgetId")
-                .remove("$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$widgetId")
-                .remove("$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$widgetId")
-                .remove("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$widgetId")
-                .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId")
-                .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId")
-                .apply()
         }
     }

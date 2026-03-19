@@ -175,15 +175,15 @@ object PrecipViewHandler {
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentTemp,
                 observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
-                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId),
+                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,
             )
         val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (currentTempResolution.shouldClearStoredDelta) {
-            stateManager.clearCurrentTempDeltaState(appWidgetId)
+            stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
         }
-        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, it) }
+        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
         val currentTemp = currentTempResolution.displayTemp
         if (currentTemp != null) {
             val formattedTemp =
