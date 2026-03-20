@@ -15,7 +15,7 @@ class TemperatureFetchDotIntegrationTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Test
-    fun fetchDotCallbackReflectsNewObservedTimestampAcrossRenders() {
+    fun fetchDotCallbackReflectsNewActualSeriesAnchorAcrossRenders() {
         val startTime = LocalDateTime.of(2026, 2, 26, 10, 0)
         val currentTime = startTime.plusHours(2)
         val hours =
@@ -40,7 +40,7 @@ class TemperatureFetchDotIntegrationTest {
             widthPx = 900,
             heightPx = 320,
             currentTime = currentTime,
-            observedTempFetchedAt = firstObservedAt,
+            actualSeriesAnchorAt = firstObservedAt,
             onFetchDotResolved = { events.add(it) },
         )
 
@@ -50,13 +50,13 @@ class TemperatureFetchDotIntegrationTest {
             widthPx = 900,
             heightPx = 320,
             currentTime = currentTime,
-            observedTempFetchedAt = secondObservedAt,
+            actualSeriesAnchorAt = secondObservedAt,
             onFetchDotResolved = { events.add(it) },
         )
 
         assertEquals("Should emit one fetch-dot callback per render", 2, events.size)
-        assertEquals(firstObservedAt, events[0].observedTempFetchedAt)
-        assertEquals(secondObservedAt, events[1].observedTempFetchedAt)
+        assertEquals(firstObservedAt, events[0].actualSeriesAnchorAt)
+        assertEquals(secondObservedAt, events[1].actualSeriesAnchorAt)
         assertTrue(events[0].withinWindow)
         assertTrue(events[1].withinWindow)
         assertNotNull(events[0].fetchDotX)

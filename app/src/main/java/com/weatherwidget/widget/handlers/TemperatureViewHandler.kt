@@ -54,6 +54,7 @@ import kotlin.math.min
 object TemperatureViewHandler {
     private const val TAG = "TemperatureViewHandler"
     private const val CELL_HEIGHT_DP = 90
+    private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
     private const val HOURLY_BACKFILL_COOLDOWN_MS = 30 * 60 * 1000L
     private const val HOURLY_BACKFILL_SOURCE_KEY = "NWS_HOURLY_HISTORY"
@@ -121,6 +122,7 @@ object TemperatureViewHandler {
         val numRows = dimensions.rows
 
         val stateManager = WidgetStateManager(context)
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
 
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
@@ -320,6 +322,12 @@ object TemperatureViewHandler {
                 emptyList()
             }
         val isNowLineVisible = graphHours.any { it.isCurrentHour }
+        val delta = currentTempResolution.appliedDelta
+        val deltaVisible =
+            currentTemp != null &&
+                isNowLineVisible &&
+                delta != null &&
+                kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
 
         if (currentTemp != null) {
             val formattedTemp =
@@ -332,8 +340,7 @@ object TemperatureViewHandler {
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
 
             // Update delta badge
-            val delta = currentTempResolution.appliedDelta
-            if (isNowLineVisible && delta != null && kotlin.math.abs(delta) >= 0.1f) {
+            if (deltaVisible) {
                 val deltaText = String.format("%+.1f", delta)
                 val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
                 views.setTextViewText(R.id.current_temp_delta, deltaText)
@@ -365,6 +372,31 @@ object TemperatureViewHandler {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
 
+        Log.d(
+            TAG,
+            buildHeaderStateLog(
+                widgetId = appWidgetId,
+                viewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
+                displaySource = displaySource,
+                configuredLocation = configuredLocation,
+                dataLat = lat,
+                dataLon = lon,
+                dimensions = dimensions,
+                currentTemp = currentTemp,
+                estimatedTemp = currentTempResolution.estimatedTemp,
+                observedTemp = currentTempResolution.observedTemp,
+                appliedDelta = delta,
+                deltaVisible = deltaVisible,
+                deltaHiddenReason = temperatureDeltaHiddenReason(currentTemp, delta, isNowLineVisible),
+                precipVisible = headerPrecipProbability != null && headerPrecipProbability > 0,
+                precipProbability = headerPrecipProbability,
+                isNowLineVisible = isNowLineVisible,
+                offset = hourlyOffset,
+                zoom = zoom,
+                resolveMs = resolveMs,
+            ),
+        )
+
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
@@ -394,7 +426,7 @@ object TemperatureViewHandler {
                 currentTime = now,
                 bitmapScale = bitmapScale,
                 appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
-                observedTempFetchedAt = observedCurrentTempFetchedAt,
+                actualSeriesAnchorAt = graphHours.lastOrNull { it.isActual }?.dateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
                 onFetchDotResolved = onFetchDotResolved,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -529,11 +561,19 @@ object TemperatureViewHandler {
                 quickResolution.displayTemp == null || refined.displayTemp == null -> true
                 else -> kotlin.math.abs(quickResolution.displayTemp - refined.displayTemp) >= CURRENT_TEMP_FOLLOW_UP_EPSILON
             }
-        val quickDeltaVisible = isNowLineVisible && quickResolution.appliedDelta != null && kotlin.math.abs(quickResolution.appliedDelta) >= 0.1f
-        val refinedDeltaVisible = isNowLineVisible && refined.appliedDelta != null && kotlin.math.abs(refined.appliedDelta) >= 0.1f
+        val quickDeltaVisible =
+            isNowLineVisible &&
+                quickResolution.appliedDelta != null &&
+                kotlin.math.abs(quickResolution.appliedDelta) >= DELTA_VISIBILITY_THRESHOLD
+        val refinedDeltaVisible =
+            isNowLineVisible &&
+                refined.appliedDelta != null &&
+                kotlin.math.abs(refined.appliedDelta) >= DELTA_VISIBILITY_THRESHOLD
         val deltaChanged =
             quickDeltaVisible != refinedDeltaVisible ||
-                (quickDeltaVisible && refinedDeltaVisible && kotlin.math.abs((quickResolution.appliedDelta ?: 0f) - (refined.appliedDelta ?: 0f)) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
+                (quickDeltaVisible &&
+                    refinedDeltaVisible &&
+                    kotlin.math.abs(quickResolution.appliedDelta - refined.appliedDelta) >= CURRENT_TEMP_FOLLOW_UP_EPSILON)
         return tempChanged || deltaChanged || quickResolution.isStaleEstimate != refined.isStaleEstimate
     }
 
@@ -577,7 +617,7 @@ object TemperatureViewHandler {
             views.setViewVisibility(R.id.current_temp, View.GONE)
         }
 
-        if (currentTemp != null && isNowLineVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f) {
+        if (currentTemp != null && isNowLineVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD) {
             val deltaText = String.format("%+.1f", appliedDelta)
             val deltaColor = if (appliedDelta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
             views.setTextViewText(R.id.current_temp_delta, deltaText)
@@ -1632,6 +1672,56 @@ object TemperatureViewHandler {
             }
         }
     }
+
+    private fun temperatureDeltaHiddenReason(
+        currentTemp: Float?,
+        appliedDelta: Float?,
+        isNowLineVisible: Boolean,
+    ): String? =
+        when {
+            currentTemp == null -> "current_temp_missing"
+            !isNowLineVisible -> "now_line_hidden"
+            appliedDelta == null -> "no_delta"
+            kotlin.math.abs(appliedDelta) < DELTA_VISIBILITY_THRESHOLD -> "below_threshold"
+            else -> null
+        }
+
+    private fun buildHeaderStateLog(
+        widgetId: Int,
+        viewMode: com.weatherwidget.widget.ViewMode,
+        displaySource: WeatherSource,
+        configuredLocation: Pair<Double, Double>?,
+        dataLat: Double,
+        dataLon: Double,
+        dimensions: WidgetDimensions,
+        currentTemp: Float?,
+        estimatedTemp: Float?,
+        observedTemp: Float?,
+        appliedDelta: Float?,
+        deltaVisible: Boolean,
+        deltaHiddenReason: String?,
+        precipVisible: Boolean,
+        precipProbability: Int?,
+        isNowLineVisible: Boolean?,
+        offset: Int,
+        zoom: ZoomLevel?,
+        resolveMs: Long,
+    ): String =
+        "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
+            "configuredLoc=${formatLocation(configuredLocation)} dataLoc=${formatLocation(dataLat to dataLon)} " +
+            "cols=${dimensions.cols} rows=${dimensions.rows} sizeDp=${dimensions.widthDp}x${dimensions.heightDp} " +
+            "currentTemp=${formatTemp(currentTemp)} estimatedTemp=${formatTemp(estimatedTemp)} " +
+            "observedTemp=${formatTemp(observedTemp)} appliedDelta=${formatTemp(appliedDelta)} " +
+            "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
+            "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
+            "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
+
+    private fun formatLocation(location: Pair<Double, Double>?): String {
+        if (location == null) return "none"
+        return String.format("%.5f,%.5f", location.first, location.second)
+    }
+
+    private fun formatTemp(value: Float?): String = value?.let { String.format("%.2f", it) } ?: "none"
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 }

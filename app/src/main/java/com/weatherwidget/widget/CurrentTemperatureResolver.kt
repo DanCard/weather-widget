@@ -85,6 +85,18 @@ object CurrentTemperatureResolver {
                     kotlin.math.abs(it.locationLat - currentLat) < 0.000001 &&
                     kotlin.math.abs(it.locationLon - currentLon) < 0.000001
             } ?: false
+        if (storedDeltaState != null && !scopeMatch) {
+            val mismatchReason =
+                buildList {
+                    if (storedDeltaState.sourceId != displaySource.id) add("source")
+                    if (kotlin.math.abs(storedDeltaState.locationLat - currentLat) >= 0.000001) add("lat")
+                    if (kotlin.math.abs(storedDeltaState.locationLon - currentLon) >= 0.000001) add("lon")
+                }.joinToString(",")
+            debugLog(
+                "resolve:storedDelta scopeMismatch=$mismatchReason requestedSource=${displaySource.id} " +
+                    "requestedLat=$currentLat requestedLon=$currentLon",
+            )
+        }
         debugLog(
             "resolve:storedDelta=" +
                 storedDeltaState?.let {

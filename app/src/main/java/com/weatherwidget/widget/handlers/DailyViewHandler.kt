@@ -47,6 +47,7 @@ object DailyViewHandler : WidgetViewHandler {
     private const val CELL_HEIGHT_DP = 90
     private const val MISSING_ACTUALS_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
+    private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private data class DayIds(
         val container: Int,
         val label: Int,
@@ -227,6 +228,7 @@ object DailyViewHandler : WidgetViewHandler {
         }
         currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
         val currentTemp = currentTempResolution.displayTemp
+        val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
 
         if (currentTemp != null) {
             val formattedTemp =
@@ -262,12 +264,12 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         val delta = currentTempResolution.appliedDelta
-        if (
+        val deltaVisible =
             currentTemp != null &&
             !isPrecipVisible &&
             delta != null &&
-            kotlin.math.abs(delta) >= 0.1f
-        ) {
+            kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
+        if (deltaVisible) {
             val deltaText = String.format("%+.1f", delta)
             val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
             views.setTextViewText(R.id.current_temp_delta, deltaText)
@@ -279,6 +281,30 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Setup API source toggle click handler
         setupApiToggle(context, views, appWidgetId, numRows)
+        Log.d(
+            TAG,
+            buildHeaderStateLog(
+                widgetId = appWidgetId,
+                viewMode = com.weatherwidget.widget.ViewMode.DAILY,
+                displaySource = displaySource,
+                configuredLocation = configuredLocation,
+                dataLat = lat,
+                dataLon = lon,
+                dimensions = dimensions,
+                currentTemp = currentTemp,
+                estimatedTemp = currentTempResolution.estimatedTemp,
+                observedTemp = currentTempResolution.observedTemp,
+                appliedDelta = delta,
+                deltaVisible = deltaVisible,
+                deltaHiddenReason = dailyDeltaHiddenReason(currentTemp, delta, isPrecipVisible),
+                precipVisible = isPrecipVisible,
+                precipProbability = precipProb,
+                isNowLineVisible = null,
+                offset = dateOffset,
+                zoom = null,
+                resolveMs = resolveMs,
+            ),
+        )
         
         // Hide history icon and delta badge in daily mode
         views.setViewVisibility(R.id.home_icon, View.GONE)
@@ -816,4 +842,54 @@ object DailyViewHandler : WidgetViewHandler {
         }
         for (i in days.size until zoneIds.size) views.setViewVisibility(zoneIds[i], View.GONE)
     }
+
+    private fun dailyDeltaHiddenReason(
+        currentTemp: Float?,
+        appliedDelta: Float?,
+        isPrecipVisible: Boolean,
+    ): String? =
+        when {
+            currentTemp == null -> "current_temp_missing"
+            isPrecipVisible -> "precip_supersedes"
+            appliedDelta == null -> "no_delta"
+            kotlin.math.abs(appliedDelta) < DELTA_VISIBILITY_THRESHOLD -> "below_threshold"
+            else -> null
+        }
+
+    private fun buildHeaderStateLog(
+        widgetId: Int,
+        viewMode: com.weatherwidget.widget.ViewMode,
+        displaySource: WeatherSource,
+        configuredLocation: Pair<Double, Double>?,
+        dataLat: Double,
+        dataLon: Double,
+        dimensions: WidgetDimensions,
+        currentTemp: Float?,
+        estimatedTemp: Float?,
+        observedTemp: Float?,
+        appliedDelta: Float?,
+        deltaVisible: Boolean,
+        deltaHiddenReason: String?,
+        precipVisible: Boolean,
+        precipProbability: Int?,
+        isNowLineVisible: Boolean?,
+        offset: Int,
+        zoom: com.weatherwidget.widget.ZoomLevel?,
+        resolveMs: Long,
+    ): String =
+        "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
+            "configuredLoc=${formatLocation(configuredLocation)} dataLoc=${formatLocation(dataLat to dataLon)} " +
+            "cols=${dimensions.cols} rows=${dimensions.rows} sizeDp=${dimensions.widthDp}x${dimensions.heightDp} " +
+            "currentTemp=${formatTemp(currentTemp)} estimatedTemp=${formatTemp(estimatedTemp)} " +
+            "observedTemp=${formatTemp(observedTemp)} appliedDelta=${formatTemp(appliedDelta)} " +
+            "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
+            "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
+            "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
+
+    private fun formatLocation(location: Pair<Double, Double>?): String {
+        if (location == null) return "none"
+        return String.format("%.5f,%.5f", location.first, location.second)
+    }
+
+    private fun formatTemp(value: Float?): String = value?.let { String.format("%.2f", it) } ?: "none"
 }
