@@ -211,7 +211,28 @@ class ForecastRepository
             onCurrentTempCallback: (suspend (String, Float, Long, String?) -> Unit)?
         ): FetchResult = coroutineScope {
             val nwsDeferred = if (shouldFetchNws) async {
-                try { fetchFromNws(latitude, longitude, locationName) } catch (exception: Exception) { 
+                try {
+                    val forecasts = fetchFromNws(latitude, longitude, locationName)
+                    
+                    // Trigger current temp callback for NWS using the specialized observation fetch
+                    if (onCurrentTempCallback != null) {
+                        try {
+                            val reading = observationRepository.fetchNwsCurrent(latitude, longitude)
+                            if (reading != null) {
+                                onCurrentTempCallback(
+                                    WeatherSource.NWS.id,
+                                    reading.temperature,
+                                    reading.observedAt ?: System.currentTimeMillis(),
+                                    reading.condition
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e("ForecastRepository", "Failed to fetch NWS current temp during full sync", e)
+                        }
+                    }
+                    
+                    forecasts
+                } catch (exception: Exception) { 
                     appLogDao.log("FETCH_NWS_FAIL", "${exception.message}", "WARN")
                     null 
                 }

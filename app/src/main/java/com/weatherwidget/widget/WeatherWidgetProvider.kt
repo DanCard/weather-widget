@@ -453,6 +453,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // Always ensure current temperature gets refreshed on a manual widget refresh
+                val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, true)
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "manual_refresh")
+                            .build()
+                    )
+                    .build()
+                WorkManager.getInstance(context).enqueueUniqueWork(
+                    WORK_NAME_ONE_TIME + "_current_temp",
+                    ExistingWorkPolicy.REPLACE,
+                    tempWorkRequest
+                )
+                
                 val isDataStale = DataFreshness.isDataStale(context)
                 if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
                     Log.d(TAG, "onReceive: Data is stale, triggering background fetch")

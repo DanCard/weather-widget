@@ -75,6 +75,7 @@ screenshots/
 backups/
 logs/
 temp/
+crap/
 
 # Python cache
 __pycache__/

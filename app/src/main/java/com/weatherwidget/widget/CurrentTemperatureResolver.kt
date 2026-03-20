@@ -121,29 +121,57 @@ object CurrentTemperatureResolver {
             }
         var updatedDeltaState: CurrentTemperatureDeltaState? = null
 
-        if (observedCurrentTemp != null && observedCurrentTempFetchedAt != null && estimatedTemp != null) {
+        if (observedCurrentTemp != null && observedCurrentTempFetchedAt != null) {
             val hasNewObservedReading = scopedStoredDelta?.lastObservedFetchedAt != observedCurrentTempFetchedAt
             debugLog(
-                "resolve:observed+estimated available hasNewObservedReading=$hasNewObservedReading " +
+                "resolve:observed available hasNewObservedReading=$hasNewObservedReading " +
                     "storedFetchedAt=${scopedStoredDelta?.lastObservedFetchedAt}",
             )
             if (scopedStoredDelta == null || hasNewObservedReading) {
-                val delta = observedCurrentTemp - estimatedTemp
-                appliedDelta = delta
-                updatedDeltaState =
-                    CurrentTemperatureDeltaState(
-                        delta = delta,
-                        lastObservedTemp = observedCurrentTemp,
-                        lastObservedFetchedAt = observedCurrentTempFetchedAt,
-                        updatedAtMs = observedCurrentTempFetchedAt.coerceAtMost(nowMs),
-                        sourceId = displaySource.id,
-                        locationLat = currentLat,
-                        locationLon = currentLon,
-                    )
-                debugLog(
-                    "resolve:updatedDeltaState rawDelta=$delta updatedAt=${updatedDeltaState.updatedAtMs} " +
-                        "observedTemp=$observedCurrentTemp estimatedTemp=$estimatedTemp",
+                // To calculate an accurate delta, we must compare the observation against
+                // what the forecast was at the moment that observation was taken.
+                val obsTime = LocalDateTime.ofInstant(
+                    java.time.Instant.ofEpochMilli(observedCurrentTempFetchedAt),
+                    ZoneId.systemDefault()
                 )
+                val estimatedAtObsTime = interpolator.getInterpolatedTemperature(
+                    hourlyForecasts = hourlyForecasts,
+                    targetTime = obsTime,
+                    source = displaySource
+                )
+
+                if (estimatedAtObsTime != null) {
+                    val delta = observedCurrentTemp - estimatedAtObsTime
+                    appliedDelta = delta
+                    updatedDeltaState =
+                        CurrentTemperatureDeltaState(
+                            delta = delta,
+                            lastObservedTemp = observedCurrentTemp,
+                            lastObservedFetchedAt = observedCurrentTempFetchedAt,
+                            updatedAtMs = observedCurrentTempFetchedAt.coerceAtMost(nowMs),
+                            sourceId = displaySource.id,
+                            locationLat = currentLat,
+                            locationLon = currentLon,
+                        )
+                    debugLog(
+                        "resolve:updatedDeltaState rawDelta=$delta updatedAt=${updatedDeltaState.updatedAtMs} " +
+                            "observedTemp=$observedCurrentTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
+                    )
+                } else if (estimatedTemp != null) {
+                    // Fallback to current estimate if we can't find forecast for the observation time
+                    val delta = observedCurrentTemp - estimatedTemp
+                    appliedDelta = delta
+                    updatedDeltaState =
+                        CurrentTemperatureDeltaState(
+                            delta = delta,
+                            lastObservedTemp = observedCurrentTemp,
+                            lastObservedFetchedAt = observedCurrentTempFetchedAt,
+                            updatedAtMs = observedCurrentTempFetchedAt.coerceAtMost(nowMs),
+                            sourceId = displaySource.id,
+                            locationLat = currentLat,
+                            locationLon = currentLon,
+                        )
+                }
             } else {
                 debugLog("resolve:reusing existing stored delta without update")
             }

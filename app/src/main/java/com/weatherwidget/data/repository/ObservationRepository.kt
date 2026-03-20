@@ -31,6 +31,7 @@ class ObservationRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val observationDao: ObservationDao,
     private val dailyExtremeDao: DailyExtremeDao,
+    private val currentTempDao: com.weatherwidget.data.local.CurrentTempDao,
     private val appLogDao: AppLogDao,
     private val nwsApi: NwsApi
 ) {
@@ -378,6 +379,27 @@ class ObservationRepository @Inject constructor(
         if (dayObs.isNotEmpty()) {
             val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
             dailyExtremeDao.insertAll(extremes)
+
+            // If we just refreshed observations for Today, sync the current_temp table
+            // so the header delta matches the graph's latest observation dot.
+            if (day == LocalDate.now()) {
+                val latest = dayObs.maxByOrNull { it.timestamp }
+                if (latest != null) {
+                    currentTempDao.insert(
+                        com.weatherwidget.data.local.CurrentTempEntity(
+                            date = day.toString(),
+                            source = WeatherSource.NWS.id,
+                            locationLat = latitude,
+                            locationLon = longitude,
+                            temperature = latest.temperature,
+                            observedAt = latest.timestamp,
+                            condition = latest.condition,
+                            fetchedAt = System.currentTimeMillis()
+                        )
+                    )
+                    appLogDao.log("TEMP_SYNC_OBS", "source=NWS temp=${latest.temperature} observedAt=${latest.timestamp}")
+                }
+            }
         }
     }
 

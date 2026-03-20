@@ -130,10 +130,11 @@ object AppModule {
         @ApplicationContext context: Context,
         observationDao: ObservationDao,
         dailyExtremeDao: DailyExtremeDao,
+        currentTempDao: CurrentTempDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
     ): ObservationRepository = ObservationRepository(
-        context, observationDao, dailyExtremeDao, appLogDao, nwsApi
+        context, observationDao, dailyExtremeDao, currentTempDao, appLogDao, nwsApi
     )
 
     @Provides

@@ -191,52 +191,16 @@ object TemperatureViewHandler {
         // Setup Current Stations shortcut
         setupCurrentStationsShortcut(context, views, appWidgetId)
 
-        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
-        val resolveStartMs = SystemClock.elapsedRealtime()
-        val currentTempResolution =
-            if (deferCurrentTempResolution) {
-                val quick =
-                    CurrentTemperatureResolver.resolveQuick(
-                        now = now,
-                        displaySource = displaySource,
-                        hourlyForecasts = hourlyForecasts,
-                        observedCurrentTemp = observedCurrentTemp,
-                    )
-                CurrentTemperatureResolution(
-                    displayTemp = quick.displayTemp,
-                    estimatedTemp = quick.estimatedTemp,
-                    observedTemp = quick.observedTemp,
-                    isStaleEstimate = quick.isStaleEstimate,
-                    appliedDelta = null,
-                    updatedDeltaState = null,
-                    shouldClearStoredDelta = false,
-                )
-            } else {
-                CurrentTemperatureResolver.resolve(
-                    now = now,
-                    displaySource = displaySource,
-                    hourlyForecasts = hourlyForecasts,
-                    observedCurrentTemp = observedCurrentTemp,
-                    observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
-                    storedDeltaState = storedDeltaState,
-                    currentLat = lat,
-                    currentLon = lon,
-                )
-            }
-        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
-        if (!deferCurrentTempResolution) {
-            if (currentTempResolution.shouldClearStoredDelta) {
-                stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
-            }
-            currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
-        }
-        val currentTemp = currentTempResolution.displayTemp
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
         val deferStartupGraphActuals = startupToken != null && useGraph
         var obsQueryMs = 0L
         var buildHourDataMs = 0L
         var renderMs = 0L
+
+        var graphObservedTemp: Float? = null
+        var graphObservedAt: Long? = null
+
         val graphHours =
             if (useGraph) {
                 // Query actuals for the graph's time window (WIDE: backHours=8)
@@ -285,6 +249,16 @@ object TemperatureViewHandler {
                 buildHourDataMs = afterBlendMs - buildHourDataStartMs
                 val actualCount = hourData.count { it.isActual }
                 Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
+
+                // Extract the latest ground-truth observation from the graph's blending results.
+                // This ensures the header delta and the graph dot use identical values.
+                val latestObs = hourData.filter { it.isObservedActual && it.actualTemperature != null }
+                    .maxByOrNull { it.dateTime }
+                if (latestObs != null) {
+                    graphObservedTemp = latestObs.actualTemperature
+                    graphObservedAt = latestObs.dateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                }
+
                 if (!deferStartupGraphActuals) {
                     val stationIds = observations
                         .filter { matchesObservationSource(it, displaySource) }
@@ -321,6 +295,53 @@ object TemperatureViewHandler {
             } else {
                 emptyList()
             }
+
+        // Final current temperature resolution using either the graph's fresh blending result
+        // or falling back to the simple database observation.
+        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
+        val finalObsTemp = graphObservedTemp ?: observedCurrentTemp
+        val finalObsAt = graphObservedAt ?: observedCurrentTempFetchedAt
+
+        val resolveStartMs = SystemClock.elapsedRealtime()
+        val currentTempResolution =
+            if (deferCurrentTempResolution) {
+                val quick =
+                    CurrentTemperatureResolver.resolveQuick(
+                        now = now,
+                        displaySource = displaySource,
+                        hourlyForecasts = hourlyForecasts,
+                        observedCurrentTemp = finalObsTemp,
+                    )
+                CurrentTemperatureResolution(
+                    displayTemp = quick.displayTemp,
+                    estimatedTemp = quick.estimatedTemp,
+                    observedTemp = quick.observedTemp,
+                    isStaleEstimate = quick.isStaleEstimate,
+                    appliedDelta = null,
+                    updatedDeltaState = null,
+                    shouldClearStoredDelta = false,
+                )
+            } else {
+                CurrentTemperatureResolver.resolve(
+                    now = now,
+                    displaySource = displaySource,
+                    hourlyForecasts = hourlyForecasts,
+                    observedCurrentTemp = finalObsTemp,
+                    observedCurrentTempFetchedAt = finalObsAt,
+                    storedDeltaState = storedDeltaState,
+                    currentLat = lat,
+                    currentLon = lon,
+                )
+            }
+        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
+        if (!deferCurrentTempResolution) {
+            if (currentTempResolution.shouldClearStoredDelta) {
+                stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
+            }
+            currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
+        }
+
+        val currentTemp = currentTempResolution.displayTemp
         val isNowLineVisible = graphHours.any { it.isCurrentHour }
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =
