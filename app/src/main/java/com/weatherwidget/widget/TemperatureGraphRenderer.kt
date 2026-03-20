@@ -455,7 +455,11 @@ object TemperatureGraphRenderer {
         val transitionX: Float? = rawTransitionX?.let { raw ->
             listOfNotNull(raw, nowX, fetchDotX).min()
         }
-        Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, fetchDotX=$fetchDotX, rawTransitionX=$rawTransitionX, transitionX=$transitionX, widthPx=$widthPx")
+        val effectiveActualEndIndex = if (transitionX != null) {
+            val idx = originalPoints.indexOfLast { it.first <= transitionX + 1f }
+            if (idx >= 0) idx else lastActualIndex
+        } else -1
+        Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, fetchDotX=$fetchDotX, rawTransitionX=$rawTransitionX, transitionX=$transitionX, effectiveActualEndIndex=$effectiveActualEndIndex, widthPx=$widthPx")
 
         // --- Draw fill ---
         // Fill is always under the forecast line (full width at low opacity)
@@ -679,6 +683,19 @@ object TemperatureGraphRenderer {
                         role = "LOCAL",
                         labelTemps = smoothedLabelTemps,
                         rawTemperature = hours[idx].temperature,
+                    )
+                }
+            }
+        }
+        if (effectiveActualEndIndex > 0 && effectiveActualEndIndex < hours.size - 1) {
+            if (specialCandidates.none { it.index == effectiveActualEndIndex }) {
+                val labelText = String.format("%.1f", smoothedLabelTemps[effectiveActualEndIndex])
+                if (specialCandidates.none { Math.abs(effectiveActualEndIndex - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
+                    addCandidate(
+                        index = effectiveActualEndIndex,
+                        role = "ACTUAL_END",
+                        labelTemps = smoothedLabelTemps,
+                        rawTemperature = hours[effectiveActualEndIndex].temperature,
                     )
                 }
             }
