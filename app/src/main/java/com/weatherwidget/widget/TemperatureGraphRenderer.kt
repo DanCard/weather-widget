@@ -212,6 +212,8 @@ object TemperatureGraphRenderer {
         val graphBottom = (footerTop + dpToPx(context, GRAPH_BOTTOM_OVERLAP_DP)).coerceAtMost(heightPx.toFloat() - labelHeight)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
+        android.util.Log.d("TempGraphRenderer", "Layout: widthPx=$widthPx, heightPx=$heightPx, topPadding=$topPadding, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
+
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
         val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
         val timeRangeHours = if (maxTimeEpoch > minTimeEpoch) (maxTimeEpoch - minTimeEpoch) / 3600f else hours.size.toFloat() - 1f
@@ -615,8 +617,9 @@ object TemperatureGraphRenderer {
             val textHeight = tempLabelTextPaint.textSize
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && smoothedLabelTemps[idx] > smoothedLabelTemps.getOrElse(idx-1){0f}))
-            val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && smoothedLabelTemps[idx] < smoothedLabelTemps.getOrElse(idx-1){1000f}))
+            val leftVal = smoothedLabelTemps.subList(0, idx).findLast { it != smoothedLabelTemps[idx] } ?: 0f
+            val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && smoothedLabelTemps[idx] > leftVal))
+            val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && smoothedLabelTemps[idx] < leftVal))
 
             val preferBelow = if (isPeak) false else if (isValley) true else sy < graphTop + graphHeight / 2f
             val attempts = if (preferBelow) listOf(true, false) else listOf(false, true)
@@ -624,7 +627,7 @@ object TemperatureGraphRenderer {
             for (drawBelow in attempts) {
                 val candidateY = if (drawBelow) sy + textHeight + dpToPx(context, 3f) else sy - dpToPx(context, 5f)
                 val bounds = RectF(clampedX - textWidth / 2f, candidateY - textHeight, clampedX + textWidth / 2f, candidateY)
-                if (bounds.top >= 0f && bounds.bottom <= heightPx && drawnLabelBounds.none { RectF.intersects(it, bounds) } && drawnIconBounds.none { RectF.intersects(it, bounds) }) {
+                if (bounds.bottom <= heightPx && drawnLabelBounds.none { RectF.intersects(it, bounds) } && drawnIconBounds.none { RectF.intersects(it, bounds) }) {
                     canvas.drawText(label, clampedX, candidateY, tempLabelTextPaint)
                     drawnLabelBounds.add(bounds)
 
