@@ -146,11 +146,12 @@ class CurrentTemperatureResolverTest {
                 hourly(now.withMinute(0), 40f, fetchedAt = nowMs),
                 hourly(now.plusHours(1).withMinute(0), 44f, fetchedAt = nowMs),
             )
+        val oldObsFetchedAt = nowMs - (60 * 60 * 1000L)
         val stored =
             CurrentTemperatureDeltaState(
                 delta = -3f,
                 lastObservedTemp = 39f,
-                lastObservedFetchedAt = 1000L,
+                lastObservedFetchedAt = oldObsFetchedAt,
                 updatedAtMs = nowMs - (3 * 60 * 60 * 1000L),
                 sourceId = WeatherSource.NWS.id,
                 locationLat = 0.0,
@@ -163,7 +164,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = 41f,
-                observedCurrentTempFetchedAt = 2000L,
+                observedCurrentTempFetchedAt = nowMs,
                 storedDeltaState = stored,
                 currentLat = 0.0,
                 currentLon = 0.0,
@@ -172,7 +173,7 @@ class CurrentTemperatureResolverTest {
         assertEquals(43f, result.estimatedTemp!!, 0.01f)
         assertEquals(41f, result.displayTemp!!, 0.01f)
         assertEquals(-2f, result.appliedDelta!!, 0.01f)
-        assertEquals(2000L, result.updatedDeltaState?.lastObservedFetchedAt)
+        assertEquals(nowMs, result.updatedDeltaState?.lastObservedFetchedAt)
     }
 
     @Test
