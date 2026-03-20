@@ -2,9 +2,9 @@ package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.WidgetStateManager
 
@@ -22,7 +22,7 @@ interface WidgetViewHandler {
      * @param weatherList List of weather entities
      * @param forecastSnapshots Map of forecast snapshots by date
      * @param hourlyForecasts List of hourly forecasts
-     * @param currentTemps Current temperature observations from separate table
+     * @param currentTemps Current temperature observations (from _MAIN observation entries)
      */
     suspend fun updateWidget(
         context: Context,
@@ -31,7 +31,7 @@ interface WidgetViewHandler {
         weatherList: List<ForecastEntity>,
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<CurrentTempEntity> = emptyList(),
+        currentTemps: List<ObservationEntity> = emptyList(),
         dailyActualsBySource: DailyActualsBySource = emptyMap(),
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     )

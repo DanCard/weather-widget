@@ -2,8 +2,6 @@ package com.weatherwidget.data.repository
 
 import android.content.Context
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.CurrentTempDao
-import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -29,7 +27,6 @@ class WeatherRepository
         private val currentTempRepository: CurrentTempRepository,
         private val forecastDao: ForecastDao,
         private val appLogDao: AppLogDao,
-        private val currentTempDao: CurrentTempDao,
         private val observationRepository: ObservationRepository,
     ) {
         suspend fun getWeatherData(
@@ -42,20 +39,7 @@ class WeatherRepository
         ): Result<List<ForecastEntity>> {
             return forecastRepository.getWeatherData(
                 latitude, longitude, locationName, forceRefresh, networkAllowed, targetSourceId
-            ) { source, temperature, observedAt, condition ->
-                currentTempDao.insert(
-                    CurrentTempEntity(
-                        java.time.LocalDate.now().toString(), 
-                        source, 
-                        latitude, 
-                        longitude, 
-                        temperature, 
-                        observedAt, 
-                        condition, 
-                        System.currentTimeMillis()
-                    )
-                )
-            }
+            )
         }
 
         suspend fun refreshCurrentTemperature(

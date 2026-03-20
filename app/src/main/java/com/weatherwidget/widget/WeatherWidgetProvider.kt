@@ -148,12 +148,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         )
                     hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
 
-                    val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
                     val currentTempQueryStartMs = SystemClock.elapsedRealtime()
-                    val currentTemps = database.currentTempDao().getCurrentTemps(
-                        todayStr,
+                    val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    val currentTemps = database.observationDao().getLatestMainObservations(
                         latestWeather.locationLat,
                         latestWeather.locationLon,
+                        todayStartMs,
                     )
                     currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
 
@@ -810,7 +810,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             weatherList: List<ForecastEntity>,
             forecastSnapshots: Map<String, List<ForecastEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
-            currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
+            currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
             dailyActualsBySource: DailyActualsBySource = emptyMap(),
             repository: com.weatherwidget.data.repository.WeatherRepository? = null,
             startupToken: String? = null,

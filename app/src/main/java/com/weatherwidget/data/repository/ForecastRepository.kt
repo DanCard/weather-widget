@@ -89,7 +89,6 @@ class ForecastRepository
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
-            onCurrentTempCallback: (suspend (String, Float, Long, String?) -> Unit)? = null
         ): Result<List<ForecastEntity>> {
             try {
                 // Initial check without locking
@@ -133,7 +132,6 @@ class ForecastRepository
                         WeatherSource.OPEN_METEO in enabledSources && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
                         WeatherSource.WEATHER_API in enabledSources && (shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts)),
                         WeatherSource.SILURIAN in enabledSources && (shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts)),
-                        onCurrentTempCallback
                     )
 
                     // Determine the end of our real forecast coverage to fill in the rest with climate normals
@@ -208,33 +206,13 @@ class ForecastRepository
             shouldFetchMeteo: Boolean,
             shouldFetchWapi: Boolean,
             shouldFetchSilurian: Boolean,
-            onCurrentTempCallback: (suspend (String, Float, Long, String?) -> Unit)?
         ): FetchResult = coroutineScope {
             val nwsDeferred = if (shouldFetchNws) async {
                 try {
-                    val forecasts = fetchFromNws(latitude, longitude, locationName)
-                    
-                    // Trigger current temp callback for NWS using the specialized observation fetch
-                    if (onCurrentTempCallback != null) {
-                        try {
-                            val reading = observationRepository.fetchNwsCurrent(latitude, longitude)
-                            if (reading != null) {
-                                onCurrentTempCallback(
-                                    WeatherSource.NWS.id,
-                                    reading.temperature,
-                                    reading.observedAt ?: System.currentTimeMillis(),
-                                    reading.condition
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.e("ForecastRepository", "Failed to fetch NWS current temp during full sync", e)
-                        }
-                    }
-                    
-                    forecasts
-                } catch (exception: Exception) { 
+                    fetchFromNws(latitude, longitude, locationName)
+                } catch (exception: Exception) {
                     appLogDao.log("FETCH_NWS_FAIL", "${exception.message}", "WARN")
-                    null 
+                    null
                 }
             } else null
             
@@ -248,14 +226,6 @@ class ForecastRepository
                     )
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyForecasts(result.hourly, latitude, longitude)
-                    }
-                    if (result.currentTemp != null && onCurrentTempCallback != null) {
-                        onCurrentTempCallback(
-                            WeatherSource.OPEN_METEO.id, 
-                            result.currentTemp, 
-                            result.currentObservedAt ?: System.currentTimeMillis(), 
-                            null
-                        )
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -284,14 +254,6 @@ class ForecastRepository
                     if (result.hourly.isNotEmpty()) {
                         saveWeatherApiHourlyForecasts(result.hourly, latitude, longitude)
                     }
-                    if (result.currentTemp != null && onCurrentTempCallback != null) {
-                        onCurrentTempCallback(
-                            WeatherSource.WEATHER_API.id, 
-                            result.currentTemp, 
-                            result.currentObservedAt ?: System.currentTimeMillis(), 
-                            null
-                        )
-                    }
                     result.daily.map { day ->
                         ForecastEntity(
                             targetDate = day.date, 
@@ -318,14 +280,6 @@ class ForecastRepository
                     val result = silurianApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
                         saveSilurianHourlyForecasts(result.hourly, latitude, longitude)
-                    }
-                    if (result.currentTemp != null && onCurrentTempCallback != null) {
-                        onCurrentTempCallback(
-                            WeatherSource.SILURIAN.id,
-                            result.currentTemp,
-                            result.currentObservedAt ?: System.currentTimeMillis(),
-                            result.currentCondition
-                        )
                     }
                     result.daily.map { day ->
                         ForecastEntity(

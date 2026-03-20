@@ -4,8 +4,6 @@ import android.content.Context
 import android.location.Location
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
-import com.weatherwidget.data.local.CurrentTempDao
-import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ObservationDao
@@ -43,7 +41,6 @@ class CurrentTempRepository
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
-        private val currentTempDao: CurrentTempDao,
         private val observationDao: ObservationDao,
         private val hourlyForecastDao: HourlyForecastDao,
         private val appLogDao: AppLogDao,
@@ -95,21 +92,9 @@ class CurrentTempRepository
                     
                     targetSources.forEach { targetSource ->
                         try {
-                            val reading = fetchFromSource(targetSource, latitude, longitude) ?: return@forEach
-                            currentTempDao.insert(
-                                CurrentTempEntity(
-                                    LocalDate.now().toString(), 
-                                    reading.source.id, 
-                                    latitude, 
-                                    longitude, 
-                                    reading.temperature, 
-                                    reading.observedAt ?: currentTime, 
-                                    reading.condition, 
-                                    currentTime
-                                )
-                            )
-                        } catch (exception: Exception) { 
-                            appLogDao.log("CURR_FETCH_ERROR", "source=${targetSource.id} error=${exception.message}", "WARN") 
+                            fetchFromSource(targetSource, latitude, longitude) ?: return@forEach
+                        } catch (exception: Exception) {
+                            appLogDao.log("CURR_FETCH_ERROR", "source=${targetSource.id} error=${exception.message}", "WARN")
                         }
                     }
                     

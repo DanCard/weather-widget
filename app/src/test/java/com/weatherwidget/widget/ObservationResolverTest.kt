@@ -1,6 +1,5 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
@@ -13,31 +12,31 @@ class ObservationResolverTest {
 
     @Test
     fun `resolveObservedCurrentTemp picks newest observation for active source`() {
-        val currentTemps =
+        val observations =
             listOf(
-                currentTemp(
-                    source = WeatherSource.NWS.id,
+                currentTempObservation(
+                    stationId = "NWS_MAIN",
                     temperature = 53.0f,
                     fetchedAt = 1_000L,
-                    observedAt = 900L,
+                    timestamp = 900L,
                 ),
-                currentTemp(
-                    source = WeatherSource.NWS.id,
+                currentTempObservation(
+                    stationId = "NWS_MAIN",
                     temperature = 54.0f,
                     fetchedAt = 2_000L,
-                    observedAt = 1_800L,
+                    timestamp = 1_800L,
                 ),
-                currentTemp(
-                    source = WeatherSource.OPEN_METEO.id,
+                currentTempObservation(
+                    stationId = "OPEN_METEO_MAIN",
                     temperature = 60.0f,
                     fetchedAt = 3_000L,
-                    observedAt = 3_000L,
+                    timestamp = 3_000L,
                 ),
             )
 
         val resolved =
             ObservationResolver.resolveObservedCurrentTemp(
-                currentTemps = currentTemps,
+                observations = observations,
                 displaySource = WeatherSource.NWS,
             )
 
@@ -50,19 +49,19 @@ class ObservationResolverTest {
 
     @Test
     fun `resolveObservedCurrentTemp uses observedAt for ordering`() {
-        val currentTemps =
+        val observations =
             listOf(
-                currentTemp(
-                    source = WeatherSource.NWS.id,
+                currentTempObservation(
+                    stationId = "NWS_MAIN",
                     temperature = 51.0f,
                     fetchedAt = 7_000L,
-                    observedAt = 5_000L,
+                    timestamp = 5_000L,
                 ),
             )
 
         val resolved =
             ObservationResolver.resolveObservedCurrentTemp(
-                currentTemps = currentTemps,
+                observations = observations,
                 displaySource = WeatherSource.NWS,
             )
 
@@ -75,19 +74,19 @@ class ObservationResolverTest {
 
     @Test
     fun `resolveObservedCurrentTemp returns null when active source has no current temp`() {
-        val currentTemps =
+        val observations =
             listOf(
-                currentTemp(
-                    source = WeatherSource.OPEN_METEO.id,
+                currentTempObservation(
+                    stationId = "OPEN_METEO_MAIN",
                     temperature = 60.0f,
                     fetchedAt = 3_000L,
-                    observedAt = 3_000L,
+                    timestamp = 3_000L,
                 ),
             )
 
         val resolved =
             ObservationResolver.resolveObservedCurrentTemp(
-                currentTemps = currentTemps,
+                observations = observations,
                 displaySource = WeatherSource.NWS,
             )
 
@@ -212,20 +211,20 @@ class ObservationResolverTest {
         minTempLast24h = minTempLast24h,
     )
 
-    private fun currentTemp(
-        source: String,
+    private fun currentTempObservation(
+        stationId: String,
         temperature: Float,
         fetchedAt: Long,
-        observedAt: Long,
-    ): CurrentTempEntity {
-        return CurrentTempEntity(
-            date = "2026-02-26",
-            source = source,
+        timestamp: Long,
+    ): ObservationEntity {
+        return ObservationEntity(
+            stationId = stationId,
+            stationName = "Test Station",
+            timestamp = timestamp,
+            temperature = temperature,
+            condition = "Clear",
             locationLat = 37.42,
             locationLon = -122.08,
-            temperature = temperature,
-            observedAt = observedAt,
-            condition = "Clear",
             fetchedAt = fetchedAt,
         )
     }

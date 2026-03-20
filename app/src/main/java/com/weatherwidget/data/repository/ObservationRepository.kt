@@ -31,7 +31,6 @@ class ObservationRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val observationDao: ObservationDao,
     private val dailyExtremeDao: DailyExtremeDao,
-    private val currentTempDao: com.weatherwidget.data.local.CurrentTempDao,
     private val appLogDao: AppLogDao,
     private val nwsApi: NwsApi
 ) {
@@ -83,6 +82,20 @@ class ObservationRepository @Inject constructor(
         val stationSummary = successfulEntities.joinToString { "${it.stationId}(${it.distanceKm}km)" }
         appLogDao.log("NWS_IDW", "blended=${blendedTemp}°F from ${successfulEntities.size} stations: $stationSummary")
         Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary")
+
+        // Store blended result as a synthetic NWS_MAIN observation for unified current temp reads
+        val blendedObs = ObservationEntity(
+            stationId = "NWS_MAIN",
+            stationName = "NWS Blended",
+            timestamp = successfulEntities.maxOf { it.timestamp },
+            temperature = blendedTemp,
+            condition = closest.condition,
+            locationLat = latitude,
+            locationLon = longitude,
+            distanceKm = 0f,
+            stationType = "BLENDED",
+        )
+        observationDao.insertAll(listOf(blendedObs))
 
         CurrentReadingPayload(
             WeatherSource.NWS,
@@ -379,27 +392,6 @@ class ObservationRepository @Inject constructor(
         if (dayObs.isNotEmpty()) {
             val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
             dailyExtremeDao.insertAll(extremes)
-
-            // If we just refreshed observations for Today, sync the current_temp table
-            // so the header delta matches the graph's latest observation dot.
-            if (day == LocalDate.now()) {
-                val latest = dayObs.maxByOrNull { it.timestamp }
-                if (latest != null) {
-                    currentTempDao.insert(
-                        com.weatherwidget.data.local.CurrentTempEntity(
-                            date = day.toString(),
-                            source = WeatherSource.NWS.id,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            temperature = latest.temperature,
-                            observedAt = latest.timestamp,
-                            condition = latest.condition,
-                            fetchedAt = System.currentTimeMillis()
-                        )
-                    )
-                    appLogDao.log("TEMP_SYNC_OBS", "source=NWS temp=${latest.temperature} observedAt=${latest.timestamp}")
-                }
-            }
         }
     }
 

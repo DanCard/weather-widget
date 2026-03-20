@@ -35,4 +35,14 @@ interface ObservationDao {
 
     @Query("SELECT * FROM observations WHERE stationId = :stationId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestForStation(stationId: String): ObservationEntity?
+
+    @Query("""
+        SELECT * FROM observations
+        WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
+          AND ABS(locationLat - :lat) < 0.1
+          AND ABS(locationLon - :lon) < 0.1
+          AND timestamp > :sinceMs
+        ORDER BY timestamp DESC
+    """)
+    suspend fun getLatestMainObservations(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
 }

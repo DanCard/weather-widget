@@ -6,7 +6,6 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ClimateNormalDao
-import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.WeatherSource
@@ -36,7 +35,6 @@ class WeatherRepositoryTest {
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
-    private lateinit var currentTempDao: CurrentTempDao
 
     private lateinit var forecastRepository: ForecastRepository
     private lateinit var currentTempRepository: CurrentTempRepository
@@ -64,13 +62,12 @@ class WeatherRepositoryTest {
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
-        currentTempDao = mockk(relaxed = true)
 
         forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao, mockk(relaxed = true), mockk(relaxed = true))
-        currentTempRepository = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
+        currentTempRepository = CurrentTempRepository(context, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
 
         repository =
-            WeatherRepository(context, forecastRepository, currentTempRepository, forecastDao, appLogDao, currentTempDao, mockk(relaxed = true))
+            WeatherRepository(context, forecastRepository, currentTempRepository, forecastDao, appLogDao, mockk(relaxed = true))
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
         every { widgetStateManager.isSourceVisible(any()) } returns true
@@ -134,7 +131,7 @@ class WeatherRepositoryTest {
             every { openMeteoApi.weatherCodeToCondition(any()) } returns "Mostly Clear"
             val result = repository.refreshCurrentTemperature(testLat, testLon, testLocationName, source = WeatherSource.OPEN_METEO)
             assertTrue(result.isSuccess)
-            coVerify { currentTempDao.insert(match { it.source == WeatherSource.OPEN_METEO.id && it.temperature == 61.2f }) }
+            coVerify { observationDao.insertAll(match { it.any { obs -> obs.stationId.startsWith("OPEN_METEO") && obs.temperature == 61.2f } }) }
         }
 
     @Test
@@ -152,7 +149,7 @@ class WeatherRepositoryTest {
             assertTrue(result.isSuccess)
             assertEquals(1, result.getOrNull())
             coVerify(atLeast = 1) { openMeteoApi.getCurrent(any(), any()) }
-            coVerify { currentTempDao.insert(match { it.source == WeatherSource.OPEN_METEO.id }) }
+            coVerify { observationDao.insertAll(match { it.any { obs -> obs.stationId.startsWith("OPEN_METEO") } }) }
         }
 
     @Test
@@ -173,7 +170,7 @@ class WeatherRepositoryTest {
             assertTrue(result.isSuccess)
             assertEquals(0, result.getOrNull())
             coVerify(exactly = 0) { openMeteoApi.getCurrent(any(), any()) }
-            coVerify(exactly = 0) { currentTempDao.insert(any()) }
+            coVerify(exactly = 0) { observationDao.insertAll(any()) }
         }
 
     @Test

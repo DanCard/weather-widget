@@ -15,7 +15,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import com.weatherwidget.R
-import com.weatherwidget.data.local.CurrentTempEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -225,14 +225,14 @@ class DailyViewHandlerTest {
         )
 
         val currentTemps = listOf(
-            CurrentTempEntity(
-                date = todayStr,
-                source = WeatherSource.NWS.id,
+            ObservationEntity(
+                stationId = "NWS_MAIN",
+                stationName = "Test Station",
+                timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                temperature = 75f,
+                condition = "Clear",
                 locationLat = 0.0,
                 locationLon = 0.0,
-                temperature = 75f,
-                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                condition = "Clear",
                 fetchedAt = 1L
             )
         )
@@ -807,14 +807,14 @@ class DailyViewHandlerTest {
                 HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
             ),
             currentTemps = listOf(
-                CurrentTempEntity(
-                    date = todayStr,
-                    source = WeatherSource.NWS.id,
+                ObservationEntity(
+                    stationId = "NWS_MAIN",
+                    stationName = "Test Station",
+                    timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    temperature = 71f,
+                    condition = "Clear",
                     locationLat = 37.7749,
                     locationLon = -122.4194,
-                    temperature = 71f,
-                    observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    condition = "Clear",
                     fetchedAt = 1L,
                 ),
             ),
@@ -862,14 +862,14 @@ class DailyViewHandlerTest {
                 HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
             ),
             currentTemps = listOf(
-                CurrentTempEntity(
-                    date = todayStr,
-                    source = WeatherSource.NWS.id,
+                ObservationEntity(
+                    stationId = "NWS_MAIN",
+                    stationName = "Test Station",
+                    timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                    temperature = 71f,
+                    condition = "Clear",
                     locationLat = 37.7749,
                     locationLon = -122.4194,
-                    temperature = 71f,
-                    observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    condition = "Clear",
                     fetchedAt = 1L,
                 ),
             ),

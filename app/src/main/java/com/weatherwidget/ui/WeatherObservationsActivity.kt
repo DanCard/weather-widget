@@ -47,9 +47,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
     @Inject
     lateinit var forecastDao: com.weatherwidget.data.local.ForecastDao
 
-    @Inject
-    lateinit var currentTempDao: com.weatherwidget.data.local.CurrentTempDao
-
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ObservationAdapter
     private var currentSource: WeatherSource = WeatherSource.NWS
@@ -230,24 +227,16 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     if (pois.isNotEmpty()) {
                         pois
                     } else {
-                        val todayStr = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
                         val latest = forecastDao.getLatestWeatherBySource(currentSource.id)
-                        val currentTemp = if (latest != null) {
-                            currentTempDao.getCurrentTemp(todayStr, currentSource.id, latest.locationLat, latest.locationLon)
-                        } else null
-                        if (latest != null && currentTemp != null) {
-                            listOf(ObservationEntity(
-                                stationId = currentSource.shortDisplayName,
-                                stationName = latest.locationName,
-                                timestamp = currentTemp.observedAt,
-                                temperature = currentTemp.temperature,
-                                condition = currentTemp.condition ?: latest.condition,
-                                locationLat = latest.locationLat,
-                                locationLon = latest.locationLon,
-                                distanceKm = 0f,
-                                stationType = "OFFICIAL",
-                                fetchedAt = currentTemp.fetchedAt
-                            ))
+                        if (latest != null) {
+                            val todayStartMs = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            val mainObs = observationDao.getLatestMainObservations(latest.locationLat, latest.locationLon, todayStartMs)
+                            val sourceObs = mainObs.firstOrNull { com.weatherwidget.widget.ObservationResolver.inferSource(it.stationId) == currentSource.id }
+                            if (sourceObs != null) {
+                                listOf(sourceObs)
+                            } else {
+                                emptyList()
+                            }
                         } else {
                             emptyList()
                         }

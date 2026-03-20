@@ -15,7 +15,6 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
-import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
@@ -81,7 +80,7 @@ object DailyViewHandler : WidgetViewHandler {
         weatherList: List<ForecastEntity>,
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<CurrentTempEntity>,
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
     ) {
@@ -106,7 +105,7 @@ object DailyViewHandler : WidgetViewHandler {
         weatherList: List<ForecastEntity>,
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<CurrentTempEntity>,
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
         startupToken: String? = null,
@@ -134,7 +133,7 @@ object DailyViewHandler : WidgetViewHandler {
         weatherList: List<ForecastEntity>,
         forecastSnapshots: Map<String, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<CurrentTempEntity>,
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
         now: LocalDateTime,
@@ -716,7 +715,7 @@ object DailyViewHandler : WidgetViewHandler {
         stateManager: WidgetStateManager?, appWidgetId: Int,
         todayNext8HourPrecipProbability: Int?,
         dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
-        currentTemps: List<CurrentTempEntity> = emptyList()
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList()
     ): List<Triple<Int, String, Boolean>> {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,

@@ -29,7 +29,6 @@ class WeatherRepositoryNwsParallelTest {
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
-    private lateinit var currentTempDao: CurrentTempDao
     private lateinit var repository: WeatherRepository
 
     private val testLat = 37.42
@@ -51,13 +50,12 @@ class WeatherRepositoryNwsParallelTest {
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
-        currentTempDao = mockk(relaxed = true)
 
-        val observationRepo = ObservationRepository(context, observationDao, mockk(relaxed = true), currentTempDao, appLogDao, nwsApi)
+        val observationRepo = ObservationRepository(context, observationDao, mockk(relaxed = true), appLogDao, nwsApi)
         val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao, mockk(relaxed = true), observationRepo)
-        val currentRepo = CurrentTempRepository(context, currentTempDao, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), observationRepo)
+        val currentRepo = CurrentTempRepository(context, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), observationRepo)
 
-        repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, currentTempDao, observationRepo)
+        repository = WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, observationRepo)
 
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
         every { widgetStateManager.isSourceVisible(WeatherSource.NWS) } returns true
@@ -76,6 +74,6 @@ class WeatherRepositoryNwsParallelTest {
         coEvery { nwsApi.getLatestObservationDetailed("AW020") } returns NwsApi.Observation(now, 22.78f, "Sunny", "AW020")
         coEvery { nwsApi.getLatestObservationDetailed("KNUQ") } returns NwsApi.Observation(now, 18.89f, "Clear", "Moffett Field")
         repository.refreshCurrentTemperature(testLat, testLon, "Test", source = WeatherSource.NWS, forceRefresh = true)
-        coVerify { currentTempDao.insert(match { it.temperature > 72f }) }
+        coVerify { observationDao.insertAll(match { it.any { obs -> obs.temperature > 72f } }) }
     }
 }

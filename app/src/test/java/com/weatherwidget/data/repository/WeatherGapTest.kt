@@ -60,10 +60,10 @@ class WeatherGapTest {
         observationDao = mockk(relaxed = true)
 
         val forecastRepo = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao, mockk(relaxed = true), mockk(relaxed = true))
-        val currentRepo = CurrentTempRepository(context, mockk(relaxed = true), observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
+        val currentRepo = CurrentTempRepository(context, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
 
         repository =
-            WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, mockk(relaxed = true), mockk(relaxed = true))
+            WeatherRepository(context, forecastRepo, currentRepo, forecastDao, appLogDao, mockk(relaxed = true))
 
         coEvery { weatherApi.getForecast(any(), any(), any()) } throws Exception("WeatherAPI unavailable")
     }

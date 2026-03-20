@@ -4,7 +4,6 @@ import android.content.Context
 import com.weatherwidget.data.local.ApiUsageDao
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ClimateNormalDao
-import com.weatherwidget.data.local.CurrentTempDao
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
@@ -114,10 +113,6 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideCurrentTempDao(database: WeatherDatabase): CurrentTempDao = database.currentTempDao()
-
-    @Provides
-    @Singleton
     fun provideApiUsageDao(database: WeatherDatabase): ApiUsageDao = database.apiUsageDao()
 
     @Provides
@@ -130,11 +125,10 @@ object AppModule {
         @ApplicationContext context: Context,
         observationDao: ObservationDao,
         dailyExtremeDao: DailyExtremeDao,
-        currentTempDao: CurrentTempDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
     ): ObservationRepository = ObservationRepository(
-        context, observationDao, dailyExtremeDao, currentTempDao, appLogDao, nwsApi
+        context, observationDao, dailyExtremeDao, appLogDao, nwsApi
     )
 
     @Provides
@@ -162,7 +156,6 @@ object AppModule {
     @Singleton
     fun provideCurrentTempRepository(
         @ApplicationContext context: Context,
-        currentTempDao: CurrentTempDao,
         observationDao: ObservationDao,
         hourlyForecastDao: HourlyForecastDao,
         appLogDao: AppLogDao,
@@ -175,7 +168,7 @@ object AppModule {
         dailyExtremeDao: DailyExtremeDao,
         observationRepository: ObservationRepository,
     ): CurrentTempRepository = CurrentTempRepository(
-        context, currentTempDao, observationDao, hourlyForecastDao, appLogDao,
+        context, observationDao, hourlyForecastDao, appLogDao,
         nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, temperatureInterpolator, dailyExtremeDao, observationRepository
     )
 

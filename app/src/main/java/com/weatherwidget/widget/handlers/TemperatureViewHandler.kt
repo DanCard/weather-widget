@@ -299,8 +299,8 @@ object TemperatureViewHandler {
         // Final current temperature resolution using either the graph's fresh blending result
         // or falling back to the simple database observation.
         val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
-        val finalObsTemp = graphObservedTemp ?: observedCurrentTemp
-        val finalObsAt = graphObservedAt ?: observedCurrentTempFetchedAt
+        val finalObsTemp = observedCurrentTemp ?: graphObservedTemp
+        val finalObsAt = observedCurrentTempFetchedAt ?: graphObservedAt
 
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =

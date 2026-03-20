@@ -1,6 +1,5 @@
 package com.weatherwidget.widget
 
-import com.weatherwidget.data.local.CurrentTempEntity
 import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -30,24 +29,24 @@ object ObservationResolver {
     )
 
     /**
-     * Finds the latest observation for the specified weather source from a list of current temp records.
-     * Includes fallback to GENERIC_GAP source.
+     * Finds the latest observation for the specified weather source from a list of _MAIN observations.
+     * Uses [inferSource] to match observation stationId prefixes against the display source.
      */
     fun resolveObservedCurrentTemp(
-        currentTemps: List<CurrentTempEntity>,
+        observations: List<ObservationEntity>,
         displaySource: WeatherSource,
     ): ObservedCurrentTemperature? {
-        return currentTemps
+        return observations
             .filter {
-                it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id
+                inferSource(it.stationId) == displaySource.id || inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
             }
-            .maxByOrNull { it.observedAt }
-            ?.let { entity ->
+            .maxByOrNull { it.timestamp }
+            ?.let { obs ->
                 ObservedCurrentTemperature(
-                    temperature = entity.temperature,
-                    observedAt = entity.observedAt,
-                    source = entity.source,
-                    rowFetchedAt = entity.fetchedAt,
+                    temperature = obs.temperature,
+                    observedAt = obs.timestamp,
+                    source = inferSource(obs.stationId),
+                    rowFetchedAt = obs.fetchedAt,
                 )
             }
     }

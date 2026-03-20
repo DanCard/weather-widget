@@ -138,9 +138,9 @@ class WeatherWidgetWorker
                         }
                         val afterBackfillMs = SystemClock.elapsedRealtime()
 
-                        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                        val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
-                            .getCurrentTemps(todayStr, location.first, location.second)
+                        val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val currentTemps = WeatherDatabase.getDatabase(context).observationDao()
+                            .getLatestMainObservations(location.first, location.second, todayStartMs)
 
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
@@ -242,7 +242,7 @@ class WeatherWidgetWorker
             weatherList: List<ForecastEntity>,
             forecastSnapshots: Map<String, List<ForecastEntity>>,
             hourlyForecasts: List<HourlyForecastEntity>,
-            currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
+            currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
             dailyActuals: DailyActualsBySource = emptyMap(),
         ) = coroutineScope {
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -364,9 +364,9 @@ class WeatherWidgetWorker
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
             val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = false)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
-            val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val currentTemps = WeatherDatabase.getDatabase(context).currentTempDao()
-                .getCurrentTemps(todayStr, location.first, location.second)
+            val todayStartMs2 = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val currentTemps = WeatherDatabase.getDatabase(context).observationDao()
+                .getLatestMainObservations(location.first, location.second, todayStartMs2)
             updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
         }
 

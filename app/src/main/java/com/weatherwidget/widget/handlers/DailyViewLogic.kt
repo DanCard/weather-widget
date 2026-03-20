@@ -54,7 +54,7 @@ object DailyViewLogic {
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
         dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
-        currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
     ): List<TextDayData> {
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -194,7 +194,7 @@ object DailyViewLogic {
         todayNext8HourPrecipProbability: Int? = null,
         dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
-        currentTemps: List<com.weatherwidget.data.local.CurrentTempEntity> = emptyList(),
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
