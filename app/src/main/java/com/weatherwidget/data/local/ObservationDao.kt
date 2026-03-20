@@ -39,6 +39,28 @@ interface ObservationDao {
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
+          AND stationId != 'NWS_MAIN'
+          AND ABS(locationLat - :lat) < 0.1
+          AND ABS(locationLon - :lon) < 0.1
+          AND timestamp > :sinceMs
+        ORDER BY timestamp DESC
+    """)
+    suspend fun getLatestMainObservationsExcludingNws(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
+
+    @Query("""
+        SELECT * FROM observations
+        WHERE stationId LIKE 'NWS_%'
+          AND stationId != 'NWS_MAIN'
+          AND ABS(locationLat - :lat) < 0.1
+          AND ABS(locationLon - :lon) < 0.1
+          AND timestamp > :sinceMs
+        ORDER BY stationId, timestamp DESC
+    """)
+    suspend fun getLatestNwsObservationsByStation(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
+
+    @Query("""
+        SELECT * FROM observations
+        WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
           AND ABS(locationLat - :lat) < 0.1
           AND ABS(locationLon - :lon) < 0.1
           AND timestamp > :sinceMs

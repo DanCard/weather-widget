@@ -150,7 +150,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     val currentTempQueryStartMs = SystemClock.elapsedRealtime()
                     val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val currentTemps = database.observationDao().getLatestMainObservations(
+                    val currentTemps = repository.getMainObservationsWithComputedNwsBlend(
                         latestWeather.locationLat,
                         latestWeather.locationLon,
                         todayStartMs,

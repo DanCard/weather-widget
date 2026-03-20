@@ -204,7 +204,7 @@ object WidgetIntentRouter {
         val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
         val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val ctCurrentTemps = database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
+        val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
 
         DailyViewHandler.updateWidget(
             context,
@@ -485,7 +485,7 @@ object WidgetIntentRouter {
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val ctCurrentTemps = database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
+            val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
             val dailyActuals = getDailyActuals(database, lat, lon)
             val afterLoadMs = SystemClock.elapsedRealtime()
             DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
@@ -717,7 +717,7 @@ object WidgetIntentRouter {
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val ctCurrentTemps = database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
+            val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
             val dailyActuals = getDailyActuals(database, lat, lon)
             DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
         }
@@ -819,8 +819,8 @@ object WidgetIntentRouter {
                 val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
                 val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                val ctCurrentTemps = database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
-                val dailyActuals = getDailyActuals(database, lat, lon)
+                val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
+            val dailyActuals = getDailyActuals(database, lat, lon)
                 DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
                 Log.d(TAG, "handleSetView: daily update complete in ${SystemClock.elapsedRealtime() - startMs}ms")
             }
@@ -889,7 +889,7 @@ object WidgetIntentRouter {
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val ctCurrentTemps = database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
+            val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
             val dailyActuals = getDailyActuals(database, lat, lon)
             DailyViewHandler.updateWidget(context, appWidgetManager, appWidgetId, weatherList, forecastSnapshots, hourlyForecasts, ctCurrentTemps, dailyActuals, repository)
         }
@@ -913,7 +913,7 @@ object WidgetIntentRouter {
         val database = WeatherDatabase.getDatabase(context)
         val weatherList = database.forecastDao().getForecastsInRange(todayStr, todayStr, lat, lon)
         val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val currentTemps = database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
+        val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
 
         val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
         val observation = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)

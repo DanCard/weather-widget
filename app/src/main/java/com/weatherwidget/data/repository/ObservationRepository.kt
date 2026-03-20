@@ -83,20 +83,6 @@ class ObservationRepository @Inject constructor(
         appLogDao.log("NWS_IDW", "blended=${blendedTemp}°F from ${successfulEntities.size} stations: $stationSummary")
         Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary")
 
-        // Store blended result as a synthetic NWS_MAIN observation for unified current temp reads
-        val blendedObs = ObservationEntity(
-            stationId = "NWS_MAIN",
-            stationName = "NWS Blended",
-            timestamp = successfulEntities.maxOf { it.timestamp },
-            temperature = blendedTemp,
-            condition = closest.condition,
-            locationLat = latitude,
-            locationLon = longitude,
-            distanceKm = 0f,
-            stationType = "BLENDED",
-        )
-        observationDao.insertAll(listOf(blendedObs))
-
         CurrentReadingPayload(
             WeatherSource.NWS,
             blendedTemp,
@@ -393,6 +379,54 @@ class ObservationRepository @Inject constructor(
             val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
             dailyExtremeDao.insertAll(extremes)
         }
+    }
+
+    suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity> =
+        observationDao.getRecentObservations(sinceMs)
+
+    suspend fun getMainObservationsWithComputedNwsBlend(
+        latitude: Double,
+        longitude: Double,
+        sinceMs: Long,
+    ): List<ObservationEntity> = coroutineScope {
+        val persistedMainObs = observationDao.getLatestMainObservationsExcludingNws(latitude, longitude, sinceMs)
+        val nwsStationObs = observationDao.getLatestNwsObservationsByStation(latitude, longitude, sinceMs)
+
+        if (nwsStationObs.isEmpty()) {
+            return@coroutineScope persistedMainObs
+        }
+
+        val dedupedNwsObs = nwsStationObs
+            .groupBy { it.stationId }
+            .mapValues { it.value.maxByOrNull { it.timestamp }!! }
+            .values
+            .toList()
+
+        if (dedupedNwsObs.isEmpty()) {
+            return@coroutineScope persistedMainObs
+        }
+
+        val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, dedupedNwsObs)
+            ?: return@coroutineScope persistedMainObs
+
+        val closest = dedupedNwsObs.minBy { it.distanceKm }
+        val newestTimestamp = dedupedNwsObs.maxOf { it.timestamp }
+        val newestFetchedAt = dedupedNwsObs.maxOf { it.fetchedAt }
+
+        val syntheticNwsMain = ObservationEntity(
+            stationId = "NWS_MAIN",
+            stationName = "NWS Blended",
+            timestamp = newestTimestamp,
+            temperature = blendedTemp,
+            condition = closest.condition,
+            locationLat = latitude,
+            locationLon = longitude,
+            distanceKm = 0f,
+            stationType = "BLENDED",
+            fetchedAt = newestFetchedAt,
+        )
+
+        persistedMainObs + syntheticNwsMain
     }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {

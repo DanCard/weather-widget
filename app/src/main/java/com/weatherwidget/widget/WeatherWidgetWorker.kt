@@ -139,8 +139,11 @@ class WeatherWidgetWorker
                         val afterBackfillMs = SystemClock.elapsedRealtime()
 
                         val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val currentTemps = WeatherDatabase.getDatabase(context).observationDao()
-                            .getLatestMainObservations(location.first, location.second, todayStartMs)
+                        val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
+                            location.first,
+                            location.second,
+                            todayStartMs,
+                        )
 
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
@@ -365,8 +368,11 @@ class WeatherWidgetWorker
             val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = false)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
             val todayStartMs2 = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-            val currentTemps = WeatherDatabase.getDatabase(context).observationDao()
-                .getLatestMainObservations(location.first, location.second, todayStartMs2)
+            val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
+                location.first,
+                location.second,
+                todayStartMs2,
+            )
             updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
         }
 

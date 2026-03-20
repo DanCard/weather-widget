@@ -161,7 +161,9 @@ object ObservationResolver {
         val dateFormatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
         val now = System.currentTimeMillis()
 
-        return observations
+        val filteredObs = observations.filter { it.stationId != "NWS_MAIN" }
+
+        return filteredObs
             .groupBy { obs ->
                 val date = Instant.ofEpochMilli(obs.timestamp)
                     .atZone(local)
