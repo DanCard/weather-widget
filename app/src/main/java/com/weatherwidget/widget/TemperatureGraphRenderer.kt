@@ -7,6 +7,7 @@ import android.util.TypedValue
 import java.time.LocalDateTime
 
 object TemperatureGraphRenderer {
+    private const val TAG = "TempGraphRenderer"
 
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 1.5f
     private const val GRAPH_TOP_PADDING_DP = 8f
@@ -29,6 +30,7 @@ object TemperatureGraphRenderer {
         val showLabel: Boolean = true, // Only at intervals
         val isActual: Boolean = false,           // True when actualTemperature is available
         val actualTemperature: Float? = null,    // Observed actual temp (past hours only)
+        val isObservedActual: Boolean = false,   // Backed by a real blended/observed point, not carry-forward filler
     )
 
     // Temperature-to-color thresholds
@@ -39,6 +41,10 @@ object TemperatureGraphRenderer {
     private val COLOR_COLD = Color.parseColor("#5AC8FA") // Blue
     private val COLOR_MILD = Color.parseColor("#E8A24E") // Golden amber
     private val COLOR_HOT = Color.parseColor("#FF6B35") // Warm orange
+    private val COLOR_ACTUAL_LINE = Color.parseColor("#F4C542")
+    private val COLOR_FORECAST_LINE = Color.parseColor("#8FB7FF")
+    private val COLOR_ACTUAL_LABEL = Color.parseColor("#FFF1A8")
+    private val COLOR_FORECAST_LABEL = Color.parseColor("#C5DCFF")
 
     private fun tempToColor(temp: Float): Int {
         return when {
@@ -127,6 +133,8 @@ object TemperatureGraphRenderer {
         val x: Float,
         val y: Float,
         val placedAbove: Boolean,
+        val series: String = "",
+        val colorFamily: String = "",
         val reason: String = "",
     )
 
@@ -197,6 +205,8 @@ object TemperatureGraphRenderer {
         val maxTemp = rawMax + topBuffer
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
 
+        Log.d(TAG, "Scaling: rawMin=$rawMin, rawMax=$rawMax, minTemp=$minTemp, maxTemp=$maxTemp, tempRange=$tempRange")
+
         val density = context.resources.displayMetrics.density
         
         // Layout zones
@@ -212,7 +222,7 @@ object TemperatureGraphRenderer {
         val graphBottom = (footerTop + dpToPx(context, GRAPH_BOTTOM_OVERLAP_DP)).coerceAtMost(heightPx.toFloat() - labelHeight)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        android.util.Log.d("TempGraphRenderer", "Layout: widthPx=$widthPx, heightPx=$heightPx, topPadding=$topPadding, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
+        Log.d(TAG, "Layout: widthPx=$widthPx, heightPx=$heightPx, topPadding=$topPadding, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
 
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
         val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
@@ -223,24 +233,24 @@ object TemperatureGraphRenderer {
 
         val curveStrokeDp = 1f
 
-        // Actual observed line — solid gradient, primary in past portion
+        // Actual observed line — warm solid stroke so it stays distinct from forecast.
         val actualLinePaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 strokeWidth = dpToPx(context, curveStrokeDp)
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
-                shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
+                color = COLOR_ACTUAL_LINE
             }
 
-        // Forecast line — thin dashed gradient, runs full width
+        // Forecast line — cool dashed stroke so projected temperatures read separately.
         val forecastDashedPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 strokeWidth = dpToPx(context, 1f)
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
-                shader = buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange)
+                color = COLOR_FORECAST_LINE
                 pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 8f), dpToPx(context, 4f)), 0f)
             }
 
@@ -291,9 +301,18 @@ object TemperatureGraphRenderer {
                 setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
             }
 
-        val tempLabelTextPaint =
+        val actualTempLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FFFFFF")
+                color = COLOR_ACTUAL_LABEL
+                textSize = dpToPx(context, 19.5f * labelScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+            }
+
+        val forecastTempLabelTextPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = COLOR_FORECAST_LABEL
                 textSize = dpToPx(context, 19.5f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
@@ -367,6 +386,7 @@ object TemperatureGraphRenderer {
         // We keep smoothing here so the label placement is visually fluid.
         val rawLabelTemps = hours.map { it.actualTemperature ?: it.temperature }
         val smoothedLabelTemps = rawLabelTemps
+        val forecastLabelTemps = hours.map { it.temperature }
 
         // Keep backward-compat name for transitionX and fetch dot grounding
         val smoothedActualOrForecastTemps = smoothedTruthTemps
@@ -435,7 +455,7 @@ object TemperatureGraphRenderer {
         val transitionX: Float? = rawTransitionX?.let { raw ->
             listOfNotNull(raw, nowX, fetchDotX).min()
         }
-        android.util.Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, fetchDotX=$fetchDotX, rawTransitionX=$rawTransitionX, transitionX=$transitionX, widthPx=$widthPx")
+        Log.d("ActualsDebug", "renderGraph: hours=${hours.size}, lastActualIndex=$lastActualIndex, nowX=$nowX, fetchDotX=$fetchDotX, rawTransitionX=$rawTransitionX, transitionX=$transitionX, widthPx=$widthPx")
 
         // --- Draw fill ---
         // Fill is always under the forecast line (full width at low opacity)
@@ -536,6 +556,7 @@ object TemperatureGraphRenderer {
         // 2. Key temperature labels
         val dailyHighIndex = smoothedLabelTemps.indices.maxByOrNull { smoothedLabelTemps[it] } ?: -1
         val dailyLowIndex = smoothedLabelTemps.indices.minByOrNull { smoothedLabelTemps[it] } ?: -1
+        val forecastHighIndex = forecastLabelTemps.indices.maxByOrNull { forecastLabelTemps[it] } ?: -1
 
         fun findLocalExtremaIndices(): List<Int> {
             val extrema = mutableListOf<Int>()
@@ -585,73 +606,226 @@ object TemperatureGraphRenderer {
 
         val significantLocalExtrema = localExtrema.filter { bilateralExtremaProminence(it) >= MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES }
 
-        val specialIndices = mutableListOf<Int>()
-        if (dailyLowIndex >= 0) specialIndices.add(dailyLowIndex)
-        if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) specialIndices.add(dailyHighIndex)
-        significantLocalExtrema.forEach { idx ->
-            if (idx !in specialIndices) {
-                val labelText = String.format("%.1f", smoothedLabelTemps[idx])
-                if (specialIndices.none { Math.abs(idx - it) <= 3 && String.format("%.1f", smoothedLabelTemps[it]) == labelText }) specialIndices.add(idx)
+        data class TempLabelCandidate(
+            val index: Int,
+            val role: String,
+            val labelTemps: List<Float>,
+            val rawTemperature: Float,
+            val forceForecastSeries: Boolean = false,
+        )
+
+        fun labelTextFor(temps: List<Float>, index: Int): String = String.format("%.1f", temps[index])
+
+        val specialCandidates = mutableListOf<TempLabelCandidate>()
+
+        fun addCandidate(
+            index: Int,
+            role: String,
+            labelTemps: List<Float>,
+            rawTemperature: Float,
+            forceForecastSeries: Boolean = false,
+        ) {
+            if (index !in labelTemps.indices) return
+            val candidateText = labelTextFor(labelTemps, index)
+            val conflictsExisting =
+                specialCandidates.any {
+                    it.index == index ||
+                        (kotlin.math.abs(it.index - index) <= 3 && labelTextFor(it.labelTemps, it.index) == candidateText)
+                }
+            if (!conflictsExisting) {
+                specialCandidates.add(
+                    TempLabelCandidate(
+                        index = index,
+                        role = role,
+                        labelTemps = labelTemps,
+                        rawTemperature = rawTemperature,
+                        forceForecastSeries = forceForecastSeries,
+                    ),
+                )
             }
         }
-        if (0 !in specialIndices) specialIndices.add(0)
-        if (hours.size > 1 && (hours.size - 1) !in specialIndices) specialIndices.add(hours.size - 1)
+
+        if (dailyLowIndex >= 0) {
+            addCandidate(
+                index = dailyLowIndex,
+                role = "LOW",
+                labelTemps = smoothedLabelTemps,
+                rawTemperature = hours[dailyLowIndex].temperature,
+            )
+        }
+        if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) {
+            addCandidate(
+                index = dailyHighIndex,
+                role = "HIGH",
+                labelTemps = smoothedLabelTemps,
+                rawTemperature = hours[dailyHighIndex].temperature,
+            )
+        }
+        if (forecastHighIndex >= 0) {
+            addCandidate(
+                index = forecastHighIndex,
+                role = "FORECAST_HIGH",
+                labelTemps = forecastLabelTemps,
+                rawTemperature = hours[forecastHighIndex].temperature,
+                forceForecastSeries = true,
+            )
+        }
+        significantLocalExtrema.forEach { idx ->
+            if (specialCandidates.none { it.index == idx }) {
+                val labelText = String.format("%.1f", smoothedLabelTemps[idx])
+                if (specialCandidates.none { Math.abs(idx - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
+                    addCandidate(
+                        index = idx,
+                        role = "LOCAL",
+                        labelTemps = smoothedLabelTemps,
+                        rawTemperature = hours[idx].temperature,
+                    )
+                }
+            }
+        }
+        if (specialCandidates.none { it.index == 0 }) {
+            addCandidate(
+                index = 0,
+                role = "START",
+                labelTemps = smoothedLabelTemps,
+                rawTemperature = hours[0].temperature,
+            )
+        }
+        if (hours.size > 1 && specialCandidates.none { it.index == hours.size - 1 }) {
+            addCandidate(
+                index = hours.size - 1,
+                role = "END",
+                labelTemps = smoothedLabelTemps,
+                rawTemperature = hours.last().temperature,
+            )
+        }
 
         val drawnLabelBounds = mutableListOf<RectF>()
 
-        fun centerOfRun(anchorIdx: Int): Pair<Float, Float> {
-            val value = smoothedLabelTemps[anchorIdx]
+        fun centerOfRun(
+            anchorIdx: Int,
+            labelTemps: List<Float>,
+            forceForecastSeries: Boolean,
+        ): Pair<Float, Float> {
+            val value = labelTemps[anchorIdx]
             var first = anchorIdx
             var last = anchorIdx
-            while (first > 0 && smoothedLabelTemps[first - 1] == value) first--
-            while (last < smoothedLabelTemps.lastIndex && smoothedLabelTemps[last + 1] == value) last++
-            val cx = (originalPoints[first].first + originalPoints[last].first) / 2f
-            val cy = (originalPoints[first].second + originalPoints[last].second) / 2f
+            while (first > 0 && labelTemps[first - 1] == value) first--
+            while (last < labelTemps.lastIndex && labelTemps[last + 1] == value) last++
+
+            // Use forecastPoints if this is a future forecast point (past transitionX)
+            // for better visual alignment with the smoothed curve.
+            val points =
+                if (forceForecastSeries || originalPoints[anchorIdx].first > (transitionX ?: -1f)) {
+                    forecastPoints
+                } else {
+                    originalPoints
+                }
+
+            val cx = (points[first].first + points[last].first) / 2f
+            val cy = (points[first].second + points[last].second) / 2f
             return cx to cy
         }
 
-        for (idx in specialIndices) {
-            val (sx, sy) = if (idx == dailyLowIndex || idx == dailyHighIndex) centerOfRun(idx) else originalPoints[idx].first to originalPoints[idx].second
-            val label = String.format("%.1f°", smoothedLabelTemps[idx])
-            val textWidth = tempLabelTextPaint.measureText(label)
-            val textHeight = tempLabelTextPaint.textSize
+        Log.d(
+            TAG,
+            "Labels: candidates=${specialCandidates.map { "${it.role}@${it.index}=${labelTextFor(it.labelTemps, it.index)}" }}, dailyHighIndex=$dailyHighIndex, forecastHighIndex=$forecastHighIndex, dailyLowIndex=$dailyLowIndex, transitionX=$transitionX, significantLocalExtrema=$significantLocalExtrema",
+        )
+
+        val labelFontMetrics = actualTempLabelTextPaint.fontMetrics
+        val fallbackTextHeight = actualTempLabelTextPaint.textSize
+        val labelAscent = labelFontMetrics?.ascent ?: (-fallbackTextHeight)
+        val labelDescent = labelFontMetrics?.descent ?: 0f
+        val labelTopPadding = dpToPx(context, 2f)
+        val aboveGap = dpToPx(context, 3f)
+        val belowGap = dpToPx(context, 3f)
+
+        for (candidate in specialCandidates) {
+            val idx = candidate.index
+            val labelTemps = candidate.labelTemps
+            val forceForecastSeries = candidate.forceForecastSeries
+            val isFuture = forceForecastSeries || originalPoints[idx].first > (transitionX ?: -1f)
+            val points = if (isFuture) forecastPoints else originalPoints
+            val isRunAnchoredRole = candidate.role == "LOW" || candidate.role == "HIGH" || candidate.role == "FORECAST_HIGH"
+            val (sx, sy) =
+                if (isRunAnchoredRole) {
+                    centerOfRun(idx, labelTemps, forceForecastSeries)
+                } else {
+                    points[idx].first to points[idx].second
+                }
+            val label = String.format("%.1f°", labelTemps[idx])
+            val series = if (isFuture) "forecast" else "actual"
+            val colorFamily = if (series == "forecast") "forecast" else "actual"
+            val labelPaint = if (series == "forecast") forecastTempLabelTextPaint else actualTempLabelTextPaint
+            val textWidth = labelPaint.measureText(label)
             val clampedX = sx.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            val leftVal = smoothedLabelTemps.subList(0, idx).findLast { it != smoothedLabelTemps[idx] } ?: 0f
-            val isPeak = (idx == dailyHighIndex || (idx in significantLocalExtrema && smoothedLabelTemps[idx] > leftVal))
-            val isValley = (idx == dailyLowIndex || (idx in significantLocalExtrema && smoothedLabelTemps[idx] < leftVal))
+            val leftVal = labelTemps.subList(0, idx).findLast { it != labelTemps[idx] } ?: 0f
+            val isPeak =
+                candidate.role == "HIGH" ||
+                    candidate.role == "FORECAST_HIGH" ||
+                    (candidate.role == "LOCAL" && idx in significantLocalExtrema && labelTemps[idx] > leftVal)
+            val isValley =
+                candidate.role == "LOW" ||
+                    (candidate.role == "LOCAL" && idx in significantLocalExtrema && labelTemps[idx] < leftVal)
 
             val preferBelow = if (isPeak) false else if (isValley) true else sy < graphTop + graphHeight / 2f
             val attempts = if (preferBelow) listOf(true, false) else listOf(false, true)
             
+            Log.d(
+                TAG,
+                "Label CANDIDATE: idx=$idx, role=${candidate.role}, label=$label, isFuture=$isFuture, pointX=$sx, pointY=$sy, using=$series, colorFamily=$colorFamily, isPeak=$isPeak, isValley=$isValley, preferBelow=$preferBelow",
+            )
+
             for (drawBelow in attempts) {
-                val candidateY = if (drawBelow) sy + textHeight + dpToPx(context, 3f) else sy - dpToPx(context, 5f)
-                val bounds = RectF(clampedX - textWidth / 2f, candidateY - textHeight, clampedX + textWidth / 2f, candidateY)
-                if (bounds.bottom <= heightPx && drawnLabelBounds.none { RectF.intersects(it, bounds) } && drawnIconBounds.none { RectF.intersects(it, bounds) }) {
-                    canvas.drawText(label, clampedX, candidateY, tempLabelTextPaint)
+                val baselineY =
+                    if (drawBelow) {
+                        sy + belowGap - labelAscent
+                    } else {
+                        sy - aboveGap - labelDescent
+                    }
+                val bounds =
+                    RectF(
+                        clampedX - textWidth / 2f,
+                        baselineY + labelAscent,
+                        clampedX + textWidth / 2f,
+                        baselineY + labelDescent,
+                    )
+                val intersectsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                val intersectsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                val withinTop = bounds.top >= 0f
+                val withinBottom = bounds.bottom <= (graphBottom - labelTopPadding)
+
+                if (withinTop && withinBottom && !intersectsLabel && !intersectsIcon) {
+                    canvas.drawText(label, clampedX, baselineY, labelPaint)
                     drawnLabelBounds.add(bounds)
 
-                    val role = when {
-                        idx == dailyLowIndex -> "LOW"
-                        idx == dailyHighIndex -> "HIGH"
-                        idx == 0 -> "START"
-                        idx == hours.lastIndex -> "END"
-                        else -> "LOCAL"
-                    }
+                    val role = candidate.role
 
                     onLabelPlaced?.invoke(
                         LabelPlacementDebug(
                             index = idx,
                             role = role,
-                            temperature = smoothedLabelTemps[idx],
-                            rawTemperature = hours[idx].temperature,
+                            temperature = labelTemps[idx],
+                            rawTemperature = candidate.rawTemperature,
                             x = clampedX,
-                            y = candidateY,
+                            y = baselineY,
                             placedAbove = !drawBelow,
+                            series = series,
+                            colorFamily = colorFamily,
                             reason = if (drawBelow) "below" else "above",
                         ),
                     )
+                    Log.d(
+                        TAG,
+                        "Label PLACED: idx=$idx, role=$role, label=$label, placedAbove=${!drawBelow}, pointY=$sy, baselineY=$baselineY, bounds=$bounds, isFuture=$isFuture, colorFamily=$colorFamily",
+                    )
                     break
+                } else {
+                    Log.d(
+                        TAG,
+                        "Label REJECTED: idx=$idx, label=$label, drawBelow=$drawBelow, pointY=$sy, baselineY=$baselineY, top=${bounds.top}, bottom=${bounds.bottom}, intersectsLabel=$intersectsLabel, intersectsIcon=$intersectsIcon, withinTop=$withinTop, withinBottom=$withinBottom",
+                    )
                 }
             }
         }

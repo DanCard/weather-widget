@@ -426,7 +426,7 @@ object TemperatureViewHandler {
                 currentTime = now,
                 bitmapScale = bitmapScale,
                 appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
-                actualSeriesAnchorAt = graphHours.lastOrNull { it.isActual }?.dateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+                actualSeriesAnchorAt = graphHours.lastOrNull { it.isObservedActual }?.dateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
                 onFetchDotResolved = onFetchDotResolved,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -1027,8 +1027,9 @@ object TemperatureViewHandler {
                         isMixed = isMixed,
                         isCurrentHour = isCurrentHour,
                         showLabel = showLabel,
-                        isActual = false, 
-                        actualTemperature = null, 
+                        isActual = false,
+                        actualTemperature = null,
+                        isObservedActual = false,
                     ),
                 )
                 hourIndex++
@@ -1039,7 +1040,7 @@ object TemperatureViewHandler {
         // 2. Inject sub-hourly actuals
         val finalHours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val allTimes = hours.map { it.dateTime }.toMutableSet()
-        val actualMap = mutableMapOf<LocalDateTime, Float>()
+        val actualMap = mutableMapOf<LocalDateTime, com.weatherwidget.data.local.ObservationEntity>()
 
         blendedActuals.forEach { obs ->
             val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
@@ -1048,7 +1049,7 @@ object TemperatureViewHandler {
             
             if (!obsTime.isBefore(startHour) && !obsTime.isAfter(endHour) && obsTime.isBefore(now)) {
                 allTimes.add(obsTime)
-                actualMap[obsTime] = obs.temperature
+                actualMap[obsTime] = obs
             }
         }
 
@@ -1057,15 +1058,20 @@ object TemperatureViewHandler {
         for (time in sortedTimes) {
             val isTopHour = time.minute == 0 && time.second == 0
             val isPast = time.isBefore(now)
-            val actualTemp = actualMap[time]
+            val actualObservation = actualMap[time]
+            val actualTemp = actualObservation?.temperature
+            val isRawObservedActual = actualObservation?.condition == "observed"
 
             if (isTopHour) {
                 val topHourData = hours.find { it.dateTime == time }
                 if (topHourData != null) {
-                    finalHours.add(topHourData.copy(
-                        isActual = isPast && actualTemp != null,
-                        actualTemperature = actualTemp
-                    ))
+                    finalHours.add(
+                        topHourData.copy(
+                            isActual = isPast && actualTemp != null,
+                            actualTemperature = actualTemp,
+                            isObservedActual = isPast && isRawObservedActual,
+                        )
+                    )
                 }
             } else {
                 val prevTopHour = hours.lastOrNull { !it.dateTime.isAfter(time) }
@@ -1093,7 +1099,8 @@ object TemperatureViewHandler {
                         isCurrentHour = false,
                         showLabel = false,
                         isActual = true,
-                        actualTemperature = actualTemp
+                        actualTemperature = actualTemp,
+                        isObservedActual = isRawObservedActual,
                     )
                 )
             }
@@ -1105,9 +1112,19 @@ object TemperatureViewHandler {
                 lastActual = finalHours[i].actualTemperature
             } else if (finalHours[i].dateTime.isBefore(now)) {
                 if (lastActual != null) {
-                    finalHours[i] = finalHours[i].copy(isActual = true, actualTemperature = lastActual)
+                    finalHours[i] =
+                        finalHours[i].copy(
+                            isActual = true,
+                            actualTemperature = lastActual,
+                            isObservedActual = false,
+                        )
                 } else {
-                    finalHours[i] = finalHours[i].copy(isActual = false, actualTemperature = null)
+                    finalHours[i] =
+                        finalHours[i].copy(
+                            isActual = false,
+                            actualTemperature = null,
+                            isObservedActual = false,
+                        )
                 }
             }
         }

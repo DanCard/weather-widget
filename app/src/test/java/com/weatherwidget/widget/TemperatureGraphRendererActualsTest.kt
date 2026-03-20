@@ -224,6 +224,47 @@ class TemperatureGraphRendererActualsTest {
         )
     }
 
+    @Test
+    fun `actual line clipRect stops at last real anchor when later buckets are synthetic actuals`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 20, 10, 0)
+        val hours =
+            buildHours(start, actualsCount = 6, markCurrentHour = true, currentHourIndex = 6).mapIndexed { index, hour ->
+                when {
+                    index <= 3 -> hour.copy(isObservedActual = true)
+                    index <= 5 -> hour.copy(isObservedActual = false)
+                    else -> hour
+                }
+            }
+        val anchorAtMs = start.plusHours(3).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val clipRights = mutableListOf<Float>()
+        every {
+            anyConstructed<Canvas>().clipRect(any<Float>(), any<Float>(), capture(clipRights), any<Float>())
+        } returns true
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 300,
+            currentTime = start.plusHours(6),
+            actualSeriesAnchorAt = anchorAtMs,
+        )
+
+        val hourWidth = 800f / 8f
+        val anchorApproxX = hourWidth * 3 + hourWidth / 2
+        val syntheticApproxX = hourWidth * 5 + hourWidth / 2
+
+        val actualLineClips = clipRights.filter { it < 800f - 1f }
+        assertTrue("Expected at least one clipRect for actual line", actualLineClips.isNotEmpty())
+        val actualLineRight = actualLineClips.maxOrNull()!!
+        assertTrue(
+            "Actual line clip right ($actualLineRight) should be near real anchor (~$anchorApproxX) not synthetic actual (~$syntheticApproxX)",
+            actualLineRight < anchorApproxX + 10f
+        )
+    }
+
     // -------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------

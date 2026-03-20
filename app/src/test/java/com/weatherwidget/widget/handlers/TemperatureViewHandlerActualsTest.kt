@@ -172,6 +172,32 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
+    fun `carry-forward keeps synthetic past bucket actual without moving last observed anchor`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T10:00", 61f, stationId = "KPAO", distanceKm = 2f),
+        )
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+
+        val observedPoint = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:00") })
+        val carriedHour = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T12:00") })
+        val lastObserved = requireNotNull(hours.lastOrNull { it.isObservedActual })
+
+        assertTrue("Observed sub-hour point should remain marked as real actual", observedPoint.isObservedActual)
+        assertTrue("Carried top-of-hour bucket should still render as actual for continuity", carriedHour.isActual)
+        assertFalse("Carried top-of-hour bucket should not count as a real observed anchor", carriedHour.isObservedActual)
+        assertEquals(LocalDateTime.parse("2026-02-20T10:00"), lastObserved.dateTime)
+    }
+
+    @Test
     fun `mixed NWS stations IDW-blend nearby observations`() {
         val forecasts = wideForecasts()
         val actuals = listOf(
@@ -323,6 +349,35 @@ class TemperatureViewHandlerActualsTest {
             "10:30 should stay below the original LOAC1 60F because forecast-guided extrapolation follows the cooling trend",
             extrapolatedBlend < 60f,
         )
+    }
+
+    @Test
+    fun `forecast-guided extrapolation does not move last observed actual anchor`() {
+        val forecasts = wideForecasts()
+        val actuals = listOf(
+            observationAt("2026-02-20T10:15", 60f, stationId = "LOAC1", distanceKm = 3.2f),
+        )
+        val debugLines = mutableListOf<String>()
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+            onBlendDebug = { debugLines += it },
+        )
+
+        val observed1015 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:15") })
+        val extrapolated1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
+        val lastObserved = requireNotNull(hours.lastOrNull { it.isObservedActual })
+
+        assertTrue(debugLines.any { it.contains("station_extrapolate station=LOAC1 at=10:30") })
+        assertTrue("Raw observation should remain observed actual", observed1015.isObservedActual)
+        assertTrue("Extrapolated point should still render as actual for continuity", extrapolated1030.isActual)
+        assertFalse("Extrapolated point must not become the observed anchor", extrapolated1030.isObservedActual)
+        assertEquals(LocalDateTime.parse("2026-02-20T10:15"), lastObserved.dateTime)
     }
 
     @Test

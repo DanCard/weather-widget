@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -126,5 +127,65 @@ class TemperatureFetchDotUpdateRoboTest {
         assertEquals("Should resolve fetch dot once per update", 2, resolved.size)
         assertEquals(firstObservedAt, resolved[0].actualSeriesAnchorAt)
         assertEquals(secondObservedAt, resolved[1].actualSeriesAnchorAt)
+    }
+
+    @Test
+    fun `fetch dot callback uses last raw observation not later extrapolated point`() = runBlocking {
+        val appWidgetManager = mockk<AppWidgetManager>()
+        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 400)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 300)
+        }
+        every { appWidgetManager.updateAppWidget(appWidgetId, any()) } returns Unit
+        val repository = mockk<WeatherRepository>()
+
+        val now = LocalDateTime.now()
+        val baseHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val format = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+        val hourly =
+            (-1L..2L).map { offset ->
+                HourlyForecastEntity(
+                    dateTime = baseHour.plusHours(offset).format(format),
+                    locationLat = 37.0,
+                    locationLon = -122.0,
+                    temperature = 68.0f + offset,
+                    condition = "Clear",
+                    source = WeatherSource.NWS.id,
+                    precipProbability = 0,
+                    fetchedAt = System.currentTimeMillis(),
+                )
+            }
+
+        val rawObservedAt = baseHour.minusMinutes(55).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val actuals = listOf(
+            ObservationEntity(
+                stationId = "LOAC1",
+                stationName = "Test Station",
+                timestamp = rawObservedAt,
+                temperature = 70.0f,
+                condition = "Clear",
+                locationLat = 37.0,
+                locationLon = -122.0,
+            ),
+        )
+        val resolved = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
+        io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns actuals
+
+        TemperatureViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = hourly,
+            centerTime = now,
+            displaySource = WeatherSource.NWS,
+            observedCurrentTemp = 70.0f,
+            observedCurrentTempFetchedAt = rawObservedAt,
+            onFetchDotResolved = { resolved.add(it) },
+            repository = repository,
+        )
+
+        assertEquals("Should resolve fetch dot once", 1, resolved.size)
+        assertEquals("Anchor should stay at raw observed timestamp", rawObservedAt, resolved.single().actualSeriesAnchorAt)
+        assertTrue("Fetch dot should resolve within the graphed window", resolved.single().withinWindow)
     }
 }
