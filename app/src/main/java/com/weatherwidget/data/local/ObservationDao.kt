@@ -51,9 +51,10 @@ interface ObservationDao {
         WHERE api = 'NWS'
           AND ABS(locationLat - :lat) < 0.1
           AND ABS(locationLon - :lon) < 0.1
+          AND fetchedAt > :sinceMs
         ORDER BY stationId, timestamp DESC
     """)
-    suspend fun getLatestNwsObservationsByStationAllTime(lat: Double, lon: Double): List<ObservationEntity>
+    suspend fun getLatestNwsObservationsByStationAllTime(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
 
     @Query("""
         SELECT * FROM observations

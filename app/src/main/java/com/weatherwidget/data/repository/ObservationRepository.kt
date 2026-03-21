@@ -393,7 +393,7 @@ class ObservationRepository @Inject constructor(
         sinceMs: Long,
     ): List<ObservationEntity> = coroutineScope {
         val persistedMainObs = observationDao.getLatestMainObservationsExcludingNws(latitude, longitude, sinceMs)
-        val nwsStationObsAll = observationDao.getLatestNwsObservationsByStationAllTime(latitude, longitude)
+        val nwsStationObsAll = observationDao.getLatestNwsObservationsByStationAllTime(latitude, longitude, sinceMs)
 
         Log.d(TAG, "getMainObservationsWithComputedNwsBlend: persistedMainObs=${persistedMainObs.size} nwsStationObsAll=${nwsStationObsAll.size} sinceMs=${sinceMs}")
         nwsStationObsAll.take(10).forEach { obs ->
