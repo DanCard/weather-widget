@@ -428,7 +428,7 @@ object DailyViewHandler : WidgetViewHandler {
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-            setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource)
+            setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource, numColumns)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
@@ -825,21 +825,37 @@ object DailyViewHandler : WidgetViewHandler {
 
     private fun setupGraphDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
-        days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource
+        days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
+        numColumns: Int
     ) {
         val zoneIds = listOf(
             R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
             R.id.graph_day5_zone, R.id.graph_day6_zone, R.id.graph_day7_zone, R.id.graph_day8_zone,
             R.id.graph_day9_zone, R.id.graph_day10_zone
         )
+        
+        // Ensure proper layout weighting by setting exact number of columns to VISIBLE
+        for (i in zoneIds.indices) {
+            val zoneId = zoneIds[i]
+            if (i < numColumns) {
+                views.setViewVisibility(zoneId, View.VISIBLE)
+                // Clear any existing pending intent so empty zones do nothing
+                views.setOnClickPendingIntent(zoneId, null)
+            } else {
+                views.setViewVisibility(zoneId, View.GONE)
+            }
+        }
+
+        // Attach clicks to the correct column indices
         days.forEachIndexed { index, dayData ->
-            val zoneId = zoneIds.getOrNull(index) ?: return@forEachIndexed
-            views.setViewVisibility(zoneId, View.VISIBLE)
-            val intent = buildDayClickIntent(context, appWidgetId, index + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
-            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, index), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val colIndex = dayData.columnIndex ?: index
+            val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
+            
+            // Build intent with colIndex + 1 as the day index (1-based for intent extras)
+            val intent = buildDayClickIntent(context, appWidgetId, colIndex + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
+            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, colIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
-        for (i in days.size until zoneIds.size) views.setViewVisibility(zoneIds[i], View.GONE)
     }
 
     private fun dailyDeltaHiddenReason(
