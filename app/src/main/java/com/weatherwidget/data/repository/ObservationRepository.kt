@@ -390,9 +390,18 @@ class ObservationRepository @Inject constructor(
         sinceMs: Long,
     ): List<ObservationEntity> = coroutineScope {
         val persistedMainObs = observationDao.getLatestMainObservationsExcludingNws(latitude, longitude, sinceMs)
-        val nwsStationObs = observationDao.getLatestNwsObservationsByStation(latitude, longitude, sinceMs)
+        val nwsStationObsAll = observationDao.getLatestNwsObservationsByStationAllTime(latitude, longitude)
+
+        Log.d(TAG, "getMainObservationsWithComputedNwsBlend: persistedMainObs=${persistedMainObs.size} nwsStationObsAll=${nwsStationObsAll.size} sinceMs=${sinceMs}")
+        nwsStationObsAll.take(10).forEach { obs ->
+            Log.d(TAG, "  NWS station ${obs.stationId}: timestamp=${obs.timestamp} fetchedAt=${obs.fetchedAt}")
+        }
+
+        val nwsStationObs = nwsStationObsAll.filter { it.timestamp > sinceMs }
+        Log.d(TAG, "getMainObservationsWithComputedNwsBlend: after filtering by sinceMs: ${nwsStationObs.size}")
 
         if (nwsStationObs.isEmpty()) {
+            Log.d(TAG, "getMainObservationsWithComputedNwsBlend: no NWS station obs after filter, returning persisted only")
             return@coroutineScope persistedMainObs
         }
 
@@ -403,7 +412,13 @@ class ObservationRepository @Inject constructor(
             .toList()
 
         if (dedupedNwsObs.isEmpty()) {
+            Log.d(TAG, "getMainObservationsWithComputedNwsBlend: deduped empty, returning persisted only")
             return@coroutineScope persistedMainObs
+        }
+
+        Log.d(TAG, "getMainObservationsWithComputedNwsBlend: dedupedNwsObs=${dedupedNwsObs.size}")
+        dedupedNwsObs.forEach { obs ->
+            Log.d(TAG, "  deduped ${obs.stationId}: timestamp=${obs.timestamp}")
         }
 
         val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, dedupedNwsObs)
@@ -412,6 +427,8 @@ class ObservationRepository @Inject constructor(
         val closest = dedupedNwsObs.minBy { it.distanceKm }
         val newestTimestamp = dedupedNwsObs.maxOf { it.timestamp }
         val newestFetchedAt = dedupedNwsObs.maxOf { it.fetchedAt }
+
+        Log.d(TAG, "getMainObservationsWithComputedNwsBlend: blendedTemp=${blendedTemp} newestTimestamp=${newestTimestamp} newestFetchedAt=${newestFetchedAt}")
 
         val syntheticNwsMain = ObservationEntity(
             stationId = "NWS_MAIN",
