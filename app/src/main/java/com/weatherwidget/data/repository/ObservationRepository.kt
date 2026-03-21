@@ -46,6 +46,17 @@ class ObservationRepository @Inject constructor(
         private const val MAX_RETRIES = 5
     }
 
+    private var apiFixed = false
+
+    private suspend fun fixObservationApiOnce() {
+        if (apiFixed) return
+        observationDao.fixApiForOpenMeteo()
+        observationDao.fixApiForWeatherApi()
+        observationDao.fixApiForSilurian()
+        apiFixed = true
+        Log.i(TAG, "Fixed legacy observation api values")
+    }
+
     internal suspend fun fetchNwsCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
         val gridPoint = nwsApi.getGridPoint(latitude, longitude)
         val stations = getSortedObservationStations(gridPoint.observationStationsUrl ?: "")
@@ -392,6 +403,7 @@ class ObservationRepository @Inject constructor(
         longitude: Double,
         sinceMs: Long,
     ): List<ObservationEntity> = coroutineScope {
+        fixObservationApiOnce()
         val persistedMainObs = observationDao.getLatestMainObservationsExcludingNws(latitude, longitude, sinceMs)
         val nwsStationObsAll = observationDao.getLatestNwsObservationsByStationAllTime(latitude, longitude, sinceMs)
 
