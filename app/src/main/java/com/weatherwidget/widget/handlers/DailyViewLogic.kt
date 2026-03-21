@@ -269,13 +269,15 @@ object DailyViewLogic {
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
-                // Find a snapshot from ~24h ago for the "Snapshot" bar
+                // Find a snapshot for the "Snapshot" bar: prefer 24h+ old, fall back to oldest available
                 val yesterdaySameTime = now.minusHours(24)
-                val snapshot = forecasts
+                val snapshotCandidates = forecasts
                     .filter { it.source == displaySource.id }
                     .filter { it.highTemp != null && it.lowTemp != null }
+                val snapshot = snapshotCandidates
                     .filter { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.fetchedAt), java.time.ZoneId.systemDefault()).isBefore(yesterdaySameTime) }
                     .maxByOrNull { it.fetchedAt }
+                    ?: snapshotCandidates.minByOrNull { it.fetchedAt }
                 Log.d(
                     TAG,
                     "prepareGraphDays: today snapshot ${if (snapshot != null) "hit" else "miss"} " +
