@@ -74,7 +74,8 @@ class ForecastRepository
                 return existing.temperature != newlyFetched.temperature ||
                     existing.condition != newlyFetched.condition ||
                     existing.precipProbability != newlyFetched.precipProbability ||
-                    existing.cloudCover != newlyFetched.cloudCover
+                    existing.cloudCover != newlyFetched.cloudCover ||
+                    newlyFetched.fetchedAt - existing.fetchedAt > 60 * 60 * 1000L
             }
         }
 

@@ -32,9 +32,26 @@ class ForecastRepositoryHourlyChangeTest {
         assertFalse(ForecastRepository.hasMeaningfulHourlyChange(existing, fetched))
     }
 
+    @Test
+    fun `hasMeaningfulHourlyChange returns true when fetchedAt is more than one hour newer`() {
+        val existing = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L)
+        val fetched = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L + 61 * 60 * 1000L)
+
+        assertTrue(ForecastRepository.hasMeaningfulHourlyChange(existing, fetched))
+    }
+
+    @Test
+    fun `hasMeaningfulHourlyChange returns false when fetchedAt is less than one hour newer`() {
+        val existing = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L)
+        val fetched = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L + 30 * 60 * 1000L)
+
+        assertFalse(ForecastRepository.hasMeaningfulHourlyChange(existing, fetched))
+    }
+
     private fun hourly(
         precipProbability: Int? = 20,
         cloudCover: Int? = 55,
+        fetchedAt: Long = 1L,
     ) = HourlyForecastEntity(
         dateTime = "2026-03-14T21:00",
         locationLat = 37.42,
@@ -44,6 +61,6 @@ class ForecastRepositoryHourlyChangeTest {
         source = WeatherSource.NWS.id,
         precipProbability = precipProbability,
         cloudCover = cloudCover,
-        fetchedAt = 1L,
+        fetchedAt = fetchedAt,
     )
 }
