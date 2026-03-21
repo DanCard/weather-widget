@@ -19,6 +19,8 @@ import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CloudCoverGraphRenderer
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -291,10 +293,12 @@ object CloudCoverViewHandler {
             updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
         }
 
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
-            appLogDao = com.weatherwidget.data.local.WeatherDatabase.getDatabase(context).appLogDao(),
+            appLogDao = appLogDao,
             thresholdMs = WidgetPerfLogger.WIDGET_RENDER_SLOW_MS,
             totalMs = totalMs,
             appLogTag = WidgetPerfLogger.TAG_WIDGET_RENDER_PERF,

@@ -149,9 +149,11 @@ class WeatherWidgetWorker
 
                         val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = !uiOnlyRefresh)
                         val afterActualsMs = SystemClock.elapsedRealtime()
-                        
+
+                        appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
                         updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
                         val afterUpdateMs = SystemClock.elapsedRealtime()
+                        appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_done uiOnly=$uiOnlyRefresh elapsedMs=${afterUpdateMs - afterActualsMs}")
 
                         val totalMs = afterUpdateMs - startMs
                         if (totalMs > 500) {

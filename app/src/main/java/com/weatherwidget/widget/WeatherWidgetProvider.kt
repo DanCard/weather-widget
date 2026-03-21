@@ -101,6 +101,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                         .associateWith { stateManager.getViewMode(it) }
                 val needsDailyData = needsDailyStartupData(widgetViewModes.values)
+                appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${appWidgetIds.size} thread=${Thread.currentThread().name}")
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
@@ -796,6 +797,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.day2_label, "Today")
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, "Loading...")
+            android.util.Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=loading state=loading thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
 

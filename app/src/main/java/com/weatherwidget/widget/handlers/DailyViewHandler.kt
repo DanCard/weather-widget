@@ -459,10 +459,12 @@ object DailyViewHandler : WidgetViewHandler {
             setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
         }
 
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
-            appLogDao = WeatherDatabase.getDatabase(context).appLogDao(),
+            appLogDao = appLogDao,
             thresholdMs = WidgetPerfLogger.WIDGET_RENDER_SLOW_MS,
             totalMs = totalMs,
             appLogTag = WidgetPerfLogger.TAG_WIDGET_RENDER_PERF,

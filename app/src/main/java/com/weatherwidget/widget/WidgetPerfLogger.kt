@@ -10,6 +10,7 @@ object WidgetPerfLogger {
     const val TAG_WIDGET_RENDER_PERF = "WIDGET_RENDER_PERF"
     const val TAG_DB_OPEN_PERF = "DB_OPEN_PERF"
     const val TAG_TEMP_PIPELINE_PERF = "TEMP_PIPELINE_PERF"
+    const val TAG_WIDGET_PAINT = "WIDGET_PAINT"
 
     const val STARTUP_SLOW_MS = 200L
     const val WIDGET_RENDER_SLOW_MS = 150L

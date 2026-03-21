@@ -837,6 +837,7 @@ object WidgetIntentRouter {
     ) {
         kotlinx.coroutines.delay(250) // Debounce rapid resize events
         Log.d(TAG, "handleResize: Updating widget $appWidgetId after resize")
+        WeatherDatabase.getDatabase(context).appLogDao().log("WIDGET_LIFECYCLE", "phase=handleResize_entry widget=$appWidgetId thread=${Thread.currentThread().name}")
 
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
