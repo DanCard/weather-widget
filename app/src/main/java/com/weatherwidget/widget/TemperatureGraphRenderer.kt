@@ -351,11 +351,11 @@ object TemperatureGraphRenderer {
         // --- Reality / Truth Curve (Solid Line Path + Ghost Line Path + Fetch Dot grounding) ---
         // For the solid actual line (past) and fetch dot grounding, we use raw observed values
         // where available, falling back to forecast + delta elsewhere.
-        // We remove smoothing here to ensure the solid line meets the dot exactly.
+        // We apply light smoothing (1 iteration) for visual fluidness.
         val rawTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
-        val smoothedTruthTemps = rawTruthTemps // No smoothing for exact junction matching
+        val smoothedTruthTemps = GraphRenderUtils.smoothValues(rawTruthTemps, iterations = 1)
 
-        // Calculate anchorDelta at fetch time using raw values to ensure perfect grounding.
+        // Calculate anchorDelta at fetch time using smoothed values for consistent grounding.
         val fetchTime = actualSeriesAnchorAt?.let {
             java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
         }
@@ -364,26 +364,32 @@ object TemperatureGraphRenderer {
             java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
         } else null
         
+        // --- Ghost Line Curve (Future Projection) ---
+        // Parallelism: We ensure the ghost line is a pure translation of the forecast line
+        // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + anchorDelta.
+        // We re-calculate anchorDelta based on the smoothed forecast and smoothed truth at the fetch time.
         val interpolatedForecastAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            smoothedForecastTemps[fetchIdx] + (smoothedForecastTemps[fetchIdx + 1] - smoothedForecastTemps[fetchIdx]) * fetchFraction
+            GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1).let { smoothed ->
+                val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to smoothed[it] })
+                GraphRenderUtils.evaluateCubicY(smoothed[fetchIdx], t[fetchIdx].second, smoothed[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
+            }
         } else null
 
         val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            smoothedTruthTemps[fetchIdx] + (smoothedTruthTemps[fetchIdx + 1] - smoothedTruthTemps[fetchIdx]) * fetchFraction
+            val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to smoothedTruthTemps[it] })
+            GraphRenderUtils.evaluateCubicY(smoothedTruthTemps[fetchIdx], t[fetchIdx].second, smoothedTruthTemps[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
         } else null
 
         val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
             interpolatedTruthAtFetch - interpolatedForecastAtFetch
         } else effectiveDelta
 
-        // --- Ghost Line Curve (Future Projection) ---
-        // Parallelism: We ensure the ghost line is a pure translation of the forecast line
-        // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + anchorDelta.
         val smoothedExpectedTemps = smoothedForecastTemps.map { it + anchorDelta }
 
         // --- Label Curve (Used ONLY for label text values) ---
         // We show raw actual history or raw forecast (no delta) in the label text.
-        // We keep smoothing here so the label placement is visually fluid.
+        // We find peaks/valleys on the raw series for precision, but they are placed
+        // on the smoothed visual curve.
         val rawLabelTemps = hours.map { it.actualTemperature ?: it.temperature }
         val smoothedLabelTemps = rawLabelTemps
         val forecastLabelTemps = hours.map { it.temperature }
@@ -419,10 +425,10 @@ object TemperatureGraphRenderer {
         )
 
         // Build paths. 
-        // Reality paths (Actual solid line, Ghost projection line) use JAGAGED paths (linear segments)
-        // to ensure they perfectly match the linear interpolation used for the fetch dot grounding.
-        val (originalPath, _) = GraphRenderUtils.buildJaggedPath(originalPoints, graphBottom)
-        val (expectedPath, expectedFillPath) = GraphRenderUtils.buildJaggedPath(expectedPoints, graphBottom)
+        // Reality paths (Actual solid line, Ghost projection line) now use SMOOTH paths
+        // for visual consistency with the forecast line.
+        val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+        val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
 
         // Forecast line (thin dashed background) stays smoothed for visual fluidness.
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
@@ -529,7 +535,11 @@ object TemperatureGraphRenderer {
         ) { index, clampedX ->
             val hour = hours[index]
             if (hour.iconRes != null) {
-                val drawable = androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
+                val drawable = try {
+                    androidx.core.content.ContextCompat.getDrawable(context, hour.iconRes)
+                } catch (e: Exception) {
+                    null
+                }
                 if (drawable != null) {
                     val iconY = footerTop + iconTopPad
                     val iconX = clampedX - iconSize / 2f
@@ -561,6 +571,7 @@ object TemperatureGraphRenderer {
         val dailyHighIndex = smoothedLabelTemps.indices.maxByOrNull { smoothedLabelTemps[it] } ?: -1
         val dailyLowIndex = smoothedLabelTemps.indices.minByOrNull { smoothedLabelTemps[it] } ?: -1
         val forecastHighIndex = forecastLabelTemps.indices.maxByOrNull { forecastLabelTemps[it] } ?: -1
+        val forecastLowIndex = forecastLabelTemps.indices.minByOrNull { forecastLabelTemps[it] } ?: -1
 
         fun findLocalExtremaIndices(): List<Int> {
             val extrema = mutableListOf<Int>()
@@ -649,6 +660,7 @@ object TemperatureGraphRenderer {
             }
         }
 
+        // Add essential candidates first to give them priority in placement
         if (dailyLowIndex >= 0) {
             addCandidate(
                 index = dailyLowIndex,
@@ -665,6 +677,15 @@ object TemperatureGraphRenderer {
                 rawTemperature = hours[dailyHighIndex].temperature,
             )
         }
+        if (forecastLowIndex >= 0) {
+            addCandidate(
+                index = forecastLowIndex,
+                role = "FORECAST_LOW",
+                labelTemps = forecastLabelTemps,
+                rawTemperature = hours[forecastLowIndex].temperature,
+                forceForecastSeries = true,
+            )
+        }
         if (forecastHighIndex >= 0) {
             addCandidate(
                 index = forecastHighIndex,
@@ -674,7 +695,13 @@ object TemperatureGraphRenderer {
                 forceForecastSeries = true,
             )
         }
+
+        // Then add other labels
         significantLocalExtrema.forEach { idx ->
+            // Skip minor fluctuations (LOCAL) in the actual history to declutter the past.
+            // We still keep absolute High/Low and Start/End labels via other roles.
+            if (hours[idx].isActual) return@forEach
+
             if (specialCandidates.none { it.index == idx }) {
                 val labelText = String.format("%.1f", smoothedLabelTemps[idx])
                 if (specialCandidates.none { Math.abs(idx - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
@@ -750,9 +777,10 @@ object TemperatureGraphRenderer {
         )
 
         val labelFontMetrics = actualTempLabelTextPaint.fontMetrics
-        val fallbackTextHeight = actualTempLabelTextPaint.textSize
-        val labelAscent = labelFontMetrics?.ascent ?: (-fallbackTextHeight)
-        val labelDescent = labelFontMetrics?.descent ?: 0f
+        // Ensure non-zero ascent/descent for boundary checks, especially in tests
+        val labelAscent = if (labelFontMetrics != null && labelFontMetrics.ascent != 0f) labelFontMetrics.ascent else (-actualTempLabelTextPaint.textSize)
+        val labelDescent = if (labelFontMetrics != null && labelFontMetrics.descent != 0f) labelFontMetrics.descent else (actualTempLabelTextPaint.textSize * 0.2f)
+        
         val labelTopPadding = dpToPx(context, 2f)
         val aboveGap = dpToPx(context, 3f)
         val belowGap = dpToPx(context, 3f)
@@ -784,65 +812,42 @@ object TemperatureGraphRenderer {
                     (candidate.role == "LOCAL" && idx in significantLocalExtrema && labelTemps[idx] > leftVal)
             val isValley =
                 candidate.role == "LOW" ||
+                    candidate.role == "FORECAST_LOW" ||
                     (candidate.role == "LOCAL" && idx in significantLocalExtrema && labelTemps[idx] < leftVal)
 
-            val preferBelow = if (isPeak) false else if (isValley) true else sy < graphTop + graphHeight / 2f
-            val attempts = if (preferBelow) listOf(true, false) else listOf(false, true)
+            val isEssential = candidate.role == "LOW" || candidate.role == "HIGH" || candidate.role == "FORECAST_LOW" || candidate.role == "FORECAST_HIGH"
+            
+            // Valley prefers below, Peak prefers above.
+            val attempts = if (isValley) listOf(true, false) else listOf(false, true)
             
             Log.d(
                 TAG,
-                "Label CANDIDATE: idx=$idx, role=${candidate.role}, label=$label, isFuture=$isFuture, pointX=$sx, pointY=$sy, using=$series, colorFamily=$colorFamily, isPeak=$isPeak, isValley=$isValley, preferBelow=$preferBelow",
+                "Label CANDIDATE: idx=$idx, role=${candidate.role}, label=$label, isEssential=$isEssential, pointY=$sy",
             )
 
-            for (drawBelow in attempts) {
-                val baselineY =
-                    if (drawBelow) {
-                        sy + belowGap - labelAscent
-                    } else {
-                        sy - aboveGap - labelDescent
-                    }
-                val bounds =
-                    RectF(
-                        clampedX - textWidth / 2f,
-                        baselineY + labelAscent,
-                        clampedX + textWidth / 2f,
-                        baselineY + labelDescent,
-                    )
+            for (attemptIdx in attempts.indices) {
+                val drawBelow = attempts[attemptIdx]
+                val isFirstAttempt = attemptIdx == 0
+                
+                val baselineY = if (drawBelow) sy + belowGap - labelAscent else sy - aboveGap - labelDescent
+                val bounds = RectF(clampedX - textWidth / 2f, baselineY + labelAscent, clampedX + textWidth / 2f, baselineY + labelDescent)
+                
+                val onScreen = bounds.top >= 0f && bounds.bottom <= heightPx
                 val intersectsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
                 val intersectsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                val withinTop = bounds.top >= 0f
-                val withinBottom = bounds.bottom <= (graphBottom - labelTopPadding)
+                val hasCollision = intersectsLabel || intersectsIcon
 
-                if (withinTop && withinBottom && !intersectsLabel && !intersectsIcon) {
+                // Rules:
+                // 1. On first attempt (natural side), ONLY draw if no collision.
+                // 2. On second attempt (fallback side), draw if no collision OR if essential (FORCE).
+                if (onScreen && (!hasCollision || (isEssential && !isFirstAttempt))) {
                     canvas.drawText(label, clampedX, baselineY, labelPaint)
                     drawnLabelBounds.add(bounds)
-
-                    val role = candidate.role
-
-                    onLabelPlaced?.invoke(
-                        LabelPlacementDebug(
-                            index = idx,
-                            role = role,
-                            temperature = labelTemps[idx],
-                            rawTemperature = candidate.rawTemperature,
-                            x = clampedX,
-                            y = baselineY,
-                            placedAbove = !drawBelow,
-                            series = series,
-                            colorFamily = colorFamily,
-                            reason = if (drawBelow) "below" else "above",
-                        ),
-                    )
-                    Log.d(
-                        TAG,
-                        "Label PLACED: idx=$idx, role=$role, label=$label, placedAbove=${!drawBelow}, pointY=$sy, baselineY=$baselineY, bounds=$bounds, isFuture=$isFuture, colorFamily=$colorFamily",
-                    )
+                    
+                    val type = if (hasCollision) "FORCED" else "PLACED"
+                    onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, labelTemps[idx], candidate.rawTemperature, clampedX, baselineY, !drawBelow, series, colorFamily, if (drawBelow) "below" else "above"))
+                    Log.d(TAG, "Label $type: idx=$idx, role=${candidate.role}, label=$label, placedAbove=${!drawBelow}, baselineY=$baselineY")
                     break
-                } else {
-                    Log.d(
-                        TAG,
-                        "Label REJECTED: idx=$idx, label=$label, drawBelow=$drawBelow, pointY=$sy, baselineY=$baselineY, top=${bounds.top}, bottom=${bounds.bottom}, intersectsLabel=$intersectsLabel, intersectsIcon=$intersectsIcon, withinTop=$withinTop, withinBottom=$withinBottom",
-                    )
                 }
             }
         }

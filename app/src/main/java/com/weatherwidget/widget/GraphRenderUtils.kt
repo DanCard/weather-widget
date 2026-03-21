@@ -44,42 +44,7 @@ internal object GraphRenderUtils {
             fillPath.moveTo(points[0].first, points[0].second)
 
             if (points.size > 1) {
-                val tangents =
-                    points.indices.map { i ->
-                        when (i) {
-                            0 ->
-                                Pair(
-                                    (points[1].first - points[0].first) * 0.5f,
-                                    (points[1].second - points[0].second) * 0.5f,
-                                )
-
-                            points.size - 1 ->
-                                Pair(
-                                    (points[i].first - points[i - 1].first) * 0.5f,
-                                    (points[i].second - points[i - 1].second) * 0.5f,
-                                )
-
-                            else -> {
-                                val dx = (points[i + 1].first - points[i - 1].first) * 0.5f
-                                var dy = (points[i + 1].second - points[i - 1].second) * 0.5f
-
-                                // Monotone-aware tangents: Zero out Y tangent if at a plateau or extremum
-                                val yPrev = points[i - 1].second
-                                val yCurr = points[i].second
-                                val yNext = points[i + 1].second
-
-                                val delta1 = yCurr - yPrev
-                                val delta2 = yNext - yCurr
-
-                                // If either side is flat, or if it's a peak/valley (signs differ), force tangent to 0
-                                if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
-                                    dy = 0f
-                                }
-
-                                Pair(dx, dy)
-                            }
-                        }
-                    }
+                val tangents = computeTangents(points)
 
                 for (i in 0 until points.size - 1) {
                     val cp1x = points[i].first + tangents[i].first / 3f
@@ -97,6 +62,71 @@ internal object GraphRenderUtils {
         }
 
         return curvePath to fillPath
+    }
+
+    /**
+     * Computes monotone-aware tangents for a set of points.
+     * These tangents ensure the cubic spline doesn't overshoot at peaks/valleys.
+     */
+    fun computeTangents(points: List<Pair<Float, Float>>): List<Pair<Float, Float>> {
+        if (points.size < 2) return points.map { 0f to 0f }
+        
+        return points.indices.map { i ->
+            when (i) {
+                0 ->
+                    Pair(
+                        (points[1].first - points[0].first) * 0.5f,
+                        (points[1].second - points[0].second) * 0.5f,
+                    )
+
+                points.size - 1 ->
+                    Pair(
+                        (points[i].first - points[i - 1].first) * 0.5f,
+                        (points[i].second - points[i - 1].second) * 0.5f,
+                    )
+
+                else -> {
+                    val dx = (points[i + 1].first - points[i - 1].first) * 0.5f
+                    var dy = (points[i + 1].second - points[i - 1].second) * 0.5f
+
+                    // Monotone-aware tangents: Zero out Y tangent if at a plateau or extremum
+                    val yPrev = points[i - 1].second
+                    val yCurr = points[i].second
+                    val yNext = points[i + 1].second
+
+                    val delta1 = yCurr - yPrev
+                    val delta2 = yNext - yCurr
+
+                    // If either side is flat, or if it's a peak/valley (signs differ), force tangent to 0
+                    if (delta1 == 0f || delta2 == 0f || (delta1 > 0 && delta2 < 0) || (delta1 < 0 && delta2 > 0)) {
+                        dy = 0f
+                    }
+
+                    Pair(dx, dy)
+                }
+            }
+        }
+    }
+
+    /**
+     * Evaluates the Y value of a monotone-aware cubic spline at a given fraction [0..1]
+     * between two points p0 and p1 with tangents t0 and t1.
+     */
+    fun evaluateCubicY(
+        p0y: Float,
+        t0y: Float,
+        p1y: Float,
+        t1y: Float,
+        t: Float,
+    ): Float {
+        val cp1y = p0y + t0y / 3f
+        val cp2y = p1y - t1y / 3f
+        
+        val mt = 1f - t
+        return mt * mt * mt * p0y +
+               3f * mt * mt * t * cp1y +
+               3f * mt * t * t * cp2y +
+               t * t * t * p1y
     }
 
     fun <T> computeXForTime(

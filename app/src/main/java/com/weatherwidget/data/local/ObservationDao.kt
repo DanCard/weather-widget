@@ -33,15 +33,6 @@ interface ObservationDao {
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 
-    @Query("UPDATE observations SET api = 'OPEN_METEO' WHERE stationId LIKE 'OPEN_METEO%' AND api = 'NWS'")
-    suspend fun fixApiForOpenMeteo()
-
-    @Query("UPDATE observations SET api = 'WEATHER_API' WHERE stationId LIKE 'WEATHER_API%' AND api = 'NWS'")
-    suspend fun fixApiForWeatherApi()
-
-    @Query("UPDATE observations SET api = 'SILURIAN' WHERE stationId LIKE 'SILURIAN%' AND api = 'NWS'")
-    suspend fun fixApiForSilurian()
-
     @Query("SELECT * FROM observations WHERE stationId = :stationId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestForStation(stationId: String): ObservationEntity?
 
