@@ -799,10 +799,11 @@ class ForecastRepository
 
         suspend fun cleanOldData() {
             val oneMonthAgoTimestamp = System.currentTimeMillis() - 2592000000L // 30 days
+            val fourDaysAgoTimestamp = System.currentTimeMillis() - 345600000L // 4 days
             val logsCutoffTimestamp = System.currentTimeMillis() - 259200000L // 72 hours
             forecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
             hourlyForecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
-            observationDao.deleteOldObservations(oneMonthAgoTimestamp)
+            observationDao.deleteOldObservations(fourDaysAgoTimestamp)
             dailyExtremeDao.deleteOldExtremes(oneMonthAgoTimestamp)
             appLogDao.deleteOldLogs(logsCutoffTimestamp)
         }

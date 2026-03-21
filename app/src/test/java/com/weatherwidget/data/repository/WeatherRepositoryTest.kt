@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -35,6 +36,7 @@ class WeatherRepositoryTest {
     private lateinit var temperatureInterpolator: TemperatureInterpolator
     private lateinit var climateNormalDao: ClimateNormalDao
     private lateinit var observationDao: ObservationDao
+    private lateinit var dailyExtremeDao: DailyExtremeDao
 
     private lateinit var forecastRepository: ForecastRepository
     private lateinit var currentTempRepository: CurrentTempRepository
@@ -62,8 +64,23 @@ class WeatherRepositoryTest {
         temperatureInterpolator = TemperatureInterpolator()
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
+        dailyExtremeDao = mockk(relaxed = true)
 
-        forecastRepository = ForecastRepository(context, forecastDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, climateNormalDao, observationDao, mockk(relaxed = true), mockk(relaxed = true))
+        forecastRepository = ForecastRepository(
+            context,
+            forecastDao,
+            hourlyForecastDao,
+            appLogDao,
+            nwsApi,
+            openMeteoApi,
+            weatherApi,
+            mockk(relaxed = true),
+            widgetStateManager,
+            climateNormalDao,
+            observationDao,
+            dailyExtremeDao,
+            mockk(relaxed = true)
+        )
         currentTempRepository = CurrentTempRepository(context, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
 
         repository =
@@ -195,6 +212,23 @@ class WeatherRepositoryTest {
             coVerify(exactly = 0) { openMeteoApi.getForecast(any(), any(), any()) }
             coVerify(exactly = 0) { forecastDao.insertAll(any<List<ForecastEntity>>()) }
         }
+
+    @Test
+    fun `cleanOldData uses 4-day retention for observations and 30-day for others`() = runTest {
+        val now = System.currentTimeMillis()
+        val expected30DayCutoff = now - 2592000000L
+        val expected4DayCutoff = now - 345600000L
+        val tolerance = 5000L // 5 seconds tolerance
+
+        forecastRepository.cleanOldData()
+
+        coVerify {
+            forecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
+            hourlyForecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
+            observationDao.deleteOldObservations(match { it in (expected4DayCutoff - tolerance)..(expected4DayCutoff + tolerance) })
+            dailyExtremeDao.deleteOldExtremes(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
+        }
+    }
 
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String = "NWS") =
         ForecastEntity(
