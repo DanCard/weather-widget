@@ -823,7 +823,8 @@ object DailyViewHandler : WidgetViewHandler {
         }
     }
 
-    private fun setupGraphDayClickHandlers(
+    @VisibleForTesting
+    internal fun setupGraphDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
         days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
         numColumns: Int
