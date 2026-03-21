@@ -28,7 +28,9 @@ mkdir -p "$LOG_DIR"
 UNIT_LOG="$LOG_DIR/unit-tests-$(date +%Y%m%d-%H%M%S).log"
 
 # Prune old files (>14 days)
-find logs/ -mindepth 1 -mtime +14 -delete 2>/dev/null
+set -x
+find logs/ -mtime +14 -delete
+set +x
 
 # Run gradle and strip blank lines + per-test PASSED lines for a compact view
 # We keep failures and other diagnostics visible.
