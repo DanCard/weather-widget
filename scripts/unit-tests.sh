@@ -23,9 +23,17 @@ fi
 RESULTS_DIR="app/build/test-results/testDebugUnitTest"
 rm -rf "$RESULTS_DIR"
 
+LOG_DIR="logs/unit-tests"
+mkdir -p "$LOG_DIR"
+UNIT_LOG="$LOG_DIR/unit-tests-$(date +%Y%m%d-%H%M%S).log"
+
+# Prune old files (>14 days)
+find logs/ -mindepth 1 -mtime +14 -delete 2>/dev/null
+
 # Run gradle and strip blank lines + per-test PASSED lines for a compact view
 # We keep failures and other diagnostics visible.
-./gradlew :app:testDebugUnitTest $FORCE_FLAG --console=plain | awk 'NF && $0 !~ / > .* PASSED$/'
+# We also tee the full unfiltered output to a log file.
+./gradlew :app:testDebugUnitTest $FORCE_FLAG --console=plain 2>&1 | tee "$UNIT_LOG" | awk 'NF && $0 !~ / > .* PASSED$/'
 
 EXIT_CODE=${PIPESTATUS[0]}
 END_TIME=$(date +%s)
@@ -113,5 +121,7 @@ else
     fi
     echo -e "  Duration: ${DURATION_SECONDS}s"
 fi
+
+echo -e "${BLUE}Unit test log:${NC} $UNIT_LOG"
 
 exit $EXIT_CODE

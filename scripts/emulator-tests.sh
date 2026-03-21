@@ -23,9 +23,15 @@ EMU_TIMEOUT=120  # Seconds to wait for emulator boot
 TEST_TIMEOUT=300 # Seconds for tests to complete
 VISIBLE_MODE=true  # Run emulator with GUI window (default)
 PROGRESS_PID=""
-DEBUG_LOG="/tmp/run-emulator-tests-debug-$(date +%Y%m%d-%H%M%S).log"
-TEST_RESULTS_LOG="/tmp/test_results-$$-$(date +%Y%m%d-%H%M%S).log"
+
+LOG_DIR="logs/emulator-tests"
+mkdir -p "$LOG_DIR"
+DEBUG_LOG="$LOG_DIR/run-emulator-tests-debug-$(date +%Y%m%d-%H%M%S).log"
+TEST_RESULTS_LOG="$LOG_DIR/test_results-$$-$(date +%Y%m%d-%H%M%S).log"
 ORIGINAL_ARGS=("$@")
+
+# Prune old files (>14 days)
+find logs/ -mindepth 1 -mtime +14 -delete 2>/dev/null
 
 debug_log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$DEBUG_LOG"
