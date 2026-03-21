@@ -337,7 +337,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     internal class ObservationAdapter(private val onItemClick: (ObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
         internal var items: List<ObservationEntity> = emptyList()
-        private val timeFormatter = DateTimeFormatter.ofPattern("h:mm:ss a").withZone(ZoneId.systemDefault())
+        private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault())
 
         fun submitList(newList: List<ObservationEntity>) {
             items = newList
