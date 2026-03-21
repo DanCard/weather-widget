@@ -82,6 +82,7 @@ class TemperatureFetchDotUpdateRoboTest {
                 condition = "Clear",
                 locationLat = 37.0,
                 locationLon = -122.0,
+                api = "NWS",
             ),
         )
         val secondActuals = listOf(
@@ -93,6 +94,7 @@ class TemperatureFetchDotUpdateRoboTest {
                 condition = "Clear",
                 locationLat = 37.0,
                 locationLon = -122.0,
+                api = "NWS",
             ),
         )
         val resolved = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
@@ -166,6 +168,7 @@ class TemperatureFetchDotUpdateRoboTest {
                 condition = "Clear",
                 locationLat = 37.0,
                 locationLon = -122.0,
+                api = "NWS",
             ),
         )
         val resolved = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()

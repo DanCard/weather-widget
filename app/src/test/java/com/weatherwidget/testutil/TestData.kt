@@ -51,6 +51,7 @@ object TestData {
         distanceKm: Float = 5f,
         stationType: String = "OFFICIAL",
         fetchedAt: Long = System.currentTimeMillis(),
+        api: String = "NWS",
     ) = ObservationEntity(
         stationId = stationId,
         stationName = stationName,
@@ -62,6 +63,7 @@ object TestData {
         distanceKm = distanceKm,
         stationType = stationType,
         fetchedAt = fetchedAt,
+        api = api,
     )
 
     fun hourly(

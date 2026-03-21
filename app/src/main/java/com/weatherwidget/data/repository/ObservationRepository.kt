@@ -122,6 +122,7 @@ class ObservationRepository @Inject constructor(
             stationInfo.type.name,
             maxTempLast24h = observation.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
             minTempLast24h = observation.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+            api = WeatherSource.NWS.id,
         )
         observationDao.insertAll(listOf(obsEntity))
         recomputeDailyExtremesForDay(latitude, longitude, obsEntity.timestamp)
@@ -213,6 +214,7 @@ class ObservationRepository @Inject constructor(
                             stationType = stationInfo.type.name,
                             maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
                             minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+                            api = WeatherSource.NWS.id,
                         )
                     }
                     observationDao.insertAll(entities)
@@ -309,6 +311,7 @@ class ObservationRepository @Inject constructor(
                             stationType = stationInfo.type.name,
                             maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
                             minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+                            api = WeatherSource.NWS.id,
                         )
                     }
                 observationDao.insertAll(entities)
@@ -441,6 +444,7 @@ class ObservationRepository @Inject constructor(
             distanceKm = 0f,
             stationType = "BLENDED",
             fetchedAt = newestFetchedAt,
+            api = WeatherSource.NWS.id,
         )
 
         persistedMainObs + syntheticNwsMain

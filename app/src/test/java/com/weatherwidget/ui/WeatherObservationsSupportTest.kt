@@ -25,6 +25,16 @@ class WeatherObservationsSupportTest {
     }
 
     @Test
+    fun `matchesObservationSource excludes NWS_MAIN from NWS`() {
+        assertFalse(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
+                stationId = "NWS_MAIN",
+                source = WeatherSource.NWS,
+            ),
+        )
+    }
+
+    @Test
     fun `matchesObservationSource matches source prefixes for non-NWS sources`() {
         assertTrue(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(

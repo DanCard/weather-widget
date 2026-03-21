@@ -130,7 +130,8 @@ class CurrentTempRepository
                             temperature = reading.currentTemp,
                             condition = reading.currentCondition ?: "Unknown",
                             locationLat = latitude,
-                            locationLon = longitude
+                            locationLon = longitude,
+                            api = WeatherSource.SILURIAN.id,
                         )
                         observationDao.insertAll(listOf(obsEntity))
                     }
@@ -161,7 +162,8 @@ class CurrentTempRepository
                             latitude,
                             longitude,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL"
+                            "OFFICIAL",
+                            api = WeatherSource.OPEN_METEO.id,
                         )
                         observationDao.insertAll(listOf(obsEntity))
                     }
@@ -195,7 +197,8 @@ class CurrentTempRepository
                             latitude,
                             longitude,
                             calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
-                            "OFFICIAL"
+                            "OFFICIAL",
+                            api = WeatherSource.WEATHER_API.id,
                         )
                         observationDao.insertAll(listOf(obsEntity))
                     }

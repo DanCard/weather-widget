@@ -1307,6 +1307,7 @@ object TemperatureViewHandler {
                         locationLon = userLon,
                         distanceKm = point.distanceKm,
                         stationType = point.stationType,
+                        api = displaySource.id,
                     )
                 }
                 SpatialInterpolator.interpolateIDW(userLat, userLon, peerEntities, targetTs)
@@ -1345,6 +1346,7 @@ object TemperatureViewHandler {
                     locationLon = userLon,
                     distanceKm = anchor.distanceKm,
                     stationType = anchor.stationType,
+                    api = displaySource.id,
                 ),
             )
             lastEmittedMs = targetTs

@@ -198,6 +198,7 @@ class WeatherObservationsActivityRobolectricTest {
             distanceKm = distanceKm,
             stationType = stationType,
             fetchedAt = timestamp,
+            api = "NWS",
         )
     }
 

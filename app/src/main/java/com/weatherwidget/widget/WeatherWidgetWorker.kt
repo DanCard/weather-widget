@@ -35,12 +35,15 @@ class WeatherWidgetWorker
         private val weatherRepository: WeatherRepository,
         private val widgetStateManager: WidgetStateManager,
         private val appLogDao: AppLogDao,
+        private val weatherDatabase: WeatherDatabase,
     ) : CoroutineWorker(context, workerParams) {
         override suspend fun doWork(): Result {
             if (WeatherDatabase.isTestingMode()) {
                 Log.d(TAG, "Skipping worker execution in test mode")
                 return Result.success()
             }
+
+            cleanupLegacyNwsMainRows()
 
             val uiOnlyRefresh = inputData.getBoolean(KEY_UI_ONLY_REFRESH, false)
             val forceRefresh = inputData.getBoolean(KEY_FORCE_REFRESH, false)
@@ -400,6 +403,29 @@ class WeatherWidgetWorker
                 "Mountain View, CA"
             } else {
                 "%.2f, %.2f".format(lat, lon)
+            }
+        }
+
+        /**
+         * One-time cleanup of stale persisted NWS_MAIN observations.
+         * Legacy rows from before commit 073cb37 (which stopped persisting NWS_MAIN).
+         * Uses SharedPreferences flag to run only once.
+         * REMOVE THIS METHOD 2-4 weeks after this release ships to all users.
+         */
+        private suspend fun cleanupLegacyNwsMainRows() {
+            val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "weather_prefs")
+            if (prefs.getBoolean("nws_main_cleanup_done", false)) return
+            try {
+                val dao = weatherDatabase.observationDao()
+                val count = dao.countByStationId("NWS_MAIN")
+                if (count > 0) {
+                    dao.deleteObservationsByStationId("NWS_MAIN")
+                    appLogDao.log("NWS_MAIN_CLEANUP", "deleted=$count stale persisted NWS_MAIN rows")
+                    Log.i(TAG, "Cleaned up $count stale NWS_MAIN observations")
+                }
+                prefs.edit().putBoolean("nws_main_cleanup_done", true).apply()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clean up NWS_MAIN observations", e)
             }
         }
 

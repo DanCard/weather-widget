@@ -13,7 +13,8 @@ import androidx.room.Index
     primaryKeys = ["stationId", "timestamp"],
     indices = [
         Index(value = ["locationLat", "locationLon"]),
-        Index(value = ["timestamp", "locationLat", "locationLon"])
+        Index(value = ["timestamp", "locationLat", "locationLon"]),
+        Index(value = ["api"]),
     ],
 )
 data class ObservationEntity(
@@ -29,4 +30,5 @@ data class ObservationEntity(
     val fetchedAt: Long = System.currentTimeMillis(),
     val maxTempLast24h: Float? = null, // Fahrenheit; from NWS maxTemperatureLast24Hours (rolling 24h ASOS extreme)
     val minTempLast24h: Float? = null, // Fahrenheit; from NWS minTemperatureLast24Hours (rolling 24h ASOS extreme)
+    val api: String = "NWS", // Which API provided this observation (NWS, OPEN_METEO, WEATHER_API, SILURIAN)
 )

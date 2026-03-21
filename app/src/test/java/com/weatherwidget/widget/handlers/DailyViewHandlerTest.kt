@@ -233,7 +233,8 @@ class DailyViewHandlerTest {
                 condition = "Clear",
                 locationLat = 0.0,
                 locationLon = 0.0,
-                fetchedAt = 1L
+                fetchedAt = 1L,
+                api = "NWS",
             )
         )
 
@@ -816,6 +817,7 @@ class DailyViewHandlerTest {
                     locationLat = 37.7749,
                     locationLon = -122.4194,
                     fetchedAt = 1L,
+                    api = "NWS",
                 ),
             ),
             dailyActualsBySource = emptyMap(),
@@ -871,6 +873,7 @@ class DailyViewHandlerTest {
                     locationLat = 37.7749,
                     locationLon = -122.4194,
                     fetchedAt = 1L,
+                    api = "NWS",
                 ),
             ),
             dailyActualsBySource = emptyMap(),

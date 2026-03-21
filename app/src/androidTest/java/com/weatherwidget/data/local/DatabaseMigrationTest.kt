@@ -262,4 +262,45 @@ class DatabaseMigrationTest {
         cursor.close()
         assert(found) { "Optimized composite index should exist after migration 35 to 36" }
     }
+
+    @Test
+    fun migrate37to38() {
+        helper.createDatabase(testDb, 37).apply {
+            execSQL(
+                """
+                INSERT INTO observations (stationId, stationName, timestamp, temperature, `condition`, locationLat, locationLon, distanceKm, stationType, fetchedAt)
+                VALUES ('KTEST', 'Test Station', ${System.currentTimeMillis()}, 65.0, 'Clear', 37.42, -122.08, 5.0, 'ASOS', ${System.currentTimeMillis()})
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 38, true, WeatherDatabase.MIGRATION_37_38)
+        val cursor = db.query("SELECT api FROM observations LIMIT 1")
+        cursor.moveToFirst()
+        assert(cursor.getString(0) == "NWS") { "Expected api='NWS' but got '${cursor.getString(0)}'" }
+        cursor.close()
+    }
+
+    @Test
+    fun migrate38to39() {
+        helper.createDatabase(testDb, 38).apply {
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 39, true, WeatherDatabase.MIGRATION_38_39)
+
+        // Verify the new index exists on the observations table
+        val cursor = db.query("PRAGMA index_list(observations)")
+        var found = false
+        while (cursor.moveToNext()) {
+            val name = cursor.getString(cursor.getColumnIndex("name"))
+            if (name == "index_observations_api") {
+                found = true
+                break
+            }
+        }
+        cursor.close()
+        assert(found) { "Index on api column should exist after migration 38 to 39" }
+    }
 }

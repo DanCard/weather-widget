@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 37,
+    version = 39,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -94,6 +94,8 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_34_35,
                             MIGRATION_35_36,
                             MIGRATION_36_37,
+                            MIGRATION_37_38,
+                            MIGRATION_38_39,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -1037,6 +1039,20 @@ abstract class WeatherDatabase : RoomDatabase() {
             object : Migration(36, 37) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("DROP TABLE IF EXISTS current_temp")
+                }
+            }
+
+        val MIGRATION_37_38 =
+            object : Migration(37, 38) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE observations ADD COLUMN api TEXT NOT NULL DEFAULT 'NWS'")
+                }
+            }
+
+        val MIGRATION_38_39 =
+            object : Migration(38, 39) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_api ON observations(api)")
                 }
             }
     }

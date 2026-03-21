@@ -33,13 +33,18 @@ interface ObservationDao {
     @Query("DELETE FROM observations WHERE timestamp < :cutoffMs")
     suspend fun deleteOldObservations(cutoffMs: Long)
 
+    @Query("DELETE FROM observations WHERE stationId = :stationId")
+    suspend fun deleteObservationsByStationId(stationId: String)
+
+    @Query("SELECT COUNT(*) FROM observations WHERE stationId = :stationId")
+    suspend fun countByStationId(stationId: String): Int
+
     @Query("SELECT * FROM observations WHERE stationId = :stationId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLatestForStation(stationId: String): ObservationEntity?
 
     @Query("""
         SELECT * FROM observations
         WHERE stationId LIKE '%\_MAIN' ESCAPE '\'
-          AND stationId != 'NWS_MAIN'
           AND ABS(locationLat - :lat) < 0.1
           AND ABS(locationLon - :lon) < 0.1
           AND timestamp > :sinceMs
@@ -49,19 +54,7 @@ interface ObservationDao {
 
     @Query("""
         SELECT * FROM observations
-        WHERE stationId LIKE 'NWS_%'
-          AND stationId != 'NWS_MAIN'
-          AND ABS(locationLat - :lat) < 0.1
-          AND ABS(locationLon - :lon) < 0.1
-          AND timestamp > :sinceMs
-        ORDER BY stationId, timestamp DESC
-    """)
-    suspend fun getLatestNwsObservationsByStation(lat: Double, lon: Double, sinceMs: Long): List<ObservationEntity>
-
-    @Query("""
-        SELECT * FROM observations
-        WHERE stationId LIKE 'NWS_%'
-          AND stationId != 'NWS_MAIN'
+        WHERE api = 'NWS'
           AND ABS(locationLat - :lat) < 0.1
           AND ABS(locationLon - :lon) < 0.1
         ORDER BY stationId, timestamp DESC

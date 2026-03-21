@@ -296,7 +296,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =
             when (source) {
-                WeatherSource.NWS -> sourcePrefixes.values.none { prefix -> stationId.startsWith(prefix) }
+                WeatherSource.NWS -> stationId != "NWS_MAIN" && sourcePrefixes.values.none { prefix -> stationId.startsWith(prefix) }
                 else -> stationId.startsWith(sourcePrefixes[source] ?: return false)
             }
 

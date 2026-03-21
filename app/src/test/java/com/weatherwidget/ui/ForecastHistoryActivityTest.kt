@@ -261,6 +261,7 @@ class ForecastHistoryActivityTest {
                 locationLat = 37.0,
                 locationLon = -122.0,
                 fetchedAt = 100L,
+                api = "NWS",
             ),
             ObservationEntity(
                 stationId = "AW020",
@@ -271,6 +272,7 @@ class ForecastHistoryActivityTest {
                 locationLat = 37.0,
                 locationLon = -122.0,
                 fetchedAt = 200L,
+                api = "NWS",
             ),
             ObservationEntity(
                 stationId = "OPEN_METEO_2",
@@ -281,6 +283,7 @@ class ForecastHistoryActivityTest {
                 locationLat = 37.0,
                 locationLon = -122.0,
                 fetchedAt = 300L,
+                api = "OPEN_METEO",
             ),
         )
 
@@ -304,6 +307,7 @@ class ForecastHistoryActivityTest {
                 condition = "Sunny",
                 locationLat = 37.0,
                 locationLon = -122.0,
+                api = "OPEN_METEO",
             ),
             ObservationEntity(
                 stationId = "WEATHER_API_MAIN",
@@ -313,6 +317,7 @@ class ForecastHistoryActivityTest {
                 condition = "Sunny",
                 locationLat = 37.0,
                 locationLon = -122.0,
+                api = "WEATHER_API",
             ),
         )
 

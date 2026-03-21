@@ -209,6 +209,7 @@ class ObservationResolverTest {
         locationLon = -122.08,
         maxTempLast24h = maxTempLast24h,
         minTempLast24h = minTempLast24h,
+        api = "NWS",
     )
 
     private fun currentTempObservation(
@@ -226,6 +227,7 @@ class ObservationResolverTest {
             locationLat = 37.42,
             locationLon = -122.08,
             fetchedAt = fetchedAt,
+            api = "NWS",
         )
     }
 }

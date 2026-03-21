@@ -61,7 +61,8 @@ class WeatherObservationsSourceIntegrationTest : IsolatedIntegrationTest("weathe
                 locationLat = 37.4,
                 locationLon = -121.9,
                 distanceKm = 5f,
-                stationType = "OFFICIAL"
+                stationType = "OFFICIAL",
+                api = "NWS",
             )
             val meteoObs = ObservationEntity(
                 stationId = "OPEN_METEO_MAIN",
@@ -72,7 +73,8 @@ class WeatherObservationsSourceIntegrationTest : IsolatedIntegrationTest("weathe
                 locationLat = 37.4,
                 locationLon = -121.9,
                 distanceKm = 0f,
-                stationType = "OFFICIAL"
+                stationType = "OFFICIAL",
+                api = "OPEN_METEO",
             )
             db.observationDao().insertAll(listOf(nwsObs, meteoObs))
         }

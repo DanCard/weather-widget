@@ -22,6 +22,7 @@ class SpatialInterpolatorTest {
         locationLat = 37.0,
         locationLon = -122.0,
         distanceKm = distanceKm,
+        api = "NWS",
     )
 
     // ── Basic cases ─────────────────────────────────────────────────────────
