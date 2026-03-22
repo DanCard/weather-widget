@@ -5,14 +5,11 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Build
 import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
-import android.view.Gravity
 import android.view.View
 import android.widget.RemoteViews
-import androidx.annotation.RequiresApi
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -493,7 +490,7 @@ object TemperatureViewHandler {
                 )
             views.setTextViewText(R.id.current_temp, formattedTemp)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-            val tempTextSizeSp = if (numColumns <= 3) 22f else 26f
+            val tempTextSizeSp = if (dimensions.widthDp < 420) 22f else 26f
             views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_SP, tempTextSizeSp)
 
             // Update delta badge
@@ -529,13 +526,11 @@ object TemperatureViewHandler {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            positionCenterIcons(
-                views = views,
-                isNarrow = numColumns <= 3,
-                isPrecipVisible = headerPrecipProbability != null && headerPrecipProbability > 0,
-            )
-        }
+        positionCenterIcons(
+            views = views,
+            widthDp = dimensions.widthDp,
+            isPrecipVisible = headerPrecipProbability != null && headerPrecipProbability > 0,
+        )
 
         Log.d(
             TAG,
@@ -630,6 +625,7 @@ object TemperatureViewHandler {
                 currentLat = lat,
                 currentLon = lon,
                 numColumns = numColumns,
+                widthDp = dimensions.widthDp,
                 isNowLineVisible = isNowLineVisible,
                 quickResolution = currentTempResolution,
                 storedDeltaState = storedDeltaState,
@@ -674,6 +670,7 @@ object TemperatureViewHandler {
         currentLat: Double,
         currentLon: Double,
         numColumns: Int,
+        widthDp: Int,
         isNowLineVisible: Boolean,
         quickResolution: CurrentTemperatureResolution,
         storedDeltaState: com.weatherwidget.widget.CurrentTemperatureDeltaState?,
@@ -708,6 +705,7 @@ object TemperatureViewHandler {
                 views = partialViews,
                 currentTemp = refined.displayTemp,
                 numColumns = numColumns,
+                widthDp = widthDp,
                 isStaleEstimate = refined.isStaleEstimate,
                 appliedDelta = refined.appliedDelta,
                 isNowLineVisible = isNowLineVisible,
@@ -766,6 +764,7 @@ object TemperatureViewHandler {
         views: RemoteViews,
         currentTemp: Float?,
         numColumns: Int,
+        widthDp: Int,
         isStaleEstimate: Boolean,
         appliedDelta: Float?,
         isNowLineVisible: Boolean,
@@ -779,7 +778,7 @@ object TemperatureViewHandler {
                 )
             views.setTextViewText(R.id.current_temp, formattedTemp)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-            val tempTextSizeSp = if (numColumns <= 3) 22f else 26f
+            val tempTextSizeSp = if (widthDp < 420) 22f else 26f
             views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_SP, tempTextSizeSp)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -1021,8 +1020,10 @@ object TemperatureViewHandler {
         )
         views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
+        views.setOnClickPendingIntent(R.id.history_touch_zone_inline, pendingIntent)
         views.setViewVisibility(R.id.history_icon, View.VISIBLE)
         views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.history_touch_zone_inline, View.VISIBLE)
     }
 
     private fun setupHomeShortcut(
@@ -1043,8 +1044,10 @@ object TemperatureViewHandler {
         )
         views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
+        views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
         views.setViewVisibility(R.id.home_icon, View.VISIBLE)
         views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.home_touch_zone_inline, View.VISIBLE)
     }
 
     private fun setupCurrentStationsShortcut(
@@ -1065,8 +1068,36 @@ object TemperatureViewHandler {
         )
         views.setOnClickPendingIntent(R.id.current_stations_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.current_stations_touch_zone, pendingIntent)
+        views.setOnClickPendingIntent(R.id.current_stations_touch_zone_inline, pendingIntent)
         views.setViewVisibility(R.id.current_stations_icon, View.VISIBLE)
         views.setViewVisibility(R.id.current_stations_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.current_stations_touch_zone_inline, View.VISIBLE)
+    }
+
+    // On narrow widgets with precip visible, swap to inline icons (inside current_weather_container
+    // LinearLayout) so they naturally flow to the right of the precip text.
+    // Otherwise show the floating center_horizontal icons.
+    // Setup methods show both sets; this function hides the one not in use.
+    private fun positionCenterIcons(
+        views: RemoteViews,
+        widthDp: Int,
+        isPrecipVisible: Boolean,
+    ) {
+        // Inline icons flow after the precip text in the LinearLayout — use them when the widget
+        // is narrow enough that the floating centered icons would overlap the left content.
+        // Overlap starts at widthDp ~374dp (Pixel 7 Pro = 373dp); 420dp adds buffer for wider
+        // precip values like "45%" which extend the left content by another ~30dp.
+        val useInline = widthDp < 420 && isPrecipVisible
+        Log.d(TAG, "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline")
+        // Hide whichever set is not active
+        val floatingGone = if (useInline) View.GONE else View.VISIBLE
+        val inlineGone = if (useInline) View.VISIBLE else View.GONE
+        for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.history_touch_zone, R.id.current_stations_icon, R.id.current_stations_touch_zone)) {
+            views.setViewVisibility(id, floatingGone)
+        }
+        for (id in listOf(R.id.home_touch_zone_inline, R.id.history_touch_zone_inline, R.id.current_stations_touch_zone_inline)) {
+            views.setViewVisibility(id, inlineGone)
+        }
     }
 
     private fun setupSettingsShortcut(

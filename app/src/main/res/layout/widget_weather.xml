@@ -768,11 +768,70 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:paddingEnd="16dp"
+            android:paddingEnd="0dp"
             android:text=""
             android:textSize="26sp"
             android:textColor="#AA5AC8FA"
             android:visibility="gone" />
+
+        <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
+             replacing the floating center_horizontal icons. Order: stations | home | history. -->
+        <FrameLayout
+            android:id="@+id/current_stations_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="2dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/current_stations_icon_inline"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_thermometer"
+                android:contentDescription="Current Stations"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/home_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/home_icon_inline"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_home"
+                android:contentDescription="@string/home_forecast"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/history_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/history_icon_inline"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_forecast_history_line"
+                android:contentDescription="@string/forecast_history"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
 
     </LinearLayout>
 
