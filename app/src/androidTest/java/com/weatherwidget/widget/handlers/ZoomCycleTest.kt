@@ -240,9 +240,9 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // WIDE view spans -8..+16 from baseOffset; each zone resolves to the earlier
-        // hour in its 2h bucket so narrow mode can center the tapped hour.
-        val expectedOffsets = listOf(-8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12, 14)
+        // WIDE view spans -12..+12 from baseOffset (25h total).
+        // Each zone is 2h wide. Formula: -11 + 2 * zoneIndex.
+        val expectedOffsets = listOf(-11, -9, -7, -5, -3, -1, 1, 3, 5, 7, 9, 11)
 
         for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
             // Reset to WIDE zoom for each zone test
@@ -301,7 +301,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         }
 
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
-        assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(-5, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test

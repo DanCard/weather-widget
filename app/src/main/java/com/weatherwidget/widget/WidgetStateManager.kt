@@ -73,7 +73,7 @@ class WidgetStateManager
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
-            const val MIN_HOURLY_OFFSET = -8 // Allow scrolling to see 16h of history (8h default + 8h scroll)
+            const val MIN_HOURLY_OFFSET = -24 // Allow scrolling to see history (12h default + 12h scroll)
             // Keep this aligned with daily navigation horizon so day-click to precip can
             // preserve the intended target day (up to +14 days).
             const val MAX_HOURLY_OFFSET = 336 // 14 days into the future
