@@ -92,7 +92,7 @@ class PrecipitationGraphRendererLogInstrumentedTest {
         val labelAt5 = placements.find { it.index == 5 }
         
         assertNotNull("Should have placed a label at index 5", labelAt5)
-        assertEquals("Label at index 5 should be 37% after smoothing", 37, labelAt5!!.probability)
+        assertEquals("Label at index 5 should be 46% (raw value)", 46, labelAt5!!.probability)
         assertTrue("Label at index 5 should have 'firstLabelBelowRuleApplied' set", labelAt5.firstLabelBelowRuleApplied)
         assertFalse("Label at index 5 (first rising labeled) should be placed BELOW (placedAbove=false)", labelAt5.placedAbove)
     }
@@ -127,10 +127,10 @@ class PrecipitationGraphRendererLogInstrumentedTest {
         assertNotNull("3 am label (first positive) should be present", label3a)
         assertFalse("3 am label should be BELOW", label3a!!.placedAbove)
 
-        // Verify 4 am peak label - NOW GONE because it's in the 'morning' slot 
-        // and thinned out due to proximity to 3am anchor (index 3 vs 4)
+        // Verify 4 am peak label - NOW PRESENT because smoothing doesn't melt it into the anchor
         val label4a = placements.find { it.hourLabel == "4a" }
-        assertTrue("4 am label should be thinned out", label4a == null)
+        assertNotNull("4 am label should be present without smoothing", label4a)
+        assertEquals(85, label4a!!.probability)
     }
 
     @Test

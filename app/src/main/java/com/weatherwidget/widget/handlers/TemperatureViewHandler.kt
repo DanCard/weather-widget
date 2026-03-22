@@ -198,6 +198,7 @@ object TemperatureViewHandler {
         var buildHourDataMs = 0L
         var renderMs = 0L
 
+        val database = WeatherDatabase.getDatabase(context)
         var graphObservedTemp: Float? = null
         var graphObservedAt: Long? = null
 
@@ -208,7 +209,6 @@ object TemperatureViewHandler {
                 val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
                 val graphStart = alignedCenter.minusHours(zoom.backHours)
                 val graphEnd = alignedCenter.plusHours(zoom.forwardHours)
-                val database = WeatherDatabase.getDatabase(context)
                 val observations =
                     if (deferStartupGraphActuals) {
                         Log.d(TAG, "updateWidget: widget=$appWidgetId startup graph fast path, skipping actual observation query")

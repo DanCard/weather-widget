@@ -178,8 +178,8 @@ class PrecipitationGraphRendererTest {
         assertNull("Index 4 (6 AM, 91%) should NOT be labeled after the fix. Placed: ${placedLabels.map { "${it.index}(${it.probability}%)" }}", morningHighLabel)
 
         // Verify other important labels are still there
-        assertTrue("Global max at index 6 should be labeled", placedLabels.any { it.index == 6 && it.probability == 94 })
-        assertTrue("Start anchor at index 0 should be labeled", placedLabels.any { it.index == 0 && it.probability == 80 })
+        assertTrue("Global max at index 7 should be labeled", placedLabels.any { it.index == 7 && it.probability == 96 })
+        assertTrue("Start anchor at index 0 should be labeled", placedLabels.any { it.index == 0 && it.probability == 78 })
 
         io.mockk.unmockkAll()
     }

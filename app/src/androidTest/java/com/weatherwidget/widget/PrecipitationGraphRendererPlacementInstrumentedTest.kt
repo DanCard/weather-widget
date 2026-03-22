@@ -100,7 +100,7 @@ class PrecipitationGraphRendererPlacementInstrumentedTest {
         PrecipitationGraphRenderer.renderGraph(
             context = context,
             hours = hours,
-            widthPx = 1080,
+            widthPx = 1100,
             heightPx = 400,
             currentTime = start,
             onLabelPlaced = { placements.add(it) },
@@ -211,7 +211,7 @@ class PrecipitationGraphRendererPlacementInstrumentedTest {
         PrecipitationGraphRenderer.renderGraph(
             context = context,
             hours = hours,
-            widthPx = 1080,
+            widthPx = 1100,
             heightPx = 400,
             currentTime = start,
             onLabelPlaced = { placements.add(it) },

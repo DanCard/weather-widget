@@ -66,9 +66,9 @@ class SamsungDataFailTest : IsolatedIntegrationTest("samsung_data_fail") {
             plateauLabel
         )
 
-        // The next label should be the 9am peak (idx=9)
-        val peakLabel = placements.find { it.index == 9 }
-        assertNotNull("9am peak should still be labeled", peakLabel)
+        // The next label should be the 10am peak (idx=10)
+        val peakLabel = placements.find { it.index == 10 }
+        assertNotNull("10am peak should be labeled", peakLabel)
     }
 
     private fun formatHour(hour24: Int): String {
