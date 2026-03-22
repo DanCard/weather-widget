@@ -143,21 +143,28 @@ object DailyForecastGraphRenderer {
 
         val todayBarPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FF9F0A")
+                color = Color.parseColor("#FFFF00")
                 strokeWidth = barWidth
                 strokeCap = Paint.Cap.ROUND
             }
 
         val todayTripleYellowPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FFD60A")
+                color = Color.parseColor("#FF3366")
                 strokeWidth = tripleBarWidth
                 strokeCap = Paint.Cap.ROUND
             }
 
+        val todayTripleYellowBulbPaint =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#FF3366")
+                style = Paint.Style.FILL
+            }
+        val bulbRadius = tripleBarWidth * 1.8f
+
         val todayTripleOrangePaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FF9F0A")
+                color = Color.parseColor("#FFFF00")
                 strokeWidth = tripleBarWidth
                 strokeCap = Paint.Cap.ROUND
             }
@@ -171,7 +178,7 @@ object DailyForecastGraphRenderer {
 
         val historyBarPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#FFD60A")
+                color = Color.parseColor("#FF3366")
                 strokeWidth = barWidth * 1.1f
                 strokeCap = Paint.Cap.ROUND
             }
@@ -335,6 +342,7 @@ object DailyForecastGraphRenderer {
                             canvas.drawLine(centerX - tripleBarOffset, sHighY, centerX - tripleBarOffset, effectiveSLowY, todayTripleOrangePaint)
                         }
                         canvas.drawLine(centerX, highY!!, centerX, effectiveLowY, todayTripleYellowPaint)
+                        canvas.drawCircle(centerX, effectiveLowY, bulbRadius, todayTripleYellowBulbPaint)
                         canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveFLowY, todayTripleBluePaint)
                         onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY!!, effectiveLowY, centerX, todayTripleYellowPaint.color))
                     } else {
@@ -372,6 +380,7 @@ object DailyForecastGraphRenderer {
                             canvas.drawLine(centerX - tripleBarOffset, sHighY, centerX - tripleBarOffset, effectiveSLowY, todayTripleOrangePaint)
                         }
                         canvas.drawLine(centerX, highY!!, centerX, highY!! + minBarHeight, todayTripleYellowPaint)
+                        canvas.drawCircle(centerX, highY!! + minBarHeight, bulbRadius, todayTripleYellowBulbPaint)
                         canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, effectiveFLowY, todayTripleBluePaint)
                         onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", highY!!, highY!! + minBarHeight, centerX, todayTripleYellowPaint.color))
                     } else {
@@ -404,6 +413,7 @@ object DailyForecastGraphRenderer {
                             canvas.drawLine(centerX - tripleBarOffset, effectiveSHighY, centerX - tripleBarOffset, sLowY, todayTripleOrangePaint)
                         }
                         canvas.drawLine(centerX, lowY!! - minBarHeight, centerX, lowY!!, todayTripleYellowPaint)
+                        canvas.drawCircle(centerX, lowY!!, bulbRadius, todayTripleYellowBulbPaint)
                         canvas.drawLine(centerX + tripleBarOffset, fHighY, centerX + tripleBarOffset, fLowY!!, todayTripleBluePaint)
                         onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", lowY!! - minBarHeight, lowY!!, centerX, todayTripleYellowPaint.color))
                     } else {
