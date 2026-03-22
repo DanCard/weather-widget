@@ -291,11 +291,12 @@ class NwsApi
             return periods.mapNotNull { period ->
                 val obj = period.jsonObject
                 val startTimeStr = obj["startTime"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val startTime = try {
-                    java.time.ZonedDateTime.parse(startTimeStr).toInstant().toEpochMilli()
+                val startDateTime = try {
+                    java.time.ZonedDateTime.parse(startTimeStr)
                 } catch (e: Exception) {
                     return@mapNotNull null
                 }
+                val startTime = startDateTime.toInstant().toEpochMilli()
                 val temperature = obj["temperature"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: return@mapNotNull null
                 val temperatureUnit = obj["temperatureUnit"]?.jsonPrimitive?.content ?: "F"
                 val shortForecast = obj["shortForecast"]?.jsonPrimitive?.content ?: "Unknown"
@@ -313,6 +314,8 @@ class NwsApi
 
                 HourlyForecastPeriod(
                     startTime = startTime,
+                    localDate = startDateTime.toLocalDate().toString(),
+                    localHour = startDateTime.hour,
                     temperature = tempF,
                     shortForecast = shortForecast,
                     precipProbability = precipProbability,
@@ -480,6 +483,8 @@ class NwsApi
 
         data class HourlyForecastPeriod(
             val startTime: Long, // Epoch ms
+            val localDate: String,
+            val localHour: Int,
             val temperature: Float, // Fahrenheit
             val shortForecast: String,
             val precipProbability: Int? = null,

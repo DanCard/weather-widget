@@ -396,50 +396,40 @@ class ForecastRepository
         }
 
         private fun initPrecipFromHourly(
-            hourlyPeriods: List<NwsApi.HourlyForecastPeriod>, 
-            precipProbabilityMap: MutableMap<String, Int>
+            hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+            precipProbabilityMap: MutableMap<String, Int>,
         ) {
             hourlyPeriods.forEach { hour ->
-                runCatching { 
-                    Instant.ofEpochMilli(hour.startTime).atZone(ZoneId.systemDefault()).toLocalDate().toString() 
-                }.getOrNull()?.let { dateString ->
-                    val probability = hour.precipProbability ?: 0
-                    if (probability > (precipProbabilityMap[dateString] ?: 0)) {
-                        precipProbabilityMap[dateString] = probability
-                    }
+                val dateString = hour.localDate
+                val probability = hour.precipProbability ?: 0
+                if (probability > (precipProbabilityMap[dateString] ?: 0)) {
+                    precipProbabilityMap[dateString] = probability
                 }
             }
         }
 
         private fun initConditionsFromHourly(
-            hourlyPeriods: List<NwsApi.HourlyForecastPeriod>, 
-            conditionMap: MutableMap<String, String>, 
-            sourceMap: MutableMap<String, String>
+            hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+            conditionMap: MutableMap<String, String>,
+            sourceMap: MutableMap<String, String>,
         ) {
             val todayDate = LocalDate.now()
-            hourlyPeriods.groupBy { 
-                runCatching { Instant.ofEpochMilli(it.startTime).atZone(ZoneId.systemDefault()).toLocalDate().toString() }.getOrNull() 
-            }
+            hourlyPeriods.groupBy { it.localDate }
                 .forEach { (dateString, periods) ->
-                    if (dateString != null && LocalDate.parse(dateString).isAfter(todayDate)) {
+                    if (LocalDate.parse(dateString).isAfter(todayDate)) {
                         // Try to pick a midday condition for the daily summary
                         val targetHours = listOf(13, 14, 12, 15)
                         var bestPeriod: NwsApi.HourlyForecastPeriod? = null
                         for (hour in targetHours) {
-                            bestPeriod = periods.find { 
-                                runCatching { Instant.ofEpochMilli(it.startTime).atZone(ZoneId.systemDefault()).hour }.getOrNull() == hour 
-                            }
+                            bestPeriod = periods.find { it.localHour == hour }
                             if (bestPeriod != null) break
                         }
-                        
+
                         if (bestPeriod != null) {
                             val midText = bestPeriod.shortForecast
                             // Priority check for fog
-                            val hasFog = periods.any { 
-                                val hour = runCatching { 
-                                    Instant.ofEpochMilli(it.startTime).atZone(ZoneId.systemDefault()).hour 
-                                }.getOrDefault(-1)
-                                hour in 5..10 && it.shortForecast.lowercase().contains("fog")
+                            val hasFog = periods.any {
+                                it.localHour in 5..10 && it.shortForecast.lowercase().contains("fog")
                             }
                             val isSunny = midText.lowercase().contains("sunny") || midText.lowercase().contains("clear")
                             

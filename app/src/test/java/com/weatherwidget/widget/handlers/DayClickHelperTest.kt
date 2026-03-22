@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 class DayClickHelperTest {
 
@@ -127,7 +128,7 @@ class DayClickHelperTest {
         source: String = "NWS",
     ): HourlyForecastEntity {
         return HourlyForecastEntity(
-            dateTime = dateTime,
+            dateTime = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             locationLat = 37.7749,
             locationLon = -122.4194,
             temperature = 70f,

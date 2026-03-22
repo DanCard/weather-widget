@@ -141,8 +141,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     // Get hourly forecasts for interpolation and rain analysis
                     val now = LocalDateTime.now()
                     val zoneId = ZoneId.systemDefault()
-                    val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                    val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
                     val hourlyQueryStartMs = SystemClock.elapsedRealtime()
                     val hourlyForecasts =
                         hourlyDao.getHourlyForecasts(

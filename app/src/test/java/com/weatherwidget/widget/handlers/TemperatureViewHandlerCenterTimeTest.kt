@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -54,16 +54,15 @@ class TemperatureViewHandlerCenterTimeTest {
         val now = LocalDateTime.now()
         val nowHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val nextHour = nowHour.plusHours(1)
-        val hourFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
         val centerTime = now.plusDays(2).withHour(8).withMinute(20)
         val hourly =
             listOf(
                 // "Now" points: expected header temp should come from these.
-                hourly(nowHour.format(hourFormatter), 66f),
-                hourly(nextHour.format(hourFormatter), 66f),
+                hourly(nowHour, 66f),
+                hourly(nextHour, 66f),
                 // Future center points: if center-time semantics return, this test should fail.
-                hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS).format(hourFormatter), 52f),
-                hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1).format(hourFormatter), 58f),
+                hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS), 52f),
+                hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1), 58f),
             )
 
         TemperatureViewHandler.updateWidget(
@@ -87,9 +86,9 @@ class TemperatureViewHandlerCenterTimeTest {
         assertTrue(sourceText.contains("NWS"))
     }
 
-    private fun hourly(dateTime: String, temp: Float): HourlyForecastEntity {
+    private fun hourly(dateTime: LocalDateTime, temp: Float): HourlyForecastEntity {
         return HourlyForecastEntity(
-            dateTime = dateTime,
+            dateTime = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
             locationLat = 37.42,
             locationLon = -122.08,
             temperature = temp,

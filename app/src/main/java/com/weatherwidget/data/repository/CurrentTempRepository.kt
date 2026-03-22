@@ -229,22 +229,22 @@ class CurrentTempRepository
         }
 
         suspend fun getInterpolatedTemperature(
-            latitude: Double, 
-            longitude: Double, 
-            time: LocalDateTime = LocalDateTime.now()
+            latitude: Double,
+            longitude: Double,
+            time: LocalDateTime = LocalDateTime.now(),
         ): Float? {
             val zoneId = ZoneId.systemDefault()
-            val startMs = time.minusHours(3).atZone(zoneId).toInstant().toEpochMilli()
-            val endMs = time.plusHours(3).atZone(zoneId).toInstant().toEpochMilli()
+            val startMs = time.minusHours(3).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val endMs = time.plusHours(3).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude)
-            
+
             return if (hourlyForecasts.isEmpty()) null else temperatureInterpolator.getInterpolatedTemperature(hourlyForecasts, time)
         }
 
         suspend fun getNextInterpolationUpdateTime(
-            latitude: Double, 
-            longitude: Double, 
-            time: LocalDateTime = LocalDateTime.now()
+            latitude: Double,
+            longitude: Double,
+            time: LocalDateTime = LocalDateTime.now(),
         ): LocalDateTime {
             val zoneId = ZoneId.systemDefault()
             val currentHourMs = time.truncatedTo(java.time.temporal.ChronoUnit.HOURS)

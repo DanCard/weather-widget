@@ -16,14 +16,11 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
 class HourlyZoomCenteringRoboTest {
 
     private lateinit var context: Context
-    private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
 
     @Before
     fun setup() {
@@ -94,7 +91,7 @@ class HourlyZoomCenteringRoboTest {
         return (0 until count).map { hourIndex ->
             val dateTime = base.plusHours(hourIndex.toLong())
             HourlyForecastEntity(
-                dateTime = dateTime.format(formatter),
+                dateTime = dateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 locationLat = 37.42,
                 locationLon = -122.08,
                 temperature = 50f + hourIndex,

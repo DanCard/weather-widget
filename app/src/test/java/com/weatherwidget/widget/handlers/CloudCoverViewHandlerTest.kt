@@ -6,6 +6,7 @@ import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 class CloudCoverViewHandlerTest {
 
@@ -66,7 +67,7 @@ class CloudCoverViewHandlerTest {
         source: WeatherSource,
         cloudCover: Int?,
     ) = HourlyForecastEntity(
-        dateTime = dateTime,
+        dateTime = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
         locationLat = 37.42,
         locationLon = -122.08,
         temperature = 60f,

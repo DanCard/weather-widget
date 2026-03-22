@@ -101,8 +101,8 @@ object DataFreshness {
 
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()
-            val startTimeMs = now.minusHours(1).atZone(zoneId).toInstant().toEpochMilli()
-            val endTimeMs = now.plusHours(1).atZone(zoneId).toInstant().toEpochMilli()
+            val startTimeMs = now.minusHours(1).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val endTimeMs = now.plusHours(1).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
 
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
             val hasData = hourlyForecasts.isNotEmpty()

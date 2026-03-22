@@ -122,13 +122,13 @@ class WeatherApiTest {
             assertEquals("Sunny", forecast.daily[1].condition)
             assertEquals(5, forecast.daily[1].precipProbability)
 
-            assertEquals("2026-02-24T00:00", forecast.hourly[0].dateTime)
+            assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-02-24T00:00"), forecast.hourly[0].dateTime)
             assertEquals(52.2f, forecast.hourly[0].temperature)
             assertEquals("Clear", forecast.hourly[0].condition)
             assertEquals(10, forecast.hourly[0].precipProbability)
             assertEquals(67, forecast.hourly[0].cloudCover)
 
-            assertEquals("2026-02-24T13:00", forecast.hourly[1].dateTime)
+            assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-02-24T13:00"), forecast.hourly[1].dateTime)
             assertEquals(66.8f, forecast.hourly[1].temperature)
             assertEquals("Light rain", forecast.hourly[1].condition)
             assertEquals(45, forecast.hourly[1].precipProbability)

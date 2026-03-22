@@ -20,6 +20,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 class NwsMiddayOverrideTest {
@@ -74,9 +75,9 @@ class NwsMiddayOverrideTest {
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
         coEvery { nwsApi.getForecast(gridPoint) } returns listOf(NwsApi.ForecastPeriod("Tomorrow", "${tomorrow}T06:00:00-08:00", "${tomorrow}T18:00:00-08:00", 64, "F", "Patchy Fog then Slight Chance Light Rain", true))
         coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
-            NwsApi.HourlyForecastPeriod("${tomorrow}T08:00:00-08:00", 54f, "Patchy Fog"),
-            NwsApi.HourlyForecastPeriod("${tomorrow}T13:00:00-08:00", 64f, "Partly Sunny"),
-            NwsApi.HourlyForecastPeriod("${tomorrow}T18:00:00-08:00", 58f, "Slight Chance Light Rain")
+            NwsApi.HourlyForecastPeriod(OffsetDateTime.parse("${tomorrow}T08:00:00-08:00").toInstant().toEpochMilli(), tomorrow, 8, 54f, "Patchy Fog"),
+            NwsApi.HourlyForecastPeriod(OffsetDateTime.parse("${tomorrow}T13:00:00-08:00").toInstant().toEpochMilli(), tomorrow, 13, 64f, "Partly Sunny"),
+            NwsApi.HourlyForecastPeriod(OffsetDateTime.parse("${tomorrow}T18:00:00-08:00").toInstant().toEpochMilli(), tomorrow, 18, 58f, "Slight Chance Light Rain")
         )
         coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
         val result = repository.fetchFromNws(testLat, testLon, testLocationName)

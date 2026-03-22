@@ -285,7 +285,7 @@ class CurrentTemperatureIntegrationTest {
         db.hourlyForecastDao().insertAll(
             listOf(
                 HourlyForecastEntity(
-                    dateTime = "${todayStr}T$hourStr",
+                    dateTime = toEpochMs(LocalDateTime.parse("${todayStr}T$hourStr")),
                     locationLat = lat,
                     locationLon = lon,
                     temperature = temp,

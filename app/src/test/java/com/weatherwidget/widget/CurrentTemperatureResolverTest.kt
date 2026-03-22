@@ -7,11 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 class CurrentTemperatureResolverTest {
-    private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
-
     @Test
     fun `resolve prefers interpolated estimate over observed temp`() {
         val now = LocalDateTime.of(2026, 2, 25, 10, 30)
@@ -260,7 +256,7 @@ class CurrentTemperatureResolverTest {
         fetchedAt: Long,
     ): HourlyForecastEntity {
         return HourlyForecastEntity(
-            dateTime = dateTime.format(formatter),
+            dateTime = nowMs(dateTime),
             locationLat = 0.0,
             locationLon = 0.0,
             temperature = temp,

@@ -66,6 +66,9 @@ class DailyViewHandlerTest {
         unmockkStatic(WorkManager::class)
     }
 
+    private fun epoch(dateTime: String): Long =
+        LocalDateTime.parse(dateTime).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
     @Test
     fun `prepareTextDays numColumns=2 shows only 2 slots`() {
         every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
@@ -166,7 +169,7 @@ class DailyViewHandlerTest {
         // Hourly samples only reached 74/65
         val hourlyForecasts = (0..23).map { hour ->
             HourlyForecastEntity(
-                dateTime = today.atTime(hour, 0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")),
+                dateTime = today.atTime(hour, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 condition = "Clear",
                 source = WeatherSource.NWS.id,
                 temperature = (65 + (hour % 10)).toFloat(), // Max 74
@@ -315,7 +318,7 @@ class DailyViewHandlerTest {
 
         val hourlyForecasts = listOf(
             HourlyForecastEntity(
-                dateTime = today.atTime(5, 0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")),
+                dateTime = today.atTime(5, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 condition = "Clear",
                 source = WeatherSource.NWS.id,
                 temperature = 60f,
@@ -324,7 +327,7 @@ class DailyViewHandlerTest {
                 fetchedAt = 1L
             ),
             HourlyForecastEntity(
-                dateTime = today.atTime(14, 0).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")),
+                dateTime = today.atTime(14, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 condition = "Sunny",
                 source = WeatherSource.NWS.id,
                 temperature = 74f,
@@ -467,7 +470,7 @@ class DailyViewHandlerTest {
         )
         val hourlyForecasts = listOf(
             HourlyForecastEntity(
-                dateTime = "${todayStr}T12:00",
+                dateTime = epoch("${todayStr}T12:00"),
                 locationLat = 37.7749,
                 locationLon = -122.4194,
                 temperature = 64f,
@@ -478,7 +481,7 @@ class DailyViewHandlerTest {
                 fetchedAt = 1L,
             ),
             HourlyForecastEntity(
-                dateTime = "${todayStr}T13:00",
+                dateTime = epoch("${todayStr}T13:00"),
                 locationLat = 37.7749,
                 locationLon = -122.4194,
                 temperature = 66f,
@@ -707,8 +710,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
-                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
+                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
+                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -759,8 +762,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(todayStr + "T14:00", 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
-                HourlyForecastEntity(todayStr + "T05:00", 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
+                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
+                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -804,8 +807,8 @@ class DailyViewHandlerTest {
             weatherList = listOf(createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f)),
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
-                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
             ),
             currentTemps = listOf(
                 ObservationEntity(
@@ -835,7 +838,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget daily header hides delta when precip is visible`() = runBlocking {
+    fun `updateWidget daily header shows delta when precip is visible`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val stateManager = WidgetStateManager(context)
@@ -860,8 +863,8 @@ class DailyViewHandlerTest {
             weatherList = listOf(createWeather(todayStr, precipProbability = 65, highTemp = 70f, lowTemp = 55f)),
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
-                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
             ),
             currentTemps = listOf(
                 ObservationEntity(
@@ -886,7 +889,8 @@ class DailyViewHandlerTest {
         val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
         val precipBadge = applied.findViewById<TextView>(R.id.precip_probability)
 
-        assertEquals(View.GONE, deltaBadge.visibility)
+        assertEquals(View.VISIBLE, deltaBadge.visibility)
+        assertEquals("+1.0", deltaBadge.text.toString())
         assertEquals(View.VISIBLE, precipBadge.visibility)
         assertEquals("65%", precipBadge.text.toString())
     }
@@ -1035,14 +1039,14 @@ class DailyViewHandlerTest {
         val forecast = DailyViewHandler.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
-                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
             ),
             displaySource = WeatherSource.NWS,
         )
 
         assertEquals("Clear", forecast?.condition)
-        assertEquals("${todayStr}T13:00", forecast?.dateTime)
+        assertEquals(epoch("${todayStr}T13:00"), forecast?.dateTime)
     }
 
     @Test
@@ -1053,13 +1057,13 @@ class DailyViewHandlerTest {
         val forecast = DailyViewHandler.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, 1L),
             ),
             displaySource = WeatherSource.NWS,
         )
 
         assertEquals("Partly Cloudy", forecast?.condition)
-        assertEquals("${todayStr}T12:00", forecast?.dateTime)
+        assertEquals(epoch("${todayStr}T12:00"), forecast?.dateTime)
     }
 
     @Test
@@ -1091,8 +1095,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
-                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -1138,8 +1142,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity("${todayStr}T12:00", 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
-                HourlyForecastEntity("${todayStr}T13:00", 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),

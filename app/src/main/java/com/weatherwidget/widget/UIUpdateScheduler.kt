@@ -42,8 +42,8 @@ class UIUpdateScheduler(private val context: Context) {
             // Get hourly forecasts around current time
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()
-            val startTimeMs = now.minusHours(1).atZone(zoneId).toInstant().toEpochMilli()
-            val endTimeMs = now.plusHours(2).atZone(zoneId).toInstant().toEpochMilli()
+            val startTimeMs = now.minusHours(1).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val endTimeMs = now.plusHours(2).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
 
             if (hourlyForecasts.isEmpty()) {

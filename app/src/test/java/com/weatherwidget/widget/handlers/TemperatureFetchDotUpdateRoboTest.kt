@@ -21,8 +21,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TemperatureFetchDotUpdateRoboTest {
@@ -47,10 +45,9 @@ class TemperatureFetchDotUpdateRoboTest {
 
         val now = LocalDateTime.now()
         val baseHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val format = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
         val hourly = listOf(
             HourlyForecastEntity(
-                dateTime = baseHour.format(format),
+                dateTime = baseHour.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,
@@ -60,7 +57,7 @@ class TemperatureFetchDotUpdateRoboTest {
                 fetchedAt = System.currentTimeMillis(),
             ),
             HourlyForecastEntity(
-                dateTime = baseHour.plusHours(1).format(format),
+                dateTime = baseHour.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 71.0f,
@@ -143,11 +140,10 @@ class TemperatureFetchDotUpdateRoboTest {
 
         val now = LocalDateTime.now()
         val baseHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val format = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
         val hourly =
             (-1L..2L).map { offset ->
                 HourlyForecastEntity(
-                    dateTime = baseHour.plusHours(offset).format(format),
+                    dateTime = baseHour.plusHours(offset).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     locationLat = 37.0,
                     locationLon = -122.0,
                     temperature = 68.0f + offset,
