@@ -354,7 +354,7 @@ object TemperatureGraphRenderer {
         // where available, falling back to forecast + delta elsewhere.
         // We apply light smoothing (1 iteration) for visual fluidness.
         val rawTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
-        val smoothedTruthTemps = GraphRenderUtils.smoothValues(rawTruthTemps, iterations = 1)
+        val smoothedTruthTemps = rawTruthTemps
 
         // Calculate anchorDelta at fetch time using smoothed values for consistent grounding.
         val fetchTime = observedAt?.let {

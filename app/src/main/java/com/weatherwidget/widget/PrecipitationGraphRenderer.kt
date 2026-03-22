@@ -206,15 +206,7 @@ object PrecipitationGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val maxRawProb = rawProbs.maxOrNull() ?: 0f
-        
-        // Skip smoothing if max probability is very low (e.g. < 10%) to prevent
-        // "melting" away the only visible peak in the graph.
-        val effectiveIterations = if (maxRawProb < 10f) 0 else smoothIterations
-        val smoothedProbs = GraphRenderUtils.smoothValues(rawProbs, iterations = effectiveIterations)
-        val maxSmoothedProb = smoothedProbs.maxOrNull() ?: 0f
-
-        Log.d("PrecipGraph", "maxRawProb=$maxRawProb, maxSmoothedProb=$maxSmoothedProb, iterations=$smoothIterations, effective=$effectiveIterations")
+        val smoothedProbs = rawProbs
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2f
