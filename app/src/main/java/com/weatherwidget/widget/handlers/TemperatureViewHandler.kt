@@ -299,8 +299,21 @@ object TemperatureViewHandler {
         // Final current temperature resolution using either the graph's fresh blending result
         // or falling back to the simple database observation.
         val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
-        val finalObsTemp = observedCurrentTemp ?: graphObservedTemp
-        val finalObsAt = observedAt ?: graphObservedAt
+        
+        // Log discrepancy if the two observation sources disagree significantly
+        if (observedCurrentTemp != null && graphObservedTemp != null) {
+            val diff = Math.abs(observedCurrentTemp - graphObservedTemp)
+            if (diff > 0.1f) {
+                database.appLogDao().log(
+                    "TEMP_RESOLVE_DISCREPANCY",
+                    "widget=$appWidgetId singleStation=$observedCurrentTemp blended=$graphObservedTemp diff=$diff"
+                )
+            }
+        }
+
+        // PREFER the graph's blended observation because it's geographically accurate (IDW)
+        val finalObsTemp = graphObservedTemp ?: observedCurrentTemp
+        val finalObsAt = graphObservedAt ?: observedAt
 
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
@@ -1261,8 +1274,8 @@ object TemperatureViewHandler {
         if (filtered.isEmpty()) return emptyList()
 
         val windowMs = 15 * 60 * 1000L
-        val maxStationInterpolationGapMs = 60 * 60 * 1000L
-        val maxStationExtrapolationGapMs = 60 * 60 * 1000L
+        val maxStationInterpolationGapMs = 3 * 60 * 60 * 1000L
+        val maxStationExtrapolationGapMs = 3 * 60 * 60 * 1000L
         val dedupMs = 5 * 60 * 1000L
         val stationSeries = buildStationTimeSeries(
             observations = filtered,

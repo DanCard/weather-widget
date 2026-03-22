@@ -42,8 +42,8 @@ That method:
 For each pair of consecutive observations in a station:
 
 - If the gap is `<= 15 minutes`, no interpolation is added.
-- If the gap is `> 15 minutes` and `<= 60 minutes`, interpolated points are inserted every `15 minutes`.
-- If the gap is `> 60 minutes`, nothing is inserted and the gap is logged.
+- If the gap is `> 15 minutes` and `<= 180 minutes`, interpolated points are inserted every `15 minutes`.
+- If the gap is `> 180 minutes`, nothing is inserted and the gap is logged.
 
 Each interpolated point uses simple linear interpolation between the two real endpoint observations.
 
@@ -67,7 +67,7 @@ Rules:
 
 - Extrapolation is only forward from the station’s last observation.
 - It runs in `15-minute` steps.
-- It is capped at `1 hour`.
+- It is capped at `3 hours`.
 - It uses the forecast trend, not the forecast absolute temperature.
 
 The model is:
@@ -122,9 +122,9 @@ This implementation is intentionally limited:
 - It only fills moderate station-local gaps.
 - It inserts synthetic points at a fixed `15-minute` cadence, not at arbitrary density.
 - It does not create a dense per-minute station model.
-- Gaps larger than `60 minutes` are left unfilled.
+- Gaps larger than `180 minutes` are left unfilled.
 - Forecast-guided extrapolation is limited to `NWS`.
-- Forecast-guided extrapolation is capped at `1 hour` after the last observation.
+- Forecast-guided extrapolation is capped at `3 hours` after the last observation.
 
 So this is a continuity improvement, not a full resampling system.
 
@@ -159,7 +159,7 @@ Important coverage:
 - `mixed NWS stations IDW-blend nearby observations`
 - `blend diagnostics log both single-station and cohort-change emissions`
 - `station-local interpolation keeps intermittent station in later blend windows`
-- `station-local interpolation fills multi-step gaps up to one hour`
+- `station-local interpolation fills multi-step gaps up to 3 hours`
 - `forecast-guided extrapolation keeps last station briefly after dropout`
 
 These verify that:

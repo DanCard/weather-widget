@@ -230,7 +230,7 @@ class TemperatureViewHandlerActualsTest {
         val hour11 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:10") })
         val blended11 = requireNotNull(hour11.actualTemperature)
         assertTrue("11:10 should stay near the close station instead of the far 80F station", blended11 < 70f)
-        assertTrue("11:10 can still be slightly warmer than the close station due to one-hour extrapolation of the far station", blended11 > 63f)
+        assertTrue("11:10 can still be slightly warmer than the close station due to 3-hour extrapolation of the far station", blended11 > 63f)
     }
 
     @Test
@@ -284,13 +284,13 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `station-local interpolation fills multi-step gaps up to one hour`() {
+    fun `station-local interpolation fills multi-step gaps up to 3 hours`() {
         val forecasts = wideForecasts()
         val actuals = listOf(
             observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),
             observationAt("2026-02-20T10:35", 56f, stationId = "AW020", distanceKm = 2.9f),
             observationAt("2026-02-20T10:15", 60f, stationId = "KNUQ", distanceKm = 3.7f),
-            observationAt("2026-02-20T11:00", 66f, stationId = "KNUQ", distanceKm = 3.7f),
+            observationAt("2026-02-20T12:15", 66f, stationId = "KNUQ", distanceKm = 3.7f),
         )
         val debugLines = mutableListOf<String>()
 
@@ -305,15 +305,14 @@ class TemperatureViewHandlerActualsTest {
         )
 
         val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
-        val point1045 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:45") })
+        val point1130 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:30") })
         val blended1030 = requireNotNull(point1030.actualTemperature)
-        val blended1045 = requireNotNull(point1045.actualTemperature)
+        val blended1130 = requireNotNull(point1130.actualTemperature)
 
         assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=10:30") })
-        assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=10:45") })
-        assertTrue("10:30 should stay above AW020-only 56-57F because KNUQ is bridged across a >30 minute gap", blended1030 > 58f)
-        assertTrue("10:45 should stay above AW020-only 56F because KNUQ is still bridged before 11:00", blended1045 > 58f)
-        assertTrue("10:45 should remain below KNUQ's eventual 66F endpoint", blended1045 < 66f)
+        assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=11:30") })
+        assertTrue("10:30 should stay above AW020-only 57F because KNUQ is bridged", blended1030 > 57.5f)
+        assertTrue("11:30 should stay above AW020-only 55F because KNUQ is bridged across the 2-hour gap", blended1130 > 57.5f)
     }
 
     @Test
