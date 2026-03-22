@@ -74,6 +74,14 @@ object PrecipitationGraphRenderer {
         val isToday: Boolean,
     )
 
+    data class FetchDotDebug(
+        val actualSeriesAnchorAt: Long,
+        val fetchDotX: Float?,
+        val fetchY: Float? = null,
+        val withinWindow: Boolean,
+        val ageText: String? = null,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<PrecipHourData>,
@@ -88,6 +96,7 @@ object PrecipitationGraphRenderer {
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
+        onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -935,7 +944,7 @@ object PrecipitationGraphRenderer {
                     canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
                     
                     // On zoomed-in view, show the exact age
-                    if (hours.size <= 8) {
+                    if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
                         val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
                         if (ageMinutes >= 0) {
                             val ageText = if (ageMinutes >= 60) {
@@ -965,7 +974,37 @@ object PrecipitationGraphRenderer {
                             }
                             
                             canvas.drawText(ageText, finalX, textY, ageTextPaint)
+
+                            onFetchDotResolved?.invoke(
+                                FetchDotDebug(
+                                    actualSeriesAnchorAt = observedTempFetchedAt,
+                                    fetchDotX = clampedFetchX,
+                                    fetchY = fetchY,
+                                    withinWindow = true,
+                                    ageText = ageText,
+                                ),
+                            )
+                        } else {
+                            onFetchDotResolved?.invoke(
+                                FetchDotDebug(
+                                    actualSeriesAnchorAt = observedTempFetchedAt,
+                                    fetchDotX = clampedFetchX,
+                                    fetchY = fetchY,
+                                    withinWindow = true,
+                                    ageText = null,
+                                ),
+                            )
                         }
+                    } else {
+                        onFetchDotResolved?.invoke(
+                            FetchDotDebug(
+                                actualSeriesAnchorAt = observedTempFetchedAt,
+                                fetchDotX = clampedFetchX,
+                                fetchY = fetchY,
+                                withinWindow = true,
+                                ageText = null,
+                            ),
+                        )
                     }
                 }
             }

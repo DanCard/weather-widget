@@ -63,4 +63,39 @@ class TemperatureFetchDotIntegrationTest {
         assertNotNull(events[1].fetchDotX)
         assertTrue("Later timestamp should resolve to the right", events[1].fetchDotX!! > events[0].fetchDotX!!)
     }
+
+    @Test
+    fun stalenessIndicatorAppearsInNarrowViewWithHighFrequencyData() {
+        val startTime = LocalDateTime.of(2026, 3, 21, 10, 0)
+        val currentTime = startTime.plusHours(2).plusMinutes(30)
+        
+        // 4 hour duration (narrow) but with many points (every 5 mins) -> 48 points
+        val hours = (0..48).map { index ->
+            val dt = startTime.plusMinutes(index.toLong() * 5)
+            TemperatureGraphRenderer.HourData(
+                dateTime = dt,
+                temperature = 65f,
+                label = dt.hour.toString(),
+                isCurrentHour = dt == currentTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS),
+                showLabel = index % 12 == 0,
+            )
+        }
+
+        val observedAtMs = startTime.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val events = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 400,
+            currentTime = currentTime,
+            actualSeriesAnchorAt = observedAtMs,
+            onFetchDotResolved = { events.add(it) },
+        )
+
+        assertEquals(1, events.size)
+        val event = events[0]
+        assertEquals("30m", event.ageText)
+    }
 }

@@ -143,6 +143,7 @@ object TemperatureGraphRenderer {
         val fetchDotX: Float?,
         val fetchY: Float? = null,
         val withinWindow: Boolean,
+        val ageText: String? = null,
     )
 
     data class GhostLineDebug(
@@ -505,17 +506,7 @@ object TemperatureGraphRenderer {
             null
         }
         val fetchDotWithinWindow = fetchDotX != null && fetchY != null
-        if (actualSeriesAnchorAt != null) {
-            onFetchDotResolved?.invoke(
-                FetchDotDebug(
-                    actualSeriesAnchorAt = actualSeriesAnchorAt,
-                    fetchDotX = fetchDotX,
-                    fetchY = fetchY,
-                    withinWindow = fetchDotWithinWindow,
-                ),
-            )
-        }
-
+        
         // --- Draw labels, icons, current-time indicator ---
         val minHourLabelSpacing = dpToPx(context, 42f * labelScale)
 
@@ -943,10 +934,11 @@ object TemperatureGraphRenderer {
                 }
                 canvas.drawCircle(clampedFetchX, fetchY, dotRadius + ringPaint.strokeWidth / 2f, outerRingPaint)
 
-                if (hours.size <= 8) {
+                var ageText: String? = null
+                if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
                     val ageMinutes = java.time.Duration.between(fetchTime!!, currentTime).toMinutes()
                     if (ageMinutes >= 0) {
-                        val ageText = if (ageMinutes >= 60) {
+                        ageText = if (ageMinutes >= 60) {
                             val h = ageMinutes / 60
                             val m = ageMinutes % 60
                             if (m > 0) "${h}h ${m}m" else "${h}h"
@@ -960,13 +952,23 @@ object TemperatureGraphRenderer {
                         }
                         val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
                         val textY = fetchY + ageTextPaint.textSize / 3f
-                        val textWidth = ageTextPaint.measureText(ageText)
+                        val textWidth = ageTextPaint.measureText(ageText!!)
                         val finalX = if (textX + textWidth > widthPx) {
                             clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
                         } else textX
-                        canvas.drawText(ageText, finalX, textY, ageTextPaint)
+                        canvas.drawText(ageText!!, finalX, textY, ageTextPaint)
                     }
                 }
+
+                onFetchDotResolved?.invoke(
+                    FetchDotDebug(
+                        actualSeriesAnchorAt = actualSeriesAnchorAt,
+                        fetchDotX = clampedFetchX,
+                        fetchY = fetchY,
+                        withinWindow = true,
+                        ageText = ageText,
+                    ),
+                )
             }
         }
 
