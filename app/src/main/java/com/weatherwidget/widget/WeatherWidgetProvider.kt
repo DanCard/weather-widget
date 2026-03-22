@@ -398,6 +398,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         return@launch
                     }
                     Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
+                    // Always reset to WIDE when clicking a day and going to PRECIPITATION
+                    if (targetMode == ViewMode.PRECIPITATION) {
+                        WidgetStateManager(context).setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                    }
                     WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
                     val totalMs = System.currentTimeMillis() - receiveTimeMs
                     val coroutineDelayMs = coroutineStartMs - receiveTimeMs

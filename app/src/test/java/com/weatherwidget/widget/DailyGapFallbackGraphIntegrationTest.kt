@@ -164,7 +164,7 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val todayBar = drawnBars.single { it.date == todayStr && it.barType == "TODAY" }
-        assertEquals(Color.parseColor("#FFD60A"), todayBar.color)
+        assertEquals(-52378, todayBar.color)
     }
 
     private fun forecast(
