@@ -912,9 +912,9 @@ object PrecipitationGraphRenderer {
             
             if (fetchX != null) {
                 val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
-                if (fetchIdx != -1 && fetchIdx < smoothedProbs.lastIndex) {
-                    val baseProb = smoothedProbs[fetchIdx]
-                    val nextProb = smoothedProbs[fetchIdx + 1]
+                if (fetchIdx != -1 && fetchIdx < hours.lastIndex) {
+                    val baseProb = hours[fetchIdx].precipProbability.toFloat()
+                    val nextProb = hours[fetchIdx + 1].precipProbability.toFloat()
                     val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
                     val interpolatedProb = baseProb + (nextProb - baseProb) * fraction
                     val fetchY = graphBottom - graphHeight * (interpolatedProb / 100f)

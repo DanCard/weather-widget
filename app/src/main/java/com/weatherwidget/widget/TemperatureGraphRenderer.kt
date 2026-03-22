@@ -377,8 +377,8 @@ object TemperatureGraphRenderer {
         } else null
 
         val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to smoothedTruthTemps[it] })
-            GraphRenderUtils.evaluateCubicY(smoothedTruthTemps[fetchIdx], t[fetchIdx].second, smoothedTruthTemps[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
+            val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to rawTruthTemps[it] })
+            GraphRenderUtils.evaluateCubicY(rawTruthTemps[fetchIdx], t[fetchIdx].second, rawTruthTemps[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
         } else null
 
         val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
