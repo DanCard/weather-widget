@@ -591,7 +591,7 @@ class WidgetStateManager
             prefs.edit()
                 .putFloat("$KEY_CURRENT_TEMP_DELTA_PREFIX$suffix", state.delta)
                 .putFloat("$KEY_CURRENT_TEMP_DELTA_OBSERVED_PREFIX$suffix", state.lastObservedTemp)
-                .putLong("$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$suffix", state.lastObservedFetchedAt)
+                .putLong("$KEY_CURRENT_TEMP_DELTA_FETCHED_AT_PREFIX$suffix", state.lastObservedAt)
                 .putLong("$KEY_CURRENT_TEMP_DELTA_UPDATED_AT_PREFIX$suffix", state.updatedAtMs)
                 .putString("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$suffix", state.sourceId)
                 .putString("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$suffix", state.locationLat.toString())
@@ -640,7 +640,7 @@ class WidgetStateManager
             return CurrentTemperatureDeltaState(
                 delta = prefs.getFloat(deltaKey, 0f),
                 lastObservedTemp = prefs.getFloat(observedKey, 0f),
-                lastObservedFetchedAt = prefs.getLong(fetchedAtKey, 0L),
+                lastObservedAt = prefs.getLong(fetchedAtKey, 0L),
                 updatedAtMs = prefs.getLong(updatedAtKey, 0L),
                 sourceId = sourceId,
                 locationLat = lat,

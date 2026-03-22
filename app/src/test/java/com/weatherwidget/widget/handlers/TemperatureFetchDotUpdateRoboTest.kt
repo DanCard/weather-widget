@@ -127,8 +127,8 @@ class TemperatureFetchDotUpdateRoboTest {
         )
 
         assertEquals("Should resolve fetch dot once per update", 2, resolved.size)
-        assertEquals(firstObservedAt, resolved[0].actualSeriesAnchorAt)
-        assertEquals(secondObservedAt, resolved[1].actualSeriesAnchorAt)
+        assertEquals(firstObservedAt, resolved[0].observedAt)
+        assertEquals(secondObservedAt, resolved[1].observedAt)
     }
 
     @Test
@@ -188,7 +188,7 @@ class TemperatureFetchDotUpdateRoboTest {
         )
 
         assertEquals("Should resolve fetch dot once", 1, resolved.size)
-        assertEquals("Anchor should stay at raw observed timestamp", rawObservedAt, resolved.single().actualSeriesAnchorAt)
+        assertEquals("Anchor should stay at raw observed timestamp", rawObservedAt, resolved.single().observedAt)
         assertTrue("Fetch dot should resolve within the graphed window", resolved.single().withinWindow)
     }
 }

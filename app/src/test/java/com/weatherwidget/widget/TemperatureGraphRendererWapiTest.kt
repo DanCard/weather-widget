@@ -78,7 +78,7 @@ class TemperatureGraphRendererWapiTest {
             heightPx = 300,
             currentTime = currentTime,
             appliedDelta = appliedDelta,
-            actualSeriesAnchorAt = fetchedAtMs,
+            observedAt = fetchedAtMs,
             onFetchDotResolved = { resolvedFetchY = it.fetchY },
             onGhostLineDebug = { ghostLineStartY = it.startY }
         )

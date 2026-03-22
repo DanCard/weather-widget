@@ -447,7 +447,7 @@ object TemperatureViewHandler {
                 currentTime = now,
                 bitmapScale = bitmapScale,
                 appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
-                actualSeriesAnchorAt = graphHours.lastOrNull { it.isObservedActual }?.dateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+                observedAt = graphHours.lastOrNull { it.isObservedActual }?.dateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
                 onFetchDotResolved = onFetchDotResolved,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs

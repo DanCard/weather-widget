@@ -40,7 +40,7 @@ class TemperatureFetchDotIntegrationTest {
             widthPx = 900,
             heightPx = 320,
             currentTime = currentTime,
-            actualSeriesAnchorAt = firstObservedAt,
+            observedAt = firstObservedAt,
             onFetchDotResolved = { events.add(it) },
         )
 
@@ -50,13 +50,13 @@ class TemperatureFetchDotIntegrationTest {
             widthPx = 900,
             heightPx = 320,
             currentTime = currentTime,
-            actualSeriesAnchorAt = secondObservedAt,
+            observedAt = secondObservedAt,
             onFetchDotResolved = { events.add(it) },
         )
 
         assertEquals("Should emit one fetch-dot callback per render", 2, events.size)
-        assertEquals(firstObservedAt, events[0].actualSeriesAnchorAt)
-        assertEquals(secondObservedAt, events[1].actualSeriesAnchorAt)
+        assertEquals(firstObservedAt, events[0].observedAt)
+        assertEquals(secondObservedAt, events[1].observedAt)
         assertTrue(events[0].withinWindow)
         assertTrue(events[1].withinWindow)
         assertNotNull(events[0].fetchDotX)
@@ -90,7 +90,7 @@ class TemperatureFetchDotIntegrationTest {
             widthPx = 1000,
             heightPx = 400,
             currentTime = currentTime,
-            actualSeriesAnchorAt = observedAtMs,
+            observedAt = observedAtMs,
             onFetchDotResolved = { events.add(it) },
         )
 

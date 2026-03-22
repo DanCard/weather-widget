@@ -38,7 +38,7 @@ class TemperatureGraphRendererFetchDotTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(2),
-            actualSeriesAnchorAt = null,
+            observedAt = null,
         )
 
         verify(exactly = 0) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
@@ -57,7 +57,7 @@ class TemperatureGraphRendererFetchDotTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(3),
-            actualSeriesAnchorAt = observedAtMs,
+            observedAt = observedAtMs,
         )
 
         verify(exactly = 3) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
@@ -110,7 +110,7 @@ class TemperatureGraphRendererFetchDotTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(3),
-            actualSeriesAnchorAt = observedAtMs,
+            observedAt = observedAtMs,
         )
 
         assert(yWithTemp.size >= 3) { "Expected 3 drawCircle calls for fetch dot, got ${yWithTemp.size}" }
@@ -127,7 +127,7 @@ class TemperatureGraphRendererFetchDotTest {
             widthPx = 900,
             heightPx = 300,
             currentTime = start.plusHours(3),
-            actualSeriesAnchorAt = observedAtMs,
+            observedAt = observedAtMs,
         )
 
         val dotYWithout = yWithout[0]

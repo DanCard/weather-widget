@@ -81,7 +81,7 @@ class TemperatureGraphJunctionTest {
             heightPx = 300,
             currentTime = currentTime,
             appliedDelta = appliedDelta,
-            actualSeriesAnchorAt = fetchedAtMs,
+            observedAt = fetchedAtMs,
             onFetchDotResolved = { resolvedFetchY = it.fetchY }
         )
 

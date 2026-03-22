@@ -75,7 +75,7 @@ object PrecipitationGraphRenderer {
     )
 
     data class FetchDotDebug(
-        val actualSeriesAnchorAt: Long,
+        val observedAt: Long,
         val fetchDotX: Float?,
         val fetchY: Float? = null,
         val withinWindow: Boolean,

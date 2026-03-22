@@ -99,7 +99,7 @@ class TemperatureGraphRendererActualsTest {
             heightPx = 300,
             currentTime = start.plusHours(5),
             appliedDelta = 2.0f,
-            actualSeriesAnchorAt = observedAtMs,
+            observedAt = observedAtMs,
         )
 
         verify(exactly = 4) { anyConstructed<Canvas>().drawPath(any(), any()) }
@@ -208,7 +208,7 @@ class TemperatureGraphRendererActualsTest {
             widthPx = 800,
             heightPx = 300,
             currentTime = start.plusHours(5),
-            actualSeriesAnchorAt = fetchedAtMs,
+            observedAt = fetchedAtMs,
         )
 
         val hourWidth = 800f / 8f
@@ -249,7 +249,7 @@ class TemperatureGraphRendererActualsTest {
             widthPx = 800,
             heightPx = 300,
             currentTime = start.plusHours(6),
-            actualSeriesAnchorAt = anchorAtMs,
+            observedAt = anchorAtMs,
         )
 
         val hourWidth = 800f / 8f

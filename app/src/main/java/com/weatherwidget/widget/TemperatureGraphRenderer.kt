@@ -952,17 +952,17 @@ object TemperatureGraphRenderer {
                         }
                         val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
                         val textY = fetchY + ageTextPaint.textSize / 3f
-                        val textWidth = ageTextPaint.measureText(ageText!!)
+                        val textWidth = ageTextPaint.measureText(ageText)
                         val finalX = if (textX + textWidth > widthPx) {
                             clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
                         } else textX
-                        canvas.drawText(ageText!!, finalX, textY, ageTextPaint)
+                        canvas.drawText(ageText, finalX, textY, ageTextPaint)
                     }
                 }
 
                 onFetchDotResolved?.invoke(
                     FetchDotDebug(
-                        observedAt = observedAt!!,
+                        observedAt = observedAt,
                         fetchDotX = clampedFetchX,
                         fetchY = fetchY,
                         withinWindow = true,
