@@ -77,7 +77,7 @@ class TemperatureDeltaVisibilityRoboTest {
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 71.2f,
-            observedCurrentTempFetchedAt = System.currentTimeMillis()
+            observedAt = System.currentTimeMillis()
         )
 
         val root = FrameLayout(context)
@@ -127,7 +127,7 @@ class TemperatureDeltaVisibilityRoboTest {
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 69.1f,
-            observedCurrentTempFetchedAt = System.currentTimeMillis()
+            observedAt = System.currentTimeMillis()
         )
 
         val root = FrameLayout(context)
@@ -177,7 +177,7 @@ class TemperatureDeltaVisibilityRoboTest {
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 70.05f,
-            observedCurrentTempFetchedAt = System.currentTimeMillis()
+            observedAt = System.currentTimeMillis()
         )
 
         val root = FrameLayout(context)
@@ -224,7 +224,7 @@ class TemperatureDeltaVisibilityRoboTest {
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
             observedCurrentTemp = 72.0f,
-            observedCurrentTempFetchedAt = System.currentTimeMillis(),
+            observedAt = System.currentTimeMillis(),
         )
 
         val root = FrameLayout(context)

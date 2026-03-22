@@ -28,7 +28,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = 39f,
-                observedCurrentTempFetchedAt = observedFetchedAt,
+                observedAt = observedFetchedAt,
                 storedDeltaState = null,
                 currentLat = 0.0,
                 currentLon = 0.0,
@@ -38,7 +38,7 @@ class CurrentTemperatureResolverTest {
         assertEquals(42f, result.estimatedTemp!!, 0.01f)
         assertEquals(39f, result.observedTemp!!, 0.01f)
         assertEquals(-3f, result.appliedDelta!!, 0.01f)
-        assertEquals(observedFetchedAt, result.updatedDeltaState?.lastObservedFetchedAt)
+        assertEquals(observedFetchedAt, result.updatedDeltaState?.lastObservedAt)
     }
 
     @Test
@@ -51,7 +51,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = emptyList(),
                 observedCurrentTemp = 57f,
-                observedCurrentTempFetchedAt = nowMs(now),
+                observedAt = nowMs(now),
                 storedDeltaState = null,
                 currentLat = 0.0,
                 currentLon = 0.0,
@@ -78,7 +78,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = null,
-                observedCurrentTempFetchedAt = null,
+                observedAt = null,
                 storedDeltaState = null,
                 currentLat = 0.0,
                 currentLon = 0.0,
@@ -112,7 +112,7 @@ class CurrentTemperatureResolverTest {
             CurrentTemperatureDeltaState(
                 delta = -4f,
                 lastObservedTemp = 39f,
-                lastObservedFetchedAt = 1000L,
+                lastObservedAt = 1000L,
                 updatedAtMs = nowMs - (2 * 60 * 60 * 1000L),
                 sourceId = WeatherSource.NWS.id,
                 locationLat = 0.0,
@@ -125,7 +125,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = 39f,
-                observedCurrentTempFetchedAt = 1000L,
+                observedAt = 1000L,
                 storedDeltaState = stored,
                 currentLat = 0.0,
                 currentLon = 0.0,
@@ -151,7 +151,7 @@ class CurrentTemperatureResolverTest {
             CurrentTemperatureDeltaState(
                 delta = -3f,
                 lastObservedTemp = 39f,
-                lastObservedFetchedAt = oldObsFetchedAt,
+                lastObservedAt = oldObsFetchedAt,
                 updatedAtMs = nowMs - (3 * 60 * 60 * 1000L),
                 sourceId = WeatherSource.NWS.id,
                 locationLat = 0.0,
@@ -164,7 +164,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = 41f,
-                observedCurrentTempFetchedAt = nowMs,
+                observedAt = nowMs,
                 storedDeltaState = stored,
                 currentLat = 0.0,
                 currentLon = 0.0,
@@ -173,7 +173,7 @@ class CurrentTemperatureResolverTest {
         assertEquals(43f, result.estimatedTemp!!, 0.01f)
         assertEquals(41f, result.displayTemp!!, 0.01f)
         assertEquals(-2f, result.appliedDelta!!, 0.01f)
-        assertEquals(nowMs, result.updatedDeltaState?.lastObservedFetchedAt)
+        assertEquals(nowMs, result.updatedDeltaState?.lastObservedAt)
     }
 
     @Test
@@ -189,7 +189,7 @@ class CurrentTemperatureResolverTest {
             CurrentTemperatureDeltaState(
                 delta = -6f,
                 lastObservedTemp = 37f,
-                lastObservedFetchedAt = 1000L,
+                lastObservedAt = 1000L,
                 updatedAtMs = nowMs - (4 * 60 * 60 * 1000L),
                 sourceId = WeatherSource.NWS.id,
                 locationLat = 0.0,
@@ -202,7 +202,7 @@ class CurrentTemperatureResolverTest {
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
                 observedCurrentTemp = 37f,
-                observedCurrentTempFetchedAt = 1000L,
+                observedAt = 1000L,
                 storedDeltaState = stored,
                 currentLat = 0.0,
                 currentLon = 0.0,

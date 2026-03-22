@@ -60,9 +60,9 @@ When building `HourData` at the current hour in `buildHourDataList()`, substitut
 ---
 
 ### Option C — Anchor delta decay to observation timestamp, not fetch time
-Currently the delta decays from `observedCurrentTempFetchedAt`. Instead anchor decay to the `observedAt` field (the NWS observation's own timestamp). This makes the header behave more like a point on the observation curve — both share the same temporal anchor.
+Currently the delta decays from `observedAt`. Instead anchor decay to the `observedAt` field (the NWS observation's own timestamp). This makes the header behave more like a point on the observation curve — both share the same temporal anchor.
 
-**Change:** In `CurrentTemperatureResolver`, use `observedAt` instead of `observedCurrentTempFetchedAt` as the decay start. Requires threading `observedAt` through to the resolver (currently only `fetchedAt` is stored in `CurrentTempEntity`).
+**Change:** In `CurrentTemperatureResolver`, use `observedAt` instead of `observedAt` as the decay start. Requires threading `observedAt` through to the resolver (currently only `fetchedAt` is stored in `CurrentTempEntity`).
 
 **Pro:** Makes header and graph share the same time reference.
 **Con:** If the station reports hourly, decay effectively starts earlier, making the adjustment fade faster than intended.

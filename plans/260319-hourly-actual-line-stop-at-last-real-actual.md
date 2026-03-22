@@ -8,11 +8,11 @@
 - Add an internal `isObservedActual` marker to `TemperatureGraphRenderer.HourData`.
 - Set `isObservedActual=true` only for buckets backed by a real top-of-hour or sub-hour blended observation in `TemperatureViewHandler.buildHourDataList`.
 - Keep carry-forward past-gap buckets as `isActual=true` when they reuse the last value, but force `isObservedActual=false` for those synthetic points.
-- In `TemperatureViewHandler.updateWidget`, derive `actualSeriesAnchorAt` from the last hour with `isObservedActual=true` instead of the last hour with `isActual=true`.
+- In `TemperatureViewHandler.updateWidget`, derive `observedAt` from the last hour with `isObservedActual=true` instead of the last hour with `isActual=true`.
 
 ## Tests
 - Add a handler regression test covering a carried-forward top-of-hour bucket after the last real sub-hour observation and assert only the real observation remains the anchor.
-- Add a renderer regression test proving an earlier `actualSeriesAnchorAt` stops the solid line even when later buckets still have `isActual=true`.
+- Add a renderer regression test proving an earlier `observedAt` stops the solid line even when later buckets still have `isActual=true`.
 - Run the temperature graph and handler actuals test slice to verify no behavior regressions in fetch-dot continuity and actual blending.
 
 ## Assumptions

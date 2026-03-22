@@ -92,18 +92,18 @@ appliedDelta =
     else:
         null
 
-if observedCurrentTemp exists and observedCurrentTempFetchedAt exists and estimatedTemp exists:
+if observedCurrentTemp exists and observedAt exists and estimatedTemp exists:
     hasNewObservedReading =
         scopedStoredDelta is null OR
-        scopedStoredDelta.lastObservedFetchedAt != observedCurrentTempFetchedAt
+        scopedStoredDelta.lastObservedAt != observedAt
 
     if hasNewObservedReading:
         appliedDelta = observedCurrentTemp - estimatedTemp
         updatedDeltaState = {
             delta = appliedDelta,
             lastObservedTemp = observedCurrentTemp,
-            lastObservedFetchedAt = observedCurrentTempFetchedAt,
-            updatedAtMs = min(observedCurrentTempFetchedAt, nowMs),
+            lastObservedAt = observedAt,
+            updatedAtMs = min(observedAt, nowMs),
             sourceId = displaySource.id,
             locationLat = currentLat,
             locationLon = currentLon

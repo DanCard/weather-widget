@@ -843,7 +843,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         displaySource = displaySource,
                         precipProbability = targetPrecip,
                         observedCurrentTemp = observation?.temperature,
-                        observedCurrentTempFetchedAt = observation?.observedAt,
+                        observedAt = observation?.observedAt,
                         repository = repository,
                         startupToken = startupToken,
                         deferCurrentTempResolution = startupToken != null,
@@ -869,7 +869,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         displaySource = displaySource,
                         precipProbability = targetPrecip,
                         observedCurrentTemp = observation?.temperature,
-                        observedCurrentTempFetchedAt = observation?.observedAt,
+                        observedAt = observation?.observedAt,
                         repository = repository,
                         startupToken = startupToken,
                     )
@@ -894,7 +894,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         displaySource = displaySource,
                         precipProbability = targetPrecip,
                         observedCurrentTemp = observation?.temperature,
-                        observedCurrentTempFetchedAt = observation?.observedAt,
+                        observedAt = observation?.observedAt,
                         repository = repository,
                         startupToken = startupToken,
                     )

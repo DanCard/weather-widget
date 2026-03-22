@@ -139,7 +139,7 @@ object TemperatureGraphRenderer {
     )
 
     data class FetchDotDebug(
-        val actualSeriesAnchorAt: Long,
+        val observedAt: Long,
         val fetchDotX: Float?,
         val fetchY: Float? = null,
         val withinWindow: Boolean,
@@ -175,7 +175,7 @@ object TemperatureGraphRenderer {
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
         appliedDelta: Float? = null,
-        actualSeriesAnchorAt: Long? = null,
+        observedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
@@ -357,7 +357,7 @@ object TemperatureGraphRenderer {
         val smoothedTruthTemps = GraphRenderUtils.smoothValues(rawTruthTemps, iterations = 1)
 
         // Calculate anchorDelta at fetch time using smoothed values for consistent grounding.
-        val fetchTime = actualSeriesAnchorAt?.let {
+        val fetchTime = observedAt?.let {
             java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
         }
         val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
@@ -449,7 +449,7 @@ object TemperatureGraphRenderer {
         // Transition X: where solid actual line ends
         val lastActualIndex = hours.indexOfLast { it.isActual }
         val rawTransitionX: Float? = if (lastActualIndex >= 0) originalPoints[lastActualIndex].first else null
-        val fetchDotX: Float? = if (actualSeriesAnchorAt != null && fetchTime != null) {
+        val fetchDotX: Float? = if (observedAt != null && fetchTime != null) {
             GraphRenderUtils.computeXForTime(
                 targetTime = fetchTime,
                 items = hours,
@@ -908,7 +908,7 @@ object TemperatureGraphRenderer {
         ) { dpToPx(context, it) }
 
         // Draw "Last Fetch Dot"
-        if (actualSeriesAnchorAt != null && fetchDotX != null) {
+        if (observedAt != null && fetchDotX != null) {
             val resolvedFetchTemp = interpolatedTruthAtFetch
             if (fetchY != null && resolvedFetchTemp != null) {
                 val dotRadius = dpToPx(context, 3.2f * labelScale)
@@ -962,7 +962,7 @@ object TemperatureGraphRenderer {
 
                 onFetchDotResolved?.invoke(
                     FetchDotDebug(
-                        actualSeriesAnchorAt = actualSeriesAnchorAt,
+                        observedAt = observedAt!!,
                         fetchDotX = clampedFetchX,
                         fetchY = fetchY,
                         withinWindow = true,

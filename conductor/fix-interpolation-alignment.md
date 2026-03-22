@@ -13,7 +13,7 @@ We need to align the forecast estimate with the observation's reported timestamp
 
 ### 1. Update `CurrentTemperatureResolver.resolve`
 - Within the block that handles new observations:
-    - Convert `observedCurrentTempFetchedAt` (Epoch Millis) to `LocalDateTime`.
+    - Convert `observedAt` (Epoch Millis) to `LocalDateTime`.
     - Use `interpolator.getInterpolatedTemperature` to get the forecast estimate at that specific past time.
     - Calculate `delta = observedCurrentTemp - estimatedAtObservationTime`.
 - This ensures the delta purely represents the forecast error at the moment of observation.

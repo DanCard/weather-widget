@@ -61,14 +61,14 @@ object CurrentTemperatureResolver {
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
         observedCurrentTemp: Float?,
-        observedCurrentTempFetchedAt: Long?,
+        observedAt: Long?,
         storedDeltaState: CurrentTemperatureDeltaState?,
         currentLat: Double,
         currentLon: Double,
     ): CurrentTemperatureResolution {
         debugLog(
             "resolve:start now=$now source=${displaySource.id} hourlyCount=${hourlyForecasts.size} " +
-                "observedTemp=$observedCurrentTemp observedFetchedAt=$observedCurrentTempFetchedAt " +
+                "observedTemp=$observedCurrentTemp observedAt=$observedAt " +
                 "currentLat=$currentLat currentLon=$currentLon hasStoredDelta=${storedDeltaState != null}",
         )
         val estimatedTemp =
@@ -100,7 +100,7 @@ object CurrentTemperatureResolver {
         debugLog(
             "resolve:storedDelta=" +
                 storedDeltaState?.let {
-                    "delta=${it.delta} observed=${it.lastObservedTemp} fetchedAt=${it.lastObservedFetchedAt} " +
+                    "delta=${it.delta} observed=${it.lastObservedTemp} observedAt=${it.lastObservedAt} " +
                         "updatedAt=${it.updatedAtMs} source=${it.sourceId} lat=${it.locationLat} lon=${it.locationLon}"
                 } +
                 " scopeMatch=$scopeMatch",
@@ -121,17 +121,17 @@ object CurrentTemperatureResolver {
             }
         var updatedDeltaState: CurrentTemperatureDeltaState? = null
 
-        if (observedCurrentTemp != null && observedCurrentTempFetchedAt != null) {
-            val hasNewObservedReading = scopedStoredDelta?.lastObservedFetchedAt != observedCurrentTempFetchedAt
+        if (observedCurrentTemp != null && observedAt != null) {
+            val hasNewObservedReading = scopedStoredDelta?.lastObservedAt != observedAt
             debugLog(
                 "resolve:observed available hasNewObservedReading=$hasNewObservedReading " +
-                    "storedFetchedAt=${scopedStoredDelta?.lastObservedFetchedAt}",
+                    "storedObservedAt=${scopedStoredDelta?.lastObservedAt}",
             )
             if (scopedStoredDelta == null || hasNewObservedReading) {
                 // To calculate an accurate delta, we must compare the observation against
                 // what the forecast was at the moment that observation was taken.
                 val obsTime = LocalDateTime.ofInstant(
-                    java.time.Instant.ofEpochMilli(observedCurrentTempFetchedAt),
+                    java.time.Instant.ofEpochMilli(observedAt),
                     ZoneId.systemDefault()
                 )
                 val estimatedAtObsTime = interpolator.getInterpolatedTemperature(
@@ -147,8 +147,8 @@ object CurrentTemperatureResolver {
                         CurrentTemperatureDeltaState(
                             delta = delta,
                             lastObservedTemp = observedCurrentTemp,
-                            lastObservedFetchedAt = observedCurrentTempFetchedAt,
-                            updatedAtMs = observedCurrentTempFetchedAt.coerceAtMost(nowMs),
+                            lastObservedAt = observedAt,
+                            updatedAtMs = observedAt.coerceAtMost(nowMs),
                             sourceId = displaySource.id,
                             locationLat = currentLat,
                             locationLon = currentLon,
@@ -165,8 +165,8 @@ object CurrentTemperatureResolver {
                         CurrentTemperatureDeltaState(
                             delta = delta,
                             lastObservedTemp = observedCurrentTemp,
-                            lastObservedFetchedAt = observedCurrentTempFetchedAt,
-                            updatedAtMs = observedCurrentTempFetchedAt.coerceAtMost(nowMs),
+                            lastObservedAt = observedAt,
+                            updatedAtMs = observedAt.coerceAtMost(nowMs),
                             sourceId = displaySource.id,
                             locationLat = currentLat,
                             locationLon = currentLon,
@@ -178,7 +178,7 @@ object CurrentTemperatureResolver {
         } else {
             debugLog(
                 "resolve:delta update skipped observedTemp=$observedCurrentTemp " +
-                    "observedFetchedAt=$observedCurrentTempFetchedAt estimatedTemp=$estimatedTemp",
+                    "observedAt=$observedAt estimatedTemp=$estimatedTemp",
             )
         }
 

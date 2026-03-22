@@ -140,7 +140,7 @@ Verify count equals 3 (or whatever the implementation draws — inspect `renderG
 This is tested implicitly via 3.1: if no actuals, `lastActualIndex = -1`, `transitionX = null`. The solid line should not be clipped. Verify only 2 `drawPath` calls (no extra dashed path).
 
 #### 3.4 Dot drawn on actual curve — y position consistency
-*(This partially overlaps with `TemperatureGraphRendererFetchDotTest` which already covers dot presence/absence. Only add a new test if there's a distinct behavioral contract to verify, e.g. dot appears when actuals exist even without `observedTempFetchedAt`.)*
+*(This partially overlaps with `TemperatureGraphRendererFetchDotTest` which already covers dot presence/absence. Only add a new test if there's a distinct behavioral contract to verify, e.g. dot appears when actuals exist even without `observedAt`.)*
 
 #### 3.5 Ghost line only when NOW indicator visible
 Existing test `renderGraph does not draw ghost line when now indicator is not visible` already covers this. **No new test needed.**

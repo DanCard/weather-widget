@@ -7,7 +7,7 @@
 
 ## Implementation
 - In `TemperatureViewHandler`, compute a `lastGraphedActualAt` timestamp from the final `graphHours` list using the last item with `isActual=true`.
-- Pass that timestamp into `TemperatureGraphRenderer` instead of `observedCurrentTempFetchedAt`.
+- Pass that timestamp into `TemperatureGraphRenderer` instead of `observedAt`.
 - Update `TemperatureGraphRenderer` and `FetchDotDebug` naming so the anchor timestamp clearly represents the last graphed actual point.
 - Keep header current-temperature resolution and delta decay logic unchanged.
 

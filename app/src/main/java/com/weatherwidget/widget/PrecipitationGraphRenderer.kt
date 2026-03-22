@@ -91,7 +91,7 @@ object PrecipitationGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = 28f,
-        observedTempFetchedAt: Long? = null,
+        observedAt: Long? = null,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
@@ -895,8 +895,8 @@ object PrecipitationGraphRenderer {
         )
 
         // Draw "Last Fetch Dot" on the curve
-        if (observedTempFetchedAt != null) {
-            val fetchTime = java.time.Instant.ofEpochMilli(observedTempFetchedAt)
+        if (observedAt != null) {
+            val fetchTime = java.time.Instant.ofEpochMilli(observedAt)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDateTime()
             
@@ -977,7 +977,7 @@ object PrecipitationGraphRenderer {
 
                             onFetchDotResolved?.invoke(
                                 FetchDotDebug(
-                                    actualSeriesAnchorAt = observedTempFetchedAt,
+                                    observedAt = observedAt,
                                     fetchDotX = clampedFetchX,
                                     fetchY = fetchY,
                                     withinWindow = true,
@@ -987,7 +987,7 @@ object PrecipitationGraphRenderer {
                         } else {
                             onFetchDotResolved?.invoke(
                                 FetchDotDebug(
-                                    actualSeriesAnchorAt = observedTempFetchedAt,
+                                    observedAt = observedAt,
                                     fetchDotX = clampedFetchX,
                                     fetchY = fetchY,
                                     withinWindow = true,
@@ -998,7 +998,7 @@ object PrecipitationGraphRenderer {
                     } else {
                         onFetchDotResolved?.invoke(
                             FetchDotDebug(
-                                actualSeriesAnchorAt = observedTempFetchedAt,
+                                observedAt = observedAt,
                                 fetchDotX = clampedFetchX,
                                 fetchY = fetchY,
                                 withinWindow = true,

@@ -938,7 +938,7 @@ object WidgetIntentRouter {
                     displaySource = displaySource,
                     precipProbability = todayPrecip,
                     observedCurrentTemp = observation?.temperature,
-                    observedCurrentTempFetchedAt = observation?.observedAt,
+                    observedAt = observation?.observedAt,
                     repository = repository
                 )
             }
@@ -952,7 +952,7 @@ object WidgetIntentRouter {
                     displaySource = displaySource,
                     precipProbability = todayPrecip,
                     observedCurrentTemp = observation?.temperature,
-                    observedCurrentTempFetchedAt = observation?.observedAt,
+                    observedAt = observation?.observedAt,
                     repository = repository
                 )
             }
@@ -966,7 +966,7 @@ object WidgetIntentRouter {
                     displaySource = displaySource,
                     precipProbability = todayPrecip,
                     observedCurrentTemp = observation?.temperature,
-                    observedCurrentTempFetchedAt = observation?.observedAt,
+                    observedAt = observation?.observedAt,
                     repository = repository
                 )
             }

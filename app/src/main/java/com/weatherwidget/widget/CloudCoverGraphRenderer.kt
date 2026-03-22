@@ -44,7 +44,7 @@ object CloudCoverGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = 28f,
-        observedTempFetchedAt: Long? = null,
+        observedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)

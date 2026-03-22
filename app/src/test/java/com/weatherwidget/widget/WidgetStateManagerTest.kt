@@ -295,7 +295,7 @@ class WidgetStateManagerTest {
             CurrentTemperatureDeltaState(
                 delta = -5f,
                 lastObservedTemp = 83f,
-                lastObservedFetchedAt = 1000L,
+                lastObservedAt = 1000L,
                 updatedAtMs = 1000L,
                 sourceId = WeatherSource.NWS.id,
                 locationLat = 37.42,

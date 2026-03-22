@@ -60,7 +60,7 @@ object PrecipViewHandler {
         displaySource: WeatherSource,
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
-        observedCurrentTempFetchedAt: Long? = null,
+        observedAt: Long? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
     ) {
@@ -176,7 +176,7 @@ object PrecipViewHandler {
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentTemp,
-                observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
+                observedAt = observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,
@@ -259,7 +259,7 @@ object PrecipViewHandler {
                 bitmapScale = bitmapScale,
                 smoothIterations = zoom.precipSmoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
-                observedTempFetchedAt = observedCurrentTempFetchedAt
+                observedAt = observedAt
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)

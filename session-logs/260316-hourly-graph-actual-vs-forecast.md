@@ -47,7 +47,7 @@ Implemented and debugged the "actual temperature history (solid) vs forecast (da
 
 ### 4. "Last observed actual" dot y-mismatch (dot appeared above solid line)
 - **Root cause:** Dot was positioned on the **ghost/expected curve** (`smoothedExpectedTemps`). With any delta correction active, the ghost curve sits above/below the actual curve, creating a visible gap between the dot and the end of the solid line.
-- **Fix:** Changed dot's y-position to interpolate from `smoothedActualOrForecastTemps` (the actual curve) instead. Dot's x-position (`observedTempFetchedAt`) and triggering condition (`observedTempFetchedAt != null`) preserved unchanged.
+- **Fix:** Changed dot's y-position to interpolate from `smoothedActualOrForecastTemps` (the actual curve) instead. Dot's x-position (`observedAt`) and triggering condition (`observedAt != null`) preserved unchanged.
 
 ### 5. Daily view → temperature graph arrives in NARROW zoom
 - **Root cause:** `handleSetView()` reset zoom to WIDE when switching TO daily view, but not when switching FROM daily TO temperature/precipitation/cloud_cover. Any prior NARROW zoom state persisted.
@@ -76,6 +76,6 @@ This triangulated the `repository=null` bug immediately: `repoNull=true` in navi
 ---
 
 ## Design Decisions Clarified
-- **Dot terminology:** "Last observed actual dot" — positioned at `observedTempFetchedAt` timestamp, not at `lastActualIndex` hourly bucket. The two differ because observations can be fetched mid-hour.
+- **Dot terminology:** "Last observed actual dot" — positioned at `observedAt` timestamp, not at `lastActualIndex` hourly bucket. The two differ because observations can be fetched mid-hour.
 - **Transition point:** `lastActualIndex` (last hourly bucket with actual data), NOT `nowX`. Using `nowX` was briefly tried but reverted — the dot (last actual) and solid line endpoint should coincide, not the NOW indicator.
 - **Ghost line clip:** Ghost line clips from `transitionX` forward (same anchor as solid line end), ensuring ghost starts where actual data ends.

@@ -108,7 +108,7 @@ class TemperatureFetchDotUpdateRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             observedCurrentTemp = 70.5f,
-            observedCurrentTempFetchedAt = firstObservedAt,
+            observedAt = firstObservedAt,
             onFetchDotResolved = { resolved.add(it) },
             repository = repository,
         )
@@ -121,7 +121,7 @@ class TemperatureFetchDotUpdateRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             observedCurrentTemp = 70.6f,
-            observedCurrentTempFetchedAt = secondObservedAt,
+            observedAt = secondObservedAt,
             onFetchDotResolved = { resolved.add(it) },
             repository = repository,
         )
@@ -182,7 +182,7 @@ class TemperatureFetchDotUpdateRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             observedCurrentTemp = 70.0f,
-            observedCurrentTempFetchedAt = rawObservedAt,
+            observedAt = rawObservedAt,
             onFetchDotResolved = { resolved.add(it) },
             repository = repository,
         )

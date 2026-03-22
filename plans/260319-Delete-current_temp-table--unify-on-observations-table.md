@@ -127,7 +127,7 @@ Each call replaces `currentTempDao.getCurrentTemps(...)` → `observationDao.get
 Since both views now use observations, the `graphObservedTemp` override is no longer needed for consistency. Change:
 ```kotlin
 val finalObsTemp = observedCurrentTemp ?: graphObservedTemp
-val finalObsAt = observedCurrentTempFetchedAt ?: graphObservedAt
+val finalObsAt = observedAt ?: graphObservedAt
 ```
 
 ### Step 7: Remove CurrentTempRepository writes to currentTempDao

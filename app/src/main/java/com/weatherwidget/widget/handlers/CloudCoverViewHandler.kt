@@ -97,7 +97,7 @@ object CloudCoverViewHandler {
         displaySource: WeatherSource,
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
-        observedCurrentTempFetchedAt: Long? = null,
+        observedAt: Long? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
     ) {
@@ -208,7 +208,7 @@ object CloudCoverViewHandler {
             displaySource = effectiveDisplaySource,
             hourlyForecasts = hourlyForecasts,
             observedCurrentTemp = observedCurrentTemp,
-            observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
+            observedAt = observedAt,
             storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, effectiveDisplaySource),
             currentLat = lat,
             currentLon = lon,
@@ -280,7 +280,7 @@ object CloudCoverViewHandler {
                 bitmapScale = bitmapScale,
                 smoothIterations = zoom.precipSmoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
-                observedTempFetchedAt = observedCurrentTempFetchedAt,
+                observedAt = observedAt,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)

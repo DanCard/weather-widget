@@ -216,7 +216,7 @@ object DailyViewHandler : WidgetViewHandler {
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentTemp?.temperature,
-                observedCurrentTempFetchedAt = observedCurrentTemp?.observedAt,
+                observedAt = observedCurrentTemp?.observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,

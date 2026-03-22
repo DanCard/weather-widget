@@ -109,7 +109,7 @@ object TemperatureViewHandler {
         displaySource: WeatherSource,
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
-        observedCurrentTempFetchedAt: Long? = null,
+        observedAt: Long? = null,
         onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
         startupToken: String? = null,
@@ -300,7 +300,7 @@ object TemperatureViewHandler {
         // or falling back to the simple database observation.
         val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
         val finalObsTemp = observedCurrentTemp ?: graphObservedTemp
-        val finalObsAt = observedCurrentTempFetchedAt ?: graphObservedAt
+        val finalObsAt = observedAt ?: graphObservedAt
 
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
@@ -327,7 +327,7 @@ object TemperatureViewHandler {
                     displaySource = displaySource,
                     hourlyForecasts = hourlyForecasts,
                     observedCurrentTemp = finalObsTemp,
-                    observedCurrentTempFetchedAt = finalObsAt,
+                    observedAt = finalObsAt,
                     storedDeltaState = storedDeltaState,
                     currentLat = lat,
                     currentLon = lon,
@@ -482,7 +482,7 @@ object TemperatureViewHandler {
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 observedCurrentTemp = observedCurrentTemp,
-                observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
+                observedAt = observedAt,
                 currentLat = lat,
                 currentLon = lon,
                 numColumns = numColumns,
@@ -526,7 +526,7 @@ object TemperatureViewHandler {
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
         observedCurrentTemp: Float?,
-        observedCurrentTempFetchedAt: Long?,
+        observedAt: Long?,
         currentLat: Double,
         currentLon: Double,
         numColumns: Int,
@@ -543,7 +543,7 @@ object TemperatureViewHandler {
                     displaySource = displaySource,
                     hourlyForecasts = hourlyForecasts,
                     observedCurrentTemp = observedCurrentTemp,
-                    observedCurrentTempFetchedAt = observedCurrentTempFetchedAt,
+                    observedAt = observedAt,
                     storedDeltaState = storedDeltaState,
                     currentLat = currentLat,
                     currentLon = currentLon,

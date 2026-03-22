@@ -3,7 +3,7 @@ package com.weatherwidget.widget
 data class CurrentTemperatureDeltaState(
     val delta: Float,
     val lastObservedTemp: Float,
-    val lastObservedFetchedAt: Long,
+    val lastObservedAt: Long,
     val updatedAtMs: Long,
     val sourceId: String,
     val locationLat: Double,
