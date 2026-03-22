@@ -398,8 +398,8 @@ class WidgetStateManagerTest {
 
     @Test
     fun `ZoomLevel enum has correct parameters`() {
-        assertEquals(8L, ZoomLevel.WIDE.backHours)
-        assertEquals(16L, ZoomLevel.WIDE.forwardHours)
+        assertEquals(12L, ZoomLevel.WIDE.backHours)
+        assertEquals(12L, ZoomLevel.WIDE.forwardHours)
         assertEquals(6, ZoomLevel.WIDE.navJump)
         assertEquals(4, ZoomLevel.WIDE.labelInterval)
         assertEquals(2, ZoomLevel.WIDE.precipSmoothIterations)

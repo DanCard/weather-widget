@@ -58,8 +58,8 @@ class WeatherWidgetProviderRobolectricTest {
 
     @Test
     fun `zoneIndexToOffset maps edge zones correctly`() {
-        assertEquals(-8, WeatherWidgetProvider.zoneIndexToOffset(0, 0))
-        assertEquals(14, WeatherWidgetProvider.zoneIndexToOffset(11, 0))
-        assertEquals(2, WeatherWidgetProvider.zoneIndexToOffset(5, 0))
+        assertEquals(-11, WeatherWidgetProvider.zoneIndexToOffset(0, 0))
+        assertEquals(11, WeatherWidgetProvider.zoneIndexToOffset(11, 0))
+        assertEquals(-1, WeatherWidgetProvider.zoneIndexToOffset(5, 0))
     }
 }

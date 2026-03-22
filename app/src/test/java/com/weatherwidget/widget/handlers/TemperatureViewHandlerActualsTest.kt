@@ -29,8 +29,8 @@ class TemperatureViewHandlerActualsTest {
      * WIDE: back=8h, forward=16h → 2026-02-20 04:00 through 2026-02-20 28:00
      */
     private fun wideForecasts(): List<com.weatherwidget.data.local.HourlyForecastEntity> {
-        val start = center.minusHours(10) // extra buffer
-        val end = center.plusHours(50)
+        val start = center.minusHours(24) // extra buffer
+        val end = center.plusHours(72) // extra buffer
         val result = mutableListOf<com.weatherwidget.data.local.HourlyForecastEntity>()
         var cur = start
         while (!cur.isAfter(end)) {
@@ -123,9 +123,8 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `WIDE zoom covers more hours than NARROW zoom`() {
+    fun `WIDE zoom covers 25 hours`() {
         val forecasts = wideForecasts()
-
         val wideHours = TemperatureViewHandler.buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
@@ -145,7 +144,7 @@ class TemperatureViewHandlerActualsTest {
             "WIDE (${wideHours.size}) should have more hours than NARROW (${narrowHours.size})",
             wideHours.size > narrowHours.size,
         )
-        assertTrue("WIDE should cover ≥25 hours when data available", wideHours.size >= 25)
+        assertEquals("WIDE should cover exactly 25 hours (12h back + 12h forward + center)", 25, wideHours.size)
         assertTrue("NARROW should cover ≤5 hours", narrowHours.size <= 5)
     }
 

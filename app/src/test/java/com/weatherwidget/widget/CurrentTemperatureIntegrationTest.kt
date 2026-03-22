@@ -218,12 +218,12 @@ class CurrentTemperatureIntegrationTest {
         insertHourlyForecast("12:00", 70f, fetchedAt)
         insertHourlyForecast("13:00", 75f, fetchedAt)
 
-        // Stored delta from 2 hours ago: -3°F
+        // Stored delta from 2.5 hours ago: -3°F
         val storedDelta = CurrentTemperatureDeltaState(
             delta = -3f,
             lastObservedTemp = 67f,
-            lastObservedAt = nowMs - (2 * 60 * 60 * 1000),
-            updatedAtMs = nowMs - (2 * 60 * 60 * 1000),
+            lastObservedAt = nowMs - (150 * 60 * 1000), // 2.5 hours
+            updatedAtMs = nowMs - (150 * 60 * 1000),
             sourceId = WeatherSource.NWS.id,
             locationLat = lat,
             locationLon = lon,
@@ -239,13 +239,13 @@ class CurrentTemperatureIntegrationTest {
             displaySource = WeatherSource.NWS,
             hourlyForecasts = hourlyForecasts,
             observedCurrentTemp = 67f,
-            observedAt = nowMs - (2 * 60 * 60 * 1000),
+            observedAt = nowMs - (150 * 60 * 1000),
             storedDeltaState = storedDelta,
             currentLat = lat,
             currentLon = lon,
         )
 
-        // After 2h of 4h decay window: delta = -3 * 0.5 = -1.5
+        // After 2.5h total elapsed (1.5h into 3h decay period): delta = -3 * 0.5 = -1.5
         assertEquals(-1.5f, result1.appliedDelta!!, 0.01f)
         assertEquals(70f - 1.5f, result1.displayTemp!!, 0.01f)
 
