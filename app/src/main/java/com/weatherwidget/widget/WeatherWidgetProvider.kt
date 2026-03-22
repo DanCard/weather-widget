@@ -774,7 +774,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
          */
         fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int, zoom: ZoomLevel = ZoomLevel.WIDE): Int {
             return if (zoom == ZoomLevel.WIDE) {
-                currentHourlyOffset + (-8 + 2 * zoneIndex)
+                currentHourlyOffset + (-11 + 2 * zoneIndex)
             } else {
                 val offsetFloat = -2f + (zoneIndex + 0.5f) / 3f
                 currentHourlyOffset + Math.round(offsetFloat)

@@ -69,14 +69,29 @@ class HourlyZoomCenteringRoboTest {
         assertCenteredLabel(hours.map(CloudCoverGraphRenderer.CloudHourData::label), "12p")
     }
 
+    @Test
+    fun `temperature wide window centers selected hour`() {
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = sampleHourlyForecasts(count = 30),
+            centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        // With symmetric 12h back/12h forward, 12p should be in the center
+        assertEquals(25, hours.size)
+        assertEquals("12p", hours[12].label)
+    }
+
     private fun assertCenteredLabel(labels: List<String>, expected: String) {
         assertEquals(listOf("10a", "11a", "12p", "1p", "2p"), labels)
         assertEquals(expected, labels[labels.size / 2])
     }
 
-    private fun sampleHourlyForecasts(): List<HourlyForecastEntity> {
-        val base = LocalDateTime.of(2026, 3, 15, 8, 0)
-        return (0..8).map { hourIndex ->
+    private fun sampleHourlyForecasts(count: Int = 48): List<HourlyForecastEntity> {
+        val base = LocalDateTime.of(2026, 3, 15, 0, 0)
+        return (0 until count).map { hourIndex ->
             val dateTime = base.plusHours(hourIndex.toLong())
             HourlyForecastEntity(
                 dateTime = dateTime.format(formatter),
