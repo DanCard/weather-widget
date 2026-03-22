@@ -172,6 +172,9 @@ class WeatherWidgetWorker
                             // Schedule next UI update after data fetch
                             val uiScheduler = UIUpdateScheduler(context)
                             uiScheduler.scheduleNextUpdate()
+                        } else {
+                            // Even on UI-only, ensure heartbeats are alive
+                            manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
                         }
                         Result.success()
                     },

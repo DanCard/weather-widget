@@ -48,6 +48,8 @@ import java.util.concurrent.TimeUnit
  */
 @dagger.hilt.android.AndroidEntryPoint
 class WeatherWidgetProvider : AppWidgetProvider() {
+    private val TAG = "WeatherWidgetProvider"
+
     @javax.inject.Inject
     lateinit var repository: com.weatherwidget.data.repository.WeatherRepository
 
@@ -448,12 +450,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
 
         triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
-
-        if (uiOnly) return
-
+        
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // Ensure background heartbeats are alive
+                UIUpdateScheduler(context).scheduleNextUpdate()
+                
+                val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+                val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+                    CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                }
+
+                if (uiOnly) return@launch
+
                 // Always ensure current temperature gets refreshed on a manual widget refresh
                 val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
@@ -521,6 +534,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
+                    
+                    // Restart heartbeats
+                    UIUpdateScheduler(context).scheduleNextUpdate()
+                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                    }
                 } finally {
                     pendingResult.finish()
                 }
@@ -548,6 +571,17 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val handlerStartMs = SystemClock.elapsedRealtime()
                     WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
                     val handlerMs = SystemClock.elapsedRealtime() - handlerStartMs
+                    
+                    // Restart heartbeats
+                    UIUpdateScheduler(context).scheduleNextUpdate()
+                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                    }
+
                     val totalMs = System.currentTimeMillis() - receiveTimeMs
                     database.appLogDao().log(
                         "TOGGLE_VIEW_TIMING",
@@ -581,6 +615,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
+
+                    // Restart heartbeats
+                    UIUpdateScheduler(context).scheduleNextUpdate()
+                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                    }
                 } finally {
                     pendingResult.finish()
                 }
@@ -613,6 +657,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset, repository)
+                    
+                    // Restart heartbeats
+                    UIUpdateScheduler(context).scheduleNextUpdate()
+                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                    }
                 } finally {
                     pendingResult.finish()
                 }
