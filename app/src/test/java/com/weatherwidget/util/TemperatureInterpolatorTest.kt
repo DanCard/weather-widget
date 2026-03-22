@@ -1,6 +1,7 @@
 package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.testutil.TestData
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -20,7 +21,7 @@ class TemperatureInterpolatorTest {
         temp: Int,
     ): HourlyForecastEntity {
         return HourlyForecastEntity(
-            dateTime = dateTime,
+            dateTime = TestData.toEpoch(dateTime),
             locationLat = 37.42,
             locationLon = -122.08,
             temperature = temp.toFloat(),

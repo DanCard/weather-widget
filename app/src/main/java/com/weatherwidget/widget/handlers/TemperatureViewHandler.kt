@@ -39,6 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -214,8 +215,8 @@ object TemperatureViewHandler {
                         Log.d(TAG, "updateWidget: widget=$appWidgetId startup graph fast path, skipping actual observation query")
                         emptyList()
                     } else {
-                        val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val minEpoch = graphStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val maxEpoch = graphEnd.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val obsStartMs = SystemClock.elapsedRealtime()
                         val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
                         val afterObsMs = SystemClock.elapsedRealtime()
@@ -256,7 +257,7 @@ object TemperatureViewHandler {
                     .maxByOrNull { it.dateTime }
                 if (latestObs != null) {
                     graphObservedTemp = latestObs.actualTemperature
-                    graphObservedAt = latestObs.dateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    graphObservedAt = latestObs.dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                 }
 
                 if (!deferStartupGraphActuals) {
@@ -670,7 +671,7 @@ object TemperatureViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
     ): HourlyForecastEntity? {
-        val currentHourKey = WeatherTimeUtils.toHourlyForecastKey(LocalDateTime.now())
+        val currentHourKey = WeatherTimeUtils.toHourlyForecastKeyMs(LocalDateTime.now())
 
         return hourlyForecasts
             .filter { it.dateTime == currentHourKey }
@@ -975,10 +976,14 @@ object TemperatureViewHandler {
                     preferred ?: gap ?: fallback
                 }
 
+        val zoneId = ZoneId.systemDefault()
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
+        val endMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
+
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
@@ -989,12 +994,12 @@ object TemperatureViewHandler {
                 .entries
                 .sortedBy { it.key }
                 .joinToString("; ") { (stationId, rows) ->
-                    val minTime = java.time.Instant.ofEpochMilli(rows.minOf { it.timestamp })
-                        .atZone(java.time.ZoneId.systemDefault())
+                    val minTime = Instant.ofEpochMilli(rows.minOf { it.timestamp })
+                        .atZone(zoneId)
                         .toLocalDateTime()
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    val maxTime = java.time.Instant.ofEpochMilli(rows.maxOf { it.timestamp })
-                        .atZone(java.time.ZoneId.systemDefault())
+                    val maxTime = Instant.ofEpochMilli(rows.maxOf { it.timestamp })
+                        .atZone(zoneId)
                         .toLocalDateTime()
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                     "$stationId rows=${rows.size} span=$minTime-$maxTime"
@@ -1012,8 +1017,8 @@ object TemperatureViewHandler {
             displaySource = displaySource,
             userLat = lat,
             userLon = lon,
-            startHour = startHour,
-            endHour = endHour,
+            startMs = startMs,
+            endMs = endMs,
             onBlendDebug = onBlendDebug,
         )
         Log.d(
@@ -1029,8 +1034,8 @@ object TemperatureViewHandler {
 
         // 1. Collect top-of-hour forecasts
         while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
-            val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val forecast = forecastsByTime[hourKey]
+            val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
+            val forecast = forecastsByTime[hourMs]
 
             if (forecast != null) {
                 val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
@@ -1078,8 +1083,8 @@ object TemperatureViewHandler {
         val actualMap = mutableMapOf<LocalDateTime, com.weatherwidget.data.local.ObservationEntity>()
 
         blendedActuals.forEach { obs ->
-            val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
-                .atZone(java.time.ZoneId.systemDefault())
+            val obsTime = Instant.ofEpochMilli(obs.timestamp)
+                .atZone(ZoneId.systemDefault())
                 .toLocalDateTime()
             
             if (!obsTime.isBefore(startHour) && !obsTime.isAfter(endHour) && obsTime.isBefore(now)) {
@@ -1242,8 +1247,8 @@ object TemperatureViewHandler {
             stationName = metadata?.stationName,
             stationType = metadata?.stationType,
             observations = chosen.filter { obs ->
-                val obsTime = java.time.Instant.ofEpochMilli(obs.timestamp)
-                    .atZone(java.time.ZoneId.systemDefault())
+                val obsTime = Instant.ofEpochMilli(obs.timestamp)
+                    .atZone(ZoneId.systemDefault())
                     .toLocalDateTime()
                 !obsTime.isBefore(startHour) && !obsTime.isAfter(endHour)
             },
@@ -1258,14 +1263,10 @@ object TemperatureViewHandler {
         displaySource: WeatherSource,
         userLat: Double,
         userLon: Double,
-        startHour: LocalDateTime,
-        endHour: LocalDateTime,
+        startMs: Long,
+        endMs: Long,
         onBlendDebug: ((String) -> Unit)? = null,
     ): List<com.weatherwidget.data.local.ObservationEntity> {
-        val zoneId = java.time.ZoneId.systemDefault()
-        val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
-        val endMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
-
         val filtered = observations
             .filter { matchesObservationSource(it, displaySource) }
             .filter { it.timestamp in startMs..endMs }
@@ -1327,8 +1328,8 @@ object TemperatureViewHandler {
                 SpatialInterpolator.interpolateIDW(userLat, userLon, peerEntities, targetTs)
                     ?: anchor.temperature
             }
-            val timeStr = java.time.Instant.ofEpochMilli(targetTs)
-                .atZone(java.time.ZoneId.systemDefault())
+            val timeStr = Instant.ofEpochMilli(targetTs)
+                .atZone(ZoneId.systemDefault())
                 .toLocalDateTime()
                 .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
             val cohortStations = peers.map { it.stationId }.toSortedSet()
@@ -1410,18 +1411,18 @@ object TemperatureViewHandler {
                             val interpolated = current.temperature + (next.temperature - current.temperature) * fraction
                             val debugLine =
                                 "station_interpolate station=$stationId at=${
-                                    java.time.Instant.ofEpochMilli(interpolatedTimestamp)
-                                        .atZone(java.time.ZoneId.systemDefault())
+                                    Instant.ofEpochMilli(interpolatedTimestamp)
+                                        .atZone(ZoneId.systemDefault())
                                         .toLocalDateTime()
                                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                                 } temp=${String.format("%.1f", interpolated)} from=${
-                                    java.time.Instant.ofEpochMilli(current.timestamp)
-                                        .atZone(java.time.ZoneId.systemDefault())
+                                    Instant.ofEpochMilli(current.timestamp)
+                                        .atZone(ZoneId.systemDefault())
                                         .toLocalDateTime()
                                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                                 }..${
-                                    java.time.Instant.ofEpochMilli(next.timestamp)
-                                        .atZone(java.time.ZoneId.systemDefault())
+                                    Instant.ofEpochMilli(next.timestamp)
+                                        .atZone(ZoneId.systemDefault())
                                         .toLocalDateTime()
                                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                                 }"
@@ -1441,13 +1442,13 @@ object TemperatureViewHandler {
                     } else {
                         val debugLine =
                             "station_gap station=$stationId gapMin=${gapMs / 60000} from=${
-                                java.time.Instant.ofEpochMilli(current.timestamp)
-                                    .atZone(java.time.ZoneId.systemDefault())
+                                Instant.ofEpochMilli(current.timestamp)
+                                    .atZone(ZoneId.systemDefault())
                                     .toLocalDateTime()
                                     .format(DateTimeFormatter.ofPattern("HH:mm"))
                             }..${
-                                java.time.Instant.ofEpochMilli(next.timestamp)
-                                    .atZone(java.time.ZoneId.systemDefault())
+                                Instant.ofEpochMilli(next.timestamp)
+                                    .atZone(ZoneId.systemDefault())
                                     .toLocalDateTime()
                                     .format(DateTimeFormatter.ofPattern("HH:mm"))
                             }"
@@ -1489,13 +1490,13 @@ object TemperatureViewHandler {
             val extrapolated = lastObservation.temperature + (targetForecastTemp - baseForecastTemp)
             val debugLine =
                 "station_extrapolate station=$stationId at=${
-                    java.time.Instant.ofEpochMilli(extrapolatedTimestamp)
-                        .atZone(java.time.ZoneId.systemDefault())
+                    Instant.ofEpochMilli(extrapolatedTimestamp)
+                        .atZone(ZoneId.systemDefault())
                         .toLocalDateTime()
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                 } temp=${String.format("%.1f", extrapolated)} fromObs=${
-                    java.time.Instant.ofEpochMilli(lastObservation.timestamp)
-                        .atZone(java.time.ZoneId.systemDefault())
+                    Instant.ofEpochMilli(lastObservation.timestamp)
+                        .atZone(ZoneId.systemDefault())
                         .toLocalDateTime()
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                 } forecastDelta=${String.format("%.1f", targetForecastTemp - baseForecastTemp)}"
@@ -1533,8 +1534,8 @@ object TemperatureViewHandler {
         targetTimestamp: Long,
     ): Float? {
         if (forecastSeries.isEmpty()) return null
-        val zoneId = java.time.ZoneId.systemDefault()
-        val targetTime = java.time.Instant.ofEpochMilli(targetTimestamp).atZone(zoneId).toLocalDateTime()
+        val zoneId = ZoneId.systemDefault()
+        val targetTime = Instant.ofEpochMilli(targetTimestamp).atZone(zoneId).toLocalDateTime()
         val exact = forecastSeries.find { forecastDateTime(it) == targetTime }
         if (exact != null) return exact.temperature
 
@@ -1553,7 +1554,9 @@ object TemperatureViewHandler {
     }
 
     private fun forecastDateTime(forecast: HourlyForecastEntity): LocalDateTime? =
-        runCatching { LocalDateTime.parse(forecast.dateTime) }.getOrNull()
+        runCatching { 
+            Instant.ofEpochMilli(forecast.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime() 
+        }.getOrNull()
 
     private suspend fun maybeEnqueueHourlyObservationBackfill(
         context: Context,
@@ -1650,8 +1653,8 @@ object TemperatureViewHandler {
         }
 
     private fun observationHour(observation: com.weatherwidget.data.local.ObservationEntity): LocalDateTime =
-        java.time.Instant.ofEpochMilli(observation.timestamp)
-            .atZone(java.time.ZoneId.systemDefault())
+        Instant.ofEpochMilli(observation.timestamp)
+            .atZone(ZoneId.systemDefault())
             .toLocalDateTime()
             .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
 
@@ -1704,8 +1707,9 @@ object TemperatureViewHandler {
             if (index < timeOffsets.size) {
                 val offset = timeOffsets[index]
                 val targetTime = centerTime.plusHours(offset.toLong())
-                val hourKey = targetTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val forecast = forecastsByTime[hourKey]
+                val hourMs = targetTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val forecast = forecastsByTime[hourMs]
 
                 views.setViewVisibility(containerId, View.VISIBLE)
 

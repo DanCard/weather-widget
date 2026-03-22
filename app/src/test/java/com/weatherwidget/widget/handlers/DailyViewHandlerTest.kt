@@ -835,7 +835,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget daily header shows delta when precip is visible`() = runBlocking {
+    fun `updateWidget daily header hides delta when precip is visible`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val stateManager = WidgetStateManager(context)
@@ -886,8 +886,7 @@ class DailyViewHandlerTest {
         val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
         val precipBadge = applied.findViewById<TextView>(R.id.precip_probability)
 
-        assertEquals(View.VISIBLE, deltaBadge.visibility)
-        assertEquals("+1.0", deltaBadge.text.toString())
+        assertEquals(View.GONE, deltaBadge.visibility)
         assertEquals(View.VISIBLE, precipBadge.visibility)
         assertEquals("65%", precipBadge.text.toString())
     }

@@ -9,12 +9,15 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 @RunWith(AndroidJUnit4::class)
 class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integration") {
+
+    private fun LocalDateTime.toMs() = this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     private val today = LocalDate.now()
     private val yesterday = today.minusDays(1)
@@ -134,8 +137,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
 
         // Only afternoon hours
         val hourly = listOf(
-            HourlyForecastEntity(today.atTime(12, 0).formatISO(), 37.42, -122.08, 62f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L),
-            HourlyForecastEntity(today.atTime(14, 0).formatISO(), 37.42, -122.08, 66f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L)
+            HourlyForecastEntity(today.atTime(12, 0).toMs(), 37.42, -122.08, 62f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L),
+            HourlyForecastEntity(today.atTime(14, 0).toMs(), 37.42, -122.08, 66f, "Sunny", WeatherSource.NWS.id, fetchedAt = 1000L)
         )
 
         val dailyActuals = mapOf(

@@ -3,6 +3,7 @@ package com.weatherwidget.util
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -29,10 +30,10 @@ class DailyActualsEstimatorTest {
     @Test
     fun calculateTodayTripleLineValues_withSourceActuals_correctlySeparatesObservedAndForecast() {
         val hourly = listOf(
-            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 40f, "Cloudy", "OPEN_METEO", 0, 0, 1L),
-            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 60f, "Cloudy", "OPEN_METEO", 0, 0, 1L),
-            HourlyForecastEntity("2026-02-25T16:00", 0.0, 0.0, 68f, "Sunny", "OPEN_METEO", 0, 0, 1L),
-            HourlyForecastEntity("2026-02-25T23:00", 0.0, 0.0, 38f, "Cloudy", "OPEN_METEO", 0, 0, 1L)
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T05:00"), 0.0, 0.0, 40f, "Cloudy", "OPEN_METEO", 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T14:00"), 0.0, 0.0, 60f, "Cloudy", "OPEN_METEO", 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T16:00"), 0.0, 0.0, 68f, "Sunny", "OPEN_METEO", 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T23:00"), 0.0, 0.0, 38f, "Cloudy", "OPEN_METEO", 0, 0, 1L)
         )
         val sourceActuals = mapOf(
             today.toString() to com.weatherwidget.widget.ObservationResolver.DailyActual(
@@ -78,11 +79,11 @@ class DailyActualsEstimatorTest {
     fun calculateTodayTripleLineValues_filtersBySource() {
         val hourly = listOf(
             // NWS data: low of 40
-            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 40f, "Cloudy", "NWS", 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T05:00"), 0.0, 0.0, 40f, "Cloudy", "NWS", 0, 0, 1L),
             // WeatherAPI data: low of 42
-            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 42f, "Cloudy", "WEATHER_API", 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T05:00"), 0.0, 0.0, 42f, "Cloudy", "WEATHER_API", 0, 0, 1L),
             // Generic GAP data: low of 45 (should be included as fallback/average)
-            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 45f, "Cloudy", "Generic", 0, 0, 1L)
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T05:00"), 0.0, 0.0, 45f, "Cloudy", "Generic", 0, 0, 1L)
         )
 
         // To test filtering logic without daily fallback interference, use empty daily values
@@ -109,9 +110,9 @@ class DailyActualsEstimatorTest {
             source = WeatherSource.NWS.id,
         )
         val hourly = listOf(
-            HourlyForecastEntity("2026-02-25T12:00", 0.0, 0.0, 72f, "Sunny", WeatherSource.NWS.id, 0, 0, 1L),
-            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 71.4f, "Sunny", WeatherSource.NWS.id, 0, 0, 1L),
-            HourlyForecastEntity("2026-02-25T16:00", 0.0, 0.0, 78f, "Sunny", WeatherSource.NWS.id, 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T12:00"), 0.0, 0.0, 72f, "Sunny", WeatherSource.NWS.id, 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T14:00"), 0.0, 0.0, 71.4f, "Sunny", WeatherSource.NWS.id, 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T16:00"), 0.0, 0.0, 78f, "Sunny", WeatherSource.NWS.id, 0, 0, 1L),
         )
 
         val values = DailyActualsEstimator.calculateTodayTripleLineValues(
@@ -130,8 +131,8 @@ class DailyActualsEstimatorTest {
     fun calculateTodayTripleLineValues_preservesPrecision() {
         val hourly = listOf(
             // High of 61.7, Low of 58.2
-            HourlyForecastEntity("2026-02-25T14:00", 0.0, 0.0, 61.7f, "Sunny", "OPEN_METEO", 0, 0, 1L),
-            HourlyForecastEntity("2026-02-25T05:00", 0.0, 0.0, 58.2f, "Cloudy", "OPEN_METEO", 0, 0, 1L)
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T14:00"), 0.0, 0.0, 61.7f, "Sunny", "OPEN_METEO", 0, 0, 1L),
+            HourlyForecastEntity(TestData.toEpoch("2026-02-25T05:00"), 0.0, 0.0, 58.2f, "Cloudy", "OPEN_METEO", 0, 0, 1L)
         )
 
         // Use empty daily values to trigger hourly fallback

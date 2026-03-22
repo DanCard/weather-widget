@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
@@ -99,10 +100,11 @@ object DataFreshness {
             val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
             val now = LocalDateTime.now()
-            val startTime = now.minusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = now.plusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val zoneId = ZoneId.systemDefault()
+            val startTimeMs = now.minusHours(1).atZone(zoneId).toInstant().toEpochMilli()
+            val endTimeMs = now.plusHours(1).atZone(zoneId).toInstant().toEpochMilli()
 
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
             val hasData = hourlyForecasts.isNotEmpty()
 
             Log.d(TAG, "Recent hourly data check: hasData=$hasData (${hourlyForecasts.size} entries)")

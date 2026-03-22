@@ -1,6 +1,7 @@
 package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.testutil.TestData
 import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
@@ -16,7 +17,7 @@ class RainAnalyzerTest {
         source: String = "NWS",
     ): HourlyForecastEntity {
         return HourlyForecastEntity(
-            dateTime = dateTime,
+            dateTime = TestData.toEpoch(dateTime),
             locationLat = 37.7749,
             locationLon = -122.4194,
             temperature = 70f,

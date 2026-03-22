@@ -16,6 +16,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -51,8 +52,8 @@ class RainAnalyzerQueryWindowTest {
         )
 
         // Query with the standard 60h window
-        val hourlyStart = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyStart = now.minusHours(24).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS.toLong()).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val wideResult = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, LAT, LON)
 
         assertTrue("60h window should include rain 2 days out", wideResult.any { it.precipProbability == 80 })
@@ -75,8 +76,8 @@ class RainAnalyzerQueryWindowTest {
         )
 
         // Query with a narrow ±3h window (the old bug)
-        val narrowStart = now.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val narrowEnd = now.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val narrowStart = now.minusHours(3).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val narrowEnd = now.plusHours(3).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val narrowResult = hourlyDao.getHourlyForecasts(narrowStart, narrowEnd, LAT, LON)
 
         assertTrue("Narrow window should miss rain 2 days out", narrowResult.none { it.precipProbability == 80 })

@@ -52,7 +52,7 @@ class SilurianApi @Inject constructor(
     )
 
     data class HourlyForecast(
-        val dateTimeString: String,
+        val dateTime: Long, // Epoch ms
         val temperature: Float,
         val condition: String,
         val precipProbability: Int,
@@ -120,9 +120,13 @@ class SilurianApi @Inject constructor(
                 val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
                 val cloudCover = entry["cloud_cover"]?.jsonPrimitive?.doubleOrNull?.toInt()
 
-                // Format: 2026-03-03T08:00:00 -> 2026-03-03T08:00
-                val formattedTime = time.take(16)
-                HourlyForecast(formattedTime, temp, condition, precip, cloudCover)
+                val ts = try {
+                    java.time.LocalDateTime.parse(time.take(19)).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                } catch (e: Exception) {
+                    return@mapNotNull null
+                }
+
+                HourlyForecast(ts, temp, condition, precip, cloudCover)
             }
         } else emptyList()
 

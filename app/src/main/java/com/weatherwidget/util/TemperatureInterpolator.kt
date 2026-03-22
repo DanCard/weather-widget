@@ -9,8 +9,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.Duration
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
@@ -176,17 +178,18 @@ class TemperatureInterpolator
 
             */
             // Find the two surrounding data points
+            val zoneId = ZoneId.systemDefault()
             val targetHour = targetTime.truncatedTo(ChronoUnit.HOURS)
             val nextHour = targetHour.plusHours(1)
 
-            val targetHourStr = targetHour.format(HOUR_FORMATTER)
-            val nextHourStr = nextHour.format(HOUR_FORMATTER)
+            val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
+            val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
 
-            val currentHourForecast = filteredForecasts.find { it.dateTime == targetHourStr }
-            val nextHourForecast = filteredForecasts.find { it.dateTime == nextHourStr }
+            val currentHourForecast = filteredForecasts.find { it.dateTime == targetHourMs }
+            val nextHourForecast = filteredForecasts.find { it.dateTime == nextHourMs }
 
             debugLog(
-                "getInterpolatedTemperature: currentHour=$targetHourStr found=${currentHourForecast?.source}:${currentHourForecast?.temperature}, nextHour=$nextHourStr found=${nextHourForecast?.source}:${nextHourForecast?.temperature}",
+                "getInterpolatedTemperature: targetHourMs=$targetHourMs found=${currentHourForecast?.source}:${currentHourForecast?.temperature}, nextHourMs=$nextHourMs found=${nextHourForecast?.source}:${nextHourForecast?.temperature}",
             )
 
             // If we only have current hour, return that
@@ -223,23 +226,21 @@ class TemperatureInterpolator
             val interpolatedTemp = currentTemp + (tempDiff * factor)
             debugLog(
                 "Interpolating: time=${targetTime.hour}:${targetTime.minute}, " +
-                    "current=$currentTemp@$targetHourStr, next=$nextTemp@$nextHourStr, " +
+                    "current=$currentTemp@$targetHourMs, next=$nextTemp@$nextHourMs, " +
                     "factor=$factor, result=$interpolatedTemp",
             )
             return interpolatedTemp
         }
 
-        /**
-         * Find the closest temperature to the target time when we don't have surrounding data points.
-         */
         private fun findClosestTemperature(
             hourlyForecasts: List<HourlyForecastEntity>,
             targetTime: LocalDateTime,
         ): Float? {
             if (hourlyForecasts.isEmpty()) return null
+            val zoneId = ZoneId.systemDefault()
 
             return hourlyForecasts.minByOrNull { forecast ->
-                val forecastTime = LocalDateTime.parse(forecast.dateTime, HOUR_FORMATTER)
+                val forecastTime = Instant.ofEpochMilli(forecast.dateTime).atZone(zoneId).toLocalDateTime()
                 kotlin.math.abs(Duration.between(targetTime, forecastTime).toMinutes())
             }?.temperature
         }

@@ -3,6 +3,7 @@ package com.weatherwidget.util
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -34,9 +35,9 @@ class TripleLinePrecisionTest {
 
         // 2. Setup hourly data (Used for the 'Observed' parts of the triple line)
         val hourlyData = listOf(
-            HourlyForecastEntity("${todayStr}T10:00", 0.0, 0.0, 70.0f, "Clear", displaySource.id, fetchedAt = 1000L),
-            HourlyForecastEntity("${todayStr}T12:00", 0.0, 0.0, 71.5f, "Clear", displaySource.id, fetchedAt = 1000L),
-            HourlyForecastEntity("${todayStr}T14:00", 0.0, 0.0, 73.1f, "Clear", displaySource.id, fetchedAt = 1000L) // Peak in hourly
+            HourlyForecastEntity(TestData.toEpoch("${todayStr}T10:00"), 0.0, 0.0, 70.0f, "Clear", displaySource.id, fetchedAt = 1000L),
+            HourlyForecastEntity(TestData.toEpoch("${todayStr}T12:00"), 0.0, 0.0, 71.5f, "Clear", displaySource.id, fetchedAt = 1000L),
+            HourlyForecastEntity(TestData.toEpoch("${todayStr}T14:00"), 0.0, 0.0, 73.1f, "Clear", displaySource.id, fetchedAt = 1000L) // Peak in hourly
         )
 
         // 3. Calculate triple line values

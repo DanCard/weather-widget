@@ -25,7 +25,9 @@ import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -138,14 +140,15 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
     }
 
     private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
         val fetchedAt = System.currentTimeMillis()
+        val zoneId = ZoneId.systemDefault()
         return (0..24).flatMap { index ->
-            val time = start.plusHours(index.toLong()).format(formatter)
+            val dt = start.plusHours(index.toLong())
+            val timeMs = dt.atZone(zoneId).toInstant().toEpochMilli()
             listOf(
                 HourlyForecastEntity(
-                    dateTime = time,
+                    dateTime = timeMs,
                     locationLat = 37.0,
                     locationLon = -122.0,
                     temperature = 58f + index,
@@ -156,7 +159,7 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
                     fetchedAt = fetchedAt,
                 ),
                 HourlyForecastEntity(
-                    dateTime = time,
+                    dateTime = timeMs,
                     locationLat = 37.0,
                     locationLon = -122.0,
                     temperature = 57f + index,

@@ -3,8 +3,10 @@ package com.weatherwidget.util
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -49,9 +51,10 @@ object DailyActualsEstimator {
         snapshotLow: Float? = null,
     ): TodayTripleLineValues {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val zoneId = ZoneId.systemDefault()
         // Filter all hourly data for today
         val todayHourly = hourlyForecasts.filter {
-            it.dateTime.startsWith(todayStr) &&
+            Instant.ofEpochMilli(it.dateTime).atZone(zoneId).toLocalDate() == today &&
                 (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
         }
 
@@ -91,10 +94,9 @@ object DailyActualsEstimator {
         displaySource: WeatherSource,
         fallbackWeather: ForecastEntity
     ): Pair<Float?, Float?> {
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-
+        val zoneId = ZoneId.systemDefault()
         val todayHourly = hourlyForecasts.filter {
-            it.dateTime.startsWith(todayStr) &&
+            Instant.ofEpochMilli(it.dateTime).atZone(zoneId).toLocalDate() == today &&
                 (it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id)
         }
 

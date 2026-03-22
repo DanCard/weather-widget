@@ -2,6 +2,7 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,7 +54,7 @@ class ForecastRepositoryHourlyChangeTest {
         cloudCover: Int? = 55,
         fetchedAt: Long = 1L,
     ) = HourlyForecastEntity(
-        dateTime = "2026-03-14T21:00",
+        dateTime = TestData.toEpoch("2026-03-14T21:00"),
         locationLat = 37.42,
         locationLon = -122.08,
         temperature = 60f,

@@ -103,13 +103,20 @@ class OpenMeteoApi
                     it.jsonPrimitive.content.toIntOrNull()
                 } ?: emptyList()
 
+            val zone = timezone?.let { java.time.ZoneId.of(it) } ?: java.time.ZoneId.systemDefault()
             val hourlyForecasts =
                 hourlyTimes.mapIndexedNotNull { index, time ->
                     val temp = hourlyTemps.getOrNull(index)
                     val code = hourlyCodes.getOrNull(index) ?: 0
+                    val ts = try {
+                        java.time.LocalDateTime.parse(time).atZone(zone).toInstant().toEpochMilli()
+                    } catch (e: Exception) {
+                        null
+                    } ?: return@mapIndexedNotNull null
+
                     if (temp != null) {
                         HourlyForecast(
-                            dateTime = time,
+                            dateTime = ts,
                             temperature = temp,
                             weatherCode = code,
                             precipProbability = hourlyPrecipProbs.getOrNull(index),
@@ -254,7 +261,7 @@ class OpenMeteoApi
         )
 
         data class HourlyForecast(
-            val dateTime: String, // ISO 8601 format: "2024-01-15T14:00"
+            val dateTime: Long, // Epoch ms
             val temperature: Float,
             val weatherCode: Int,
             val precipProbability: Int? = null,

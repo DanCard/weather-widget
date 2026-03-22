@@ -36,8 +36,10 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.min
 
@@ -196,7 +198,9 @@ object DailyViewHandler : WidgetViewHandler {
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val todayIconForecast = resolveTodayHeaderForecast(now, hourlyForecasts, displaySource)
-        val iconDateTime = todayIconForecast?.let { LocalDateTime.parse(it.dateTime) } ?: now
+        val iconDateTime = todayIconForecast?.let { 
+            Instant.ofEpochMilli(it.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime() 
+        } ?: now
         val isNight = SunPositionUtils.isNight(iconDateTime, lat, lon)
 
         val iconRes = WeatherIconMapper.getIconResource(
@@ -265,6 +269,7 @@ object DailyViewHandler : WidgetViewHandler {
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =
             currentTemp != null &&
+            !isPrecipVisible &&
             delta != null &&
             kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
         if (deltaVisible) {
@@ -294,7 +299,7 @@ object DailyViewHandler : WidgetViewHandler {
                 observedTemp = currentTempResolution.observedTemp,
                 appliedDelta = delta,
                 deltaVisible = deltaVisible,
-                deltaHiddenReason = dailyDeltaHiddenReason(currentTemp, delta),
+                deltaHiddenReason = dailyDeltaHiddenReason(currentTemp, delta, isPrecipVisible),
                 precipVisible = isPrecipVisible,
                 precipProbability = precipProb,
                 isNowLineVisible = null,
@@ -626,7 +631,7 @@ object DailyViewHandler : WidgetViewHandler {
             ).filterNotNull()
 
         return candidateTimes.firstNotNullOfOrNull { candidateTime ->
-            forecastsByTime[WeatherTimeUtils.toHourlyForecastKey(candidateTime)]
+            forecastsByTime[WeatherTimeUtils.toHourlyForecastKeyMs(candidateTime)]
         }
     }
 
@@ -863,9 +868,11 @@ object DailyViewHandler : WidgetViewHandler {
     private fun dailyDeltaHiddenReason(
         currentTemp: Float?,
         appliedDelta: Float?,
+        isPrecipVisible: Boolean,
     ): String? =
         when {
             currentTemp == null -> "current_temp_missing"
+            isPrecipVisible -> "precip_supersedes"
             appliedDelta == null -> "no_delta"
             kotlin.math.abs(appliedDelta) < DELTA_VISIBILITY_THRESHOLD -> "below_threshold"
             else -> null

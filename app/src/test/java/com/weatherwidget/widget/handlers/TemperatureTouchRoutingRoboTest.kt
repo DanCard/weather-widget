@@ -205,12 +205,11 @@ class TemperatureTouchRoutingRoboTest {
         }
 
     private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
         return (0..24).map { index ->
             val time = start.plusHours(index.toLong())
             HourlyForecastEntity(
-                dateTime = time.format(formatter),
+                dateTime = time.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 60f + index,

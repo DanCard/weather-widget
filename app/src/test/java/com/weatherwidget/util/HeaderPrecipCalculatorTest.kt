@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -177,7 +178,7 @@ class HeaderPrecipCalculatorTest {
         precipProbability: Int?,
     ): HourlyForecastEntity {
         return HourlyForecastEntity(
-            dateTime = dateTime,
+            dateTime = TestData.toEpoch(dateTime),
             locationLat = 37.422,
             locationLon = -122.084,
             temperature = 55f,

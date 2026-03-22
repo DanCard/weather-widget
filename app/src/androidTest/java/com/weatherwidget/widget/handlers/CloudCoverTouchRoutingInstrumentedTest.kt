@@ -26,6 +26,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -138,11 +139,10 @@ class CloudCoverTouchRoutingInstrumentedTest : IsolatedIntegrationTest("cloud_co
     }
 
     private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
         val fetchedAt = System.currentTimeMillis()
         return (0..24).flatMap { index ->
-            val time = start.plusHours(index.toLong()).format(formatter)
+            val time = start.plusHours(index.toLong()).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             listOf(
                 HourlyForecastEntity(
                     dateTime = time,

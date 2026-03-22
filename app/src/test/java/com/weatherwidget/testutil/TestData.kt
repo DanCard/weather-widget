@@ -76,7 +76,7 @@ object TestData {
         lat: Double = LAT,
         lon: Double = LON,
     ) = HourlyForecastEntity(
-        dateTime = dateTime,
+        dateTime = toEpoch(dateTime),
         locationLat = lat,
         locationLon = lon,
         temperature = temperature,
@@ -85,4 +85,8 @@ object TestData {
         precipProbability = precipProbability,
         fetchedAt = fetchedAt,
     )
+
+    fun toEpoch(dateTime: String): Long {
+        return java.time.LocalDateTime.parse(dateTime).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }
 }

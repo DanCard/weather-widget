@@ -233,9 +233,10 @@ class CurrentTempRepository
             longitude: Double, 
             time: LocalDateTime = LocalDateTime.now()
         ): Float? {
-            val startDateTime = time.minusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endDateTime = time.plusHours(3).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startDateTime, endDateTime, latitude, longitude)
+            val zoneId = ZoneId.systemDefault()
+            val startMs = time.minusHours(3).atZone(zoneId).toInstant().toEpochMilli()
+            val endMs = time.plusHours(3).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyForecasts = hourlyForecastDao.getHourlyForecasts(startMs, endMs, latitude, longitude)
             
             return if (hourlyForecasts.isEmpty()) null else temperatureInterpolator.getInterpolatedTemperature(hourlyForecasts, time)
         }
@@ -245,9 +246,12 @@ class CurrentTempRepository
             longitude: Double, 
             time: LocalDateTime = LocalDateTime.now()
         ): LocalDateTime {
-            val currentHourStr = time.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val nextHourStr = time.plusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val forecasts = hourlyForecastDao.getHourlyForecasts(currentHourStr, nextHourStr, latitude, longitude)
+            val zoneId = ZoneId.systemDefault()
+            val currentHourMs = time.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                .atZone(zoneId).toInstant().toEpochMilli()
+            val nextHourMs = time.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1)
+                .atZone(zoneId).toInstant().toEpochMilli()
+            val forecasts = hourlyForecastDao.getHourlyForecasts(currentHourMs, nextHourMs, latitude, longitude)
             
             val tempDiff = if (forecasts.size >= 2) (forecasts[1].temperature - forecasts[0].temperature).toInt() else 0
             return temperatureInterpolator.getNextUpdateTime(time, tempDiff)

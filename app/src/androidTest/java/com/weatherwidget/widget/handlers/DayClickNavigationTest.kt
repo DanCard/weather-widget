@@ -27,6 +27,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Instrumented tests verifying that tapping "today" navigates to the
@@ -74,7 +75,7 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
     }
 
     private fun createForecast(
-        dateTime: String,
+        dateTime: Long,
         precipProb: Int? = 0,
         source: String = "NWS",
     ): HourlyForecastEntity {
@@ -99,7 +100,7 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
         val futureHour = now.plusHours(3)
         val forecasts = listOf(
             createForecast(
-                String.format("%sT%02d:00", todayStr, futureHour.hour),
+                futureHour.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 precipProb = 6,
             ),
         )
@@ -140,7 +141,7 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
         val futureHour = now.plusHours(3)
         val forecasts = listOf(
             createForecast(
-                String.format("%sT%02d:00", todayStr, futureHour.hour),
+                futureHour.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 precipProb = 5,
             ),
         )
@@ -163,7 +164,7 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
         val futureHour = now.plusHours(5)
         val forecasts = listOf(
             createForecast(
-                String.format("%sT%02d:00", todayStr, futureHour.hour),
+                futureHour.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 precipProb = 70,
             ),
         )
@@ -215,7 +216,7 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
             hourlyDao.insertAll(
                 listOf(
                     createForecast(
-                        dateTime = now.plusHours(3).withMinute(0).withSecond(0).withNano(0).toString(),
+                        dateTime = now.plusHours(3).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                         precipProb = 6,
                         source = WeatherSource.NWS.id,
                     ),
@@ -225,8 +226,9 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
             val todayWeather = forecastDao.getForecastForDate(todayStr, lat, lon)
             val dailyPrecipProb = todayWeather?.precipProbability
 
-            val hourlyStart = now.minusHours(24).toString()
-            val hourlyEnd = now.plusHours(60).toString()
+            val zoneId = ZoneId.systemDefault()
+            val hourlyStart = now.minusHours(24).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyEnd = now.plusHours(60).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val source = todayWeather?.source ?: "NWS"

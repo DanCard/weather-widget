@@ -56,7 +56,7 @@ class TemperatureDeltaVisibilityRoboTest {
         // 1. Setup hourly forecast at 70 degrees
         val hourly = listOf(
             com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = String.format("%sT%02d:00", todayStr, now.hour),
+                dateTime = com.weatherwidget.testutil.TestData.toEpoch(String.format("%sT%02d:00", todayStr, now.hour)),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,

@@ -2,8 +2,10 @@ package com.weatherwidget.util
 
 import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -52,14 +54,17 @@ object RainAnalyzer {
         val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
         Log.d("RainAnalyzer", "Analyzing $dateStr, source=$source, total forecasts=${hourlyForecasts.size}")
 
+        val zoneId = ZoneId.systemDefault()
         // Filter to the target date and optionally by source.
         // Also include midnight (00:00) of the next day so rain windows that
         // span midnight aren't truncated at 11pm.
-        val nextDateStr = date.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val midnightPrefix = "${nextDateStr}T00:00"
         val dayForecasts = hourlyForecasts.filter { forecast ->
-            (forecast.dateTime.startsWith(dateStr) || forecast.dateTime.startsWith(midnightPrefix)) &&
-                (source == null || forecast.source == source)
+            val dt = Instant.ofEpochMilli(forecast.dateTime).atZone(zoneId).toLocalDateTime()
+            val forecastDate = dt.toLocalDate()
+            val isTargetDate = forecastDate == date
+            val isNextDayMidnight = forecastDate == date.plusDays(1) && dt.hour == 0 && dt.minute == 0
+            
+            (isTargetDate || isNextDayMidnight) && (source == null || forecast.source == source)
         }.sortedBy { it.dateTime }
 
         Log.d("RainAnalyzer", "Found ${dayForecasts.size} forecasts for $dateStr (source=$source)")
@@ -79,7 +84,7 @@ object RainAnalyzer {
 
         // Filter out past rain and imminent rain (within 2 hours) to reduce noise
         val futureRainHours = rainHours.filter {
-            val hour = parseHour(it.dateTime)
+            val hour = Instant.ofEpochMilli(it.dateTime).atZone(zoneId).toLocalDateTime()
             hour.isAfter(now) &&
                 java.time.Duration.between(now, hour).toHours() >= IMMINENT_RAIN_HOURS
         }
@@ -267,12 +272,7 @@ object RainAnalyzer {
         }
     }
 
-    private fun parseHour(dateTimeStr: String): LocalDateTime {
-        return try {
-            LocalDateTime.parse(dateTimeStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-        } catch (e: Exception) {
-            // Fallback for format "2024-01-15T14:00"
-            LocalDateTime.parse(dateTimeStr, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm"))
-        }
+    private fun parseHour(timestamp: Long): LocalDateTime {
+        return Instant.ofEpochMilli(timestamp).atZone(ZoneId.systemDefault()).toLocalDateTime()
     }
 }

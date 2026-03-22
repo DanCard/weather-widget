@@ -9,7 +9,7 @@ import androidx.room.Index
     indices = [Index(value = ["locationLat", "locationLon"])],
 )
 data class HourlyForecastEntity(
-    val dateTime: String, // ISO 8601 format: "2024-01-15T14:00"
+    val dateTime: Long, // Epoch ms
     val locationLat: Double,
     val locationLon: Double,
     val temperature: Float, // Temperature in Fahrenheit

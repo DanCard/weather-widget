@@ -11,6 +11,7 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.TemperatureInterpolator
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -40,9 +41,10 @@ class UIUpdateScheduler(private val context: Context) {
 
             // Get hourly forecasts around current time
             val now = LocalDateTime.now()
-            val startTime = now.minusHours(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val endTime = now.plusHours(2).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+            val zoneId = ZoneId.systemDefault()
+            val startTimeMs = now.minusHours(1).atZone(zoneId).toInstant().toEpochMilli()
+            val endTimeMs = now.plusHours(2).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyForecasts = hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
 
             if (hourlyForecasts.isEmpty()) {
                 Log.d(TAG, "No hourly forecasts available, scheduling default 30 min update")
@@ -51,13 +53,13 @@ class UIUpdateScheduler(private val context: Context) {
             }
 
             // Find current and next hour forecasts to determine temp change rate
-            val currentHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val nextHour = currentHour.plusHours(1)
-            val currentHourStr = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val nextHourStr = nextHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val currentHourMs = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                .atZone(zoneId).toInstant().toEpochMilli()
+            val nextHourMs = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1)
+                .atZone(zoneId).toInstant().toEpochMilli()
 
-            val currentTemp = hourlyForecasts.find { it.dateTime == currentHourStr }?.temperature
-            val nextTemp = hourlyForecasts.find { it.dateTime == nextHourStr }?.temperature
+            val currentTemp = hourlyForecasts.find { it.dateTime == currentHourMs }?.temperature
+            val nextTemp = hourlyForecasts.find { it.dateTime == nextHourMs }?.temperature
 
             val tempDifference =
                 if (currentTemp != null && nextTemp != null) {

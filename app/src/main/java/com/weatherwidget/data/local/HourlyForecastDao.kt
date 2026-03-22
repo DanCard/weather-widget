@@ -15,8 +15,8 @@ interface HourlyForecastDao {
     """,
     )
     suspend fun getHourlyForecasts(
-        startDateTime: String,
-        endDateTime: String,
+        startDateTime: Long,
+        endDateTime: Long,
         lat: Double,
         lon: Double,
     ): List<HourlyForecastEntity>
@@ -33,8 +33,8 @@ interface HourlyForecastDao {
     """,
     )
     suspend fun getHourlyForecastsBySource(
-        startDateTime: String,
-        endDateTime: String,
+        startDateTime: Long,
+        endDateTime: Long,
         lat: Double,
         lon: Double,
         source: String,

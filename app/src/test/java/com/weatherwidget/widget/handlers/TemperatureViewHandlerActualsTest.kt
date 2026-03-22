@@ -18,6 +18,9 @@ import java.time.format.DateTimeFormatter
  * buildHourDataList is marked @VisibleForTesting internal — accessible from same module tests.
  */
 class TemperatureViewHandlerActualsTest {
+    companion object {
+        private const val IDLE_BLEND_MAX_MS = 250L
+    }
 
     private val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
 
@@ -38,6 +41,132 @@ class TemperatureViewHandlerActualsTest {
             cur = cur.plusHours(1)
         }
         return result
+    }
+
+    @Test
+    fun `blend debug collector throttles detailed lines within window`() {
+        var nowMs = 1_000L
+        val collector = TemperatureViewHandler.BlendDebugCollector(
+            throttleMs = 50L,
+            clockMs = { nowMs },
+        )
+
+        collector.recordDetailed("first")
+        nowMs += 10L
+        collector.recordDetailed("second")
+        nowMs += 39L
+        collector.recordDetailed("third")
+        nowMs += 1L
+        collector.recordDetailed("fourth")
+
+        assertEquals(4, collector.rawDetailedLines)
+        assertEquals(2, collector.emittedDetailedLines)
+        assertEquals(2, collector.suppressedDetailedLines)
+        assertEquals(listOf("first", "fourth"), collector.emittedLines())
+    }
+
+    @Test
+    fun `blend debug collector always emit bypasses throttle`() {
+        var nowMs = 2_000L
+        val collector = TemperatureViewHandler.BlendDebugCollector(
+            throttleMs = 50L,
+            clockMs = { nowMs },
+        )
+
+        collector.recordDetailed("first")
+        nowMs += 10L
+        collector.recordDetailed("forced", alwaysEmit = true)
+        nowMs += 10L
+        collector.recordDetailed("suppressed")
+
+        assertEquals(3, collector.rawDetailedLines)
+        assertEquals(2, collector.emittedDetailedLines)
+        assertEquals(1, collector.suppressedDetailedLines)
+        assertEquals(listOf("first", "forced"), collector.emittedLines())
+    }
+
+    @Test
+    fun `blend observation stats capture interpolation growth`() {
+        val forecasts = wideForecasts()
+        val start = TestData.toEpoch("2026-02-20T10:00")
+        val end = TestData.toEpoch("2026-02-20T11:00")
+        val result = TemperatureViewHandler.blendObservationSeries(
+            observations = listOf(
+                TestData.observation(timestamp = start, temperature = 68f),
+                TestData.observation(timestamp = end, temperature = 72f),
+            ),
+            hourlyForecasts = forecasts,
+            displaySource = WeatherSource.NWS,
+            userLat = TestData.LAT,
+            userLon = TestData.LON,
+            startMs = start,
+            endMs = end,
+        )
+
+        assertEquals(5, result.observations.size)
+        assertEquals(2, result.stats.rawObservationCount)
+        assertEquals(2, result.stats.filteredObservationCount)
+        assertEquals(1, result.stats.stationCount)
+        assertEquals(5, result.stats.candidateTimeCount)
+        assertEquals(5, result.stats.emittedPointCount)
+        assertEquals(0, result.stats.dedupSkippedCount)
+        assertEquals(0, result.stats.emptyPeerCount)
+        assertEquals(1, result.stats.stationSeriesStats.size)
+        val station = result.stats.stationSeriesStats.single()
+        assertEquals(2, station.rawObservationCount)
+        assertEquals(2, station.observedPointCount)
+        assertEquals(3, station.interpolatedPointCount)
+        assertEquals(0, station.extrapolatedPointCount)
+        assertEquals(5, station.outputPointCount)
+    }
+
+    @Test
+    fun `idle-period nws blending stays bounded and completes quickly`() {
+        val forecasts = wideForecasts()
+        val actuals = idlePeriodNwsActuals()
+        val startMs = center.minusHours(ZoomLevel.WIDE.backHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endMs = center.plusHours(ZoomLevel.WIDE.forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val startNs = System.nanoTime()
+        val blendResult = TemperatureViewHandler.blendObservationSeries(
+            observations = actuals,
+            hourlyForecasts = forecasts,
+            displaySource = WeatherSource.NWS,
+            userLat = TestData.LAT,
+            userLon = TestData.LON,
+            startMs = startMs,
+            endMs = endMs,
+        )
+        val elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
+
+        val stats = blendResult.stats
+        val maxSyntheticPerStation = stats.stationSeriesStats.maxOfOrNull {
+            it.interpolatedPointCount + it.extrapolatedPointCount
+        } ?: 0
+        println("Idle-period NWS blend: elapsedMs=$elapsedMs ${stats.summary()}")
+
+        assertEquals(15, stats.rawObservationCount)
+        assertEquals(15, stats.filteredObservationCount)
+        assertEquals(5, stats.stationCount)
+        assertTrue("candidate times should stay bounded: ${stats.summary()}", stats.candidateTimeCount <= 140)
+        assertTrue("emitted points should stay bounded: ${stats.summary()}", stats.emittedPointCount <= 140)
+        assertTrue("per-station synthetic growth should stay bounded: ${stats.summary()}", maxSyntheticPerStation <= 40)
+        assertTrue("scenario should exercise interpolation: ${stats.summary()}", stats.stationSeriesStats.any { it.interpolatedPointCount > 0 })
+        assertTrue("scenario should exercise extrapolation: ${stats.summary()}", stats.stationSeriesStats.any { it.extrapolatedPointCount > 0 })
+        assertTrue(
+            "idle-period blend took ${elapsedMs}ms; ${stats.summary()}",
+            elapsedMs <= IDLE_BLEND_MAX_MS,
+        )
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+        assertTrue("wide window should surface actuals for the graph path", hours.any { it.isActual && it.actualTemperature != null })
     }
 
     @Test
@@ -494,5 +623,23 @@ class TemperatureViewHandlerActualsTest {
         timestamp = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
         temperature = temperature,
         distanceKm = distanceKm,
+    )
+
+    private fun idlePeriodNwsActuals() = listOf(
+        observationAt("2026-02-20T00:10", 44f, stationId = "KPAO", distanceKm = 2f),
+        observationAt("2026-02-20T03:10", 47f, stationId = "KPAO", distanceKm = 2f),
+        observationAt("2026-02-20T06:10", 52f, stationId = "KPAO", distanceKm = 2f),
+        observationAt("2026-02-20T00:35", 43f, stationId = "KSQL", distanceKm = 4.5f),
+        observationAt("2026-02-20T03:35", 46f, stationId = "KSQL", distanceKm = 4.5f),
+        observationAt("2026-02-20T06:35", 50f, stationId = "KSQL", distanceKm = 4.5f),
+        observationAt("2026-02-20T01:00", 41f, stationId = "KHAF", distanceKm = 15f),
+        observationAt("2026-02-20T04:00", 44f, stationId = "KHAF", distanceKm = 15f),
+        observationAt("2026-02-20T07:00", 48f, stationId = "KHAF", distanceKm = 15f),
+        observationAt("2026-02-20T01:25", 42f, stationId = "AWD01", distanceKm = 6f),
+        observationAt("2026-02-20T04:25", 45f, stationId = "AWD01", distanceKm = 6f),
+        observationAt("2026-02-20T07:25", 49f, stationId = "AWD01", distanceKm = 6f),
+        observationAt("2026-02-20T01:50", 40f, stationId = "KMUX", distanceKm = 9f),
+        observationAt("2026-02-20T04:50", 43f, stationId = "KMUX", distanceKm = 9f),
+        observationAt("2026-02-20T07:50", 47f, stationId = "KMUX", distanceKm = 9f),
     )
 }

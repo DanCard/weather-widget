@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
@@ -139,8 +140,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     // Get hourly forecasts for interpolation and rain analysis
                     val now = LocalDateTime.now()
-                    val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                    val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                    val zoneId = ZoneId.systemDefault()
+                    val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
                     val hourlyQueryStartMs = SystemClock.elapsedRealtime()
                     val hourlyForecasts =
                         hourlyDao.getHourlyForecasts(
@@ -436,9 +438,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return false
         val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return false
 
-        val start = "${targetDate}T00:00"
-        val end = "${targetDate}T23:00"
-        val hourlyForDay = database.hourlyForecastDao().getHourlyForecasts(start, end, effectiveLat, effectiveLon)
+        val zoneId = ZoneId.systemDefault()
+        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMs = targetDate.atTime(23, 59).atZone(zoneId).toInstant().toEpochMilli()
+        val hourlyForDay = database.hourlyForecastDao().getHourlyForecasts(startMs, endMs, effectiveLat, effectiveLon)
         if (hourlyForDay.isEmpty()) return false
 
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true

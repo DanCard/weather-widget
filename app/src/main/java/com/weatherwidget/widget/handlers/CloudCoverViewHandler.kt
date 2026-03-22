@@ -25,8 +25,10 @@ import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -58,11 +60,11 @@ object CloudCoverViewHandler {
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
+        val zoneId = ZoneId.systemDefault()
         val windowKeys = buildSet {
             var currentHour = startHour
             while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
-                add(currentHour.format(formatter))
+                add(currentHour.atZone(zoneId).toInstant().toEpochMilli())
                 currentHour = currentHour.plusHours(1)
             }
         }
@@ -322,7 +324,7 @@ object CloudCoverViewHandler {
         hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
     ): HourlyForecastEntity? {
-        val currentHourKey = WeatherTimeUtils.toHourlyForecastKey(LocalDateTime.now())
+        val currentHourKey = WeatherTimeUtils.toHourlyForecastKeyMs(LocalDateTime.now())
         return hourlyForecasts
             .filter { it.dateTime == currentHourKey }
             .let { forecasts ->
@@ -554,10 +556,11 @@ object CloudCoverViewHandler {
         val labelInterval = zoom.labelInterval
         var currentHour = startHour
         var hourIndex = 0
+        val zoneId = ZoneId.systemDefault()
 
         while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
-            val hourKey = currentHour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val forecast = forecastsByTime[hourKey]
+            val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
+            val forecast = forecastsByTime[hourMs]
 
             if (forecast?.cloudCover != null) {
                 val diffMinutes = java.time.Duration.between(currentHour, now).toMinutes()
@@ -647,12 +650,14 @@ object CloudCoverViewHandler {
             R.id.day6_container to Quad(R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low),
         )
 
+        val zoneId = ZoneId.systemDefault()
         containerIds.forEachIndexed { index, (containerId, ids) ->
             if (index < timeOffsets.size) {
                 val offset = timeOffsets[index]
                 val targetTime = centerTime.plusHours(offset.toLong())
-                val hourKey = targetTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val forecast = forecastsByTime[hourKey]
+                val hourMs = targetTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                    .atZone(zoneId).toInstant().toEpochMilli()
+                val forecast = forecastsByTime[hourMs]
 
                 views.setViewVisibility(containerId, View.VISIBLE)
                 val label = if (offset == 0) "Now" else "+${offset}h"

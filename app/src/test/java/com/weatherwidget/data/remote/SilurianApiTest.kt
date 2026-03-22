@@ -97,7 +97,7 @@ class SilurianApiTest {
         assertEquals(45, result.daily[0].precipProbability)
 
         assertEquals(1, result.hourly.size)
-        assertEquals("2026-03-02T14:00", result.hourly[0].dateTimeString)
+        assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-03-02T14:00"), result.hourly[0].dateTime)
         assertEquals(74.0f, result.hourly[0].temperature)
         assertEquals("rain", result.hourly[0].condition)
         assertEquals(60, result.hourly[0].precipProbability)

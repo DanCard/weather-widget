@@ -200,8 +200,9 @@ object WidgetIntentRouter {
                 .groupBy { it.targetDate }
 
         val now = LocalDateTime.now()
-        val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val zoneId = ZoneId.systemDefault()
+        val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
         val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
@@ -399,8 +400,9 @@ object WidgetIntentRouter {
                 forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
 
-            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val zoneId = ZoneId.systemDefault()
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -480,8 +482,9 @@ object WidgetIntentRouter {
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val zoneId = ZoneId.systemDefault()
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -548,8 +551,9 @@ object WidgetIntentRouter {
                     source = source,
                 )
             } else {
-                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(HOUR_FORMATTER)
-                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(HOUR_FORMATTER)
+                val zoneId = ZoneId.systemDefault()
+                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
                 hourlyDao.getHourlyForecastsBySource(hourlyStart, hourlyEnd, lat, lon, source.id)
             }
 
@@ -712,8 +716,9 @@ object WidgetIntentRouter {
                 forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                     .groupBy { it.targetDate }
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val zoneId = ZoneId.systemDefault()
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -814,8 +819,9 @@ object WidgetIntentRouter {
                     forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
                         .groupBy { it.targetDate }
                 val now = LocalDateTime.now()
-                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+                val zoneId = ZoneId.systemDefault()
+                val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
                 val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
                 val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -885,8 +891,9 @@ object WidgetIntentRouter {
                     .groupBy { it.targetDate }
 
             val now = LocalDateTime.now()
-            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val zoneId = ZoneId.systemDefault()
+            val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+            val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
             val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
             val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -1049,10 +1056,11 @@ object WidgetIntentRouter {
         now: LocalDateTime,
     ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
         val window = buildGraphQueryWindow(centerTime, zoom, now)
+        val zoneId = ZoneId.systemDefault()
         val centerRows =
             hourlyDao.getHourlyForecasts(
-                window.centerStart.format(HOUR_FORMATTER),
-                window.centerEnd.format(HOUR_FORMATTER),
+                window.centerStart.atZone(zoneId).toInstant().toEpochMilli(),
+                window.centerEnd.atZone(zoneId).toInstant().toEpochMilli(),
                 lat,
                 lon,
             )
@@ -1060,8 +1068,8 @@ object WidgetIntentRouter {
         val nowRows =
             if (window.nowStart != null && window.nowEnd != null) {
                 hourlyDao.getHourlyForecasts(
-                    window.nowStart.format(HOUR_FORMATTER),
-                    window.nowEnd.format(HOUR_FORMATTER),
+                    window.nowStart.atZone(zoneId).toInstant().toEpochMilli(),
+                    window.nowEnd.atZone(zoneId).toInstant().toEpochMilli(),
                     lat,
                     lon,
                 )
@@ -1084,10 +1092,11 @@ object WidgetIntentRouter {
         source: WeatherSource,
     ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
         val window = buildGraphQueryWindow(centerTime, zoom, now)
+        val zoneId = ZoneId.systemDefault()
         val centerRows =
             hourlyDao.getHourlyForecastsBySource(
-                window.centerStart.format(HOUR_FORMATTER),
-                window.centerEnd.format(HOUR_FORMATTER),
+                window.centerStart.atZone(zoneId).toInstant().toEpochMilli(),
+                window.centerEnd.atZone(zoneId).toInstant().toEpochMilli(),
                 lat,
                 lon,
                 source.id,
@@ -1096,8 +1105,8 @@ object WidgetIntentRouter {
         val nowRows =
             if (window.nowStart != null && window.nowEnd != null) {
                 hourlyDao.getHourlyForecastsBySource(
-                    window.nowStart.format(HOUR_FORMATTER),
-                    window.nowEnd.format(HOUR_FORMATTER),
+                    window.nowStart.atZone(zoneId).toInstant().toEpochMilli(),
+                    window.nowEnd.atZone(zoneId).toInstant().toEpochMilli(),
                     lat,
                     lon,
                     source.id,

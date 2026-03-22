@@ -10,8 +10,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -50,7 +52,9 @@ class RainAnalyzerIntegrationTest {
         val forecasts = buildHourlyForecasts(hourlyStart, hourlyEnd, targetDate)
 
         // Verify we have forecasts for the target date (the whole point of the wide window)
-        val targetDateForecasts = forecasts.filter { it.dateTime.startsWith(targetDateStr) }
+        val targetDateForecasts = forecasts.filter {
+            Instant.ofEpochMilli(it.dateTime).atZone(ZoneId.systemDefault()).toLocalDate() == targetDate
+        }
         assertTrue(
             "Standard query window (${WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS}h) should include " +
                 "forecasts for $targetDateStr, but found ${targetDateForecasts.size}",
@@ -88,7 +92,9 @@ class RainAnalyzerIntegrationTest {
         val narrowEnd = now.plusHours(3)
         val forecasts = buildHourlyForecasts(narrowStart, narrowEnd, targetDate)
 
-        val targetDateForecasts = forecasts.filter { it.dateTime.startsWith(targetDateStr) }
+        val targetDateForecasts = forecasts.filter {
+            Instant.ofEpochMilli(it.dateTime).atZone(ZoneId.systemDefault()).toLocalDate() == targetDate
+        }
         assertTrue(
             "Narrow ±3h window should NOT include forecasts for $targetDateStr (found ${targetDateForecasts.size})",
             targetDateForecasts.isEmpty(),
@@ -104,15 +110,13 @@ class RainAnalyzerIntegrationTest {
         end: LocalDateTime,
         rainDate: LocalDate,
     ): List<HourlyForecastEntity> {
-        val rainDateStr = rainDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val forecasts = mutableListOf<HourlyForecastEntity>()
         var hour = start.withMinute(0).withSecond(0).withNano(0)
         while (!hour.isAfter(end)) {
-            val dateTimeStr = hour.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-            val isRainHour = dateTimeStr.startsWith(rainDateStr)
+            val isRainHour = hour.toLocalDate() == rainDate
             forecasts.add(
                 HourlyForecastEntity(
-                    dateTime = dateTimeStr,
+                    dateTime = hour.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     locationLat = lat,
                     locationLon = lon,
                     temperature = 55f,

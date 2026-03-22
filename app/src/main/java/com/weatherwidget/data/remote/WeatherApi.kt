@@ -70,11 +70,16 @@ class WeatherApi
                     hours.mapNotNull { hourElement ->
                         val hourObj = hourElement.jsonObject
                         val rawTime = hourObj["time"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                        val dateTime = rawTime.replace(" ", "T")
-                        val normalizedDateTime = if (dateTime.length >= 13) "${dateTime.substring(0, 13)}:00" else return@mapNotNull null
+                        val ts = try {
+                            val dt = rawTime.replace(" ", "T")
+                            val normalized = if (dt.length >= 13) "${dt.substring(0, 13)}:00" else return@mapNotNull null
+                            java.time.LocalDateTime.parse(normalized).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } catch (e: Exception) {
+                            return@mapNotNull null
+                        }
 
                         HourlyForecast(
-                            dateTime = normalizedDateTime,
+                            dateTime = ts,
                             temperature = hourObj["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return@mapNotNull null,
                             condition = hourObj["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                             precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
@@ -123,11 +128,16 @@ class WeatherApi
                 hours.mapNotNull { hourElement ->
                     val hourObj = hourElement.jsonObject
                     val rawTime = hourObj["time"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                    val dateTime = rawTime.replace(" ", "T")
-                    val normalizedDateTime = if (dateTime.length >= 13) "${dateTime.substring(0, 13)}:00" else return@mapNotNull null
+                    val ts = try {
+                        val dt = rawTime.replace(" ", "T")
+                        val normalized = if (dt.length >= 13) "${dt.substring(0, 13)}:00" else return@mapNotNull null
+                        java.time.LocalDateTime.parse(normalized).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    } catch (e: Exception) {
+                        return@mapNotNull null
+                    }
 
                     HourlyForecast(
-                        dateTime = normalizedDateTime,
+                        dateTime = ts,
                         temperature = hourObj["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return@mapNotNull null,
                         condition = hourObj["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                         precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
@@ -180,7 +190,7 @@ class WeatherApi
         )
 
         data class HourlyForecast(
-            val dateTime: String, // ISO 8601 format: "2026-02-24T14:00"
+            val dateTime: Long, // Epoch ms
             val temperature: Float,
             val condition: String,
             val precipProbability: Int? = null,

@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 39,
+    version = 40,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -96,6 +96,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_36_37,
                             MIGRATION_37_38,
                             MIGRATION_38_39,
+                            MIGRATION_39_40,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -1053,6 +1054,41 @@ abstract class WeatherDatabase : RoomDatabase() {
             object : Migration(38, 39) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("CREATE INDEX IF NOT EXISTS index_observations_api ON observations(api)")
+                }
+            }
+
+        val MIGRATION_39_40 =
+            object : Migration(39, 40) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS hourly_forecasts_new (
+                            dateTime INTEGER NOT NULL,
+                            locationLat REAL NOT NULL,
+                            locationLon REAL NOT NULL,
+                            temperature REAL NOT NULL,
+                            `condition` TEXT NOT NULL DEFAULT 'Unknown',
+                            source TEXT NOT NULL,
+                            precipProbability INTEGER DEFAULT NULL,
+                            cloudCover INTEGER DEFAULT NULL,
+                            fetchedAt INTEGER NOT NULL,
+                            PRIMARY KEY(dateTime, source, locationLat, locationLon)
+                        )
+                        """.trimIndent(),
+                    )
+
+                    db.execSQL(
+                        """
+                        INSERT INTO hourly_forecasts_new (dateTime, locationLat, locationLon, temperature, `condition`, source, precipProbability, cloudCover, fetchedAt)
+                        SELECT CAST(strftime('%s', REPLACE(dateTime, 'T', ' '), 'utc') AS INTEGER) * 1000,
+                               locationLat, locationLon, temperature, `condition`, source, precipProbability, cloudCover, fetchedAt
+                        FROM hourly_forecasts
+                        """.trimIndent(),
+                    )
+
+                    db.execSQL("DROP TABLE hourly_forecasts")
+                    db.execSQL("ALTER TABLE hourly_forecasts_new RENAME TO hourly_forecasts")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS index_hourly_forecasts_locationLat_locationLon ON hourly_forecasts (locationLat, locationLon)")
                 }
             }
     }

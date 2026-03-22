@@ -76,8 +76,10 @@ class CurrentTemperatureIntegrationTest {
         val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
         assertNotNull("Should resolve observed current temp from NWS observations", observedCurrentTemp)
 
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(
-            "${todayStr}T00:00", "${todayStr}T23:00", lat, lon,
+            startMs, endMs, lat, lon,
         )
 
         val result = CurrentTemperatureResolver.resolve(
@@ -142,8 +144,10 @@ class CurrentTemperatureIntegrationTest {
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
         val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
 
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(
-            "${todayStr}T00:00", "${todayStr}T23:00", lat, lon,
+            startMs, endMs, lat, lon,
         )
 
         val result = CurrentTemperatureResolver.resolve(
@@ -190,8 +194,10 @@ class CurrentTemperatureIntegrationTest {
         insertHourlyForecast("10:00", 60f, staleFetchedAt)
         insertHourlyForecast("11:00", 70f, staleFetchedAt)
 
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(
-            "${todayStr}T00:00", "${todayStr}T23:00", lat, lon,
+            startMs, endMs, lat, lon,
         )
 
         val result = CurrentTemperatureResolver.resolve(
@@ -229,8 +235,10 @@ class CurrentTemperatureIntegrationTest {
             locationLon = lon,
         )
 
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(
-            "${todayStr}T00:00", "${todayStr}T23:00", lat, lon,
+            startMs, endMs, lat, lon,
         )
 
         // First call with stored delta — should apply decayed delta

@@ -21,23 +21,12 @@ object HeaderPrecipCalculator {
                 hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }
             }
 
-        val nowHour = LocalDateTime.parse(WeatherTimeUtils.toHourlyForecastKey(referenceTime))
-        val windowEndExclusive = nowHour.plusHours(LOOKAHEAD_HOURS)
+        val nowHourMs = WeatherTimeUtils.toHourlyForecastKeyMs(referenceTime)
+        val windowEndMs = nowHourMs + LOOKAHEAD_HOURS * 3600 * 1000L
         val next8HourValues =
             candidateForecasts
-                .asSequence()
-                .mapNotNull { forecast ->
-                    try {
-                        LocalDateTime.parse(forecast.dateTime) to forecast.precipProbability
-                    } catch (e: Exception) {
-                        null
-                    }
-                }
-                .filter { (forecastHour, _) ->
-                    !forecastHour.isBefore(nowHour) && forecastHour.isBefore(windowEndExclusive)
-                }
-                .mapNotNull { (_, precipProbability) -> precipProbability }
-                .toList()
+                .filter { it.dateTime in nowHourMs until windowEndMs }
+                .mapNotNull { it.precipProbability }
 
         if (next8HourValues.isNotEmpty()) {
             return next8HourValues.maxOrNull() ?: 0

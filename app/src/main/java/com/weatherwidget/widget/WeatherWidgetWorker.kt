@@ -23,6 +23,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
@@ -236,10 +237,11 @@ class WeatherWidgetWorker
                 val database = WeatherDatabase.getDatabase(context)
                 val hourlyDao = database.hourlyForecastDao()
                 val now = LocalDateTime.now()
+                val zoneId = ZoneId.systemDefault()
                 // Extended range for hourly view and rain analysis: 24h past to 96h future (today + 4 days)
-                val startTime = now.minusHours(24).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                val endTime = now.plusHours(96).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                hourlyDao.getHourlyForecasts(startTime, endTime, lat, lon)
+                val startTimeMs = now.minusHours(24).atZone(zoneId).toInstant().toEpochMilli()
+                val endTimeMs = now.plusHours(96).atZone(zoneId).toInstant().toEpochMilli()
+                hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch hourly forecasts", e)
                 emptyList()

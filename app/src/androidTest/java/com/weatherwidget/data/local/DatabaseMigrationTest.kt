@@ -303,4 +303,31 @@ class DatabaseMigrationTest {
         cursor.close()
         assert(found) { "Index on api column should exist after migration 38 to 39" }
     }
+
+    @Test
+    fun migrate39to40() {
+        val testDateTime = "2026-03-22T10:00"
+        val expectedEpoch = java.time.LocalDateTime.parse(testDateTime)
+            .atZone(java.time.ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        helper.createDatabase(testDb, 39).apply {
+            execSQL(
+                """
+                INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, source, `condition`, fetchedAt)
+                VALUES ('$testDateTime', 37.42, -122.08, 65.0, 'NWS', 'Clear', ${System.currentTimeMillis()})
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 40, true, WeatherDatabase.MIGRATION_39_40)
+        val cursor = db.query("SELECT dateTime FROM hourly_forecasts LIMIT 1")
+        cursor.moveToFirst()
+        val migratedEpoch = cursor.getLong(0)
+        cursor.close()
+
+        assert(migratedEpoch == expectedEpoch) { "Expected $expectedEpoch but got $migratedEpoch for $testDateTime" }
+    }
 }

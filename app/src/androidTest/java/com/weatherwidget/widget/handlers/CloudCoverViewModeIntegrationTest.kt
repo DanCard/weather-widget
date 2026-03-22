@@ -14,6 +14,7 @@ import org.junit.runner.RunWith
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
@@ -155,8 +156,8 @@ class CloudCoverViewModeIntegrationTest : IsolatedIntegrationTest("cloud_cover_v
         stateManager.setHourlyOffset(testWidgetId, 0)
 
         val now = LocalDateTime.now()
-        val hourlyStart = now.minusHours(8).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-        val hourlyEnd = now.plusHours(16).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+        val hourlyStart = now.minusHours(8).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hourlyEnd = now.plusHours(16).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(hourlyStart, hourlyEnd, 37.42, -122.08)
 
         val resolvedSource = CloudCoverViewHandler.selectCloudCoverSource(
@@ -266,11 +267,11 @@ class CloudCoverViewModeIntegrationTest : IsolatedIntegrationTest("cloud_cover_v
         cloudCoverProvider: (Int) -> Int?,
         condition: String,
     ) = runBlocking {
-        val now = LocalDateTime.now()
+        val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val hourlyDao = db.hourlyForecastDao()
         val forecasts = (-6..30).map { h ->
             val dt = now.plusHours(h.toLong())
-            val key = dt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
+            val key = dt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             HourlyForecastEntity(
                 dateTime = key,
                 locationLat = 37.42,
