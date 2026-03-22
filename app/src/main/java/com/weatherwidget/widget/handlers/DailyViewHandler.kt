@@ -265,7 +265,6 @@ object DailyViewHandler : WidgetViewHandler {
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =
             currentTemp != null &&
-            !isPrecipVisible &&
             delta != null &&
             kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
         if (deltaVisible) {
@@ -295,7 +294,7 @@ object DailyViewHandler : WidgetViewHandler {
                 observedTemp = currentTempResolution.observedTemp,
                 appliedDelta = delta,
                 deltaVisible = deltaVisible,
-                deltaHiddenReason = dailyDeltaHiddenReason(currentTemp, delta, isPrecipVisible),
+                deltaHiddenReason = dailyDeltaHiddenReason(currentTemp, delta),
                 precipVisible = isPrecipVisible,
                 precipProbability = precipProb,
                 isNowLineVisible = null,
@@ -864,11 +863,9 @@ object DailyViewHandler : WidgetViewHandler {
     private fun dailyDeltaHiddenReason(
         currentTemp: Float?,
         appliedDelta: Float?,
-        isPrecipVisible: Boolean,
     ): String? =
         when {
             currentTemp == null -> "current_temp_missing"
-            isPrecipVisible -> "precip_supersedes"
             appliedDelta == null -> "no_delta"
             kotlin.math.abs(appliedDelta) < DELTA_VISIBILITY_THRESHOLD -> "below_threshold"
             else -> null
