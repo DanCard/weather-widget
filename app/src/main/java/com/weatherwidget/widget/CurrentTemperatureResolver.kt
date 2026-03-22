@@ -39,6 +39,7 @@ object CurrentTemperatureResolver {
     private const val TAG = "CurrentTempResolver"
     private const val STALE_HOURLY_FETCH_THRESHOLD_MS = 2 * 60 * 60 * 1000L
     private const val DELTA_DECAY_WINDOW_MS = 4 * 60 * 60 * 1000L
+    private const val DELTA_DECAY_GRACE_PERIOD_MS = 1 * 60 * 60 * 1000L
     private val interpolator = TemperatureInterpolator()
     @Volatile
     private var defaultAppLogDao: AppLogDao? = null
@@ -273,6 +274,15 @@ object CurrentTemperatureResolver {
         nowMs: Long,
     ): DeltaDecay {
         val elapsedMs = (nowMs - updatedAtMs).coerceAtLeast(0L)
+        
+        if (elapsedMs < DELTA_DECAY_GRACE_PERIOD_MS) {
+            return DeltaDecay(
+                decayedDelta = rawDelta,
+                elapsedMs = elapsedMs,
+                decayFraction = 1f,
+            )
+        }
+        
         if (elapsedMs >= DELTA_DECAY_WINDOW_MS) {
             return DeltaDecay(
                 decayedDelta = 0f,
@@ -281,7 +291,11 @@ object CurrentTemperatureResolver {
             )
         }
 
-        val remainingFraction = 1f - (elapsedMs.toFloat() / DELTA_DECAY_WINDOW_MS.toFloat())
+        // Linear decay from GRACE_PERIOD to TOTAL_WINDOW
+        val decayDuration = DELTA_DECAY_WINDOW_MS - DELTA_DECAY_GRACE_PERIOD_MS
+        val elapsedAfterGrace = elapsedMs - DELTA_DECAY_GRACE_PERIOD_MS
+        val remainingFraction = 1f - (elapsedAfterGrace.toFloat() / decayDuration.toFloat())
+        
         return DeltaDecay(
             decayedDelta = rawDelta * remainingFraction,
             elapsedMs = elapsedMs,

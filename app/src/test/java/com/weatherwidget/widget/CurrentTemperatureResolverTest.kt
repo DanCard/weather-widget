@@ -100,7 +100,7 @@ class CurrentTemperatureResolverTest {
     }
 
     @Test
-    fun `resolve linearly decays stored delta over four hours`() {
+    fun `resolve preserves full delta during one hour grace period`() {
         val now = LocalDateTime.of(2026, 2, 25, 10, 45)
         val nowMs = nowMs(now)
         val hourly =
@@ -113,7 +113,7 @@ class CurrentTemperatureResolverTest {
                 delta = -4f,
                 lastObservedTemp = 39f,
                 lastObservedAt = 1000L,
-                updatedAtMs = nowMs - (2 * 60 * 60 * 1000L),
+                updatedAtMs = nowMs - (45 * 60 * 1000L), // 45 mins ago
                 sourceId = WeatherSource.NWS.id,
                 locationLat = 0.0,
                 locationLon = 0.0,
@@ -132,9 +132,50 @@ class CurrentTemperatureResolverTest {
             )
 
         assertEquals(43f, result.estimatedTemp!!, 0.01f)
-        assertEquals(41f, result.displayTemp!!, 0.01f)
+        // Delta should NOT decay yet (still in grace period)
+        assertEquals(-4f, result.appliedDelta!!, 0.01f)
+        assertEquals(39f, result.displayTemp!!, 0.01f)
+    }
+
+    @Test
+    fun `resolve linearly decays stored delta after grace period`() {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 45)
+        val nowMs = nowMs(now)
+        val hourly =
+            listOf(
+                hourly(now.withMinute(0), 40f, fetchedAt = nowMs),
+                hourly(now.plusHours(1).withMinute(0), 44f, fetchedAt = nowMs),
+            )
+        // Decay window is 4h, grace is 1h. 
+        // 2.5h total elapsed means 1.5h into the 3h decay period.
+        // remaining = 1 - (1.5 / 3) = 0.5
+        val stored =
+            CurrentTemperatureDeltaState(
+                delta = -4f,
+                lastObservedTemp = 39f,
+                lastObservedAt = 1000L,
+                updatedAtMs = nowMs - (150 * 60 * 1000L), // 2.5 hours ago
+                sourceId = WeatherSource.NWS.id,
+                locationLat = 0.0,
+                locationLon = 0.0,
+            )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourly,
+                observedCurrentTemp = 39f,
+                observedAt = 1000L,
+                storedDeltaState = stored,
+                currentLat = 0.0,
+                currentLon = 0.0,
+            )
+
+        assertEquals(43f, result.estimatedTemp!!, 0.01f)
+        // 50% decay
         assertEquals(-2f, result.appliedDelta!!, 0.01f)
-        assertEquals(null, result.updatedDeltaState)
+        assertEquals(41f, result.displayTemp!!, 0.01f)
     }
 
     @Test
