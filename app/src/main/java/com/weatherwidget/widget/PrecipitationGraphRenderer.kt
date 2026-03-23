@@ -98,6 +98,7 @@ object PrecipitationGraphRenderer {
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
     ): Bitmap {
+        val startNano = System.nanoTime()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -107,7 +108,7 @@ object PrecipitationGraphRenderer {
         val heightDp = heightPx / density
 
         // Layout zones (mirrors TemperatureGraphRenderer style)
-        val topPadding = dpToPx(context, 12f)
+        val topPadding = dpToPx(context, 16f)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && shouldShowHourlyIcons(widthPx)
         val iconStride = iconStrideForLabelSpacing(hourLabelSpacingDp)
@@ -203,15 +204,20 @@ object PrecipitationGraphRenderer {
                 color = Color.parseColor("#BBFF9F0A")
             }
 
+        val setupNano = System.nanoTime()
+
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
         val smoothedProbs = rawProbs
 
+        val rawMax = smoothedProbs.maxOrNull() ?: 0f
+        val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
+
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index + hourWidth / 2f
             val prob = smoothedProbs[index]
-            val y = graphBottom - graphHeight * (prob / 100f)
+            val y = graphBottom - graphHeight * (prob / yScaleMax)
             points.add(x to y)
         }
 
@@ -219,6 +225,8 @@ object PrecipitationGraphRenderer {
 
         canvas.drawPath(fillPath, gradientPaint)
         canvas.drawPath(curvePath, curvePaint)
+
+        val pathNano = System.nanoTime()
 
         // --- Draw labels and current-time indicator ---
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
@@ -279,6 +287,8 @@ object PrecipitationGraphRenderer {
             drawable.draw(canvas)
             onHourIconDrawn?.invoke(index)
         }
+
+        val drawNano = System.nanoTime()
 
         val labelSignal = smoothedProbs.map { it.roundToInt().coerceIn(0, 100) }
         Log.d("PrecipGraph", "signal=${labelSignal.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
@@ -384,6 +394,8 @@ object PrecipitationGraphRenderer {
             candidateMap.entries
                 .map { LabelCandidate(it.key, it.value) }
                 .sortedWith(compareBy<LabelCandidate> { it.priority }.thenBy { -labelSignal[it.index] })
+
+        val candidateNano = System.nanoTime()
 
         // Treat extrema as mandatory labels so important peaks/valleys survive de-cluttering.
         val mandatoryIndices = mutableSetOf<Int>()
@@ -513,6 +525,8 @@ object PrecipitationGraphRenderer {
             }
         }
         mandatoryIndices.removeAll(shoulderPeaksToDrop)
+
+        val mandatoryNano = System.nanoTime()
 
         val orderedCandidates =
             sortedCandidates.sortedWith(
@@ -810,6 +824,8 @@ object PrecipitationGraphRenderer {
             }
         }
 
+        val loopNano = System.nanoTime()
+
         // Day of week indicators — left and right edges, cascade: TOP → MIDDLE → BOTTOM
         val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
         val dayLabelTextHeight = fm.descent - fm.ascent
@@ -909,7 +925,7 @@ object PrecipitationGraphRenderer {
                     val nextProb = hours[fetchIdx + 1].precipProbability.toFloat()
                     val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
                     val interpolatedProb = baseProb + (nextProb - baseProb) * fraction
-                    val fetchY = graphBottom - graphHeight * (interpolatedProb / 100f)
+                    val fetchY = graphBottom - graphHeight * (interpolatedProb / yScaleMax)
                     
                     val dotRadius = dpToPx(context, 2.5f * (bitmapScale.coerceIn(0.5f, 1f)))
                     val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
@@ -1137,6 +1153,18 @@ object PrecipitationGraphRenderer {
                 }
             }
         }
+
+        val endNano = System.nanoTime()
+        val totalUs = (endNano - startNano) / 1000
+        val setupUs = (setupNano - startNano) / 1000
+        val pathUs = (pathNano - setupNano) / 1000
+        val drawUs = (drawNano - pathNano) / 1000
+        val candidateUs = (candidateNano - drawNano) / 1000
+        val mandatoryUs = (mandatoryNano - candidateNano) / 1000
+        val loopUs = (loopNano - mandatoryNano) / 1000
+        val restUs = (endNano - loopNano) / 1000
+
+        Log.d("PrecipGraphPerf", "renderGraph: total=${totalUs}us, setup=${setupUs}us, path=${pathUs}us, draw=${drawUs}us, candidate=${candidateUs}us, mandatory=${mandatoryUs}us, loop=${loopUs}us, rest=${restUs}us")
 
         return bitmap
     }
