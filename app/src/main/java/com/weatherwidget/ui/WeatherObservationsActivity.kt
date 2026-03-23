@@ -268,16 +268,15 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private fun loadFetchLogs() {
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val filteredLogs = appLogDao.getRecentLogs(200)
+                val filteredLogs = appLogDao.getRecentLogs(1000)
                     .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }
-                    .take(30)
 
                 val logText = filteredLogs.joinToString("\n") { log ->
                     val time = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(log.timestamp))
                     "[$time] ${WeatherObservationsSupport.formatFetchLog(log, currentSource)}"
                 }
                 withContext(Dispatchers.Main) {
-                    findViewById<TextView>(R.id.fetch_logs).text = if (logText.isEmpty()) "No recent fetch logs for ${currentSource.shortDisplayName}." else logText
+                    findViewById<TextView>(R.id.fetch_logs).text = if (logText.isEmpty()) "No fetch logs found for ${currentSource.shortDisplayName} in last 1000 logs." else logText
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading fetch logs", e)

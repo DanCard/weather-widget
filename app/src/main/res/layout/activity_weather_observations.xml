@@ -104,7 +104,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Recent Fetch Logs"
+            android:text="Fetch Logs"
             android:textColor="#888888"
             android:textSize="12sp"
             android:textStyle="bold"

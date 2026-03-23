@@ -414,6 +414,8 @@ class NwsApi
                 } else {
                     primaryFailed = true
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w("NwsApi", "getLatestObservationDetailed: Error fetching latest for $stationId: ${e.message}. Triggering fallback.")
                 primaryFailed = true
@@ -447,6 +449,8 @@ class NwsApi
                 
                 Log.w("NwsApi", "getRecentValidObservationDetailed: Fallback for $stationId found no valid data in last $limit observations")
                 null
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.e("NwsApi", "getRecentValidObservationDetailed: Fallback query failed for $stationId: ${e.message}")
                 null

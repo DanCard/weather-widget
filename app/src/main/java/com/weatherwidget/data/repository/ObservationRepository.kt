@@ -97,33 +97,23 @@ class ObservationRepository @Inject constructor(
         longitude: Double,
         attempt: Int = 0,
     ): ObservationEntity? {
-        val result = runCatching { nwsApi.getLatestObservationDetailed(stationInfo.id) }
-        val observation = result.getOrNull()
-        if (observation == null) {
-            val reason = result.exceptionOrNull()?.message ?: "null_response"
+        val observation = try {
+            nwsApi.getLatestObservationDetailed(stationInfo.id)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val reason = e.message ?: "null_response"
             appLogDao.log("NWS_STATION_FAIL", "station=${stationInfo.id} attempt=$attempt reason=$reason", "WARN")
             Log.w(TAG, "NWS station ${stationInfo.id} attempt $attempt failed: $reason")
             return null
         }
+        if (observation == null) return null
+
         if (attempt > 0) {
             appLogDao.log("NWS_STATION_RETRY_OK", "station=${stationInfo.id} attempt=$attempt", "INFO")
             Log.d(TAG, "NWS station ${stationInfo.id} succeeded on retry attempt $attempt")
         }
-        val distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f
-        val obsEntity = ObservationEntity(
-            stationInfo.id,
-            observation.stationName,
-            OffsetDateTime.parse(observation.timestamp).toInstant().toEpochMilli(),
-            (observation.temperatureCelsius * 1.8f) + 32f,
-            observation.textDescription,
-            latitude,
-            longitude,
-            distanceKm,
-            stationInfo.type.name,
-            maxTempLast24h = observation.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-            minTempLast24h = observation.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-            api = WeatherSource.NWS.id,
-        )
+        val obsEntity = buildObservationEntity(observation, stationInfo, latitude, longitude)
         observationDao.insertAll(listOf(obsEntity))
         recomputeDailyExtremesForDay(latitude, longitude, obsEntity.timestamp)
         return obsEntity
@@ -194,37 +184,22 @@ class ObservationRepository @Inject constructor(
         val endTimeStr = DateTimeFormatter.ISO_INSTANT.format(now.toInstant())
         val remainingDates = missingDates.toMutableSet()
 
-        for (stationInfo in stations.take(3)) {
+        for (stationInfo in stations.take(MAX_RETRIES)) {
             Log.d(TAG, "Attempting backfill from station ${stationInfo.id}")
             try {
                 val observations = nwsApi.getObservations(stationInfo.id, startTimeStr, endTimeStr)
                 Log.d(TAG, "Station ${stationInfo.id} returned ${observations.size} observations")
                 if (observations.isNotEmpty()) {
                     val entities = observations.map { obs ->
-                        val distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f
-                        ObservationEntity(
-                            stationId = stationInfo.id,
-                            stationName = obs.stationName.ifEmpty { stationInfo.name },
-                            timestamp = OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
-                            temperature = (obs.temperatureCelsius * 1.8f) + 32f,
-                            condition = obs.textDescription,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            distanceKm = distanceKm,
-                            stationType = stationInfo.type.name,
-                            maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-                            minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-                            api = WeatherSource.NWS.id,
-                        )
+                        buildObservationEntity(obs, stationInfo, latitude, longitude)
                     }
                     observationDao.insertAll(entities)
                     Log.i(TAG, "Successfully backfilled ${entities.size} observations from ${stationInfo.id}")
-                    val distinctDayTimestamps = entities.map { e ->
+                    val distinctDays = entities.map { e ->
                         java.time.Instant.ofEpochMilli(e.timestamp).atZone(localZone).toLocalDate()
-                            .atStartOfDay(localZone).toInstant().toEpochMilli()
                     }.distinct()
-                    for (dayTs in distinctDayTimestamps) {
-                        recomputeDailyExtremesForDay(latitude, longitude, dayTs + 3_600_000L)
+                    for (day in distinctDays) {
+                        recomputeDailyExtremesForDay(latitude, longitude, day)
                     }
                     val refreshedDates =
                         dailyExtremeDao.getExtremesInRange(yesterdayStr, todayStr, latitude, longitude)
@@ -236,6 +211,8 @@ class ObservationRepository @Inject constructor(
                         break
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to backfill from ${stationInfo.id}: ${e.message}")
             }
@@ -271,7 +248,7 @@ class ObservationRepository @Inject constructor(
             return RecentBackfillResult(stationsTried = 0, rowsFetched = 0, affectedDates = emptySet())
         }
 
-        val stations = getSortedObservationStations(checkNotNull(gridPoint?.observationStationsUrl))
+        val stations = getSortedObservationStations(gridPoint!!.observationStationsUrl!!)
         if (stations.isEmpty()) {
             appLogDao.log(
                 "OBS_HOURLY_BACKFILL_FAIL",
@@ -296,29 +273,16 @@ class ObservationRepository @Inject constructor(
                 )
                 if (observations.isEmpty()) continue
 
-                val distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f
-                val entities =
-                    observations.map { obs ->
-                        ObservationEntity(
-                            stationId = stationInfo.id,
-                            stationName = obs.stationName.ifEmpty { stationInfo.name },
-                            timestamp = OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
-                            temperature = (obs.temperatureCelsius * 1.8f) + 32f,
-                            condition = obs.textDescription,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            distanceKm = distanceKm,
-                            stationType = stationInfo.type.name,
-                            maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-                            minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
-                            api = WeatherSource.NWS.id,
-                        )
-                    }
+                val entities = observations.map { obs ->
+                    buildObservationEntity(obs, stationInfo, latitude, longitude)
+                }
                 observationDao.insertAll(entities)
                 totalRows += entities.size
                 affectedDates += entities.map { entity ->
                     java.time.Instant.ofEpochMilli(entity.timestamp).atZone(localZone).toLocalDate()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 appLogDao.log(
                     "OBS_HOURLY_BACKFILL_STATION_FAIL",
@@ -377,6 +341,21 @@ class ObservationRepository @Inject constructor(
         val day = java.time.Instant.ofEpochMilli(referenceTimestamp).atZone(zone).toLocalDate()
         val startTs = day.atStartOfDay(zone).toInstant().toEpochMilli()
         val endTs = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
+        if (dayObs.isNotEmpty()) {
+            val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
+            dailyExtremeDao.insertAll(extremes)
+        }
+    }
+
+    private suspend fun recomputeDailyExtremesForDay(
+        latitude: Double,
+        longitude: Double,
+        date: LocalDate,
+    ) {
+        val zone = ZoneId.systemDefault()
+        val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endTs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
         if (dayObs.isNotEmpty()) {
             val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
@@ -448,6 +427,29 @@ class ObservationRepository @Inject constructor(
         )
 
         persistedMainObs + syntheticNwsMain
+    }
+
+    private fun buildObservationEntity(
+        obs: NwsApi.Observation,
+        stationInfo: NwsApi.StationInfo,
+        latitude: Double,
+        longitude: Double,
+    ): ObservationEntity {
+        val distanceKm = calculateDistance(latitude, longitude, stationInfo.lat, stationInfo.lon) / 1000f
+        return ObservationEntity(
+            stationId = stationInfo.id,
+            stationName = obs.stationName.ifEmpty { stationInfo.name },
+            timestamp = OffsetDateTime.parse(obs.timestamp).toInstant().toEpochMilli(),
+            temperature = (obs.temperatureCelsius * 1.8f) + 32f,
+            condition = obs.textDescription,
+            locationLat = latitude,
+            locationLon = longitude,
+            distanceKm = distanceKm,
+            stationType = stationInfo.type.name,
+            maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+            minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
+            api = WeatherSource.NWS.id,
+        )
     }
 
     private fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {

@@ -163,6 +163,8 @@ class ForecastRepository
                     
                     return Result.success(getCachedData(latitude, longitude))
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (exception: Exception) {
                 lastFetchTime = 0L // Allow immediate retry on error
                 appLogDao.log("NET_FETCH_ERROR", "${exception.message}", "ERROR")
@@ -212,6 +214,8 @@ class ForecastRepository
             val nwsDeferred = if (shouldFetchNws) async {
                 try {
                     fetchFromNws(latitude, longitude, locationName)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (exception: Exception) {
                     appLogDao.log("FETCH_NWS_FAIL", "${exception.message}", "WARN")
                     null
@@ -244,6 +248,8 @@ class ForecastRepository
                             precipProbability = day.precipProbability
                         )
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (exception: Exception) {
                     appLogDao.log("FETCH_METEO_FAIL", "${exception.message}", "WARN")
                     null
@@ -271,6 +277,8 @@ class ForecastRepository
                             precipProbability = day.precipProbability
                         )
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (exception: Exception) {
                     appLogDao.log("FETCH_WAPI_FAIL", "${exception.message}", "WARN")
                     null
@@ -298,6 +306,8 @@ class ForecastRepository
                             precipProbability = day.precipProbability
                         )
                     }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (exception: Exception) {
                     appLogDao.log("FETCH_SILURIAN_FAIL", "${exception.message}", "WARN")
                     null
@@ -322,7 +332,11 @@ class ForecastRepository
             val forecastDeferred = async { nwsApi.getForecast(grid) }
             val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
             val skyCoverDeferred = async {
-                runCatching { nwsApi.getSkyCover(grid) }.getOrElse { e ->
+                try {
+                    nwsApi.getSkyCover(grid)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     Log.w(TAG, "getSkyCover failed: ${e.message}")
                     emptyMap()
                 }

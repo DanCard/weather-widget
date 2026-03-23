@@ -118,14 +118,10 @@ class WeatherObservationsActivityRobolectricTest {
             val stationIds = adapter.items.map { it.stationId }
             val subtitle = activity.findViewById<TextView>(R.id.subtitle).text.toString()
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
-            val firstRow =
-                activity.findViewById<RecyclerView>(R.id.observations_list)[0]
-            val stationTypeLabel =
-                firstRow.findViewById<TextView>(R.id.station_type_badge).text.toString()
 
             assertEquals(listOf("AW020", "KNUQ"), stationIds)
             assertEquals("Real-time data from nearby stations", subtitle)
-            assertEquals("Station type: PERSONAL", stationTypeLabel)
+            assertEquals("PERSONAL", adapter.items[0].stationType)
             assertFalse(logs.contains("No recent fetch logs for NWS"))
             assertTrue(logs.contains("start reason=opportunistic_job targets=NWS, SILURIAN, WEATHER_API"))
             assertTrue(logs.contains("done reason=opportunistic_job updated=3"))
@@ -149,15 +145,11 @@ class WeatherObservationsActivityRobolectricTest {
             val subtitle = activity.findViewById<TextView>(R.id.subtitle).text.toString()
             val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
             val sourceButton = activity.findViewById<TextView>(R.id.api_source_button).text.toString()
-            val firstRow =
-                activity.findViewById<RecyclerView>(R.id.observations_list)[0]
-            val stationTypeLabel =
-                firstRow.findViewById<TextView>(R.id.station_type_badge).text.toString()
 
             assertEquals("Silur", sourceButton)
             assertEquals(listOf("SILURIAN_MAIN", "SILURIAN_1"), stationIds)
             assertEquals("Latest reading from Silurian", subtitle)
-            assertEquals("Station type: UNKNOWN", stationTypeLabel)
+            assertEquals("UNKNOWN", adapter.items[0].stationType)
             assertTrue(logs.contains("error error=timeout"))
         }
     }

@@ -93,6 +93,8 @@ class CurrentTempRepository
                     targetSources.forEach { targetSource ->
                         try {
                             fetchFromSource(targetSource, latitude, longitude) ?: return@forEach
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (exception: Exception) {
                             appLogDao.log("CURR_FETCH_ERROR", "source=${targetSource.id} error=${exception.message}", "WARN")
                         }
@@ -119,7 +121,13 @@ class CurrentTempRepository
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
             val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
                 async {
-                    val reading = runCatching { silurianApi.getForecast(point.first, point.second, 1) }.getOrNull()
+                    val reading = try {
+                        silurianApi.getForecast(point.first, point.second, 1)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
                     if (reading?.currentTemp != null) {
                         val stationId = if (point.third == "Current") "SILURIAN_MAIN" else "SILURIAN_$index"
                         val obsTime = reading.currentObservedAt ?: System.currentTimeMillis()
@@ -149,7 +157,13 @@ class CurrentTempRepository
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
             val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
                 async {
-                    val reading = runCatching { openMeteoApi.getCurrent(point.first, point.second) }.getOrNull()
+                    val reading = try {
+                        openMeteoApi.getCurrent(point.first, point.second)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
                     if (reading != null) {
                         val condition = reading.weatherCode?.let { openMeteoApi.weatherCodeToCondition(it) } ?: "Unknown"
                         val stationId = if (point.third == "Current") "OPEN_METEO_MAIN" else "OPEN_METEO_$index"
@@ -185,7 +199,13 @@ class CurrentTempRepository
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)
             val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
                 async {
-                    val reading = runCatching { weatherApi.getCurrent(point.first, point.second) }.getOrNull()
+                    val reading = try {
+                        weatherApi.getCurrent(point.first, point.second)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
                     if (reading != null) {
                         val stationId = if (point.third == "Current") "WEATHER_API_MAIN" else "WEATHER_API_$index"
                         val obsEntity = ObservationEntity(

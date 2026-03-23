@@ -148,8 +148,15 @@ class HeaderPrecipCalculatorTest {
     @Test
     fun `getPrecipTextSize returns correct sizes based on probability`() {
         // Base size is 26f
+        // <= 1% -> 26 * 0.4 = 10.4
+        assertEquals(10.4f, HeaderPrecipCalculator.getPrecipTextSize(0), 0.01f)
+        assertEquals(10.4f, HeaderPrecipCalculator.getPrecipTextSize(1), 0.01f)
+
+        // <= 2% -> 26 * 0.5 = 13.0
+        assertEquals(13.0f, HeaderPrecipCalculator.getPrecipTextSize(2), 0.01f)
+
         // <= 4% -> 26 * 0.6 = 15.6
-        assertEquals(15.6f, HeaderPrecipCalculator.getPrecipTextSize(0), 0.01f)
+        assertEquals(15.6f, HeaderPrecipCalculator.getPrecipTextSize(3), 0.01f)
         assertEquals(15.6f, HeaderPrecipCalculator.getPrecipTextSize(4), 0.01f)
 
         // <= 8% -> 26 * 0.7 = 18.2

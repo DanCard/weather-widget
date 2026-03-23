@@ -235,6 +235,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     ),
                     debugTag = TAG,
                 )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                database.appLogDao().log("WIDGET_LIFECYCLE", "phase=onUpdate_cancelled msg=${e.message}", "VERBOSE")
             } catch (e: Exception) {
                 database.appLogDao().log("WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
             } finally {

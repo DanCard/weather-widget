@@ -1,3 +1,87 @@
+/* This file implements a large object (singleton) serving as a widget rendering coordinator.
+   It blends multi-station weather observations using Inverse Distance Weighting (IDW) ,
+   a spatial interpolation technique where nearer stations have exponentially higher weight via 1/d².
+   A two-phase startup (fast path → deferred refinement) is used to avoid blocking the UI on expensive DB/IDW work.
+   
+  Rendering engine for the widget's hourly temperature view.
+  The graph-based screen you see when the widget is in temperature mode.
+  It's an object (singleton) because it manages no per-instance state; all widget state is stored externally in
+  WidgetStateManager.                                                                                                                      
+   
+  Core responsibility: updateWidget                         
+                                                                                                                                           
+  The main entry point takes the hourly forecast data the caller already fetched and paints the widget.
+  At a high level it does:
+
+  1. Layout sizing — reads widget dimensions (cols × rows) and decides whether to render a graph or
+     fall back to a text list of hourly temps                                                                                                                                    
+  2. Header — populates the current temperature, the delta badge (observed vs forecast offset),
+     and the precipitation probability chip     
+  3. Graph — queries observation data, blends it with forecasts via IDW, renders a Bitmap and sets it on the ImageView                     
+  4. Touch targets — wires up every tappable zone (nav arrows, zoom areas, API toggle, weather icon, shortcuts)                            
+                                                                                                                                           
+  ---                                                                                                                                      
+  The observation blending pipeline                                                                                                        
+                                                            
+  This is the most complex part. When the graph is enabled, the file runs a multi-step pipeline to produce a smooth
+  "actual temperature" overlay on top of the forecast curve:                                                                                                    
+   
+  raw ObservationEntities (multiple stations)                                                                                              
+          │                                                                                                                                
+          ▼
+  buildStationTimeSeries()        ← interpolates gaps within each station,                                                                 
+                                     extrapolates forward using forecast shape                                                             
+          │                                                                                                                                
+          ▼                                                                                                                                
+  blendObservationSeries()        ← IDW spatial blend across stations at each                                                              
+                                     candidate timestamp (1/d² weighting)                                                                  
+          │                                                                                                                                
+          ▼                                                                                                                                
+  buildHourDataResult()           ← merges blended actuals with top-of-hour                                                                
+                                     forecast points into a unified HourData list                                                          
+          │                                                                                                                                
+          ▼                                                                                                                                
+  TemperatureGraphRenderer        ← draws the bitmap                                                                                       
+                                                                                                                                           
+  The blending distinguishes three point kinds: "observed" (raw station data),
+  "interpolated" (linearly filled gaps within a station's series),
+  and "forecast_extrapolated" (projects beyond the last observation using forecast shape as a guide).                             
+                                                                                                                                           
+  ---                                                       
+  Two-phase startup rendering
+                                                                                                                                           
+  When startupToken != null, the file takes a fast path:
+                                                                                                                                           
+  - Phase 1: Skips the expensive observation query and IDW blend entirely.
+             Renders with forecast data only and uses resolveQuick for the current temp header.
+             The widget appears immediately.                                                                                     
+
+  - Phase 2: scheduleStartupFullGraphRefresh fires a broadcast 900ms later,
+             triggering a full re-render with real observations.
+                                                                                                                                           
+  Similarly, deferCurrentTempResolution separates the delta/bias calculation (which requires spatial math)
+  from the initial paint — the header is shown instantly,
+  then scheduleCurrentTempRefinement patches just the temp header via partiallyUpdateAppWidget without redrawing
+  the whole widget.                                                                                                                       
+                                                            
+  ---
+  Touch target architecture:
+  WeatherWidgetProvider receives the broadcast and routes it.
+  Request codes are managed via WidgetRequestCodes (though a few are still raw arithmetic like appWidgetId * 100 + 700).                                                                                                
+                                                                                                                                           
+  ---                                                       
+  Backfill triggering
+                     
+  If the observation data is sparse (gaps > 75 min, trailing gap > 45 min, or singleton stations),
+  maybeEnqueueHourlyObservationBackfill enqueues a one-shot WeatherWidgetWorker to fetch more
+  NWS observation history — but only once per 30-minute cooldown per widget, controlled by WidgetStateManager.
+                                                                                                                                           
+  ---                                                       
+  What it does NOT do:
+  1. fetch data — all network calls happen in WeatherWidgetWorker and the repositories
+  2. manage widget lifecycle — WeatherWidgetProvider owns onUpdate/onDeleted                                                    
+  3. handle the daily forecast view — that's a separate handler (DailyViewHandler or similar)     
+*/
 package com.weatherwidget.widget.handlers
 
 import android.app.PendingIntent
@@ -101,7 +185,7 @@ object TemperatureViewHandler {
             rawDetailedLines += 1
             val now = clockMs()
             val shouldEmit =
-                alwaysEmit || lastDetailedEmitMs == null || now - requireNotNull(lastDetailedEmitMs) >= throttleMs
+                alwaysEmit || lastDetailedEmitMs == null || now - lastDetailedEmitMs!! >= throttleMs
 
             if (shouldEmit) {
                 emitted += line
@@ -244,8 +328,6 @@ object TemperatureViewHandler {
         setupHomeShortcut(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
 
-        // Get current display source
-        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
             displaySource.shortDisplayName
@@ -420,7 +502,7 @@ object TemperatureViewHandler {
         
         // Log discrepancy if the two observation sources disagree significantly
         if (observedCurrentTemp != null && graphObservedTemp != null) {
-            val diff = Math.abs(observedCurrentTemp - graphObservedTemp)
+            val diff = kotlin.math.abs(observedCurrentTemp - graphObservedTemp)
             if (diff > 0.1f) {
                 database.appLogDao().log(
                     "TEMP_RESOLVE_DISCREPANCY",
@@ -591,7 +673,6 @@ object TemperatureViewHandler {
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             if (renderMs > 100) {
-                val database = WeatherDatabase.getDatabase(context)
                 database.appLogDao().log(
                     "TEMP_RENDER_SLOW",
                     "widget=$appWidgetId renderMs=${renderMs}ms size=${widthPx}x${heightPx}",
@@ -1089,14 +1170,13 @@ object TemperatureViewHandler {
         // precip values like "45%" which extend the left content by another ~30dp.
         val useInline = widthDp < 420 && isPrecipVisible
         Log.d(TAG, "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline")
-        // Hide whichever set is not active
-        val floatingGone = if (useInline) View.GONE else View.VISIBLE
-        val inlineGone = if (useInline) View.VISIBLE else View.GONE
+        val floatingVis = if (useInline) View.GONE else View.VISIBLE
+        val inlineVis = if (useInline) View.VISIBLE else View.GONE
         for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.history_touch_zone, R.id.current_stations_icon, R.id.current_stations_touch_zone)) {
-            views.setViewVisibility(id, floatingGone)
+            views.setViewVisibility(id, floatingVis)
         }
         for (id in listOf(R.id.home_touch_zone_inline, R.id.history_touch_zone_inline, R.id.current_stations_touch_zone_inline)) {
-            views.setViewVisibility(id, inlineGone)
+            views.setViewVisibility(id, inlineVis)
         }
     }
 
@@ -1199,7 +1279,7 @@ object TemperatureViewHandler {
             onBlendDebug?.invoke("window source=${displaySource.id} start=$startHour end=$endHour sourceRows=0 stations=0")
         }
         val blendedActualsResult = blendObservationSeries(
-            observations = actuals,
+            observations = sourceActuals,
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
             userLat = lat,
@@ -1902,7 +1982,7 @@ object TemperatureViewHandler {
             WeatherSource.NWS -> !observation.stationId.startsWith("OPEN_METEO") &&
                 !observation.stationId.startsWith("WEATHER_API") &&
                 !observation.stationId.startsWith("SILURIAN")
-            else -> true
+            WeatherSource.GENERIC_GAP -> true
         }
 
     private fun observationHour(observation: com.weatherwidget.data.local.ObservationEntity): LocalDateTime =
