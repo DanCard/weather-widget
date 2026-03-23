@@ -1,8 +1,9 @@
 package com.weatherwidget.widget
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.testutil.IsolatedIntegrationTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -10,21 +11,21 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class WidgetStateManagerSyncTest : IsolatedIntegrationTest("widget_state_sync") {
+class WidgetStateManagerSyncTest {
+    private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private val testWidgetId = 555
 
     @Before
-    override fun setup() {
-        super.setup()
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
     }
 
     @After
-    override fun cleanup() {
+    fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        super.cleanup()
     }
 
     @Test

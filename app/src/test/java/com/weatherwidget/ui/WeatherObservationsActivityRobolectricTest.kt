@@ -154,6 +154,39 @@ class WeatherObservationsActivityRobolectricTest {
         }
     }
 
+    @Test
+    fun `activityStarts_withCorrectSourceFromWidget`() {
+        stateManager.setCurrentDisplaySource(widgetId, WeatherSource.OPEN_METEO)
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val sourceButton = activity.findViewById<TextView>(R.id.api_source_button)
+            assertEquals(
+                "Activity should start with source from widget",
+                WeatherSource.OPEN_METEO.shortDisplayName,
+                sourceButton.text.toString()
+            )
+        }
+    }
+
+    @Test
+    fun `activityStarts_withDefaultSource_whenNoWidgetIdProvided`() {
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.WEATHER_API))
+
+        val intent = Intent(context, WeatherObservationsActivity::class.java)
+        val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
+        waitForUiWork()
+
+        scenario.onActivity { activity ->
+            val sourceButton = activity.findViewById<TextView>(R.id.api_source_button)
+            assertEquals(
+                "Activity should fallback to first visible source when no widget ID is provided",
+                WeatherSource.NWS.shortDisplayName,
+                sourceButton.text.toString()
+            )
+        }
+    }
+
     private fun launchActivity(): ActivityScenario<WeatherObservationsActivity> {
         val intent =
             Intent(context, WeatherObservationsActivity::class.java).apply {

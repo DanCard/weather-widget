@@ -1,16 +1,13 @@
 package com.weatherwidget.widget
 
-import android.os.ParcelFileDescriptor
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import com.weatherwidget.testutil.IsolatedIntegrationTest
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.time.LocalDateTime
 
 /**
@@ -21,13 +18,12 @@ import java.time.LocalDateTime
  * renderer. Log lines are annotated in TemperatureGraphRenderer.kt.
  */
 @RunWith(AndroidJUnit4::class)
-class TemperatureGraphLabelTest : IsolatedIntegrationTest("temp_graph_label") {
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+class TemperatureGraphLabelTest {
+    private lateinit var context: Context
 
     @Before
-    override fun setup() {
-        super.setup()
-        runShellCommand("logcat -c")
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
     }
 
     /** Build test hour data with a clear low and high. */
@@ -265,25 +261,5 @@ class TemperatureGraphLabelTest : IsolatedIntegrationTest("temp_graph_label") {
         val actualEnd = placements.find { it.role == "ACTUAL_END" }
         assertTrue("Expected ACTUAL_END label at index 1 (52°) where line is clipped. placements=$placements", 
             actualEnd != null && actualEnd.index == 1 && actualEnd.temperature == 52f)
-    }
-
-    private fun getHourlyGraphLogs(): String {
-        // Small delay for log buffer to flush
-        Thread.sleep(100)
-        return runShellCommand("logcat -d -s HourlyGraph:D *:S")
-    }
-
-    private fun runShellCommand(command: String): String {
-        val parcelFileDescriptor = instrumentation.uiAutomation.executeShellCommand(command)
-        return ParcelFileDescriptor.AutoCloseInputStream(parcelFileDescriptor).use { input ->
-            BufferedReader(InputStreamReader(input)).use { reader ->
-                buildString {
-                    while (true) {
-                        val line = reader.readLine() ?: break
-                        appendLine(line)
-                    }
-                }
-            }
-        }
     }
 }

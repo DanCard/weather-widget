@@ -3,7 +3,6 @@ package com.weatherwidget.widget.handlers
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -14,10 +13,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-@RunWith(AndroidJUnit4::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class DailyViewHandlerIntentContractTest {
     private lateinit var context: Context
 
@@ -95,8 +97,6 @@ class DailyViewHandlerIntentContractTest {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
         val today = LocalDate.of(2030, 6, 15)
 
-        // Simulates "rain text suppressed" case by passing the raw click signal directly:
-        // hasRainForecast=true should still route to precipitation for today.
         val intent =
             DailyViewHandler.buildDayClickIntent(
                 context = context,

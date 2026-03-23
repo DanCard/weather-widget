@@ -3,7 +3,6 @@ package com.weatherwidget.widget
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.local.*
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import kotlinx.coroutines.runBlocking
@@ -16,7 +15,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 
 @RunWith(AndroidJUnit4::class)
-class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integration") {
+class NwsHistoryIntegrationTest {
 
     private fun LocalDateTime.toMs() = this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 

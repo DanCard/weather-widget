@@ -1,16 +1,13 @@
 package com.weatherwidget.widget
 
-import android.os.ParcelFileDescriptor
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import com.weatherwidget.testutil.IsolatedIntegrationTest
-import java.io.BufferedReader
-import java.io.InputStreamReader
 import java.time.LocalDateTime
 
 /**
@@ -19,13 +16,12 @@ import java.time.LocalDateTime
  * Verifies that minor humps/peaks (e.g., 1 degree changes) don't trigger labels.
  */
 @RunWith(AndroidJUnit4::class)
-class TemperatureGraphClutterTest : IsolatedIntegrationTest("temp_graph_clutter") {
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+class TemperatureGraphClutterTest {
+    private lateinit var context: Context
 
     @Before
-    override fun setup() {
-        super.setup()
-        runShellCommand("logcat -c")
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
     }
 
     private fun buildHours(
@@ -63,24 +59,5 @@ class TemperatureGraphClutterTest : IsolatedIntegrationTest("temp_graph_clutter"
 
         // We expect it to NOT be drawn as "OTHER" (which is the role for local extrema)
         assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == "OTHER" && it.index == 5 })
-    }
-
-    private fun getHourlyGraphLogs(): String {
-        Thread.sleep(100)
-        return runShellCommand("logcat -d -s HourlyGraph:D *:S")
-    }
-
-    private fun runShellCommand(command: String): String {
-        val parcelFileDescriptor = instrumentation.uiAutomation.executeShellCommand(command)
-        return ParcelFileDescriptor.AutoCloseInputStream(parcelFileDescriptor).use { input ->
-            BufferedReader(InputStreamReader(input)).use { reader ->
-                buildString {
-                    while (true) {
-                        val line = reader.readLine() ?: break
-                        appendLine(line)
-                    }
-                }
-            }
-        }
     }
 }

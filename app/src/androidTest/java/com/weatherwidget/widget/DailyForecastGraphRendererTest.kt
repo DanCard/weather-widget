@@ -1,11 +1,13 @@
 package com.weatherwidget.widget
 
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.weatherwidget.testutil.IsolatedIntegrationTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDate
@@ -18,7 +20,13 @@ import java.time.LocalDate
  * logical properties (barType, relative Y positions) instead of pixel colors.
  */
 @RunWith(AndroidJUnit4::class)
-class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_renderer") {
+class DailyForecastGraphRendererTest {
+    private lateinit var context: Context
+
+    @Before
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
