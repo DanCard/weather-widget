@@ -136,6 +136,8 @@ class WeatherRepository
             latitude: Double,
             longitude: Double,
         ): List<ObservationEntity> = forecastRepository.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
+        suspend fun getDailyActualsWithLiveToday(latitude: Double, longitude: Double) =
+            observationRepository.getDailyActualsWithLiveToday(latitude, longitude)
         suspend fun getMainObservationsWithComputedNwsBlend(
             latitude: Double,
             longitude: Double,

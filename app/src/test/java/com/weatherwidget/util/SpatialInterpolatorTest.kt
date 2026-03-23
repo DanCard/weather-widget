@@ -87,6 +87,38 @@ class SpatialInterpolatorTest {
 
     // ── Time-spread filtering ────────────────────────────────────────────────
 
+    // ── interpolateIDWValues ─────────────────────────────────────────────────
+
+    @Test fun idwValues_emptyList_returnsNull() {
+        assertNull(SpatialInterpolator.interpolateIDWValues(emptyList()))
+    }
+
+    @Test fun idwValues_singleStation_returnsExactValue() {
+        val result = SpatialInterpolator.interpolateIDWValues(listOf(5f to 80f))
+        assertEquals(80f, result!!, 0.01f)
+    }
+
+    @Test fun idwValues_nearZeroDistance_snapsToIt() {
+        // Station at 0.05 km (below 0.1 km threshold) — ignores far station
+        val result = SpatialInterpolator.interpolateIDWValues(listOf(0.05f to 68f, 20f to 99f))
+        assertEquals(68f, result!!, 0.01f)
+    }
+
+    @Test fun idwValues_twoEquidistantStations_returnsAverage() {
+        val result = SpatialInterpolator.interpolateIDWValues(listOf(10f to 60f, 10f to 80f))
+        assertEquals(70f, result!!, 0.1f)
+    }
+
+    @Test fun idwValues_closerStationDominates() {
+        // 1 km vs 10 km: w_near = 1.0, w_far = 0.01 → blend ≈ (80*1 + 90*0.01)/1.01 ≈ 80.1°
+        val result = SpatialInterpolator.interpolateIDWValues(listOf(1f to 80f, 10f to 90f))
+        assertNotNull(result)
+        assertTrue("Near station should dominate; got $result", result!! < 81f)
+        assertTrue("Result should be above 80°", result >= 80f)
+    }
+
+    // ── observationsSpreadOverTwoHours ───────────────────────────────────────
+
     @Test fun observationsSpreadOverTwoHours_oldOneDropped() {
         // One observation 90 minutes older than the newest — outside the 1h cohort window
         val ninetyMinMs = 90 * 60 * 1000L

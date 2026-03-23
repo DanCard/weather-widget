@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.util.SpatialInterpolator
+import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
@@ -314,6 +315,35 @@ class ObservationRepository @Inject constructor(
         )
     }
 
+    /**
+     * Returns daily actuals for the past 30 days from the DB cache, plus today's actuals
+     * computed live from raw observations (never cached, always fresh).
+     */
+    suspend fun getDailyActualsWithLiveToday(
+        latitude: Double,
+        longitude: Double,
+    ): DailyActualsBySource {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+
+        // Past days: read from DB cache
+        val startDate = today.minusDays(30).toEpochDay() * 86400_000L
+        val endDate = today.minusDays(1).toEpochDay() * 86400_000L
+        val pastExtremes = dailyExtremeDao.getExtremesInRange(startDate, endDate, latitude, longitude)
+        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes)
+
+        // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
+        val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val todayObs = observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude)
+            .filter { it.stationId != "NWS_BLEND" }
+        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs)
+
+        return (pastActuals.keys + todayActuals.keys).associateWith { source ->
+            (pastActuals[source] ?: emptyMap()) + (todayActuals[source] ?: emptyMap())
+        }
+    }
+
     internal suspend fun recomputeDailyExtremesFromStoredObservations(
         latitude: Double,
         longitude: Double,
@@ -413,7 +443,7 @@ class ObservationRepository @Inject constructor(
         Log.d(TAG, "getMainObservationsWithComputedNwsBlend: blendedTemp=${blendedTemp} newestTimestamp=${newestTimestamp} newestFetchedAt=${newestFetchedAt}")
 
         val syntheticNwsMain = ObservationEntity(
-            stationId = "NWS_MAIN",
+            stationId = "NWS_BLEND",
             stationName = "NWS Blended",
             timestamp = newestTimestamp,
             temperature = blendedTemp,

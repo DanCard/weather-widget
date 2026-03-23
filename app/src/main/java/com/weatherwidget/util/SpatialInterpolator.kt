@@ -48,4 +48,23 @@ object SpatialInterpolator {
         }
         return (weightedTempSum / weightSum).toFloat()
     }
+
+    /**
+     * Blends arbitrary values from multiple stations using Inverse Distance Weighting.
+     * Each entry is a (distanceKm, value) pair. Callers are responsible for staleness filtering.
+     */
+    fun interpolateIDWValues(stations: List<Pair<Float, Float>>): Float? {
+        if (stations.isEmpty()) return null
+        val veryClose = stations.filter { it.first <= NEAR_ZERO_KM }
+        if (veryClose.isNotEmpty()) return veryClose.minBy { it.first }.second
+        if (stations.size == 1) return stations[0].second
+        var weightedSum = 0.0
+        var weightSum = 0.0
+        for ((d, v) in stations) {
+            val w = 1.0 / (d.toDouble() * d.toDouble())
+            weightedSum += w * v
+            weightSum += w
+        }
+        return (weightedSum / weightSum).toFloat()
+    }
 }

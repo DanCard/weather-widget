@@ -230,7 +230,7 @@ class DailyViewHandlerTest {
 
         val currentTemps = listOf(
             ObservationEntity(
-                stationId = "NWS_MAIN",
+                stationId = "NWS_BLEND",
                 stationName = "Test Station",
                 timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 temperature = 75f,
@@ -816,7 +816,7 @@ class DailyViewHandlerTest {
             ),
             currentTemps = listOf(
                 ObservationEntity(
-                    stationId = "NWS_MAIN",
+                    stationId = "NWS_BLEND",
                     stationName = "Test Station",
                     timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     temperature = 71f,
@@ -872,7 +872,7 @@ class DailyViewHandlerTest {
             ),
             currentTemps = listOf(
                 ObservationEntity(
-                    stationId = "NWS_MAIN",
+                    stationId = "NWS_BLEND",
                     stationName = "Test Station",
                     timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                     temperature = 71f,

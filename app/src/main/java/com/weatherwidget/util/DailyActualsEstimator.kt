@@ -1,5 +1,6 @@
 package com.weatherwidget.util
 
+import android.util.Log
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -72,6 +73,11 @@ object DailyActualsEstimator {
             fallbackWeather?.lowTemp,
             hourlyMin
         ).minOrNull()
+
+        Log.d("DailyEstimator", "today high: actual.high=${actual?.highTemp} currentTemp=$currentTemp " +
+            "observedHigh=$observedHigh fallbackWeather.high=${fallbackWeather?.highTemp} " +
+            "hourlyMax=$hourlyMax forecastHigh=$forecastHigh " +
+            "todayHourlyCount=${todayHourly.size} source=${displaySource.id}")
 
         return TodayTripleLineValues(
             observedHigh = observedHigh,

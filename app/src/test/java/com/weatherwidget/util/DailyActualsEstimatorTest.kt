@@ -128,6 +128,93 @@ class DailyActualsEstimatorTest {
         org.junit.Assert.assertNull(values.observedLow)
     }
 
+    // --- observedHigh selection: currentTemp vs actual.highTemp ---
+
+    @Test
+    fun calculateTodayTripleLineValues_currentTempHigherThanActual_currentTempWinsAsObservedHigh() {
+        // actual.highTemp=75°, currentTemp=82° → observedHigh should be 82°
+        val actuals = mapOf(
+            today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = today, highTemp = 75f, lowTemp = 50f, condition = "Clear"
+            )
+        )
+        val values = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourlyForecasts = emptyList(),
+            today = today,
+            now = now,
+            displaySource = displaySource,
+            fallbackWeather = fallbackWeather,
+            dailyActuals = actuals,
+            currentTemp = 82f,
+        )
+
+        assertEquals(82f, values.observedHigh!!, 0.01f)
+    }
+
+    @Test
+    fun calculateTodayTripleLineValues_actualHigherThanCurrentTemp_actualWinsAsObservedHigh() {
+        // This is the scenario from the field: actual.high=84.99°, currentTemp=81.5°
+        // observedHigh should be 84.99°, not the current temp
+        val actuals = mapOf(
+            today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = today, highTemp = 85f, lowTemp = 55f, condition = "Sunny"
+            )
+        )
+        val values = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourlyForecasts = emptyList(),
+            today = today,
+            now = now,
+            displaySource = displaySource,
+            fallbackWeather = fallbackWeather,
+            dailyActuals = actuals,
+            currentTemp = 81f,
+        )
+
+        assertEquals(85f, values.observedHigh!!, 0.01f)
+    }
+
+    // --- finalHigh fallback chain when no observations ---
+
+    @Test
+    fun calculateTodayTripleLineValues_noObservationsNorCurrentTemp_observedHighIsNull() {
+        val values = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourlyForecasts = emptyList(),
+            today = today,
+            now = now,
+            displaySource = displaySource,
+            fallbackWeather = fallbackWeather,
+            dailyActuals = emptyMap(),
+            currentTemp = null,
+        )
+
+        org.junit.Assert.assertNull(values.observedHigh)
+        // forecastHigh should still be populated from fallbackWeather
+        assertEquals(65f, values.forecastHigh!!, 0.01f)
+    }
+
+    @Test
+    fun calculateTodayTripleLineValues_noObservationsNoFallbackWeather_forecastHighFromHourlyMax() {
+        val hourly = listOf(
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                TestData.toEpoch("2026-02-25T15:00"), 0.0, 0.0, 71f, "Clear", displaySource.id, 0, 0, 1L
+            )
+        )
+        val emptyFallback = fallbackWeather.copy(highTemp = null, lowTemp = null)
+
+        val values = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourlyForecasts = hourly,
+            today = today,
+            now = now,
+            displaySource = displaySource,
+            fallbackWeather = emptyFallback,
+            dailyActuals = emptyMap(),
+            currentTemp = null,
+        )
+
+        org.junit.Assert.assertNull(values.observedHigh)
+        assertEquals(71f, values.forecastHigh!!, 0.01f)
+    }
+
     @Test
     fun calculateTodayTripleLineValues_preservesPrecision() {
         val hourly = listOf(

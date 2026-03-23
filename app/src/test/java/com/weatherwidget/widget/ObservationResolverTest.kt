@@ -15,13 +15,13 @@ class ObservationResolverTest {
         val observations =
             listOf(
                 currentTempObservation(
-                    stationId = "NWS_MAIN",
+                    stationId = "NWS_BLEND",
                     temperature = 53.0f,
                     fetchedAt = 1_000L,
                     timestamp = 900L,
                 ),
                 currentTempObservation(
-                    stationId = "NWS_MAIN",
+                    stationId = "NWS_BLEND",
                     temperature = 54.0f,
                     fetchedAt = 2_000L,
                     timestamp = 1_800L,
@@ -52,7 +52,7 @@ class ObservationResolverTest {
         val observations =
             listOf(
                 currentTempObservation(
-                    stationId = "NWS_MAIN",
+                    stationId = "NWS_BLEND",
                     temperature = 51.0f,
                     fetchedAt = 7_000L,
                     timestamp = 5_000L,
@@ -199,6 +199,7 @@ class ObservationResolverTest {
         maxTempLast24h: Float?,
         minTempLast24h: Float?,
         stationId: String = "KTEST",
+        distanceKm: Float = 0f,
     ): ObservationEntity = ObservationEntity(
         stationId = stationId,
         stationName = "Test Station",
@@ -207,10 +208,92 @@ class ObservationResolverTest {
         condition = "Clear",
         locationLat = 37.42,
         locationLon = -122.08,
+        distanceKm = distanceKm,
         maxTempLast24h = maxTempLast24h,
         minTempLast24h = minTempLast24h,
         api = "NWS",
     )
+
+    // --- multi-station IDW blending tests ---
+
+    @Test
+    fun `blendExtremes IDW near station dominates over far station`() {
+        // Station NEAR at 1 km with max=80°, KFAR at 10 km with max=90°.
+        // Old raw-max behavior would return 90°. IDW should return ~80° (1km has 100x the weight).
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis, temperature = 78f, maxTempLast24h = 80f, minTempLast24h = 50f, stationId = "KNEAR", distanceKm = 1f),
+            observation(timestamp = dayMillis, temperature = 88f, maxTempLast24h = 90f, minTempLast24h = 60f, stationId = "KFAR",  distanceKm = 10f),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(1, result.size)
+        // w_near = 1/1² = 1.0, w_far = 1/100 = 0.01 → blend ≈ (80*1 + 90*0.01) / 1.01 ≈ 80.1°
+        assertTrue("Near station should dominate; expected ~80° got ${result[0].highTemp}", result[0].highTemp < 81f)
+        assertTrue("Result should be above 80°", result[0].highTemp >= 80f)
+    }
+
+    @Test
+    fun `blendExtremes IDW two equidistant stations average their extremes`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis, temperature = 70f, maxTempLast24h = 72f, minTempLast24h = 50f, stationId = "KA", distanceKm = 5f),
+            observation(timestamp = dayMillis, temperature = 76f, maxTempLast24h = 80f, minTempLast24h = 44f, stationId = "KB", distanceKm = 5f),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(1, result.size)
+        assertEquals(76f, result[0].highTemp, 0.1f) // (72+80)/2
+        assertEquals(47f, result[0].lowTemp,  0.1f) // (50+44)/2
+    }
+
+    @Test
+    fun `blendExtremes per-station aggregation same station multiple readings uses max extreme`() {
+        // Two readings from the same station at different times — only one IDW entry should result.
+        // The station's extreme is max(72, 74) = 74°, not 72° (first) or an average.
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f, stationId = "KTEST", distanceKm = 2f),
+            observation(timestamp = dayMillis + 3_600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f, stationId = "KTEST", distanceKm = 2f),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(74f, result[0].highTemp, 0.01f)
+        assertEquals(38f, result[0].lowTemp,  0.01f)
+    }
+
+    @Test
+    fun `computeDailyExtremes excludes NWS_BLEND synthetic observation`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis, temperature = 72f, maxTempLast24h = 72f, minTempLast24h = 50f, stationId = "KREAL"),
+            observation(timestamp = dayMillis, temperature = 99f, maxTempLast24h = 99f, minTempLast24h = 10f, stationId = "NWS_BLEND"),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(72f, result[0].highTemp, 0.01f) // NWS_BLEND excluded
+    }
+
+    @Test
+    fun `blendExtremes spot-temp fallback also uses IDW when no official extremes`() {
+        // Near station has spot temp 70°, far station has spot temp 90°. No official extremes.
+        // IDW should weight near station heavily → result near 70°, not 90°.
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observation(timestamp = dayMillis, temperature = 70f, maxTempLast24h = null, minTempLast24h = null, stationId = "KNEAR", distanceKm = 1f),
+            observation(timestamp = dayMillis, temperature = 90f, maxTempLast24h = null, minTempLast24h = null, stationId = "KFAR",  distanceKm = 10f),
+        )
+
+        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+
+        assertEquals(1, result.size)
+        assertTrue("Spot-temp fallback should weight near station; expected <71° got ${result[0].highTemp}", result[0].highTemp < 71f)
+    }
 
     private fun currentTempObservation(
         stationId: String,

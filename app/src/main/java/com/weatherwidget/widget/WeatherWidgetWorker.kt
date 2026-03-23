@@ -215,18 +215,12 @@ class WeatherWidgetWorker
             recompute: Boolean = true,
         ): DailyActualsBySource {
             return try {
-                val startLocalDate = LocalDate.now().minusDays(30)
-                val endLocalDate = LocalDate.now().plusDays(1)
-                
                 if (recompute) {
-                    weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startLocalDate, endLocalDate)
+                    val start = LocalDate.now().minusDays(30)
+                    val yesterday = LocalDate.now().minusDays(1)
+                    weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday)
                 }
-                
-                val startDate = startLocalDate.toEpochDay() * 86400_000L
-                val endDate = endLocalDate.toEpochDay() * 86400_000L
-                val extremes = WeatherDatabase.getDatabase(context).dailyExtremeDao()
-                    .getExtremesInRange(startDate, endDate, lat, lon)
-                ObservationResolver.extremesToDailyActualsBySource(extremes)
+                weatherRepository.getDailyActualsWithLiveToday(lat, lon)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch daily actuals", e)
                 emptyMap()

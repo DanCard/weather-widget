@@ -295,6 +295,10 @@ object DailyViewLogic {
                 )
                 finalHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
                 finalLow = tripleValues.observedLow ?: tripleValues.forecastLow
+                Log.d(TAG, "prepareGraphDays: today high: observedHigh=${tripleValues.observedHigh} " +
+                    "forecastHigh=${tripleValues.forecastHigh} finalHigh=$finalHigh " +
+                    "via=${if (tripleValues.observedHigh != null) "OBSERVED" else "FORECAST"} " +
+                    "observedCurrentTemp=${observedCurrentTemp?.temperature} station=${observedCurrentTemp?.source}")
                 fHigh = tripleValues.forecastHigh
                 fLow = tripleValues.forecastLow
                 snapshotHigh = tripleValues.snapshotHigh

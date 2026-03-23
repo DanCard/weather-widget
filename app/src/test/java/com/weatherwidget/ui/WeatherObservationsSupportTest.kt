@@ -25,10 +25,10 @@ class WeatherObservationsSupportTest {
     }
 
     @Test
-    fun `matchesObservationSource excludes NWS_MAIN from NWS`() {
+    fun `matchesObservationSource excludes NWS_BLEND from NWS`() {
         assertFalse(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
-                stationId = "NWS_MAIN",
+                stationId = "NWS_BLEND",
                 source = WeatherSource.NWS,
             ),
         )

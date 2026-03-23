@@ -1,8 +1,10 @@
 package com.weatherwidget.widget
 
+import android.util.Log
 import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.SpatialInterpolator
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -37,12 +39,13 @@ object ObservationResolver {
         observations: List<ObservationEntity>,
         displaySource: WeatherSource,
     ): ObservedCurrentTemperature? {
-        return observations
+        val selected = observations
             .filter {
                 inferSource(it.stationId) == displaySource.id || inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
             }
             .maxByOrNull { it.timestamp }
-            ?.let { obs ->
+        Log.d("ObsResolver", "resolveObservedCurrentTemp: stationId=${selected?.stationId} temp=${selected?.temperature} source=${displaySource.id}")
+        return selected?.let { obs ->
                 ObservedCurrentTemperature(
                     temperature = obs.temperature,
                     observedAt = obs.timestamp,
@@ -65,10 +68,7 @@ object ObservationResolver {
             .mapNotNull { (date, obs) ->
                 if (obs.isEmpty()) return@mapNotNull null
 
-                val officialHighs = obs.mapNotNull { it.maxTempLast24h }
-                val officialLows = obs.mapNotNull { it.minTempLast24h }
-                val highTemp = if (officialHighs.isNotEmpty()) officialHighs.max() else obs.maxOf { it.temperature }
-                val lowTemp = if (officialLows.isNotEmpty()) officialLows.min() else obs.minOf { it.temperature }
+                val (highTemp, lowTemp) = blendExtremes(obs)
 
                 val mostCommon = obs.map { it.condition }.groupingBy { it }.eachCount().maxByOrNull { it.value }
 
@@ -79,6 +79,42 @@ object ObservationResolver {
                     condition = mostCommon?.key ?: "Unknown"
                 )
             }
+    }
+
+    /**
+     * IDW-blends daily high/low from a list of observations.
+     * Groups by stationId first so multiple readings from the same station are aggregated
+     * (max extreme / min extreme) before spatial blending across unique stations.
+     * Falls back to IDW of spot-temperature max/min, then raw max/min.
+     */
+    private fun blendExtremes(obs: List<ObservationEntity>): Pair<Float, Float> {
+        data class StationData(
+            val distanceKm: Float,
+            val maxExtreme: Float?,
+            val minExtreme: Float?,
+            val maxSpot: Float,
+            val minSpot: Float,
+        )
+        val byStation = obs.groupBy { it.stationId }.values.map { stObs ->
+            StationData(
+                distanceKm = stObs.first().distanceKm,
+                maxExtreme = stObs.mapNotNull { it.maxTempLast24h }.maxOrNull(),
+                minExtreme = stObs.mapNotNull { it.minTempLast24h }.minOrNull(),
+                maxSpot = stObs.maxOf { it.temperature },
+                minSpot = stObs.minOf { it.temperature },
+            )
+        }
+        val highExtPairs = byStation.mapNotNull { s -> s.maxExtreme?.let { s.distanceKm to it } }
+        val lowExtPairs  = byStation.mapNotNull { s -> s.minExtreme?.let { s.distanceKm to it } }
+        val highSpotPairs = byStation.map { it.distanceKm to it.maxSpot }
+        val lowSpotPairs  = byStation.map { it.distanceKm to it.minSpot }
+        val high = SpatialInterpolator.interpolateIDWValues(highExtPairs)
+            ?: SpatialInterpolator.interpolateIDWValues(highSpotPairs)
+            ?: obs.maxOf { it.temperature }
+        val low = SpatialInterpolator.interpolateIDWValues(lowExtPairs)
+            ?: SpatialInterpolator.interpolateIDWValues(lowSpotPairs)
+            ?: obs.minOf { it.temperature }
+        return high to low
     }
 
     /**
@@ -108,10 +144,7 @@ object ObservationResolver {
                     .mapNotNull { (date, dayObs) ->
                         if (dayObs.isEmpty()) return@mapNotNull null
 
-                        val officialHighs = dayObs.mapNotNull { it.maxTempLast24h }
-                        val officialLows = dayObs.mapNotNull { it.minTempLast24h }
-                        val highTemp = if (officialHighs.isNotEmpty()) officialHighs.max() else dayObs.maxOf { it.temperature }
-                        val lowTemp = if (officialLows.isNotEmpty()) officialLows.min() else dayObs.minOf { it.temperature }
+                        val (highTemp, lowTemp) = blendExtremes(dayObs)
                         val mostCommonCondition = dayObs
                             .map { it.condition }
                             .groupingBy { it }
@@ -146,7 +179,7 @@ object ObservationResolver {
         val local = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
 
-        val filteredObs = observations.filter { it.stationId != "NWS_MAIN" }
+        val filteredObs = observations.filter { it.stationId != "NWS_BLEND" }
 
         return filteredObs
             .groupBy { obs ->
@@ -160,10 +193,7 @@ object ObservationResolver {
                 if (dayObs.isEmpty()) return@mapNotNull null
                 val (date, source) = key
 
-                val officialHighs = dayObs.mapNotNull { it.maxTempLast24h }
-                val officialLows = dayObs.mapNotNull { it.minTempLast24h }
-                val highTemp = if (officialHighs.isNotEmpty()) officialHighs.max() else dayObs.maxOf { it.temperature }
-                val lowTemp = if (officialLows.isNotEmpty()) officialLows.min() else dayObs.minOf { it.temperature }
+                val (highTemp, lowTemp) = blendExtremes(dayObs)
                 val condition = dayObs
                     .map { it.condition }
                     .groupingBy { it }

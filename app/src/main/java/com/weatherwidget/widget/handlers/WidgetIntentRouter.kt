@@ -16,6 +16,7 @@ import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.DailyActualsBySource
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
@@ -398,10 +399,27 @@ object WidgetIntentRouter {
         lat: Double,
         lon: Double,
     ): DailyActualsBySource {
-        val startDate = LocalDate.now().minusDays(30).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val endDate = LocalDate.now().plusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val extremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
-        return com.weatherwidget.widget.ObservationResolver.extremesToDailyActualsBySource(extremes)
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+
+        // Past days: read from DB cache
+        val startDate = today.minusDays(30).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val endDate = today.minusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val pastExtremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
+        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes)
+
+        // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
+        val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val todayObs = database.observationDao().getObservationsInRange(todayStartMs, tomorrowMs, lat, lon)
+            .filter { it.stationId != "NWS_BLEND" }
+        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs)
+
+        return (pastActuals.keys + todayActuals.keys).associateWith { source ->
+            val past: Map<java.time.LocalDate, ObservationResolver.DailyActual> = pastActuals[source] ?: emptyMap()
+            val live: Map<java.time.LocalDate, ObservationResolver.DailyActual> = todayActuals[source] ?: emptyMap()
+            past + live
+        }
     }
 
     private suspend fun sourceDataMissingForCurrentWindow(
