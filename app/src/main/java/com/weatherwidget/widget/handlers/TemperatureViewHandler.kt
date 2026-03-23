@@ -600,11 +600,14 @@ object TemperatureViewHandler {
 
         // Show precipitation probability next to current temp when rain is expected
         if (headerPrecipProbability != null && headerPrecipProbability > 0) {
+            Log.d(TAG, "DEBUG: Showing precip probability=$headerPrecipProbability%, hourlyOffset=$hourlyOffset, zoom=$zoom, useGraph=$useGraph")
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
             val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
+            val reason = if (headerPrecipProbability == null) "null" else "value=$headerPrecipProbability"
+            Log.d(TAG, "DEBUG: Hiding precip probability ($reason), hourlyOffset=$hourlyOffset, zoom=$zoom, useGraph=$useGraph")
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
 
