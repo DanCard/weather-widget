@@ -508,6 +508,41 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
+    fun `blend prioritizes observed status over anchor status for staleness`() {
+        // Setup: Two stations. 
+        // AW020 is closer (2.9km) but only has an extrapolated point at 10:30.
+        // KSJC is further (15.8km) but has a fresh observed point at 10:30.
+        // The anchor for T10:30 will be AW020 because it matches the timestamp exactly (0 offset).
+        val forecasts = wideForecasts()
+        val t1015 = TestData.toEpoch("2026-02-20T10:15")
+        val t1030 = TestData.toEpoch("2026-02-20T10:30")
+        
+        val actuals = listOf(
+            observationAt("2026-02-20T10:15", 57f, stationId = "AW020", distanceKm = 2.9f),
+            observationAt("2026-02-20T10:30", 62f, stationId = "KSJC", distanceKm = 15.8f),
+        )
+
+        val hours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+
+        val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
+        
+        // Before the fix, point1030.isObservedActual would be false because AW020 (anchor) is extrapolated at 10:30.
+        // After the fix, it should be true because KSJC provides a real observation at 10:30.
+        assertTrue("Blended point should be marked as observed if ANY peer is observed", point1030.isObservedActual)
+        
+        val lastObserved = requireNotNull(hours.lastOrNull { it.isObservedActual })
+        assertEquals("Fetch dot anchor should be at the freshest observed point (10:30) even if it's from a further station", 
+            LocalDateTime.parse("2026-02-20T10:30"), lastObserved.dateTime)
+    }
+
+    @Test
     fun `hourly backfill requested when NWS history has singleton station coverage`() {
         val observations = listOf(
             observationAt("2026-02-20T10:05", 57f, stationId = "AW020", distanceKm = 2.9f),

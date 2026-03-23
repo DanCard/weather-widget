@@ -1,28 +1,38 @@
-# Plan: Restore Staleness Indicator on Zoomed-in Hourly Graphs
-
-The user reported that the staleness indicator (e.g., "25m", "1h 5m") next to the "Last Fetch Dot" has disappeared from the zoomed-in hourly graph. Investigation reveals that the renderer uses a hardcoded `if (hours.size <= 8)` check to detect the zoomed-in view. However, with the addition of sub-hourly measurements, even the zoomed-in (NARROW) view (which covers 4 hours) can contain over 100 points, causing the indicator to be incorrectly suppressed.
-
-This plan replaces the count-based check with a duration-based check to correctly identify the zoomed-in state and restore the indicator.
+# Plan: Fix Pessimistic Staleness Indicator on Hourly Graph
 
 ## Objective
-Restore the staleness indicator (age of last measurement) on zoomed-in Temperature and Precipitation hourly graphs by fixing the zoom-level detection logic.
+The staleness indicator (fetch dot and age text) on the hourly temperature graph is sometimes "overly pessimistic," showing data is older than it actually is. This happens when a nearby station (the "anchor" for a graph slot) is lagging and enters an "extrapolated" state, even if other slightly further stations have fresh "observed" data for that same time.
 
-## Key Files
-- `app/src/main/java/com/weatherwidget/widget/TemperatureGraphRenderer.kt`: Rendering logic for temperature graph age text.
-- `app/src/main/java/com/weatherwidget/widget/PrecipitationGraphRenderer.kt`: Rendering logic for precipitation graph age text.
+The fix is to prioritize the `"observed"` status in the blended graph points if any constituent station provides a real observation.
+
+## Key Files & Context
+- **`app/src/main/java/com/weatherwidget/widget/handlers/TemperatureViewHandler.kt`**: Contains the `blendObservationSeries` logic that assigns the `condition` (source status) to blended points.
+- **`app/src/main/java/com/weatherwidget/widget/TemperatureGraphRenderer.kt`**: Uses the `isObservedActual` flag (derived from `condition == "observed"`) to position the fetch dot.
 
 ## Implementation Steps
 
-### 1. Fix Zoom Detection in TemperatureGraphRenderer
-- In `renderGraph`, replace the condition `if (hours.size <= 8)` with a duration-based check:
-  `if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12)`
-- This correctly distinguishes between NARROW zoom (4h duration) and WIDE zoom (24h duration) even when high-frequency sub-hourly points are present.
-- Ensure the indicator continues to be drawn without collision checks, as requested.
+### 1. Update Blending Logic
+In `TemperatureViewHandler.blendObservationSeries`, change how the result's `condition` is determined. Instead of just using `anchor.sourceKind`, aggregate the status from all `peers` in the cohort.
 
-### 2. Fix Zoom Detection in PrecipitationGraphRenderer
-- Apply the same duration-based check replacement in `PrecipitationGraphRenderer.kt`.
+**Proposed Logic:**
+```kotlin
+val bestSourceKind = when {
+    peers.any { it.sourceKind == "observed" } -> "observed"
+    peers.any { it.sourceKind == "interpolated" } -> "interpolated"
+    else -> "forecast_extrapolated"
+}
+```
+
+### 2. Update Tests
+Add a test case to `TemperatureViewHandlerActualsTest.kt` that simulates this exact scenario:
+- Two stations: one close (lagging/extrapolated), one further (fresh/observed).
+- Verify that the blended result at the current time is marked as `"observed"`.
 
 ## Verification & Testing
-- **Visual Verification**: Use the emulator to confirm that the staleness indicator reappears in the NARROW zoom view when a recent observation is present.
-- **Log Review**: Confirm `CURR_STALE_DEBUG` logs show `obsAgeMin` consistent with the displayed age text.
-- **Collision Check**: Verify the age text is drawn even if it overlaps with other labels near the fetch dot.
+
+### Unit Tests
+Run `./gradlew test` specifically for `TemperatureViewHandlerActualsTest`.
+
+### Manual Verification
+1. Open the hourly temperature graph on a device with multiple stations nearby (e.g., San Jose area in the logs).
+2. Observe if the staleness text ("Xm") matches the freshest available station in the "Current Observations" list, even if the closest station is lagging.

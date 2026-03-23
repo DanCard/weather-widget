@@ -1600,6 +1600,11 @@ object TemperatureViewHandler {
             }
 
             val anchor = peers.minByOrNull { kotlin.math.abs(it.timestamp - targetTs) } ?: continue
+            val bestSourceKind = when {
+                peers.any { it.sourceKind == "observed" } -> "observed"
+                peers.any { it.sourceKind == "interpolated" } -> "interpolated"
+                else -> "forecast_extrapolated"
+            }
             val blendedTemp = if (peers.size == 1) {
                 peers.first().temperature
             } else {
@@ -1637,7 +1642,7 @@ object TemperatureViewHandler {
                             "${p.stationId}:${String.format("%.1f", p.temperature)}F@${String.format("%.1f", p.distanceKm)}km(w=${String.format("%.2f", w)},${p.sourceKind})"
                         }
                         val cohortChanged = previousCohortStations != cohortStations
-                        "emit t=$timeStr blended=${String.format("%.1f", blendedTemp)} stations=[${peerStr}] cohortChanged=$cohortChanged"
+                        "emit t=$timeStr blended=${String.format("%.1f", blendedTemp)} stations=[${peerStr}] cohortChanged=$cohortChanged bestSourceKind=$bestSourceKind"
                     }
                 Log.d("IDW_BLEND", debugLine)
                 onBlendDebug.invoke(debugLine)
@@ -1650,7 +1655,7 @@ object TemperatureViewHandler {
                     stationName = anchor.stationName,
                     timestamp = targetTs,
                     temperature = blendedTemp,
-                    condition = anchor.sourceKind,
+                    condition = bestSourceKind,
                     locationLat = userLat,
                     locationLon = userLon,
                     distanceKm = anchor.distanceKm,
