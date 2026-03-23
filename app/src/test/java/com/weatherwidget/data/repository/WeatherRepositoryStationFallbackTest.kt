@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -64,7 +65,7 @@ class WeatherRepositoryStationFallbackTest {
         val forecastDao = db.forecastDao()
         forecastDao.insertForecast(TestData.forecast(source = "OPEN_METEO"))
 
-        val results = forecastDao.getForecastsInRangeBySource("2026-02-20", "2026-02-20", LAT, LON, "OPEN_METEO")
+        val results = forecastDao.getForecastsInRangeBySource(dateEpoch("2026-02-20"), dateEpoch("2026-02-20"), LAT, LON, "OPEN_METEO")
         assertEquals(1, results.size)
     }
 }

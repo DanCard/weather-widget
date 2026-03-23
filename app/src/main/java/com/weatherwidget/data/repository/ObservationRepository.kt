@@ -149,27 +149,27 @@ class ObservationRepository @Inject constructor(
         val yesterday = now.minusDays(1).toLocalDate()
         val today = now.toLocalDate()
         val currentHour = now.hour
-        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val yesterdayEpoch = yesterday.toEpochDay() * 86400_000L
+        val todayEpoch = today.toEpochDay() * 86400_000L
         val requiredDates = buildSet {
-            add(yesterdayStr)
-            if (currentHour >= 2) add(todayStr)
+            add(yesterdayEpoch)
+            if (currentHour >= 2) add(todayEpoch)
         }
         val existingDates =
-            dailyExtremeDao.getExtremesInRange(yesterdayStr, todayStr, latitude, longitude)
+            dailyExtremeDao.getExtremesInRange(yesterdayEpoch, todayEpoch, latitude, longitude)
                 .filter { it.source == WeatherSource.NWS.id }
                 .map { it.date }
                 .toSet()
         val missingDates = requiredDates - existingDates
 
-        Log.d(TAG, "History check: requiredDates=$requiredDates existingDates=$existingDates missingDates=$missingDates hour=$currentHour")
+        Log.d(TAG, "History check: requiredDates=${requiredDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }} existingDates=${existingDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }} missingDates=${missingDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }} hour=$currentHour")
 
         if (missingDates.isEmpty()) {
             Log.d(TAG, "Skipping backfill: required NWS daily_extremes rows already exist")
             return
         }
 
-        Log.i(TAG, "Missing NWS daily_extremes for $missingDates, backfilling last 48 hours")
+        Log.i(TAG, "Missing NWS daily_extremes for ${missingDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }}, backfilling last 48 hours")
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
         if (gridPoint == null) {
             Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
@@ -202,7 +202,7 @@ class ObservationRepository @Inject constructor(
                         recomputeDailyExtremesForDay(latitude, longitude, day)
                     }
                     val refreshedDates =
-                        dailyExtremeDao.getExtremesInRange(yesterdayStr, todayStr, latitude, longitude)
+                        dailyExtremeDao.getExtremesInRange(yesterdayEpoch, todayEpoch, latitude, longitude)
                             .filter { it.source == WeatherSource.NWS.id }
                             .map { it.date }
                             .toSet()

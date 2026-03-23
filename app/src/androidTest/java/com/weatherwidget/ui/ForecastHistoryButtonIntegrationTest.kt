@@ -10,6 +10,7 @@ import com.weatherwidget.ui.ForecastHistoryActivity.Companion.resolveButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldShowTemperatureButton
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldLaunchTemperature
 import com.weatherwidget.ui.ForecastHistoryActivity.GraphMode
+import com.weatherwidget.testutil.dateEpoch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -59,8 +60,8 @@ class ForecastHistoryButtonIntegrationTest {
         // Insert a forecast for today (made yesterday)
         db.forecastDao().insertForecast(
             ForecastEntity(
-                targetDate = today,
-                forecastDate = yesterday,
+                targetDate = dateEpoch(today),
+                forecastDate = dateEpoch(yesterday),
                 locationLat = lat,
                 locationLon = lon,
                 highTemp = 72f,
@@ -72,7 +73,7 @@ class ForecastHistoryButtonIntegrationTest {
         )
 
         // Query exactly as the activity does
-        val snapshots = db.forecastDao().getForecastEvolution(today, lat, lon)
+        val snapshots = db.forecastDao().getForecastEvolution(dateEpoch(today), lat, lon)
         assertTrue("Expected forecasts in DB but found none", snapshots.isNotEmpty())
 
         // Today + no actuals -> temperature button
@@ -105,7 +106,7 @@ class ForecastHistoryButtonIntegrationTest {
         val futureDate = LocalDate.now().plusDays(3).toString()
 
         // Query with no data inserted
-        val snapshots = db.forecastDao().getForecastEvolution(futureDate, lat, lon)
+        val snapshots = db.forecastDao().getForecastEvolution(dateEpoch(futureDate), lat, lon)
         assertTrue("Expected no snapshots for future date", snapshots.isEmpty())
 
         val showTemperatureButton = shouldShowTemperatureButton(
@@ -139,8 +140,8 @@ class ForecastHistoryButtonIntegrationTest {
 
         db.forecastDao().insertForecast(
             ForecastEntity(
-                targetDate = targetDate,
-                forecastDate = forecastDate,
+                targetDate = dateEpoch(targetDate),
+                forecastDate = dateEpoch(forecastDate),
                 locationLat = lat,
                 locationLon = lon,
                 highTemp = 68f,
@@ -151,7 +152,7 @@ class ForecastHistoryButtonIntegrationTest {
             )
         )
 
-        val snapshots = db.forecastDao().getForecastEvolution(targetDate, lat, lon)
+        val snapshots = db.forecastDao().getForecastEvolution(dateEpoch(targetDate), lat, lon)
         assertTrue("Expected snapshots for past date", snapshots.isNotEmpty())
 
         val showTemperatureButton = shouldShowTemperatureButton(

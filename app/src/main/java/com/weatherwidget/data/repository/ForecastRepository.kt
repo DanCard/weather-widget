@@ -138,18 +138,18 @@ class ForecastRepository
 
                     // Determine the end of our real forecast coverage to fill in the rest with climate normals
                     val maxCoverageDates = mutableListOf<LocalDate>()
-                    nwsForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
-                    meteoForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
-                    wapiForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
-                    silurianForecasts?.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
-                    
-                    // If any expected source is missing from both the fresh fetch AND the cache, 
+                    nwsForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }?.let { maxCoverageDates.add(it) }
+                    meteoForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }?.let { maxCoverageDates.add(it) }
+                    wapiForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }?.let { maxCoverageDates.add(it) }
+                    silurianForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }?.let { maxCoverageDates.add(it) }
+
+                    // If any expected source is missing from both the fresh fetch AND the cache,
                     // we need to fill from today onwards
                     if (maxCoverageDates.isEmpty() && cachedForecasts.isEmpty()) {
                         maxCoverageDates.add(LocalDate.now().minusDays(1))
                     } else if (maxCoverageDates.isEmpty()) {
                         // Use the max date from cache if no fresh fetch succeeded
-                        cachedForecasts.maxOfOrNull { LocalDate.parse(it.targetDate) }?.let { maxCoverageDates.add(it) }
+                        cachedForecasts.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }?.let { maxCoverageDates.add(it) }
                     }
                     
                     val minMaxDate = maxCoverageDates.minOrNull() ?: LocalDate.now()
@@ -235,16 +235,16 @@ class ForecastRepository
                     }
                     result.daily.map { day ->
                         ForecastEntity(
-                            targetDate = day.date, 
-                            forecastDate = LocalDate.now().toString(), 
-                            locationLat = latitude, 
-                            locationLon = longitude, 
+                            targetDate = LocalDate.parse(day.date).toEpochDay() * 86400_000L,
+                            forecastDate = LocalDate.now().toEpochDay() * 86400_000L,
+                            locationLat = latitude,
+                            locationLon = longitude,
                             locationName = locationName,
-                            highTemp = day.highTemp, 
-                            lowTemp = day.lowTemp, 
+                            highTemp = day.highTemp,
+                            lowTemp = day.lowTemp,
                             condition = openMeteoApi.weatherCodeToCondition(day.weatherCode),
-                            isClimateNormal = false, 
-                            source = WeatherSource.OPEN_METEO.id, 
+                            isClimateNormal = false,
+                            source = WeatherSource.OPEN_METEO.id,
                             precipProbability = day.precipProbability
                         )
                     }
@@ -264,16 +264,16 @@ class ForecastRepository
                     }
                     result.daily.map { day ->
                         ForecastEntity(
-                            targetDate = day.date, 
-                            forecastDate = LocalDate.now().toString(), 
-                            locationLat = latitude, 
-                            locationLon = longitude, 
+                            targetDate = LocalDate.parse(day.date).toEpochDay() * 86400_000L,
+                            forecastDate = LocalDate.now().toEpochDay() * 86400_000L,
+                            locationLat = latitude,
+                            locationLon = longitude,
                             locationName = locationName,
-                            highTemp = day.highTemp, 
-                            lowTemp = day.lowTemp, 
+                            highTemp = day.highTemp,
+                            lowTemp = day.lowTemp,
                             condition = day.condition,
-                            isClimateNormal = false, 
-                            source = WeatherSource.WEATHER_API.id, 
+                            isClimateNormal = false,
+                            source = WeatherSource.WEATHER_API.id,
                             precipProbability = day.precipProbability
                         )
                     }
@@ -293,8 +293,8 @@ class ForecastRepository
                     }
                     result.daily.map { day ->
                         ForecastEntity(
-                            targetDate = day.date,
-                            forecastDate = LocalDate.now().toString(),
+                            targetDate = LocalDate.parse(day.date).toEpochDay() * 86400_000L,
+                            forecastDate = LocalDate.now().toEpochDay() * 86400_000L,
                             locationLat = latitude,
                             locationLon = longitude,
                             locationName = locationName,
@@ -392,8 +392,8 @@ class ForecastRepository
             temperatureMap.map { (dateString, temperatures) ->
                 val (pStart, pEnd) = periodTimeMap[dateString] ?: (null to null)
                 ForecastEntity(
-                    targetDate = dateString,
-                    forecastDate = todayDateString,
+                    targetDate = LocalDate.parse(dateString).toEpochDay() * 86400_000L,
+                    forecastDate = todayDate.toEpochDay() * 86400_000L,
                     locationLat = latitude,
                     locationLon = longitude,
                     locationName = locationName,
@@ -403,8 +403,8 @@ class ForecastRepository
                     isClimateNormal = false,
                     source = WeatherSource.NWS.id,
                     precipProbability = precipProbabilityMap[dateString],
-                    periodStartTime = pStart,
-                    periodEndTime = pEnd,
+                    periodStartTime = pStart?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
+                    periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
                 )
             }
         }
@@ -549,32 +549,32 @@ class ForecastRepository
             batchFetchedAt: Long = System.currentTimeMillis(),
         ) {
             val todayDate = LocalDate.now()
-            val todayDateString = todayDate.toString()
+            val todayEpoch = todayDate.toEpochDay() * 86400_000L
             val now = ZonedDateTime.now()
             val forecastsToSave = weatherForecasts.filter { forecast ->
-                val date = runCatching { LocalDate.parse(forecast.targetDate) }.getOrNull()
-                if (date == null || date.isBefore(todayDate) || forecast.isClimateNormal) return@filter false
+                val date = LocalDate.ofEpochDay(forecast.targetDate / 86400_000L)
+                if (date.isBefore(todayDate) || forecast.isClimateNormal) return@filter false
                 // Exclude entries whose daytime period has already ended — NWS overwrites elapsed
                 // periods with observed reality, so snapshotting them would corrupt accuracy tracking
                 // by making tomorrow's "forecast vs actual" comparison observed-vs-observed.
-                val periodEnd = runCatching { ZonedDateTime.parse(forecast.periodEndTime) }.getOrNull()
+                val periodEnd = forecast.periodEndTime?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()) }
                 if (periodEnd != null && periodEnd.isBefore(now)) {
-                    appLogDao.log("SNAPSHOT_SKIP_ELAPSED", "date=${forecast.targetDate} source=${forecast.source} periodEnd=${forecast.periodEndTime}")
+                    appLogDao.log("SNAPSHOT_SKIP_ELAPSED", "date=${LocalDate.ofEpochDay(forecast.targetDate / 86400_000L)} source=${forecast.source} periodEnd=$periodEnd")
                     return@filter false
                 }
                 true
             }.mapNotNull { forecast ->
                 if (forecast.highTemp == null && forecast.lowTemp == null) return@mapNotNull null
-                
+
                 // Preserve full decimal precision for Today's forecast to improve accuracy tracking.
                 // Continue rounding future days to integers for UI consistency and storage.
-                val isToday = forecast.targetDate == todayDateString
+                val isToday = forecast.targetDate == todayEpoch
                 val highTempSaved = if (isToday) forecast.highTemp else forecast.highTemp?.roundToInt()?.toFloat()
                 val lowTempSaved = if (isToday) forecast.lowTemp else forecast.lowTemp?.roundToInt()?.toFloat()
-                
+
                 ForecastEntity(
                     targetDate = forecast.targetDate,
-                    forecastDate = todayDate.toString(),
+                    forecastDate = todayEpoch,
                     locationLat = latitude,
                     locationLon = longitude,
                     locationName = "",
@@ -592,8 +592,8 @@ class ForecastRepository
             if (forecastsToSave.isNotEmpty()) {
                 // Use the optimized DAO query to get existing records for comparison
                 val existingForecasts = forecastDao.getForecastsInRangeBySource(
-                    startDate = todayDate.toString(),
-                    endDate = todayDate.plusDays(14).toString(),
+                    startDate = todayEpoch,
+                    endDate = todayDate.plusDays(14).toEpochDay() * 86400_000L,
                     lat = latitude,
                     lon = longitude,
                     source = sourceId
@@ -638,8 +638,9 @@ class ForecastRepository
             
             while (!cursorDate.isAfter(targetEndDate)) {
                 normalsMap[MonthDay.from(cursorDate)]?.let { (highTemp, lowTemp) ->
+                    val dateEpoch = cursorDate.toEpochDay() * 86400_000L
                     gapEntities.add(ForecastEntity(
-                        cursorDate.toString(), cursorDate.toString(), latitude, longitude, "",
+                        dateEpoch, dateEpoch, latitude, longitude, "",
                         highTemp.toFloat(), lowTemp.toFloat(), "Historical Avg", true,
                         source = WeatherSource.GENERIC_GAP.id
                     ))
@@ -771,11 +772,11 @@ class ForecastRepository
         ): List<ObservationEntity> = observationDao.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
 
         suspend fun getCachedData(latitude: Double, longitude: Double) =
-            forecastDao.getLatestForecastsInRange(LocalDate.now().minusDays(7).toString(), LocalDate.now().plusDays(30).toString(), latitude, longitude)
+            forecastDao.getLatestForecastsInRange(LocalDate.now().minusDays(7).toEpochDay() * 86400_000L, LocalDate.now().plusDays(30).toEpochDay() * 86400_000L, latitude, longitude)
 
         suspend fun getCachedDataBySource(latitude: Double, longitude: Double, source: WeatherSource): List<ForecastEntity> {
-            val startDate = LocalDate.now().minusDays(7).toString()
-            val endDate = LocalDate.now().plusDays(30).toString()
+            val startDate = LocalDate.now().minusDays(7).toEpochDay() * 86400_000L
+            val endDate = LocalDate.now().plusDays(30).toEpochDay() * 86400_000L
             val gapData = forecastDao.getForecastsInRangeBySource(startDate, endDate, latitude, longitude, WeatherSource.GENERIC_GAP.id)
             val sourceData = forecastDao.getForecastsInRangeBySource(startDate, endDate, latitude, longitude, source.id)
             
@@ -794,19 +795,19 @@ class ForecastRepository
                 .mapNotNull { date -> latestSourceByDate[date] ?: latestGapByDate[date] }
         }
 
-        suspend fun getForecastForDate(dateString: String, latitude: Double, longitude: Double) = 
-            forecastDao.getForecastForDate(dateString, latitude, longitude)
-            
-        suspend fun getForecastForDateBySource(dateString: String, latitude: Double, longitude: Double, source: WeatherSource): ForecastEntity? = 
-            forecastDao.getForecastsInRangeBySource(dateString, dateString, latitude, longitude, source.id).firstOrNull()
+        suspend fun getForecastForDate(date: Long, latitude: Double, longitude: Double) =
+            forecastDao.getForecastForDate(date, latitude, longitude)
 
-        suspend fun getForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
+        suspend fun getForecastForDateBySource(date: Long, latitude: Double, longitude: Double, source: WeatherSource): ForecastEntity? =
+            forecastDao.getForecastsInRangeBySource(date, date, latitude, longitude, source.id).firstOrNull()
+
+        suspend fun getForecastsInRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastDao.getForecastsInRange(startDate, endDate, latitude, longitude)
 
-        suspend fun getAllForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) =
+        suspend fun getAllForecastsInRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastDao.getAllForecastsInRange(startDate, endDate, latitude, longitude)
-            
-        suspend fun getWeatherRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
+
+        suspend fun getWeatherRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastDao.getForecastsInRange(startDate, endDate, latitude, longitude)
 
         suspend fun cleanOldData() {

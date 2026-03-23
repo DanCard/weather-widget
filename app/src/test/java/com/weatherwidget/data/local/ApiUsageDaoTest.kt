@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local
 
 import androidx.room.Room
+import com.weatherwidget.testutil.TestData.dateEpoch
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import kotlinx.coroutines.test.runTest
@@ -32,27 +33,30 @@ class ApiUsageDaoTest {
 
     @Test
     fun logCall_insertsNewRowAndIncrements() = runTest {
+        val d0302 = dateEpoch("2026-03-02")
         // Initial log
-        dao.logCall("2026-03-02", "OPEN_METEO")
-        var usage = dao.getUsage("2026-03-02", "OPEN_METEO")
+        dao.logCall(d0302, "OPEN_METEO")
+        var usage = dao.getUsage(d0302, "OPEN_METEO")
         assertEquals(1, usage?.callCount)
 
         // Increment
-        dao.logCall("2026-03-02", "OPEN_METEO")
-        usage = dao.getUsage("2026-03-02", "OPEN_METEO")
+        dao.logCall(d0302, "OPEN_METEO")
+        usage = dao.getUsage(d0302, "OPEN_METEO")
         assertEquals(2, usage?.callCount)
     }
 
     @Test
     fun logCall_multipleDatesAndSources() = runTest {
-        dao.logCall("2026-03-02", "OPEN_METEO")
-        dao.logCall("2026-03-02", "NWS")
-        dao.logCall("2026-03-03", "OPEN_METEO")
-        dao.logCall("2026-03-03", "OPEN_METEO")
+        val d0302 = dateEpoch("2026-03-02")
+        val d0303 = dateEpoch("2026-03-03")
+        dao.logCall(d0302, "OPEN_METEO")
+        dao.logCall(d0302, "NWS")
+        dao.logCall(d0303, "OPEN_METEO")
+        dao.logCall(d0303, "OPEN_METEO")
 
-        assertEquals(1, dao.getUsage("2026-03-02", "OPEN_METEO")?.callCount)
-        assertEquals(1, dao.getUsage("2026-03-02", "NWS")?.callCount)
-        assertEquals(2, dao.getUsage("2026-03-03", "OPEN_METEO")?.callCount)
+        assertEquals(1, dao.getUsage(d0302, "OPEN_METEO")?.callCount)
+        assertEquals(1, dao.getUsage(d0302, "NWS")?.callCount)
+        assertEquals(2, dao.getUsage(d0303, "OPEN_METEO")?.callCount)
 
         assertEquals(3, dao.getTotalUsage("OPEN_METEO"))
         assertEquals(1, dao.getTotalUsage("NWS"))

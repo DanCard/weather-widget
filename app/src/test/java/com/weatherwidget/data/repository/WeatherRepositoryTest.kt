@@ -13,6 +13,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
@@ -232,8 +233,8 @@ class WeatherRepositoryTest {
 
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String = "NWS") =
         ForecastEntity(
-            targetDate = date,
-            forecastDate = date,
+            targetDate = dateEpoch(date),
+            forecastDate = dateEpoch(date),
             locationLat = testLat,
             locationLon = testLon,
             locationName = testLocationName,

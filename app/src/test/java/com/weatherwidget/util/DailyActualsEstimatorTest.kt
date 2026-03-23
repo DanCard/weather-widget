@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
+import com.weatherwidget.testutil.TestData.dateEpoch
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -15,8 +16,8 @@ class DailyActualsEstimatorTest {
     private val now = LocalDateTime.of(2026, 2, 25, 14, 0) // 2:00 PM
     private val displaySource = WeatherSource.OPEN_METEO
     private val fallbackWeather = ForecastEntity(
-        targetDate = "2026-02-25",
-        forecastDate = "2026-02-25",
+        targetDate = dateEpoch("2026-02-25"),
+        forecastDate = dateEpoch("2026-02-25"),
         locationLat = 0.0,
         locationLon = 0.0,
         locationName = "Test",

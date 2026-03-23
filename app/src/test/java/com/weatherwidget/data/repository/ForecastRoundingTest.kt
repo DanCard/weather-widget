@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.util.TemperatureInterpolator
 import io.mockk.mockk
@@ -45,19 +46,19 @@ class ForecastRoundingTest {
         
         repository.saveForecastSnapshot(weather, LAT, LON, "OPEN_METEO")
         
-        val savedForecasts = db.forecastDao().getForecastsInRange(today, tomorrow, LAT, LON)
+        val savedForecasts = db.forecastDao().getForecastsInRange(dateEpoch(today), dateEpoch(tomorrow), LAT, LON)
             .filter { it.source == "OPEN_METEO" }
             .sortedBy { it.targetDate }
-            
+
         assertEquals(2, savedForecasts.size)
-        
+
         // Verify today's precision
-        val todaySaved = savedForecasts.find { it.targetDate == today }!!
+        val todaySaved = savedForecasts.find { it.targetDate == dateEpoch(today) }!!
         assertEquals(72.4f, todaySaved.highTemp!!, 0.001f)
         assertEquals(50.6f, todaySaved.lowTemp!!, 0.001f)
-        
+
         // Verify tomorrow's rounding
-        val tomorrowSaved = savedForecasts.find { it.targetDate == tomorrow }!!
+        val tomorrowSaved = savedForecasts.find { it.targetDate == dateEpoch(tomorrow) }!!
         assertEquals(72.0f, tomorrowSaved.highTemp!!, 0.001f)
         assertEquals(51.0f, tomorrowSaved.lowTemp!!, 0.001f)
     }

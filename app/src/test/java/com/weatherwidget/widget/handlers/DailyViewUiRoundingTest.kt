@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData.dateEpoch
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -71,8 +72,8 @@ class DailyViewUiRoundingTest {
 
     private fun createForecast(date: String, high: Float, low: Float): ForecastEntity {
         return ForecastEntity(
-            targetDate = date,
-            forecastDate = date,
+            targetDate = dateEpoch(date),
+            forecastDate = dateEpoch(date),
             locationLat = 0.0,
             locationLon = 0.0,
             highTemp = high,

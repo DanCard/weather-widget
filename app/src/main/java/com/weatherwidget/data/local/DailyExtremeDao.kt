@@ -21,8 +21,8 @@ interface DailyExtremeDao {
         """,
     )
     suspend fun getExtremesInRange(
-        startDate: String,
-        endDate: String,
+        startDate: Long,
+        endDate: Long,
         lat: Double,
         lon: Double,
     ): List<DailyExtremeEntity>

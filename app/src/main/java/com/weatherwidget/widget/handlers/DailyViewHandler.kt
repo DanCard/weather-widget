@@ -188,7 +188,7 @@ object DailyViewHandler : WidgetViewHandler {
         val weatherByDate =
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-                .groupBy { it.targetDate }
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
                 .mapValues { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
 
         // Set API source indicator
@@ -317,7 +317,7 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
 
         // Set up navigation click handlers
-        val availableDates = weatherList.map { it.targetDate }.toSet() + dailyActuals.keys
+        val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }.toSet() + dailyActuals.keys
         val sortedDates = availableDates.mapNotNull { try { LocalDate.parse(it) } catch (e: Exception) { null } }.sorted()
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${sortedDates.firstOrNull()}, maxDate=${sortedDates.lastOrNull()}")
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)

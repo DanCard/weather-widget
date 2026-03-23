@@ -12,6 +12,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.*
@@ -80,14 +81,14 @@ class WeatherGapTest {
             coEvery { forecastDao.getForecastsInRangeBySource(any(), any(), testLat, testLon, WeatherSource.GENERIC_GAP.id) } returns gapData
             val result = repository.getCachedDataBySource(testLat, testLon, WeatherSource.NWS)
             assertEquals(2, result.size)
-            assertEquals("NWS", result.find { it.targetDate == today }?.source)
-            assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.targetDate == tomorrow }?.source)
+            assertEquals("NWS", result.find { it.targetDate == dateEpoch(today) }?.source)
+            assertEquals(WeatherSource.GENERIC_GAP.id, result.find { it.targetDate == dateEpoch(tomorrow) }?.source)
         }
 
     private fun createForecastEntity(date: String, high: Int, low: Int, source: String, isClimateNormal: Boolean = false) =
         ForecastEntity(
-            targetDate = date,
-            forecastDate = date,
+            targetDate = dateEpoch(date),
+            forecastDate = dateEpoch(date),
             locationLat = testLat,
             locationLon = testLon,
             locationName = testLocationName,

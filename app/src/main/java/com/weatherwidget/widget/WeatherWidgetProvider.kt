@@ -114,8 +114,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
                     // We have some data, refresh all widgets from cache immediately
-                    val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+                    val thirtyDays = LocalDate.now().plusDays(30).toEpochDay() * 86400_000L
 
                     val forecastQueryStartMs = SystemClock.elapsedRealtime()
                     val weatherList =
@@ -130,7 +130,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         if (needsDailyData) {
                             val snapshotQueryStartMs = SystemClock.elapsedRealtime()
                             forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
-                                .groupBy { it.targetDate }
+                                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
                                 .also {
                                     snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
                                 }
@@ -164,8 +164,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     val dailyActualsBySource =
                         if (needsDailyData) {
-                            val historyStartDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                            val tomorrowDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                            val historyStartDate = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+                            val tomorrowDate = LocalDate.now().plusDays(1).toEpochDay() * 86400_000L
                             val extremesQueryStartMs = SystemClock.elapsedRealtime()
                             val extremes = database.dailyExtremeDao().getExtremesInRange(
                                 historyStartDate,
@@ -890,11 +890,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
-                    val targetDateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
-                            .find { it.targetDate == targetDateStr && it.source == displaySource.id }
+                            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
                             ?.precipProbability
                     val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     TemperatureViewHandler.updateWidget(
@@ -916,11 +916,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
-                    val targetDateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
-                            .find { it.targetDate == targetDateStr && it.source == displaySource.id }
+                            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
                             ?.precipProbability
                     val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     PrecipViewHandler.updateWidget(
@@ -941,11 +941,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val now = LocalDateTime.now()
                     val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
                     val centerTime = now.plusHours(hourlyOffset.toLong())
-                    val targetDateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
                     val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
-                            .find { it.targetDate == targetDateStr && it.source == displaySource.id }
+                            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
                             ?.precipProbability
                     val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     com.weatherwidget.widget.handlers.CloudCoverViewHandler.updateWidget(

@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
@@ -40,8 +41,8 @@ class DailyViewApiToggleIntegrationTest : IsolatedIntegrationTest("daily_api_tog
             val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
             db.forecastDao().insertForecast(
                 ForecastEntity(
-                    targetDate = today,
-                    forecastDate = today,
+                    targetDate = dateEpoch(today),
+                    forecastDate = dateEpoch(today),
                     highTemp = 75f,
                     lowTemp = 55f,
                     condition = "Sunny",

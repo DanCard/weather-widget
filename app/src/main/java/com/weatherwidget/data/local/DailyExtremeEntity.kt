@@ -17,7 +17,7 @@ import androidx.room.Index
     ],
 )
 data class DailyExtremeEntity(
-    val date: String,           // "2026-03-18"
+    val date: Long,             // UTC midnight epoch millis (e.g., 2026-03-18T00:00:00Z)
     val source: String,         // WeatherSource.id (NWS, OPEN_METEO, etc.)
     val locationLat: Double,
     val locationLon: Double,

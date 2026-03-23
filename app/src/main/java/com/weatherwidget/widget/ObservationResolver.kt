@@ -158,7 +158,6 @@ object ObservationResolver {
         locationLon: Double,
     ): List<DailyExtremeEntity> {
         val local = ZoneId.systemDefault()
-        val dateFormatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
         val now = System.currentTimeMillis()
 
         val filteredObs = observations.filter { it.stationId != "NWS_MAIN" }
@@ -168,7 +167,7 @@ object ObservationResolver {
                 val date = Instant.ofEpochMilli(obs.timestamp)
                     .atZone(local)
                     .toLocalDate()
-                    .format(dateFormatter)
+                    .toEpochDay() * 86400_000L
                 date to inferSource(obs.stationId)
             }
             .mapNotNull { (key, dayObs) ->
@@ -215,7 +214,7 @@ object ObservationResolver {
                 val date = Instant.ofEpochMilli(obs.timestamp)
                     .atZone(ZoneId.systemDefault())
                     .toLocalDate()
-                    .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                    .toEpochDay() * 86400_000L
                 date to inferSource(obs.stationId)
             }
             .mapNotNull { (key, dayObs) ->
@@ -239,8 +238,10 @@ object ObservationResolver {
      */
     fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<DailyActual> =
         extremes.map { entity ->
+            val dateStr = java.time.LocalDate.ofEpochDay(entity.date / 86400_000L)
+                .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
             DailyActual(
-                date = entity.date,
+                date = dateStr,
                 highTemp = entity.highTemp,
                 lowTemp = entity.lowTemp,
                 condition = entity.condition,
@@ -255,8 +256,10 @@ object ObservationResolver {
             .groupBy { it.source }
             .mapValues { (_, sourceExtremes) ->
                 sourceExtremes.associate { entity ->
-                    entity.date to DailyActual(
-                        date = entity.date,
+                    val dateStr = java.time.LocalDate.ofEpochDay(entity.date / 86400_000L)
+                        .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                    dateStr to DailyActual(
+                        date = dateStr,
                         highTemp = entity.highTemp,
                         lowTemp = entity.lowTemp,
                         condition = entity.condition,

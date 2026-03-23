@@ -24,7 +24,6 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -200,10 +199,10 @@ class WeatherWidgetWorker
             lon: Double,
         ): Map<String, List<ForecastEntity>> {
             return try {
-                val startDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val endDate = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val startDate = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+                val endDate = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
                 val snapshots = weatherRepository.getAllForecastsInRange(startDate, endDate, lat, lon)
-                snapshots.groupBy { it.targetDate }
+                snapshots.groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch forecast snapshots", e)
                 emptyMap()
@@ -223,8 +222,8 @@ class WeatherWidgetWorker
                     weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startLocalDate, endLocalDate)
                 }
                 
-                val startDate = startLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val endDate = endLocalDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val startDate = startLocalDate.toEpochDay() * 86400_000L
+                val endDate = endLocalDate.toEpochDay() * 86400_000L
                 val extremes = WeatherDatabase.getDatabase(context).dailyExtremeDao()
                     .getExtremesInRange(startDate, endDate, lat, lon)
                 ObservationResolver.extremesToDailyActualsBySource(extremes)

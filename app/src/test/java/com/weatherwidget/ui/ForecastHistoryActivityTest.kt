@@ -11,6 +11,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.ui.ForecastHistoryActivity.ActualLookupMode
 import com.weatherwidget.ui.ForecastHistoryActivity.ButtonMode
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.buildActualFromNwsObservations
@@ -219,8 +220,8 @@ class ForecastHistoryActivityTest {
     fun `selectLatestCompleteActualFromForecasts - prefers most recently fetched complete row`() {
         val targetDate = "2026-02-28"
         val base = ForecastEntity(
-            targetDate = targetDate,
-            forecastDate = "2026-02-28",
+            targetDate = dateEpoch(targetDate),
+            forecastDate = dateEpoch("2026-02-28"),
             locationLat = 37.0,
             locationLon = -122.0,
             locationName = "",

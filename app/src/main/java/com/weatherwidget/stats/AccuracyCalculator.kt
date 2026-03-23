@@ -100,26 +100,27 @@ class AccuracyCalculator
             val endDate = LocalDate.now().minusDays(1)
             val startDate = endDate.minusDays(days.toLong() - 1)
 
-            val startDateStr = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val endDateStr = endDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val startEpoch = startDate.toEpochDay() * 86400_000L
+            val endEpoch = endDate.toEpochDay() * 86400_000L
 
-            val extremes = dailyExtremeDao.getExtremesInRange(startDateStr, endDateStr, lat, lon)
+            val extremes = dailyExtremeDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
                 .filter { it.source == source.id }
             val dailyActuals = ObservationResolver.extremesToDailyActuals(extremes)
 
-            val forecasts = forecastDao.getForecastsInRangeBySource(startDateStr, endDateStr, lat, lon, source.id)
+            val forecasts = forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, source.id)
 
             val dailyAccuracies = mutableListOf<DailyAccuracy>()
 
             for (actual in dailyActuals) {
                 val targetDate = LocalDate.parse(actual.date)
                 val forecastDate = targetDate.minusDays(1)
-                val forecastDateStr = forecastDate.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val targetEpoch = targetDate.toEpochDay() * 86400_000L
+                val forecastEpoch = forecastDate.toEpochDay() * 86400_000L
 
                 val forecast = forecasts
                     .filter {
-                        it.targetDate == actual.date &&
-                                it.forecastDate == forecastDateStr &&
+                        it.targetDate == targetEpoch &&
+                                it.forecastDate == forecastEpoch &&
                                 it.source == source.id
                     }
                     .maxByOrNull { it.fetchedAt }

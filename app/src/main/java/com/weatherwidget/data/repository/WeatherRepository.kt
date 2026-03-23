@@ -68,19 +68,19 @@ class WeatherRepository
         suspend fun getCachedDataBySource(latitude: Double, longitude: Double, source: WeatherSource) = 
             forecastRepository.getCachedDataBySource(latitude, longitude, source)
             
-        suspend fun getForecastForDate(dateString: String, latitude: Double, longitude: Double) = 
-            forecastRepository.getForecastForDate(dateString, latitude, longitude)
-            
-        suspend fun getForecastForDateBySource(dateString: String, latitude: Double, longitude: Double, source: WeatherSource) = 
-            forecastRepository.getForecastForDateBySource(dateString, latitude, longitude, source)
-            
-        suspend fun getForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
+        suspend fun getForecastForDate(date: Long, latitude: Double, longitude: Double) =
+            forecastRepository.getForecastForDate(date, latitude, longitude)
+
+        suspend fun getForecastForDateBySource(date: Long, latitude: Double, longitude: Double, source: WeatherSource) =
+            forecastRepository.getForecastForDateBySource(date, latitude, longitude, source)
+
+        suspend fun getForecastsInRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastRepository.getForecastsInRange(startDate, endDate, latitude, longitude)
 
-        suspend fun getAllForecastsInRange(startDate: String, endDate: String, latitude: Double, longitude: Double) =
+        suspend fun getAllForecastsInRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastRepository.getAllForecastsInRange(startDate, endDate, latitude, longitude)
-            
-        suspend fun getWeatherRange(startDate: String, endDate: String, latitude: Double, longitude: Double) = 
+
+        suspend fun getWeatherRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastRepository.getWeatherRange(startDate, endDate, latitude, longitude)
             
         suspend fun getLatestLocation(): Pair<Double, Double>? = 

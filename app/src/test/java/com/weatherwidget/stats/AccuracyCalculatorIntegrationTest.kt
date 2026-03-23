@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestDatabase
+import com.weatherwidget.testutil.TestData.dateEpoch
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -60,7 +61,7 @@ class AccuracyCalculatorIntegrationTest {
         db.dailyExtremeDao().insertAll(
             listOf(
                 DailyExtremeEntity(
-                    date = date,
+                    date = dateEpoch(date),
                     source = source.id,
                     locationLat = lat,
                     locationLon = lon,
@@ -88,8 +89,8 @@ class AccuracyCalculatorIntegrationTest {
         db.forecastDao().insertAll(
             listOf(
                 ForecastEntity(
-                    targetDate = targetDate,
-                    forecastDate = forecastDate,
+                    targetDate = dateEpoch(targetDate),
+                    forecastDate = dateEpoch(forecastDate),
                     locationLat = lat,
                     locationLon = lon,
                     locationName = "Test",

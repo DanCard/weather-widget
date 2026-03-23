@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetStateManager
 import io.ktor.client.*
@@ -100,19 +101,19 @@ class OpenMeteoIntegrationTest {
         repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
 
         // Query the 'forecasts' table (snapshots)
-        val snapshots = db.forecastDao().getForecastsInRange(today, tomorrow, testLat, testLon)
+        val snapshots = db.forecastDao().getForecastsInRange(dateEpoch(today), dateEpoch(tomorrow), testLat, testLon)
             .filter { it.source == "OPEN_METEO" }
             .sortedBy { it.targetDate }
 
         assertEquals("Should have 2 snapshots (today and tomorrow)", 2, snapshots.size)
 
         // 1. Verify Today's high (Should be EXACT 72.4)
-        val todaySnap = snapshots.find { it.targetDate == today }!!
+        val todaySnap = snapshots.find { it.targetDate == dateEpoch(today) }!!
         assertEquals("Today high should preserve decimal", 72.4f, todaySnap.highTemp!!, 0.001f)
         assertEquals("Today low should preserve decimal", 50.2f, todaySnap.lowTemp!!, 0.001f)
 
         // 2. Verify Tomorrow's high (Should be ROUNDED to 73.0)
-        val tomorrowSnap = snapshots.find { it.targetDate == tomorrow }!!
+        val tomorrowSnap = snapshots.find { it.targetDate == dateEpoch(tomorrow) }!!
         assertEquals("Tomorrow high should be rounded", 73.0f, tomorrowSnap.highTemp!!, 0.001f)
         assertEquals("Tomorrow low should be rounded", 52.0f, tomorrowSnap.lowTemp!!, 0.001f)
     }

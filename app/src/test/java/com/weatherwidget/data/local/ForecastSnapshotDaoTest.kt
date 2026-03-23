@@ -3,6 +3,7 @@ package com.weatherwidget.data.local
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -42,9 +43,9 @@ class ForecastSnapshotDaoTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-19", fetchedAt = 1000L))
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", fetchedAt = 2000L, highTemp = 70f))
 
-        val result = dao.getForecastForDate("2026-02-21", LAT, LON)
+        val result = dao.getForecastForDate(dateEpoch("2026-02-21"), LAT, LON)
         assertNotNull(result)
-        assertEquals("2026-02-20", result!!.forecastDate)
+        assertEquals(dateEpoch("2026-02-20"), result!!.forecastDate)
         assertEquals(70f, result.highTemp)
     }
 
@@ -55,9 +56,9 @@ class ForecastSnapshotDaoTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21"))
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-22"))
 
-        val range = dao.getForecastsInRange("2026-02-20", "2026-02-21", LAT, LON)
+        val range = dao.getForecastsInRange(dateEpoch("2026-02-20"), dateEpoch("2026-02-21"), LAT, LON)
         assertEquals(2, range.size)
-        assertTrue(range.all { it.targetDate in listOf("2026-02-20", "2026-02-21") })
+        assertTrue(range.all { it.targetDate in listOf(dateEpoch("2026-02-20"), dateEpoch("2026-02-21")) })
     }
 
     @Test
@@ -65,7 +66,7 @@ class ForecastSnapshotDaoTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-18"))
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-20"))
 
-        val range = dao.getForecastsInRange("2026-02-19", "2026-02-19", LAT, LON)
+        val range = dao.getForecastsInRange(dateEpoch("2026-02-19"), dateEpoch("2026-02-19"), LAT, LON)
         assertEquals(0, range.size)
     }
 
@@ -74,10 +75,10 @@ class ForecastSnapshotDaoTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", source = "NWS", highTemp = 65f, fetchedAt = 1000L))
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", source = "OPEN_METEO", highTemp = 67f, fetchedAt = 1000L))
 
-        val nws = dao.getForecastForDateBySource("2026-02-21", "2026-02-20", LAT, LON, "NWS")
+        val nws = dao.getForecastForDateBySource(dateEpoch("2026-02-21"), dateEpoch("2026-02-20"), LAT, LON, "NWS")
         assertEquals(65f, nws!!.highTemp)
 
-        val meteo = dao.getForecastForDateBySource("2026-02-21", "2026-02-20", LAT, LON, "OPEN_METEO")
+        val meteo = dao.getForecastForDateBySource(dateEpoch("2026-02-21"), dateEpoch("2026-02-20"), LAT, LON, "OPEN_METEO")
         assertEquals(67f, meteo!!.highTemp)
     }
 
@@ -87,9 +88,9 @@ class ForecastSnapshotDaoTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-18", fetchedAt = 500L))
         dao.insertForecast(TestData.forecast(targetDate = "2026-02-21", forecastDate = "2026-02-20", fetchedAt = 2000L))
 
-        val evolution = dao.getForecastEvolution("2026-02-21", LAT, LON)
+        val evolution = dao.getForecastEvolution(dateEpoch("2026-02-21"), LAT, LON)
         assertEquals(3, evolution.size)
-        assertEquals("2026-02-18", evolution[0].forecastDate)
-        assertEquals("2026-02-20", evolution[2].forecastDate)
+        assertEquals(dateEpoch("2026-02-18"), evolution[0].forecastDate)
+        assertEquals(dateEpoch("2026-02-20"), evolution[2].forecastDate)
     }
 }

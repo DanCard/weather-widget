@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
+import com.weatherwidget.testutil.TestData.dateEpoch
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -23,8 +24,8 @@ class TripleLinePrecisionTest {
         // 1. Setup a "Snapshot" from the DB for Today with decimal precision
         // This simulates our new change where snapshots are no longer rounded for Today.
         val forecastFromSnapshot = ForecastEntity(
-            targetDate = todayStr,
-            forecastDate = todayStr,
+            targetDate = dateEpoch(todayStr),
+            forecastDate = dateEpoch(todayStr),
             locationLat = 0.0,
             locationLon = 0.0,
             highTemp = 72.4f, // Precise decimal

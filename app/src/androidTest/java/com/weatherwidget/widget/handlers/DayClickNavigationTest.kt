@@ -11,6 +11,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.AndroidTestDatabase
 import com.weatherwidget.testutil.AndroidTestWidgetState
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -52,8 +53,8 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
             val todayStr = LocalDate.now().toString()
             db.forecastDao().insertForecast(
                 ForecastEntity(
-                    targetDate = todayStr,
-                    forecastDate = todayStr,
+                    targetDate = dateEpoch(todayStr),
+                    forecastDate = dateEpoch(todayStr),
                     locationLat = WeatherWidgetWorker.DEFAULT_LAT,
                     locationLon = WeatherWidgetWorker.DEFAULT_LON,
                     locationName = "Mountain View, CA",
@@ -200,8 +201,8 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
 
             forecastDao.insertForecast(
                 ForecastEntity(
-                    targetDate = todayStr,
-                    forecastDate = todayStr,
+                    targetDate = dateEpoch(todayStr),
+                    forecastDate = dateEpoch(todayStr),
                     locationLat = lat,
                     locationLon = lon,
                     locationName = "Mountain View, CA",
@@ -223,7 +224,7 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
                 ),
             )
 
-            val todayWeather = forecastDao.getForecastForDate(todayStr, lat, lon)
+            val todayWeather = forecastDao.getForecastForDate(dateEpoch(todayStr), lat, lon)
             val dailyPrecipProb = todayWeather?.precipProbability
 
             val zoneId = ZoneId.systemDefault()

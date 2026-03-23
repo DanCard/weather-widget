@@ -19,6 +19,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
+import com.weatherwidget.testutil.TestData.dateEpoch
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -81,7 +82,7 @@ class NwsMiddayOverrideTest {
         )
         coEvery { nwsApi.getObservationStations(any()) } returns emptyList()
         val result = repository.fetchFromNws(testLat, testLon, testLocationName)
-        val tomorrowEntry = result.find { it.targetDate == tomorrow }
+        val tomorrowEntry = result.find { it.targetDate == dateEpoch(tomorrow) }
         assertEquals("Fog then Partly Sunny", tomorrowEntry?.condition)
     }
 }

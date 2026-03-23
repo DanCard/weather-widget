@@ -4,6 +4,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.local.*
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -29,8 +30,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
         
         // 1. Setup partial NWS forecast snapshot
         val partialForecast = ForecastEntity(
-            targetDate = yesterdayStr,
-            forecastDate = yesterdayStr,
+            targetDate = dateEpoch(yesterdayStr),
+            forecastDate = dateEpoch(yesterdayStr),
             highTemp = 77f,
             lowTemp = null, // Missing low from midday fetch
             condition = "Sunny",
@@ -77,8 +78,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
         // We should use the complete one for the blue forecast overlay.
         
         val completeForecast = ForecastEntity(
-            targetDate = yesterdayStr,
-            forecastDate = yesterday.minusDays(1).toString(),
+            targetDate = dateEpoch(yesterdayStr),
+            forecastDate = dateEpoch(yesterday.minusDays(1).toString()),
             highTemp = 75f,
             lowTemp = 50f,
             condition = "Cloudy",
@@ -87,10 +88,10 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             locationLon = -122.08,
             fetchedAt = 1000L // Older
         )
-        
+
         val partialForecast = ForecastEntity(
-            targetDate = yesterdayStr,
-            forecastDate = yesterdayStr,
+            targetDate = dateEpoch(yesterdayStr),
+            forecastDate = dateEpoch(yesterdayStr),
             highTemp = 77f,
             lowTemp = null,
             condition = "Sunny",
@@ -125,8 +126,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
         
         val todayStr = today.toString()
         val middayWeather = ForecastEntity(
-            targetDate = todayStr,
-            forecastDate = todayStr,
+            targetDate = dateEpoch(todayStr),
+            forecastDate = dateEpoch(todayStr),
             highTemp = 66f,
             lowTemp = null, // Missing!
             condition = "Sunny",

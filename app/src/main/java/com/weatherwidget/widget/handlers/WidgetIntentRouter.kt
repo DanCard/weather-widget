@@ -111,8 +111,8 @@ object WidgetIntentRouter {
         val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
-        val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val thirtyDays = LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+        val thirtyDays = LocalDate.now().plusDays(30).toEpochDay() * 86400_000L
 
         val weatherList = forecastDao.getForecastsInRange(historyStart, thirtyDays, lat, lon)
 
@@ -120,22 +120,21 @@ object WidgetIntentRouter {
             weatherList.filter {
                 it.source == displaySource.id || it.source == com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id
             }
-                .groupBy { it.targetDate }
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
                 .map { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
-        val weatherByDate = filteredWeatherList.associateBy { it.targetDate }
+        val weatherByDate = filteredWeatherList.associateBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
 
         val today = LocalDate.now()
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val (numColumns, _) = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val isEveningMode = NavigationUtils.isEveningMode()
 
-        val availableForecastDates = weatherList.map { it.targetDate }.toSet()
-        
+        val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }.toSet()
+
         val dailyActuals = getDailyActuals(database, lat, lon)
-        val availableObsDates = dailyActuals.values.flatMap { it.keys }.toSet()
-        
+        val availableObsDates = dailyActuals.values.flatMap { it.keys }.map { LocalDate.parse(it) }.toSet()
+
         val availableDates = (availableForecastDates + availableObsDates)
-            .map { LocalDate.parse(it) }
             .distinct()
             .sorted()
 
@@ -197,7 +196,7 @@ object WidgetIntentRouter {
 
         val forecastSnapshots =
             forecastDao.getAllForecastsInRange(historyStart, thirtyDays, lat, lon)
-                .groupBy { it.targetDate }
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
 
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
@@ -392,13 +391,13 @@ object WidgetIntentRouter {
 
             updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, newSource, lat, lon, repository)
         } else {
-            val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+            val twoWeeks = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
 
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
                 forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
-                    .groupBy { it.targetDate }
+                    .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
 
             val zoneId = ZoneId.systemDefault()
             val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
@@ -472,14 +471,14 @@ object WidgetIntentRouter {
                 )
             }
         } else {
-            val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+            val twoWeeks = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
 
             val loadStartMs = SystemClock.elapsedRealtime()
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
                 forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
-                    .groupBy { it.targetDate }
+                    .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
 
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()
@@ -514,8 +513,8 @@ object WidgetIntentRouter {
         lat: Double,
         lon: Double,
     ): DailyActualsBySource {
-        val startDate = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val endDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val startDate = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+        val endDate = LocalDate.now().plusDays(1).toEpochDay() * 86400_000L
         val extremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
         return com.weatherwidget.widget.ObservationResolver.extremesToDailyActualsBySource(extremes)
     }
@@ -530,13 +529,11 @@ object WidgetIntentRouter {
         zoom: com.weatherwidget.widget.ZoomLevel? = null,
         now: LocalDateTime = LocalDateTime.now(),
     ): Boolean {
-        val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val futureEnd = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+        val futureEnd = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
         val sourceDaily = forecastDao.getForecastsInRangeBySource(historyStart, futureEnd, lat, lon, source.id)
         val maxDailyDate =
-            sourceDaily.mapNotNull {
-                runCatching { LocalDate.parse(it.targetDate) }.getOrNull()
-            }.maxOrNull()
+            sourceDaily.map { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }.maxOrNull()
         val hasRequiredFutureCoverage = maxDailyDate != null && !maxDailyDate.isBefore(LocalDate.now().plusDays(2))
 
         val sourceHourly =
@@ -709,12 +706,12 @@ object WidgetIntentRouter {
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
             updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
         } else {
-            val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+            val twoWeeks = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
                 forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
-                    .groupBy { it.targetDate }
+                    .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()
             val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
@@ -812,12 +809,12 @@ object WidgetIntentRouter {
                 }
             }
             com.weatherwidget.widget.ViewMode.DAILY -> {
-                val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-                val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+                val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+                val twoWeeks = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
                 val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
                 val forecastSnapshots =
                     forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
-                        .groupBy { it.targetDate }
+                        .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
                 val now = LocalDateTime.now()
                 val zoneId = ZoneId.systemDefault()
                 val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
@@ -882,13 +879,13 @@ object WidgetIntentRouter {
             val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
             updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
         } else {
-            val historyStart = LocalDate.now().minusDays(30).format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val twoWeeks = LocalDate.now().plusDays(14).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
+            val twoWeeks = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
 
             val weatherList = forecastDao.getForecastsInRange(historyStart, twoWeeks, lat, lon)
             val forecastSnapshots =
                 forecastDao.getAllForecastsInRange(historyStart, twoWeeks, lat, lon)
-                    .groupBy { it.targetDate }
+                    .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
 
             val now = LocalDateTime.now()
             val zoneId = ZoneId.systemDefault()
@@ -917,9 +914,9 @@ object WidgetIntentRouter {
         val viewMode = stateManager.getViewMode(appWidgetId)
         val appWidgetManager = AppWidgetManager.getInstance(context)
 
-        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayEpoch = LocalDate.now().toEpochDay() * 86400_000L
         val database = WeatherDatabase.getDatabase(context)
-        val weatherList = database.forecastDao().getForecastsInRange(todayStr, todayStr, lat, lon)
+        val weatherList = database.forecastDao().getForecastsInRange(todayEpoch, todayEpoch, lat, lon)
         val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
 

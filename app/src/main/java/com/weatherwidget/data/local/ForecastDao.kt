@@ -44,7 +44,7 @@ interface ForecastDao {
     """,
     )
     suspend fun getForecastForDate(
-        targetDate: String,
+        targetDate: Long,
         lat: Double,
         lon: Double,
     ): ForecastEntity?
@@ -61,8 +61,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getSpecificForecast(
-        targetDate: String,
-        forecastDate: String,
+        targetDate: Long,
+        forecastDate: Long,
         lat: Double,
         lon: Double,
     ): ForecastEntity?
@@ -80,8 +80,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getForecastForDateBySource(
-        targetDate: String,
-        forecastDate: String,
+        targetDate: Long,
+        forecastDate: Long,
         lat: Double,
         lon: Double,
         source: String,
@@ -105,8 +105,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getForecastsInRange(
-        startDate: String,
-        endDate: String,
+        startDate: Long,
+        endDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
@@ -130,8 +130,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getLatestForecastsInRangeBySource(
-        startDate: String,
-        endDate: String,
+        startDate: Long,
+        endDate: Long,
         lat: Double,
         lon: Double,
         source: String,
@@ -155,8 +155,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getLatestForecastsInRange(
-        startDate: String,
-        endDate: String,
+        startDate: Long,
+        endDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
@@ -172,8 +172,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getAllForecastsInRange(
-        startDate: String,
-        endDate: String,
+        startDate: Long,
+        endDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>
@@ -190,8 +190,8 @@ interface ForecastDao {
     """,
     )
     suspend fun getForecastsInRangeBySource(
-        startDate: String,
-        endDate: String,
+        startDate: Long,
+        endDate: Long,
         lat: Double,
         lon: Double,
         source: String,
@@ -222,7 +222,7 @@ interface ForecastDao {
     """,
     )
     suspend fun getForecastEvolution(
-        targetDate: String,
+        targetDate: Long,
         lat: Double,
         lon: Double,
     ): List<ForecastEntity>

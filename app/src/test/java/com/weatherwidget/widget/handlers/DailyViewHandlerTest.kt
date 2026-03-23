@@ -19,6 +19,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
@@ -1223,8 +1224,8 @@ class DailyViewHandlerTest {
         lowTemp: Float? = 55f,
     ): ForecastEntity {
         return ForecastEntity(
-            targetDate = date,
-            forecastDate = date,
+            targetDate = dateEpoch(date),
+            forecastDate = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
             locationName = "Test",

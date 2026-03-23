@@ -32,7 +32,6 @@ import io.ktor.client.request.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import javax.inject.Singleton
 
 @Module
@@ -69,7 +68,7 @@ object AppModule {
                     else -> "UNKNOWN"
                 }
                 if (source != "UNKNOWN") {
-                    val date = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    val date = LocalDate.now().toEpochDay() * 86400_000L
                     apiUsageDao.logCall(date, source)
                 }
                 execute(request)

@@ -164,9 +164,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     ?.key ?: "Observed"
             val fetchedAt = nwsObservations.maxOfOrNull { it.fetchedAt } ?: System.currentTimeMillis()
 
+            val targetDateEpoch = LocalDate.parse(targetDate).toEpochDay() * 86400_000L
             return ForecastEntity(
-                targetDate = targetDate,
-                forecastDate = targetDate,
+                targetDate = targetDateEpoch,
+                forecastDate = targetDateEpoch,
                 locationLat = lat,
                 locationLon = lon,
                 locationName = "",
@@ -285,9 +286,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
         date: LocalDate,
         requestedSource: WeatherSource?,
     ) {
+        val targetDateEpoch = date.toEpochDay() * 86400_000L
         lifecycleScope.launch(Dispatchers.IO) {
             try {
-                val allSnapshots = forecastDao.getForecastEvolution(targetDate, lat, lon)
+                val allSnapshots = forecastDao.getForecastEvolution(targetDateEpoch, lat, lon)
                 val snapshots =
                     if (requestedSource != null) {
                         allSnapshots.filter { it.source == requestedSource.id }
@@ -307,7 +309,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                                 requestedSource = checkNotNull(requestedSource),
                             )
                         ActualLookupMode.ANY_SOURCE ->
-                            forecastDao.getForecastForDate(targetDate, lat, lon)
+                            forecastDao.getForecastForDate(targetDateEpoch, lat, lon)
                     }
 
                 withContext(Dispatchers.Main) {
@@ -325,13 +327,15 @@ class ForecastHistoryActivity : AppCompatActivity() {
         lon: Double,
         requestedSource: WeatherSource,
     ): ForecastEntity? {
+        val targetLocalDate = LocalDate.parse(targetDate)
+        val targetDateEpoch = targetLocalDate.toEpochDay() * 86400_000L
         if (requestedSource != WeatherSource.NWS) {
             return forecastDao
-                .getForecastsInRangeBySource(targetDate, targetDate, lat, lon, requestedSource.id)
+                .getForecastsInRangeBySource(targetDateEpoch, targetDateEpoch, lat, lon, requestedSource.id)
                 .maxByOrNull { it.fetchedAt }
         }
 
-        val nwsForecasts = forecastDao.getForecastsInRangeBySource(targetDate, targetDate, lat, lon, WeatherSource.NWS.id)
+        val nwsForecasts = forecastDao.getForecastsInRangeBySource(targetDateEpoch, targetDateEpoch, lat, lon, WeatherSource.NWS.id)
         val nwsFromForecastEndpoint = selectLatestCompleteActualFromForecasts(nwsForecasts)
         if (nwsFromForecastEndpoint != null) {
             Log.d(
@@ -341,7 +345,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
             return nwsFromForecastEndpoint
         }
 
-        val targetLocalDate = LocalDate.parse(targetDate)
         val localZone = ZoneId.systemDefault()
         val startTs = targetLocalDate.atStartOfDay(localZone).toEpochSecond() * 1000
         val endTs = targetLocalDate.plusDays(1).atStartOfDay(localZone).toEpochSecond() * 1000
@@ -372,10 +375,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         val evolutionPoints =
             snapshots.map { snapshot ->
-                val forecastDate = LocalDate.parse(snapshot.forecastDate)
+                val forecastDate = LocalDate.ofEpochDay(snapshot.forecastDate / 86400_000L)
                 val daysAhead = java.time.temporal.ChronoUnit.DAYS.between(forecastDate, date).toInt()
                 ForecastEvolutionRenderer.EvolutionPoint(
-                    forecastDate = snapshot.forecastDate,
+                    forecastDate = forecastDate.toString(),
                     fetchedAt = snapshot.fetchedAt,
                     daysAhead = daysAhead,
                     highTemp = snapshot.highTemp?.roundToInt(),
@@ -550,14 +553,13 @@ class ForecastHistoryActivity : AppCompatActivity() {
     private suspend fun backfillDailyExtremesIfNeeded(lat: Double, lon: Double) {
         val endDate = LocalDate.now()
         val startDate = endDate.minusDays(30)
-        val startDateStr = startDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-        val endDateStr = endDate.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-
+        val startEpoch = startDate.toEpochDay() * 86400_000L
+        val endEpoch = endDate.toEpochDay() * 86400_000L
         weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate)
-        val existingExtremes = dailyExtremeDao.getExtremesInRange(startDateStr, endDateStr, lat, lon)
+        val existingExtremes = dailyExtremeDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
         val existingDates = existingExtremes.filter { it.source == WeatherSource.NWS.id }.map { it.date }.toSet()
         val nwsForecastDates =
-            forecastDao.getForecastsInRangeBySource(startDateStr, endDateStr, lat, lon, WeatherSource.NWS.id)
+            forecastDao.getForecastsInRangeBySource(startEpoch, endEpoch, lat, lon, WeatherSource.NWS.id)
                 .map { it.targetDate }
                 .toSet()
 

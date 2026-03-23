@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 40,
+    version = 41,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -97,6 +97,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_37_38,
                             MIGRATION_38_39,
                             MIGRATION_39_40,
+                            MIGRATION_40_41,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -1089,6 +1090,103 @@ abstract class WeatherDatabase : RoomDatabase() {
                     db.execSQL("DROP TABLE hourly_forecasts")
                     db.execSQL("ALTER TABLE hourly_forecasts_new RENAME TO hourly_forecasts")
                     db.execSQL("CREATE INDEX IF NOT EXISTS index_hourly_forecasts_locationLat_locationLon ON hourly_forecasts (locationLat, locationLon)")
+                }
+            }
+
+        val MIGRATION_40_41 =
+            object : Migration(40, 41) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    // api_usage_stats: date TEXT -> INTEGER (UTC midnight epoch millis)
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS api_usage_stats_new (
+                            `date` INTEGER NOT NULL,
+                            `apiSource` TEXT NOT NULL,
+                            `callCount` INTEGER NOT NULL,
+                            PRIMARY KEY(`date`, `apiSource`)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO api_usage_stats_new SELECT
+                            CAST(strftime('%s', `date`) AS INTEGER) * 1000,
+                            `apiSource`, `callCount`
+                        FROM api_usage_stats
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE api_usage_stats")
+                    db.execSQL("ALTER TABLE api_usage_stats_new RENAME TO api_usage_stats")
+
+                    // forecasts: targetDate/forecastDate TEXT -> INTEGER; periodStartTime/periodEndTime nulled out
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS forecasts_new (
+                            `targetDate` INTEGER NOT NULL,
+                            `forecastDate` INTEGER NOT NULL,
+                            `locationLat` REAL NOT NULL,
+                            `locationLon` REAL NOT NULL,
+                            `locationName` TEXT NOT NULL,
+                            `highTemp` REAL,
+                            `lowTemp` REAL,
+                            `condition` TEXT NOT NULL,
+                            `isClimateNormal` INTEGER NOT NULL,
+                            `source` TEXT NOT NULL,
+                            `precipProbability` INTEGER,
+                            `periodStartTime` INTEGER,
+                            `periodEndTime` INTEGER,
+                            `batchFetchedAt` INTEGER NOT NULL,
+                            `fetchedAt` INTEGER NOT NULL,
+                            PRIMARY KEY(`targetDate`, `forecastDate`, `locationLat`, `locationLon`, `source`, `fetchedAt`)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO forecasts_new SELECT
+                            CAST(strftime('%s', `targetDate`) AS INTEGER) * 1000,
+                            CAST(strftime('%s', `forecastDate`) AS INTEGER) * 1000,
+                            `locationLat`, `locationLon`, `locationName`,
+                            `highTemp`, `lowTemp`, `condition`, `isClimateNormal`, `source`,
+                            `precipProbability`,
+                            NULL, NULL,
+                            `batchFetchedAt`, `fetchedAt`
+                        FROM forecasts
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE forecasts")
+                    db.execSQL("ALTER TABLE forecasts_new RENAME TO forecasts")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_forecasts_locationLat_locationLon` ON `forecasts` (`locationLat`, `locationLon`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_forecasts_targetDate_source_locationLat_locationLon_batchFetchedAt` ON `forecasts` (`targetDate`, `source`, `locationLat`, `locationLon`, `batchFetchedAt`)")
+
+                    // daily_extremes: date TEXT -> INTEGER (UTC midnight epoch millis)
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS daily_extremes_new (
+                            `date` INTEGER NOT NULL,
+                            `source` TEXT NOT NULL,
+                            `locationLat` REAL NOT NULL,
+                            `locationLon` REAL NOT NULL,
+                            `highTemp` REAL NOT NULL,
+                            `lowTemp` REAL NOT NULL,
+                            `condition` TEXT NOT NULL,
+                            `updatedAt` INTEGER NOT NULL,
+                            PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`)
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        """
+                        INSERT INTO daily_extremes_new SELECT
+                            CAST(strftime('%s', `date`) AS INTEGER) * 1000,
+                            `source`, `locationLat`, `locationLon`,
+                            `highTemp`, `lowTemp`, `condition`, `updatedAt`
+                        FROM daily_extremes
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE daily_extremes")
+                    db.execSQL("ALTER TABLE daily_extremes_new RENAME TO daily_extremes")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_daily_extremes_date_locationLat_locationLon` ON `daily_extremes` (`date`, `locationLat`, `locationLon`)")
                 }
             }
     }

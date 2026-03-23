@@ -4,6 +4,7 @@ import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.handlers.DailyViewLogic
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -175,8 +176,8 @@ class DailyGapFallbackGraphIntegrationTest {
         isClimateNormal: Boolean = false,
     ): ForecastEntity {
         return ForecastEntity(
-            targetDate = date,
-            forecastDate = date,
+            targetDate = dateEpoch(date),
+            forecastDate = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
             locationName = "Test",

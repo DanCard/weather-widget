@@ -12,8 +12,8 @@ import androidx.room.Index
     ],
 )
 data class ForecastEntity(
-    val targetDate: String, // Date being forecasted (e.g., "2024-01-15")
-    val forecastDate: String, // When forecast was made (e.g., "2024-01-14" for 1-day-ahead)
+    val targetDate: Long, // Date being forecasted (UTC midnight epoch millis)
+    val forecastDate: Long, // When forecast was made (UTC midnight epoch millis, 1-day-ahead)
     val locationLat: Double,
     val locationLon: Double,
     val locationName: String = "", // Human-readable location name
@@ -23,8 +23,8 @@ data class ForecastEntity(
     val isClimateNormal: Boolean = false, // Historical averages
     val source: String, // Database storage: "NWS", "OPEN_METEO", "WEATHER_API", or "GENERIC_GAP"
     val precipProbability: Int? = null, // Rain chance percentage (0-100)
-    val periodStartTime: String? = null,  // NWS only: ISO-8601 start of the daytime forecast period
-    val periodEndTime: String? = null,    // NWS only: ISO-8601 end of the daytime forecast period
+    val periodStartTime: Long? = null,  // NWS only: epoch millis of daytime forecast period start
+    val periodEndTime: Long? = null,    // NWS only: epoch millis of daytime forecast period end
     val batchFetchedAt: Long = System.currentTimeMillis(), // Shared across all rows from one provider fetch batch
     val fetchedAt: Long = System.currentTimeMillis(),
 )

@@ -330,4 +330,56 @@ class DatabaseMigrationTest {
 
         assert(migratedEpoch == expectedEpoch) { "Expected $expectedEpoch but got $migratedEpoch for $testDateTime" }
     }
+
+    @Test
+    fun migrate40to41() {
+        val testDate = "2026-03-22"
+        val expectedDateEpoch = java.time.LocalDate.parse(testDate).toEpochDay() * 86400_000L
+        val now = System.currentTimeMillis()
+
+        helper.createDatabase(testDb, 40).apply {
+            execSQL("INSERT INTO api_usage_stats VALUES ('$testDate', 'NWS', 5)")
+            execSQL(
+                """
+                INSERT INTO forecasts (targetDate, forecastDate, locationLat, locationLon, locationName, highTemp, lowTemp, `condition`, isClimateNormal, source, precipProbability, periodStartTime, periodEndTime, batchFetchedAt, fetchedAt)
+                VALUES ('$testDate', '2026-03-21', 37.42, -122.08, 'Test', 72.0, 50.0, 'Clear', 0, 'NWS', 20, '2026-03-22T06:00:00+00:00', '2026-03-22T18:00:00+00:00', $now, $now)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO daily_extremes (date, source, locationLat, locationLon, highTemp, lowTemp, `condition`, updatedAt)
+                VALUES ('$testDate', 'NWS', 37.42, -122.08, 72.0, 50.0, 'Clear', $now)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 41, true, WeatherDatabase.MIGRATION_40_41)
+
+        // Verify api_usage_stats date conversion
+        val apiCursor = db.query("SELECT `date` FROM api_usage_stats")
+        apiCursor.moveToFirst()
+        val migratedApiDate = apiCursor.getLong(0)
+        apiCursor.close()
+        assert(migratedApiDate == expectedDateEpoch) { "api_usage_stats: expected $expectedDateEpoch but got $migratedApiDate" }
+
+        // Verify forecasts date conversion and periodStartTime/periodEndTime nulled out
+        val fCursor = db.query("SELECT targetDate, forecastDate, periodStartTime, periodEndTime FROM forecasts")
+        fCursor.moveToFirst()
+        val migratedTargetDate = fCursor.getLong(0)
+        val migratedForecastDate = fCursor.getLong(1)
+        val expectedForecastEpoch = java.time.LocalDate.parse("2026-03-21").toEpochDay() * 86400_000L
+        assert(migratedTargetDate == expectedDateEpoch) { "forecasts targetDate: expected $expectedDateEpoch but got $migratedTargetDate" }
+        assert(migratedForecastDate == expectedForecastEpoch) { "forecasts forecastDate: expected $expectedForecastEpoch but got $migratedForecastDate" }
+        assert(fCursor.isNull(2)) { "periodStartTime should be NULL after migration" }
+        assert(fCursor.isNull(3)) { "periodEndTime should be NULL after migration" }
+        fCursor.close()
+
+        // Verify daily_extremes date conversion
+        val dCursor = db.query("SELECT `date` FROM daily_extremes")
+        dCursor.moveToFirst()
+        val migratedExtremeDate = dCursor.getLong(0)
+        dCursor.close()
+        assert(migratedExtremeDate == expectedDateEpoch) { "daily_extremes: expected $expectedDateEpoch but got $migratedExtremeDate" }
+    }
 }

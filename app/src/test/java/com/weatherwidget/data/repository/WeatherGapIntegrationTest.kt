@@ -2,6 +2,7 @@ package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.util.TemperatureInterpolator
 import io.mockk.mockk
@@ -64,10 +65,10 @@ class WeatherGapIntegrationTest {
 
         val result = repository.getCachedDataBySource(lat, lon, WeatherSource.SILURIAN)
 
-        assertEquals(listOf(todayStr, tomorrowStr, dayAfterTomorrowStr), result.map { it.targetDate })
-        assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == todayStr }.source)
-        assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == tomorrowStr }.source)
-        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dayAfterTomorrowStr }.source)
+        assertEquals(listOf(dateEpoch(todayStr), dateEpoch(tomorrowStr), dateEpoch(dayAfterTomorrowStr)), result.map { it.targetDate })
+        assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == dateEpoch(todayStr) }.source)
+        assertEquals(WeatherSource.SILURIAN.id, result.first { it.targetDate == dateEpoch(tomorrowStr) }.source)
+        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(dayAfterTomorrowStr) }.source)
     }
 
     @Test
@@ -81,7 +82,7 @@ class WeatherGapIntegrationTest {
 
         val result = repository.getCachedDataBySource(lat, lon, WeatherSource.WEATHER_API)
 
-        val fallbackDay = result.first { it.targetDate == tomorrowStr }
+        val fallbackDay = result.first { it.targetDate == dateEpoch(tomorrowStr) }
         assertEquals(WeatherSource.GENERIC_GAP.id, fallbackDay.source)
         assertTrue(fallbackDay.isClimateNormal)
     }
@@ -107,16 +108,16 @@ class WeatherGapIntegrationTest {
             ),
         )
 
-        val historyRows = db.forecastDao().getForecastsInRangeBySource(todayStr, threeDaysOutStr, lat, lon, WeatherSource.SILURIAN.id)
+        val historyRows = db.forecastDao().getForecastsInRangeBySource(dateEpoch(todayStr), dateEpoch(threeDaysOutStr), lat, lon, WeatherSource.SILURIAN.id)
         assertEquals(6, historyRows.size)
 
         val result = repository.getCachedDataBySource(lat, lon, WeatherSource.SILURIAN)
 
-        assertEquals(listOf(todayStr, tomorrowStr, dayAfterTomorrowStr, threeDaysOutStr), result.map { it.targetDate })
-        assertEquals(74f, result.first { it.targetDate == todayStr }.highTemp)
-        assertEquals(75f, result.first { it.targetDate == tomorrowStr }.highTemp)
-        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dayAfterTomorrowStr }.source)
-        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == threeDaysOutStr }.source)
+        assertEquals(listOf(dateEpoch(todayStr), dateEpoch(tomorrowStr), dateEpoch(dayAfterTomorrowStr), dateEpoch(threeDaysOutStr)), result.map { it.targetDate })
+        assertEquals(74f, result.first { it.targetDate == dateEpoch(todayStr) }.highTemp)
+        assertEquals(75f, result.first { it.targetDate == dateEpoch(tomorrowStr) }.highTemp)
+        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(dayAfterTomorrowStr) }.source)
+        assertEquals(WeatherSource.GENERIC_GAP.id, result.first { it.targetDate == dateEpoch(threeDaysOutStr) }.source)
     }
 
     private fun forecast(
@@ -129,8 +130,8 @@ class WeatherGapIntegrationTest {
         batchFetchedAt: Long = System.currentTimeMillis(),
         fetchedAt: Long = System.currentTimeMillis(),
     ) = com.weatherwidget.data.local.ForecastEntity(
-        targetDate = date,
-        forecastDate = forecastDate,
+        targetDate = dateEpoch(date),
+        forecastDate = dateEpoch(forecastDate),
         locationLat = lat,
         locationLon = lon,
         locationName = "Test",

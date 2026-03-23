@@ -11,6 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
@@ -127,8 +128,8 @@ class DailyViewGraphClickAlignmentTest {
 
     private fun createWeather(date: String): ForecastEntity {
         return ForecastEntity(
-            targetDate = date,
-            forecastDate = date,
+            targetDate = dateEpoch(date),
+            forecastDate = dateEpoch(date),
             locationLat = 37.7749,
             locationLon = -122.4194,
             locationName = "Test",

@@ -13,6 +13,9 @@ object TestData {
     const val LON = -122.08
     const val LOCATION_NAME = "Test Location"
 
+    fun dateEpoch(dateStr: String): Long =
+        java.time.LocalDate.parse(dateStr).toEpochDay() * 86400_000L
+
     fun forecast(
         targetDate: String = "2026-02-20",
         forecastDate: String = "2026-02-20",
@@ -26,8 +29,8 @@ object TestData {
         lat: Double = LAT,
         lon: Double = LON,
     ) = ForecastEntity(
-        targetDate = targetDate,
-        forecastDate = forecastDate,
+        targetDate = dateEpoch(targetDate),
+        forecastDate = dateEpoch(forecastDate),
         locationLat = lat,
         locationLon = lon,
         locationName = LOCATION_NAME,
