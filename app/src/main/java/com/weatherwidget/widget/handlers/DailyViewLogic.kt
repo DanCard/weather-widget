@@ -45,7 +45,7 @@ object DailyViewLogic {
         now: LocalDateTime,
         centerDate: LocalDate,
         today: LocalDate,
-        weatherByDate: Map<String, ForecastEntity>,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
         hourlyForecasts: List<HourlyForecastEntity>,
         numColumns: Int,
         displaySource: WeatherSource,
@@ -53,7 +53,7 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        dailyActuals: com.weatherwidget.widget.DailyActualMap = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
     ): List<TextDayData> {
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
@@ -61,8 +61,7 @@ object DailyViewLogic {
 
         val daySlots = listOf(-1, 0, 1, 2, 3, 4, 5).mapIndexed { index, offset ->
             val date = effectiveCenter.plusDays(offset.toLong())
-            val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val weather = weatherByDate[dateStr]
+            val weather = weatherByDate[date]
             val isToday = date == today
             val isPast = date.isBefore(today)
             
@@ -71,9 +70,9 @@ object DailyViewLogic {
             val hasData = if (!isToday && !isPast) {
                 weather != null && weather.highTemp != null && weather.lowTemp != null
             } else {
-                (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(dateStr)
+                (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
             }
-            
+
             val isVisible = when {
                 numColumns >= 7 -> true
                 numColumns == 6 -> index <= 5
@@ -106,7 +105,7 @@ object DailyViewLogic {
 
         return daySlots.mapIndexed { index, (dayIndex, date, isVisible) ->
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val weather = weatherByDate[dateStr]
+            val weather = weatherByDate[date]
             val isToday = date == today
             val isPast = date.isBefore(today)
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
@@ -122,11 +121,11 @@ object DailyViewLogic {
             var isTodayForecastFallback = false
 
             if (isPast) {
-                val obsHigh = dailyActuals[dateStr]?.highTemp
-                val obsLow = dailyActuals[dateStr]?.lowTemp
+                val obsHigh = dailyActuals[date]?.highTemp
+                val obsLow = dailyActuals[date]?.lowTemp
                 highLabel = formatTempLabel(obsHigh)
                 lowLabel = formatTempLabel(obsLow)
-            } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
+            } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 val observedCurrentTemp = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
                     currentTemps, displaySource
                 )
@@ -161,7 +160,7 @@ object DailyViewLogic {
                 hasData = if (!isToday && !isPast) {
                     weather != null && weather.highTemp != null && weather.lowTemp != null
                 } else {
-                    (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(dateStr)
+                    (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
                 },
                 label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 weather = weather,
@@ -182,8 +181,8 @@ object DailyViewLogic {
         now: LocalDateTime,
         centerDate: LocalDate,
         today: LocalDate,
-        weatherByDate: Map<String, ForecastEntity>,
-        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         numColumns: Int,
         displaySource: WeatherSource,
         isEveningMode: Boolean,
@@ -192,7 +191,7 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        dailyActuals: com.weatherwidget.widget.DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
     ): List<DailyForecastGraphRenderer.DayData> {
@@ -202,13 +201,12 @@ object DailyViewLogic {
 
         dayOffsets.forEachIndexed { index, offset ->
             val date = centerDate.plusDays(offset.toLong())
-            val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            
+
             // Try preferred source first, then any available source for the given date.
             // This ensures we fill all columns if data exists anywhere in the DB.
-            val weather = weatherByDate[dateStr] ?: forecastSnapshots[dateStr]?.firstOrNull()
-            val actual = dailyActuals[dateStr]
-            val forecasts = forecastSnapshots[dateStr] ?: emptyList()
+            val weather = weatherByDate[date] ?: forecastSnapshots[date]?.firstOrNull()
+            val actual = dailyActuals[date]
+            val forecasts = forecastSnapshots[date] ?: emptyList()
             val forecast = forecasts
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
                 .filter { it.highTemp != null && it.lowTemp != null }
@@ -268,7 +266,7 @@ object DailyViewLogic {
                         }
                     }
                 }
-            } else if (isToday && (weather != null || dailyActuals.containsKey(dateStr))) {
+            } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 // Find a snapshot for the "Snapshot" bar: prefer 24h+ old, fall back to oldest available
                 val yesterdaySameTime = now.minusHours(24)
                 val snapshotCandidates = forecasts
@@ -281,7 +279,7 @@ object DailyViewLogic {
                 Log.d(
                     TAG,
                     "prepareGraphDays: today snapshot ${if (snapshot != null) "hit" else "miss"} " +
-                        "date=$dateStr source=${displaySource.id} snapshotHigh=${snapshot?.highTemp} snapshotLow=${snapshot?.lowTemp} " +
+                        "date=$date source=${displaySource.id} snapshotHigh=${snapshot?.highTemp} snapshotLow=${snapshot?.lowTemp} " +
                         "snapshotFetchedAt=${snapshot?.fetchedAt}",
                 )
 
@@ -338,7 +336,7 @@ object DailyViewLogic {
 
             days.add(
                 DailyForecastGraphRenderer.DayData(
-                    date = dateStr,
+                    date = date,
                     label = label,
                     high = finalHigh,
                     low = finalLow,

@@ -112,7 +112,7 @@ class AccuracyCalculator
             val dailyAccuracies = mutableListOf<DailyAccuracy>()
 
             for (actual in dailyActuals) {
-                val targetDate = LocalDate.parse(actual.date)
+                val targetDate = actual.date
                 val forecastDate = targetDate.minusDays(1)
                 val targetEpoch = targetDate.toEpochDay() * 86400_000L
                 val forecastEpoch = forecastDate.toEpochDay() * 86400_000L
@@ -141,7 +141,7 @@ class AccuracyCalculator
 
                         dailyAccuracies.add(
                             DailyAccuracy(
-                                date = actual.date,
+                                date = actual.date.toString(),
                                 actualHigh = roundedActualHigh,
                                 actualLow = roundedActualLow,
                                 forecastHigh = roundedForecastHigh,

@@ -130,7 +130,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         if (needsDailyData) {
                             val snapshotQueryStartMs = SystemClock.elapsedRealtime()
                             forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
-                                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
+                                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }
                                 .also {
                                     snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
                                 }
@@ -873,7 +873,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             appWidgetManager: AppWidgetManager,
             appWidgetId: Int,
             weatherList: List<ForecastEntity>,
-            forecastSnapshots: Map<String, List<ForecastEntity>> = emptyMap(),
+            forecastSnapshots: Map<LocalDate, List<ForecastEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
             currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
             dailyActualsBySource: DailyActualsBySource = emptyMap(),

@@ -37,8 +37,8 @@ class DailyActualsEstimatorTest {
             HourlyForecastEntity(TestData.toEpoch("2026-02-25T23:00"), 0.0, 0.0, 38f, "Cloudy", "OPEN_METEO", 0, 0, 1L)
         )
         val sourceActuals = mapOf(
-            today.toString() to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                date = today.toString(),
+            today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = today,
                 highTemp = 60f,
                 lowTemp = 40f,
                 condition = "Cloudy",

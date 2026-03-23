@@ -49,8 +49,8 @@ class TripleLinePrecisionTest {
             displaySource = displaySource,
             fallbackWeather = forecastFromSnapshot,
             dailyActuals = mapOf(
-                todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = todayStr,
+                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = today,
                     highTemp = 71.5f,
                     lowTemp = 70.0f,
                     condition = "Clear",

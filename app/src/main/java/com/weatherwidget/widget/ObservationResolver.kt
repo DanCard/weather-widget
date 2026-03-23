@@ -4,9 +4,10 @@ import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 
-typealias DailyActualMap = Map<String, ObservationResolver.DailyActual>
+typealias DailyActualMap = Map<LocalDate, ObservationResolver.DailyActual>
 typealias DailyActualsBySource = Map<String, DailyActualMap>
 
 /**
@@ -22,7 +23,7 @@ object ObservationResolver {
     )
 
     data class DailyActual(
-        val date: String,
+        val date: LocalDate,
         val highTemp: Float,
         val lowTemp: Float,
         val condition: String,
@@ -58,33 +59,26 @@ object ObservationResolver {
         observations: List<ObservationEntity>
     ): List<DailyActual> {
         val local = ZoneId.systemDefault()
-        val dateFormatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
 
-        val observationsByDate = observations.groupBy { obs ->
-            Instant.ofEpochMilli(obs.timestamp)
-                .atZone(local)
-                .toLocalDate()
-                .format(dateFormatter)
-        }
+        return observations
+            .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
+            .mapNotNull { (date, obs) ->
+                if (obs.isEmpty()) return@mapNotNull null
 
-        return observationsByDate.mapNotNull { (date, obs) ->
-            if (obs.isEmpty()) return@mapNotNull null
+                val officialHighs = obs.mapNotNull { it.maxTempLast24h }
+                val officialLows = obs.mapNotNull { it.minTempLast24h }
+                val highTemp = if (officialHighs.isNotEmpty()) officialHighs.max() else obs.maxOf { it.temperature }
+                val lowTemp = if (officialLows.isNotEmpty()) officialLows.min() else obs.minOf { it.temperature }
 
-            val officialHighs = obs.mapNotNull { it.maxTempLast24h }
-            val officialLows = obs.mapNotNull { it.minTempLast24h }
-            val highTemp = if (officialHighs.isNotEmpty()) officialHighs.max() else obs.maxOf { it.temperature }
-            val lowTemp = if (officialLows.isNotEmpty()) officialLows.min() else obs.minOf { it.temperature }
+                val mostCommon = obs.map { it.condition }.groupingBy { it }.eachCount().maxByOrNull { it.value }
 
-            val conditions = obs.map { it.condition }
-            val mostCommon = conditions.groupingBy { it }.eachCount().maxByOrNull { it.value }
-
-            DailyActual(
-                date = date,
-                highTemp = highTemp,
-                lowTemp = lowTemp,
-                condition = mostCommon?.key ?: "Unknown"
-            )
-        }
+                DailyActual(
+                    date = date,
+                    highTemp = highTemp,
+                    lowTemp = lowTemp,
+                    condition = mostCommon?.key ?: "Unknown"
+                )
+            }
     }
 
     /**
@@ -105,18 +99,12 @@ object ObservationResolver {
         observations: List<ObservationEntity>,
     ): DailyActualsBySource {
         val local = ZoneId.systemDefault()
-        val dateFormatter = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE
 
         return observations
             .groupBy { inferSource(it.stationId) }
             .mapValues { (_, sourceObs) ->
                 sourceObs
-                    .groupBy { obs ->
-                        Instant.ofEpochMilli(obs.timestamp)
-                            .atZone(local)
-                            .toLocalDate()
-                            .format(dateFormatter)
-                    }
+                    .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
                     .mapNotNull { (date, dayObs) ->
                         if (dayObs.isEmpty()) return@mapNotNull null
 
@@ -124,14 +112,12 @@ object ObservationResolver {
                         val officialLows = dayObs.mapNotNull { it.minTempLast24h }
                         val highTemp = if (officialHighs.isNotEmpty()) officialHighs.max() else dayObs.maxOf { it.temperature }
                         val lowTemp = if (officialLows.isNotEmpty()) officialLows.min() else dayObs.minOf { it.temperature }
-                        val mostCommonCondition =
-                            dayObs
-                                .map { it.condition }
-                                .groupingBy { it }
-                                .eachCount()
-                                .maxByOrNull { it.value }
-                                ?.key
-                                ?: "Unknown"
+                        val mostCommonCondition = dayObs
+                            .map { it.condition }
+                            .groupingBy { it }
+                            .eachCount()
+                            .maxByOrNull { it.value }
+                            ?.key ?: "Unknown"
 
                         date to DailyActual(
                             date = date,
@@ -238,10 +224,9 @@ object ObservationResolver {
      */
     fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<DailyActual> =
         extremes.map { entity ->
-            val dateStr = java.time.LocalDate.ofEpochDay(entity.date / 86400_000L)
-                .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val date = LocalDate.ofEpochDay(entity.date / 86400_000L)
             DailyActual(
-                date = dateStr,
+                date = date,
                 highTemp = entity.highTemp,
                 lowTemp = entity.lowTemp,
                 condition = entity.condition,
@@ -256,10 +241,9 @@ object ObservationResolver {
             .groupBy { it.source }
             .mapValues { (_, sourceExtremes) ->
                 sourceExtremes.associate { entity ->
-                    val dateStr = java.time.LocalDate.ofEpochDay(entity.date / 86400_000L)
-                        .format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-                    dateStr to DailyActual(
-                        date = dateStr,
+                    val date = LocalDate.ofEpochDay(entity.date / 86400_000L)
+                    date to DailyActual(
+                        date = date,
                         highTemp = entity.highTemp,
                         lowTemp = entity.lowTemp,
                         condition = entity.condition,

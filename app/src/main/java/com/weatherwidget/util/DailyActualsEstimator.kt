@@ -7,7 +7,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+
 import kotlin.math.roundToInt
 
 /**
@@ -45,12 +45,11 @@ object DailyActualsEstimator {
         @Suppress("UNUSED_PARAMETER") now: LocalDateTime,
         displaySource: WeatherSource,
         fallbackWeather: ForecastEntity?,
-        dailyActuals: Map<String, com.weatherwidget.widget.ObservationResolver.DailyActual> = emptyMap(),
+        dailyActuals: com.weatherwidget.widget.DailyActualMap = emptyMap(),
         currentTemp: Float? = null,
         snapshotHigh: Float? = null,
         snapshotLow: Float? = null,
     ): TodayTripleLineValues {
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val zoneId = ZoneId.systemDefault()
         // Filter all hourly data for today
         val todayHourly = hourlyForecasts.filter {
@@ -59,7 +58,7 @@ object DailyActualsEstimator {
         }
 
         // 1. Observed so far (history/current)
-        val actual = dailyActuals[todayStr]
+        val actual = dailyActuals[today]
         val observedHigh = listOfNotNull(actual?.highTemp, currentTemp).maxOrNull()
         val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
 

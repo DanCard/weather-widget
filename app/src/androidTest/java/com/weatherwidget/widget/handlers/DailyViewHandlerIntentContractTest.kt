@@ -29,14 +29,14 @@ class DailyViewHandlerIntentContractTest {
     @Test
     fun pastDayClick_buildsHistoryIntentContract() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
-        val targetDate = LocalDate.of(2030, 6, 14).toString()
+        val targetDate = LocalDate.of(2030, 6, 14)
 
         val intent =
             DailyViewHandler.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 1,
-                dateStr = targetDate,
+                date = targetDate,
                 hasRainForecast = true,
                 lat = LAT,
                 lon = LON,
@@ -46,7 +46,7 @@ class DailyViewHandlerIntentContractTest {
 
         assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, intent.action)
         assertEquals(TEST_WIDGET_ID, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
-        assertEquals(targetDate, intent.getStringExtra("date"))
+        assertEquals(targetDate.toString(), intent.getStringExtra("date"))
         assertTrue(intent.getBooleanExtra("isHistory", false))
         assertTrue(intent.getBooleanExtra("showHistory", false))
         assertEquals(1, intent.getIntExtra("index", -1))
@@ -59,14 +59,14 @@ class DailyViewHandlerIntentContractTest {
     @Test
     fun futureRainyDayClick_buildsPrecipitationIntentContract() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
-        val targetDate = LocalDate.of(2030, 6, 16).toString()
+        val targetDate = LocalDate.of(2030, 6, 16)
 
         val intent =
             DailyViewHandler.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
-                dateStr = targetDate,
+                date = targetDate,
                 hasRainForecast = true,
                 lat = LAT,
                 lon = LON,
@@ -77,7 +77,7 @@ class DailyViewHandlerIntentContractTest {
         val expectedOffset =
             DayClickHelper.calculatePrecipitationOffset(
                 now = now,
-                targetDay = LocalDate.parse(targetDate),
+                targetDay = targetDate,
             )
 
         assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, intent.action)
@@ -93,7 +93,7 @@ class DailyViewHandlerIntentContractTest {
     @Test
     fun todaySuppressedDisplayRainStillBuildsPrecipitationIntentContract() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
-        val today = LocalDate.of(2030, 6, 15).toString()
+        val today = LocalDate.of(2030, 6, 15)
 
         // Simulates "rain text suppressed" case by passing the raw click signal directly:
         // hasRainForecast=true should still route to precipitation for today.
@@ -102,7 +102,7 @@ class DailyViewHandlerIntentContractTest {
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
-                dateStr = today,
+                date = today,
                 hasRainForecast = true,
                 lat = LAT,
                 lon = LON,

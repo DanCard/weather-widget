@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.WidgetStateManager
+import java.time.LocalDate
 
 /**
  * Abstract base interface for view handlers.
@@ -29,7 +30,7 @@ interface WidgetViewHandler {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<ObservationEntity> = emptyList(),
         dailyActualsBySource: DailyActualsBySource = emptyMap(),

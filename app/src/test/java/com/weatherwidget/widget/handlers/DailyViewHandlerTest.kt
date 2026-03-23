@@ -161,10 +161,10 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 20, 0) // 8 PM
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        
+
         // Official API says 80/60
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
         )
         
         // Hourly samples only reached 74/65
@@ -192,8 +192,8 @@ class DailyViewHandlerTest {
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
             dailyActuals = mapOf(
-                todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = todayStr,
+                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = today,
                     highTemp = 74f,
                     lowTemp = 65f,
                     condition = "Clear",
@@ -201,9 +201,9 @@ class DailyViewHandlerTest {
             )
         )
 
-        val todayData = days.first { it.date == todayStr }
+        val todayData = days.first { it.date == today }
         // Observed uses source-specific actuals; forecast stays API-specific.
-        assertEquals(74f, todayData.high!!, 0.1f) 
+        assertEquals(74f, todayData.high!!, 0.1f)
         assertEquals(65f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
@@ -214,14 +214,14 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        
+
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
         )
-        
+
         // Snapshot from 24h ago
         val snapshots = mapOf(
-            todayStr to listOf(
+            today to listOf(
                 createWeather(todayStr, highTemp = 82f, lowTemp = 62f).copy(
                     fetchedAt = now.minusHours(25).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
                 )
@@ -257,7 +257,7 @@ class DailyViewHandlerTest {
             currentTemps = currentTemps
         )
 
-        val todayData = days.first { it.date == todayStr }
+        val todayData = days.first { it.date == today }
         assertEquals(82f, todayData.snapshotHigh!!, 0.1f)
         assertEquals(62f, todayData.snapshotLow!!, 0.1f)
         // Observed High should include currentTemp (75) even if dailyActuals is empty
@@ -274,11 +274,11 @@ class DailyViewHandlerTest {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
         )
 
         val snapshots = mapOf(
-            todayStr to listOf(
+            today to listOf(
                 createWeather(todayStr, highTemp = 62f, lowTemp = 48f).copy(
                     source = WeatherSource.GENERIC_GAP.id,
                     fetchedAt = now.minusHours(25).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
@@ -300,7 +300,7 @@ class DailyViewHandlerTest {
             dailyActuals = emptyMap(),
         )
 
-        val todayData = days.first { it.date == todayStr }
+        val todayData = days.first { it.date == today }
         assertEquals(null, todayData.snapshotHigh)
         assertEquals(null, todayData.snapshotLow)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
@@ -314,7 +314,7 @@ class DailyViewHandlerTest {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 60f)
         )
 
         val hourlyForecasts = listOf(
@@ -352,7 +352,7 @@ class DailyViewHandlerTest {
             dailyActuals = emptyMap(),
         )
 
-        val todayData = days.first { it.date == todayStr }
+        val todayData = days.first { it.date == today }
         assertEquals(80f, todayData.high!!, 0.1f)
         assertEquals(60f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
@@ -369,11 +369,11 @@ class DailyViewHandlerTest {
         val yesterday = today.minusDays(1)
         val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            yesterdayStr to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
+            yesterday to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
         )
         val dailyActuals = mapOf(
-            yesterdayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                date = yesterdayStr,
+            yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = yesterday,
                 highTemp = 80.9f,
                 lowTemp = 55f,
                 condition = "Sunny",
@@ -404,7 +404,7 @@ class DailyViewHandlerTest {
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr, highTemp = 80.9f, lowTemp = 60.2f)
+            today to createWeather(todayStr, highTemp = 80.9f, lowTemp = 60.2f)
         )
 
         val result = DailyViewLogic.prepareTextDays(
@@ -431,11 +431,11 @@ class DailyViewHandlerTest {
         val yesterday = today.minusDays(1)
         val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            yesterdayStr to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
+            yesterday to createWeather(yesterdayStr, highTemp = 77f, lowTemp = 56f)
         )
         val dailyActuals = mapOf(
-            yesterdayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                date = yesterdayStr,
+            yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = yesterday,
                 highTemp = 80.9f,
                 lowTemp = 55f,
                 condition = "Sunny",
@@ -456,7 +456,7 @@ class DailyViewHandlerTest {
             dailyActuals = dailyActuals,
         )
 
-        val yesterdayData = days.first { it.date == yesterdayStr }
+        val yesterdayData = days.first { it.date == yesterday }
         assertEquals(80.9f, yesterdayData.high!!, 0.1f)
         assertEquals(55f, yesterdayData.low!!, 0.1f)
     }
@@ -467,7 +467,7 @@ class DailyViewHandlerTest {
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            todayStr to createWeather(todayStr).copy(condition = "Rain")
+            today to createWeather(todayStr).copy(condition = "Rain")
         )
         val hourlyForecasts = listOf(
             HourlyForecastEntity(
@@ -507,7 +507,7 @@ class DailyViewHandlerTest {
             hourlyForecasts = hourlyForecasts,
         )
 
-        val todayData = days.first { it.date == todayStr }
+        val todayData = days.first { it.date == today }
         assertEquals(R.drawable.ic_weather_clear, todayData.iconRes)
     }
 
@@ -517,10 +517,11 @@ class DailyViewHandlerTest {
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
-        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrow = today.plusDays(1)
+        val tomorrowStr = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            today.format(DateTimeFormatter.ISO_LOCAL_DATE) to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
-            tomorrowStr to createWeather(tomorrowStr).copy(source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            tomorrow to createWeather(tomorrowStr).copy(source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)
         )
 
         val result = DailyViewLogic.prepareTextDays(
@@ -540,10 +541,11 @@ class DailyViewHandlerTest {
     fun `prepareGraphDays marks generic fallback days`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
-        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val tomorrow = today.plusDays(1)
+        val tomorrowStr = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            today.format(DateTimeFormatter.ISO_LOCAL_DATE) to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
-            tomorrowStr to createWeather(tomorrowStr).copy(source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            tomorrow to createWeather(tomorrowStr).copy(source = WeatherSource.GENERIC_GAP.id, isClimateNormal = true)
         )
 
         val result = DailyViewLogic.prepareGraphDays(
@@ -559,19 +561,20 @@ class DailyViewHandlerTest {
             hourlyForecasts = emptyList()
         )
 
-        assertTrue(result.first { it.date == tomorrowStr }.isSourceGapFallback)
+        assertTrue(result.first { it.date == tomorrow }.isSourceGapFallback)
     }
 
     @Test
     fun `buildDayClickIntent returns correct extras with Robolectric`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val dateStr = "2030-06-16" // Tomorrow
-        
+        val date = LocalDate.of(2030, 6, 16) // Tomorrow
+        val dateStr = date.toString()
+
         val intent = DailyViewHandler.buildDayClickIntent(
             context = context,
             appWidgetId = 42,
             dayIndex = 1,
-            dateStr = dateStr,
+            date = date,
             hasRainForecast = true,
             lat = 37.0,
             lon = -122.0,
@@ -589,13 +592,13 @@ class DailyViewHandlerTest {
     @Test
     fun `buildDayClickIntent tomorrow without rain navigates to temperature`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val dateStr = "2030-06-16" // Tomorrow
-        
+        val date = LocalDate.of(2030, 6, 16) // Tomorrow
+
         val intent = DailyViewHandler.buildDayClickIntent(
             context = context,
             appWidgetId = 42,
             dayIndex = 1,
-            dateStr = dateStr,
+            date = date,
             hasRainForecast = false,
             lat = 37.0,
             lon = -122.0,
@@ -612,13 +615,13 @@ class DailyViewHandlerTest {
     @Test
     fun `buildDayClickIntent past day navigates to history`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val dateStr = "2030-06-14" // Yesterday
-        
+        val date = LocalDate.of(2030, 6, 14) // Yesterday
+
         val intent = DailyViewHandler.buildDayClickIntent(
             context = context,
             appWidgetId = 42,
             dayIndex = 1,
-            dateStr = dateStr,
+            date = date,
             hasRainForecast = false,
             lat = 37.0,
             lon = -122.0,
@@ -939,7 +942,7 @@ class DailyViewHandlerTest {
                 createWeather(tomorrowStr, precipProbability = 0, highTemp = 72f, lowTemp = 56f),
             ),
             forecastSnapshots = mapOf(
-                yesterdayStr to listOf(createWeather(yesterdayStr, precipProbability = 0, highTemp = 68f, lowTemp = 54f)),
+                today.minusDays(1) to listOf(createWeather(yesterdayStr, precipProbability = 0, highTemp = 68f, lowTemp = 54f)),
             ),
             hourlyForecasts = emptyList(),
             currentTemps = emptyList(),
@@ -1009,8 +1012,8 @@ class DailyViewHandlerTest {
             currentTemps = emptyList(),
             dailyActualsBySource = mapOf(
                 WeatherSource.NWS.id to mapOf(
-                    todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                        date = todayStr,
+                    today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                        date = today,
                         highTemp = 71f,
                         lowTemp = 54f,
                         condition = "Clear",
@@ -1209,11 +1212,11 @@ class DailyViewHandlerTest {
         assertEquals("graph_hour_zones must be GONE in daily mode", View.GONE, hourZones.visibility)
     }
 
-    private fun createWeatherMap(today: LocalDate): Map<String, ForecastEntity> {
+    private fun createWeatherMap(today: LocalDate): Map<LocalDate, ForecastEntity> {
         return (-1..5).associate { offset ->
             val date = today.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            dateStr to createWeather(dateStr)
+            date to createWeather(dateStr)
         }
     }
 

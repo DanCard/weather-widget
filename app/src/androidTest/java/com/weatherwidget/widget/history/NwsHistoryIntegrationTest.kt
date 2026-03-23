@@ -41,8 +41,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
         )
 
         val dailyActuals = mapOf(
-            yesterdayStr to ObservationResolver.DailyActual(
-                date = yesterdayStr,
+            yesterday to ObservationResolver.DailyActual(
+                date = yesterday,
                 highTemp = 78f,
                 lowTemp = 52f,
                 condition = "Sunny",
@@ -54,8 +54,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             now = LocalDateTime.now(),
             centerDate = today,
             today = today,
-            weatherByDate = mapOf(yesterdayStr to partialForecast),
-            forecastSnapshots = mapOf(yesterdayStr to listOf(partialForecast)),
+            weatherByDate = mapOf(yesterday to partialForecast),
+            forecastSnapshots = mapOf(yesterday to listOf(partialForecast)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
             isEveningMode = false,
@@ -64,7 +64,7 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             dailyActuals = dailyActuals
         )
 
-        val result = days.find { it.date == yesterdayStr }
+        val result = days.find { it.date == yesterday }
         assertNotNull("Yesterday should be present in the graph data", result)
         assertEquals("Should use source-specific actual high for primary bar high", 78f, result!!.high)
         assertEquals("Should use source-specific actual low for primary bar low", 52f, result.low)
@@ -105,8 +105,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             now = LocalDateTime.now(),
             centerDate = today,
             today = today,
-            weatherByDate = mapOf(yesterdayStr to partialForecast),
-            forecastSnapshots = mapOf(yesterdayStr to listOf(completeForecast, partialForecast)),
+            weatherByDate = mapOf(yesterday to partialForecast),
+            forecastSnapshots = mapOf(yesterday to listOf(completeForecast, partialForecast)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
             isEveningMode = false,
@@ -115,7 +115,7 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             dailyActuals = emptyMap()
         )
 
-        val result = days.find { it.date == yesterdayStr }
+        val result = days.find { it.date == yesterday }
         assertNotNull(result)
         assertEquals("Comparison should pick the snapshot with BOTH high and low", 75f, result!!.forecastHigh)
         assertEquals("Comparison should pick the snapshot with BOTH high and low", 50f, result.forecastLow)
@@ -143,8 +143,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
         )
 
         val dailyActuals = mapOf(
-            todayStr to ObservationResolver.DailyActual(
-                date = todayStr,
+            today to ObservationResolver.DailyActual(
+                date = today,
                 highTemp = 52f,
                 lowTemp = 52f,
                 condition = "Clear",
@@ -155,8 +155,8 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             now = today.atTime(13, 0),
             centerDate = today,
             today = today,
-            weatherByDate = mapOf(todayStr to middayWeather),
-            forecastSnapshots = mapOf(todayStr to listOf(middayWeather)),
+            weatherByDate = mapOf(today to middayWeather),
+            forecastSnapshots = mapOf(today to listOf(middayWeather)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
             isEveningMode = false,
@@ -165,7 +165,7 @@ class NwsHistoryIntegrationTest : IsolatedIntegrationTest("nws_history_integrati
             dailyActuals = dailyActuals
         )
 
-        val result = days.find { it.date == todayStr }
+        val result = days.find { it.date == today }
         assertNotNull(result)
         assertEquals("Observed low should be 52", 52f, result!!.low)
         assertEquals("Forecast low falls back to the selected provider's hourly forecast low", 62f, result.forecastLow)

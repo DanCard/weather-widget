@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.*
 import android.util.TypedValue
+import java.time.LocalDate
 import kotlin.math.roundToInt
 
 object DailyForecastGraphRenderer {
@@ -14,14 +15,14 @@ object DailyForecastGraphRenderer {
     /**
      * Fired once for each bar drawn, for testing and debugging.
      *
-     * @param date      ISO date string of the day (e.g. "2024-01-15")
+     * @param date      The date of the day
      * @param barType   "TODAY", "HISTORY", "FUTURE", "CLIMATE", "FORECAST_OVERLAY"
      * @param highY     canvas Y of the top of the bar (lower value = higher on screen)
      * @param lowY      canvas Y of the bottom of the bar
      * @param centerX   canvas X center of the day column
      */
     data class BarDrawnDebug(
-        val date: String,
+        val date: LocalDate,
         val barType: String,
         val highY: Float,
         val lowY: Float,
@@ -30,7 +31,7 @@ object DailyForecastGraphRenderer {
     )
 
     data class DayData(
-        val date: String, // ISO date string (e.g. "2024-01-15")
+        val date: LocalDate,
         val label: String,
         val high: Float?,
         val low: Float?,

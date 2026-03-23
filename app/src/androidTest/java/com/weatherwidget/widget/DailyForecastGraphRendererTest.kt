@@ -8,6 +8,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
 
 /**
  * Instrumented tests for DailyForecastGraphRenderer.
@@ -44,9 +45,12 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
 
     @Test
     fun renderGraph_withForecastBarMode_showsForecastOverlayForHistoryDay() {
+        val feb01 = LocalDate.of(2026, 2, 1)
+        val feb02 = LocalDate.of(2026, 2, 2)
+        val feb03 = LocalDate.of(2026, 2, 3)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
+                date = feb01,
                 label = "Sat",
                 high = 65f,
                 low = 45f,
@@ -55,14 +59,14 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
                 forecastLow = 47f,
             ),
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-02",
+                date = feb02,
                 label = "Today",
                 high = 68f,
                 low = 48f,
                 isToday = true,
             ),
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-03",
+                date = feb03,
                 label = "Mon",
                 high = 70f,
                 low = 50f,
@@ -73,15 +77,17 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
 
         assertTrue(
             "Expected FORECAST_OVERLAY bar for historical day with forecast data",
-            bars.any { it.date == "2026-02-01" && it.barType == "FORECAST_OVERLAY" },
+            bars.any { it.date == feb01 && it.barType == "FORECAST_OVERLAY" },
         )
     }
 
     @Test
     fun renderGraph_withoutForecastData_noForecastOverlayForHistoryDay() {
+        val feb01 = LocalDate.of(2026, 2, 1)
+        val feb02 = LocalDate.of(2026, 2, 2)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
+                date = feb01,
                 label = "Sat",
                 high = 65f,
                 low = 45f,
@@ -90,7 +96,7 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
                 forecastLow = null,
             ),
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-02",
+                date = feb02,
                 label = "Today",
                 high = 68f,
                 low = 48f,
@@ -102,19 +108,20 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
 
         assertFalse(
             "Expected no FORECAST_OVERLAY when forecastHigh/Low are null",
-            bars.any { it.date == "2026-02-01" && it.barType == "FORECAST_OVERLAY" },
+            bars.any { it.date == feb01 && it.barType == "FORECAST_OVERLAY" },
         )
         assertTrue(
             "Expected HISTORY bar for past day",
-            bars.any { it.date == "2026-02-01" && it.barType == "HISTORY" },
+            bars.any { it.date == feb01 && it.barType == "HISTORY" },
         )
     }
 
     @Test
     fun renderGraph_todayShowsBarTypeTODAY() {
+        val feb02 = LocalDate.of(2026, 2, 2)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-02",
+                date = feb02,
                 label = "Today",
                 high = 68f,
                 low = 48f,
@@ -126,15 +133,16 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
 
         assertTrue(
             "Expected TODAY bar type for today's day",
-            bars.any { it.date == "2026-02-02" && it.barType == "TODAY" },
+            bars.any { it.date == feb02 && it.barType == "TODAY" },
         )
     }
 
     @Test
     fun renderGraph_futureShowsBarTypeFUTURE() {
+        val feb03 = LocalDate.of(2026, 2, 3)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-03",
+                date = feb03,
                 label = "Mon",
                 high = 70f,
                 low = 50f,
@@ -147,15 +155,16 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
 
         assertTrue(
             "Expected FUTURE bar type for future day",
-            bars.any { it.date == "2026-02-03" && it.barType == "FUTURE" },
+            bars.any { it.date == feb03 && it.barType == "FUTURE" },
         )
     }
 
     @Test
     fun renderGraph_historyShowsBarTypeHISTORY() {
+        val feb01 = LocalDate.of(2026, 2, 1)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
+                date = feb01,
                 label = "Sat",
                 high = 65f,
                 low = 45f,
@@ -167,21 +176,22 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
 
         assertTrue(
             "Expected HISTORY bar type for past day",
-            bars.any { it.date == "2026-02-01" && it.barType == "HISTORY" },
+            bars.any { it.date == feb01 && it.barType == "HISTORY" },
         )
     }
 
     @Test
     fun renderGraph_withPartialData_rendersWithoutCrash() {
+        val feb04 = LocalDate.of(2026, 2, 4)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-04",
+                date = feb04,
                 label = "HighOnly",
                 high = 70f,
                 low = null,
             ),
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-05",
+                date = LocalDate.of(2026, 2, 5),
                 label = "LowOnly",
                 high = null,
                 low = 50f,
@@ -194,7 +204,7 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
         // Both partial days should still fire a FUTURE bar callback
         assertTrue(
             "Expected FUTURE bar for HighOnly day",
-            bars.any { it.date == "2026-02-04" && it.barType == "FUTURE" },
+            bars.any { it.date == feb04 && it.barType == "FUTURE" },
         )
     }
 
@@ -203,7 +213,7 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
         // Observed: 45–60°, Forecast: 40–65° — blue triple line should reach lower and higher
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-25",
+                date = LocalDate.of(2026, 2, 25),
                 label = "Today",
                 high = 60f,      // observed high
                 low = 45f,       // observed low
@@ -250,9 +260,9 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
     @Test
     fun renderGraph_multipleBarTypes_allFired() {
         val days = listOf(
-            DailyForecastGraphRenderer.DayData(date = "2026-02-01", label = "Sat", high = 65f, low = 45f, isPast = true),
-            DailyForecastGraphRenderer.DayData(date = "2026-02-02", label = "Today", high = 68f, low = 48f, isToday = true),
-            DailyForecastGraphRenderer.DayData(date = "2026-02-03", label = "Mon", high = 70f, low = 50f),
+            DailyForecastGraphRenderer.DayData(date = LocalDate.of(2026, 2, 1), label = "Sat", high = 65f, low = 45f, isPast = true),
+            DailyForecastGraphRenderer.DayData(date = LocalDate.of(2026, 2, 2), label = "Today", high = 68f, low = 48f, isToday = true),
+            DailyForecastGraphRenderer.DayData(date = LocalDate.of(2026, 2, 3), label = "Mon", high = 70f, low = 50f),
         )
 
         val bars = render(days)
@@ -267,7 +277,7 @@ class DailyForecastGraphRendererTest : IsolatedIntegrationTest("daily_graph_rend
         // Forecast wider than actual: forecastLow=40 < actual.low=45, forecastHigh=70 > actual.high=60
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = "2026-02-01",
+                date = LocalDate.of(2026, 2, 1),
                 label = "Sat",
                 high = 60f,
                 low = 45f,

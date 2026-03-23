@@ -25,9 +25,9 @@ class DailyViewUiRoundingTest {
         
         // Manually inject decimals for yesterday, today, and tomorrow
         val weatherByDate = mapOf(
-            yesterdayStr to createForecast(yesterdayStr, 72.4f, 50.6f),
-            todayStr to createForecast(todayStr, 72.4f, 50.6f),
-            tomorrowStr to createForecast(tomorrowStr, 72.4f, 50.6f)
+            yesterday to createForecast(yesterdayStr, 72.4f, 50.6f),
+            today to createForecast(todayStr, 72.4f, 50.6f),
+            tomorrow to createForecast(tomorrowStr, 72.4f, 50.6f)
         )
 
         val textDays = DailyViewLogic.prepareTextDays(
@@ -39,14 +39,14 @@ class DailyViewUiRoundingTest {
             numColumns = 7,
             displaySource = displaySource,
             dailyActuals = mapOf(
-                yesterdayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = yesterdayStr,
+                yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = yesterday,
                     highTemp = 72.4f,
                     lowTemp = 50.6f,
                     condition = "Clear",
                 ),
-                todayStr to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                    date = todayStr,
+                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = today,
                     highTemp = 72.4f,
                     lowTemp = 50.6f,
                     condition = "Clear",

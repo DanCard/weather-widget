@@ -28,6 +28,7 @@ import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.DailyActualMap
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
@@ -80,7 +81,7 @@ object DailyViewHandler : WidgetViewHandler {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
@@ -105,7 +106,7 @@ object DailyViewHandler : WidgetViewHandler {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
@@ -133,7 +134,7 @@ object DailyViewHandler : WidgetViewHandler {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<String, List<ForecastEntity>>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>,
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
@@ -173,7 +174,7 @@ object DailyViewHandler : WidgetViewHandler {
                 "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
 
-        if (dailyActuals[todayStr] == null) {
+        if (dailyActuals[today] == null) {
             requestMissingActualsRefresh(
                 context = context,
                 stateManager = stateManager,
@@ -188,7 +189,7 @@ object DailyViewHandler : WidgetViewHandler {
         val weatherByDate =
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }
                 .mapValues { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
 
         // Set API source indicator
@@ -204,7 +205,7 @@ object DailyViewHandler : WidgetViewHandler {
         val isNight = SunPositionUtils.isNight(iconDateTime, lat, lon)
 
         val iconRes = WeatherIconMapper.getIconResource(
-            condition = todayIconForecast?.condition ?: weatherByDate[todayStr]?.condition,
+            condition = todayIconForecast?.condition ?: weatherByDate[today]?.condition,
             isNight = isNight,
             cloudCover = todayIconForecast?.cloudCover,
         )
@@ -248,7 +249,7 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         // Show precipitation probability next to current temp when rain is expected
-        val todayWeather = weatherByDate[todayStr]
+        val todayWeather = weatherByDate[today]
         val precipProb =
             HeaderPrecipCalculator.getNext8HourPrecipProbability(
                 hourlyForecasts = hourlyForecasts,
@@ -317,8 +318,8 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
 
         // Set up navigation click handlers
-        val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / 86400_000L).toString() }.toSet() + dailyActuals.keys
-        val sortedDates = availableDates.mapNotNull { try { LocalDate.parse(it) } catch (e: Exception) { null } }.sorted()
+        val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }.toSet() + dailyActuals.keys
+        val sortedDates = availableDates.sorted()
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${sortedDates.firstOrNull()}, maxDate=${sortedDates.lastOrNull()}")
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)
 
@@ -567,7 +568,7 @@ object DailyViewHandler : WidgetViewHandler {
         useGraph: Boolean,
         isEveningMode: Boolean,
         centerDate: LocalDate,
-        visibleDates: List<String>,
+        visibleDates: List<LocalDate>,
     ) {
         val mode = if (useGraph) "GRAPH" else "TEXT"
         val datesSummary = visibleDates.joinToString(",").ifEmpty { "<none>" }
@@ -636,11 +637,11 @@ object DailyViewHandler : WidgetViewHandler {
 
     private fun setupNavigationButtons(
         context: Context, views: RemoteViews, appWidgetId: Int,
-        stateManager: WidgetStateManager, availableDates: Set<String>,
+        stateManager: WidgetStateManager, availableDates: Set<LocalDate>,
         numColumns: Int, isEveningMode: Boolean
     ) {
         val today = LocalDate.now()
-        val sortedDates = availableDates.map { LocalDate.parse(it) }.sorted()
+        val sortedDates = availableDates.sorted()
         val minDate = sortedDates.firstOrNull()
         val maxDate = sortedDates.lastOrNull()
 
@@ -714,14 +715,14 @@ object DailyViewHandler : WidgetViewHandler {
 
     private fun updateTextMode(
         context: Context, views: RemoteViews, now: LocalDateTime, centerDate: LocalDate,
-        today: LocalDate, weatherByDate: Map<String, ForecastEntity>,
+        today: LocalDate, weatherByDate: Map<LocalDate, ForecastEntity>,
         hourlyForecasts: List<HourlyForecastEntity>, numColumns: Int,
         displaySource: WeatherSource, skipHistory: Boolean,
         stateManager: WidgetStateManager?, appWidgetId: Int,
         todayNext8HourPrecipProbability: Int?,
-        dailyActuals: Map<String, ObservationResolver.DailyActual> = emptyMap(),
+        dailyActuals: DailyActualMap = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList()
-    ): List<Triple<Int, String, Boolean>> {
+    ): List<Triple<Int, LocalDate, Boolean>> {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
             displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals,
@@ -752,7 +753,7 @@ object DailyViewHandler : WidgetViewHandler {
             stateManager?.markRainShown(appWidgetId, today.format(DateTimeFormatter.ISO_LOCAL_DATE))
         }
 
-        return dayDataList.filter { it.isVisible }.map { Triple(it.dayIndex, it.dateStr, it.hasRainForecast) }
+        return dayDataList.filter { it.isVisible }.map { Triple(it.dayIndex, it.date, it.hasRainForecast) }
     }
 
     private fun populateDay(
@@ -788,18 +789,17 @@ object DailyViewHandler : WidgetViewHandler {
 
     @VisibleForTesting
     internal fun buildDayClickIntent(
-        context: Context, appWidgetId: Int, dayIndex: Int, dateStr: String,
+        context: Context, appWidgetId: Int, dayIndex: Int, date: LocalDate,
         hasRainForecast: Boolean, lat: Double, lon: Double,
         displaySource: WeatherSource, now: LocalDateTime = LocalDateTime.now(),
     ): Intent {
-        val targetDay = LocalDate.parse(dateStr)
-        val isHistory = targetDay.isBefore(now.toLocalDate())
+        val isHistory = date.isBefore(now.toLocalDate())
         val showHistory = DayClickHelper.shouldShowHistory(isHistory)
 
         return Intent(context, WeatherWidgetProvider::class.java).apply {
             action = ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra("date", dateStr)
+            putExtra("date", date.toString())
             putExtra("isHistory", isHistory)
             putExtra("showHistory", showHistory)
             putExtra("index", dayIndex)
@@ -809,7 +809,7 @@ object DailyViewHandler : WidgetViewHandler {
 
             if (!showHistory) {
                 val targetMode = DayClickHelper.resolveTargetViewMode(hasRainForecast)
-                val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
+                val offset = DayClickHelper.calculatePrecipitationOffset(now, date)
                 putExtra(EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(EXTRA_HOURLY_OFFSET, offset)
             }
@@ -818,11 +818,11 @@ object DailyViewHandler : WidgetViewHandler {
 
     private fun setupTextDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
-        visibleDays: List<Triple<Int, String, Boolean>>, lat: Double, lon: Double, displaySource: WeatherSource
+        visibleDays: List<Triple<Int, LocalDate, Boolean>>, lat: Double, lon: Double, displaySource: WeatherSource
     ) {
         val containerIds = listOf(R.id.day1_container, R.id.day2_container, R.id.day3_container, R.id.day4_container, R.id.day5_container, R.id.day6_container, R.id.day7_container)
-        visibleDays.forEach { (dayIndex, dateStr, hasRainForecast) ->
-            val intent = buildDayClickIntent(context, appWidgetId, dayIndex, dateStr, hasRainForecast, lat, lon, displaySource, now)
+        visibleDays.forEach { (dayIndex, date, hasRainForecast) ->
+            val intent = buildDayClickIntent(context, appWidgetId, dayIndex, date, hasRainForecast, lat, lon, displaySource, now)
             val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.dayClick(appWidgetId, dayIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(containerIds[dayIndex - 1], pendingIntent)
         }

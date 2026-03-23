@@ -39,8 +39,8 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
     fun setupGraphDayClickHandlers_ensuresCorrectNumColumnsVisible_onDevice() {
         // GIVEN: 9 columns expected, but only 2 days of data provided (Today and Tomorrow)
         val now = LocalDateTime.of(2026, 3, 20, 12, 0)
-        val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val today = now.toLocalDate()
+        val tomorrow = today.plusDays(1)
 
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val appWidgetId = 5005
@@ -49,7 +49,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
         // Weather data missing YESTERDAY (index 0)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
-                date = todayStr,
+                date = today,
                 label = "Today",
                 high = 70f,
                 low = 50f,
@@ -57,7 +57,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
                 columnIndex = 1 // Today is the second column
             ),
             DailyForecastGraphRenderer.DayData(
-                date = tomorrowStr,
+                date = tomorrow,
                 label = "Sat",
                 high = 72f,
                 low = 52f,

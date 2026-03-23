@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -27,16 +28,19 @@ class DailyGapFallbackGraphIntegrationTest {
         val today = now.toLocalDate()
         val fmt = DateTimeFormatter.ISO_LOCAL_DATE
 
-        val yesterdayStr = today.minusDays(1).format(fmt)
+        val yesterday = today.minusDays(1)
+        val tomorrow = today.plusDays(1)
+        val dayAfterTomorrow = today.plusDays(2)
+        val yesterdayStr = yesterday.format(fmt)
         val todayStr = today.format(fmt)
-        val tomorrowStr = today.plusDays(1).format(fmt)
-        val dayAfterTomorrowStr = today.plusDays(2).format(fmt)
+        val tomorrowStr = tomorrow.format(fmt)
+        val dayAfterTomorrowStr = dayAfterTomorrow.format(fmt)
 
         val weatherByDate = mapOf(
-            yesterdayStr to forecast(yesterdayStr, 68f, 54f, WeatherSource.NWS),
-            todayStr to forecast(todayStr, 70f, 55f, WeatherSource.NWS),
-            tomorrowStr to forecast(tomorrowStr, 72f, 56f, WeatherSource.NWS),
-            dayAfterTomorrowStr to forecast(dayAfterTomorrowStr, 74f, 57f, WeatherSource.GENERIC_GAP, isClimateNormal = true),
+            yesterday to forecast(yesterdayStr, 68f, 54f, WeatherSource.NWS),
+            today to forecast(todayStr, 70f, 55f, WeatherSource.NWS),
+            tomorrow to forecast(tomorrowStr, 72f, 56f, WeatherSource.NWS),
+            dayAfterTomorrow to forecast(dayAfterTomorrowStr, 74f, 57f, WeatherSource.GENERIC_GAP, isClimateNormal = true),
         )
 
         val days = DailyViewLogic.prepareGraphDays(
@@ -63,8 +67,8 @@ class DailyGapFallbackGraphIntegrationTest {
             onBarDrawn = drawnBars::add,
         )
 
-        val providerBar = drawnBars.single { it.date == tomorrowStr && it.barType == "FUTURE" }
-        val fallbackBar = drawnBars.single { it.date == dayAfterTomorrowStr && it.barType == "FUTURE" }
+        val providerBar = drawnBars.single { it.date == tomorrow && it.barType == "FUTURE" }
+        val fallbackBar = drawnBars.single { it.date == dayAfterTomorrow && it.barType == "FUTURE" }
 
         assertEquals(Color.parseColor("#5AC8FA"), providerBar.color)
         assertEquals(Color.parseColor("#34C759"), fallbackBar.color)
@@ -77,16 +81,18 @@ class DailyGapFallbackGraphIntegrationTest {
         val today = now.toLocalDate()
         val fmt = DateTimeFormatter.ISO_LOCAL_DATE
 
-        val yesterdayStr = today.minusDays(1).format(fmt)
+        val yesterday = today.minusDays(1)
+        val tomorrow = today.plusDays(1)
+        val yesterdayStr = yesterday.format(fmt)
         val todayStr = today.format(fmt)
-        val tomorrowStr = today.plusDays(1).format(fmt)
+        val tomorrowStr = tomorrow.format(fmt)
 
         val weatherByDate = mapOf(
-            todayStr to forecast(todayStr, 70f, 55f, WeatherSource.NWS),
-            tomorrowStr to forecast(tomorrowStr, 72f, 56f, WeatherSource.NWS),
+            today to forecast(todayStr, 70f, 55f, WeatherSource.NWS),
+            tomorrow to forecast(tomorrowStr, 72f, 56f, WeatherSource.NWS),
         )
         val forecastSnapshots = mapOf(
-            yesterdayStr to listOf(
+            yesterday to listOf(
                 forecast(
                     date = yesterdayStr,
                     highTemp = 68f,
@@ -110,11 +116,11 @@ class DailyGapFallbackGraphIntegrationTest {
             dailyActuals = emptyMap(),
         )
 
-        val yesterday = days.single { it.date == yesterdayStr }
-        assertEquals(null, yesterday.high)
-        assertEquals(null, yesterday.low)
-        assertEquals(68f, yesterday.forecastHigh)
-        assertEquals(54f, yesterday.forecastLow)
+        val yesterdayDay = days.single { it.date == yesterday }
+        assertEquals(null, yesterdayDay.high)
+        assertEquals(null, yesterdayDay.low)
+        assertEquals(68f, yesterdayDay.forecastHigh)
+        assertEquals(54f, yesterdayDay.forecastLow)
 
         val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
         DailyForecastGraphRenderer.renderGraph(
@@ -129,20 +135,21 @@ class DailyGapFallbackGraphIntegrationTest {
 
         assertTrue(
             "Expected forecast-history bar to render for yesterday when extremes are missing",
-            drawnBars.any { it.date == yesterdayStr && it.barType == "FORECAST_OVERLAY" },
+            drawnBars.any { it.date == yesterday && it.barType == "FORECAST_OVERLAY" },
         )
         assertFalse(
             "Expected no actual-history bar when extremes are missing",
-            drawnBars.any { it.date == yesterdayStr && it.barType == "HISTORY" },
+            drawnBars.any { it.date == yesterday && it.barType == "HISTORY" },
         )
     }
 
     @Test
     fun `renderGraph uses yellow for today actual bar and orange for today snapshot bar`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val todayStr = LocalDateTime.of(2030, 6, 15, 12, 0).toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val today = LocalDateTime.of(2030, 6, 15, 12, 0).toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val day = DailyForecastGraphRenderer.DayData(
-            date = todayStr,
+            date = today,
             label = "Today",
             high = 74f,
             low = 65f,
@@ -164,7 +171,7 @@ class DailyGapFallbackGraphIntegrationTest {
             onBarDrawn = drawnBars::add,
         )
 
-        val todayBar = drawnBars.single { it.date == todayStr && it.barType == "TODAY" }
+        val todayBar = drawnBars.single { it.date == today && it.barType == "TODAY" }
         assertEquals(-52378, todayBar.color)
     }
 
