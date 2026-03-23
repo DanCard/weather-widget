@@ -240,9 +240,9 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // WIDE view spans -12..+12 from baseOffset (25h total).
-        // Each zone is 2h wide. Formula: -11 + 2 * zoneIndex.
-        val expectedOffsets = listOf(-11, -9, -7, -5, -3, -1, 1, 3, 5, 7, 9, 11)
+        // WIDE view spans -12..+12 from baseOffset.
+        // 13 zones. Formula: 2 * (zoneIndex - 6).
+        val expectedOffsets = listOf(-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12)
 
         for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
             // Reset to WIDE zoom for each zone test
@@ -284,7 +284,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         val baseOffset = 6  // User has navigated 6h forward
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // Tap zone 0 (leftmost): with baseOffset=6 this should target absolute offset -2.
+        // Tap zone 0 (leftmost): with baseOffset=6 this should target absolute offset 6 - 12 = -6.
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
@@ -301,7 +301,7 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         }
 
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
-        assertEquals(-5, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(-6, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test

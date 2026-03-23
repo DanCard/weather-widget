@@ -314,3 +314,60 @@ tasks.register("installDebugSmart") {
         }
     }
 }
+
+// Task to trigger widget refresh after instrumentation tests
+// This helps recover the widget UI after force-stop during testing
+tasks.register("refreshWidgetAfterTests") {
+    description = "Triggers widget refresh after running instrumentation tests (for manual testing)"
+    group = "verification"
+
+    doLast {
+        try {
+            val adbPath = "${System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT") ?: System.getProperty("user.home") + "/.Android/Sdk"}/platform-tools/adb"
+
+            // Find the first emulator (ignore physical devices)
+            val listProcess = ProcessBuilder(adbPath, "devices")
+                .redirectErrorStream(true)
+                .start()
+
+            listProcess.waitFor(5, TimeUnit.SECONDS)
+            val devicesOutput = listProcess.inputStream.bufferedReader().use { it.readText() }
+
+            // Parse emulator serial from "emulator-XXXX\tdevice" format
+            val emulatorSerial = devicesOutput.lines()
+                .firstOrNull { it.contains("emulator-") && it.contains("device") }
+                ?.split("\t")?.getOrNull(0)
+
+            if (emulatorSerial != null) {
+                val adbCommand = listOf(
+                    adbPath,
+                    "-s", emulatorSerial,
+                    "shell", "am", "broadcast",
+                    "-a", "com.weatherwidget.ACTION_REFRESH",
+                    "-p", "com.weatherwidget"
+                )
+
+                val process = ProcessBuilder(adbCommand)
+                    .redirectErrorStream(true)
+                    .start()
+
+                process.waitFor(10, TimeUnit.SECONDS)
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                logger.lifecycle("Widget refresh broadcast sent to $emulatorSerial: ${output.ifBlank { "completed" }}")
+            } else {
+                logger.warn("No emulator found connected. Skipping widget refresh.")
+            }
+        } catch (e: Exception) {
+            logger.warn("Failed to trigger widget refresh: ${e.message}")
+        }
+    }
+}
+
+// Automatically refresh widget after connected tests complete
+gradle.projectsEvaluated {
+    tasks.findByName("connectedDebugAndroidTest")?.let { testTask ->
+        testTask.finalizedBy("refreshWidgetAfterTests")
+    }
+}
+
+

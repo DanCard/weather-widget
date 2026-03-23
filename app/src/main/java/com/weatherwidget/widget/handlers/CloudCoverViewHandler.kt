@@ -339,6 +339,7 @@ object CloudCoverViewHandler {
         R.id.graph_hour_zone_3, R.id.graph_hour_zone_4, R.id.graph_hour_zone_5,
         R.id.graph_hour_zone_6, R.id.graph_hour_zone_7, R.id.graph_hour_zone_8,
         R.id.graph_hour_zone_9, R.id.graph_hour_zone_10, R.id.graph_hour_zone_11,
+        R.id.graph_hour_zone_12,
     )
 
     private fun setupZoomTapZones(

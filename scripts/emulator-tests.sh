@@ -735,7 +735,7 @@ fi
 
 # Recover widget state after tests (pre-test cleanup stops app/workers)
 echo -e "${BLUE}Triggering widget refresh to recover UI...${NC}"
-$ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -n com.weatherwidget/.widget.WeatherWidgetProvider >/dev/null 2>&1 || true
+$ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -p com.weatherwidget >/dev/null 2>&1 || true
 
 # Return appropriate exit code
 if [ "$TEST_SUCCESS" = true ]; then

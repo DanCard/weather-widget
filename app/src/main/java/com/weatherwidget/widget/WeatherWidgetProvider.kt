@@ -786,7 +786,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
         const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
         const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
-        const val HOUR_ZONE_COUNT = 12
+        const val HOUR_ZONE_COUNT = 13
         private const val STARTUP_STALE_REFRESH_DELAY_MS = 1_500L
 
         internal fun needsDailyStartupData(viewModes: Collection<ViewMode>): Boolean =
@@ -827,19 +827,23 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         /**
          * Calculate the hourly offset that a zone's center represents.
-         * WIDE view spans roughly 24h (-8 to +16 from current offset), split into 12 zones of 2h each.
-         * NARROW view spans roughly 4h (-2 to +2), split into 12 zones of 1/3h each.
-         * We bias the selected offset so the tapped hour appears centered after switching zooms.
-         * @param zoneIndex 0-based zone index (0..11, left to right)
+         * WIDE view spans roughly 24h (-12 to +12 from current offset), split into 13 zones.
+         * NARROW view spans roughly 4h (-2 to +2), split into 13 zones.
+         * We use an odd number of zones (13) so the visual center (index 6) maps to offset 0.
+         * @param zoneIndex 0-based zone index (0..12, left to right)
          * @param currentHourlyOffset the widget's current hourly offset
          * @param zoom the current zoom level of the widget
          * @return the offset to center on when zooming into/out of this zone
          */
         fun zoneIndexToOffset(zoneIndex: Int, currentHourlyOffset: Int, zoom: ZoomLevel = ZoomLevel.WIDE): Int {
             return if (zoom == ZoomLevel.WIDE) {
-                currentHourlyOffset + (-11 + 2 * zoneIndex)
+                // 13 zones covering 24 hours. Index 6 is the visual center (offset 0).
+                // Each zone represents ~2 hours. 2 * (6 - 6) = 0.
+                currentHourlyOffset + 2 * (zoneIndex - 6)
             } else {
-                val offsetFloat = -2f + (zoneIndex + 0.5f) / 3f
+                // 13 zones covering 4 hours. Index 6 is the visual center (offset 0).
+                // Each zone is 1/3h. 4/12 * (index - 6) = (index - 6) / 3.
+                val offsetFloat = (zoneIndex - 6f) / 3f
                 currentHourlyOffset + Math.round(offsetFloat)
             }
         }

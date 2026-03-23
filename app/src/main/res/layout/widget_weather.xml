@@ -649,6 +649,13 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1"
                     android:background="@android:color/transparent" />
+
+                <FrameLayout
+                    android:id="@+id/graph_hour_zone_12"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent" />
             </LinearLayout>
 
             <!-- Graph body tap zone - excludes the bottom hour label/icon row -->
