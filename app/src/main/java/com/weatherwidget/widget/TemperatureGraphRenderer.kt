@@ -190,10 +190,10 @@ object TemperatureGraphRenderer {
         // Expected (Corrected) Hours — delta applied to forecast for ghost line range calculation
         val expectedHours = hours.map { it.copy(temperature = it.temperature + (appliedDelta ?: 0f)) }
 
-        // Find temperature range for scaling (forecast + actuals + expected)
+        // Find temperature range for scaling (forecast + actuals only — exclude ghost line so a
+        // positive delta doesn't push the forecast peak lower by inflating rawMax)
         val allTemps = hours.map { it.temperature } +
-            hours.mapNotNull { it.actualTemperature } +
-            expectedHours.map { it.temperature }
+            hours.mapNotNull { it.actualTemperature }
         val rawMin = (allTemps.minOrNull() ?: 0f)
         val rawMax = (allTemps.maxOrNull() ?: 100f)
         val rawRange = (rawMax - rawMin).coerceAtLeast(1f)

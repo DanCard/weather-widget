@@ -108,7 +108,7 @@ object PrecipitationGraphRenderer {
         val heightDp = heightPx / density
 
         // Layout zones (mirrors TemperatureGraphRenderer style)
-        val topPadding = dpToPx(context, 16f)
+        val topPadding = dpToPx(context, 12f)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && shouldShowHourlyIcons(widthPx)
         val iconStride = iconStrideForLabelSpacing(hourLabelSpacingDp)
