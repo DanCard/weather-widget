@@ -5,6 +5,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 object WeatherTimeUtils {
+    const val MILLIS_PER_DAY = 24 * 60 * 60 * 1000L
 
     fun alignToNearestHourHalfUp(dateTime: LocalDateTime): LocalDateTime {
         val truncatedHour = dateTime.truncatedTo(ChronoUnit.HOURS)

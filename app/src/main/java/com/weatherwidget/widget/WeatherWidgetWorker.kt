@@ -138,7 +138,7 @@ class WeatherWidgetWorker
                         }
                         val afterBackfillMs = SystemClock.elapsedRealtime()
 
-                        val todayStartMs = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
                             location.first,
                             location.second,
@@ -388,7 +388,7 @@ class WeatherWidgetWorker
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
             val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = false)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
-            val todayStartMs2 = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val todayStartMs2 = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
                 location.first,
                 location.second,
