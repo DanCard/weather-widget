@@ -26,6 +26,7 @@ object DailyActualsEstimator {
         val forecastLow: Float?,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
+        val trueActualHigh: Float? = null,
     )
 
     /**
@@ -88,7 +89,8 @@ object DailyActualsEstimator {
             forecastHigh = forecastHigh,
             forecastLow = forecastLow,
             snapshotHigh = snapshotHigh,
-            snapshotLow = snapshotLow
+            snapshotLow = snapshotLow,
+            trueActualHigh = actual?.highTemp,
         )
     }
 

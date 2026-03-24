@@ -132,7 +132,8 @@ class DailyActualsEstimatorTest {
 
     @Test
     fun calculateTodayTripleLineValues_currentTempHigherThanActual_currentTempWinsAsObservedHigh() {
-        // actual.highTemp=75°, currentTemp=82° → observedHigh should be 82°
+        // actual.highTemp=75°, currentTemp=82° → observedHigh should be 82° (thermometer top)
+        // trueActualHigh should be 75° (for ghost bar logic, though ghost bar won't show if trueActualHigh <= observedHigh)
         val actuals = mapOf(
             today to com.weatherwidget.widget.ObservationResolver.DailyActual(
                 date = today, highTemp = 75f, lowTemp = 50f, condition = "Clear"
@@ -149,12 +150,13 @@ class DailyActualsEstimatorTest {
         )
 
         assertEquals(82f, values.observedHigh!!, 0.01f)
+        assertEquals(75f, values.trueActualHigh!!, 0.01f)
     }
 
     @Test
-    fun calculateTodayTripleLineValues_actualHigherThanCurrentTemp_actualWinsAsObservedHigh() {
-        // This is the scenario from the field: actual.high=84.99°, currentTemp=81.5°
-        // observedHigh should be 84.99°, not the current temp
+    fun calculateTodayTripleLineValues_actualHigherThanCurrentTemp_currentTempIsObservedHigh_actualIsTrueHigh() {
+        // This is the scenario for the ghost bar: actual.high=85°, currentTemp=81°
+        // observedHigh should be 81° (mercury level), trueActualHigh should be 85° (ghost peak)
         val actuals = mapOf(
             today to com.weatherwidget.widget.ObservationResolver.DailyActual(
                 date = today, highTemp = 85f, lowTemp = 55f, condition = "Sunny"
@@ -170,7 +172,8 @@ class DailyActualsEstimatorTest {
             currentTemp = 81f,
         )
 
-        assertEquals(85f, values.observedHigh!!, 0.01f)
+        assertEquals(81f, values.observedHigh!!, 0.01f)
+        assertEquals(85f, values.trueActualHigh!!, 0.01f)
     }
 
     // --- finalHigh fallback chain when no observations ---

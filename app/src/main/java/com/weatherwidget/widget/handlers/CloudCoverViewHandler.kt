@@ -280,7 +280,7 @@ object CloudCoverViewHandler {
                 heightPx = heightPx,
                 currentTime = now,
                 bitmapScale = bitmapScale,
-                smoothIterations = zoom.precipSmoothIterations,
+                smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 observedAt = observedAt,
             )

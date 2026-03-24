@@ -61,6 +61,7 @@ object DailyForecastGraphRenderer {
         val isTodayForecastFallback: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
+        val trueActualHigh: Float? = null,
     )
 
     private data class LayoutInfo(
@@ -88,6 +89,7 @@ object DailyForecastGraphRenderer {
         val barPaint: Paint,
         val todayBarPaint: Paint,
         val todayObservedRedPaint: Paint,
+        val todayObservedGhostPaint: Paint,
         val todayObservedRedBulbPaint: Paint,
         val todaySnapshotYellowPaint: Paint,
         val todayForecastBluePaint: Paint,
@@ -146,7 +148,7 @@ object DailyForecastGraphRenderer {
         columns: Int,
         bitmapScale: Float
     ): LayoutInfo {
-        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow) }
+        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow, it.trueActualHigh) }
         val minTemp = allTemps.minOrNull() ?: 0f
         val maxTemp = allTemps.maxOrNull() ?: 100f
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
@@ -219,6 +221,7 @@ object DailyForecastGraphRenderer {
             barPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth),
             todayBarPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), barWidth),
             todayObservedRedPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth),
+            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = 76 },
             todayObservedRedBulbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(COLOR_OBSERVED_RED)
                 style = Paint.Style.FILL
@@ -409,6 +412,16 @@ object DailyForecastGraphRenderer {
         canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)
         // Repositioned bulb: shift down by half radius
         canvas.drawCircle(centerX, effectiveObsLowY + (layout.bulbRadius * 0.5f), layout.bulbRadius, paints.todayObservedRedBulbPaint)
+        
+        // Draw Ghost Bar (True Actual High) if it is higher than the current top of the observed bar
+        day.trueActualHigh?.let { trueHigh ->
+            val obsHighTemp = day.high ?: 0f
+            if (trueHigh > obsHighTemp) {
+                val ghostHighY = layout.graphTop + layout.graphHeight * (1 - (trueHigh - layout.minTemp) / layout.tempRange)
+                canvas.drawLine(centerX, ghostHighY, centerX, obsHighY, paints.todayObservedGhostPaint)
+                onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_GHOST", ghostHighY, obsHighY, centerX, paints.todayObservedGhostPaint.color))
+            }
+        }
         
         onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", obsHighY, effectiveObsLowY, centerX, paints.todayObservedRedPaint.color))
     }

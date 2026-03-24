@@ -362,7 +362,7 @@ object DailyViewHandler : WidgetViewHandler {
                 numColumns, displaySource, isEveningMode, skipHistory,
                 hourlyForecasts, stateManager, appWidgetId, precipProb,
                 dailyActuals, climateNormals, currentTemps,
-                currentTemp = observedCurrentTemp,
+                currentTemp = currentTemp,
                 observedAt = observedAt
             )
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
@@ -453,7 +453,7 @@ object DailyViewHandler : WidgetViewHandler {
                 context, views, now, centerDate, today, weatherByDate,
                 hourlyForecasts, numColumns, displaySource, skipHistory,
                 stateManager, appWidgetId, precipProb, dailyActuals, currentTemps,
-                currentTemp = observedCurrentTemp,
+                currentTemp = currentTemp,
                 observedAt = observedAt
             )
 

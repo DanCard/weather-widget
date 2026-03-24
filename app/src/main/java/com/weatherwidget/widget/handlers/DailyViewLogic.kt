@@ -206,7 +206,7 @@ object DailyViewLogic {
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
         dayOffsets.forEachIndexed { index, offset ->
-            val date = centerDate.plusDays(offset.toLong())
+            val date = centerDate.plusDays(offset)
 
             // Try preferred source first, then any available source for the given date.
             val weather = weatherByDate[date] ?: forecastSnapshots[date]?.firstOrNull()
@@ -242,6 +242,7 @@ object DailyViewLogic {
             var snapshotLow: Float? = null
             var isClimateOverlay = false
             var isTodayForecastFallback = false
+            var trueActualHigh: Float? = null
 
             if (isPastDate) {
                 finalHigh = actual?.highTemp
@@ -291,6 +292,7 @@ object DailyViewLogic {
                 fLow = tripleValues.forecastLow
                 snapshotHigh = tripleValues.snapshotHigh
                 snapshotLow = tripleValues.snapshotLow
+                trueActualHigh = tripleValues.trueActualHigh
                 isTodayForecastFallback =
                     tripleValues.observedHigh == null &&
                         tripleValues.observedLow == null &&
@@ -349,6 +351,7 @@ object DailyViewLogic {
                     isTodayForecastFallback = isTodayForecastFallback,
                     snapshotHigh = snapshotHigh,
                     snapshotLow = snapshotLow,
+                    trueActualHigh = trueActualHigh,
                 )
             )
         }
