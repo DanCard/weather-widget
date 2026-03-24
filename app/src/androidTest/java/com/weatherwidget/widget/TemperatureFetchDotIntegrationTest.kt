@@ -96,6 +96,6 @@ class TemperatureFetchDotIntegrationTest {
 
         assertEquals(1, events.size)
         val event = events[0]
-        assertEquals("30m", event.ageText)
+        assertEquals("65.0° (30m)", event.ageText)
     }
 }
