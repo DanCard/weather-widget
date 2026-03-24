@@ -245,7 +245,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             context = context,
             hours = hours,
             widthPx = 400,
-            heightPx = 100, // Very small height to squeeze things
+            heightPx = 60, // Squeezed even more to force it off-screen with smaller 1dp gap
             currentTime = start,
             onLabelPlaced = { placements.add(it) },
         )

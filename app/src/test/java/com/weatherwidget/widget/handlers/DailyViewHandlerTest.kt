@@ -1212,6 +1212,82 @@ class DailyViewHandlerTest {
         assertEquals("graph_hour_zones must be GONE in daily mode", View.GONE, hourZones.visibility)
     }
 
+    @Test
+    fun `DailyViewHandler uses provided observedCurrentTemp`() = runBlocking {
+        val appWidgetManager = mockk<AppWidgetManager>(relaxed = true)
+        val stateManager = mockk<WidgetStateManager>(relaxed = true)
+        every { stateManager.getViewMode(any()) } returns com.weatherwidget.widget.ViewMode.DAILY
+        every { stateManager.getCurrentDisplaySource(any()) } returns WeatherSource.NWS
+        every { stateManager.getHourlyOffset(any()) } returns 0
+        every { stateManager.getCurrentTempDeltaState(any(), any()) } returns null
+
+        val now = LocalDateTime.of(2026, 3, 23, 12, 0)
+        val today = now.toLocalDate()
+        val weatherList = listOf(
+            com.weatherwidget.testutil.TestData.forecast(targetDate = today.toString(), source = WeatherSource.NWS.id, highTemp = 75f, lowTemp = 55f)
+        )
+        val hourlyForecasts = listOf(
+            com.weatherwidget.testutil.TestData.hourly(dateTime = "2026-03-23T12:00", temperature = 70f, source = WeatherSource.NWS.id)
+        )
+
+        // Mock CurrentTemperatureResolver to return our expected display temp
+        mockkObject(com.weatherwidget.widget.CurrentTemperatureResolver)
+        every {
+            com.weatherwidget.widget.CurrentTemperatureResolver.resolve(
+                now = any(),
+                displaySource = any(),
+                hourlyForecasts = any(),
+                observedCurrentTemp = 72.5f, // Our provided value
+                observedAt = any(),
+                storedDeltaState = any(),
+                currentLat = any(),
+                currentLon = any()
+            )
+        } returns com.weatherwidget.widget.CurrentTemperatureResolution(
+            displayTemp = 72.5f,
+            estimatedTemp = 70f,
+            observedTemp = 72.5f,
+            isStaleEstimate = false,
+            appliedDelta = 2.5f,
+            updatedDeltaState = null,
+            shouldClearStoredDelta = false
+        )
+
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(any<Int>(), capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 1,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = hourlyForecasts,
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
+            now = now,
+            observedCurrentTemp = 72.5f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        )
+
+        // Verify that resolve was called with the correct temperature
+        verify {
+            com.weatherwidget.widget.CurrentTemperatureResolver.resolve(
+                now = any(),
+                displaySource = any(),
+                hourlyForecasts = any(),
+                observedCurrentTemp = 72.5f,
+                observedAt = any(),
+                storedDeltaState = any(),
+                currentLat = any(),
+                currentLon = any()
+            )
+        }
+        
+        unmockkObject(com.weatherwidget.widget.CurrentTemperatureResolver)
+    }
+
     private fun createWeatherMap(today: LocalDate): Map<LocalDate, ForecastEntity> {
         return (-1..5).associate { offset ->
             val date = today.plusDays(offset.toLong())

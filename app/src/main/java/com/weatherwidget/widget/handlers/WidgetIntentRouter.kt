@@ -776,6 +776,20 @@ object WidgetIntentRouter {
             ?: database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
         val finalDailyActuals = dailyActuals ?: getDailyActuals(database, lat, lon)
 
+        val stateManager = WidgetStateManager(context)
+        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+        val zoom = stateManager.getZoomLevel(appWidgetId)
+        
+        val graphStyleObs = resolveGraphStyleCurrentTemp(
+            repository = repository,
+            lat = lat,
+            lon = lon,
+            displaySource = displaySource,
+            hourlyForecasts = hourlyForecasts,
+            centerTime = now,
+            zoom = zoom
+        )
+
         DailyViewHandler.updateWidget(
             context,
             appWidgetManager,
@@ -786,6 +800,8 @@ object WidgetIntentRouter {
             ctCurrentTemps,
             finalDailyActuals,
             repository,
+            observedCurrentTemp = graphStyleObs?.temperature,
+            observedAt = graphStyleObs?.observedAt,
         )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs
@@ -858,7 +874,21 @@ object WidgetIntentRouter {
         val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
 
         val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
-        val observation = com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        val zoom = stateManager.getZoomLevel(appWidgetId)
+        
+        // Resolve current temperature using the graph's IDW + forward extrapolation logic for consistency.
+        val graphStyleObs = resolveGraphStyleCurrentTemp(
+            repository = repository,
+            lat = lat,
+            lon = lon,
+            displaySource = displaySource,
+            hourlyForecasts = hourlyForecasts,
+            centerTime = centerTime,
+            zoom = zoom
+        )
+        
+        val observation = graphStyleObs ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        
         logCurrentTempStalenessDebug(
             database = database,
             appWidgetId = appWidgetId,
@@ -913,6 +943,48 @@ object WidgetIntentRouter {
             }
         }
     }
+    private suspend fun resolveGraphStyleCurrentTemp(
+        repository: com.weatherwidget.data.repository.WeatherRepository?,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel
+    ): com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature? {
+        if (repository == null) return null
+        
+        val zoneId = ZoneId.systemDefault()
+        val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
+        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+        val startHour = alignedCenter.minusHours(zoom.backHours)
+        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        
+        val minEpoch = startHour.atZone(zoneId).toInstant().toEpochMilli()
+        val maxEpoch = endHour.atZone(zoneId).toInstant().toEpochMilli()
+        val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
+        
+        val resolved = com.weatherwidget.util.ObservationBlender.resolveCurrentObservation(
+            observations = observations,
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            userLat = lat,
+            userLon = lon,
+            now = LocalDateTime.now(),
+            lookbackHours = zoom.backHours,
+            lookaheadHours = zoom.forwardHours
+        )
+        
+        return resolved?.let { (temp, time, anchorTime) ->
+            com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature(
+                temperature = temp,
+                observedAt = anchorTime,
+                source = displaySource.id,
+                rowFetchedAt = System.currentTimeMillis() // Synthetic
+            )
+        }
+    }
+
     private suspend fun logCurrentTempStalenessDebug(
         database: WeatherDatabase,
         appWidgetId: Int,

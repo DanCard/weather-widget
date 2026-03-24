@@ -327,6 +327,88 @@ object CloudCoverGraphRenderer {
             dpToPx = { dpToPx(context, it) },
         )
 
+        // --- Draw "Last Fetch Dot" on the curve ---
+        if (observedAt != null) {
+            val fetchTime = java.time.Instant.ofEpochMilli(observedAt)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDateTime()
+
+            val fetchX = GraphRenderUtils.computeXForTime(
+                targetTime = fetchTime,
+                items = hours,
+                points = points,
+                hourWidth = hourWidth,
+                dateTimeOf = { it.dateTime }
+            )
+
+            if (fetchX != null) {
+                val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
+                if (fetchIdx != -1 && fetchIdx < hours.lastIndex) {
+                    val baseCloud = hours[fetchIdx].cloudCover.toFloat()
+                    val nextCloud = hours[fetchIdx + 1].cloudCover.toFloat()
+                    val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+                    val interpolatedCloud = baseCloud + (nextCloud - baseCloud) * fraction
+                    val fetchY = graphBottom - graphHeight * (interpolatedCloud / 100f)
+
+                    val dotRadius = dpToPx(context, 2.5f * (bitmapScale.coerceIn(0.5f, 1f)))
+                    val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
+
+                    val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.WHITE
+                        style = Paint.Style.FILL
+                    }
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
+
+                    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#AAFFFFFF")
+                        style = Paint.Style.STROKE
+                        strokeWidth = dpToPx(context, 1f)
+                    }
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
+
+                    val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#44000000")
+                        style = Paint.Style.STROKE
+                        strokeWidth = dpToPx(context, 0.5f)
+                    }
+                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
+
+                    // On zoomed-in view, show the exact age
+                    if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
+                        val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
+                        Log.d("CloudGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
+                        if (ageMinutes >= 0) {
+                            val ageText = if (ageMinutes >= 60) {
+                                val h = ageMinutes / 60
+                                val m = ageMinutes % 60
+                                if (m > 0) "${h}h ${m}m" else "${h}h"
+                            } else {
+                                "${ageMinutes}m"
+                            }
+
+                            val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+                            val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                                color = Color.parseColor("#BBFFFFFF")
+                                textSize = dpToPx(context, 10f * labelScale)
+                                textAlign = Paint.Align.LEFT
+                                setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+                            }
+
+                            val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
+                            val textY = fetchY + ageTextPaint.textSize / 3f
+                            val textWidth = ageTextPaint.measureText(ageText)
+                            val finalX = if (textX + textWidth > widthPx) {
+                                clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
+                            } else {
+                                textX
+                            }
+                            canvas.drawText(ageText, finalX, textY, ageTextPaint)
+                        }
+                    }
+                }
+            }
+        }
+
         // --- Cloud icon in emptiest region ---
         val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
         if (cloudDrawable != null && points.size >= 3) {

@@ -111,6 +111,8 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
+        observedCurrentTemp: Float? = null,
+        observedAt: Long? = null,
         startupToken: String? = null,
     ) {
         updateWidget(
@@ -123,6 +125,8 @@ object DailyViewHandler : WidgetViewHandler {
             currentTemps = currentTemps,
             dailyActualsBySource = dailyActualsBySource,
             repository = repository,
+            observedCurrentTemp = observedCurrentTemp,
+            observedAt = observedAt,
             now = LocalDateTime.now(),
             startupToken = startupToken,
         )
@@ -139,6 +143,8 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
+        observedCurrentTemp: Float? = null,
+        observedAt: Long? = null,
         now: LocalDateTime,
         startupToken: String? = null,
     ) {
@@ -212,7 +218,16 @@ object DailyViewHandler : WidgetViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
-        val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        val resolvedObs = if (observedCurrentTemp != null) {
+            ObservationResolver.ObservedCurrentTemperature(
+                temperature = observedCurrentTemp,
+                observedAt = observedAt ?: now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                source = displaySource.id,
+                rowFetchedAt = System.currentTimeMillis()
+            )
+        } else {
+            ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        }
 
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
@@ -220,8 +235,8 @@ object DailyViewHandler : WidgetViewHandler {
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
-                observedCurrentTemp = observedCurrentTemp?.temperature,
-                observedAt = observedCurrentTemp?.observedAt,
+                observedCurrentTemp = resolvedObs?.temperature,
+                observedAt = resolvedObs?.observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,
@@ -346,19 +361,12 @@ object DailyViewHandler : WidgetViewHandler {
                 now, centerDate, today, weatherByDate, forecastSnapshots,
                 numColumns, displaySource, isEveningMode, skipHistory,
                 hourlyForecasts, stateManager, appWidgetId, precipProb,
-                dailyActuals, climateNormals, currentTemps
+                dailyActuals, climateNormals, currentTemps,
+                currentTemp = observedCurrentTemp,
+                observedAt = observedAt
             )
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
-            Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns. Day dates: ${days.map { it.date }}")
-            days.forEach { day ->
-                Log.d(
-                    TAG,
-                    "  Day: ${day.date} [${day.label}] High=${day.high}, Low=${day.low}, " +
-                        "fcstHigh=${day.forecastHigh}, fcstLow=${day.forecastLow}, " +
-                        "snapshotHigh=${day.snapshotHigh}, snapshotLow=${day.snapshotLow}, " +
-                        "todayForecastFallback=${day.isTodayForecastFallback}",
-                )
-            }
+            Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns.")
 
             val missingTodaySnapshot = days.firstOrNull { day ->
                 day.isToday &&
@@ -444,7 +452,9 @@ object DailyViewHandler : WidgetViewHandler {
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
                 hourlyForecasts, numColumns, displaySource, skipHistory,
-                stateManager, appWidgetId, precipProb, dailyActuals, currentTemps
+                stateManager, appWidgetId, precipProb, dailyActuals, currentTemps,
+                currentTemp = observedCurrentTemp,
+                observedAt = observedAt
             )
 
             logDailyRenderSummary(
@@ -721,12 +731,16 @@ object DailyViewHandler : WidgetViewHandler {
         stateManager: WidgetStateManager?, appWidgetId: Int,
         todayNext8HourPrecipProbability: Int?,
         dailyActuals: DailyActualMap = emptyMap(),
-        currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList()
+        currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+        currentTemp: Float? = null,
+        observedAt: Long? = null
     ): List<Triple<Int, LocalDate, Boolean>> {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
             displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals,
-            currentTemps
+            currentTemps,
+            currentTemp = currentTemp,
+            observedAt = observedAt
         )
 
         val dayIds = listOf(

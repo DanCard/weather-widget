@@ -770,9 +770,8 @@ object TemperatureGraphRenderer {
         val labelAscent = if (labelFontMetrics != null && labelFontMetrics.ascent != 0f) labelFontMetrics.ascent else (-actualTempLabelTextPaint.textSize)
         val labelDescent = if (labelFontMetrics != null && labelFontMetrics.descent != 0f) labelFontMetrics.descent else (actualTempLabelTextPaint.textSize * 0.2f)
         
-        val labelTopPadding = dpToPx(context, 2f)
-        val aboveGap = dpToPx(context, 3f)
-        val belowGap = dpToPx(context, 3f)
+        val aboveGap = dpToPx(context, 1f)
+        val belowGap = dpToPx(context, 1f)
 
         for (candidate in specialCandidates) {
             val idx = candidate.index
@@ -935,6 +934,7 @@ object TemperatureGraphRenderer {
                 var ageText: String? = null
                 if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
                     val ageMinutes = java.time.Duration.between(fetchTime!!, currentTime).toMinutes()
+                    Log.d(TAG, "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
                     if (ageMinutes >= 0) {
                         ageText = if (ageMinutes >= 60) {
                             val h = ageMinutes / 60

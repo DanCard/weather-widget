@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
+import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -51,13 +52,13 @@ class TemperatureViewHandlerActualsTest {
             clockMs = { nowMs },
         )
 
-        collector.recordDetailed("first")
+        collector.recordDetailed({ "first" })
         nowMs += 10L
-        collector.recordDetailed("second")
+        collector.recordDetailed({ "second" })
         nowMs += 39L
-        collector.recordDetailed("third")
+        collector.recordDetailed({ "third" })
         nowMs += 1L
-        collector.recordDetailed("fourth")
+        collector.recordDetailed({ "fourth" })
 
         assertEquals(4, collector.rawDetailedLines)
         assertEquals(2, collector.emittedDetailedLines)
@@ -73,11 +74,11 @@ class TemperatureViewHandlerActualsTest {
             clockMs = { nowMs },
         )
 
-        collector.recordDetailed("first")
+        collector.recordDetailed({ "first" })
         nowMs += 10L
-        collector.recordDetailed("forced", alwaysEmit = true)
+        collector.recordDetailed({ "forced" }, alwaysEmit = true)
         nowMs += 10L
-        collector.recordDetailed("suppressed")
+        collector.recordDetailed({ "suppressed" })
 
         assertEquals(3, collector.rawDetailedLines)
         assertEquals(2, collector.emittedDetailedLines)
@@ -90,7 +91,7 @@ class TemperatureViewHandlerActualsTest {
         val forecasts = wideForecasts()
         val start = TestData.toEpoch("2026-02-20T10:00")
         val end = TestData.toEpoch("2026-02-20T11:00")
-        val result = TemperatureViewHandler.blendObservationSeries(
+        val result = ObservationBlender.blendObservationSeries(
             observations = listOf(
                 TestData.observation(timestamp = start, temperature = 68f),
                 TestData.observation(timestamp = end, temperature = 72f),
@@ -128,7 +129,7 @@ class TemperatureViewHandlerActualsTest {
         val endMs = center.plusHours(ZoomLevel.WIDE.forwardHours).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
         val startNs = System.nanoTime()
-        val blendResult = TemperatureViewHandler.blendObservationSeries(
+        val blendResult = ObservationBlender.blendObservationSeries(
             observations = actuals,
             hourlyForecasts = forecasts,
             displaySource = WeatherSource.NWS,
@@ -379,7 +380,7 @@ class TemperatureViewHandlerActualsTest {
             displaySource = WeatherSource.NWS,
             zoom = ZoomLevel.WIDE,
             actuals = actuals,
-            onBlendDebug = { debugLines += it },
+            onBlendDebug = { debugLines += it() },
         )
 
         assertTrue(debugLines.any { it.contains("window source=NWS") && it.contains("AW020") && it.contains("KNUQ") })
@@ -430,7 +431,7 @@ class TemperatureViewHandlerActualsTest {
             displaySource = WeatherSource.NWS,
             zoom = ZoomLevel.WIDE,
             actuals = actuals,
-            onBlendDebug = { debugLines += it },
+            onBlendDebug = { debugLines += it() },
         )
 
         val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
@@ -461,7 +462,7 @@ class TemperatureViewHandlerActualsTest {
             displaySource = WeatherSource.NWS,
             zoom = ZoomLevel.WIDE,
             actuals = actuals,
-            onBlendDebug = { debugLines += it },
+            onBlendDebug = { debugLines += it() },
         )
 
         val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
@@ -493,7 +494,7 @@ class TemperatureViewHandlerActualsTest {
             displaySource = WeatherSource.NWS,
             zoom = ZoomLevel.WIDE,
             actuals = actuals,
-            onBlendDebug = { debugLines += it },
+            onBlendDebug = { debugLines += it() },
         )
 
         val observed1015 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:15") })

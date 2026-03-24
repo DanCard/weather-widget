@@ -954,6 +954,7 @@ object PrecipitationGraphRenderer {
                     // On zoomed-in view, show the exact age
                     if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
                         val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
+                        Log.d("PrecipGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
                         if (ageMinutes >= 0) {
                             val ageText = if (ageMinutes >= 60) {
                                 val h = ageMinutes / 60
