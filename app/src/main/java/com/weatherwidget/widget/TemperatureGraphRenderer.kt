@@ -377,8 +377,7 @@ object TemperatureGraphRenderer {
         } else null
 
         val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to rawTruthTemps[it] })
-            GraphRenderUtils.evaluateCubicY(rawTruthTemps[fetchIdx], t[fetchIdx].second, rawTruthTemps[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
+            rawTruthTemps[fetchIdx] + (rawTruthTemps[fetchIdx + 1] - rawTruthTemps[fetchIdx]) * fetchFraction
         } else null
 
         val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
@@ -425,10 +424,9 @@ object TemperatureGraphRenderer {
             )
         )
 
-        // Build paths. 
-        // Reality paths (Actual solid line, Ghost projection line) now use SMOOTH paths
-        // for visual consistency with the forecast line.
-        val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+        // Build paths.
+        // Truth/actual curve uses linear segments — no Bezier smoothing on observed data.
+        val (originalPath, _) = GraphRenderUtils.buildLinearCurveAndFillPaths(originalPoints, graphBottom)
         val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
 
         // Forecast line (thin dashed background) stays smoothed for visual fluidness.

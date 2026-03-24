@@ -32,27 +32,33 @@ object ObservationResolver {
     )
 
     /**
-     * Finds the latest observation for the specified weather source from a list of _MAIN observations.
-     * Uses [inferSource] to match observation stationId prefixes against the display source.
+     * Finds the most representative observation for the specified weather source from a list of
+     * _MAIN observations. For NWS, prefers the synthetic NWS_BLEND entity (IDW-weighted across
+     * multiple stations) so that the daily view and graph view header show the same temperature.
+     * Falls back to the most recent single-station observation when no blend is available.
      */
     fun resolveObservedCurrentTemp(
         observations: List<ObservationEntity>,
         displaySource: WeatherSource,
     ): ObservedCurrentTemperature? {
-        val selected = observations
-            .filter {
-                inferSource(it.stationId) == displaySource.id || inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
-            }
-            .maxByOrNull { it.timestamp }
+        val filtered = observations.filter {
+            inferSource(it.stationId) == displaySource.id || inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
+        }
+        val selected = if (displaySource == WeatherSource.NWS) {
+            filtered.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
+                ?: filtered.maxByOrNull { it.timestamp }
+        } else {
+            filtered.maxByOrNull { it.timestamp }
+        }
         Log.d("ObsResolver", "resolveObservedCurrentTemp: stationId=${selected?.stationId} temp=${selected?.temperature} source=${displaySource.id}")
         return selected?.let { obs ->
-                ObservedCurrentTemperature(
-                    temperature = obs.temperature,
-                    observedAt = obs.timestamp,
-                    source = inferSource(obs.stationId),
-                    rowFetchedAt = obs.fetchedAt,
-                )
-            }
+            ObservedCurrentTemperature(
+                temperature = obs.temperature,
+                observedAt = obs.timestamp,
+                source = inferSource(obs.stationId),
+                rowFetchedAt = obs.fetchedAt,
+            )
+        }
     }
 
     /**

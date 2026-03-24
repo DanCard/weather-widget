@@ -149,6 +149,7 @@ object TemperatureViewHandler {
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val refinementTokens = ConcurrentHashMap<Int, Long>()
     private val fullGraphRefreshTokens = ConcurrentHashMap<Int, Long>()
+    private val CLOCK_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
 
     // Intent actions
     private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -275,7 +276,7 @@ object TemperatureViewHandler {
         Instant.ofEpochMilli(timestamp)
             .atZone(ZoneId.systemDefault())
             .toLocalDateTime()
-            .format(DateTimeFormatter.ofPattern("HH:mm"))
+            .format(CLOCK_FORMATTER)
 
     @androidx.annotation.VisibleForTesting
     internal data class HourlyBackfillDecision(
@@ -511,7 +512,11 @@ object TemperatureViewHandler {
             }
         }
 
-        // PREFER the graph's blended observation because it's geographically accurate (IDW)
+        // Prefer the graph's time-aligned IDW blend for the delta calculation: it extrapolates each
+        // station forward from its last actual reading using the forecast shape, so all stations are
+        // evaluated at the same instant. NWS_BLEND mixes station readings from different timestamps
+        // (e.g. a hot station from 40 min ago weighted alongside a newer cooler one), which inflates
+        // the delta and makes the current temp lag behind the true downward trend.
         val finalObsTemp = graphObservedTemp ?: observedCurrentTemp
         val finalObsAt = graphObservedAt ?: observedAt
 
@@ -563,32 +568,15 @@ object TemperatureViewHandler {
                 delta != null &&
                 kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
 
-        if (currentTemp != null) {
-            val formattedTemp =
-                CurrentTemperatureResolver.formatDisplayTemperature(
-                    temp = currentTemp,
-                    numColumns = numColumns,
-                    isStaleEstimate = currentTempResolution.isStaleEstimate,
-                )
-            views.setTextViewText(R.id.current_temp, formattedTemp)
-            views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-            val tempTextSizeSp = if (dimensions.widthDp < 420) 22f else 26f
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_SP, tempTextSizeSp)
-
-            // Update delta badge
-            if (deltaVisible) {
-                val deltaText = String.format("%+.1f", delta)
-                val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
-                views.setTextViewText(R.id.current_temp_delta, deltaText)
-                views.setTextColor(R.id.current_temp_delta, deltaColor)
-                views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
-            } else {
-                views.setViewVisibility(R.id.current_temp_delta, View.GONE)
-            }
-        } else {
-            views.setViewVisibility(R.id.current_temp, View.GONE)
-            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
-        }
+        applyCurrentTempHeader(
+            views = views,
+            currentTemp = currentTemp,
+            numColumns = numColumns,
+            widthDp = dimensions.widthDp,
+            isStaleEstimate = currentTempResolution.isStaleEstimate,
+            appliedDelta = delta,
+            isNowLineVisible = isNowLineVisible,
+        )
 
         val headerPrecipProbability =
             HeaderPrecipCalculator.getNext8HourPrecipProbability(
@@ -600,14 +588,11 @@ object TemperatureViewHandler {
 
         // Show precipitation probability next to current temp when rain is expected
         if (headerPrecipProbability != null && headerPrecipProbability > 0) {
-            Log.d(TAG, "DEBUG: Showing precip probability=$headerPrecipProbability%, hourlyOffset=$hourlyOffset, zoom=$zoom, useGraph=$useGraph")
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
             val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
-            val reason = if (headerPrecipProbability == null) "null" else "value=$headerPrecipProbability"
-            Log.d(TAG, "DEBUG: Hiding precip probability ($reason), hourlyOffset=$hourlyOffset, zoom=$zoom, useGraph=$useGraph")
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
 
@@ -671,7 +656,7 @@ object TemperatureViewHandler {
                 currentTime = now,
                 bitmapScale = bitmapScale,
                 appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
-                observedAt = graphHours.lastOrNull { it.isObservedActual }?.dateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
+                observedAt = finalObsAt,
                 onFetchDotResolved = onFetchDotResolved,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
@@ -1612,21 +1597,7 @@ object TemperatureViewHandler {
             val blendedTemp = if (peers.size == 1) {
                 peers.first().temperature
             } else {
-                val peerEntities = peers.map { point ->
-                    com.weatherwidget.data.local.ObservationEntity(
-                        stationId = point.stationId,
-                        stationName = point.stationName,
-                        timestamp = point.timestamp,
-                        temperature = point.temperature,
-                        condition = point.sourceKind,
-                        locationLat = userLat,
-                        locationLon = userLon,
-                        distanceKm = point.distanceKm,
-                        stationType = point.stationType,
-                        api = displaySource.id,
-                    )
-                }
-                SpatialInterpolator.interpolateIDW(userLat, userLon, peerEntities, targetTs)
+                SpatialInterpolator.interpolateIDWValues(peers.map { it.distanceKm to it.temperature })
                     ?: anchor.temperature
             }
             val timeStr = Instant.ofEpochMilli(targetTs)
@@ -1697,11 +1668,11 @@ object TemperatureViewHandler {
     ): StationSeriesBuildResult {
         val series = mutableMapOf<String, List<StationTimeSeriesPoint>>()
         val stats = mutableListOf<StationSeriesStats>()
+        val forecastSeries = hourlyForecastSeries(hourlyForecasts, displaySource)
+        val allowForecastExtrapolation = displaySource == WeatherSource.NWS
         observations
             .groupBy { it.stationId }
             .forEach { (stationId, rows) ->
-                val forecastSeries = hourlyForecastSeries(hourlyForecasts, displaySource)
-                val allowForecastExtrapolation = displaySource == WeatherSource.NWS
                 val sorted = rows.sortedBy { it.timestamp }
                 val points = mutableListOf<StationTimeSeriesPoint>()
                 var observedPointCount = 0
@@ -1881,11 +1852,11 @@ object TemperatureViewHandler {
         val exact = forecastSeries.find { forecastDateTime(it) == targetTime }
         if (exact != null) return exact.temperature
 
-        val before = forecastSeries.lastOrNull { forecastDateTime(it)?.let { dateTime -> !dateTime.isAfter(targetTime) } == true }
-        val after = forecastSeries.firstOrNull { forecastDateTime(it)?.let { dateTime -> !dateTime.isBefore(targetTime) } == true }
+        val before = forecastSeries.lastOrNull { !forecastDateTime(it).isAfter(targetTime) }
+        val after = forecastSeries.firstOrNull { !forecastDateTime(it).isBefore(targetTime) }
         if (before == null || after == null) return null
-        val beforeDateTime = forecastDateTime(before) ?: return null
-        val afterDateTime = forecastDateTime(after) ?: return null
+        val beforeDateTime = forecastDateTime(before)
+        val afterDateTime = forecastDateTime(after)
         if (beforeDateTime == afterDateTime) return before.temperature
 
         val totalSeconds = java.time.Duration.between(beforeDateTime, afterDateTime).seconds
@@ -1895,10 +1866,8 @@ object TemperatureViewHandler {
         return before.temperature + (after.temperature - before.temperature) * fraction
     }
 
-    private fun forecastDateTime(forecast: HourlyForecastEntity): LocalDateTime? =
-        runCatching { 
-            Instant.ofEpochMilli(forecast.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime() 
-        }.getOrNull()
+    private fun forecastDateTime(forecast: HourlyForecastEntity): LocalDateTime =
+        Instant.ofEpochMilli(forecast.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime()
 
     private suspend fun maybeEnqueueHourlyObservationBackfill(
         context: Context,
@@ -1983,16 +1952,10 @@ object TemperatureViewHandler {
     private fun matchesObservationSource(
         observation: com.weatherwidget.data.local.ObservationEntity,
         displaySource: WeatherSource,
-    ): Boolean =
-        when (displaySource) {
-            WeatherSource.OPEN_METEO -> observation.stationId.startsWith("OPEN_METEO")
-            WeatherSource.WEATHER_API -> observation.stationId.startsWith("WEATHER_API")
-            WeatherSource.SILURIAN -> observation.stationId.startsWith("SILURIAN")
-            WeatherSource.NWS -> !observation.stationId.startsWith("OPEN_METEO") &&
-                !observation.stationId.startsWith("WEATHER_API") &&
-                !observation.stationId.startsWith("SILURIAN")
-            WeatherSource.GENERIC_GAP -> true
-        }
+    ): Boolean {
+        val inferred = com.weatherwidget.widget.ObservationResolver.inferSource(observation.stationId)
+        return inferred == displaySource.id || inferred == WeatherSource.GENERIC_GAP.id
+    }
 
     private fun observationHour(observation: com.weatherwidget.data.local.ObservationEntity): LocalDateTime =
         Instant.ofEpochMilli(observation.timestamp)

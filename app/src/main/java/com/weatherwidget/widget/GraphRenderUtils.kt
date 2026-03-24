@@ -32,6 +32,30 @@ internal object GraphRenderUtils {
         return curvePath to fillPath
     }
 
+    fun buildLinearCurveAndFillPaths(
+        points: List<Pair<Float, Float>>,
+        graphBottom: Float,
+    ): Pair<Path, Path> {
+        val curvePath = Path()
+        val fillPath = Path()
+
+        if (points.isNotEmpty()) {
+            curvePath.moveTo(points[0].first, points[0].second)
+            fillPath.moveTo(points[0].first, points[0].second)
+
+            for (i in 1 until points.size) {
+                curvePath.lineTo(points[i].first, points[i].second)
+                fillPath.lineTo(points[i].first, points[i].second)
+            }
+
+            fillPath.lineTo(points.last().first, graphBottom)
+            fillPath.lineTo(points.first().first, graphBottom)
+            fillPath.close()
+        }
+
+        return curvePath to fillPath
+    }
+
     fun buildSmoothCurveAndFillPaths(
         points: List<Pair<Float, Float>>,
         graphBottom: Float,

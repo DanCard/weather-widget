@@ -93,6 +93,48 @@ class ObservationResolverTest {
         assertNull(resolved)
     }
 
+    @Test
+    fun `resolveObservedCurrentTemp prefers NWS_BLEND over single station for NWS source`() {
+        val nowMs = 1_000_000L
+        val observations = listOf(
+            currentTempObservation(stationId = "AW020",     temperature = 81.0f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "NWS_BLEND", temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs),
+        )
+
+        val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+
+        assertNotNull(resolved)
+        assertEquals("NWS_BLEND should be preferred over single station", 77.8f, resolved!!.temperature)
+    }
+
+    @Test
+    fun `resolveObservedCurrentTemp falls back to single station when no NWS_BLEND present`() {
+        val nowMs = 1_000_000L
+        val observations = listOf(
+            currentTempObservation(stationId = "AW020", temperature = 81.0f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "KNUQ",  temperature = 73.0f, fetchedAt = nowMs, timestamp = nowMs - 100),
+        )
+
+        val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+
+        assertNotNull(resolved)
+        assertEquals("Should fall back to most recent station", 81.0f, resolved!!.temperature)
+    }
+
+    @Test
+    fun `resolveObservedCurrentTemp ignores NWS_BLEND when display source is Open-Meteo`() {
+        val nowMs = 1_000_000L
+        val observations = listOf(
+            currentTempObservation(stationId = "OPEN_METEO_MAIN", temperature = 74.0f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "NWS_BLEND",       temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs),
+        )
+
+        val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.OPEN_METEO)
+
+        assertNotNull(resolved)
+        assertEquals("NWS_BLEND must not bleed into Open-Meteo source", 74.0f, resolved!!.temperature)
+    }
+
     // --- aggregateObservationsToDaily tests ---
 
     @Test
