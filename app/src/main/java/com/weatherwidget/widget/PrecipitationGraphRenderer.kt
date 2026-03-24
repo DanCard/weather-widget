@@ -127,7 +127,7 @@ object PrecipitationGraphRenderer {
             }
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        val hourWidth = widthPx.toFloat() / hours.size
+        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
 
         // --- Paints ---
 
@@ -215,7 +215,7 @@ object PrecipitationGraphRenderer {
         val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
 
         hours.forEachIndexed { index, _ ->
-            val x = hourWidth * index + hourWidth / 2f
+            val x = hourWidth * index
             val prob = smoothedProbs[index]
             val y = graphBottom - graphHeight * (prob / yScaleMax)
             points.add(x to y)

@@ -237,7 +237,7 @@ object TemperatureGraphRenderer {
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
         val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
         val timeRangeHours = if (maxTimeEpoch > minTimeEpoch) (maxTimeEpoch - minTimeEpoch) / 3600f else hours.size.toFloat() - 1f
-        val hourWidth = widthPx.toFloat() / (timeRangeHours + 1f).coerceAtLeast(1f)
+        val hourWidth = widthPx.toFloat() / timeRangeHours.coerceAtLeast(1f)
 
         // --- Paints ---
 
@@ -412,7 +412,7 @@ object TemperatureGraphRenderer {
 
         hours.indices.forEach { index ->
             val pointEpoch = hours[index].dateTime.toEpochSecond(java.time.ZoneOffset.UTC)
-            val x = hourWidth / 2f + ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
+            val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
             // Use Truth Y for the solid line path so it meets the dot
             val yTruth = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yTruth)

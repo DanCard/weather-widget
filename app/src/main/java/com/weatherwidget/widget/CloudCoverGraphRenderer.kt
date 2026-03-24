@@ -73,7 +73,7 @@ object CloudCoverGraphRenderer {
             }
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
-        val hourWidth = widthPx.toFloat() / hours.size
+        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
 
         // --- Paints (gray color scheme) ---
         val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
@@ -142,7 +142,7 @@ object CloudCoverGraphRenderer {
         val smoothedValues = GraphRenderUtils.smoothValues(rawValues, iterations = smoothIterations)
 
         hours.forEachIndexed { index, _ ->
-            val x = hourWidth * index + hourWidth / 2f
+            val x = hourWidth * index
             val v = smoothedValues[index]
             val y = graphBottom - graphHeight * (v / 100f)
             points.add(x to y)
