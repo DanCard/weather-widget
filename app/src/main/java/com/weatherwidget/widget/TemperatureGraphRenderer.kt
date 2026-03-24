@@ -153,6 +153,8 @@ object TemperatureGraphRenderer {
         val fetchY: Float? = null,
         val withinWindow: Boolean,
         val ageText: String? = null,
+        val valueColor: Int? = null,
+        val stalenessColor: Int? = null,
     )
 
     data class GhostLineDebug(
@@ -956,13 +958,13 @@ object TemperatureGraphRenderer {
                 val dotLabelForDebug = if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel
 
                 val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.parseColor("#BBFFFFFF")
+                    color = Color.parseColor("#BBF4C542") // Matched to COLOR_ACTUAL_LINE
                     textSize = dpToPx(context, 19.5f * labelScale)
                     textAlign = Paint.Align.LEFT
                     setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                 }
                 val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Color.parseColor("#88FFFFFF")
+                    color = Color.parseColor("#88F4C542") // Matched to COLOR_ACTUAL_LINE
                     textSize = dpToPx(context, 12f * labelScale)
                     textAlign = Paint.Align.CENTER
                     setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
@@ -1017,6 +1019,8 @@ object TemperatureGraphRenderer {
                         fetchY = fetchY,
                         withinWindow = true,
                         ageText = dotLabelForDebug,
+                        valueColor = valueTextPaint.color,
+                        stalenessColor = if (ageLabel != null) stalenessTextPaint.color else null,
                     ),
                 )
             }

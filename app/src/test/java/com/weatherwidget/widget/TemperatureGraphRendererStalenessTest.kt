@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.util.DisplayMetrics
 import io.mockk.every
@@ -118,6 +119,14 @@ class TemperatureGraphRendererStalenessTest {
         mockkStatic(Bitmap::class)
         mockkConstructor(Canvas::class)
         mockkConstructor(Paint::class)
+
+        val paintColors = mutableMapOf<Paint, Int>()
+        every { anyConstructed<Paint>().setColor(any()) } answers {
+            paintColors[invocation.self as Paint] = invocation.args[0] as Int
+        }
+        every { anyConstructed<Paint>().color } answers {
+            paintColors[invocation.self as Paint] ?: 0
+        }
 
         val bitmap = mockk<Bitmap>(relaxed = true)
         every { Bitmap.createBitmap(any<Int>(), any<Int>(), any<Bitmap.Config>()) } returns bitmap
