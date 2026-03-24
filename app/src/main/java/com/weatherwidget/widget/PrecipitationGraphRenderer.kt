@@ -955,55 +955,58 @@ object PrecipitationGraphRenderer {
                     if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
                         val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
                         Log.d("PrecipGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
-                        if (ageMinutes >= 0) {
-                            val ageText = if (ageMinutes >= 60) {
+                        
+                        val ageLabel = if (ageMinutes >= 0) {
+                            if (ageMinutes >= 60) {
                                 val h = ageMinutes / 60
                                 val m = ageMinutes % 60
                                 if (m > 0) "${h}h ${m}m" else "${h}h"
-                            } else {
-                                "${ageMinutes}m"
-                            }
-                            
-                            val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-                            val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                                color = Color.parseColor("#BBFFFFFF")
-                                textSize = dpToPx(context, 10f * labelScale)
-                                textAlign = Paint.Align.LEFT
-                                setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-                            }
-                            
-                            val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
-                            val textY = fetchY + ageTextPaint.textSize / 3f
-                            
-                            val textWidth = ageTextPaint.measureText(ageText)
-                            val finalX = if (textX + textWidth > widthPx) {
-                                clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
-                            } else {
-                                textX
-                            }
-                            
-                            canvas.drawText(ageText, finalX, textY, ageTextPaint)
+                            } else "${ageMinutes}m"
+                        } else null
 
-                            onFetchDotResolved?.invoke(
-                                FetchDotDebug(
-                                    observedAt = observedAt,
-                                    fetchDotX = clampedFetchX,
-                                    fetchY = fetchY,
-                                    withinWindow = true,
-                                    ageText = ageText,
-                                ),
-                            )
+                        val dotLabel = if (ageLabel != null) {
+                            "${interpolatedProb.roundToInt()}% ($ageLabel)"
                         } else {
-                            onFetchDotResolved?.invoke(
-                                FetchDotDebug(
-                                    observedAt = observedAt,
-                                    fetchDotX = clampedFetchX,
-                                    fetchY = fetchY,
-                                    withinWindow = true,
-                                    ageText = null,
-                                ),
-                            )
+                            "${interpolatedProb.roundToInt()}%"
                         }
+                        
+                        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+                        val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = Color.parseColor("#BBFFFFFF")
+                            textSize = dpToPx(context, 10f * labelScale)
+                            textAlign = Paint.Align.LEFT
+                            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+                        }
+                        
+                        val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
+                        val textY = fetchY + ageTextPaint.textSize / 3f
+                        
+                        val textWidth = ageTextPaint.measureText(dotLabel)
+                        val finalX = if (textX + textWidth > widthPx) {
+                            clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
+                        } else {
+                            textX
+                        }
+
+                        if (finalX < textX) {
+                            ageTextPaint.textAlign = Paint.Align.RIGHT
+                            canvas.drawText(dotLabel, finalX + textWidth, textY, ageTextPaint)
+                        } else {
+                            canvas.drawText(dotLabel, finalX, textY, ageTextPaint)
+                        }
+
+                        // Prevent double-labeling this index in the main probability label loop
+                        labeledIndices.add(fetchIdx)
+
+                        onFetchDotResolved?.invoke(
+                            FetchDotDebug(
+                                observedAt = observedAt,
+                                fetchDotX = clampedFetchX,
+                                fetchY = fetchY,
+                                withinWindow = true,
+                                ageText = dotLabel,
+                            ),
+                        )
                     } else {
                         onFetchDotResolved?.invoke(
                             FetchDotDebug(

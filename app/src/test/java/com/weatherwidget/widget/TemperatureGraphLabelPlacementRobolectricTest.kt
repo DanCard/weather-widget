@@ -86,7 +86,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         // Label bottom edge = baselineY + labelDescent = (sy - aboveGap - labelDescent) + labelDescent = sy - aboveGap
         val labelBottom = highPlacement.y + fallbackDescent
         val gap = highPoint.second - labelBottom
-        val expectedGap = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 3f, context.resources.displayMetrics)
+        val expectedGap = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 1f, context.resources.displayMetrics)
 
         assertEquals(
             "Expected above-label bottom edge to sit close to the curve. pointY=${highPoint.second} labelBottom=$labelBottom placement=$highPlacement",
