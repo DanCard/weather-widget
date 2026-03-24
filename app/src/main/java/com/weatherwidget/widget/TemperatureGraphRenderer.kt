@@ -815,7 +815,10 @@ object TemperatureGraphRenderer {
                     candidate.role == "FORECAST_LOW" ||
                     (candidate.role == "LOCAL" && idx in significantLocalExtrema && labelTemps[idx] < leftVal)
 
-            val isEssential = candidate.role == "LOW" || candidate.role == "HIGH" || candidate.role == "FORECAST_LOW" || candidate.role == "FORECAST_HIGH"
+            val isEssential = candidate.role == "LOW" || candidate.role == "HIGH" ||
+                candidate.role == "FORECAST_LOW" || candidate.role == "FORECAST_HIGH" ||
+                candidate.role == "START" || candidate.role == "END" ||
+                candidate.role == "ACTUAL_END"
             
             // Valley prefers below, Peak prefers above.
             val attempts = if (isValley) listOf(true, false) else listOf(false, true)
