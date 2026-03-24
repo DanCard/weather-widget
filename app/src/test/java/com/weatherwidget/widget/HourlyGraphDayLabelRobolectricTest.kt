@@ -146,7 +146,7 @@ class HourlyGraphDayLabelRobolectricTest {
     @Test
     fun `temp graph past date on left is not isToday`() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0)
-        val labels = renderTemp(makeHours(start, 24))
+        val labels = renderTemp(makeHours(start, 24), currentTime = LocalDateTime.now())
         assertFalse(labels.first { it.side == "LEFT" }.isToday)
     }
 
@@ -154,14 +154,14 @@ class HourlyGraphDayLabelRobolectricTest {
     fun `temp graph today on right is marked isToday`() {
         val today = LocalDate.now()
         val start = today.minusDays(1).atTime(20, 0)
-        val labels = renderTemp(makeHours(start, 13), currentTime = start.plusHours(6))
+        val labels = renderTemp(makeHours(start, 13), currentTime = today.atTime(10, 0))
         assertTrue(labels.first { it.side == "RIGHT" }.isToday)
     }
 
     @Test
     fun `temp graph past window neither label is isToday`() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0)
-        val labels = renderTemp(makeHours(start, 24))
+        val labels = renderTemp(makeHours(start, 24), currentTime = LocalDateTime.now())
         assertFalse(labels.any { it.isToday })
     }
 
@@ -170,7 +170,7 @@ class HourlyGraphDayLabelRobolectricTest {
     @Test
     fun `precip graph produces exactly two day labels`() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0)
-        val labels = renderPrecip(makePrecipHours(start, 24))
+        val labels = renderPrecip(makePrecipHours(start, 24), currentTime = LocalDateTime.now())
         assertEquals(2, labels.size)
     }
 
@@ -185,7 +185,7 @@ class HourlyGraphDayLabelRobolectricTest {
     @Test
     fun `precip graph past window neither label is isToday`() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0)
-        val labels = renderPrecip(makePrecipHours(start, 24))
+        val labels = renderPrecip(makePrecipHours(start, 24), currentTime = LocalDateTime.now())
         assertFalse(labels.any { it.isToday })
     }
 

@@ -153,7 +153,8 @@ class HourlyGraphDayLabelTest {
     fun tempGraph_pastDateOnLeft_notMarkedIsToday() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0) // past date
         val hours = makeHours(start, count = 24)
-        val labels = renderTemp(hours)
+        // Pass currentTime as 'real' now to ensure 2025-06-14 is not 'today'
+        val labels = renderTemp(hours, currentTime = LocalDateTime.now())
         val left = labels.first { it.side == "LEFT" }
         assertFalse("Past date should not be marked isToday", left.isToday)
     }
@@ -164,7 +165,7 @@ class HourlyGraphDayLabelTest {
         // Window starts yesterday, ends today
         val start = today.minusDays(1).atTime(20, 0)
         val hours = makeHours(start, count = 13)
-        val labels = renderTemp(hours, currentTime = start.plusHours(6))
+        val labels = renderTemp(hours, currentTime = today.atTime(10, 0))
         val right = labels.first { it.side == "RIGHT" }
         assertTrue("Right label should be marked isToday", right.isToday)
     }
@@ -173,7 +174,8 @@ class HourlyGraphDayLabelTest {
     fun tempGraph_pastWindow_neitherLabelIsToday() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0)
         val hours = makeHours(start, count = 24)
-        val labels = renderTemp(hours)
+        // Pass currentTime as 'real' now to ensure 2025 is not 'today'
+        val labels = renderTemp(hours, currentTime = LocalDateTime.now())
         assertFalse("No label should be today in a past window", labels.any { it.isToday })
     }
 
@@ -228,7 +230,7 @@ class HourlyGraphDayLabelTest {
     fun precipGraph_pastWindow_neitherLabelIsToday() {
         val start = LocalDateTime.of(2025, 6, 14, 8, 0)
         val hours = makePrecipHours(start, count = 24)
-        val labels = renderPrecip(hours)
+        val labels = renderPrecip(hours, currentTime = LocalDateTime.now())
         assertFalse("No label should be today in a past window", labels.any { it.isToday })
     }
 

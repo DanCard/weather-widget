@@ -60,7 +60,10 @@ object DailyActualsEstimator {
 
         // 1. Observed so far (history/current)
         val actual = dailyActuals[today]
-        val observedHigh = listOfNotNull(actual?.highTemp, currentTemp).maxOrNull()
+        // USER REQUEST: Shrink to min for the day. 
+        // We set the top (observedHigh) to ONLY be the current temperature.
+        // This makes the red bar represent the range from [Current Temp] down to [Min Temp Today].
+        val observedHigh = currentTemp ?: actual?.highTemp
         val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
 
         // 2. Full-day prediction (including both past and future hours)
@@ -74,9 +77,9 @@ object DailyActualsEstimator {
             hourlyMin
         ).minOrNull()
 
-        Log.d("DailyEstimator", "today high: actual.high=${actual?.highTemp} currentTemp=$currentTemp " +
-            "observedHigh=$observedHigh fallbackWeather.high=${fallbackWeather?.highTemp} " +
-            "hourlyMax=$hourlyMax forecastHigh=$forecastHigh " +
+        Log.d("DailyEstimator", "today: actual.high=${actual?.highTemp} actual.low=${actual?.lowTemp} currentTemp=$currentTemp " +
+            "observedHigh=$observedHigh observedLow=$observedLow fallbackWeather.high=${fallbackWeather?.highTemp} fallbackWeather.low=${fallbackWeather?.lowTemp} " +
+            "hourlyMax=$hourlyMax hourlyMin=$hourlyMin forecastHigh=$forecastHigh forecastLow=$forecastLow " +
             "todayHourlyCount=${todayHourly.size} source=${displaySource.id}")
 
         return TodayTripleLineValues(

@@ -6,6 +6,9 @@ import android.util.Log
 import android.util.TypedValue
 import com.weatherwidget.R
 import java.time.LocalDateTime
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -35,6 +38,16 @@ object CloudCoverGraphRenderer {
         val isGlobalMin: Boolean,
     )
 
+    data class DayLabelPlacementDebug(
+        val side: String,       // "LEFT" or "RIGHT"
+        val dayText: String,
+        val date: LocalDate,
+        val x: Float,
+        val y: Float,
+        val placement: String,  // "TOP", "MIDDLE", "BOTTOM"
+        val isToday: Boolean,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<CloudHourData>,
@@ -46,6 +59,7 @@ object CloudCoverGraphRenderer {
         hourLabelSpacingDp: Float = 28f,
         observedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
+        onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -280,13 +294,13 @@ object CloudCoverGraphRenderer {
         val dayYTop = graphTop + dayLabelTextHeight
         val dayYMid = (graphTop + graphBottom) / 2f
 
-        val today = java.time.LocalDate.now()
+        val today = currentTime.toLocalDate()
         val leftDate = hours.first().dateTime.toLocalDate()
         val rightDate = hours.last().dateTime.toLocalDate()
-        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 
-        data class DayCandidate(val date: java.time.LocalDate, val x: Float, val text: String)
+        data class DayCandidate(val date: LocalDate, val x: Float, val text: String)
         val leftPaint = if (leftDate == today) todayDayLabelPaint else dayLabelTextPaint
         val rightPaint = if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint
         val leftTextWidth = leftPaint.measureText(leftText)
@@ -304,16 +318,29 @@ object CloudCoverGraphRenderer {
             drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
                 drawnIconBounds.any { RectF.intersects(it, bounds) }
 
-        for (candidate in dayCandidates) {
-            val paint = if (candidate.date == today) todayDayLabelPaint else dayLabelTextPaint
+        for ((candidateIndex, candidate) in dayCandidates.withIndex()) {
+            val side = if (candidateIndex == 0) "LEFT" else "RIGHT"
+            val isToday = candidate.date == today
+            val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
             val tw = paint.measureText(candidate.text)
+            
             val topBounds = dayBounds(candidate.x, dayYTop, tw)
             if (!collides(topBounds)) {
                 canvas.drawText(candidate.text, candidate.x, dayYTop, paint)
-            } else {
-                val midBounds = dayBounds(candidate.x, dayYMid, tw)
-                canvas.drawText(candidate.text, candidate.x, if (!collides(midBounds)) dayYMid else heightPx - dpToPx(context, 14f), paint)
+                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.text, candidate.date, candidate.x, dayYTop, "TOP", isToday))
+                continue
             }
+
+            val midBounds = dayBounds(candidate.x, dayYMid, tw)
+            if (!collides(midBounds)) {
+                canvas.drawText(candidate.text, candidate.x, dayYMid, paint)
+                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.text, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday))
+                continue
+            }
+
+            val botY = heightPx - dpToPx(context, 14f)
+            canvas.drawText(candidate.text, candidate.x, botY, paint)
+            onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.text, candidate.date, candidate.x, botY, "BOTTOM", isToday))
         }
 
         // --- NOW indicator ---

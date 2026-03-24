@@ -6,6 +6,9 @@ import android.util.Log
 import android.util.TypedValue
 import com.weatherwidget.R
 import java.time.LocalDateTime
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -67,7 +70,7 @@ object PrecipitationGraphRenderer {
     data class DayLabelPlacementDebug(
         val side: String,       // "LEFT" or "RIGHT"
         val dayText: String,
-        val date: java.time.LocalDate,
+        val date: LocalDate,
         val x: Float,
         val y: Float,
         val placement: String,  // "TOP", "MIDDLE", "BOTTOM"
@@ -843,13 +846,13 @@ object PrecipitationGraphRenderer {
             drawnIconBounds.any { RectF.intersects(it, bounds) } ||
             drawnDayLabelBounds.any { RectF.intersects(it, bounds) }
 
-        val today = java.time.LocalDate.now()
+        val today = currentTime.toLocalDate()
 
-        data class DayCandidate(val date: java.time.LocalDate, val x: Float, val dayText: String)
+        data class DayCandidate(val date: LocalDate, val x: Float, val dayText: String)
         val leftDate  = hours.first().dateTime.toLocalDate()
         val rightDate = hours.last().dateTime.toLocalDate()
-        val leftText  = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+        val leftText  = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         val leftTextWidth  = (if (leftDate  == today) todayDayLabelPaint else dayLabelTextPaint).measureText(leftText)
         val rightTextWidth = (if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint).measureText(rightText)
 
