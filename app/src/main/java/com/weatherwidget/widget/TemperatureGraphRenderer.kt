@@ -68,10 +68,11 @@ object TemperatureGraphRenderer {
     }
 
     private fun formatTemp(value: Float): String {
-        return if (value % 1f == 0f) {
-            String.format("%.0f", value)
+        val rounded = Math.round(value * 10f) / 10f
+        return if (rounded % 1f == 0f) {
+            String.format("%.0f", rounded)
         } else {
-            String.format("%.1f", value)
+            String.format("%.1f", rounded)
         }
     }
 
