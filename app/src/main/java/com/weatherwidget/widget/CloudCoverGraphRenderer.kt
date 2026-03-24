@@ -395,7 +395,7 @@ object CloudCoverGraphRenderer {
                         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
                         val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = Color.parseColor("#BBFFFFFF")
-                            textSize = dpToPx(context, 10f * labelScale)
+                            textSize = dpToPx(context, 11f * labelScale)
                             textAlign = Paint.Align.LEFT
                             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                         }

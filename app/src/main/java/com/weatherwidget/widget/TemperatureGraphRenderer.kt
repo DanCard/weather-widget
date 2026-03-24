@@ -771,8 +771,8 @@ object TemperatureGraphRenderer {
         val labelAscent = if (labelFontMetrics != null && labelFontMetrics.ascent != 0f) labelFontMetrics.ascent else (-actualTempLabelTextPaint.textSize)
         val labelDescent = if (labelFontMetrics != null && labelFontMetrics.descent != 0f) labelFontMetrics.descent else (actualTempLabelTextPaint.textSize * 0.2f)
         
-        val aboveGap = dpToPx(context, 1f)
-        val belowGap = dpToPx(context, 1f)
+        val aboveGap = dpToPx(context, 0f)
+        val belowGap = dpToPx(context, 0f)
 
         for (candidate in specialCandidates) {
             val idx = candidate.index
@@ -951,7 +951,7 @@ object TemperatureGraphRenderer {
 
                 val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = Color.parseColor("#BBFFFFFF")
-                    textSize = dpToPx(context, 10f * labelScale)
+                    textSize = dpToPx(context, 19.5f * labelScale)
                     textAlign = Paint.Align.LEFT
                     setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                 }
