@@ -116,7 +116,10 @@ class TruthCurveLinearRenderingTest {
         )
 
         // Age label: renderTime (17:33) - observationTime (17:25) = 8 minutes
-        assertEquals("Age label should reflect true observation age", "8m", dotDebug?.ageText)
+        // Truth Temps: Hour 0 = 75.0, Hour 1 = 71.0 (forecast 73 - 2*1)
+        // Interpolation at 25m: 75.0 + (71.0 - 75.0) * 25/60 = 75.0 - 4.0 * 0.41666 = 75.0 - 1.666 = 73.333
+        // New format: "73.3° (8m)"
+        assertEquals("Age label should reflect true observation age", "73.3° (8m)", dotDebug?.ageText)
     }
 
     /**
