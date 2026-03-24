@@ -67,6 +67,14 @@ object TemperatureGraphRenderer {
         return Color.rgb(r, g, b)
     }
 
+    private fun formatTemp(value: Float): String {
+        return if (value % 1f == 0f) {
+            String.format("%.0f", value)
+        } else {
+            String.format("%.1f", value)
+        }
+    }
+
     private fun withAlpha(
         color: Int,
         alpha: Int,
@@ -618,7 +626,7 @@ object TemperatureGraphRenderer {
             val forceForecastSeries: Boolean = false,
         )
 
-        fun labelTextFor(temps: List<Float>, index: Int): String = String.format("%.1f", temps[index])
+        fun labelTextFor(temps: List<Float>, index: Int): String = formatTemp(temps[index])
 
         val specialCandidates = mutableListOf<TempLabelCandidate>()
 
@@ -692,7 +700,7 @@ object TemperatureGraphRenderer {
             if (hours[idx].isActual) return@forEach
 
             if (specialCandidates.none { it.index == idx }) {
-                val labelText = String.format("%.1f", smoothedLabelTemps[idx])
+                val labelText = formatTemp(smoothedLabelTemps[idx])
                 if (specialCandidates.none { Math.abs(idx - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
                     addCandidate(
                         index = idx,
@@ -706,7 +714,7 @@ object TemperatureGraphRenderer {
         if (effectiveActualEndIndex > 0 && effectiveActualEndIndex < hours.size - 1) {
             val isFetchDotPoint = fetchDotX != null && Math.abs(originalPoints[effectiveActualEndIndex].first - fetchDotX) < 1f
             if (specialCandidates.none { it.index == effectiveActualEndIndex } && !isFetchDotPoint) {
-                val labelText = String.format("%.1f", smoothedLabelTemps[effectiveActualEndIndex])
+                val labelText = formatTemp(smoothedLabelTemps[effectiveActualEndIndex])
                 if (specialCandidates.none { Math.abs(effectiveActualEndIndex - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
                     addCandidate(
                         index = effectiveActualEndIndex,
@@ -787,7 +795,7 @@ object TemperatureGraphRenderer {
                 } else {
                     points[idx].first to points[idx].second
                 }
-            val label = String.format("%.1f°", labelTemps[idx])
+            val label = formatTemp(labelTemps[idx]) + "°"
             val series = if (isFuture) "forecast" else "actual"
             val colorFamily = if (series == "forecast") "forecast" else "actual"
             val labelPaint = if (series == "forecast") forecastTempLabelTextPaint else actualTempLabelTextPaint
@@ -944,7 +952,7 @@ object TemperatureGraphRenderer {
                     "($label)"
                 } else null
 
-                val valueLabel = String.format("%.1f°", resolvedFetchTemp)
+                val valueLabel = formatTemp(resolvedFetchTemp) + "°"
                 val dotLabelForDebug = if (ageLabel != null) "$valueLabel $ageLabel" else valueLabel
 
                 val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {

@@ -49,8 +49,8 @@ class TemperatureGraphRendererStalenessTest {
             observedAt = observedAtMs,
         )
 
-        // Verify drawText was called with "60.0°" and "(25m)"
-        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("60.0°", any(), any(), any()) }
+        // Verify drawText was called with "60°" and "(25m)"
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("60°", any(), any(), any()) }
         verify(atLeast = 1) { anyConstructed<Canvas>().drawText("(25m)", any(), any(), any()) }
     }
 
@@ -80,8 +80,8 @@ class TemperatureGraphRendererStalenessTest {
             observedAt = observedAtMs,
         )
 
-        // Even with 49 points, it's only 4h duration, so it should draw "60.0°" and "(25m)"
-        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("60.0°", any(), any(), any()) }
+        // Even with 49 points, it's only 4h duration, so it should draw "60°" and "(25m)"
+        verify(atLeast = 1) { anyConstructed<Canvas>().drawText("60°", any(), any(), any()) }
         verify(atLeast = 1) { anyConstructed<Canvas>().drawText("(25m)", any(), any(), any()) }
     }
 
