@@ -5,6 +5,15 @@ import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
 import java.time.LocalDateTime
+import java.time.Instant
+import java.time.Duration
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.min
 
 object TemperatureGraphRenderer {
     private const val TAG = "TempGraphRenderer"
@@ -16,6 +25,7 @@ object TemperatureGraphRenderer {
     private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 1.5f
+    private const val MIN_GHOST_LINE_DELTA = 0.1f
 
     data class HourData(
         val dateTime: LocalDateTime,
@@ -165,7 +175,7 @@ object TemperatureGraphRenderer {
     data class DayLabelPlacementDebug(
         val side: String,       // "LEFT" or "RIGHT"
         val dayText: String,
-        val date: java.time.LocalDate,
+        val date: LocalDate,
         val x: Float,
         val y: Float,
         val placement: String,  // "TOP", "MIDDLE", "BOTTOM"
@@ -236,8 +246,8 @@ object TemperatureGraphRenderer {
 
         Log.d(TAG, "Layout: widthPx=$widthPx, heightPx=$heightPx, topPadding=$topPadding, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
 
-        val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
-        val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(java.time.ZoneOffset.UTC) ?: 0L
+        val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
+        val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
         val timeRangeHours = if (maxTimeEpoch > minTimeEpoch) (maxTimeEpoch - minTimeEpoch) / 3600f else hours.size.toFloat() - 1f
         val hourWidth = widthPx.toFloat() / timeRangeHours.coerceAtLeast(1f)
 
@@ -265,9 +275,6 @@ object TemperatureGraphRenderer {
                 color = COLOR_FORECAST_LINE
                 pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 8f), dpToPx(context, 4f)), 0f)
             }
-
-        // Keep backward-compat alias for label-placement code below that references originalCurvePaint
-        val originalCurvePaint = actualLinePaint
 
         // Expected Truth Line (Ghost Dashed Curve) — future only
         val ghostPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -363,32 +370,28 @@ object TemperatureGraphRenderer {
         // --- Reality / Truth Curve (Solid Line Path + Ghost Line Path + Fetch Dot grounding) ---
         // For the solid actual line (past) and fetch dot grounding, we use raw observed values
         // where available, falling back to forecast + delta elsewhere.
-        // We apply light smoothing (1 iteration) for visual fluidness.
-        val rawTruthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
-        val smoothedTruthTemps = rawTruthTemps
+        val truthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         // Calculate anchorDelta at fetch time using smoothed values for consistent grounding.
         val fetchTime = observedAt?.let {
-            java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime()
         }
         val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
         val fetchFraction = if (fetchTime != null && fetchIdx != -1 && fetchIdx < smoothedForecastTemps.lastIndex) {
-            java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
+            Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
         } else null
         
         // --- Ghost Line Curve (Future Projection) ---
         // Parallelism: We ensure the ghost line is a pure translation of the forecast line
         // by making the smoothedExpectedTemps exactly equal to smoothedForecastTemps + anchorDelta.
-        // We re-calculate anchorDelta based on the smoothed forecast and smoothed truth at the fetch time.
+        // We re-calculate anchorDelta based on the smoothed forecast and truth at the fetch time.
         val interpolatedForecastAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1).let { smoothed ->
-                val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to smoothed[it] })
-                GraphRenderUtils.evaluateCubicY(smoothed[fetchIdx], t[fetchIdx].second, smoothed[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
-            }
+            val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to smoothedForecastTemps[it] })
+            GraphRenderUtils.evaluateCubicY(smoothedForecastTemps[fetchIdx], t[fetchIdx].second, smoothedForecastTemps[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
         } else null
 
         val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            rawTruthTemps[fetchIdx] + (rawTruthTemps[fetchIdx + 1] - rawTruthTemps[fetchIdx]) * fetchFraction
+            truthTemps[fetchIdx] + (truthTemps[fetchIdx + 1] - truthTemps[fetchIdx]) * fetchFraction
         } else null
 
         val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
@@ -401,22 +404,18 @@ object TemperatureGraphRenderer {
         // We show raw actual history or raw forecast (no delta) in the label text.
         // We find peaks/valleys on the raw series for precision, but they are placed
         // on the smoothed visual curve.
-        val rawLabelTemps = hours.map { it.actualTemperature ?: it.temperature }
-        val smoothedLabelTemps = rawLabelTemps
+        val labelTemps = hours.map { it.actualTemperature ?: it.temperature }
         val forecastLabelTemps = hours.map { it.temperature }
-
-        // Keep backward-compat name for transitionX and fetch dot grounding
-        val smoothedActualOrForecastTemps = smoothedTruthTemps
 
         val originalPoints = mutableListOf<Pair<Float, Float>>()
         val forecastPoints = mutableListOf<Pair<Float, Float>>()
         val expectedPoints = mutableListOf<Pair<Float, Float>>()
 
         hours.indices.forEach { index ->
-            val pointEpoch = hours[index].dateTime.toEpochSecond(java.time.ZoneOffset.UTC)
+            val pointEpoch = hours[index].dateTime.toEpochSecond(ZoneOffset.UTC)
             val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
             // Use Truth Y for the solid line path so it meets the dot
-            val yTruth = graphTop + graphHeight * (1 - (smoothedTruthTemps[index] - minTemp) / tempRange)
+            val yTruth = graphTop + graphHeight * (1 - (truthTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yTruth)
 
             val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)
@@ -482,7 +481,7 @@ object TemperatureGraphRenderer {
         canvas.drawPath(forecastFillPath, expectedFillPaint)
 
         // --- Draw ghost line — projects from observation dot into the future ---
-        if (nowIndicatorVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= 0.1f && fetchDotX != null) {
+        if (nowIndicatorVisible && appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null) {
             // Use same anchor delta logic for onGhostLineDebug
             val expectedY = if (interpolatedTruthAtFetch != null) {
                 graphTop + graphHeight * (1 - (interpolatedTruthAtFetch - minTemp) / tempRange)
@@ -568,25 +567,25 @@ object TemperatureGraphRenderer {
         }
 
         // 2. Key temperature labels
-        val dailyHighIndex = smoothedLabelTemps.indices.maxByOrNull { smoothedLabelTemps[it] } ?: -1
-        val dailyLowIndex = smoothedLabelTemps.indices.minByOrNull { smoothedLabelTemps[it] } ?: -1
+        val dailyHighIndex = labelTemps.indices.maxByOrNull { labelTemps[it] } ?: -1
+        val dailyLowIndex = labelTemps.indices.minByOrNull { labelTemps[it] } ?: -1
         val forecastHighIndex = forecastLabelTemps.indices.maxByOrNull { forecastLabelTemps[it] } ?: -1
         val forecastLowIndex = forecastLabelTemps.indices.minByOrNull { forecastLabelTemps[it] } ?: -1
 
         fun findLocalExtremaIndices(): List<Int> {
             val extrema = mutableListOf<Int>()
-            if (smoothedLabelTemps.size < 3) return extrema
+            if (labelTemps.size < 3) return extrema
             var i = 1
-            while (i < smoothedLabelTemps.size - 1) {
-                val current = smoothedLabelTemps[i]
-                val prev = smoothedLabelTemps[i - 1]
-                if (current > prev && current > smoothedLabelTemps[i + 1]) extrema.add(i)
-                else if (current < prev && current < smoothedLabelTemps[i + 1]) extrema.add(i)
-                else if (current == smoothedLabelTemps[i + 1] && current != prev) {
+            while (i < labelTemps.size - 1) {
+                val current = labelTemps[i]
+                val prev = labelTemps[i - 1]
+                if (current > prev && current > labelTemps[i + 1]) extrema.add(i)
+                else if (current < prev && current < labelTemps[i + 1]) extrema.add(i)
+                else if (current == labelTemps[i + 1] && current != prev) {
                     var j = i + 1
-                    while (j < smoothedLabelTemps.size - 1 && smoothedLabelTemps[j] == current) j++
-                    val next = smoothedLabelTemps[j]
-                    if (j < smoothedLabelTemps.size) {
+                    while (j < labelTemps.size - 1 && labelTemps[j] == current) j++
+                    val next = labelTemps[j]
+                    if (j < labelTemps.size) {
                         if (current > prev && current > next) extrema.add((i + j) / 2) 
                         else if (current < prev && current < next) extrema.add((i + j) / 2)
                     }
@@ -600,13 +599,13 @@ object TemperatureGraphRenderer {
         val localExtrema = findLocalExtremaIndices()
 
         fun bilateralExtremaProminence(index: Int): Float {
-            val current = smoothedLabelTemps[index]
+            val current = labelTemps[index]
             val localExtremaSet = localExtrema.toSet()
             fun maxDeltaInDirection(step: Int): Float {
                 var maxDelta = 0f
                 var cursor = index + step
-                while (cursor in smoothedLabelTemps.indices) {
-                    val delta = Math.abs(smoothedLabelTemps[cursor] - current)
+                while (cursor in labelTemps.indices) {
+                    val delta = abs(labelTemps[cursor] - current)
                     if (delta > maxDelta) maxDelta = delta
                     if (cursor != index + step && cursor in localExtremaSet) break
                     cursor += step
@@ -616,7 +615,7 @@ object TemperatureGraphRenderer {
             val leftDelta = maxDeltaInDirection(-1)
             val rightDelta = maxDeltaInDirection(1)
             if (leftDelta == 0f || rightDelta == 0f) return 0f
-            return Math.min(leftDelta, rightDelta)
+            return min(leftDelta, rightDelta)
         }
 
         val significantLocalExtrema = localExtrema.filter { bilateralExtremaProminence(it) >= MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES }
@@ -665,7 +664,7 @@ object TemperatureGraphRenderer {
             addCandidate(
                 index = dailyLowIndex,
                 role = "LOW",
-                labelTemps = smoothedLabelTemps,
+                labelTemps = labelTemps,
                 rawTemperature = hours[dailyLowIndex].temperature,
             )
         }
@@ -673,7 +672,7 @@ object TemperatureGraphRenderer {
             addCandidate(
                 index = dailyHighIndex,
                 role = "HIGH",
-                labelTemps = smoothedLabelTemps,
+                labelTemps = labelTemps,
                 rawTemperature = hours[dailyHighIndex].temperature,
             )
         }
@@ -703,26 +702,26 @@ object TemperatureGraphRenderer {
             if (hours[idx].isActual) return@forEach
 
             if (specialCandidates.none { it.index == idx }) {
-                val labelText = formatTemp(smoothedLabelTemps[idx])
-                if (specialCandidates.none { Math.abs(idx - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
+                val labelText = formatTemp(labelTemps[idx])
+                if (specialCandidates.none { abs(idx - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
                     addCandidate(
                         index = idx,
                         role = "LOCAL",
-                        labelTemps = smoothedLabelTemps,
+                        labelTemps = labelTemps,
                         rawTemperature = hours[idx].temperature,
                     )
                 }
             }
         }
         if (effectiveActualEndIndex > 0 && effectiveActualEndIndex < hours.size - 1) {
-            val isFetchDotPoint = fetchDotX != null && Math.abs(originalPoints[effectiveActualEndIndex].first - fetchDotX) < 1f
+            val isFetchDotPoint = fetchDotX != null && abs(originalPoints[effectiveActualEndIndex].first - fetchDotX) < 1f
             if (specialCandidates.none { it.index == effectiveActualEndIndex } && !isFetchDotPoint) {
-                val labelText = formatTemp(smoothedLabelTemps[effectiveActualEndIndex])
-                if (specialCandidates.none { Math.abs(effectiveActualEndIndex - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
+                val labelText = formatTemp(labelTemps[effectiveActualEndIndex])
+                if (specialCandidates.none { abs(effectiveActualEndIndex - it.index) <= 3 && labelTextFor(it.labelTemps, it.index) == labelText }) {
                     addCandidate(
                         index = effectiveActualEndIndex,
                         role = "ACTUAL_END",
-                        labelTemps = smoothedLabelTemps,
+                        labelTemps = labelTemps,
                         rawTemperature = hours[effectiveActualEndIndex].temperature,
                     )
                 }
@@ -732,7 +731,7 @@ object TemperatureGraphRenderer {
             addCandidate(
                 index = 0,
                 role = "START",
-                labelTemps = smoothedLabelTemps,
+                labelTemps = labelTemps,
                 rawTemperature = hours[0].temperature,
             )
         }
@@ -740,7 +739,7 @@ object TemperatureGraphRenderer {
             addCandidate(
                 index = hours.size - 1,
                 role = "END",
-                labelTemps = smoothedLabelTemps,
+                labelTemps = labelTemps,
                 rawTemperature = hours.last().temperature,
             )
         }
@@ -866,15 +865,15 @@ object TemperatureGraphRenderer {
             drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
             drawnIconBounds.any { RectF.intersects(it, bounds) }
 
-        val today = java.time.LocalDate.now()
+        val today = LocalDate.now()
         val leftDate = hours.first().dateTime.toLocalDate()
         val rightDate = hours.last().dateTime.toLocalDate()
-        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
-        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault())
+        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         val leftTextWidth  = (if (leftDate == today) todayDayLabelPaint else dayLabelTextPaint).measureText(leftText)
         val rightTextWidth = (if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint).measureText(rightText)
 
-        data class DayCandidate(val date: java.time.LocalDate, val x: Float, val dayText: String)
+        data class DayCandidate(val date: LocalDate, val x: Float, val dayText: String)
         val dayCandidates = listOf(
             DayCandidate(leftDate,  leftTextWidth / 2f,            leftText),
             DayCandidate(rightDate, widthPx - rightTextWidth / 2f, rightText),
@@ -946,10 +945,10 @@ object TemperatureGraphRenderer {
                 }
                 canvas.drawCircle(clampedFetchX, fetchY, dotRadius + ringPaint.strokeWidth / 2f, outerRingPaint)
 
-                val ageMinutes = java.time.Duration.between(fetchTime!!, currentTime).toMinutes()
+                val ageMinutes = Duration.between(fetchTime!!, currentTime).toMinutes()
                 Log.d(TAG, "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
                 
-                val ageLabel = if (ageMinutes >= 0 && java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
+                val ageLabel = if (ageMinutes >= 0 && Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
                     if (ageMinutes >= 60) {
                         val h = ageMinutes / 60
                         val m = ageMinutes % 60
