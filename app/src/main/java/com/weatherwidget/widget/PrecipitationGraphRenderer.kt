@@ -956,17 +956,16 @@ object PrecipitationGraphRenderer {
                         val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
                         Log.d("PrecipGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
                         
-                        val ageLabel = if (ageMinutes >= 0) {
-                            val label = if (ageMinutes >= 60) {
+                        val ageLabel = if (ageMinutes >= 0 && java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
+                            if (ageMinutes >= 60) {
                                 val h = ageMinutes / 60
                                 val m = ageMinutes % 60
                                 if (m > 0) "${h}h ${m}m" else "${h}h"
                             } else "${ageMinutes}m"
-                            "($label)"
                         } else null
 
                         val valueLabel = "${interpolatedProb.roundToInt()}%"
-                        val dotLabelForDebug = if (ageLabel != null) "$valueLabel $ageLabel" else valueLabel
+                        val dotLabelForDebug = if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel
                         
                         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
                         val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -978,27 +977,50 @@ object PrecipitationGraphRenderer {
                         val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = Color.parseColor("#88FFFFFF")
                             textSize = dpToPx(context, 8f * labelScale) // Reduced size for age
-                            textAlign = Paint.Align.LEFT
+                            textAlign = Paint.Align.CENTER
                             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                         }
                         
-                        val valueWidth = valueTextPaint.measureText(valueLabel)
-                        val ageWidth = if (ageLabel != null) stalenessTextPaint.measureText(ageLabel) else 0f
-                        val spacing = if (ageLabel != null) dpToPx(context, 4f * labelScale) else 0f
-                        val totalWidth = valueWidth + spacing + ageWidth
-
-                        val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
-                        val textY = fetchY + valueTextPaint.textSize / 3f
-                        
-                        val finalX = if (textX + totalWidth > widthPx) {
-                            clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - totalWidth
-                        } else {
-                            textX
+                        // 1. Draw Staleness (Age) - Underneath the dot
+                        if (ageLabel != null) {
+                            val ageY = fetchY + dotRadius + dpToPx(context, 4f * labelScale) - stalenessTextPaint.ascent()
+                            if (ageY + stalenessTextPaint.descent() <= heightPx) {
+                                canvas.drawText(ageLabel, clampedFetchX, ageY, stalenessTextPaint)
+                            }
                         }
 
-                        canvas.drawText(valueLabel, finalX, textY, valueTextPaint)
-                        if (ageLabel != null) {
-                            canvas.drawText(ageLabel, finalX + valueWidth + spacing, textY, stalenessTextPaint)
+                        // 2. Draw Value (Prob) - Multi-directional placement
+                        val valueWidth = valueTextPaint.measureText(valueLabel)
+                        val valueHeight = valueTextPaint.textSize
+                        val sideGap = dpToPx(context, 4f * labelScale)
+                        
+                        // Attempt 1: Right
+                        var drawnValue = false
+                        val rightX = clampedFetchX + dotRadius + sideGap
+                        if (rightX + valueWidth <= widthPx) {
+                            valueTextPaint.textAlign = Paint.Align.LEFT
+                            canvas.drawText(valueLabel, rightX, fetchY + valueHeight / 3f, valueTextPaint)
+                            drawnValue = true
+                        }
+                        
+                        // Attempt 2: Left
+                        if (!drawnValue) {
+                            val leftX = clampedFetchX - dotRadius - sideGap
+                            if (leftX - valueWidth >= 0) {
+                                valueTextPaint.textAlign = Paint.Align.RIGHT
+                                canvas.drawText(valueLabel, leftX, fetchY + valueHeight / 3f, valueTextPaint)
+                                drawnValue = true
+                            }
+                        }
+                        
+                        // Attempt 3: Top
+                        if (!drawnValue) {
+                            val topY = fetchY - dotRadius - dpToPx(context, 2f * labelScale)
+                            if (topY + valueTextPaint.ascent() >= 0) {
+                                valueTextPaint.textAlign = Paint.Align.CENTER
+                                canvas.drawText(valueLabel, clampedFetchX, topY, valueTextPaint)
+                                drawnValue = true
+                            }
                         }
 
                         // Prevent double-labeling this index in the main probability label loop
