@@ -379,41 +379,47 @@ object CloudCoverGraphRenderer {
                         Log.d("CloudGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
                         
                         val ageLabel = if (ageMinutes >= 0) {
-                            if (ageMinutes >= 60) {
+                            val label = if (ageMinutes >= 60) {
                                 val h = ageMinutes / 60
                                 val m = ageMinutes % 60
                                 if (m > 0) "${h}h ${m}m" else "${h}h"
                             } else "${ageMinutes}m"
+                            "($label)"
                         } else null
 
-                        val dotLabel = if (ageLabel != null) {
-                            "${interpolatedCloud.roundToInt()}% ($ageLabel)"
-                        } else {
-                            "${interpolatedCloud.roundToInt()}%"
-                        }
+                        val valueLabel = "${interpolatedCloud.roundToInt()}%"
+                        val dotLabelForDebug = if (ageLabel != null) "$valueLabel $ageLabel" else valueLabel
 
                         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-                        val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                             color = Color.parseColor("#BBFFFFFF")
                             textSize = dpToPx(context, 11f * labelScale)
                             textAlign = Paint.Align.LEFT
                             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                         }
+                        val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            color = Color.parseColor("#88FFFFFF")
+                            textSize = dpToPx(context, 8f * labelScale) // Reduced size for age
+                            textAlign = Paint.Align.LEFT
+                            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+                        }
+
+                        val valueWidth = valueTextPaint.measureText(valueLabel)
+                        val ageWidth = if (ageLabel != null) stalenessTextPaint.measureText(ageLabel) else 0f
+                        val spacing = if (ageLabel != null) dpToPx(context, 4f * labelScale) else 0f
+                        val totalWidth = valueWidth + spacing + ageWidth
 
                         val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
-                        val textY = fetchY + ageTextPaint.textSize / 3f
-                        val textWidth = ageTextPaint.measureText(dotLabel)
-                        val finalX = if (textX + textWidth > widthPx) {
-                            clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
+                        val textY = fetchY + valueTextPaint.textSize / 3f
+                        val finalX = if (textX + totalWidth > widthPx) {
+                            clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - totalWidth
                         } else {
                             textX
                         }
 
-                        if (finalX < textX) {
-                            ageTextPaint.textAlign = Paint.Align.RIGHT
-                            canvas.drawText(dotLabel, finalX + textWidth, textY, ageTextPaint)
-                        } else {
-                            canvas.drawText(dotLabel, finalX, textY, ageTextPaint)
+                        canvas.drawText(valueLabel, finalX, textY, valueTextPaint)
+                        if (ageLabel != null) {
+                            canvas.drawText(ageLabel, finalX + valueWidth + spacing, textY, stalenessTextPaint)
                         }
 
                         // Prevent double-labeling this index in the main loop

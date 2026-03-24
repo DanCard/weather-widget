@@ -771,8 +771,8 @@ object TemperatureGraphRenderer {
         val labelAscent = if (labelFontMetrics != null && labelFontMetrics.ascent != 0f) labelFontMetrics.ascent else (-actualTempLabelTextPaint.textSize)
         val labelDescent = if (labelFontMetrics != null && labelFontMetrics.descent != 0f) labelFontMetrics.descent else (actualTempLabelTextPaint.textSize * 0.2f)
         
-        val aboveGap = dpToPx(context, 0f)
-        val belowGap = dpToPx(context, 0f)
+        val aboveGap = dpToPx(context, -0.1f)
+        val belowGap = dpToPx(context, -0.1f)
 
         for (candidate in specialCandidates) {
             val idx = candidate.index
@@ -936,40 +936,46 @@ object TemperatureGraphRenderer {
                 Log.d(TAG, "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
                 
                 val ageLabel = if (ageMinutes >= 0) {
-                    if (ageMinutes >= 60) {
+                    val label = if (ageMinutes >= 60) {
                         val h = ageMinutes / 60
                         val m = ageMinutes % 60
                         if (m > 0) "${h}h ${m}m" else "${h}h"
                     } else "${ageMinutes}m"
+                    "($label)"
                 } else null
 
-                val dotLabel = if (ageLabel != null) {
-                    String.format("%.1f° (%s)", resolvedFetchTemp, ageLabel)
-                } else {
-                    String.format("%.1f°", resolvedFetchTemp)
-                }
+                val valueLabel = String.format("%.1f°", resolvedFetchTemp)
+                val dotLabelForDebug = if (ageLabel != null) "$valueLabel $ageLabel" else valueLabel
 
-                val ageTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = Color.parseColor("#BBFFFFFF")
                     textSize = dpToPx(context, 19.5f * labelScale)
                     textAlign = Paint.Align.LEFT
                     setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
                 }
+                val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#88FFFFFF")
+                    textSize = dpToPx(context, 12f * labelScale) // Reduced size for age
+                    textAlign = Paint.Align.LEFT
+                    setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+                }
+
+                val valueWidth = valueTextPaint.measureText(valueLabel)
+                val ageWidth = if (ageLabel != null) stalenessTextPaint.measureText(ageLabel) else 0f
+                val spacing = if (ageLabel != null) dpToPx(context, 4f * labelScale) else 0f
+                val totalWidth = valueWidth + spacing + ageWidth
+
                 val textX = clampedFetchX + dotRadius + dpToPx(context, 4f * labelScale)
-                val textY = fetchY + ageTextPaint.textSize / 3f
-                val textWidth = ageTextPaint.measureText(dotLabel)
-                val finalX = if (textX + textWidth > widthPx) {
-                    clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - textWidth
-                    // When on left, Align.RIGHT is better for centering if we wanted, but LEFT with offset works
+                val textY = fetchY + valueTextPaint.textSize / 3f
+                
+                val finalX = if (textX + totalWidth > widthPx) {
+                    clampedFetchX - dotRadius - dpToPx(context, 4f * labelScale) - totalWidth
                 } else textX
                 
-                // If we are on the left of the dot, we should probably use Align.RIGHT to be safer, 
-                // but let's keep it simple for now as it's usually on the right.
-                if (finalX < textX) {
-                    ageTextPaint.textAlign = Paint.Align.RIGHT
-                    canvas.drawText(dotLabel, finalX + textWidth, textY, ageTextPaint)
-                } else {
-                    canvas.drawText(dotLabel, finalX, textY, ageTextPaint)
+                canvas.drawText(valueLabel, finalX, textY, valueTextPaint)
+                if (ageLabel != null) {
+                    // Align small text slightly higher or centered with large text baseline
+                    canvas.drawText(ageLabel, finalX + valueWidth + spacing, textY, stalenessTextPaint)
                 }
 
                 onFetchDotResolved?.invoke(
@@ -978,7 +984,7 @@ object TemperatureGraphRenderer {
                         fetchDotX = clampedFetchX,
                         fetchY = fetchY,
                         withinWindow = true,
-                        ageText = dotLabel,
+                        ageText = dotLabelForDebug,
                     ),
                 )
             }
