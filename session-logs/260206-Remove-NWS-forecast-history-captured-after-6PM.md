@@ -1,8 +1,5 @@
 # Weather Widget Cleanup Session Summary
 
-Date: 2026-02-06
-Project: weather-widget
-
 ## Goal
 - Remove incorrect NWS same-day forecast-history entries captured after 6:00 PM.
 - Apply deletion across attached devices.
