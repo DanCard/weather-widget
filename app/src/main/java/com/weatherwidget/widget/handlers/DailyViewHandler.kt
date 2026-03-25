@@ -436,14 +436,7 @@ object DailyViewHandler : WidgetViewHandler {
             val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
 
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = DailyForecastGraphRenderer.renderGraph(
-                context = context,
-                days = days,
-                widthPx = widthPx,
-                heightPx = heightPx,
-                bitmapScale = bitmapScale,
-                numColumns = numColumns,
-            )
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx, bitmapScale, days.size)
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
@@ -882,11 +875,6 @@ object DailyViewHandler : WidgetViewHandler {
             val intent = buildDayClickIntent(context, appWidgetId, colIndex + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
             val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, colIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(zoneId, pendingIntent)
-            Log.d(
-                TAG,
-                "setupGraphDayClickHandlers: widget=$appWidgetId zone=${colIndex + 1}/$numColumns date=${dayData.date} " +
-                    "hasRain=${dayData.hasRainForecast} source=${displaySource.id}",
-            )
         }
     }
 
