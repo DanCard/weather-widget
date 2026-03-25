@@ -447,7 +447,7 @@ object TemperatureGraphRenderer {
 
         onPointsResolved?.invoke(PointsDebug(originalPoints, forecastPoints, expectedPoints))
 
-        val (originalPath, _) = GraphRenderUtils.buildLinearCurveAndFillPaths(originalPoints, graphBottom)
+        val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
         val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
 
