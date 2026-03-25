@@ -32,10 +32,10 @@ set -x
 find logs/ -mtime +14 -delete
 set +x
 
-# Run gradle and strip blank lines + per-test PASSED lines for a compact view
-# We keep failures and other diagnostics visible.
-# We also tee the full unfiltered output to a log file.
-./gradlew :app:testDebugUnitTest $FORCE_FLAG --console=plain 2>&1 | tee "$UNIT_LOG" | awk 'NF && $0 !~ / > .* PASSED$/'
+# Run gradle: full output to log file, filtered output to screen
+# Screen: show build tasks only, hide test execution lines and warnings
+# Log: everything for debugging
+./gradlew :app:testDebugUnitTest $FORCE_FLAG --console=plain 2>&1 | tee "$UNIT_LOG" | grep -E '(^> Task |^[[:space:]]*$)'
 
 EXIT_CODE=${PIPESTATUS[0]}
 END_TIME=$(date +%s)
@@ -109,12 +109,7 @@ if [ "$TOTAL" -gt 0 ]; then
         echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
     fi
 
-    if [ "$EXIT_CODE" -eq 0 ] && [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ] && [ "${#CLASS_PASSED_COUNTS[@]}" -gt 0 ]; then
-        echo -e "${BLUE}Per-class pass summary:${NC}"
-        while IFS= read -r class_name; do
-            echo -en "  ${GREEN}${class_name}${NC} ${CLASS_PASSED_COUNTS[$class_name]} \t"
-        done < <(printf '%s\n' "${!CLASS_PASSED_COUNTS[@]}" | sort)
-    fi
+ 
 else
     if [ "$EXIT_CODE" -ne 0 ]; then
         echo -e "${RED}✗ Build failed (no test results produced)${NC}"
