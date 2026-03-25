@@ -203,8 +203,10 @@ cleanup() {
 
     # Always keep emulator running (avoids re-launch overhead on next run)
     if [ -n "${EMULATOR_SERIAL:-}" ]; then
-        echo -e "${YELLOW}Keeping emulator running${NC}"
-        echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
+	    if [ "$SHORT_MODE" = false ]; then
+	        echo -e "${YELLOW}Keeping emulator running${NC}"
+	        echo -e "${GREEN}Emulator serial: $EMULATOR_SERIAL${NC}"
+	    fi
     fi
     debug_log "cleanup end"
 }

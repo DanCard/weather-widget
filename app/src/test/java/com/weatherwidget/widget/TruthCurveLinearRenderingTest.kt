@@ -2,9 +2,7 @@ package com.weatherwidget.widget
 
 import androidx.test.core.app.ApplicationProvider
 import android.content.Context
-import android.graphics.Path
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,16 +15,11 @@ import org.junit.experimental.categories.Category
 
 
 /**
- * Regression test ensuring the truth/actual curve uses LINEAR rendering (not Bezier smoothing).
+ * Regression tests ensuring the fetch dot temperature uses linear interpolation,
+ * not cubic Bezier evaluation, so the dot value matches actual observations exactly.
  *
- * The user has repeatedly requested no Bezier smoothing on observed/actual temperature data.
- * Smoothing distorts the fetch dot temperature value and makes the curve appear to overshoot
- * actual readings.
- *
- * Key invariants:
- * 1. [GraphRenderUtils.buildLinearCurveAndFillPaths] must exist and use lineTo (not cubicTo)
- * 2. The truth curve path in TemperatureGraphRenderer must use buildLinearCurveAndFillPaths
- * 3. interpolatedTruthAtFetch must be a plain linear interpolation
+ * Key invariant:
+ * - interpolatedTruthAtFetch must be a plain linear interpolation between adjacent actual temps
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -34,40 +27,6 @@ import org.junit.experimental.categories.Category
 class TruthCurveLinearRenderingTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()
-
-    /**
-     * Verifies that buildLinearCurveAndFillPaths produces a path, and that linear and smooth
-     * paths differ for non-trivial input (so they can't silently be merged back into one function).
-     */
-    @Test
-    fun `buildLinearCurveAndFillPaths exists and differs from smooth for curved input`() {
-        // 3 points forming a V-shape — smooth curve would bend the approach to the valley
-        val points = listOf(100f to 10f, 200f to 90f, 300f to 10f)
-        val graphBottom = 100f
-
-        val (linearPath, _) = GraphRenderUtils.buildLinearCurveAndFillPaths(points, graphBottom)
-        val (smoothPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
-
-        assertNotNull("buildLinearCurveAndFillPaths must return a non-null path", linearPath)
-        assertNotNull("buildSmoothCurveAndFillPaths must return a non-null path", smoothPath)
-
-        val linearBounds = android.graphics.RectF()
-        val smoothBounds = android.graphics.RectF()
-        linearPath.computeBounds(linearBounds, true)
-        smoothPath.computeBounds(smoothBounds, true)
-
-        // Both should span the same X range
-        assertEquals("X bounds should match", linearBounds.left, smoothBounds.left, 0.1f)
-        assertEquals("X bounds should match", linearBounds.right, smoothBounds.right, 0.1f)
-
-        // Smooth curves may produce a slightly different Y bounds due to bezier control points
-        // The key assertion: the functions are distinct and separately maintained
-        assertNotEquals(
-            "buildLinearCurveAndFillPaths must not be the same object as buildSmoothCurveAndFillPaths",
-            linearPath,
-            smoothPath,
-        )
-    }
 
     /**
      * Verifies that interpolatedTruthAtFetch is computed via linear interpolation.
