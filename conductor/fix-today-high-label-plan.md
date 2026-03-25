@@ -1,49 +1,49 @@
-# Fix Daily Graph "Today" High Temperature Label
+# Plan: Fix Dropping Daily High Temperature
+
+The daily high temperature in the "Today" column sometimes drops. This is likely because the current observed high isn't correctly persisted or the aggregation logic (using sliding 24h windows from NWS) causes the "high" to decrease as a previous day's peak falls out of the window.
 
 ## Objective
-Ensure the numerical text label printed at the top of the "Today" column in the Daily Forecast view accurately represents the highest temperature experienced throughout the day, preventing the label from artificially dropping when the current temperature or forecasted high decreases.
+Ensure the observed daily high for "Today" is persistent and only increases (never drops) as new observations are received.
 
 ## Key Files & Context
-- `app/src/main/java/com/weatherwidget/widget/DailyForecastGraphRenderer.kt` (Rendering logic for the daily graph)
-
-## Current Behavior & Root Cause
-When the "Ghost Bar" feature was implemented, a new field `trueActualHigh` was added to `DayData` to track the absolute highest temperature observed so far today. The graph's visual lines correctly use this value to draw a semi-transparent "ghost bar" above the solid current-temperature bar.
-
-However, the numerical label printed above the bars (`displayHigh`) was not updated to factor in `trueActualHigh`. Currently, it only checks `maxOf(day.high, day.forecastHigh)`. Because `day.high` is intentionally locked to the *current* temperature for today's column, if the current temperature and the forecasted high both drop below a previously reached peak, the printed text label will also drop, causing a visual discrepancy where the ghost bar extends higher than the text label.
+- `app/src/main/java/com/weatherwidget/widget/ObservationResolver.kt`: Aggregates observations into daily extremes.
+- `app/src/main/java/com/weatherwidget/data/repository/ObservationRepository.kt`: Manages the lifecycle and persistence of daily extremes.
+- `app/src/main/java/com/weatherwidget/util/DailyActualsEstimator.kt`: Calculates values for the triple-bar rendering for "Today".
 
 ## Proposed Solution
-Update the `displayHigh` calculation in `DailyForecastGraphRenderer.kt` to explicitly include `day.trueActualHigh`.
 
-### Implementation Steps
+### 1. Update Aggregation Logic
+Modify `ObservationResolver.blendExtremes` to ensure the daily high is the maximum of the official 24h extremes AND all spot observations for that day. This prevents a sliding 24h window (from NWS) from causing the "today" high to drop when yesterday's peak falls out of the 24h range.
 
-1. **Update `DailyForecastGraphRenderer.kt`**:
-   - Locate the `"// High Temp Label"` section inside `drawDayColumn`.
-   - Modify the `displayHigh` assignment.
-   - Current Code:
-     ```kotlin
-     val displayHigh = if (day.isToday && day.forecastHigh != null) maxOf(day.high, day.forecastHigh) else day.high
-     ```
-   - New Code:
-     ```kotlin
-     val displayHigh = if (day.isToday) {
-         val baseHigh = maxOf(day.high ?: 0f, day.forecastHigh ?: 0f)
-         if (day.trueActualHigh != null) maxOf(baseHigh, day.trueActualHigh) else baseHigh
-     } else {
-         day.high
-     }
-     ```
-   - *Self-Correction for Nullability*: Since `day.high` is nullable, we should ensure the fallback logic remains clean. A cleaner version would be:
-     ```kotlin
-     val displayHigh = if (day.isToday) {
-         listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: day.high
-     } else {
-         day.high
-     }
-     ```
+### 2. Protect Persistence
+Modify `ObservationRepository` to prevent overwriting an existing daily high with a lower value for the same day/source/location.
+
+### 3. Add DB Logging
+Add detailed logging to the `app_logs` table during the aggregation and persistence phase to track how the daily high is being calculated and updated.
+
+## Implementation Steps
+
+### 1. ObservationResolver.kt
+- In `blendExtremes`, ensure the final `high` is `max(calculated_idw_high, max_spot_of_all_obs)`.
+- In `blendExtremes`, ensure the final `low` is `min(calculated_idw_low, min_spot_of_all_obs)`.
+
+### 2. ObservationRepository.kt
+- Modify `recomputeDailyExtremesForDay` (both overloads) and `recomputeDailyExtremesFromStoredObservations` to:
+    1. Fetch existing `DailyExtremeEntity` for the target day/source.
+    2. Compare new values with existing values.
+    3. Only update if the new high is higher or the new low is lower (or if no existing record exists).
+- Add `appLogDao.log` calls to record:
+    - Current stored high/low.
+    - New calculated high/low.
+    - Whether an update was performed or skipped.
+
+### 3. DailyActualsEstimator.kt
+- Verify `calculateTodayTripleLineValues` correctly uses the persisted `actual.highTemp`.
+- It currently uses `val observedHigh = currentTemp ?: actual?.highTemp`. If `actual?.highTemp` is the true persistent high, this might still drop if `currentTemp` (the latest reading) drops.
+- **Change**: Ensure `observedHigh` in the triple-line represents the *max so far today*, which should be `max(currentTemp, actual?.highTemp)`.
 
 ## Verification & Testing
-1. **Unit Tests**: Run `DailyForecastGraphRendererTest` (and related UI rendering tests) to ensure no regressions.
-2. **Visual Verification**: 
-   - Deploy to the emulator.
-   - Use the system's test data or manually mock a scenario where the `trueActualHigh` (e.g., 85) is greater than both the current `high` (e.g., 70) and the `forecastHigh` (e.g., 80).
-   - Verify that the label printed at the top of the Today column reads "85.0°" and sits neatly at the peak of the ghost bar.
+- **Unit Tests**: Add a test case to `ObservationResolverTest` verifying that `blendExtremes` returns the `maxSpot` even if `maxTempLast24h` is lower.
+- **Integration Tests**: Verify in `ObservationRepository` that inserting a lower observation after a higher one does not decrease the `daily_extremes` high.
+- **Manual Verification**: Observe logs in the app's "Logs" view to see "Daily extreme updated: high 80 -> 82" or "Daily extreme update skipped: 82 > 79".
+

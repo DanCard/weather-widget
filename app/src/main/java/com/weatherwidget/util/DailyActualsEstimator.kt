@@ -61,10 +61,10 @@ object DailyActualsEstimator {
 
         // 1. Observed so far (history/current)
         val actual = dailyActuals[today]
-        // USER REQUEST: Shrink to min for the day. 
-        // We set the top (observedHigh) to ONLY be the current temperature.
-        // This makes the red bar represent the range from [Current Temp] down to [Min Temp Today].
-        val observedHigh = currentTemp ?: actual?.highTemp
+        // observedHigh should never drop; it is the maximum of the stored daily high 
+        // and the current reading.
+        val observedHigh = listOfNotNull(actual?.highTemp, currentTemp).maxOrNull()
+        // observedLow should be the minimum of the stored daily low and the current reading.
         val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
 
         // 2. Full-day prediction (including both past and future hours)

@@ -350,15 +350,10 @@ class ObservationRepository @Inject constructor(
         startDate: LocalDate,
         endDateInclusive: LocalDate,
     ) {
-        val zone = ZoneId.systemDefault()
-        val startTs = startDate.atStartOfDay(zone).toInstant().toEpochMilli()
-        val endTs = endDateInclusive.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val observations = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
-        if (observations.isEmpty()) return
-
-        val extremes = ObservationResolver.computeDailyExtremes(observations, latitude, longitude)
-        if (extremes.isNotEmpty()) {
-            dailyExtremeDao.insertAll(extremes)
+        var current = startDate
+        while (!current.isAfter(endDateInclusive)) {
+            recomputeDailyExtremesForDay(latitude, longitude, current)
+            current = current.plusDays(1)
         }
     }
 
@@ -368,14 +363,8 @@ class ObservationRepository @Inject constructor(
         referenceTimestamp: Long,
     ) {
         val zone = ZoneId.systemDefault()
-        val day = java.time.Instant.ofEpochMilli(referenceTimestamp).atZone(zone).toLocalDate()
-        val startTs = day.atStartOfDay(zone).toInstant().toEpochMilli()
-        val endTs = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
-        if (dayObs.isNotEmpty()) {
-            val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
-            dailyExtremeDao.insertAll(extremes)
-        }
+        val date = java.time.Instant.ofEpochMilli(referenceTimestamp).atZone(zone).toLocalDate()
+        recomputeDailyExtremesForDay(latitude, longitude, date)
     }
 
     private suspend fun recomputeDailyExtremesForDay(
@@ -384,12 +373,42 @@ class ObservationRepository @Inject constructor(
         date: LocalDate,
     ) {
         val zone = ZoneId.systemDefault()
+        val dateMillis = date.toEpochDay() * 86400_000L
         val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val endTs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
+        
         if (dayObs.isNotEmpty()) {
-            val extremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
-            dailyExtremeDao.insertAll(extremes)
+            val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
+            val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
+                .associateBy { it.source }
+
+            val toInsert = mutableListOf<com.weatherwidget.data.local.DailyExtremeEntity>()
+            
+            newExtremes.forEach { new ->
+                val existing = existingExtremes[new.source]
+                if (existing == null) {
+                    toInsert.add(new)
+                } else {
+                    // Persistence guard: only update if high is higher OR low is lower.
+                    // This prevents a sliding window or temporary drop in current temp 
+                    // from shrinking the daily bar's true bounds.
+                    val updatedHigh = maxOf(existing.highTemp, new.highTemp)
+                    val updatedLow = minOf(existing.lowTemp, new.lowTemp)
+                    
+                    if (updatedHigh > existing.highTemp || updatedLow < existing.lowTemp) {
+                        appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow}")
+                        toInsert.add(new.copy(highTemp = updatedHigh, lowTemp = updatedLow))
+                    } else if (new.condition != existing.condition) {
+                        // Keep condition up to date even if temps didn't change bounds
+                        toInsert.add(new.copy(highTemp = existing.highTemp, lowTemp = existing.lowTemp))
+                    }
+                }
+            }
+
+            if (toInsert.isNotEmpty()) {
+                dailyExtremeDao.insertAll(toInsert)
+            }
         }
     }
 

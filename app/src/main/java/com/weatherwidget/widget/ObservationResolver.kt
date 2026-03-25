@@ -120,7 +120,13 @@ object ObservationResolver {
         val low = SpatialInterpolator.interpolateIDWValues(lowExtPairs)
             ?: SpatialInterpolator.interpolateIDWValues(lowSpotPairs)
             ?: obs.minOf { it.temperature }
-        return high to low
+            
+        // Final guard: official 24h extremes might be lower than today's spot max 
+        // if they use a sliding window. We always want the absolute max/min for the local day.
+        val finalHigh = maxOf(high, obs.maxOf { it.temperature })
+        val finalLow = minOf(low, obs.minOf { it.temperature })
+        
+        return finalHigh to finalLow
     }
 
     /**
