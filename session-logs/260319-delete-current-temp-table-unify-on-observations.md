@@ -1,6 +1,5 @@
 # Delete current_temp table — unify on observations
 
-**Date**: 2026-03-19
 **DB Version**: 36 → 37
 
 ## Problem

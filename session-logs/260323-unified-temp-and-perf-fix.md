@@ -1,5 +1,4 @@
 # Session Notes: Unified Current Temperature & Performance Optimization
-**Date:** March 23, 2026
 **Topic:** Current temperature consistency, staleness indicator accuracy, and UI responsiveness.
 
 ## 1. Unified Current Temperature Resolution

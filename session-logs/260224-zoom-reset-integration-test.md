@@ -1,6 +1,5 @@
 # Session Summary: Graph Zoom Level Persistence Bug & Integration Testing
 
-**Date**: February 24, 2026
 
 ## Issue
 When clicking a day on the daily forecast with a chance of rain, the precipitation (or hourly) graph would sometimes open in a zoomed-in (NARROW) view instead of the default 24-hour (WIDE) view.
