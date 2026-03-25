@@ -565,6 +565,37 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareGraphDays assigns sequential columnIndex when middle days are missing`() {
+        // dayOffsets for numColumns=5 are [-1, 0, 1, 2, 3]; only yesterday and today+2 have data
+        // With the old `columnIndex = index` (forEachIndexed), today+2 would get columnIndex=3 (its offset index)
+        // With the fix `columnIndex = days.size` (before .add()), today+2 gets columnIndex=1
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val skipped = today.plusDays(2)
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = mapOf(
+                yesterday to createWeather(yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+                skipped   to createWeather(skipped.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            ),
+            forecastSnapshots = emptyMap(),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList()
+        )
+
+        assertEquals("should have 2 days", 2, result.size)
+        assertEquals("yesterday should be columnIndex 0", 0, result[0].columnIndex)
+        assertEquals("today+2 should be columnIndex 1 (sequential, not offset 3)", 1, result[1].columnIndex)
+    }
+
+    @Test
     fun `buildDayClickIntent returns correct extras with Robolectric`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val date = LocalDate.of(2030, 6, 16) // Tomorrow

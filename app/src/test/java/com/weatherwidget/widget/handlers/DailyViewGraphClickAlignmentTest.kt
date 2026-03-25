@@ -179,6 +179,68 @@ class DailyViewGraphClickAlignmentTest {
         assertEquals("Zone 2 should be GONE", View.GONE, zone2.visibility)
     }
 
+    @Test
+    fun `setupGraphDayClickHandlers aligns touch zones with columns when middle days are missing`() = runBlocking {
+        // GIVEN: 9 columns, data for yesterday and today+2 only (today and tomorrow absent)
+        // dayOffsets = [-1, 0, 1, 2, 3, 4, 5, 6, 7]; yesterday hits index 0, today+2 hits index 3
+        // With sequential columnIndex (days.size before .add), yesterday=0, today+2=1
+        val now = LocalDateTime.of(2026, 3, 20, 12, 0)
+        val today = now.toLocalDate()
+        val yesterdayStr = today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val skippedStr = today.plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(22)
+        stateManager.setZoomLevel(22, ZoomLevel.WIDE)
+        stateManager.setViewMode(22, com.weatherwidget.widget.ViewMode.DAILY)
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 300)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300)
+        }
+        every { appWidgetManager.getAppWidgetOptions(22) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(22, capture(viewsSlot)) } just runs
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 22,
+            weatherList = listOf(
+                createWeather(yesterdayStr),
+                createWeather(skippedStr),   // today and tomorrow absent
+            ),
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
+            now = now,
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root)
+        val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
+
+        // Sequential columnIndex: yesterday=zone0, today+2=zone1, zone2+ GONE
+        assertEquals("Zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day1_zone).visibility)
+        assertEquals("Zone 1 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day2_zone).visibility)
+        assertEquals("Zone 2 should be GONE", View.GONE, applied.findViewById<View>(R.id.graph_day3_zone).visibility)
+
+        // Zone 0 = yesterday — click fires broadcast
+        applied.findViewById<View>(R.id.graph_day1_zone).performClick()
+        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
+
+        // Zone 1 = today+2 (columnIndex 1, not 3) — click fires broadcast
+        applied.findViewById<View>(R.id.graph_day2_zone).performClick()
+        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(skippedStr, broadcasts.last().getStringExtra("date"))
+    }
+
     private fun createWeather(date: String): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),

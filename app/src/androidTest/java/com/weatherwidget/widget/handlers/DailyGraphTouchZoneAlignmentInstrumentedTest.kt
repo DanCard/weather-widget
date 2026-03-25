@@ -44,7 +44,6 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
 
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val appWidgetId = 5005
-        val numColumns = 9
 
         // Weather data missing YESTERDAY (index 0)
         val days = listOf(
@@ -65,7 +64,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             )
         )
 
-        // WHEN: Calling setupGraphDayClickHandlers directly
+        // WHEN: Calling setupGraphDayClickHandlers with numColumns = days.size (as DailyViewHandler does)
         DailyViewHandler.setupGraphDayClickHandlers(
             context = context,
             views = views,
@@ -75,7 +74,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             lat = 37.7749,
             lon = -122.4194,
             displaySource = WeatherSource.NWS,
-            numColumns = numColumns
+            numColumns = days.size  // matches DailyViewHandler caller — only populated columns visible
         )
 
         // THEN: Verify the view hierarchy after application
@@ -88,18 +87,21 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             R.id.graph_day9_zone, R.id.graph_day10_zone
         )
 
-        // All 9 columns should be VISIBLE to ensure layout weights space them correctly
-        for (i in 0 until 9) {
+        // Only days.size (2) zones visible — beyond that is GONE
+        for (i in 0 until days.size) {
             assertEquals("Zone $i should be VISIBLE", View.VISIBLE, applied.findViewById<View>(zoneIds[i]).visibility)
         }
-        // 10th zone should be GONE
+        for (i in days.size until 9) {
+            assertEquals("Zone $i should be GONE", View.GONE, applied.findViewById<View>(zoneIds[i]).visibility)
+        }
+        // 10th zone always GONE
         assertEquals("Zone 9 should be GONE", View.GONE, applied.findViewById<View>(zoneIds[9]).visibility)
-        
-        // Verify that Today (index 1) is indeed clickable
+
+        // Verify that Today (columnIndex 1) is clickable
         val zone1 = applied.findViewById<View>(R.id.graph_day2_zone)
         assertEquals("Today zone should be clickable", true, zone1.hasOnClickListeners())
-        
-        // Verify that Yesterday (index 0) is NOT clickable (intent cleared)
+
+        // Verify that Yesterday (columnIndex 0, no DayData) has no click handler
         val zone0 = applied.findViewById<View>(R.id.graph_day1_zone)
         assertEquals("Yesterday zone should NOT be clickable", false, zone0.hasOnClickListeners())
     }
