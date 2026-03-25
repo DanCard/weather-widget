@@ -221,7 +221,7 @@ object DailyForecastGraphRenderer {
             barPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth),
             todayBarPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), barWidth),
             todayObservedRedPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth),
-            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = 51 },
+            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = 75 },
             todayObservedRedBulbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(COLOR_OBSERVED_RED)
                 style = Paint.Style.FILL

@@ -138,7 +138,7 @@ object DailyViewLogic {
                     currentTemp = resolvedCurrentTemp
                 )
 
-                val visibleHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
+                val visibleHigh = listOfNotNull(tripleValues.observedHigh, tripleValues.forecastHigh, tripleValues.trueActualHigh).maxOrNull()
                 val visibleLow = tripleValues.observedLow ?: tripleValues.forecastLow
                 highLabel = formatTempLabel(visibleHigh)
                 lowLabel = formatTempLabel(visibleLow)

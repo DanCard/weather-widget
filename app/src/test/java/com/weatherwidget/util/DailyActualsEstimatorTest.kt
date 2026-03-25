@@ -154,10 +154,10 @@ class DailyActualsEstimatorTest {
     }
 
     @Test
-    fun calculateTodayTripleLineValues_actualHigherThanCurrentTemp_observedHighRemainsAtActualHigh() {
+    fun calculateTodayTripleLineValues_actualHigherThanCurrentTemp_observedHighDropsToCurrentTemp() {
         // actual.high=85°, currentTemp=81°
-        // observedHigh should now remain at 85° (the persistent high), 
-        // unlike the previous implementation where it would drop to 81°.
+        // observedHigh should now be 81° (the mercury level),
+        // with trueActualHigh=85° preserving the ghost bar peak.
         val actuals = mapOf(
             today to com.weatherwidget.widget.ObservationResolver.DailyActual(
                 date = today, highTemp = 85f, lowTemp = 55f, condition = "Sunny"
@@ -173,7 +173,7 @@ class DailyActualsEstimatorTest {
             currentTemp = 81f,
         )
 
-        assertEquals(85f, values.observedHigh!!, 0.01f) // NOW 85, WAS 81
+        assertEquals(81f, values.observedHigh!!, 0.01f) // NOW 81, WAS 85
         assertEquals(85f, values.trueActualHigh!!, 0.01f)
         assertEquals(55f, values.observedLow!!, 0.01f)
     }

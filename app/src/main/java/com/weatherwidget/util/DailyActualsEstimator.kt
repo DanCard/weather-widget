@@ -61,9 +61,9 @@ object DailyActualsEstimator {
 
         // 1. Observed so far (history/current)
         val actual = dailyActuals[today]
-        // observedHigh should never drop; it is the maximum of the stored daily high 
-        // and the current reading.
-        val observedHigh = listOfNotNull(actual?.highTemp, currentTemp).maxOrNull()
+        // observedHigh should represent the current 'mercury level' of the thermometer.
+        // It follows currentTemp if available, otherwise falls back to the peak reached so far.
+        val observedHigh = currentTemp ?: actual?.highTemp
         // observedLow should be the minimum of the stored daily low and the current reading.
         val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
 
