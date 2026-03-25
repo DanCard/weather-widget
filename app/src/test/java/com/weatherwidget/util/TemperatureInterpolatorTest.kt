@@ -6,7 +6,12 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class TemperatureInterpolatorTest {
     private lateinit var interpolator: TemperatureInterpolator
 

@@ -16,9 +16,14 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class DailyGapFallbackGraphIntegrationTest {
 
     @Test

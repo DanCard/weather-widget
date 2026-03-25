@@ -14,7 +14,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(LongDuration::class)
 class WeatherRepositoryPoiTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences

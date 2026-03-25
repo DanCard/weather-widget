@@ -33,9 +33,14 @@ import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(LongDuration::class)
 class DailyViewGraphClickAlignmentTest {
 
     private lateinit var context: Context

@@ -18,6 +18,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Integration tests for AccuracyCalculator using a real in-memory Room database.
@@ -26,6 +30,7 @@ import java.time.format.DateTimeFormatter
  * then verifies that getDailyAccuracyBreakdown() and calculateAccuracy() return correct values.
  */
 @RunWith(RobolectricTestRunner::class)
+@Category(MediumDuration::class)
 class AccuracyCalculatorIntegrationTest {
 
     private lateinit var db: WeatherDatabase

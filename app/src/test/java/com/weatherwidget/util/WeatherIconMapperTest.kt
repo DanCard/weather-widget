@@ -3,7 +3,12 @@ package com.weatherwidget.util
 import com.weatherwidget.R
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class WeatherIconMapperTest {
     @Test
     fun testGetIconResource_ClearDay() {

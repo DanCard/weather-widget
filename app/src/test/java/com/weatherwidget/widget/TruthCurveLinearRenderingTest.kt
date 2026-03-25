@@ -11,6 +11,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Regression test ensuring the truth/actual curve uses LINEAR rendering (not Bezier smoothing).
@@ -26,6 +30,7 @@ import java.time.LocalDateTime
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class TruthCurveLinearRenderingTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()

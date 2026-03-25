@@ -23,7 +23,12 @@ import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(MediumDuration::class)
 class WeatherRepositoryTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences

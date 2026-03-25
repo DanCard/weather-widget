@@ -17,6 +17,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Regression test for: tapping "today" from daily forecast view showed no actual temperature line.
@@ -34,6 +38,7 @@ import java.time.format.DateTimeFormatter
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class DailyTapActualsRegressionTest {
 
     private lateinit var context: Context

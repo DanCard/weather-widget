@@ -23,9 +23,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowPowerManager
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class UIUpdateReceiverTest {
 
     private lateinit var context: Context

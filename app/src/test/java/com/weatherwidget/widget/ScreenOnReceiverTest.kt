@@ -16,9 +16,14 @@ import org.robolectric.annotation.Config
 import kotlinx.coroutines.runBlocking
 
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class ScreenOnReceiverTest {
 
     private lateinit var context: Context

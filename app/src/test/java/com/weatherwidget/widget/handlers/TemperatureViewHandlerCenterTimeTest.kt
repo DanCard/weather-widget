@@ -26,9 +26,14 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.TextStyle
 import java.util.Locale
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class TemperatureViewHandlerCenterTimeTest {
 
     @Test

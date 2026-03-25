@@ -2,7 +2,12 @@ package com.weatherwidget.widget
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class DailyForecastGraphRendererSizingTest {
 
     @Test

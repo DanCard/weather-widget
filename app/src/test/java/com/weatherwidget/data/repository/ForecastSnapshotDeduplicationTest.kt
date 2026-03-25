@@ -18,8 +18,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
+@Category(LongDuration::class)
 class ForecastSnapshotDeduplicationTest {
     private lateinit var db: WeatherDatabase
     private lateinit var repository: WeatherRepository

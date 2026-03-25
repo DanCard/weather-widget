@@ -8,7 +8,12 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class DailyViewUiRoundingTest {
 
     private val today = LocalDate.now()

@@ -26,12 +26,17 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Robolectric tests verifying hourly header icon visibility across different view modes.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
+@Category(MediumDuration::class)
 class HistoryIconVisibilityRoboTest {
     private lateinit var context: Context
     private val appWidgetId = 42

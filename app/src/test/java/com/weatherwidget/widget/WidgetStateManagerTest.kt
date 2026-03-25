@@ -13,7 +13,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class WidgetStateManagerTest {
     private lateinit var context: Context
     private lateinit var prefs: SharedPreferences

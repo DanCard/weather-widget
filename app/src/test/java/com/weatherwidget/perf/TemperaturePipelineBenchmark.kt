@@ -11,7 +11,12 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import kotlin.system.measureTimeMillis
 import kotlin.system.measureNanoTime
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(LongDuration::class)
 class TemperaturePipelineBenchmark {
 
     private val lat = 37.422

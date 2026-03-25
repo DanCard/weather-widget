@@ -6,7 +6,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class WeatherObservationsSupportTest {
     @Test
     fun `matchesObservationSource excludes silurian rows from NWS`() {

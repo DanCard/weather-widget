@@ -23,7 +23,12 @@ import com.weatherwidget.testutil.TestData.dateEpoch
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(LongDuration::class)
 class NwsMiddayOverrideTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences

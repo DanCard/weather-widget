@@ -7,6 +7,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
+
+
+@Category(ShortDuration::class)
 class CurrentTemperatureResolverTest {
     @Test
     fun `resolve prefers interpolated estimate over observed temp`() {

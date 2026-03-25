@@ -11,6 +11,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Robolectric tests for day label placement on the hourly temperature and rain graphs.
@@ -20,6 +24,7 @@ import java.time.LocalDateTime
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class HourlyGraphDayLabelRobolectricTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()

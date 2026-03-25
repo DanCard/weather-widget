@@ -3,7 +3,12 @@ package com.weatherwidget.data.remote
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class NwsApiStationInfoCodecTest {
     @Test
     fun `decodeStationInfo restores type from new tab-delimited cache format`() {

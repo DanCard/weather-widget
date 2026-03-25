@@ -3,6 +3,10 @@ package com.weatherwidget.widget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Tests for precipitation probability touch zone configuration.
@@ -10,6 +14,7 @@ import org.junit.Test
  * These tests verify the layout constants used for the expanded touch target
  * to ensure the % rain chance has a sufficiently large touch area.
  */
+@Category(ShortDuration::class)
 class PrecipTouchZoneTest {
 
     @Test

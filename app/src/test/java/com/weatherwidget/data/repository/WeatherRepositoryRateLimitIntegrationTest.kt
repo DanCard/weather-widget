@@ -20,8 +20,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
+@Category(MediumDuration::class)
 class WeatherRepositoryRateLimitIntegrationTest {
     private lateinit var db: WeatherDatabase
     private val context = RuntimeEnvironment.getApplication()

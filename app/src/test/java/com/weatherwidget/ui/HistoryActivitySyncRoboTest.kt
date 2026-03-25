@@ -26,6 +26,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Robolectric test verifying that cycling the API in ForecastHistoryActivity
@@ -33,6 +37,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(LongDuration::class)
 class HistoryActivitySyncRoboTest {
 
     private lateinit var context: Context

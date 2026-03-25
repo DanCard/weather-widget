@@ -10,6 +10,10 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Verifies that the hourly graph header uses the time-aligned IDW blend (graphObservedTemp)
@@ -19,6 +23,7 @@ import java.time.ZoneId
  * ago blended with a newer cooler one), inflating the delta and causing the current temp to
  * lag behind the true trend. The graph's IDW extrapolates all stations to the same instant.
  */
+@Category(ShortDuration::class)
 class CurrentTempViewConsistencyTest {
 
     private val now = LocalDateTime.of(2026, 3, 23, 14, 0)

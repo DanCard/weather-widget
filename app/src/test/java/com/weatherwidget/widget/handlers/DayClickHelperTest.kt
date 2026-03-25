@@ -13,7 +13,12 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class DayClickHelperTest {
 
     // ── hasRainForecast: combines hourly RainAnalyzer + daily precipProbability ──

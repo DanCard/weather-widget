@@ -13,7 +13,12 @@ import org.junit.Test
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class NwsApiTest {
     private lateinit var json: Json
 

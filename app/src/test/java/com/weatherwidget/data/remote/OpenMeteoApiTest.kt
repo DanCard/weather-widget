@@ -10,7 +10,12 @@ import kotlinx.serialization.json.Json
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class OpenMeteoApiTest {
     private lateinit var json: Json
 

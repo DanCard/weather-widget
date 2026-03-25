@@ -15,7 +15,12 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import java.time.OffsetDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(MediumDuration::class)
 class WeatherRepositoryNwsParallelTest {
     private lateinit var context: Context
     private lateinit var sharedPrefs: SharedPreferences

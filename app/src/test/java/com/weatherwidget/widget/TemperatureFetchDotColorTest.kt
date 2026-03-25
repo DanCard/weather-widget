@@ -20,12 +20,17 @@ import java.time.ZoneId
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.ZoneOffset
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Simple state-based test for fetch dot label colors.
  * Verifies that the colors reported via FetchDotDebug match the expected yellow.
  */
 @RunWith(RobolectricTestRunner::class)
+@Category(MediumDuration::class)
 class TemperatureFetchDotColorTest {
 
     @After

@@ -7,7 +7,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(MediumDuration::class)
 class CloudCoverViewHandlerTest {
 
     @Test

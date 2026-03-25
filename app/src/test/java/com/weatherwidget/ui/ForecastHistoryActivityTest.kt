@@ -24,7 +24,12 @@ import com.weatherwidget.ui.ForecastHistoryActivity.Companion.selectLatestComple
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldLaunchTemperature
 import com.weatherwidget.ui.ForecastHistoryActivity.Companion.shouldShowTemperatureButton
 import com.weatherwidget.ui.ForecastHistoryActivity.GraphMode
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class ForecastHistoryActivityTest {
 
     // --- shouldLaunchTemperature ---

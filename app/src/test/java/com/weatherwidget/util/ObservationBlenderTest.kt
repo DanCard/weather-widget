@@ -11,7 +11,12 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class ObservationBlenderTest {
 
     private val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")

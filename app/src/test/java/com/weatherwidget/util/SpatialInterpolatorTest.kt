@@ -3,7 +3,12 @@ package com.weatherwidget.util
 import com.weatherwidget.data.local.ObservationEntity
 import org.junit.Assert.*
 import org.junit.Test
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class SpatialInterpolatorTest {
 
     private val nowMs = System.currentTimeMillis()

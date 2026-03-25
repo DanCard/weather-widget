@@ -9,7 +9,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class DailyActualsEstimatorTest {
 
     private val today = LocalDate.of(2026, 2, 25)

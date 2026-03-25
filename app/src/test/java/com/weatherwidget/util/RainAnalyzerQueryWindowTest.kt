@@ -18,6 +18,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Regression test for the rain analysis query window bug:
@@ -25,6 +29,7 @@ import java.time.format.DateTimeFormatter
  * A narrow ±3h window (the old WidgetIntentRouter bug) misses it.
  */
 @RunWith(RobolectricTestRunner::class)
+@Category(MediumDuration::class)
 class RainAnalyzerQueryWindowTest {
     private lateinit var db: WeatherDatabase
     private lateinit var hourlyDao: HourlyForecastDao

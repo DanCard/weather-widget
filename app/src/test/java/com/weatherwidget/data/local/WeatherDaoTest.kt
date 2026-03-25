@@ -12,8 +12,13 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
+@Category(LongDuration::class)
 class WeatherDaoTest {
     private lateinit var db: WeatherDatabase
     private lateinit var dao: ForecastDao

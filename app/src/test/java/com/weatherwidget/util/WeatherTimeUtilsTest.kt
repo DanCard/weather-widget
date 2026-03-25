@@ -3,7 +3,12 @@ package com.weatherwidget.util
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(ShortDuration::class)
 class WeatherTimeUtilsTest {
 
     @Test

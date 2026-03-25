@@ -17,6 +17,10 @@ import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Verifies that renderGraph draws the correct number of paths depending on
@@ -32,6 +36,7 @@ import java.time.LocalDateTime
  * Adding actuals = 3 paths (+solid actual).
  * Adding ghost (actuals + nowVisible + delta) = 4 paths.
  */
+@Category(LongDuration::class)
 class TemperatureGraphRendererActualsTest {
 
     @After

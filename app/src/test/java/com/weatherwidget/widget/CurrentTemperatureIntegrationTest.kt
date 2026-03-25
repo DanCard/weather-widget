@@ -22,6 +22,10 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Integration test for the current temperature displayed at the top left
@@ -32,6 +36,7 @@ import java.time.format.DateTimeFormatter
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class CurrentTemperatureIntegrationTest {
 
     private lateinit var context: Context

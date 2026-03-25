@@ -22,7 +22,12 @@ import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(LongDuration::class)
 class WeatherGapTest {
     private lateinit var context: Context
     private lateinit var forecastDao: ForecastDao

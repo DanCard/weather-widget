@@ -1,3 +1,5 @@
+import org.gradle.api.GradleException
+import org.gradle.api.tasks.testing.Test
 import java.io.File
 import java.util.Properties
 import java.util.concurrent.Executors
@@ -115,6 +117,124 @@ tasks.withType<Test> {
         events("passed", "skipped", "failed", "standardOut", "standardError")
         showStandardStreams = true
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
+}
+
+val unitTestDurationCategories =
+    mapOf(
+        "Short" to "com.weatherwidget.test.category.ShortDuration",
+        "Medium" to "com.weatherwidget.test.category.MediumDuration",
+        "Long" to "com.weatherwidget.test.category.LongDuration",
+    )
+
+val validateUnitTestDurations by tasks.registering {
+    group = "verification"
+    description = "Verifies that each unit test class declares exactly one duration category."
+
+    val testFiles =
+        fileTree("app/src/test/java") {
+            include("**/*Test.kt")
+            include("**/*Benchmark.kt")
+        }
+
+    inputs.files(testFiles)
+
+    doLast {
+        val markerRegex = Regex("@Category\\(([^)]*)\\)")
+        val durationNames = setOf("ShortDuration", "MediumDuration", "LongDuration")
+        val violations = mutableListOf<String>()
+
+        testFiles.files.sorted().forEach { file ->
+            val content = file.readText()
+            val categoryMatches =
+                markerRegex
+                    .findAll(content)
+                    .map { matchResult ->
+                        durationNames.filter { durationName -> durationName in matchResult.groupValues[1] }
+                    }.flatten()
+                    .toList()
+                    .distinct()
+
+            if (categoryMatches.size != 1) {
+                violations += "${file.path}: expected exactly one duration category, found ${categoryMatches.ifEmpty { listOf("none") }}"
+            }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                buildString {
+                    appendLine("Unit tests must declare exactly one duration category:")
+                    violations.forEach { violation -> appendLine(" - $violation") }
+                },
+            )
+        }
+    }
+}
+
+tasks.withType<Test>().configureEach {
+    dependsOn(validateUnitTestDurations)
+}
+
+afterEvaluate {
+    val testDebugUnitTest = tasks.named<Test>("testDebugUnitTest")
+
+    fun registerDurationTestTask(
+        bucketName: String,
+        categoryClassName: String,
+        forceExecution: Boolean = false,
+    ) {
+        val taskSuffix = if (forceExecution) "Fresh" else ""
+
+        tasks.register<Test>("test${bucketName}DebugUnitTest${taskSuffix}") {
+            group = "verification"
+            description =
+                if (forceExecution) {
+                    "Runs ${bucketName.lowercase()} debug unit tests without reusing previous test task results."
+                } else {
+                    "Runs ${bucketName.lowercase()} debug unit tests."
+                }
+
+            dependsOn(
+                "compileDebugUnitTestSources",
+                "generateDebugUnitTestConfig",
+                "packageDebugUnitTestForUnitTest",
+                "processDebugUnitTestJavaRes",
+                "transformDebugUnitTestClassesWithAsm",
+            )
+
+            val baseTask = testDebugUnitTest.get()
+            testClassesDirs = baseTask.testClassesDirs
+            classpath = baseTask.classpath
+            maxParallelForks = baseTask.maxParallelForks
+            testLogging {
+                events("passed", "skipped", "failed", "standardOut", "standardError")
+                showStandardStreams = true
+                exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            }
+            if (forceExecution) {
+                outputs.upToDateWhen { false }
+            }
+            useJUnit {
+                includeCategories(categoryClassName)
+            }
+        }
+    }
+
+    unitTestDurationCategories.forEach { (bucketName, categoryClassName) ->
+        registerDurationTestTask(bucketName, categoryClassName)
+        registerDurationTestTask(bucketName, categoryClassName, forceExecution = true)
+    }
+
+    tasks.register("testByDurationDebugUnitTest") {
+        group = "verification"
+        description = "Runs the short, medium, and long debug unit test buckets."
+        dependsOn(unitTestDurationCategories.keys.map { "test${it}DebugUnitTest" })
+    }
+
+    tasks.register("testByDurationDebugUnitTestFresh") {
+        group = "verification"
+        description = "Runs the short, medium, and long debug unit test buckets without reusing previous test task results."
+        dependsOn(unitTestDurationCategories.keys.map { "test${it}DebugUnitTestFresh" })
     }
 }
 
@@ -323,33 +443,44 @@ tasks.register("refreshWidgetAfterTests") {
 
     doLast {
         try {
-            val adbPath = "${System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT") ?: System.getProperty("user.home") + "/.Android/Sdk"}/platform-tools/adb"
+            val adbPath = "${System.getenv(
+                "ANDROID_HOME",
+            ) ?: System.getenv("ANDROID_SDK_ROOT") ?: System.getProperty("user.home") + "/.Android/Sdk"}/platform-tools/adb"
 
             // Find the first emulator (ignore physical devices)
-            val listProcess = ProcessBuilder(adbPath, "devices")
-                .redirectErrorStream(true)
-                .start()
+            val listProcess =
+                ProcessBuilder(adbPath, "devices")
+                    .redirectErrorStream(true)
+                    .start()
 
             listProcess.waitFor(5, TimeUnit.SECONDS)
             val devicesOutput = listProcess.inputStream.bufferedReader().use { it.readText() }
 
             // Parse emulator serial from "emulator-XXXX\tdevice" format
-            val emulatorSerial = devicesOutput.lines()
-                .firstOrNull { it.contains("emulator-") && it.contains("device") }
-                ?.split("\t")?.getOrNull(0)
+            val emulatorSerial =
+                devicesOutput.lines()
+                    .firstOrNull { it.contains("emulator-") && it.contains("device") }
+                    ?.split("\t")?.getOrNull(0)
 
             if (emulatorSerial != null) {
-                val adbCommand = listOf(
-                    adbPath,
-                    "-s", emulatorSerial,
-                    "shell", "am", "broadcast",
-                    "-a", "com.weatherwidget.ACTION_REFRESH",
-                    "-p", "com.weatherwidget"
-                )
+                val adbCommand =
+                    listOf(
+                        adbPath,
+                        "-s",
+                        emulatorSerial,
+                        "shell",
+                        "am",
+                        "broadcast",
+                        "-a",
+                        "com.weatherwidget.ACTION_REFRESH",
+                        "-p",
+                        "com.weatherwidget",
+                    )
 
-                val process = ProcessBuilder(adbCommand)
-                    .redirectErrorStream(true)
-                    .start()
+                val process =
+                    ProcessBuilder(adbCommand)
+                        .redirectErrorStream(true)
+                        .start()
 
                 process.waitFor(10, TimeUnit.SECONDS)
                 val output = process.inputStream.bufferedReader().use { it.readText() }
@@ -369,5 +500,3 @@ gradle.projectsEvaluated {
         testTask.finalizedBy("refreshWidgetAfterTests")
     }
 }
-
-

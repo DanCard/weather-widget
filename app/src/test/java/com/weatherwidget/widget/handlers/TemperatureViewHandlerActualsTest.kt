@@ -14,11 +14,16 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
+
+
 
 /**
  * Unit tests for buildHourDataList actuals integration.
  * buildHourDataList is marked @VisibleForTesting internal — accessible from same module tests.
  */
+@Category(MediumDuration::class)
 class TemperatureViewHandlerActualsTest {
     companion object {
         private const val IDLE_BLEND_MAX_MS = 250L

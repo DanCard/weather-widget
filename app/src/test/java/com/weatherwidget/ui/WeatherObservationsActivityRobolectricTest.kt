@@ -27,9 +27,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(LongDuration::class)
 class WeatherObservationsActivityRobolectricTest {
     private lateinit var context: Context
     private lateinit var database: WeatherDatabase

@@ -6,7 +6,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
 
+
+
+@Category(LongDuration::class)
 class PrecipitationGraphRendererTest {
     @Test
     fun `shouldShowHourlyIcons is true for wide graph`() {
