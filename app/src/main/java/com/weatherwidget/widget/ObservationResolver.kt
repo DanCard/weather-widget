@@ -96,37 +96,33 @@ object ObservationResolver {
     private fun blendExtremes(obs: List<ObservationEntity>): Pair<Float, Float> {
         data class StationData(
             val distanceKm: Float,
-            val maxExtreme: Float?,
-            val minExtreme: Float?,
-            val maxSpot: Float,
-            val minSpot: Float,
+            val high: Float,
+            val low: Float,
         )
         val byStation = obs.groupBy { it.stationId }.values.map { stObs ->
+            val maxExtreme = stObs.mapNotNull { it.maxTempLast24h }.maxOrNull()
+            val minExtreme = stObs.mapNotNull { it.minTempLast24h }.minOrNull()
+            val maxSpot = stObs.maxOf { it.temperature }
+            val minSpot = stObs.minOf { it.temperature }
+            
             StationData(
                 distanceKm = stObs.first().distanceKm,
-                maxExtreme = stObs.mapNotNull { it.maxTempLast24h }.maxOrNull(),
-                minExtreme = stObs.mapNotNull { it.minTempLast24h }.minOrNull(),
-                maxSpot = stObs.maxOf { it.temperature },
-                minSpot = stObs.minOf { it.temperature },
+                // For each station, the "high" is the max of its official 24h extreme 
+                // and any spot readings we've seen today.
+                high = maxOf(maxExtreme ?: maxSpot, maxSpot),
+                low = minOf(minExtreme ?: minSpot, minSpot),
             )
         }
-        val highExtPairs = byStation.mapNotNull { s -> s.maxExtreme?.let { s.distanceKm to it } }
-        val lowExtPairs  = byStation.mapNotNull { s -> s.minExtreme?.let { s.distanceKm to it } }
-        val highSpotPairs = byStation.map { it.distanceKm to it.maxSpot }
-        val lowSpotPairs  = byStation.map { it.distanceKm to it.minSpot }
-        val high = SpatialInterpolator.interpolateIDWValues(highExtPairs)
-            ?: SpatialInterpolator.interpolateIDWValues(highSpotPairs)
+
+        val highPairs = byStation.map { it.distanceKm to it.high }
+        val lowPairs  = byStation.map { it.distanceKm to it.low }
+
+        val high = SpatialInterpolator.interpolateIDWValues(highPairs)
             ?: obs.maxOf { it.temperature }
-        val low = SpatialInterpolator.interpolateIDWValues(lowExtPairs)
-            ?: SpatialInterpolator.interpolateIDWValues(lowSpotPairs)
+        val low = SpatialInterpolator.interpolateIDWValues(lowPairs)
             ?: obs.minOf { it.temperature }
             
-        // Final guard: official 24h extremes might be lower than today's spot max 
-        // if they use a sliding window. We always want the absolute max/min for the local day.
-        val finalHigh = maxOf(high, obs.maxOf { it.temperature })
-        val finalLow = minOf(low, obs.minOf { it.temperature })
-        
-        return finalHigh to finalLow
+        return high to low
     }
 
     /**
