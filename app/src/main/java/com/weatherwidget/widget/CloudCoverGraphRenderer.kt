@@ -153,7 +153,7 @@ object CloudCoverGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawValues = hours.map { it.cloudCover.coerceIn(0, 100).toFloat() }
-        val smoothedValues = GraphRenderUtils.smoothValues(rawValues, iterations = smoothIterations)
+        val smoothedValues = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawValues, iterations = smoothIterations)
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index

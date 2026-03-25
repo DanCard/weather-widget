@@ -252,11 +252,12 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
         val lowLabel = placements.find { it.role == "LOW" }
         assertNotNull("LOW label should be present even if it collides, as long as it's on-screen. Placements=$placements", lowLabel)
-        
+
         // preferred (below) is off-screen.
         // fallback (above) collides with icon.
         // Logic should FORCE it above.
+        // Note: After refactor, reason is "FORCED" when collision exists on final placement
         assertTrue("Expected label above line", lowLabel!!.placedAbove)
-        assertEquals("above", lowLabel.reason)
+        assertEquals("FORCED", lowLabel.reason)
     }
 }

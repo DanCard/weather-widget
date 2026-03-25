@@ -249,6 +249,33 @@ internal object GraphRenderUtils {
     }
 
     /**
+     * Applies smoothing while preserving the global maximum, global minimum, start point, and end point.
+     * This ensures the daily high/low points and graph anchors remain accurate while providing
+     * smooth transitions between them.
+     */
+    fun smoothValuesPreservingGlobalExtrema(
+        values: List<Float>,
+        iterations: Int = 1,
+    ): List<Float> {
+        if (values.size < 3 || iterations <= 0) return values
+
+        // Find global max, global min, start, and end indices before smoothing
+        val globalMaxIndex = values.indices.maxByOrNull { values[it] } ?: 0
+        val globalMinIndex = values.indices.minByOrNull { values[it] } ?: 0
+        val preservedIndices = setOf(0, values.lastIndex, globalMaxIndex, globalMinIndex)
+
+        // Apply standard smoothing
+        var smoothed = smoothValues(values, iterations)
+
+        // Restore original values at preserved indices
+        smoothed = smoothed.toMutableList().apply {
+            preservedIndices.forEach { this[it] = values[it] }
+        }
+
+        return smoothed
+    }
+
+    /**
      * Draws a "last fetch dot" on the graph curve, with optional staleness age label (below the
      * dot) and value label (right/left/top of the dot).
      *
