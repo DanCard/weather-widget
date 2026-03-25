@@ -100,7 +100,7 @@ The app tracks forecast accuracy by comparing 1-day-ahead predictions against ac
 - `HourlyForecastEntity.kt` - Database entity for hourly temperature data
 - `TemperatureInterpolator.kt` - Interpolates current temp between hourly data points
 - `TemperatureGraphRenderer.kt` - Renders graphical temperature bars with scaling fonts
-- `HourlyTemperatureGraphRenderer.kt` - Renders hourly temperature curve with min/max/start/end labels
+- `TemperatureGraphRenderer.kt` - Renders hourly temperature curve with min/max/start/end labels
 - `GraphRenderUtils.kt` - Shared graph utilities (smoothing, bezier curves, hour labels, now indicator)
 - `StatisticsActivity.kt` - Detailed accuracy breakdown UI
 

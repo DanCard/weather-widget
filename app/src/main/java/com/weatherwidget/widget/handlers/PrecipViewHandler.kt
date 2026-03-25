@@ -59,7 +59,6 @@ object PrecipViewHandler {
         appWidgetId: Int,
         hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
-        displaySource: WeatherSource,
         precipProbability: Int? = null,
         observedCurrentTemp: Float? = null,
         observedAt: Long? = null,

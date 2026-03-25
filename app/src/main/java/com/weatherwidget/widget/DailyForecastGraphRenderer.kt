@@ -221,7 +221,7 @@ object DailyForecastGraphRenderer {
             barPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth),
             todayBarPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), barWidth),
             todayObservedRedPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth),
-            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = 76 },
+            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = 51 },
             todayObservedRedBulbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(COLOR_OBSERVED_RED)
                 style = Paint.Style.FILL
@@ -359,12 +359,16 @@ object DailyForecastGraphRenderer {
 
         // High Temp Label
         if (day.high != null) {
-            val displayHigh = if (day.isToday && day.forecastHigh != null) maxOf(day.high, day.forecastHigh) else day.high
+            val displayHigh = if (day.isToday) {
+                listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: day.high
+            } else {
+                day.high
+            }
             val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
             val y = highY ?: (lowY?.let { it - dpToPx(context, MIN_BAR_HEIGHT_DP) } ?: 0f)
-            val labelY = if (day.isToday && day.forecastHigh != null && day.forecastHigh > day.high) {
-                val fHighY = layout.graphTop + layout.graphHeight * (1 - (day.forecastHigh - layout.minTemp) / layout.tempRange)
-                minOf(y, fHighY)
+            val labelY = if (day.isToday) {
+                val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: day.high ?: 0f
+                layout.graphTop + layout.graphHeight * (1 - (absoluteHigh - layout.minTemp) / layout.tempRange)
             } else y
             val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
             canvas.drawText(highLabel, centerX, labelY - dpToPx(context, 6f * layout.scaleFactor), tempPaint)

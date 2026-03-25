@@ -1151,25 +1151,24 @@ object TemperatureViewHandler {
         val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
         val stationCount = sourceActuals.map { it.stationId }.toSet().size
         if (sourceActuals.isNotEmpty()) {
-            val stationBreakdown = sourceActuals
-                .groupBy { it.stationId }
-                .entries
-                .sortedBy { it.key }
-                .joinToString("; ") { (stationId, rows) ->
-                    val minTime = Instant.ofEpochMilli(rows.minOf { it.timestamp })
-                        .atZone(zoneId)
-                        .toLocalDateTime()
-                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    val maxTime = Instant.ofEpochMilli(rows.maxOf { it.timestamp })
-                        .atZone(zoneId)
-                        .toLocalDateTime()
-                        .format(DateTimeFormatter.ofPattern("HH:mm"))
-                    "$stationId rows=${rows.size} span=$minTime-$maxTime"
-                }
-            val summary =
+            onBlendDebug?.invoke {
+                val stationBreakdown = sourceActuals
+                    .groupBy { it.stationId }
+                    .entries
+                    .sortedBy { it.key }
+                    .joinToString("; ") { (stationId, rows) ->
+                        val minTime = Instant.ofEpochMilli(rows.minOf { it.timestamp })
+                            .atZone(zoneId)
+                            .toLocalDateTime()
+                            .format(DateTimeFormatter.ofPattern("HH:mm"))
+                        val maxTime = Instant.ofEpochMilli(rows.maxOf { it.timestamp })
+                            .atZone(zoneId)
+                            .toLocalDateTime()
+                            .format(DateTimeFormatter.ofPattern("HH:mm"))
+                        "$stationId rows=${rows.size} span=$minTime-$maxTime"
+                    }
                 "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=${sourceActuals.size} stations=$stationCount breakdown=[$stationBreakdown]"
-            Log.d("IDW_BLEND", summary)
-            onBlendDebug?.invoke { summary }
+            }
         } else {
             onBlendDebug?.invoke { "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=0 stations=0" }
         }

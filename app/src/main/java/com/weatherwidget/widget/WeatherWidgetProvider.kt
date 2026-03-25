@@ -933,7 +933,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         appWidgetId = appWidgetId,
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
-                        displaySource = displaySource,
                         precipProbability = targetPrecip,
                         observedCurrentTemp = observation?.temperature,
                         observedAt = observation?.observedAt,

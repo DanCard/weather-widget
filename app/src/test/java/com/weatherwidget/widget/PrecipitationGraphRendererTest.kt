@@ -19,16 +19,6 @@ class PrecipitationGraphRendererTest {
     }
 
     @Test
-    fun `iconStrideForLabelSpacing uses denser icons in wide zoom`() {
-        assertEquals(1, PrecipitationGraphRenderer.iconStrideForLabelSpacing(28f))
-    }
-
-    @Test
-    fun `iconStrideForLabelSpacing keeps hourly icons in narrow zoom`() {
-        assertEquals(1, PrecipitationGraphRenderer.iconStrideForLabelSpacing(18f))
-    }
-
-    @Test
     fun `computeEndLabelPlacement anchors label near right edge`() {
         val placement =
             PrecipitationGraphRenderer.computeEndLabelPlacement(

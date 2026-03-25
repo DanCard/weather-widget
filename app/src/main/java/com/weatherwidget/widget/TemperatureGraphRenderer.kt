@@ -403,7 +403,7 @@ object TemperatureGraphRenderer {
         val effectiveDelta = appliedDelta ?: 0f
         val rawForecastTemps = hours.map { it.temperature }
         val smoothedForecastTemps = GraphRenderUtils.smoothValues(rawForecastTemps, iterations = 1)
-        val truthTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
+        val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         val fetchTime = observedAt?.let {
             Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime()
@@ -419,7 +419,7 @@ object TemperatureGraphRenderer {
         } else null
 
         val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            truthTemps[fetchIdx] + (truthTemps[fetchIdx + 1] - truthTemps[fetchIdx]) * fetchFraction
+            actualTemps[fetchIdx] + (actualTemps[fetchIdx + 1] - actualTemps[fetchIdx]) * fetchFraction
         } else null
 
         val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
@@ -435,7 +435,7 @@ object TemperatureGraphRenderer {
         hours.indices.forEach { index ->
             val pointEpoch = hours[index].dateTime.toEpochSecond(ZoneOffset.UTC)
             val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
-            val yTruth = graphTop + graphHeight * (1 - (truthTemps[index] - minTemp) / tempRange)
+            val yTruth = graphTop + graphHeight * (1 - (actualTemps[index] - minTemp) / tempRange)
             originalPoints.add(x to yTruth)
 
             val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)

@@ -245,8 +245,8 @@ object CloudCoverGraphRenderer {
 
         for (index in candidates) {
             if (index !in labelSignal.indices) continue
-            val prob = labelSignal[index]
-            val labelText = "$prob%"
+            val cloudPct = labelSignal[index]
+            val labelText = "$cloudPct%"
             val textWidth = percentLabelPaint.measureText(labelText)
             val textHeight = percentLabelPaint.textSize
             val centerX = points[index].first
@@ -254,7 +254,7 @@ object CloudCoverGraphRenderer {
 
             val isPeak = index == globalMaxIdx || (index > 0 && index < labelSignal.lastIndex &&
                 labelSignal[index] > labelSignal[index - 1] && labelSignal[index] > labelSignal[index + 1])
-            val preferAbove = isPeak || prob <= 50
+            val preferAbove = isPeak || cloudPct <= 50
 
             val attempts = if (preferAbove) {
                 listOf(true, false)
@@ -279,7 +279,7 @@ object CloudCoverGraphRenderer {
                 drawnLabelBounds.add(bounds)
                 onLabelPlaced?.invoke(LabelPlacementDebug(
                     index = index,
-                    cloudCover = prob,
+                    cloudCover = cloudPct,
                     placedAbove = placeAbove,
                     isGlobalMax = index == globalMaxIdx,
                     isGlobalMin = index == globalMinIdx,
@@ -289,59 +289,39 @@ object CloudCoverGraphRenderer {
         }
 
         // --- Day labels ---
-        val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
-        val dayLabelTextHeight = fm.descent - fm.ascent
-        val dayYTop = graphTop + dayLabelTextHeight
-        val dayYMid = (graphTop + graphBottom) / 2f
-
         val today = currentTime.toLocalDate()
         val leftDate = hours.first().dateTime.toLocalDate()
         val rightDate = hours.last().dateTime.toLocalDate()
         val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 
-        data class DayCandidate(val date: LocalDate, val x: Float, val text: String)
         val leftPaint = if (leftDate == today) todayDayLabelPaint else dayLabelTextPaint
         val rightPaint = if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint
         val leftTextWidth = leftPaint.measureText(leftText)
         val rightTextWidth = rightPaint.measureText(rightText)
 
-        val dayCandidates = listOf(
-            DayCandidate(leftDate, leftTextWidth / 2f, leftText),
-            DayCandidate(rightDate, widthPx - rightTextWidth / 2f, rightText),
+        GraphRenderUtils.drawDayLabels(
+            context = context,
+            canvas = canvas,
+            leftDate = leftDate,
+            rightDate = rightDate,
+            leftText = leftText,
+            rightText = rightText,
+            leftX = leftTextWidth / 2f,
+            rightX = widthPx - rightTextWidth / 2f,
+            today = today,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            heightPx = heightPx,
+            dayLabelTextPaint = dayLabelTextPaint,
+            todayDayLabelPaint = todayDayLabelPaint,
+            drawnLabelBounds = drawnLabelBounds,
+            drawnIconBounds = drawnIconBounds,
+            dpToPx = { dpToPx(context, it) },
+            onDayLabelPlaced = if (onDayLabelPlaced != null) { side, text, date, x, y, placement, isToday ->
+                onDayLabelPlaced.invoke(DayLabelPlacementDebug(side, text, date, x, y, placement, isToday))
+            } else null,
         )
-
-        fun dayBounds(x: Float, y: Float, w: Float) =
-            RectF(x - w / 2f, y + fm.ascent, x + w / 2f, y + fm.descent)
-
-        fun collides(bounds: RectF) =
-            drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
-                drawnIconBounds.any { RectF.intersects(it, bounds) }
-
-        for ((candidateIndex, candidate) in dayCandidates.withIndex()) {
-            val side = if (candidateIndex == 0) "LEFT" else "RIGHT"
-            val isToday = candidate.date == today
-            val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
-            val tw = paint.measureText(candidate.text)
-            
-            val topBounds = dayBounds(candidate.x, dayYTop, tw)
-            if (!collides(topBounds)) {
-                canvas.drawText(candidate.text, candidate.x, dayYTop, paint)
-                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.text, candidate.date, candidate.x, dayYTop, "TOP", isToday))
-                continue
-            }
-
-            val midBounds = dayBounds(candidate.x, dayYMid, tw)
-            if (!collides(midBounds)) {
-                canvas.drawText(candidate.text, candidate.x, dayYMid, paint)
-                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.text, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday))
-                continue
-            }
-
-            val botY = heightPx - dpToPx(context, 14f)
-            canvas.drawText(candidate.text, candidate.x, botY, paint)
-            onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.text, candidate.date, candidate.x, botY, "BOTTOM", isToday))
-        }
 
         // --- NOW indicator ---
         GraphRenderUtils.drawNowIndicator(
@@ -376,103 +356,30 @@ object CloudCoverGraphRenderer {
                     val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
                     val interpolatedCloud = baseCloud + (nextCloud - baseCloud) * fraction
                     val fetchY = graphBottom - graphHeight * (interpolatedCloud / 100f)
+                    val valueLabel = "${interpolatedCloud.roundToInt()}%"
 
-                    val dotRadius = dpToPx(context, 2.5f * (bitmapScale.coerceIn(0.5f, 1f)))
-                    val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
+                    val windowHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+                    val ageMinutes = if (windowHours <= 12) {
+                        val age = java.time.Duration.between(fetchTime, currentTime).toMinutes()
+                        Log.d("CloudGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$age observedAt=$observedAt")
+                        age
+                    } else null
 
-                    val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.WHITE
-                        style = Paint.Style.FILL
-                    }
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
+                    GraphRenderUtils.drawFetchDot(
+                        context = context,
+                        canvas = canvas,
+                        fetchX = fetchX,
+                        fetchY = fetchY,
+                        valueLabel = valueLabel,
+                        ageMinutes = ageMinutes,
+                        bitmapScale = bitmapScale,
+                        widthPx = widthPx,
+                        heightPx = heightPx,
+                        dpToPx = { dpToPx(context, it) },
+                    )
 
-                    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.parseColor("#AAFFFFFF")
-                        style = Paint.Style.STROKE
-                        strokeWidth = dpToPx(context, 1f)
-                    }
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
-
-                    val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.parseColor("#44000000")
-                        style = Paint.Style.STROKE
-                        strokeWidth = dpToPx(context, 0.5f)
-                    }
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
-
-                    // On zoomed-in view, show the exact age
-                    if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
-                        val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
-                        Log.d("CloudGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
-                        
-                        val ageLabel = if (ageMinutes >= 0 && java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
-                            if (ageMinutes >= 60) {
-                                val h = ageMinutes / 60
-                                val m = ageMinutes % 60
-                                if (m > 0) "${h}h ${m}m" else "${h}h"
-                            } else "${ageMinutes}m"
-                        } else null
-
-                        val valueLabel = "${interpolatedCloud.roundToInt()}%"
-                        val dotLabelForDebug = if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel
-
-                        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-                        val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = Color.parseColor("#BBFFFFFF")
-                            textSize = dpToPx(context, 11f * labelScale)
-                            textAlign = Paint.Align.LEFT
-                            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-                        }
-                        val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = Color.parseColor("#88FFFFFF")
-                            textSize = dpToPx(context, 8f * labelScale) // Reduced size for age
-                            textAlign = Paint.Align.CENTER
-                            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-                        }
-
-                        // 1. Draw Staleness (Age) - Underneath the dot
-                        if (ageLabel != null) {
-                            val ageY = fetchY + dotRadius + dpToPx(context, 4f * labelScale) - stalenessTextPaint.ascent()
-                            if (ageY + stalenessTextPaint.descent() <= heightPx) {
-                                canvas.drawText(ageLabel, clampedFetchX, ageY, stalenessTextPaint)
-                            }
-                        }
-
-                        // 2. Draw Value (Cloud) - Multi-directional placement
-                        val valueWidth = valueTextPaint.measureText(valueLabel)
-                        val valueHeight = valueTextPaint.textSize
-                        val sideGap = dpToPx(context, 4f * labelScale)
-                        
-                        // Attempt 1: Right
-                        var drawnValue = false
-                        val rightX = clampedFetchX + dotRadius + sideGap
-                        if (rightX + valueWidth <= widthPx) {
-                            valueTextPaint.textAlign = Paint.Align.LEFT
-                            canvas.drawText(valueLabel, rightX, fetchY + valueHeight / 3f, valueTextPaint)
-                            drawnValue = true
-                        }
-                        
-                        // Attempt 2: Left
-                        if (!drawnValue) {
-                            val leftX = clampedFetchX - dotRadius - sideGap
-                            if (leftX - valueWidth >= 0) {
-                                valueTextPaint.textAlign = Paint.Align.RIGHT
-                                canvas.drawText(valueLabel, leftX, fetchY + valueHeight / 3f, valueTextPaint)
-                                drawnValue = true
-                            }
-                        }
-                        
-                        // Attempt 3: Top
-                        if (!drawnValue) {
-                            val topY = fetchY - dotRadius - dpToPx(context, 2f * labelScale)
-                            if (topY + valueTextPaint.ascent() >= 0) {
-                                valueTextPaint.textAlign = Paint.Align.CENTER
-                                canvas.drawText(valueLabel, clampedFetchX, topY, valueTextPaint)
-                                drawnValue = true
-                            }
-                        }
-
-                        // Prevent double-labeling this index in the main loop
+                    // Prevent double-labeling this index in the main loop
+                    if (ageMinutes != null) {
                         drawnLabelBounds.add(RectF(fetchX - 1f, fetchY - 1f, fetchX + 1f, fetchY + 1f))
                     }
                 }

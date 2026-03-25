@@ -1,65 +1,44 @@
-# Plan: Refactor Hourly Forecast Schema to Epoch Milliseconds
+# Plan: Fix 8-Second Actuals Graph Rendering Delay
 
 ## Objective
-Convert `HourlyForecastEntity.dateTime` from an ISO 8601 `String` to a `Long` (epoch milliseconds). This fixes the root cause of the 8-second rendering freeze by eliminating redundant string-to-date parsing in the Inverse Distance Weighting (IDW) interpolation loops.
+The goal is to eliminate the 8-second delay when drawing the "actual" (observed) temperature line on the hourly graph. Investigation has pinpointed the bottleneck to the `ObservationBlender.forecastTemperatureAt` function, which is called in a tight loop (~86,000 times) and performs expensive `atZone(ZoneId.systemDefault())` and `LocalDateTime` conversions on every iteration.
 
-## Background
-The current implementation stores hourly timestamps as strings (e.g., `"2026-03-22T10:00"`). The rendering pipeline for the actual temperature line performs time-series math that requires comparing these timestamps. Because they are strings, the code calls `LocalDateTime.parse()` tens of thousands of times per render, which is extremely slow on Android.
+## Key Files & Context
+- **`app/src/main/java/com/weatherwidget/util/ObservationBlender.kt`**: Contains the core IDW blending and extrapolation logic. This is the primary source of the performance regression.
+- **`app/src/main/java/com/weatherwidget/widget/handlers/TemperatureViewHandler.kt`**: Coordinates the widget update. It currently performs some expensive logging and string formatting in the main render path.
 
-## Scope & Impact
-- **Database**: Schema migration from version 39 to 40.
-- **Network**: All 4 API mappers must now parse timestamps before persistence.
-- **UI**: All hourly view handlers (Temperature, Precip, Cloud) must be updated to use `Long` math.
-- **Performance**: Expected to reduce "Actuals" processing time from ~8000ms to <50ms.
+## Implementation Steps
 
-## Proposed Solution
+### 1. Refactor `ObservationBlender` to use Long Epoch Milliseconds
+- **`forecastTemperatureAt`**:
+    - Modify the function to accept and return `Long` (epoch millis) instead of `LocalDateTime` where possible.
+    - Compare `targetTimestamp` (already a `Long`) directly against `forecast.dateTime` (already a `Long`).
+    - Use binary search (`Collections.binarySearch` or similar) to find the `before` and `after` forecast points instead of linear `find`, `lastOrNull`, and `firstOrNull` calls.
+    - Remove all calls to `atZone(ZoneId.systemDefault())` and `toLocalDateTime()` from the inner loop.
+- **`buildStationTimeSeries`**:
+    - Avoid `atZone` and `format` calls inside the interpolation loop.
+    - Move debug string generation into a `lazy` or conditional block that only executes if the logger actually emits the line.
+- **IDW Blending Loop**:
+    - Optimize the `for (targetTs in candidateTimes)` loop. Since both `candidateTimes` and each station's `points` list are sorted by timestamp, use a pointer-based approach (or `binarySearch`) to find the nearest point for each station instead of $O(N)$ `minByOrNull`.
 
-### 1. Database & Entity Update
-- Modify `HourlyForecastEntity.kt`: Change `dateTime` type to `Long`.
-- Modify `HourlyForecastDao.kt`: Update all query parameters (`startDateTime`, `endDateTime`) to `Long`.
-- Update `WeatherDatabase.kt`:
-    - Increment version to 40.
-    - Add `MIGRATION_39_40` which creates a temp table, migrates data using `unixepoch()` or manual parsing (since SQLite's `unixepoch` requires valid ISO formats, and our strings are `yyyy-MM-ddTHH:mm`), and renames it.
+### 2. Optimize `TemperatureViewHandler` Logging
+- **Station Breakdown**:
+    - Move the generation of the `stationBreakdown` summary (which contains many `atZone` and `format` calls) into the `onBlendDebug` lambda so it only runs when debug logging is actually being collected.
+- **Phase 2 Throttling**:
+    - Ensure that Phase 2 (the full graph render) doesn't start if another update is already in progress.
 
-### 2. Network Ingestion Update
-- `NwsApi.kt`: Parse `startTime` using `ZonedDateTime`.
-- `OpenMeteoApi.kt`, `WeatherApi.kt`, `SilurianApi.kt`: Parse `time` string to epoch ms.
-- `ForecastRepository.kt`: Update the mapping logic to handle `Long` timestamps.
-
-### 3. UI Handler Refactor
-- **`TemperatureViewHandler.kt`**: Replace `LocalDateTime` keys in maps with `Long`. Direct comparison of timestamps in `blendObservationSeries`.
-- **`PrecipViewHandler.kt`** & **`CloudCoverViewHandler.kt`**: Update grouping and filtering logic.
-- **`WidgetIntentRouter.kt`**: Calculate query windows as `Long` ranges instead of formatted strings.
-
-## Implementation Plan
-
-### Phase 1: Schema & Data Access
-1.  Update `HourlyForecastEntity.kt`.
-2.  Update `HourlyForecastDao.kt`.
-3.  Implement `MIGRATION_39_40` in `WeatherDatabase.kt`.
-    - *Note*: Since SQLite doesn't have a built-in ISO-to-Unix function that handles 'T', we may need to use `strftime('%s', REPLACE(dateTime, 'T', ' ')) * 1000`.
-
-### Phase 2: Repository & APIs
-1.  Update `ForecastRepository.kt` call sites.
-2.  Update all 4 API classes to return/handle `Long` timestamps.
-
-### Phase 3: UI & Rendering
-1.  Refactor `TemperatureViewHandler` (The main performance bottleneck).
-2.  Refactor `PrecipViewHandler` and `CloudCoverViewHandler`.
-3.  Refactor `WidgetIntentRouter` query window logic.
-
-### Phase 4: Validation
-1.  **Add Database Migration Test**:
-    - Update `app/src/androidTest/java/com/weatherwidget/data/local/DatabaseMigrationTest.kt`.
-    - Create a test function `migrate39to40()`.
-    - Use `helper.createDatabase(testDb, 39)` to create a legacy DB.
-    - Insert test rows into `hourly_forecasts` using the old `TEXT` schema (e.g., `dateTime = '2026-03-22T10:00'`).
-    - Run the migration using `helper.runMigrationsAndValidate(testDb, 40, true, WeatherDatabase.MIGRATION_39_40)`.
-    - Query the new table and assert that the `dateTime` is now a `Long` matching the expected epoch milliseconds.
-2.  Run UI Unit tests.
-3.  Verify on emulator: Check logcat for `TEMP_OBS_SLOW` to confirm the fix.
+### 3. Efficiency & Pre-calculation
+- **Timezone Caching**:
+    - If `ZoneId.systemDefault()` is still needed, fetch it once at the start of the blending process and reuse it.
+- **Time String Pre-formatting**:
+    - For logging `candidateTimes` or `alignedTimes`, pre-format the strings once if they will be reused across different stations.
 
 ## Verification & Testing
-- **Migration Test**: Ensure data is preserved during the String -> Long conversion.
-- **Functional Test**: Ensure graphs still draw correctly at the right time offsets.
-- **Performance Test**: Confirm `buildHourDataMs` in logs drops below 100ms.
+- **Performance Test**:
+    - Add log markers around `ObservationBlender.blendObservationSeries` and `buildHourDataResult`.
+    - Verify on a device that `buildHourDataMs` drops from ~8000ms to <100ms.
+- **Functional Verification**:
+    - Ensure the actual graph line still renders correctly, following the forecast trend and aligning with hourly labels.
+    - Verify that IDW blending across multiple stations still produces smooth, accurate results.
+- **Regression Test**:
+    - Verify that "Current Temperature" (widget header) still correctly incorporates the observed delta.

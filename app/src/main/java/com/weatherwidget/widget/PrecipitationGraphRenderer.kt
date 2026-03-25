@@ -15,7 +15,6 @@ import kotlin.math.roundToInt
 object PrecipitationGraphRenderer {
 
     private const val MIN_ICON_GRAPH_WIDTH_PX = 420
-    private const val MIN_ICON_LABEL_SPACING_DP = 24f
 
     data class PrecipHourData(
         val dateTime: LocalDateTime,
@@ -114,7 +113,6 @@ object PrecipitationGraphRenderer {
         val topPadding = dpToPx(context, 12f)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && shouldShowHourlyIcons(widthPx)
-        val iconStride = iconStrideForLabelSpacing(hourLabelSpacingDp)
         val iconSize = dpToPx(context, 16f).toInt()
         val iconTopPad = dpToPx(context, 2f)
         val iconBottomPad = dpToPx(context, 1f)
@@ -211,15 +209,14 @@ object PrecipitationGraphRenderer {
 
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
-        val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val smoothedProbs = rawProbs
+        val probs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
 
-        val rawMax = smoothedProbs.maxOrNull() ?: 0f
+        val rawMax = probs.maxOrNull() ?: 0f
         val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index
-            val prob = smoothedProbs[index]
+            val prob = probs[index]
             val y = graphBottom - graphHeight * (prob / yScaleMax)
             points.add(x to y)
         }
@@ -235,8 +232,6 @@ object PrecipitationGraphRenderer {
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
         val drawnIconBounds = mutableListOf<RectF>()
 
-        // Track NOW x-position
-        val currentHourIndex = hours.indexOfFirst { it.isCurrentHour }
         val nowX =
             GraphRenderUtils.computeNowX(
                 items = hours,
@@ -260,7 +255,6 @@ object PrecipitationGraphRenderer {
             labelText = { it.label },
         ) { index, clampedX ->
             if (!showHourlyIcons) return@drawHourLabels
-            if (index % iconStride != 0) return@drawHourLabels
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels
             val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
@@ -293,7 +287,7 @@ object PrecipitationGraphRenderer {
 
         val drawNano = System.nanoTime()
 
-        val labelSignal = smoothedProbs.map { it.roundToInt().coerceIn(0, 100) }
+        val labelSignal = probs.map { it.roundToInt().coerceIn(0, 100) }
         Log.d("PrecipGraph", "signal=${labelSignal.mapIndexed { i, p -> "${hours[i].label}=$p" }}")
         val localMaxima = findLocalExtremaIndices(labelSignal, isMax = true)
         val localMinima = findLocalExtremaIndices(labelSignal, isMax = false)
@@ -608,10 +602,10 @@ object PrecipitationGraphRenderer {
                     else -> index
                 }
             val centerX =
-                if ((isSoftDip || isPeak || isValley) && anchorIdx > 0 && anchorIdx < smoothedProbs.lastIndex) {
-                    val fLeft = smoothedProbs[anchorIdx - 1]
-                    val fCenter = smoothedProbs[anchorIdx]
-                    val fRight = smoothedProbs[anchorIdx + 1]
+                if ((isSoftDip || isPeak || isValley) && anchorIdx > 0 && anchorIdx < probs.lastIndex) {
+                    val fLeft = probs[anchorIdx - 1]
+                    val fCenter = probs[anchorIdx]
+                    val fRight = probs[anchorIdx + 1]
                     val denom = fLeft - 2f * fCenter + fRight
                     if (abs(denom) > 0.01f) {
                         val shift = (fLeft - fRight) / (2f * denom) * hourWidth
@@ -830,25 +824,7 @@ object PrecipitationGraphRenderer {
         val loopNano = System.nanoTime()
 
         // Day of week indicators — left and right edges, cascade: TOP → MIDDLE → BOTTOM
-        val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
-        val dayLabelTextHeight = fm.descent - fm.ascent
-        val dayYTop    = graphTop + dayLabelTextHeight
-        val dayYMid    = (graphTop + graphBottom) / 2f
-        val dayYBottom = heightPx - dpToPx(context, 14f)
-
-        fun dayBounds(x: Float, y: Float, textWidth: Float): RectF =
-            RectF(x - textWidth / 2f, y + fm.ascent, x + textWidth / 2f, y + fm.descent)
-
-        val drawnDayLabelBounds = mutableListOf<RectF>()
-
-        fun collides(bounds: RectF): Boolean =
-            drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
-            drawnIconBounds.any { RectF.intersects(it, bounds) } ||
-            drawnDayLabelBounds.any { RectF.intersects(it, bounds) }
-
         val today = currentTime.toLocalDate()
-
-        data class DayCandidate(val date: LocalDate, val x: Float, val dayText: String)
         val leftDate  = hours.first().dateTime.toLocalDate()
         val rightDate = hours.last().dateTime.toLocalDate()
         val leftText  = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
@@ -856,44 +832,29 @@ object PrecipitationGraphRenderer {
         val leftTextWidth  = (if (leftDate  == today) todayDayLabelPaint else dayLabelTextPaint).measureText(leftText)
         val rightTextWidth = (if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint).measureText(rightText)
 
-        val dayCandidates = listOf(
-            DayCandidate(leftDate,  leftTextWidth / 2f,            leftText),
-            DayCandidate(rightDate, widthPx - rightTextWidth / 2f, rightText),
+        GraphRenderUtils.drawDayLabels(
+            context = context,
+            canvas = canvas,
+            leftDate = leftDate,
+            rightDate = rightDate,
+            leftText = leftText,
+            rightText = rightText,
+            leftX = leftTextWidth / 2f,
+            rightX = widthPx - rightTextWidth / 2f,
+            today = today,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            heightPx = heightPx,
+            dayLabelTextPaint = dayLabelTextPaint,
+            todayDayLabelPaint = todayDayLabelPaint,
+            drawnLabelBounds = drawnLabelBounds,
+            drawnIconBounds = drawnIconBounds,
+            dpToPx = { dpToPx(context, it) },
+            onDayLabelPlaced = if (onDayLabelPlaced != null) { side, text, date, x, y, placement, isToday ->
+                Log.d("DayLabel", "Day=$text side=$side x=$x placement=$placement")
+                onDayLabelPlaced.invoke(DayLabelPlacementDebug(side, text, date, x, y, placement, isToday))
+            } else null,
         )
-
-        for ((candidateIndex, candidate) in dayCandidates.withIndex()) {
-            val side = if (candidateIndex == 0) "LEFT" else "RIGHT"
-            val isToday = candidate.date == today
-            val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
-            val textWidth = paint.measureText(candidate.dayText)
-
-            // 1. Try TOP
-            val topBounds = dayBounds(candidate.x, dayYTop, textWidth)
-            if (!collides(topBounds)) {
-                canvas.drawText(candidate.dayText, candidate.x, dayYTop, paint)
-                drawnDayLabelBounds.add(topBounds)
-                Log.d("DayLabel", "Day=${candidate.dayText} side=$side x=${candidate.x} placement=TOP")
-                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.dayText, candidate.date, candidate.x, dayYTop, "TOP", isToday))
-                continue
-            }
-
-            // 2. Try MIDDLE
-            val midBounds = dayBounds(candidate.x, dayYMid, textWidth)
-            if (!collides(midBounds)) {
-                canvas.drawText(candidate.dayText, candidate.x, dayYMid, paint)
-                drawnDayLabelBounds.add(midBounds)
-                Log.d("DayLabel", "Day=${candidate.dayText} side=$side x=${candidate.x} placement=MIDDLE")
-                onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.dayText, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday))
-                continue
-            }
-
-            // 3. BOTTOM — always draw
-            val botBounds = dayBounds(candidate.x, dayYBottom, textWidth)
-            canvas.drawText(candidate.dayText, candidate.x, dayYBottom, paint)
-            drawnDayLabelBounds.add(botBounds)
-            Log.d("DayLabel", "Day=${candidate.dayText} side=$side x=${candidate.x} placement=BOTTOM")
-            onDayLabelPlaced?.invoke(DayLabelPlacementDebug(side, candidate.dayText, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday))
-        }
 
         GraphRenderUtils.drawNowIndicator(
             canvas = canvas,
@@ -910,7 +871,7 @@ object PrecipitationGraphRenderer {
             val fetchTime = java.time.Instant.ofEpochMilli(observedAt)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDateTime()
-            
+
             val fetchX = GraphRenderUtils.computeXForTime(
                 targetTime = fetchTime,
                 items = hours,
@@ -918,9 +879,9 @@ object PrecipitationGraphRenderer {
                 hourWidth = hourWidth,
                 dateTimeOf = { it.dateTime }
             )
-            
+
             Log.d("PrecipGraphRenderer", "drawFetchDot: fetchTime=$fetchTime, fetchX=$fetchX, range=${hours.first().dateTime} to ${hours.last().dateTime}")
-            
+
             if (fetchX != null) {
                 val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
                 if (fetchIdx != -1 && fetchIdx < hours.lastIndex) {
@@ -929,126 +890,54 @@ object PrecipitationGraphRenderer {
                     val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
                     val interpolatedProb = baseProb + (nextProb - baseProb) * fraction
                     val fetchY = graphBottom - graphHeight * (interpolatedProb / yScaleMax)
-                    
-                    val dotRadius = dpToPx(context, 2.5f * (bitmapScale.coerceIn(0.5f, 1f)))
+                    val valueLabel = "${interpolatedProb.roundToInt()}%"
+
+                    val windowHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
+                    val ageMinutes = if (windowHours <= 12) {
+                        val age = java.time.Duration.between(fetchTime, currentTime).toMinutes()
+                        Log.d("PrecipGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$age observedAt=$observedAt")
+                        age
+                    } else null
+
+                    val dotRadius = dpToPx(context, 2.5f * bitmapScale.coerceIn(0.5f, 1f))
                     val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
 
-                    val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.WHITE
-                        style = Paint.Style.FILL
-                    }
-                    
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
-                    
-                    val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.parseColor("#AAFFFFFF")
-                        style = Paint.Style.STROKE
-                        strokeWidth = dpToPx(context, 1f)
-                    }
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
+                    GraphRenderUtils.drawFetchDot(
+                        context = context,
+                        canvas = canvas,
+                        fetchX = fetchX,
+                        fetchY = fetchY,
+                        valueLabel = valueLabel,
+                        ageMinutes = ageMinutes,
+                        bitmapScale = bitmapScale,
+                        widthPx = widthPx,
+                        heightPx = heightPx,
+                        dpToPx = { dpToPx(context, it) },
+                    )
 
-                    val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = Color.parseColor("#44000000")
-                        style = Paint.Style.STROKE
-                        strokeWidth = dpToPx(context, 0.5f)
-                    }
-                    canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
-                    
-                    // On zoomed-in view, show the exact age
-                    if (java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
-                        val ageMinutes = java.time.Duration.between(fetchTime, currentTime).toMinutes()
-                        Log.d("PrecipGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$ageMinutes observedAt=$observedAt")
-                        
-                        val ageLabel = if (ageMinutes >= 0 && java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
-                            if (ageMinutes >= 60) {
-                                val h = ageMinutes / 60
-                                val m = ageMinutes % 60
-                                if (m > 0) "${h}h ${m}m" else "${h}h"
-                            } else "${ageMinutes}m"
-                        } else null
-
-                        val valueLabel = "${interpolatedProb.roundToInt()}%"
-                        val dotLabelForDebug = if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel
-                        
-                        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
-                        val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = Color.parseColor("#BBFFFFFF")
-                            textSize = dpToPx(context, 11f * labelScale)
-                            textAlign = Paint.Align.LEFT
-                            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-                        }
-                        val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                            color = Color.parseColor("#88FFFFFF")
-                            textSize = dpToPx(context, 8f * labelScale) // Reduced size for age
-                            textAlign = Paint.Align.CENTER
-                            setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
-                        }
-                        
-                        // 1. Draw Staleness (Age) - Underneath the dot
-                        if (ageLabel != null) {
-                            val ageY = fetchY + dotRadius + dpToPx(context, 4f * labelScale) - stalenessTextPaint.ascent()
-                            if (ageY + stalenessTextPaint.descent() <= heightPx) {
-                                canvas.drawText(ageLabel, clampedFetchX, ageY, stalenessTextPaint)
-                            }
-                        }
-
-                        // 2. Draw Value (Prob) - Multi-directional placement
-                        val valueWidth = valueTextPaint.measureText(valueLabel)
-                        val valueHeight = valueTextPaint.textSize
-                        val sideGap = dpToPx(context, 4f * labelScale)
-                        
-                        // Attempt 1: Right
-                        var drawnValue = false
-                        val rightX = clampedFetchX + dotRadius + sideGap
-                        if (rightX + valueWidth <= widthPx) {
-                            valueTextPaint.textAlign = Paint.Align.LEFT
-                            canvas.drawText(valueLabel, rightX, fetchY + valueHeight / 3f, valueTextPaint)
-                            drawnValue = true
-                        }
-                        
-                        // Attempt 2: Left
-                        if (!drawnValue) {
-                            val leftX = clampedFetchX - dotRadius - sideGap
-                            if (leftX - valueWidth >= 0) {
-                                valueTextPaint.textAlign = Paint.Align.RIGHT
-                                canvas.drawText(valueLabel, leftX, fetchY + valueHeight / 3f, valueTextPaint)
-                                drawnValue = true
-                            }
-                        }
-                        
-                        // Attempt 3: Top
-                        if (!drawnValue) {
-                            val topY = fetchY - dotRadius - dpToPx(context, 2f * labelScale)
-                            if (topY + valueTextPaint.ascent() >= 0) {
-                                valueTextPaint.textAlign = Paint.Align.CENTER
-                                canvas.drawText(valueLabel, clampedFetchX, topY, valueTextPaint)
-                                drawnValue = true
-                            }
-                        }
-
-                        // Prevent double-labeling this index in the main probability label loop
+                    // Prevent double-labeling this index in the main probability label loop
+                    if (ageMinutes != null) {
                         labeledIndices.add(fetchIdx)
-
-                        onFetchDotResolved?.invoke(
-                            FetchDotDebug(
-                                observedAt = observedAt,
-                                fetchDotX = clampedFetchX,
-                                fetchY = fetchY,
-                                withinWindow = true,
-                                ageText = dotLabelForDebug,
-                            ),
-                        )
-                    } else {
-                        onFetchDotResolved?.invoke(
-                            FetchDotDebug(
-                                observedAt = observedAt,
-                                fetchDotX = clampedFetchX,
-                                fetchY = fetchY,
-                                withinWindow = true,
-                                ageText = null,
-                            ),
-                        )
                     }
+
+                    val dotLabelForDebug = if (ageMinutes != null && ageMinutes >= 0) {
+                        val ageLabel = if (ageMinutes >= 60) {
+                            val h = ageMinutes / 60
+                            val m = ageMinutes % 60
+                            if (m > 0) "${h}h ${m}m" else "${h}h"
+                        } else "${ageMinutes}m"
+                        "$valueLabel ($ageLabel)"
+                    } else valueLabel
+
+                    onFetchDotResolved?.invoke(
+                        FetchDotDebug(
+                            observedAt = observedAt,
+                            fetchDotX = clampedFetchX,
+                            fetchY = fetchY,
+                            withinWindow = true,
+                            ageText = if (ageMinutes != null) dotLabelForDebug else null,
+                        ),
+                    )
                 }
             }
         }
@@ -1117,7 +1006,7 @@ object PrecipitationGraphRenderer {
             var lowStart = 0
             var lowAvg = Float.MAX_VALUE
             for (start in 0..points.size - windowSize) {
-                val avg = (start until start + windowSize).map { smoothedProbs[it] }.average().toFloat()
+                val avg = (start until start + windowSize).map { probs[it] }.average().toFloat()
                 if (avg < lowAvg) {
                     lowAvg = avg
                     lowStart = start
@@ -1155,7 +1044,7 @@ object PrecipitationGraphRenderer {
                 var highStart = 0
                 var highAvg = -1f
                 for (start in 0..points.size - windowSize) {
-                    val avg = (start until start + windowSize).map { smoothedProbs[it] }.average().toFloat()
+                    val avg = (start until start + windowSize).map { probs[it] }.average().toFloat()
                     if (avg > highAvg) {
                         highAvg = avg
                         highStart = start
@@ -1199,7 +1088,9 @@ object PrecipitationGraphRenderer {
         val loopUs = (loopNano - mandatoryNano) / 1000
         val restUs = (endNano - loopNano) / 1000
 
-        Log.d("PrecipGraphPerf", "renderGraph: total=${totalUs}us, setup=${setupUs}us, path=${pathUs}us, draw=${drawUs}us, candidate=${candidateUs}us, mandatory=${mandatoryUs}us, loop=${loopUs}us, rest=${restUs}us")
+        if (com.weatherwidget.BuildConfig.DEBUG) {
+            Log.d("PrecipGraphPerf", "renderGraph: total=${totalUs}us, setup=${setupUs}us, path=${pathUs}us, draw=${drawUs}us, candidate=${candidateUs}us, mandatory=${mandatoryUs}us, loop=${loopUs}us, rest=${restUs}us")
+        }
 
         return bitmap
     }
@@ -1240,17 +1131,6 @@ object PrecipitationGraphRenderer {
             i++
         }
         return extrema
-    }
-
-    private fun localProminence(
-        values: List<Int>,
-        index: Int,
-    ): Int {
-        if (index <= 0 || index >= values.lastIndex) return 0
-        val current = values[index]
-        val prev = values[index - 1]
-        val next = values[index + 1]
-        return maxOf(abs(current - prev), abs(current - next))
     }
 
     /**
@@ -1368,11 +1248,6 @@ object PrecipitationGraphRenderer {
 
     internal fun shouldShowHourlyIcons(widthPx: Int): Boolean {
         return widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-    }
-
-    internal fun iconStrideForLabelSpacing(hourLabelSpacingDp: Float): Int {
-        // In zoomed-in mode users expect per-hour context, so keep icon density at every hour.
-        return 1
     }
 
     private fun RectF.toPlacementRect(): PlacementRect {

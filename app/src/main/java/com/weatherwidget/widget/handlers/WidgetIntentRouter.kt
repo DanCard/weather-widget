@@ -906,7 +906,6 @@ object WidgetIntentRouter {
                     appWidgetId = appWidgetId,
                     hourlyForecasts = hourlyForecasts,
                     centerTime = centerTime,
-                    displaySource = displaySource,
                     precipProbability = todayPrecip,
                     observedCurrentTemp = observation?.temperature,
                     observedAt = observation?.observedAt,

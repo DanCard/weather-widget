@@ -1,10 +1,15 @@
 package com.weatherwidget.widget
 
+import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
+import kotlin.math.roundToInt
 
 internal object GraphRenderUtils {
     fun buildLinearCurveAndFillPaths(
@@ -233,7 +238,7 @@ internal object GraphRenderUtils {
                 val prev = if (i > 0) current[i - 1] else current[i]
                 val curr = current[i]
                 val next = if (i < current.lastIndex) current[i + 1] else current[i]
-                
+
                 // Weighted average: 25% prev, 50% current, 25% next
                 smoothed.add(prev * 0.25f + curr * 0.5f + next * 0.25f)
             }
@@ -241,5 +246,190 @@ internal object GraphRenderUtils {
         }
 
         return current
+    }
+
+    /**
+     * Draws a "last fetch dot" on the graph curve, with optional staleness age label (below the
+     * dot) and value label (right/left/top of the dot).
+     *
+     * The caller is responsible for computing [fetchX], [fetchY], [valueLabel], and [ageMinutes].
+     * Pass [ageMinutes] as null when the zoomed-in label display should be suppressed (i.e. the
+     * window is wider than 12 hours).
+     */
+    fun drawFetchDot(
+        context: Context,
+        canvas: Canvas,
+        fetchX: Float,
+        fetchY: Float,
+        valueLabel: String,
+        ageMinutes: Long?,
+        bitmapScale: Float,
+        widthPx: Int,
+        heightPx: Int,
+        dotRadiusDp: Float = 2.5f,
+        dpToPx: (Float) -> Float,
+    ) {
+        val dotRadius = dpToPx(dotRadiusDp * bitmapScale.coerceIn(0.5f, 1f))
+        val clampedFetchX = fetchX.coerceIn(dotRadius, widthPx.toFloat() - dotRadius)
+
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(clampedFetchX, fetchY, dotRadius, dotPaint)
+
+        val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#AAFFFFFF")
+            style = Paint.Style.STROKE
+            strokeWidth = dpToPx(1f)
+        }
+        canvas.drawCircle(clampedFetchX, fetchY, dotRadius, ringPaint)
+
+        val outerRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#44000000")
+            style = Paint.Style.STROKE
+            strokeWidth = dpToPx(0.5f)
+        }
+        canvas.drawCircle(clampedFetchX, fetchY, dotRadius + 0.5f, outerRingPaint)
+
+        if (ageMinutes != null && ageMinutes >= 0) {
+            val ageLabel = if (ageMinutes >= 60) {
+                val h = ageMinutes / 60
+                val m = ageMinutes % 60
+                if (m > 0) "${h}h ${m}m" else "${h}h"
+            } else "${ageMinutes}m"
+
+            val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+            val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#BBFFFFFF")
+                textSize = dpToPx(11f * labelScale)
+                textAlign = Paint.Align.LEFT
+                setShadowLayer(dpToPx(1f), 0f, dpToPx(0.5f), Color.parseColor("#88000000"))
+            }
+            val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#88FFFFFF")
+                textSize = dpToPx(8f * labelScale)
+                textAlign = Paint.Align.CENTER
+                setShadowLayer(dpToPx(1f), 0f, dpToPx(0.5f), Color.parseColor("#88000000"))
+            }
+
+            // 1. Draw Staleness (Age) - Underneath the dot
+            val ageY = fetchY + dotRadius + dpToPx(4f * labelScale) - stalenessTextPaint.ascent()
+            if (ageY + stalenessTextPaint.descent() <= heightPx) {
+                canvas.drawText(ageLabel, clampedFetchX, ageY, stalenessTextPaint)
+            }
+
+            // 2. Draw Value - Multi-directional placement
+            val valueWidth = valueTextPaint.measureText(valueLabel)
+            val valueHeight = valueTextPaint.textSize
+            val sideGap = dpToPx(4f * labelScale)
+
+            // Attempt 1: Right
+            var drawnValue = false
+            val rightX = clampedFetchX + dotRadius + sideGap
+            if (rightX + valueWidth <= widthPx) {
+                valueTextPaint.textAlign = Paint.Align.LEFT
+                canvas.drawText(valueLabel, rightX, fetchY + valueHeight / 3f, valueTextPaint)
+                drawnValue = true
+            }
+
+            // Attempt 2: Left
+            if (!drawnValue) {
+                val leftX = clampedFetchX - dotRadius - sideGap
+                if (leftX - valueWidth >= 0) {
+                    valueTextPaint.textAlign = Paint.Align.RIGHT
+                    canvas.drawText(valueLabel, leftX, fetchY + valueHeight / 3f, valueTextPaint)
+                    drawnValue = true
+                }
+            }
+
+            // Attempt 3: Top
+            if (!drawnValue) {
+                val topY = fetchY - dotRadius - dpToPx(2f * labelScale)
+                if (topY + valueTextPaint.ascent() >= 0) {
+                    valueTextPaint.textAlign = Paint.Align.CENTER
+                    canvas.drawText(valueLabel, clampedFetchX, topY, valueTextPaint)
+                }
+            }
+        }
+    }
+
+    /**
+     * Draws day-of-week labels at the left and right edges of an hourly graph.
+     * Placement cascades: TOP → MIDDLE → BOTTOM, with collision detection against
+     * existing label bounds, icon bounds, and previously placed day labels.
+     *
+     * Returns the list of [RectF] bounds for all placed day labels (for callers that need it).
+     */
+    fun drawDayLabels(
+        context: Context,
+        canvas: Canvas,
+        leftDate: LocalDate,
+        rightDate: LocalDate,
+        leftText: String,
+        rightText: String,
+        leftX: Float,
+        rightX: Float,
+        today: LocalDate,
+        graphTop: Float,
+        graphBottom: Float,
+        heightPx: Int,
+        dayLabelTextPaint: Paint,
+        todayDayLabelPaint: Paint,
+        drawnLabelBounds: List<RectF>,
+        drawnIconBounds: List<RectF>,
+        dpToPx: (Float) -> Float,
+        onDayLabelPlaced: ((side: String, text: String, date: LocalDate, x: Float, y: Float, placement: String, isToday: Boolean) -> Unit)? = null,
+    ) {
+        val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
+        val dayLabelTextHeight = fm.descent - fm.ascent
+        val dayYTop = graphTop + dayLabelTextHeight
+        val dayYMid = (graphTop + graphBottom) / 2f
+        val dayYBottom = heightPx - dpToPx(14f)
+
+        fun dayBounds(x: Float, y: Float, textWidth: Float): RectF =
+            RectF(x - textWidth / 2f, y + fm.ascent, x + textWidth / 2f, y + fm.descent)
+
+        val drawnDayLabelBounds = mutableListOf<RectF>()
+
+        fun collides(bounds: RectF): Boolean =
+            drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
+                drawnIconBounds.any { RectF.intersects(it, bounds) } ||
+                drawnDayLabelBounds.any { RectF.intersects(it, bounds) }
+
+        data class DayCandidate(val date: LocalDate, val x: Float, val text: String)
+
+        val candidates = listOf(
+            DayCandidate(leftDate, leftX, leftText),
+            DayCandidate(rightDate, rightX, rightText),
+        )
+
+        for ((candidateIndex, candidate) in candidates.withIndex()) {
+            val side = if (candidateIndex == 0) "LEFT" else "RIGHT"
+            val isToday = candidate.date == today
+            val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
+            val tw = paint.measureText(candidate.text)
+
+            val topBounds = dayBounds(candidate.x, dayYTop, tw)
+            if (!collides(topBounds)) {
+                canvas.drawText(candidate.text, candidate.x, dayYTop, paint)
+                drawnDayLabelBounds.add(topBounds)
+                onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYTop, "TOP", isToday)
+                continue
+            }
+
+            val midBounds = dayBounds(candidate.x, dayYMid, tw)
+            if (!collides(midBounds)) {
+                canvas.drawText(candidate.text, candidate.x, dayYMid, paint)
+                drawnDayLabelBounds.add(midBounds)
+                onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday)
+                continue
+            }
+
+            val botBounds = dayBounds(candidate.x, dayYBottom, tw)
+            canvas.drawText(candidate.text, candidate.x, dayYBottom, paint)
+            drawnDayLabelBounds.add(botBounds)
+            onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday)
+        }
     }
 }
