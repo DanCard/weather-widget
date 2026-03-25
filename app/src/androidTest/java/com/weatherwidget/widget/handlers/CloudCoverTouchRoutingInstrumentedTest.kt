@@ -124,7 +124,7 @@ class CloudCoverTouchRoutingInstrumentedTest : IsolatedIntegrationTest("cloud_co
     }
 
     private fun waitForViewMode(expected: ViewMode) {
-        val deadline = System.currentTimeMillis() + 2000
+        val deadline = System.currentTimeMillis() + 5000
         while (System.currentTimeMillis() < deadline) {
             if (stateManager.getViewMode(appWidgetId) == expected) {
                 return

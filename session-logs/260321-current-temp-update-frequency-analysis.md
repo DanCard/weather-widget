@@ -1,8 +1,5 @@
 # Session Notes: Current Temperature Update Frequency Analysis
 
-## Date
-- 2026-03-21
-
 ## User Question
 - How often does the widget wake up the device to update current temperature?
 

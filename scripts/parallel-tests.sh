@@ -4,16 +4,15 @@
 #
 # Usage:
 #   ./scripts/parallel-tests.sh
-#   ./scripts/parallel-tests.sh --force-unit
 #   ./scripts/parallel-tests.sh --emulator-args "-q -c com.weatherwidget.SomeTest"
-#   ./scripts/parallel-tests.sh --force-unit --emulator-args "-e Medium_Phone_API_36 -d 15m"
+#   ./scripts/parallel-tests.sh --emulator-args "-e Medium_Phone_API_36 -d 15m"
 #
 
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-UNIT_SCRIPT="$SCRIPT_DIR/unit-tests.sh"
+UNIT_SCRIPT="$SCRIPT_DIR/test-unit-by-duration.sh"
 EMULATOR_SCRIPT="$SCRIPT_DIR/emulator-tests.sh"
 
 RED='\033[0;31m'
@@ -22,7 +21,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-UNIT_ARGS=()
 EMULATOR_ARGS=()
 
 show_help() {
@@ -32,24 +30,17 @@ Usage: $(basename "$0") [OPTIONS]
 Run unit tests and emulator tests in parallel using the existing helper scripts.
 
 Options:
-  --force-unit             Pass --force to scripts/unit-tests.sh
   --emulator-args "ARGS"   Extra arguments forwarded to scripts/emulator-tests.sh
   -h, --help               Show this help
 
 Examples:
   $(basename "$0")
-  $(basename "$0") --force-unit
   $(basename "$0") --emulator-args "-q"
-  $(basename "$0") --force-unit --emulator-args "-e Medium_Phone_API_36 -d 15m"
 EOF
 }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --force-unit)
-            UNIT_ARGS+=("--force")
-            shift
-            ;;
         --emulator-args)
             if [ $# -lt 2 ]; then
                 echo -e "${RED}Error: --emulator-args requires a value${NC}"
@@ -96,12 +87,12 @@ echo -e "${BLUE}Starting unit tests and emulator tests in parallel${NC}"
 
 set -o pipefail
 
-"$UNIT_SCRIPT" "${UNIT_ARGS[@]}" \
+"$UNIT_SCRIPT" \
     > >(prefix_output "unit" "$GREEN") \
     2> >(prefix_output "unit" "$GREEN" >&2) &
 UNIT_PID=$!
 
-"$EMULATOR_SCRIPT" "${EMULATOR_ARGS[@]}" \
+"$EMULATOR_SCRIPT" -s "${EMULATOR_ARGS[@]}" \
     > >(prefix_output "emulator" "$YELLOW") \
     2> >(prefix_output "emulator" "$YELLOW" >&2) &
 EMULATOR_PID=$!

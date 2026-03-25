@@ -6,6 +6,7 @@
 # Usage:
 #   ./scripts/emulator-tests.sh                    # Use default emulator (visible GUI)
 #   ./scripts/emulator-tests.sh -q                 # Run headless (quiet/no window)
+#   ./scripts/emulator-tests.sh -s                 # Condensed output
 #   ./scripts/emulator-tests.sh -e EMULATOR_NAME   # Use specific emulator
 #   ./scripts/emulator-tests.sh -c CLASS_NAME      # Run specific test class
 #   ./scripts/emulator-tests.sh -d DURATION        # Set test timeout (e.g. 10m, 450s, 1h)
@@ -22,6 +23,7 @@ DEFAULT_EMULATOR="Generic_Foldable_API36"
 EMU_TIMEOUT=120  # Seconds to wait for emulator boot
 TEST_TIMEOUT=300 # Seconds for tests to complete
 VISIBLE_MODE=true  # Run emulator with GUI window (default)
+SHORT_MODE=false  # Condensed output
 PROGRESS_PID=""
 
 LOG_DIR="logs/emulator-tests"
@@ -73,12 +75,13 @@ TEST_TIMEOUT_ARG=""
 
 LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
 
-while getopts "e:c:d:quh" opt; do
+while getopts "e:c:d:qush" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG"; EMULATOR_NAME_EXPLICIT=true ;;
         c) TEST_CLASS="$OPTARG" ;;
         d) TEST_TIMEOUT_ARG="$OPTARG" ;;
         q) VISIBLE_MODE=false ;;
+        s) SHORT_MODE=true ;;
         u) LEAVE_APKS_INSTALLED=false ;;
         h) SHOW_HELP=true ;;
         *) SHOW_HELP=true ;;
@@ -101,6 +104,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo ""
     echo "Options:"
     echo "  -q             Run headless (no GUI window, default: visible)"
+    echo "  -s             Short/condensed output (hide verbose details)"
     echo "  -u             Allow APK uninstall after tests (default: preserve installed APKs)"
     echo "  -e EMULATOR    Use specific emulator (default: $DEFAULT_EMULATOR)"
     echo "  -c CLASS       Run specific test class (e.g., com.weatherwidget.WidgetSizeCalculatorTest)"
@@ -155,19 +159,23 @@ if [ ! -f "$ADB_BIN" ]; then
     exit 1
 fi
 
-echo -en "${BLUE}$SDK_ROOT${NC} "
+if [ "$SHORT_MODE" = false ]; then
+    echo -en "${BLUE}$SDK_ROOT${NC} "
+fi
 debug_log "script start: pid=$$ args='$*' sdk_root=$SDK_ROOT"
 
 # List available emulators if none specified
 if [ -z "$EMULATOR_NAME" ]; then
-    echo -en "${YELLOW}Available emulators:${NC} "
-    $EMU_BIN -list-avds | while read -r avd; do
-        if [ "$avd" = "$DEFAULT_EMULATOR" ]; then
-            echo -n " * $avd (default) "
-        else
-            echo -n "   $avd "
-        fi
-    done
+    if [ "$SHORT_MODE" = false ]; then
+        echo -en "${YELLOW}Available emulators:${NC} "
+        $EMU_BIN -list-avds | while read -r avd; do
+            if [ "$avd" = "$DEFAULT_EMULATOR" ]; then
+                echo -n " * $avd (default) "
+            else
+                echo -n "   $avd "
+            fi
+        done
+    fi
     
     EMULATOR_NAME="$DEFAULT_EMULATOR"
     
@@ -179,7 +187,7 @@ if [ -z "$EMULATOR_NAME" ]; then
     fi
 fi
 
-echo -e "${BLUE}Selected: $EMULATOR_NAME${NC}"
+echo -en "${BLUE}Selected: $EMULATOR_NAME${NC}\t"
 
 # Function to cleanup emulator
 cleanup() {
@@ -205,23 +213,29 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Check if emulator is already running (ignore physical devices like Samsung)
-echo -en "${BLUE}Existing emulators:${NC} "
+if [ "$SHORT_MODE" = false ]; then
+    echo -en "${BLUE}Existing emulators:${NC} "
+fi
 # Filter for emulator-* only, ignore physical devices
 EXISTING_EMU=$($ADB_BIN devices | grep "emulator-" | grep "device$" | cut -f1 | head -1)
 
 # Show all connected devices for info
-$ADB_BIN devices -l | grep -v "List of devices" | awk '$2 == "device"' | while read -r line; do
-    device=$(echo "$line" | awk '{print $1}')
-    model=$(echo "$line" | grep -o "model:[^ ]*" | cut -d: -f2)
-    if echo "$device" | grep -q "^emulator-"; then
-        echo -e "  ${GREEN}✓ $device ($model) - emulator${NC}"
-    else
-        echo -e "  ${YELLOW}✗ $device ($model) - physical device (ignored)${NC}"
-    fi
-done
+if [ "$SHORT_MODE" = false ]; then
+    $ADB_BIN devices -l | grep -v "List of devices" | awk '$2 == "device"' | while read -r line; do
+        device=$(echo "$line" | awk '{print $1}')
+        model=$(echo "$line" | grep -o "model:[^ ]*" | cut -d: -f2)
+        if echo "$device" | grep -q "^emulator-"; then
+            echo -e "  ${GREEN}✓ $device ($model) - emulator${NC}"
+        else
+            echo -e "  ${YELLOW}✗ $device ($model) - physical device (ignored)${NC}"
+        fi
+    done
+fi
 
 if [ -n "$EXISTING_EMU" ]; then
-    echo -en "${YELLOW}Active: $EXISTING_EMU${NC} \t"
+    if [ "$SHORT_MODE" = false ]; then
+        echo -en "${YELLOW}Active: $EXISTING_EMU${NC} \t"
+    fi
     USE_EXISTING=true
     EMULATOR_SERIAL="$EXISTING_EMU"
 else
@@ -237,10 +251,14 @@ if [ "$USE_EXISTING" = false ]; then
     
     if [ "$VISIBLE_MODE" = false ]; then
         EMU_FLAGS="$EMU_FLAGS -no-window -no-audio"
-        echo "Mode: Headless (use -q flag)"
+        if [ "$SHORT_MODE" = false ]; then
+            echo "Mode: Headless (use -q flag)"
+        fi
     else
-        echo "Mode: Visible window"
-        echo "Note: Make sure you have a display (X11) available"
+        if [ "$SHORT_MODE" = false ]; then
+            echo "Mode: Visible window"
+            echo "Note: Make sure you have a display (X11) available"
+        fi
     fi
     
     # Launch emulator in background
@@ -250,7 +268,9 @@ if [ "$USE_EXISTING" = false ]; then
         > /tmp/emulator_${EMULATOR_NAME}.log 2>&1 &
     
     EMU_PID=$!
-    echo "Emulator PID: $EMU_PID"
+    if [ "$SHORT_MODE" = false ]; then
+        echo "Emulator PID: $EMU_PID"
+    fi
     
     # Wait for device to appear
     echo -e "${YELLOW}Waiting for device to boot...${NC}"
@@ -286,7 +306,9 @@ if [ "$USE_EXISTING" = false ]; then
     echo -en "${GREEN}Emulator ready: $EMULATOR_SERIAL${NC}\t"
     
     # Additional wait for system stability
-    echo "Waiting for system services..."
+    if [ "$SHORT_MODE" = false ]; then
+        echo "Waiting for system services..."
+    fi
     sleep 10
 fi
 
@@ -297,14 +319,18 @@ if [ "$VISIBLE_MODE" = true ] && command -v xdotool &>/dev/null; then
     if [ -n "$EMU_WIN_ID" ]; then
         xdotool windowactivate "$EMU_WIN_ID" 2>/dev/null || true
         debug_log "restored emulator window $EMU_WIN_ID (pre-device-info)"
-        echo -e "${GREEN}Restored emulator window${NC}"
+        if [ "$SHORT_MODE" = false ]; then
+            echo -e "${GREEN}Restored emulator window${NC}"
+        fi
     fi
 fi
 
 # Show device info
-MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
-echo -en "${BLUE}Device info: product model:${NC} ${MODEL:-Unknown}   Android build version: "
-$TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
+if [ "$SHORT_MODE" = false ]; then
+    MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
+    echo -en "${BLUE}Device info: product model:${NC} ${MODEL:-Unknown}   Android build version: "
+    $TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
+fi
 
 
 # Run tests
@@ -458,13 +484,17 @@ else
 fi
 
 # Verify we're not targeting a physical Samsung device
-DEVICE_MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
-DEVICE_BRAND=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
-echo -en "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC} \t"
+if [ "$SHORT_MODE" = false ]; then
+    DEVICE_MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.manufacturer 2>/dev/null | tr -d '\r')
+    DEVICE_BRAND=$($TIMEOUT_CMD $ADB_BIN -s "$ANDROID_SERIAL" shell getprop ro.product.brand 2>/dev/null | tr -d '\r')
+    echo -en "${BLUE}Target device: $DEVICE_MODEL $DEVICE_BRAND${NC} \t"
+fi
 
 # Pre-test cleanup to avoid stale app-side workers/jobs mutating live widget state
 # while instrumentation initializes.
-echo -e "${YELLOW}Pre-test cleanup: stopping app + canceling scheduled jobs${NC}"
+if [ "$SHORT_MODE" = false ]; then
+    echo -e "${YELLOW}Pre-test cleanup: stopping app + canceling scheduled jobs${NC}"
+fi
 $ADB_BIN -s "$ANDROID_SERIAL" shell am force-stop com.weatherwidget >/dev/null 2>&1 || true
 $ADB_BIN -s "$ANDROID_SERIAL" shell am force-stop com.weatherwidget.test >/dev/null 2>&1 || true
 $ADB_BIN -s "$ANDROID_SERIAL" shell cmd jobscheduler stop com.weatherwidget >/dev/null 2>&1 || true
@@ -478,10 +508,14 @@ if [ -n "$TEST_CLASS" ]; then
     GRADLE_CMD="$GRADLE_CMD -Pandroid.testInstrumentationRunnerArguments.class=$TEST_CLASS"
     echo -e "${YELLOW}Running test class: $TEST_CLASS${NC}"
 else
-    echo -en "${YELLOW}Running all instrumented tests${NC} \t"
+    if [ "$SHORT_MODE" = false ]; then
+        echo -en "${YELLOW}Running all instrumented tests${NC} \t"
+    fi
 fi
-echo -e "${YELLOW}APK install step: connectedDebugAndroidTest builds and installs the application APK and the instrumentation test APK on $ANDROID_SERIAL (Gradle may skip unchanged tasks)${NC}"
-echo -e "${YELLOW}Test timeout: ${TEST_TIMEOUT}s${NC}"
+if [ "$SHORT_MODE" = false ]; then
+    echo -e "${YELLOW}APK install step: connectedDebugAndroidTest builds and installs the application APK and the instrumentation test APK on $ANDROID_SERIAL (Gradle may skip unchanged tasks)${NC}"
+    echo -e "${YELLOW}Test timeout: ${TEST_TIMEOUT}s${NC}"
+fi
 
 # Run tests with timeout - show output in real-time
 TEST_START=$(date +%s)
@@ -494,7 +528,9 @@ export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 GRADLE_APK_PRESERVE_ARG=""
 if [ "$LEAVE_APKS_INSTALLED" = true ]; then
     GRADLE_APK_PRESERVE_ARG="-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true"
-    echo -e "${YELLOW}APK preservation: enabled (default)${NC}"
+    if [ "$SHORT_MODE" = false ]; then
+        echo -e "${YELLOW}APK preservation: enabled (default)${NC}"
+    fi
 else
     echo -e "${YELLOW}APK preservation: disabled (-u), Gradle may uninstall APKs after run${NC}"
 fi
@@ -503,61 +539,52 @@ fi
 show_progress() {
     local logfile=$1
     local last_line=0
+    local pass_count=0
+    local last_printed_count=0
+    local last_progress_time=$SECONDS
 
     while true; do
         if [ -f "$logfile" ]; then
-            # Get all new lines since last check
-            local total_lines=$(wc -l < "$logfile")
+            local total_lines
+            total_lines=$(wc -l < "$logfile")
             if [ "$total_lines" -gt "$last_line" ]; then
-                # Extract and display new test results
                 local new_lines
-                new_lines=$(sed -n "$((last_line + 1)),${total_lines}p" "$logfile")
+                new_lines=$(sed -n "$((last_line + 1)),${total_lines}p" "$logfile" | sed 's/\x1b\[[0-9;]*m//g' | tr -d '\r')
                 while IFS= read -r line; do
-                    # Connected test output format: "INFO: Execute com.package.Class.methodName: PASSED"
-                    if echo "$line" | grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)"; then
-                        local status=$(echo "$line" | grep -oE "(PASSED|FAILED|SKIPPED)")
-                        local test_full=$(echo "$line" | sed -n "s/.*INFO: Execute \(.*\): .*/\1/p")
-
-                        if [ -n "$test_full" ]; then
-                            local method_part="${test_full##*.}"
-                            local class_full="${test_full%.*}"
-                            local simple_class="${class_full##*.}"
-
-                            case "$status" in
-                                PASSED)  : ;; # Summarized per class at end
-                                FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
-                                SKIPPED) echo -e "${YELLOW}  - ${simple_class} > ${method_part} (SKIPPED)${NC}" ;;
-                            esac
-                        fi
-                    # Fallback for standard Gradle test output: "Class > Method PASSED"
-                    elif echo "$line" | grep -qE " > .* (PASSED|FAILED|SKIPPED)"; then
-                        local status=$(echo "$line" | grep -oE "(PASSED|FAILED|SKIPPED)")
-                        local test_full=$(echo "$line" | sed -n "s/ \(PASSED\|FAILED\|SKIPPED\).*//p" | sed 's/.*:app:connectedDebugAndroidTest //')
-
-                        if [ -n "$test_full" ]; then
-                            local class_part=$(echo "$test_full" | cut -d'>' -f1 | sed 's/ //g')
-                            local method_part=$(echo "$test_full" | cut -d'>' -f2 | sed 's/ //g')
-                            local simple_class="${class_part##*.}"
-
-                            case "$status" in
-                                PASSED)  : ;; # Summarized per class at end
-                                FAILED)  echo -e "${RED}  ✗ ${simple_class} > ${method_part}${NC}" ;;
-                                SKIPPED) echo -e "${YELLOW}  - ${simple_class} > ${method_part} (SKIPPED)${NC}" ;;
-                            esac
-                        fi
+                    # Real-time format: "Class > Method[device] SUCCESS" or "Class > Method[device] FAILED"
+                    if echo "$line" | grep -qE " > .* FAILED"; then
+                        local test_name
+                        test_name=$(echo "$line" | sed 's/\[.*//; s/^[[:space:]]*//')
+                        echo -e "${RED}  ✗ ${test_name}${NC}"
+                    elif echo "$line" | grep -qE " > .* SUCCESS"; then
+                        pass_count=$((pass_count + 1))
+                    # Batch summary format (only show failures, pass count already tracked via SUCCESS)
+                    elif echo "$line" | grep -qE "Execute .*: FAILED"; then
+                        local test_name
+                        test_name=$(echo "$line" | sed 's/.*Execute //; s/: FAILED.*//')
+                        echo -e "${RED}  ✗ ${test_name}${NC}"
                     fi
                 done <<< "$new_lines"
                 last_line=$total_lines
+
+                # Print progress every ~7 seconds if tests are passing
+                if [ $pass_count -gt $last_printed_count ] && [ $((SECONDS - last_progress_time)) -ge 7 ]; then
+                    echo -e "${GREEN}  ... ${pass_count} passed${NC}"
+                    last_progress_time=$SECONDS
+                    last_printed_count=$pass_count
+                fi
             fi
         fi
         sleep 0.5
     done
 }
 
-echo -e "${BLUE}Starting tests (build/install + execute)...${NC}"
+if [ "$SHORT_MODE" = false ]; then
+    echo -e "${BLUE}Starting tests (build/install + execute)...${NC}"
+fi
 INSTALL_START_TS=$(date +%s)
 INSTALL_END_LOGGED=false
-echo -e "${YELLOW}APK install started on $ANDROID_SERIAL${NC}"
+echo -en "${YELLOW}APK install started on $ANDROID_SERIAL${NC} \t"
 debug_log "apk_install_start: serial=$ANDROID_SERIAL"
 
 # Truncate log so show_progress doesn't see stale content
@@ -582,30 +609,25 @@ debug_log "gradle started via script(1) pid=$GRADLE_PID"
 # so we detect completion from output rather than waiting for process exit.
 WAIT_ELAPSED=0
 while kill -0 $GRADLE_PID 2>/dev/null; do
-    if [ "$INSTALL_END_LOGGED" = false ] && grep -qE "INFO: Execute .*: (PASSED|FAILED|SKIPPED)| > .* (PASSED|FAILED|SKIPPED)" "$TEST_RESULTS_LOG" 2>/dev/null; then
-        INSTALL_END_TS=$(date +%s)
-        INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
-        echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
-        debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=first_test_output"
-        INSTALL_END_LOGGED=true
-    fi
-
     if [ $WAIT_ELAPSED -ge $TEST_TIMEOUT ]; then
         echo -e "${RED}Test timeout after ${TEST_TIMEOUT}s${NC}"
         debug_log "timeout after ${TEST_TIMEOUT}s"
         break
     fi
     if grep -q "BUILD SUCCESSFUL\|BUILD FAILED" "$TEST_RESULTS_LOG" 2>/dev/null; then
-        if [ "$INSTALL_END_LOGGED" = false ]; then
-            INSTALL_END_TS=$(date +%s)
-            INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
-            echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
-            debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=build_complete"
-            INSTALL_END_LOGGED=true
-        fi
         debug_log "detected build completion in output"
         sleep 2  # Brief grace period for final output flush
         break
+    fi
+    # Detect APK install completion by checking if the test package is on the device
+    if [ "$INSTALL_END_LOGGED" = false ] && \
+       $ADB_BIN -s "$ANDROID_SERIAL" shell pm path com.weatherwidget.test 2>/dev/null | grep -q "^package:"; then
+        INSTALL_END_TS=$(date +%s)
+        INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
+        echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
+        echo -e "${BLUE}Running tests...${NC}"
+        debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=pm_path_detected"
+        INSTALL_END_LOGGED=true
     fi
     sleep 1
     WAIT_ELAPSED=$((WAIT_ELAPSED + 1))
@@ -619,6 +641,14 @@ if kill -0 $GRADLE_PID 2>/dev/null; then
     kill -9 $GRADLE_PID 2>/dev/null || true
 fi
 wait $GRADLE_PID 2>/dev/null || true
+
+# Fallback: if the adb poll never detected the install, log it now
+if [ "$INSTALL_END_LOGGED" = false ]; then
+    INSTALL_END_TS=$(date +%s)
+    INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
+    echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
+    debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=fallback"
+fi
 
 # Determine success from build output (exit code unreliable since we may have killed the process)
 if grep -q "BUILD SUCCESSFUL" "$TEST_RESULTS_LOG" 2>/dev/null; then
@@ -727,9 +757,11 @@ if [ "$SKIPPED" -gt 0 ]; then
     echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
 fi
 echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
-echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
+if [ "$SHORT_MODE" = false ]; then
+    echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
+fi
 if [ "$TEST_SUCCESS" = false ] || [ "${FAILED:-0}" -gt 0 ] || [ "${ERRORS:-0}" -gt 0 ]; then
-    echo -e "\n${RED}Test log:  $TEST_RESULTS_LOG${NC}"
+    echo -e "${RED}Test log:  $TEST_RESULTS_LOG${NC}"
 fi
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
@@ -832,7 +864,9 @@ if [ "$FAILED" -gt 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
 fi
 
 # Recover widget state after tests (pre-test cleanup stops app/workers)
-echo -e "${BLUE}Triggering widget refresh to recover UI...${NC}"
+if [ "$SHORT_MODE" = false ]; then
+    echo -e "${BLUE}Triggering widget refresh to recover UI...${NC}"
+fi
 $ADB_BIN -s "$EMULATOR_SERIAL" shell am broadcast -a com.weatherwidget.ACTION_REFRESH -p com.weatherwidget >/dev/null 2>&1 || true
 
 # Return appropriate exit code

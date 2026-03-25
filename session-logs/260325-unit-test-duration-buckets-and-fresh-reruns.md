@@ -1,10 +1,10 @@
 # Session Log: Unit Test Duration Buckets And Fresh Reruns
 
 ## User Goal
-- Break unit tests into short, medium, and long duration buckets.
-- Run those buckets in parallel.
-- Get short-test feedback under roughly 10 seconds.
-- Avoid reusing cached test results when desired, but without paying unnecessary compile/KSP rebuild cost.
+1. Break unit tests into short, medium, and long duration buckets.
+1. Run those buckets in parallel.
+1. Get short-test feedback under roughly 10 seconds.
+1. Avoid reusing cached test results when desired, but without paying unnecessary compile/KSP rebuild cost.
 
 ## Repo Context Gathered
 - Unit tests live under `app/src/test/java`.
@@ -218,6 +218,45 @@
   - the problem was not the short tests themselves
   - the problem was task invalidation scope
 
+## What is the difference between the fresh and non fresh version of the tests?
+
+
+### Non-Fresh tasks reuse prior test-task results when Gradle thinks nothing relevant changed.
+
+  Examples:
+
+  ./gradlew :app:testShortDebugUnitTest
+  ./gradlew :app:testMediumDebugUnitTest
+  ./gradlew :app:testLongDebugUnitTest
+
+  If inputs and outputs are unchanged, Gradle can mark them UP-TO-DATE and skip executing the tests.
+
+  Fresh tasks **always rerun the Test task** itself, even when Gradle would otherwise skip it.
+
+  Examples:
+
+  ./gradlew :app:testShortDebugUnitTestFresh
+  ./gradlew :app:testMediumDebugUnitTestFresh
+  ./gradlew :app:testLongDebugUnitTestFresh
+
+  The important part is what they do not do:
+
+  - they do not force kspDebugKotlin
+  - they do not force compileDebugKotlin
+  - they do not force compileDebugUnitTestKotlin
+
+  So:
+
+  - non-Fresh = fastest when you’re okay with Gradle saying “already up to date”
+  - Fresh = rerun the tests without reusing old test results
+  - --rerun-tasks = much broader; reruns tests and all upstream tasks, which is why it got slow
+
+  In practice:
+
+  - use non-Fresh for normal development
+  - use Fresh when you want the tests to actually execute again
+  - avoid --rerun-tasks unless you really want the whole build/test pipeline rerun
+
 ## Fresh Rerun Solution Implemented
 
 ### New Gradle tasks
@@ -228,8 +267,8 @@
   - `testByDurationDebugUnitTestFresh`
 
 ### Behavior
-- These tasks still depend on compiled outputs.
-- They do **not** force compile/KSP work to rerun if those tasks are already up to date.
+- Fresh tasks still depend on compiled outputs.
+- Fresh tasks do **not** force compile/KSP work to rerun if those tasks are already up to date.
 - They do force the `Test` task itself to execute again via:
   - `outputs.upToDateWhen { false }`
 
