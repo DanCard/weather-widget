@@ -30,7 +30,7 @@ class ObservationBlenderTest {
     }
 
     @Test
-    fun `resolveCurrentObservation blends and extrapolates`() {
+    fun `resolveCurrentObservation returns latest real anchor point instead of extrapolating`() {
         val forecasts = wideForecasts()
         
         // Latest observation is 30 mins ago
@@ -52,16 +52,13 @@ class ObservationBlenderTest {
         )
 
         assertNotNull(resolved)
-        // Forecast at center (12:00) is 60 + 12 = 72
-        // Forecast at obsTime (11:30) is interp between 11:00 (71) and 12:00 (72) = 71.5
-        // Forecast delta = 72 - 71.5 = 0.5
-        // Extrapolated temp = 70 + 0.5 = 70.5
-        assertEquals(70.5f, resolved!!.first, 0.1f)
-        assertEquals(nowMs, resolved.second)
+        // Should return the RAW observation at 70.0, NOT the extrapolated 70.5
+        assertEquals(70.0f, resolved!!.first, 0.1f)
+        assertEquals(obsTime, resolved.second)
     }
 
     @Test
-    fun `resolveCurrentObservation returns anchor timestamp for staleness`() {
+    fun `resolveCurrentObservation returns anchor timestamp for both time and anchorTime`() {
         val forecasts = wideForecasts()
         val now = center
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -82,15 +79,15 @@ class ObservationBlenderTest {
         )
 
         assertNotNull(resolved)
-        // first: temperature (extrapolated)
-        // second: timestamp (target time, close to 'now')
-        // third: anchorTimestamp (the original 45 min old reading)
-        assertEquals(nowMs, resolved!!.second)
+        // first: temperature (anchor)
+        // second: timestamp (anchor)
+        // third: anchorTimestamp (anchor)
+        assertEquals(anchorTs, resolved!!.second)
         assertEquals(anchorTs, resolved.third)
         
-        // Staleness should be 45 mins
+        // Staleness relative to 'now' should be 45 mins
         val ageMin = java.time.Duration.between(
-            java.time.Instant.ofEpochMilli(resolved.third).atZone(ZoneId.systemDefault()).toLocalDateTime(),
+            java.time.Instant.ofEpochMilli(resolved.second).atZone(ZoneId.systemDefault()).toLocalDateTime(),
             now
         ).toMinutes()
         assertEquals(45L, ageMin)

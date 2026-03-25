@@ -122,7 +122,7 @@ object ObservationBlender {
 
         val nowMs = now.atZone(zoneId).toInstant().toEpochMilli()
         val latestObs = result.observations
-            .filter { it.timestamp <= nowMs }
+            .filter { it.timestamp <= nowMs && it.condition == "observed" }
             .maxByOrNull { it.timestamp }
 
         return latestObs?.let { Triple(it.temperature, it.timestamp, it.fetchedAt) }

@@ -44,12 +44,11 @@ object ObservationResolver {
         val filtered = observations.filter {
             inferSource(it.stationId) == displaySource.id || inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
         }
-        val selected = if (displaySource == WeatherSource.NWS) {
-            filtered.filter { it.stationId == "NWS_BLEND" }.maxByOrNull { it.timestamp }
-                ?: filtered.maxByOrNull { it.timestamp }
-        } else {
-            filtered.maxByOrNull { it.timestamp }
-        }
+        val maxTs = filtered.maxOfOrNull { it.timestamp }
+        val selected = if (maxTs != null) {
+            val candidates = filtered.filter { it.timestamp == maxTs }
+            candidates.find { it.stationId == "NWS_BLEND" } ?: candidates.first()
+        } else null
         Log.d("ObsResolver", "resolveObservedCurrentTemp: stationId=${selected?.stationId} temp=${selected?.temperature} source=${displaySource.id}")
         return selected?.let { obs ->
             ObservedCurrentTemperature(

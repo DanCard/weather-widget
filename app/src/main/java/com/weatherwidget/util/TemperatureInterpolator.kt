@@ -41,7 +41,7 @@ class TemperatureInterpolator
              * Minimum temperature difference (in degrees) to trigger interpolation.
              * Below this threshold, just use the nearest hour's temperature.
              */
-            const val INTERPOLATION_THRESHOLD = 1
+            const val INTERPOLATION_THRESHOLD = 0.1f
 
             fun setDefaultAppLogDao(appLogDao: AppLogDao?) {
                 defaultAppLogDao = appLogDao

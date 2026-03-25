@@ -275,6 +275,61 @@ class CurrentTemperatureIntegrationTest {
         assertEquals(68f, result2.displayTemp!!, 0.01f)
     }
 
+    @Test
+    fun `current temperature correctly trends down when forecast is cooling`() = runTest {
+        // Scenario: 
+        // 10:00 Forecast = 65.0
+        // 11:00 Forecast = 60.0 (Trending down)
+        // 10:00 Observation = 66.0 (1.0 degree warmer than forecast)
+        
+        val obsTime = LocalDateTime.of(2026, 2, 25, 10, 0)
+        val now = LocalDateTime.of(2026, 2, 25, 10, 30)
+        val nowMs = toEpochMs(now)
+        val fetchedAt = nowMs
+
+        insertHourlyForecast("10:00", 65f, fetchedAt)
+        insertHourlyForecast("11:00", 60f, fetchedAt)
+
+        // Observation at 10:00 is 66.0
+        insertObservation(
+            stationId = "KSJC",
+            timestamp = toEpochMs(obsTime),
+            temperature = 66f,
+            fetchedAt = fetchedAt,
+        )
+
+        val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
+        val observedCurrentTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
+        
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
+        val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
+
+        val result = CurrentTemperatureResolver.resolve(
+            now = now,
+            displaySource = WeatherSource.NWS,
+            hourlyForecasts = hourlyForecasts,
+            observedCurrentTemp = observedCurrentTemp!!.temperature,
+            observedAt = observedCurrentTemp.observedAt,
+            storedDeltaState = null,
+            currentLat = lat,
+            currentLon = lon,
+        )
+
+        // Forecast at 10:00 = 65.0. Obs at 10:00 = 66.0. Delta = +1.0
+        // Forecast at 10:30 = 62.5 (halfway between 65 and 60)
+        // Display Temp should be 62.5 + 1.0 = 63.5
+        
+        assertEquals(66.0f, result.observedTemp!!, 0.01f)
+        assertEquals(62.5f, result.estimatedTemp!!, 0.01f)
+        assertEquals(1.0f, result.appliedDelta!!, 0.01f)
+        assertEquals(63.5f, result.displayTemp!!, 0.01f)
+        
+        // CRITICAL: Current temp (63.5) must be LESS than observed temp (66.0) because it's trending down
+        assertTrue("Current temp (${result.displayTemp}) should be less than observed temp (${result.observedTemp}) when trending down",
+            result.displayTemp!! < result.observedTemp!!)
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private suspend fun insertHourlyForecast(

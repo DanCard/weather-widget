@@ -889,18 +889,31 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val viewMode = stateManager.getViewMode(appWidgetId)
             Log.d(TAG, "updateWidgetInternal: widget=$appWidgetId viewMode=$viewMode zoom=${stateManager.getZoomLevel(appWidgetId)}")
 
+            val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+            val zoom = stateManager.getZoomLevel(appWidgetId)
+            val now = LocalDateTime.now()
+            val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+            val centerTime = now.plusHours(hourlyOffset.toLong())
+
+            val graphStyleObs = com.weatherwidget.util.ObservationBlender.resolveCurrentObservation(
+                observations = currentTemps,
+                hourlyForecasts = hourlyForecasts,
+                displaySource = displaySource,
+                userLat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
+                userLon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
+                now = now,
+                lookbackHours = 12L,
+                lookaheadHours = 2L
+            )
+            val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)?.let { Triple(it.temperature, it.observedAt, it.observedAt) }
+
             when (viewMode) {
                 ViewMode.TEMPERATURE -> {
-                    val now = LocalDateTime.now()
-                    val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-                    val centerTime = now.plusHours(hourlyOffset.toLong())
                     val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
-                    val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
                             .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
                             ?.precipProbability
-                    val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     TemperatureViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -909,24 +922,19 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         centerTime = centerTime,
                         displaySource = displaySource,
                         precipProbability = targetPrecip,
-                        observedCurrentTemp = observation?.temperature,
-                        observedAt = observation?.observedAt,
+                        observedCurrentTemp = observation?.first,
+                        observedAt = observation?.second,
                         repository = repository,
                         startupToken = startupToken,
                         deferCurrentTempResolution = startupToken != null,
                     )
                 }
                 ViewMode.PRECIPITATION -> {
-                    val now = LocalDateTime.now()
-                    val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-                    val centerTime = now.plusHours(hourlyOffset.toLong())
                     val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
-                    val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
                             .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
                             ?.precipProbability
-                    val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     PrecipViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -934,23 +942,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         hourlyForecasts = hourlyForecasts,
                         centerTime = centerTime,
                         precipProbability = targetPrecip,
-                        observedCurrentTemp = observation?.temperature,
-                        observedAt = observation?.observedAt,
+                        observedCurrentTemp = observation?.first,
+                        observedAt = observation?.second,
                         repository = repository,
                         startupToken = startupToken,
                     )
                 }
                 ViewMode.CLOUD_COVER -> {
-                    val now = LocalDateTime.now()
-                    val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-                    val centerTime = now.plusHours(hourlyOffset.toLong())
                     val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
-                    val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
                     val targetPrecip =
                         weatherList
                             .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
                             ?.precipProbability
-                    val observation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
                     com.weatherwidget.widget.handlers.CloudCoverViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -959,8 +962,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         centerTime = centerTime,
                         displaySource = displaySource,
                         precipProbability = targetPrecip,
-                        observedCurrentTemp = observation?.temperature,
-                        observedAt = observation?.observedAt,
+                        observedCurrentTemp = observation?.first,
+                        observedAt = observation?.second,
                         repository = repository,
                         startupToken = startupToken,
                     )

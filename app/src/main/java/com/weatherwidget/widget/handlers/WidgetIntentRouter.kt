@@ -956,8 +956,8 @@ object WidgetIntentRouter {
         val zoneId = ZoneId.systemDefault()
         val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(zoom.backHours)
-        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val startHour = alignedCenter.minusHours(12L)
+        val endHour = alignedCenter.plusHours(2L)
         
         val minEpoch = startHour.atZone(zoneId).toInstant().toEpochMilli()
         val maxEpoch = endHour.atZone(zoneId).toInstant().toEpochMilli()
@@ -970,8 +970,8 @@ object WidgetIntentRouter {
             userLat = lat,
             userLon = lon,
             now = LocalDateTime.now(),
-            lookbackHours = zoom.backHours,
-            lookaheadHours = zoom.forwardHours
+            lookbackHours = 12L,
+            lookaheadHours = 2L
         )
         
         return resolved?.let { (temp, time, anchorTime) ->
