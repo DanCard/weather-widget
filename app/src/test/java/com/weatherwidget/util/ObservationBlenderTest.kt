@@ -126,4 +126,66 @@ class ObservationBlenderTest {
         // Anchor should be the LATER observation (endObsMs)
         assertEquals(endObsMs, interpolated.fetchedAt)
     }
+
+    @Test
+    fun `blend is consistent across different startMs windows`() {
+        val forecasts = wideForecasts()
+        val now = center
+        val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        
+        // S1 is close (2km), reports at T-4h
+        // S2 is further (10km), reports at T-1h
+        // We want to check the blend at T-1h.
+        val tMinus4h = nowMs - 4 * 60 * 60 * 1000L
+        val tMinus1h = nowMs - 1 * 60 * 60 * 1000L
+        
+        val observations = listOf(
+            TestData.observation(stationId = "S1", timestamp = tMinus4h, temperature = 60f, distanceKm = 2f),
+            TestData.observation(stationId = "S2", timestamp = tMinus1h, temperature = 70f, distanceKm = 10f)
+        )
+
+        // Wide window (8h back) includes S1 (T-4h)
+        val wideStartMs = nowMs - 8 * 60 * 60 * 1000L
+        val wideResult = ObservationBlender.blendObservationSeries(
+            observations = observations,
+            hourlyForecasts = forecasts,
+            displaySource = WeatherSource.NWS,
+            userLat = TestData.LAT,
+            userLon = TestData.LON,
+            startMs = wideStartMs,
+            endMs = nowMs
+        )
+        
+        // Narrow window (2h back) excludes S1 (T-4h) from the emitted result, 
+        // but it should still be used for blending the point at T-1h!
+        val narrowStartMs = nowMs - 2 * 60 * 60 * 1000L
+        val narrowResult = ObservationBlender.blendObservationSeries(
+            observations = observations,
+            hourlyForecasts = forecasts,
+            displaySource = WeatherSource.NWS,
+            userLat = TestData.LAT,
+            userLon = TestData.LON,
+            startMs = narrowStartMs,
+            endMs = nowMs
+        )
+
+        val widePointAtTMinus1h = wideResult.observations.find { it.timestamp == tMinus1h }
+        val narrowPointAtTMinus1h = narrowResult.observations.find { it.timestamp == tMinus1h }
+
+        assertNotNull("Wide result should have point at T-1h", widePointAtTMinus1h)
+        assertNotNull("Narrow result should have point at T-1h", narrowPointAtTMinus1h)
+        
+        // Without the fix, narrowPointAtTMinus1h would be 70.0 (only S2), 
+        // while widePointAtTMinus1h would be a blend of S1 (extrapolated) and S2.
+        assertEquals("Blend should be consistent across zoom levels", 
+            widePointAtTMinus1h!!.temperature, 
+            narrowPointAtTMinus1h!!.temperature, 
+            0.01f
+        )
+        
+        // Verify that it's actually a blend and not just 70.0
+        assertTrue("Temperature should be a blend (not exactly 70.0)", 
+            Math.abs(narrowPointAtTMinus1h.temperature - 70.0f) > 0.1f
+        )
+    }
 }

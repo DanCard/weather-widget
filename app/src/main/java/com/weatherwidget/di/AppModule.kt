@@ -33,6 +33,15 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import javax.inject.Singleton
+import dagger.hilt.EntryPoint
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface RepositoryEntryPoint {
+    fun forecastRepository(): ForecastRepository
+    fun currentTempRepository(): CurrentTempRepository
+    fun observationRepository(): ObservationRepository
+}
 
 @Module
 @InstallIn(SingletonComponent::class)

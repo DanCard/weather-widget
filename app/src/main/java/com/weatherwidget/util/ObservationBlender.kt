@@ -106,8 +106,8 @@ object ObservationBlender {
         
         val startHour = alignedCenter.minusHours(lookbackHours)
         val endHour = alignedCenter.plusHours(lookaheadHours)
-        val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
-        val endMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
+        val contextStartMs = alignedCenter.minusHours(24L).atZone(zoneId).toInstant().toEpochMilli()
+        val contextEndMs = alignedCenter.plusHours(12L).atZone(zoneId).toInstant().toEpochMilli()
 
         val result = blendObservationSeries(
             observations = observations,
@@ -115,15 +115,20 @@ object ObservationBlender {
             displaySource = displaySource,
             userLat = userLat,
             userLon = userLon,
-            startMs = startMs,
-            endMs = endMs,
+            startMs = contextStartMs,
+            endMs = contextEndMs,
             onBlendDebug = null
         )
 
         val nowMs = now.atZone(zoneId).toInstant().toEpochMilli()
-        val latestObs = result.observations
-            .filter { it.timestamp <= nowMs && it.condition == "observed" }
+        val pastBlended = result.observations.filter { it.timestamp <= nowMs }
+        
+        val latestObs = pastBlended
+            .filter { it.condition == "observed" }
             .maxByOrNull { it.timestamp }
+            ?: pastBlended
+                .filter { it.condition == "interpolated" }
+                .maxByOrNull { it.timestamp }
 
         return latestObs?.let { Triple(it.temperature, it.timestamp, it.fetchedAt) }
     }
@@ -140,7 +145,6 @@ object ObservationBlender {
     ): BlendObservationResult {
         val filtered = observations
             .filter { matchesObservationSource(it, displaySource) }
-            .filter { it.timestamp in startMs..endMs }
             .sortedBy { it.timestamp }
 
         if (filtered.isEmpty()) {
@@ -269,21 +273,23 @@ object ObservationBlender {
                 }
             }
 
-            result.add(
-                ObservationEntity(
-                    stationId = anchorPoint.stationId,
-                    stationName = anchorPoint.stationName,
-                    timestamp = targetTs,
-                    temperature = blendedTemp,
-                    condition = bestSourceKind,
-                    locationLat = userLat,
-                    locationLon = userLon,
-                    distanceKm = anchorPoint.distanceKm,
-                    stationType = anchorPoint.stationType,
-                    api = displaySource.id,
-                    fetchedAt = freshestAnchorTs,
-                ),
-            )
+            if (targetTs in startMs..endMs) {
+                result.add(
+                    ObservationEntity(
+                        stationId = anchorPoint.stationId,
+                        stationName = anchorPoint.stationName,
+                        timestamp = targetTs,
+                        temperature = blendedTemp,
+                        condition = bestSourceKind,
+                        locationLat = userLat,
+                        locationLon = userLon,
+                        distanceKm = anchorPoint.distanceKm,
+                        stationType = anchorPoint.stationType,
+                        api = displaySource.id,
+                        fetchedAt = freshestAnchorTs,
+                    ),
+                )
+            }
             lastEmittedMs = targetTs
         }
 

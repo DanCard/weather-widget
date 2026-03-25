@@ -334,7 +334,7 @@ object TemperatureViewHandler {
                         Log.d(TAG, "updateWidget: widget=$appWidgetId startup graph fast path, skipping actual observation query")
                         emptyList()
                     } else {
-                        val minEpoch = graphStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val minEpoch = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val maxEpoch = graphEnd.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val obsStartMs = SystemClock.elapsedRealtime()
                         val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
@@ -508,7 +508,7 @@ object TemperatureViewHandler {
             isPrecipVisible = headerPrecipProbability != null && headerPrecipProbability > 0,
         )
 
-        Log.d(
+        database.appLogDao().log(
             TAG,
             buildHeaderStateLog(
                 widgetId = appWidgetId,
@@ -1146,6 +1146,9 @@ object TemperatureViewHandler {
         val startMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
         val endMs = endHour.atZone(zoneId).toInstant().toEpochMilli()
 
+        val contextStartMs = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val contextEndMs = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
@@ -1178,15 +1181,15 @@ object TemperatureViewHandler {
             displaySource = displaySource,
             userLat = lat,
             userLon = lon,
-            startMs = startMs,
-            endMs = endMs,
+            startMs = contextStartMs,
+            endMs = contextEndMs,
             onBlendDebug = onBlendDebug,
         )
         val blendedActuals = blendedActualsResult.observations
         Log.d(
             TAG,
             "buildHourDataList: source=${displaySource.id}, IDW blend from $stationCount stations, " +
-                "blendedPoints=${blendedActuals.size}"
+                "blendedPoints=${blendedActuals.size}, visualWindow=${startHour.format(DateTimeFormatter.ISO_LOCAL_TIME)} to ${endHour.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
         )
 
         val labelInterval = zoom.labelInterval
@@ -1243,6 +1246,11 @@ object TemperatureViewHandler {
         val finalHours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val allTimes = hours.map { it.dateTime }.toMutableSet()
         val actualMap = mutableMapOf<LocalDateTime, com.weatherwidget.data.local.ObservationEntity>()
+
+        // Pre-initialize lastActual from the full blended series to ensure consistency at window boundaries
+        var lastActual: Float? = blendedActuals
+            .filter { it.timestamp < startMs && it.timestamp <= now.atZone(zoneId).toInstant().toEpochMilli() }
+            .lastOrNull()?.temperature
 
         blendedActuals.forEach { obs ->
             val obsTime = Instant.ofEpochMilli(obs.timestamp)
@@ -1308,7 +1316,6 @@ object TemperatureViewHandler {
             }
         }
 
-        var lastActual: Float? = null
         for (i in finalHours.indices) {
             if (finalHours[i].isActual && finalHours[i].actualTemperature != null) {
                 lastActual = finalHours[i].actualTemperature

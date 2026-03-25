@@ -7,6 +7,7 @@ import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -279,7 +280,60 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `actuals outside the zoom window do not appear as isActual`() {
+    fun `buildHourDataList is consistent across zoom levels`() {
+        val forecasts = wideForecasts()
+        // Observation at T-4h (08:00)
+        // Observation at T-1h (11:00)
+        // NARROW window starts at T-2h (10:00)
+        val tMinus4h = center.minusHours(4)
+        val tMinus1h = center.minusHours(1)
+        
+        val actuals = listOf(
+            observationAt(tMinus4h.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), 60f, stationId = "S1", distanceKm = 2f),
+            observationAt(tMinus1h.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), 70f, stationId = "S2", distanceKm = 10f)
+        )
+
+        // Wide zoom: 11:00 point should be a blend of S1 (extrapolated) and S2
+        val wideHours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = actuals,
+        )
+        
+        // Narrow zoom: 11:00 point should be IDENTICAL to wide zoom 
+        // because we removed the startMs filter in blendObservationSeries.
+        val narrowHours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.NARROW,
+            actuals = actuals,
+        )
+
+        val widePointAt11 = wideHours.find { it.dateTime == tMinus1h }
+        val narrowPointAt11 = narrowHours.find { it.dateTime == tMinus1h }
+
+        assertNotNull("Wide result should have point at 11:00", widePointAt11)
+        assertNotNull("Narrow result should have point at 11:00", narrowPointAt11)
+        
+        assertEquals("Temperature at 11:00 must be consistent across zoom levels", 
+            widePointAt11!!.actualTemperature!!, 
+            narrowPointAt11!!.actualTemperature!!, 
+            0.01f
+        )
+        
+        // Sanity check: verify it's a blend (not just 70.0)
+        assertTrue("Temperature should be a blend (not exactly 70.0)", 
+            Math.abs(narrowPointAt11.actualTemperature!! - 70.0f) > 0.1f
+        )
+    }
+
+    @Test
+    fun `actuals outside the zoom window contribute to isActual via carry-forward`() {
         val forecasts = wideForecasts()
         // NARROW window around noon: back=2 → 10:00, forward=2 → 14:00
         // Actual at 06:00 is outside NARROW window
@@ -297,7 +351,10 @@ class TemperatureViewHandlerActualsTest {
         // 06:00 is not in NARROW window — no HourData for it at all
         val hour06 = hours.find { it.dateTime.hour == 6 }
         assertNull("Hour 06 should not appear in NARROW window", hour06)
-        assertTrue("No hours should be isActual", hours.none { it.isActual })
+        
+        // BUT, the points that ARE in the window should be isActual=true because of carry-forward from 06:00!
+        assertTrue("Hours in window should be isActual via carry-forward", hours.all { it.isActual })
+        assertEquals("Carry-forward temperature should match the extrapolated observation", 58.0f, hours.first().actualTemperature!!, 0.1f)
     }
 
     @Test

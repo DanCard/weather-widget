@@ -154,11 +154,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
 
                     val currentTempQueryStartMs = SystemClock.elapsedRealtime()
-                    val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    val querySinceMs = now.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     val currentTemps = repository.getMainObservationsWithComputedNwsBlend(
                         latestWeather.locationLat,
                         latestWeather.locationLon,
-                        todayStartMs,
+                        querySinceMs,
                     )
                     currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
 
