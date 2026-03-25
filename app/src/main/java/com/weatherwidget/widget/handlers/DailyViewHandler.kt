@@ -365,6 +365,7 @@ object DailyViewHandler : WidgetViewHandler {
                 currentTemp = currentTemp,
                 observedAt = observedAt
             )
+            val renderedDays = compactGraphDays(days)
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
             Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns.")
 
@@ -424,7 +425,7 @@ object DailyViewHandler : WidgetViewHandler {
                 useGraph = true,
                 isEveningMode = isEveningMode,
                 centerDate = centerDate,
-                visibleDates = days.map { it.date },
+                visibleDates = renderedDays.map { it.date },
             )
 
             // Render graph
@@ -438,16 +439,16 @@ object DailyViewHandler : WidgetViewHandler {
             val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = DailyForecastGraphRenderer.renderGraph(
                 context = context,
-                days = days,
+                days = renderedDays,
                 widthPx = widthPx,
                 heightPx = heightPx,
                 bitmapScale = bitmapScale,
-                numColumns = numColumns,
+                numColumns = renderedDays.size,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-            setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource, numColumns)
+            setupGraphDayClickHandlers(context, views, appWidgetId, now, renderedDays, lat, lon, displaySource, numColumns)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
@@ -850,6 +851,12 @@ object DailyViewHandler : WidgetViewHandler {
     }
 
     @VisibleForTesting
+    internal fun compactGraphDays(days: List<DailyForecastGraphRenderer.DayData>): List<DailyForecastGraphRenderer.DayData> =
+        days.mapIndexed { index, dayData ->
+            if (dayData.columnIndex == index) dayData else dayData.copy(columnIndex = index)
+        }
+
+    @VisibleForTesting
     internal fun setupGraphDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
         days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
@@ -861,10 +868,10 @@ object DailyViewHandler : WidgetViewHandler {
             R.id.graph_day9_zone, R.id.graph_day10_zone
         )
         
-        // Ensure proper layout weighting by setting exact number of columns to VISIBLE
+        // Match touch zones to the compacted set of rendered day columns.
         for (i in zoneIds.indices) {
             val zoneId = zoneIds[i]
-            if (i < numColumns) {
+            if (i < days.size) {
                 views.setViewVisibility(zoneId, View.VISIBLE)
                 // Clear any existing pending intent so empty zones do nothing
                 views.setOnClickPendingIntent(zoneId, null)
@@ -875,17 +882,15 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Attach clicks to the correct column indices
         days.forEachIndexed { index, dayData ->
-            val colIndex = dayData.columnIndex ?: index
-            val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
+            val zoneId = zoneIds.getOrNull(index) ?: return@forEachIndexed
             
-            // Build intent with colIndex + 1 as the day index (1-based for intent extras)
-            val intent = buildDayClickIntent(context, appWidgetId, colIndex + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
-            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, colIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val intent = buildDayClickIntent(context, appWidgetId, index + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
+            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, index), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(zoneId, pendingIntent)
             Log.d(
                 TAG,
-                "setupGraphDayClickHandlers: widget=$appWidgetId zone=${colIndex + 1}/$numColumns date=${dayData.date} " +
-                    "hasRain=${dayData.hasRainForecast} source=${displaySource.id}",
+                "setupGraphDayClickHandlers: widget=$appWidgetId zone=${index + 1}/${days.size} date=${dayData.date} " +
+                    "sourceColumn=${dayData.columnIndex ?: index} hasRain=${dayData.hasRainForecast} source=${displaySource.id}",
             )
         }
     }

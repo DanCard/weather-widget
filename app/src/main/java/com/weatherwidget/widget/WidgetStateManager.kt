@@ -508,6 +508,7 @@ class WidgetStateManager
          * Resets toggle state for all widgets (called on data refresh).
          */
         fun resetAllToggleStates() {
+            Log.d("PrecipDebug", "resetAllToggleStates called - may revert API source to default (NWS)")
             val editor = prefs.edit()
             prefs.all.keys.filter { it.startsWith(KEY_DISPLAY_SOURCE_PREFIX) }.forEach { key ->
                 editor.remove(key)

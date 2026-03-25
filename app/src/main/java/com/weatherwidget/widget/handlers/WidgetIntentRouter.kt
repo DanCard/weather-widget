@@ -672,6 +672,7 @@ object WidgetIntentRouter {
         appWidgetId: Int,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
     ) {
+        Log.d("PrecipDebug", "handleResize triggered for widget $appWidgetId")
         kotlinx.coroutines.delay(250) // Debounce rapid resize events
         val startMs = SystemClock.elapsedRealtime()
         Log.d(TAG, "handleResize: Updating widget $appWidgetId after resize")

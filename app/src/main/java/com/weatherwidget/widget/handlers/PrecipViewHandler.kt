@@ -73,6 +73,14 @@ object PrecipViewHandler {
 
         val stateManager = WidgetStateManager(context)
 
+        // Get current display source
+        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+
+        // Use graph mode for 2+ rows, text mode for 1 row
+        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
+        val useGraph = rawRows >= 1.4f
+
+        Log.d("PrecipDebug", "updateWidget: widgetId=$appWidgetId, source=${displaySource.id}, hourlyCount=${hourlyForecasts.size}, useGraph=$useGraph, heightDp=${dimensions.heightDp}")
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
         // Hide graph day zones (not used in precipitation mode)
@@ -121,8 +129,6 @@ object PrecipViewHandler {
         views.setOnClickPendingIntent(R.id.precip_probability, goDailyPending)
         views.setOnClickPendingIntent(R.id.precip_touch_zone, goDailyPending)
 
-        // Get current display source
-        val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
             displaySource.shortDisplayName
@@ -221,8 +227,6 @@ object PrecipViewHandler {
         }
 
         // Use graph mode for 2+ rows, text mode for 1 row
-        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
-        val useGraph = rawRows >= 1.4f
         var buildHoursMs = 0L
         var renderMs = 0L
 
