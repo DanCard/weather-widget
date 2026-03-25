@@ -311,20 +311,115 @@ $TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.relea
 
 cd "$PROJECT_DIR"
 
-# Multi-emulator mode: when multiple emulators are connected, run this script once per emulator.
-# This preserves existing single-device behavior while covering all active emulator-* devices.
+# If -c specifies a Robolectric/unit test class (in src/test/ but not src/androidTest/),
+# redirect to testDebugUnitTest instead of failing on the instrumented runner.
+_is_unit_test_class() {
+    local class="$1"
+    local simple="${class##*.}"
+    if find "$PROJECT_DIR/app/src/test" -name "${simple}.kt" 2>/dev/null | grep -q .; then
+        if ! find "$PROJECT_DIR/app/src/androidTest" -name "${simple}.kt" 2>/dev/null | grep -q .; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+if [ -n "${TEST_CLASS:-}" ] && _is_unit_test_class "$TEST_CLASS"; then
+    echo -e "${YELLOW}$TEST_CLASS is a unit test (Robolectric) — running via testDebugUnitTest${NC}"
+    export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+    "$PROJECT_DIR/gradlew" testDebugUnitTest --tests "$TEST_CLASS" --console=plain
+    exit $?
+fi
+
+# Multi-emulator mode: when multiple emulators are connected, build APKs once then run in parallel.
 if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = false ]; then
     mapfile -t CONNECTED_EMULATORS < <($ADB_BIN devices | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
     if [ "${#CONNECTED_EMULATORS[@]}" -gt 1 ]; then
-        echo -en "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC} "
-        echo -e "${YELLOW}Running tests sequentially on each emulator...${NC}"
-        OVERALL_STATUS=0
-        for serial in "${CONNECTED_EMULATORS[@]}"; do
-            echo -e "${BLUE}=== Running on ${serial} ===${NC}"
-            if ! EMULATOR_TESTS_TARGET_SERIAL="$serial" "$0" "${ORIGINAL_ARGS[@]}"; then
-                OVERALL_STATUS=1
+        echo -e "${BLUE}Detected ${#CONNECTED_EMULATORS[@]} connected emulators: ${CONNECTED_EMULATORS[*]}${NC}"
+        echo -e "${YELLOW}Building APKs once, then running tests in parallel...${NC}"
+
+        export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+        if ! "$PROJECT_DIR/gradlew" assembleDebug assembleDebugAndroidTest --console=plain; then
+            echo -e "${RED}Build failed${NC}"
+            exit 1
+        fi
+
+        APP_APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+        TEST_APK="$PROJECT_DIR/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
+        if [ ! -f "$APP_APK" ] || [ ! -f "$TEST_APK" ]; then
+            echo -e "${RED}APKs not found after build: $APP_APK / $TEST_APK${NC}"
+            exit 1
+        fi
+
+        _emu_prefix_output() {
+            local label="$1" color="$2"
+            while IFS= read -r line; do
+                printf "%b[%s]%b %s\n" "$color" "$label" "$NC" "$line"
+            done
+        }
+
+        _run_on_emulator() {
+            local serial="$1"
+            local emu_log="$LOG_DIR/test_results_${serial}-$(date +%Y%m%d-%H%M%S).log"
+
+            echo "Pre-test cleanup on $serial"
+            $ADB_BIN -s "$serial" shell am force-stop com.weatherwidget          >/dev/null 2>&1 || true
+            $ADB_BIN -s "$serial" shell am force-stop com.weatherwidget.test     >/dev/null 2>&1 || true
+            $ADB_BIN -s "$serial" shell cmd jobscheduler cancel com.weatherwidget >/dev/null 2>&1 || true
+
+            echo "Installing APKs on $serial"
+            $ADB_BIN -s "$serial" install -r "$APP_APK"  >/dev/null
+            $ADB_BIN -s "$serial" install -r "$TEST_APK" >/dev/null
+
+            local instrument_args="-w"
+            [ -n "${TEST_CLASS:-}" ] && instrument_args="$instrument_args -e class $TEST_CLASS"
+
+            echo "Running tests on $serial (log: $emu_log)"
+            # shellcheck disable=SC2086
+            $ADB_BIN -s "$serial" shell am instrument $instrument_args \
+                com.weatherwidget.test/com.weatherwidget.WeatherWidgetTestRunner \
+                | tee "$emu_log"
+
+            $ADB_BIN -s "$serial" shell am broadcast \
+                -a com.weatherwidget.ACTION_REFRESH -p com.weatherwidget >/dev/null 2>&1 || true
+
+            # am instrument exits non-zero on test failures on API 26+; also check output
+            local last_code
+            last_code=$(grep "INSTRUMENTATION_CODE:" "$emu_log" 2>/dev/null | tail -1 | awk '{print $2}')
+            if grep -q "FAILURES!!!" "$emu_log" 2>/dev/null; then
+                echo "FAILED (log: $emu_log)"
+                return 1
+            elif [ "$last_code" = "-1" ] || grep -qE "^OK \(" "$emu_log" 2>/dev/null; then
+                echo "PASSED"
+                return 0
+            else
+                echo "FAILED (log: $emu_log)"
+                return 1
             fi
+        }
+
+        PIDS=()
+        EMU_COLORS=("$YELLOW" "$BLUE" "$GREEN")
+        for i in "${!CONNECTED_EMULATORS[@]}"; do
+            serial="${CONNECTED_EMULATORS[$i]}"
+            color="${EMU_COLORS[$((i % ${#EMU_COLORS[@]}))]}"
+            echo -e "${color}=== Starting on ${serial} ===${NC}"
+            _run_on_emulator "$serial" \
+                > >(_emu_prefix_output "$serial" "$color") \
+                2> >(_emu_prefix_output "$serial" "$color" >&2) &
+            PIDS+=($!)
         done
+
+        OVERALL_STATUS=0
+        for pid in "${PIDS[@]}"; do
+            wait "$pid" || OVERALL_STATUS=1
+        done
+
+        if [ $OVERALL_STATUS -eq 0 ]; then
+            echo -e "${GREEN}All emulators passed${NC}"
+        else
+            echo -e "${RED}One or more emulators failed — check logs in $LOG_DIR${NC}"
+        fi
         exit $OVERALL_STATUS
     fi
 fi
@@ -633,6 +728,9 @@ if [ "$SKIPPED" -gt 0 ]; then
 fi
 echo -e "  ${BLUE}Duration: ${TEST_DURATION}s${NC}"
 echo -en "${BLUE}Debug log: $DEBUG_LOG${NC} \t "
+if [ "$TEST_SUCCESS" = false ] || [ "${FAILED:-0}" -gt 0 ] || [ "${ERRORS:-0}" -gt 0 ]; then
+    echo -e "\n${RED}Test log:  $TEST_RESULTS_LOG${NC}"
+fi
 debug_log "summary printed: total=$TOTAL passed=$PASSED failed=$FAILED errors=$ERRORS skipped=$SKIPPED duration=${TEST_DURATION}s test_success=$TEST_SUCCESS"
 
 # Show per-class pass summary only for fully successful runs.

@@ -440,7 +440,7 @@ object DailyViewHandler : WidgetViewHandler {
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-            setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource, numColumns)
+            setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource, days.size)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)

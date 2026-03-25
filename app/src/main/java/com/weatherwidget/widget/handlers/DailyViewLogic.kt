@@ -347,7 +347,7 @@ object DailyViewLogic {
                     rainSummary = rainSummary,
                     dailyPrecipProbability = precip,
                     hasRainForecast = hasRainForecast,
-                    columnIndex = index,
+                    columnIndex = days.size,
                     isTodayForecastFallback = isTodayForecastFallback,
                     snapshotHigh = snapshotHigh,
                     snapshotLow = snapshotLow,
