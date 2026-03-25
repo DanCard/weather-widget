@@ -1,5 +1,4 @@
 # Session: Hourly Graph — Actual vs Forecast Two-Line Rendering
-**Date:** 2026-03-16
 
 ## Overview
 Implemented and debugged the "actual temperature history (solid) vs forecast (dashed)" two-line design on the hourly temperature graph. Also fixed several related bugs discovered during testing.

@@ -1,5 +1,4 @@
 # Session Notes: Last-Column Click Fix, Column Spreading, and Parallel Emulator Tests
-**Date:** 2026-03-25
 
 ## 1. Problems Addressed
 

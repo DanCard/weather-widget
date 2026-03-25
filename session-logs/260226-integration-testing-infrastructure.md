@@ -1,6 +1,5 @@
 # Integration Testing Infrastructure
 
-**Date:** 2026-02-26
 
 ## What Changed
 

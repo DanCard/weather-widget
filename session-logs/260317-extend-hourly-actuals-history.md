@@ -1,5 +1,4 @@
 # Session: Configuration Centralization & Hourly History Extension
-**Date:** 2026-03-17
 
 ## Overview
 Extended the retention and fetching of actual hourly temperature data from 2 days to 3 days. Centralized weather fetching constants into a new `WeatherConfig` object to improve maintainability and decouple NWS backfill length from the general history retention.

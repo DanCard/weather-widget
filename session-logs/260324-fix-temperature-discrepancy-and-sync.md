@@ -1,5 +1,4 @@
 # Session Notes: Fix Temperature Discrepancy and Sync (Header vs Graph)
-**Date:** 2026-03-24
 **Objective:** Resolve the issue where the widget's current temperature (header) and hourly graph's last observed temperature were out of sync, especially during cooling/warming trends.
 
 ## 1. Problem Analysis & Root Causes

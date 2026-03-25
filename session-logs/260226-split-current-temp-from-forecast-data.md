@@ -1,6 +1,5 @@
 # Split `weather_data` into Forecast + Current Temp Tables
 
-**Date:** 2026-02-26
 **Status:** Complete (build + unit tests passing)
 
 ## Problem

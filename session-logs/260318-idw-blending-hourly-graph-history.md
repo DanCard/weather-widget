@@ -1,5 +1,4 @@
 # Session Notes: IDW Blending for Hourly Graph History
-**Date:** 2026-03-18
 
 ---
 
