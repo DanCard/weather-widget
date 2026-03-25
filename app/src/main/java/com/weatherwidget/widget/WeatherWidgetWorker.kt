@@ -145,7 +145,6 @@ class WeatherWidgetWorker
                             todayStartMs,
                         )
 
-                        Log.d("PrecipDebug", "Worker sync result: SUCCESS, force=$forceRefresh, uiOnly=$uiOnlyRefresh, hourlyCount=${hourlyForecasts.size}")
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
                         val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = !uiOnlyRefresh)
@@ -180,7 +179,6 @@ class WeatherWidgetWorker
                         Result.success()
                     },
                     onFailure = { e ->
-                        Log.d("PrecipDebug", "Worker sync result: FAILURE, force=$forceRefresh, uiOnly=$uiOnlyRefresh, error=${e.message}")
                         appLogDao.log("SYNC_FAILURE", "Repository failed: ${e.message}", "ERROR")
                         Result.retry()
                     },

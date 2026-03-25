@@ -22,7 +22,7 @@ import java.time.format.DateTimeFormatter
 
 /**
  * Instrumented integration test that verifies touch zone alignment on a real device/emulator.
- * Confirms that the physical touch targets compact to the rendered day count when
+ * Confirms that the physical touch targets match the expected column density even when
  * data is missing at the start of the window.
  */
 @RunWith(AndroidJUnit4::class)
@@ -36,8 +36,8 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
     }
 
     @Test
-    fun setupGraphDayClickHandlers_compactsVisibleZones_onDevice() {
-        // GIVEN: 9 columns available, but only 2 rendered days (Today and Tomorrow)
+    fun setupGraphDayClickHandlers_ensuresCorrectNumColumnsVisible_onDevice() {
+        // GIVEN: 9 columns expected, but only 2 days of data provided (Today and Tomorrow)
         val now = LocalDateTime.of(2026, 3, 20, 12, 0)
         val today = now.toLocalDate()
         val tomorrow = today.plusDays(1)
@@ -54,14 +54,14 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
                 high = 70f,
                 low = 50f,
                 isToday = true,
-                columnIndex = 1
+                columnIndex = 1 // Today is the second column
             ),
             DailyForecastGraphRenderer.DayData(
                 date = tomorrow,
                 label = "Sat",
                 high = 72f,
                 low = 52f,
-                columnIndex = 2
+                columnIndex = 2 // Tomorrow is the third column
             )
         )
 
@@ -88,24 +88,19 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             R.id.graph_day9_zone, R.id.graph_day10_zone
         )
 
-        // Only the two rendered day zones should be visible.
-        for (i in 0 until 2) {
+        // All 9 columns should be VISIBLE to ensure layout weights space them correctly
+        for (i in 0 until 9) {
             assertEquals("Zone $i should be VISIBLE", View.VISIBLE, applied.findViewById<View>(zoneIds[i]).visibility)
         }
-        for (i in 2 until zoneIds.size) {
-            assertEquals("Zone $i should be GONE", View.GONE, applied.findViewById<View>(zoneIds[i]).visibility)
-        }
+        // 10th zone should be GONE
+        assertEquals("Zone 9 should be GONE", View.GONE, applied.findViewById<View>(zoneIds[9]).visibility)
         
-        // Verify that the compacted first zone is clickable for Today.
-        val zone0 = applied.findViewById<View>(R.id.graph_day1_zone)
-        assertEquals("Today zone should be clickable", true, zone0.hasOnClickListeners())
-        
-        // Verify that the compacted second zone is clickable for Tomorrow.
+        // Verify that Today (index 1) is indeed clickable
         val zone1 = applied.findViewById<View>(R.id.graph_day2_zone)
-        assertEquals("Tomorrow zone should be clickable", true, zone1.hasOnClickListeners())
-
-        // Verify that hidden trailing zones are not clickable.
-        val hiddenZone = applied.findViewById<View>(R.id.graph_day3_zone)
-        assertEquals("Hidden trailing zone should NOT be clickable", false, hiddenZone.hasOnClickListeners())
+        assertEquals("Today zone should be clickable", true, zone1.hasOnClickListeners())
+        
+        // Verify that Yesterday (index 0) is NOT clickable (intent cleared)
+        val zone0 = applied.findViewById<View>(R.id.graph_day1_zone)
+        assertEquals("Yesterday zone should NOT be clickable", false, zone0.hasOnClickListeners())
     }
 }

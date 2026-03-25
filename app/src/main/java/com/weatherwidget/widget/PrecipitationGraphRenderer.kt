@@ -100,9 +100,6 @@ object PrecipitationGraphRenderer {
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
     ): Bitmap {
-        if (hours.isEmpty()) {
-            Log.w("PrecipDebug", "renderGraph called with EMPTY hours list for widget")
-        }
         val startNano = System.nanoTime()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

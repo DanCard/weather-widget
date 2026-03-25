@@ -9,8 +9,7 @@ import kotlin.math.roundToInt
 object DailyForecastGraphRenderer {
     private const val TAG = "DailyGraphRenderer"
 
-    private const val DAY_LABEL_SIZE_MULTIPLIER = 2.1f
-    private const val DAY_LABEL_TEXT_MULTIPLIER = 1.5f
+    private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
     private const val BASE_DAY_WIDTH_DP = 70f
     private const val MIN_DAY_LABEL_WIDTH_SCALE = 0.96f
     private const val MAX_DAY_LABEL_WIDTH_SCALE = 1.04f
@@ -233,15 +232,8 @@ object DailyForecastGraphRenderer {
             forecastBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.8f),
             climateOverlayBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.8f).apply { alpha = 80 },
             gapFallbackBarPaint = createBarPaint(Color.parseColor(COLOR_GAP_FALLBACK), barWidth),
-            textPaint = createTextPaint(
-                Color.parseColor(COLOR_LABEL_GRAY),
-                layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_MULTIPLIER,
-            ),
-            todayTextPaint = createTextPaint(
-                Color.parseColor(COLOR_TODAY_TEXT),
-                layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_MULTIPLIER,
-                true,
-            ),
+            textPaint = createTextPaint(Color.parseColor(COLOR_LABEL_GRAY), layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER),
+            todayTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER, true),
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
             rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 9f * scaleFactor)),
