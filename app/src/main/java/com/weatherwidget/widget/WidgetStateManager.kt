@@ -27,8 +27,8 @@ enum class ZoomLevel(
     val labelInterval: Int,
     val smoothIterations: Int,
 ) {
-    WIDE(backHours = 12, forwardHours = 12, navJump = 6, labelInterval = 4, smoothIterations = 2),
-    NARROW(backHours = 2, forwardHours = 2, navJump = 2, labelInterval = 1, smoothIterations = 0),
+    WIDE(backHours = 12, forwardHours = 12, navJump = 6, labelInterval = 4, smoothIterations = 3),
+    NARROW(backHours = 2, forwardHours = 2, navJump = 2, labelInterval = 1, smoothIterations = 1),
 }
 
 @Singleton

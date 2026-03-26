@@ -210,7 +210,7 @@ object PrecipitationGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val probs = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = 2)
+        val probs = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = smoothIterations)
 
         val rawMax = probs.maxOrNull() ?: 0f
         val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
