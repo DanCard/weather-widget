@@ -187,7 +187,7 @@ if [ -z "$EMULATOR_NAME" ]; then
     fi
 fi
 
-echo -en "${BLUE}Selected: $EMULATOR_NAME${NC}\t"
+echo -en "${BLUE}Selected: $EMULATOR_NAME${NC}  "
 
 # Function to cleanup emulator
 cleanup() {
@@ -538,7 +538,7 @@ if [ -n "${EMULATOR_TESTS_TARGET_SERIAL:-}" ]; then
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 elif [ -n "$EMULATOR_SERIAL" ]; then
     # We already have an emulator from earlier (started by this script or existing)
-    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC}  "
+    echo -en "${GREEN} $EMULATOR_SERIAL${NC}  "
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 elif [ -n "$EMULATOR_DEVICES" ]; then
     # Use first emulator found
