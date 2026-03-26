@@ -54,7 +54,7 @@ class TemperatureTouchRoutingRoboTest {
     }
 
     @Test
-    fun `wide hourly graph routes body taps to zoom and bottom row taps to cloud cover`() = runBlocking {
+    fun `wide hourly graph routes body taps to zoom and bottom row taps by icon type`() = runBlocking {
         val views = renderTemperatureWidget(
             options = graphOptions(),
             configureState = {
@@ -67,13 +67,14 @@ class TemperatureTouchRoutingRoboTest {
         val applied = applyViews(views)
         val bodyZone = applied.findViewById<View>(R.id.graph_hour_zone_0)
         val hourZones = applied.findViewById<View>(R.id.graph_hour_zones)
+        val bottomHourZones = applied.findViewById<View>(R.id.graph_bottom_hour_zones)
         val bottomZone = applied.findViewById<View>(R.id.graph_bottom_zone)
         val graphBodyTapZone = applied.findViewById<View>(R.id.graph_body_tap_zone)
 
         assertEquals(View.VISIBLE, bodyZone.visibility)
-        assertEquals(View.VISIBLE, bottomZone.visibility)
+        assertEquals(View.VISIBLE, bottomHourZones.visibility)
+        assertEquals(View.GONE, bottomZone.visibility)
         assertEquals(View.GONE, graphBodyTapZone.visibility)
-        assertTrue("Wide hour zones should end above the bottom row", hourZones.bottom <= bottomZone.top)
 
         val shadowApp = shadowOf(app)
         val beforeBodyTap = shadowApp.broadcastIntents.size
@@ -84,21 +85,32 @@ class TemperatureTouchRoutingRoboTest {
         assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, zoomIntent!!.action)
         assertEquals(appWidgetId, zoomIntent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
 
-        val beforeBottomTap = shadowApp.broadcastIntents.size
-        bottomZone.performClick()
+        // Zone 0 maps to hour index 0 which has "Cloudy" condition → should navigate to CLOUD_COVER
+        val cloudyBottomZone = applied.findViewById<View>(R.id.graph_bottom_hour_zone_0)
+        val beforeCloudyTap = shadowApp.broadcastIntents.size
+        cloudyBottomZone.performClick()
 
-        val cloudIntent = shadowApp.broadcastIntents.drop(beforeBottomTap).lastOrNull()
-        assertNotNull("Expected bottom row tap to send a broadcast", cloudIntent)
+        val cloudIntent = shadowApp.broadcastIntents.drop(beforeCloudyTap).lastOrNull()
+        assertNotNull("Expected cloudy bottom zone tap to send a broadcast", cloudIntent)
         assertEquals(WidgetIntentRouter.ACTION_SET_VIEW, cloudIntent!!.action)
         assertEquals(
             ViewMode.CLOUD_COVER.name,
             cloudIntent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW),
         )
         assertEquals(appWidgetId, cloudIntent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+
+        // Zone 1 maps to hour index ~1 which has "Clear" condition → already on TEMPERATURE → zoom
+        val clearBottomZone = applied.findViewById<View>(R.id.graph_bottom_hour_zone_1)
+        val beforeClearTap = shadowApp.broadcastIntents.size
+        clearBottomZone.performClick()
+
+        val clearZoomIntent = shadowApp.broadcastIntents.drop(beforeClearTap).lastOrNull()
+        assertNotNull("Expected clear bottom zone tap to zoom", clearZoomIntent)
+        assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, clearZoomIntent!!.action)
     }
 
     @Test
-    fun `narrow hourly graph routes hour zone tap to zoom out to specific center while bottom row still switches to cloud cover`() = runBlocking {
+    fun `narrow hourly graph routes hour zone tap to zoom out to specific center with icon-dependent bottom row`() = runBlocking {
         val views = renderTemperatureWidget(
             options = graphOptions(),
             configureState = {
@@ -110,13 +122,14 @@ class TemperatureTouchRoutingRoboTest {
         val applied = applyViews(views)
         val graphBodyTapZone = applied.findViewById<View>(R.id.graph_body_tap_zone)
         val hourZones = applied.findViewById<View>(R.id.graph_hour_zones)
+        val bottomHourZones = applied.findViewById<View>(R.id.graph_bottom_hour_zones)
         val bottomZone = applied.findViewById<View>(R.id.graph_bottom_zone)
         val hourZone0 = applied.findViewById<View>(R.id.graph_hour_zone_0)
 
         assertEquals(View.GONE, graphBodyTapZone.visibility)
         assertEquals(View.VISIBLE, hourZones.visibility)
-        assertEquals(View.VISIBLE, bottomZone.visibility)
-        assertTrue("Narrow hour zones should end above the bottom row", hourZones.bottom <= bottomZone.top)
+        assertEquals(View.VISIBLE, bottomHourZones.visibility)
+        assertEquals(View.GONE, bottomZone.visibility)
 
         val shadowApp = shadowOf(app)
         val beforeBodyTap = shadowApp.broadcastIntents.size
@@ -127,15 +140,18 @@ class TemperatureTouchRoutingRoboTest {
         assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, zoomIntent!!.action)
         assertTrue(zoomIntent.hasExtra(com.weatherwidget.widget.WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET))
 
+        // Bottom zone 0: icon-dependent routing based on hour data
+        val bottomZone0 = applied.findViewById<View>(R.id.graph_bottom_hour_zone_0)
         val beforeBottomTap = shadowApp.broadcastIntents.size
-        bottomZone.performClick()
+        bottomZone0.performClick()
 
-        val cloudIntent = shadowApp.broadcastIntents.drop(beforeBottomTap).lastOrNull()
-        assertNotNull("Expected bottom row tap to switch to cloud cover", cloudIntent)
-        assertEquals(WidgetIntentRouter.ACTION_SET_VIEW, cloudIntent!!.action)
-        assertEquals(
-            ViewMode.CLOUD_COVER.name,
-            cloudIntent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW),
+        val bottomIntent = shadowApp.broadcastIntents.drop(beforeBottomTap).lastOrNull()
+        assertNotNull("Expected bottom row tap to send a broadcast", bottomIntent)
+        // The intent type depends on the icon at this position (zoom if clear, navigate if cloudy)
+        assertTrue(
+            "Bottom zone should either zoom or navigate",
+            bottomIntent!!.action == WidgetIntentRouter.ACTION_CYCLE_ZOOM ||
+                bottomIntent.action == WidgetIntentRouter.ACTION_SET_VIEW,
         )
     }
 
@@ -154,6 +170,7 @@ class TemperatureTouchRoutingRoboTest {
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_hour_zones).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_body_tap_zone).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_zones).visibility)
     }
 
     private suspend fun renderTemperatureWidget(

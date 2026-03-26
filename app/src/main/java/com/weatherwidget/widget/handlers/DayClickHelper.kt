@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.ViewMode
 import java.time.Duration
 import java.time.LocalDate
@@ -54,6 +55,41 @@ object DayClickHelper {
      */
     fun resolveTargetViewMode(hasRainForecast: Boolean): ViewMode {
         return if (hasRainForecast) ViewMode.PRECIPITATION else ViewMode.TEMPERATURE
+    }
+
+    fun resolveBottomRowTargetViewMode(
+        hasRainForecast: Boolean,
+        isCloudForecastEligible: Boolean,
+    ): ViewMode {
+        return when {
+            hasRainForecast -> ViewMode.PRECIPITATION
+            isCloudForecastEligible -> ViewMode.CLOUD_COVER
+            else -> ViewMode.TEMPERATURE
+        }
+    }
+
+    /**
+     * Resolves the action for tapping a bottom-row icon on an hourly graph.
+     *
+     * Each icon type has a "home" graph:
+     * - Rain/storm/snow → Precipitation
+     * - Cloud/mostly-clear → Cloud Cover
+     * - Clear/sunny/other → Temperature
+     *
+     * If already on the icon's home graph, returns null (caller should zoom).
+     * Otherwise returns the target ViewMode to navigate to.
+     */
+    fun resolveHourlyBottomRowAction(
+        iconRes: Int?,
+        currentView: ViewMode,
+    ): ViewMode? {
+        if (iconRes == null) return null
+        val iconHome = when {
+            WeatherIconMapper.isRainy(iconRes) -> ViewMode.PRECIPITATION
+            WeatherIconMapper.isCloudForecastEligible(iconRes) -> ViewMode.CLOUD_COVER
+            else -> ViewMode.TEMPERATURE
+        }
+        return if (iconHome == currentView) null else iconHome
     }
 
     /**

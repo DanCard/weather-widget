@@ -351,6 +351,9 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
             views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
 
             val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
             val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
@@ -437,6 +440,7 @@ object DailyViewHandler : WidgetViewHandler {
                 centerDate = centerDate,
                 visibleDates = displayDays.map { it.date },
             )
+            logGraphDayIconDetails(context, appWidgetId, displayDays)
 
             // Render graph
             val widthDp = dimensions.widthDp - 24
@@ -452,6 +456,7 @@ object DailyViewHandler : WidgetViewHandler {
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
+            setupGraphBottomDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
@@ -459,6 +464,9 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
             views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
 
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
@@ -507,6 +515,29 @@ object DailyViewHandler : WidgetViewHandler {
             ),
             debugTag = TAG,
         )
+    }
+
+    private fun logGraphDayIconDetails(
+        context: Context,
+        appWidgetId: Int,
+        displayDays: List<DailyForecastGraphRenderer.DayData>,
+    ) {
+        displayDays.forEachIndexed { index, day ->
+            val colIndex = day.columnIndex ?: index
+            val iconRes = day.iconRes
+            val iconName =
+                iconRes?.let {
+                    runCatching { context.resources.getResourceEntryName(it) }.getOrNull()
+                } ?: "null"
+            Log.d(
+                TAG,
+                "graphDay widget=$appWidgetId col=${colIndex + 1} date=${day.date} " +
+                    "isToday=${day.isToday} iconRes=$iconRes iconName=$iconName " +
+                    "isRainy=${iconRes?.let(WeatherIconMapper::isRainy) ?: false} " +
+                    "isCloudEligible=${iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false} " +
+                    "hasRainForecast=${day.hasRainForecast}",
+            )
+        }
     }
 
     private suspend fun requestMissingActualsRefresh(
@@ -816,7 +847,9 @@ object DailyViewHandler : WidgetViewHandler {
     internal fun buildDayClickIntent(
         context: Context, appWidgetId: Int, dayIndex: Int, date: LocalDate,
         hasRainForecast: Boolean, lat: Double, lon: Double,
-        displaySource: WeatherSource, now: LocalDateTime = LocalDateTime.now(),
+        displaySource: WeatherSource,
+        now: LocalDateTime = LocalDateTime.now(),
+        targetModeOverride: com.weatherwidget.widget.ViewMode? = null,
     ): Intent {
         val isHistory = date.isBefore(now.toLocalDate())
         val showHistory = DayClickHelper.shouldShowHistory(isHistory)
@@ -833,7 +866,7 @@ object DailyViewHandler : WidgetViewHandler {
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
 
             if (!showHistory) {
-                val targetMode = DayClickHelper.resolveTargetViewMode(hasRainForecast)
+                val targetMode = targetModeOverride ?: DayClickHelper.resolveTargetViewMode(hasRainForecast)
                 val offset = DayClickHelper.calculatePrecipitationOffset(now, date)
                 putExtra(EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(EXTRA_HOURLY_OFFSET, offset)
@@ -881,10 +914,67 @@ object DailyViewHandler : WidgetViewHandler {
         days.forEachIndexed { index, dayData ->
             val colIndex = dayData.columnIndex ?: index
             val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
-            
+
             // Build intent with colIndex + 1 as the day index (1-based for intent extras)
             val intent = buildDayClickIntent(context, appWidgetId, colIndex + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
             val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, colIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(zoneId, pendingIntent)
+        }
+    }
+
+    @VisibleForTesting
+    internal fun setupGraphBottomDayClickHandlers(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        now: LocalDateTime,
+        days: List<DailyForecastGraphRenderer.DayData>,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+        numColumns: Int,
+    ) {
+        val zoneIds = listOf(
+            R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
+            R.id.graph_bottom_day5_zone, R.id.graph_bottom_day6_zone, R.id.graph_bottom_day7_zone, R.id.graph_bottom_day8_zone,
+            R.id.graph_bottom_day9_zone, R.id.graph_bottom_day10_zone,
+        )
+
+        for (i in zoneIds.indices) {
+            val zoneId = zoneIds[i]
+            if (i < numColumns) {
+                views.setViewVisibility(zoneId, View.VISIBLE)
+                views.setOnClickPendingIntent(zoneId, null)
+            } else {
+                views.setViewVisibility(zoneId, View.GONE)
+            }
+        }
+
+        days.forEachIndexed { index, dayData ->
+            val colIndex = dayData.columnIndex ?: index
+            val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
+            val targetMode = DayClickHelper.resolveBottomRowTargetViewMode(
+                hasRainForecast = dayData.hasRainForecast,
+                isCloudForecastEligible = dayData.iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false,
+            )
+            val intent = buildDayClickIntent(
+                context = context,
+                appWidgetId = appWidgetId,
+                dayIndex = colIndex + 1,
+                date = dayData.date,
+                hasRainForecast = dayData.hasRainForecast,
+                lat = lat,
+                lon = lon,
+                displaySource = displaySource,
+                now = now,
+                targetModeOverride = targetMode,
+            )
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                WidgetRequestCodes.graphClick(appWidgetId, colIndex + 100),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
             views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
     }

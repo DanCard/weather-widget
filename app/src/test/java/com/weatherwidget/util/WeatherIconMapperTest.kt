@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import com.weatherwidget.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
@@ -138,5 +139,10 @@ class WeatherIconMapperTest {
     fun testGetIconResource_PatchyFogWithoutThenStillUsesFog() {
         val res = WeatherIconMapper.getIconResource("Patchy Fog", isNight = false)
         assertEquals(R.drawable.ic_weather_fog, res)
+    }
+
+    @Test
+    fun testIsCloudForecastEligible_MostlyClear() {
+        assertTrue(WeatherIconMapper.isCloudForecastEligible(R.drawable.ic_weather_mostly_clear))
     }
 }

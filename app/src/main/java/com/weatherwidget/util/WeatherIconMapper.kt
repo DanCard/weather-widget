@@ -101,4 +101,10 @@ object WeatherIconMapper {
                iconRes == R.drawable.ic_weather_fog_cloudy ||
                iconRes == R.drawable.ic_weather_fog_sunny
     }
+
+    fun isCloudForecastEligible(iconRes: Int): Boolean {
+        return isMixed(iconRes) ||
+               iconRes == R.drawable.ic_weather_cloudy ||
+               iconRes == R.drawable.ic_weather_mostly_clear
+    }
 }

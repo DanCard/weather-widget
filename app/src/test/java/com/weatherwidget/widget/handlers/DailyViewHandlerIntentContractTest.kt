@@ -121,6 +121,53 @@ class DailyViewHandlerIntentContractTest {
         assertEquals(0, intent.getIntExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
     }
 
+    @Test
+    fun todayCloudyBottomTap_buildsCloudCoverIntentContract() {
+        val now = LocalDateTime.of(2030, 6, 15, 9, 0)
+        val today = LocalDate.of(2030, 6, 15)
+
+        val intent =
+            DailyViewHandler.buildDayClickIntent(
+                context = context,
+                appWidgetId = TEST_WIDGET_ID,
+                dayIndex = 2,
+                date = today,
+                hasRainForecast = false,
+                lat = LAT,
+                lon = LON,
+                displaySource = WeatherSource.NWS,
+                now = now,
+                targetModeOverride = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
+            )
+
+        assertFalse(intent.getBooleanExtra("showHistory", true))
+        assertEquals("CLOUD_COVER", intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
+        assertEquals(0, intent.getIntExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
+    }
+
+    @Test
+    fun futureClearBottomTap_buildsTemperatureIntentContract() {
+        val now = LocalDateTime.of(2030, 6, 15, 9, 0)
+        val targetDate = LocalDate.of(2030, 6, 17)
+
+        val intent =
+            DailyViewHandler.buildDayClickIntent(
+                context = context,
+                appWidgetId = TEST_WIDGET_ID,
+                dayIndex = 3,
+                date = targetDate,
+                hasRainForecast = false,
+                lat = LAT,
+                lon = LON,
+                displaySource = WeatherSource.NWS,
+                now = now,
+                targetModeOverride = com.weatherwidget.widget.ViewMode.TEMPERATURE,
+            )
+
+        assertFalse(intent.getBooleanExtra("showHistory", true))
+        assertEquals("TEMPERATURE", intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
+    }
+
     companion object {
         private const val TEST_WIDGET_ID = 123
         private const val LAT = 37.7749

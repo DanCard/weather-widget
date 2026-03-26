@@ -123,6 +123,7 @@ import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.ZoomLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -301,8 +302,6 @@ object TemperatureViewHandler {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
-        views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
-        views.setOnClickPendingIntent(R.id.graph_bottom_zone, goCloudPending)
 
         // Setup API toggle
         setupApiToggle(context, views, appWidgetId, numRows)
@@ -573,12 +572,25 @@ object TemperatureViewHandler {
                 )
             }
             views.setImageViewBitmap(R.id.graph_view, bitmap)
+
+            // Per-hour bottom zones with icon-dependent routing
+            HourlyBottomZoneHelper.setup(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                hourIconResources = graphHours.map { it.iconRes },
+                currentViewMode = ViewMode.TEMPERATURE,
+                zoom = zoom,
+                hourlyOffset = hourlyOffset,
+            )
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
             views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
 
             // Text mode: show hourly data as text
             updateHourlyTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)

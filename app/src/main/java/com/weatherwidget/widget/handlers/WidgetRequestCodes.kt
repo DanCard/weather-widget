@@ -15,6 +15,7 @@ object WidgetRequestCodes {
     private const val BASE_SETTINGS = 900
     private const val BASE_DAY_CLICK = 1000
     private const val BASE_GRAPH_CLICK = 2000
+    private const val BASE_BOTTOM_HOUR_CLICK = 3000
 
     fun navLeft(id: Int) = id * 10000 + BASE_NAV_LEFT
     fun navRight(id: Int) = id * 10000 + BASE_NAV_RIGHT
@@ -26,4 +27,5 @@ object WidgetRequestCodes {
     fun settings(id: Int) = id * 10000 + BASE_SETTINGS
     fun dayClick(id: Int, dayIndex: Int) = id * 10000 + BASE_DAY_CLICK + dayIndex
     fun graphClick(id: Int, index: Int) = id * 10000 + BASE_GRAPH_CLICK + index
+    fun bottomHourClick(id: Int, index: Int) = id * 10000 + BASE_BOTTOM_HOUR_CLICK + index
 }

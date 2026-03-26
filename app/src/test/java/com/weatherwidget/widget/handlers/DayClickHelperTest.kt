@@ -1,9 +1,11 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.widget.ViewMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -88,6 +90,30 @@ class DayClickHelperTest {
     @Test
     fun `day without rain navigates to temperature`() {
         assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRainForecast = false))
+    }
+
+    @Test
+    fun `bottom row day with rain navigates to precipitation`() {
+        assertEquals(
+            com.weatherwidget.widget.ViewMode.PRECIPITATION,
+            DayClickHelper.resolveBottomRowTargetViewMode(hasRainForecast = true, isCloudForecastEligible = true),
+        )
+    }
+
+    @Test
+    fun `bottom row cloudy day without rain navigates to cloud cover`() {
+        assertEquals(
+            com.weatherwidget.widget.ViewMode.CLOUD_COVER,
+            DayClickHelper.resolveBottomRowTargetViewMode(hasRainForecast = false, isCloudForecastEligible = true),
+        )
+    }
+
+    @Test
+    fun `bottom row clear day without rain navigates to temperature`() {
+        assertEquals(
+            com.weatherwidget.widget.ViewMode.TEMPERATURE,
+            DayClickHelper.resolveBottomRowTargetViewMode(hasRainForecast = false, isCloudForecastEligible = false),
+        )
     }
 
     // ── calculatePrecipitationOffset ──
@@ -239,5 +265,79 @@ class DayClickHelperTest {
         assertEquals(0, todayNext8HourPrecip)
         assertFalse(hasRain)
         assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
+    }
+
+    // ── resolveHourlyBottomRowAction: icon-dependent routing for hourly graphs ──
+
+    @Test
+    fun `hourly bottom row rain icon on precipitation view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_rain, ViewMode.PRECIPITATION))
+    }
+
+    @Test
+    fun `hourly bottom row storm icon on precipitation view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_storm, ViewMode.PRECIPITATION))
+    }
+
+    @Test
+    fun `hourly bottom row snow icon on precipitation view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_snow, ViewMode.PRECIPITATION))
+    }
+
+    @Test
+    fun `hourly bottom row rain icon on temperature view navigates to precipitation`() {
+        assertEquals(ViewMode.PRECIPITATION, DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_rain, ViewMode.TEMPERATURE))
+    }
+
+    @Test
+    fun `hourly bottom row rain icon on cloud cover view navigates to precipitation`() {
+        assertEquals(ViewMode.PRECIPITATION, DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_rain, ViewMode.CLOUD_COVER))
+    }
+
+    @Test
+    fun `hourly bottom row partly cloudy icon on cloud cover view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_partly_cloudy, ViewMode.CLOUD_COVER))
+    }
+
+    @Test
+    fun `hourly bottom row mostly clear icon on cloud cover view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_mostly_clear, ViewMode.CLOUD_COVER))
+    }
+
+    @Test
+    fun `hourly bottom row cloudy icon on cloud cover view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_cloudy, ViewMode.CLOUD_COVER))
+    }
+
+    @Test
+    fun `hourly bottom row partly cloudy icon on temperature view navigates to cloud cover`() {
+        assertEquals(ViewMode.CLOUD_COVER, DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_partly_cloudy, ViewMode.TEMPERATURE))
+    }
+
+    @Test
+    fun `hourly bottom row mostly clear icon on temperature view navigates to cloud cover`() {
+        assertEquals(ViewMode.CLOUD_COVER, DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_mostly_clear, ViewMode.TEMPERATURE))
+    }
+
+    @Test
+    fun `hourly bottom row clear icon on temperature view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_clear, ViewMode.TEMPERATURE))
+    }
+
+    @Test
+    fun `hourly bottom row clear icon on cloud cover view navigates to temperature`() {
+        assertEquals(ViewMode.TEMPERATURE, DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_clear, ViewMode.CLOUD_COVER))
+    }
+
+    @Test
+    fun `hourly bottom row night icon on temperature view returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(R.drawable.ic_weather_night, ViewMode.TEMPERATURE))
+    }
+
+    @Test
+    fun `hourly bottom row null icon returns null (zoom)`() {
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(null, ViewMode.TEMPERATURE))
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(null, ViewMode.CLOUD_COVER))
+        assertNull(DayClickHelper.resolveHourlyBottomRowAction(null, ViewMode.PRECIPITATION))
     }
 }

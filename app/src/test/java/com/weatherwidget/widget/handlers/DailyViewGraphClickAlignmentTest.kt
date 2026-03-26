@@ -117,9 +117,21 @@ class DailyViewGraphClickAlignmentTest {
         assertEquals(todayStr, broadcasts.last().getStringExtra("date"))
         assertEquals(2, broadcasts.last().getIntExtra("index", -1)) // colIndex 1 + 1 = 2
 
+        val bottomZone1 = applied.findViewById<View>(R.id.graph_bottom_day2_zone)
+        assertEquals(View.VISIBLE, bottomZone1.visibility)
+        bottomZone1.performClick()
+        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(todayStr, broadcasts.last().getStringExtra("date"))
+
         // Zone 0 = yesterday (colIndex 0) — click fires broadcast for yesterday
         val zone0 = applied.findViewById<View>(R.id.graph_day1_zone)
         zone0.performClick()
+        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
+
+        val bottomZone0 = applied.findViewById<View>(R.id.graph_bottom_day1_zone)
+        assertEquals(View.VISIBLE, bottomZone0.visibility)
+        bottomZone0.performClick()
         assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
     }
@@ -182,6 +194,8 @@ class DailyViewGraphClickAlignmentTest {
         // Zone 2 (graph_day3_zone) is beyond days.size — must be GONE
         val zone2 = applied.findViewById<View>(R.id.graph_day3_zone)
         assertEquals("Zone 2 should be GONE", View.GONE, zone2.visibility)
+        val bottomZone2 = applied.findViewById<View>(R.id.graph_bottom_day3_zone)
+        assertEquals("Bottom zone 2 should be GONE", View.GONE, bottomZone2.visibility)
     }
 
     @Test
@@ -234,6 +248,9 @@ class DailyViewGraphClickAlignmentTest {
         assertEquals("Zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day1_zone).visibility)
         assertEquals("Zone 1 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day2_zone).visibility)
         assertEquals("Zone 2 should be GONE", View.GONE, applied.findViewById<View>(R.id.graph_day3_zone).visibility)
+        assertEquals("Bottom zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day1_zone).visibility)
+        assertEquals("Bottom zone 1 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day2_zone).visibility)
+        assertEquals("Bottom zone 2 should be GONE", View.GONE, applied.findViewById<View>(R.id.graph_bottom_day3_zone).visibility)
 
         // Zone 0 = yesterday — click fires broadcast
         applied.findViewById<View>(R.id.graph_day1_zone).performClick()
@@ -306,12 +323,23 @@ class DailyViewGraphClickAlignmentTest {
             R.id.graph_day5_zone, R.id.graph_day6_zone, R.id.graph_day7_zone, R.id.graph_day8_zone,
             R.id.graph_day9_zone, R.id.graph_day10_zone,
         )
+        val bottomZoneIds = listOf(
+            R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
+            R.id.graph_bottom_day5_zone, R.id.graph_bottom_day6_zone, R.id.graph_bottom_day7_zone, R.id.graph_bottom_day8_zone,
+            R.id.graph_bottom_day9_zone, R.id.graph_bottom_day10_zone,
+        )
         val firstVisibleCount = zoneIds.count { firstApplied.findViewById<View>(it).visibility == View.VISIBLE }
         val secondVisibleCount = zoneIds.count { secondApplied.findViewById<View>(it).visibility == View.VISIBLE }
+        val firstBottomVisibleCount = bottomZoneIds.count { firstApplied.findViewById<View>(it).visibility == View.VISIBLE }
+        val secondBottomVisibleCount = bottomZoneIds.count { secondApplied.findViewById<View>(it).visibility == View.VISIBLE }
 
         assertEquals(
             "Column count must stay stable across navigation offsets",
             firstVisibleCount, secondVisibleCount,
+        )
+        assertEquals(
+            "Bottom row count must stay stable across navigation offsets",
+            firstBottomVisibleCount, secondBottomVisibleCount,
         )
     }
 
