@@ -236,7 +236,7 @@ fi
 
 if [ -n "$EXISTING_EMU" ]; then
     if [ "$SHORT_MODE" = false ]; then
-        echo -en "${YELLOW}Active: $EXISTING_EMU${NC} \t"
+        echo -en "${YELLOW}Active: $EXISTING_EMU${NC}  "
     fi
     USE_EXISTING=true
     EMULATOR_SERIAL="$EXISTING_EMU"
@@ -246,7 +246,7 @@ fi
 
 # Start emulator if needed
 if [ "$USE_EXISTING" = false ]; then
-    echo -e "${BLUE}Starting emulator...${NC} \t This may take 30-60 seconds..."
+    echo -e "${BLUE}Starting emulator...${NC}  This may take 30-60 seconds..."
     
     # Build emulator launch options
     EMU_FLAGS="-gpu swiftshader_indirect -no-boot-anim"
@@ -469,12 +469,12 @@ if [ -n "${EMULATOR_TESTS_TARGET_SERIAL:-}" ]; then
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 elif [ -n "$EMULATOR_SERIAL" ]; then
     # We already have an emulator from earlier (started by this script or existing)
-    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC} "
+    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC}  "
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 elif [ -n "$EMULATOR_DEVICES" ]; then
     # Use first emulator found
     EMULATOR_SERIAL="$EMULATOR_DEVICES"
-    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC} "
+    echo -en "${GREEN}Targeting: $EMULATOR_SERIAL${NC}  "
     export ANDROID_SERIAL="$EMULATOR_SERIAL"
 else
     echo -e "${RED}Error: No emulator found${NC}"
@@ -626,7 +626,7 @@ while kill -0 $GRADLE_PID 2>/dev/null; do
        $ADB_BIN -s "$ANDROID_SERIAL" shell pm path com.weatherwidget.test 2>/dev/null | grep -q "^package:"; then
         INSTALL_END_TS=$(date +%s)
         INSTALL_ELAPSED=$((INSTALL_END_TS - INSTALL_START_TS))
-        echo -e "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}"
+        echo -en "${YELLOW}APK install finished in ${INSTALL_ELAPSED}s${NC}  "
         echo -e "${BLUE}Running tests...${NC}"
         debug_log "apk_install_end: elapsed=${INSTALL_ELAPSED}s trigger=pm_path_detected"
         INSTALL_END_LOGGED=true
