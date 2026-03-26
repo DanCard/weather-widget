@@ -9,7 +9,6 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
-import androidx.annotation.VisibleForTesting
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.log
@@ -30,10 +29,8 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
-import kotlin.math.abs
 
 /**
  * Weather Widget Provider - Main entry point for the widget.
@@ -145,7 +142,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     val now = LocalDateTime.now()
                     val zoneId = ZoneId.systemDefault()
                     val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                    val hourlyEnd = now.plusHours(HOURLY_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyEnd = now.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
                     val hourlyQueryStartMs = SystemClock.elapsedRealtime()
                     val hourlyForecasts =
                         hourlyDao.getHourlyForecasts(
@@ -378,22 +375,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 } else {
                     // Future day click was already setup with ACTION_SET_VIEW extras
                     val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
-                    val preferredOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
+                    val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
                     val targetMode =
                         try {
                             ViewMode.valueOf(targetViewName)
                         } catch (_: Exception) {
                             ViewMode.PRECIPITATION
                         }
-                    val hourlyContext =
-                        getHourlyClickContext(
+                    val hasHourlyData =
+                        hasHourlyDataForDate(
                             context = context,
                             database = database,
                             appWidgetId = appWidgetId,
                             dateStr = dateStr,
                             intent = intent,
                         )
-                    val hasHourlyData = hourlyContext?.supportedRows?.isNotEmpty() == true
                     if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE)) {
                         database.appLogDao().log(
                             "CLICK_DAILY_NO_HOURLY",
@@ -405,45 +401,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         context.startActivity(settingsIntent)
                         return@launch
                     }
-                    val resolvedTarget =
-                        if (hourlyContext != null && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE)) {
-                            val now = LocalDateTime.now()
-                            resolveHourlyGraphClickTarget(
-                                now = now,
-                                targetDate = hourlyContext.targetDate,
-                                preferredOffset = preferredOffset,
-                                supportedRows = hourlyContext.supportedRows,
-                            ).also { resolved ->
-                                val preferred = resolved.preferredTime?.toString() ?: "<null>"
-                                val resolvedTime = resolved.resolvedTime?.toString() ?: "<null>"
-                                database.appLogDao().log(
-                                    "CLICK_DAILY_TARGET",
-                                    "widget=$appWidgetId date=$dateStr mode=$targetMode source=${hourlyContext.displaySourceId} rows=${hourlyContext.supportedRows.size} offset=${resolved.offset} clamped=${resolved.wasClamped} preferred=$preferred resolved=$resolvedTime",
-                                )
-                            }
-                        } else {
-                            ResolvedHourlyClickTarget(
-                                offset = preferredOffset,
-                                preferredTime = null,
-                                resolvedTime = null,
-                                wasClamped = false,
-                            )
-                        }
-                    if (resolvedTarget.wasClamped) {
-                        context.sendBroadcast(
-                            Intent(context, WeatherWidgetProvider::class.java).apply {
-                                action = ACTION_SHOW_TOAST
-                                putExtra(EXTRA_TOAST_MESSAGE, "Limited hourly data available for this day")
-                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                            },
-                        )
-                    }
-                    Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=${resolvedTarget.offset} currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
+                    Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
                     // Always reset to WIDE when clicking a day and going to PRECIPITATION
                     if (targetMode == ViewMode.PRECIPITATION) {
                         WidgetStateManager(context).setZoomLevel(appWidgetId, ZoomLevel.WIDE)
                     }
-                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, resolvedTarget.offset, repository)
+                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
                     val totalMs = System.currentTimeMillis() - receiveTimeMs
                     val coroutineDelayMs = coroutineStartMs - receiveTimeMs
                     database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
@@ -457,43 +420,35 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    private suspend fun getHourlyClickContext(
+    private suspend fun hasHourlyDataForDate(
         context: Context,
         database: WeatherDatabase,
         appWidgetId: Int,
         dateStr: String,
         intent: Intent,
-    ): HourlyClickContext? {
+    ): Boolean {
         val targetDate =
             try {
                 LocalDate.parse(dateStr)
             } catch (_: Exception) {
-                return null
+                return false
             }
 
         val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
         val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
         val latestWeather = database.forecastDao().getLatestWeather()
-        val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return null
-        val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return null
+        val effectiveLat = if (lat != 0.0) lat else latestWeather?.locationLat ?: return false
+        val effectiveLon = if (lon != 0.0) lon else latestWeather?.locationLon ?: return false
 
         val zoneId = ZoneId.systemDefault()
         val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val endMs = targetDate.atTime(23, 59).atZone(zoneId).toInstant().toEpochMilli()
         val hourlyForDay = database.hourlyForecastDao().getHourlyForecasts(startMs, endMs, effectiveLat, effectiveLon)
-        if (hourlyForDay.isEmpty()) return null
+        if (hourlyForDay.isEmpty()) return false
 
-        val displaySourceId =
-            if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
-                latestWeather?.source ?: hourlyForDay.firstOrNull()?.source ?: WeatherSource.NWS.id
-            } else {
-                WidgetStateManager(context).getCurrentDisplaySource(appWidgetId).id
-            }
-        return HourlyClickContext(
-            targetDate = targetDate,
-            displaySourceId = displaySourceId,
-            supportedRows = hourlyForDay.filter { it.source == displaySourceId || it.source == WeatherSource.GENERIC_GAP.id },
-        )
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true
+        val displaySource = WidgetStateManager(context).getCurrentDisplaySource(appWidgetId).id
+        return hourlyForDay.any { it.source == displaySource || it.source == WeatherSource.GENERIC_GAP.id }
     }
 
     private fun handleRefreshAction(
@@ -806,24 +761,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "triggerUiOnlyUpdate: Worker enqueued with id=${workRequest.id}")
     }
 
-    internal data class HourlyClickContext(
-        val targetDate: LocalDate,
-        val displaySourceId: String,
-        val supportedRows: List<HourlyForecastEntity>,
-    )
-
-    internal data class ResolvedHourlyClickTarget(
-        val offset: Int,
-        val preferredTime: LocalDateTime?,
-        val resolvedTime: LocalDateTime?,
-        val wasClamped: Boolean,
-    )
-
     companion object {
         /** Hours of past hourly data to query — covers yesterday's actuals for rain analysis. */
         const val HOURLY_LOOKBACK_HOURS = 24L
         /** Hours of future hourly data to query — covers today + 2 days for rain analysis. */
         const val HOURLY_LOOKAHEAD_HOURS = 60L
+        /**
+         * Hours of future hourly data to query when passing data to widget rendering.
+         * Must cover the full 7-day daily forecast range so the hourly graph works for any tapped day.
+         * The precipitation/temperature/cloud-cover graph can be scrolled to offset ~154h (day 7),
+         * so the display window (offset ± 12h) requires data up to ~168h ahead.
+         */
+        const val HOURLY_GRAPH_LOOKAHEAD_HOURS = 168L
         const val WORK_NAME = "weather_widget_update"
         const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
         const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
@@ -849,54 +798,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         internal fun needsDailyStartupData(viewModes: Collection<ViewMode>): Boolean =
             viewModes.any { it == ViewMode.DAILY }
-
-        @VisibleForTesting
-        internal fun resolveHourlyGraphClickTarget(
-            now: LocalDateTime,
-            targetDate: LocalDate,
-            preferredOffset: Int,
-            supportedRows: List<HourlyForecastEntity>,
-        ): ResolvedHourlyClickTarget {
-            val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
-            val preferredTime = truncatedNow.plusHours(preferredOffset.toLong())
-            if (!targetDate.isAfter(now.toLocalDate())) {
-                return ResolvedHourlyClickTarget(
-                    offset = preferredOffset,
-                    preferredTime = preferredTime,
-                    resolvedTime = preferredTime,
-                    wasClamped = false,
-                )
-            }
-
-            val zoneId = ZoneId.systemDefault()
-            val candidateTimes =
-                supportedRows
-                    .map { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.dateTime), zoneId) }
-                    .filter { it.toLocalDate() == targetDate }
-                    .distinct()
-                    .sorted()
-
-            if (candidateTimes.isEmpty() || preferredTime in candidateTimes) {
-                return ResolvedHourlyClickTarget(
-                    offset = preferredOffset,
-                    preferredTime = preferredTime,
-                    resolvedTime = preferredTime,
-                    wasClamped = false,
-                )
-            }
-
-            val closestTime =
-                candidateTimes.minWithOrNull(
-                    compareBy<LocalDateTime> { abs(java.time.Duration.between(preferredTime, it).toMinutes()) }
-                        .thenBy { it },
-                ) ?: preferredTime
-            return ResolvedHourlyClickTarget(
-                offset = java.time.Duration.between(truncatedNow, closestTime).toHours().toInt(),
-                preferredTime = preferredTime,
-                resolvedTime = closestTime,
-                wasClamped = closestTime != preferredTime,
-            )
-        }
 
         internal fun triggerImmediateUpdate(
             context: Context,

@@ -236,9 +236,10 @@ class WeatherWidgetWorker
                 val hourlyDao = database.hourlyForecastDao()
                 val now = LocalDateTime.now()
                 val zoneId = ZoneId.systemDefault()
-                // Extended range for hourly view and rain analysis: 24h past to 96h future (today + 4 days)
+                // Extended range for hourly view and rain analysis: 24h past to 168h future (today + 7 days)
+                // Must cover the full daily forecast range so the hourly graph works for any tapped day.
                 val startTimeMs = now.minusHours(24).atZone(zoneId).toInstant().toEpochMilli()
-                val endTimeMs = now.plusHours(96).atZone(zoneId).toInstant().toEpochMilli()
+                val endTimeMs = now.plusHours(168).atZone(zoneId).toInstant().toEpochMilli()
                 hourlyDao.getHourlyForecasts(startTimeMs, endTimeMs, lat, lon)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch hourly forecasts", e)

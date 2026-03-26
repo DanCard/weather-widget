@@ -225,6 +225,7 @@ object PrecipViewHandler {
         val useGraph = rawRows >= 1.4f
         var buildHoursMs = 0L
         var renderMs = 0L
+        var graphHoursCount = 0
 
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
@@ -234,6 +235,11 @@ object PrecipViewHandler {
             val buildHoursStartMs = SystemClock.elapsedRealtime()
             val hours = buildPrecipHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
+            graphHoursCount = hours.size
+            if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
+                Log.w(TAG, "buildPrecipHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
+                    "centerTime=$centerTime zoom=$zoom offset=$hourlyOffset")
+            }
 
             // Use actual widget dimensions for bitmap
             // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
@@ -290,6 +296,7 @@ object PrecipViewHandler {
                 "buildHoursMs" to buildHoursMs,
                 "renderMs" to renderMs,
                 "hourlyCount" to hourlyForecasts.size,
+                "graphHours" to graphHoursCount,
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,
