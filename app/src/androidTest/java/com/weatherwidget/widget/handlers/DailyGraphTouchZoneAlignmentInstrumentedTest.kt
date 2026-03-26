@@ -1,24 +1,19 @@
 package com.weatherwidget.widget.handlers
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.os.Bundle
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
-import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * Instrumented integration test that verifies touch zone alignment on a real device/emulator.
@@ -104,5 +99,65 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
         // Verify that Yesterday (columnIndex 0, no DayData) has no click handler
         val zone0 = applied.findViewById<View>(R.id.graph_day1_zone)
         assertEquals("Yesterday zone should NOT be clickable", false, zone0.hasOnClickListeners())
+    }
+
+    /**
+     * Verifies column-count stability on a real device by simulating two renders
+     * with different day counts but the same capped numColumns — the way
+     * DailyViewHandler.updateWidget() now behaves after the baseline-cap fix.
+     */
+    @Test
+    fun columnCount_staysStable_whenNavigatingChangesPopulatedDayCount() {
+        val now = LocalDateTime.of(2026, 3, 20, 12, 0)
+        val today = now.toLocalDate()
+        val widgetId = 6001
+
+        // Render 1 (offset 0): 5 populated days → baseline = 5
+        val days5 = (0 until 5).map { i ->
+            DailyForecastGraphRenderer.DayData(
+                date = today.plusDays(i.toLong()),
+                label = if (i == 0) "Today" else today.plusDays(i.toLong()).dayOfWeek.name.take(3),
+                high = 70f + i, low = 50f + i,
+                isToday = i == 0,
+                columnIndex = i,
+            )
+        }
+        val views1 = RemoteViews(context.packageName, R.layout.widget_weather)
+        DailyViewHandler.setupGraphDayClickHandlers(
+            context, views1, widgetId, now, days5, 37.77, -122.42, WeatherSource.NWS, days5.size
+        )
+
+        // Render 2 (offset -1): 8 days available, capped to baseline of 5
+        val days8 = (0 until 8).map { i ->
+            DailyForecastGraphRenderer.DayData(
+                date = today.plusDays(i.toLong() - 2),
+                label = today.plusDays(i.toLong() - 2).dayOfWeek.name.take(3),
+                high = 68f + i, low = 48f + i,
+                columnIndex = i,
+            )
+        }
+        val cappedDays = days8.take(5) // simulating displayDays = days.take(baseline)
+        val views2 = RemoteViews(context.packageName, R.layout.widget_weather)
+        DailyViewHandler.setupGraphDayClickHandlers(
+            context, views2, widgetId, now, cappedDays, 37.77, -122.42, WeatherSource.NWS, cappedDays.size
+        )
+
+        // THEN: both renders should show the same number of visible zones
+        val zoneIds = listOf(
+            R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone,
+            R.id.graph_day4_zone, R.id.graph_day5_zone, R.id.graph_day6_zone,
+            R.id.graph_day7_zone, R.id.graph_day8_zone, R.id.graph_day9_zone,
+            R.id.graph_day10_zone,
+        )
+        val applied1 = views1.apply(context, FrameLayout(context))
+        val applied2 = views2.apply(context, FrameLayout(context))
+        val visible1 = zoneIds.count { applied1.findViewById<View>(it).visibility == View.VISIBLE }
+        val visible2 = zoneIds.count { applied2.findViewById<View>(it).visibility == View.VISIBLE }
+
+        assertEquals(
+            "Visible zone count must match across renders (capping should stabilize)",
+            visible1, visible2,
+        )
+        assertEquals("Should show exactly 5 visible zones", 5, visible1)
     }
 }

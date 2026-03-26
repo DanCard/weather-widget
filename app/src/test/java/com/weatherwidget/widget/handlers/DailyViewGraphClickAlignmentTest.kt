@@ -246,6 +246,75 @@ class DailyViewGraphClickAlignmentTest {
         assertEquals(skippedStr, broadcasts.last().getStringExtra("date"))
     }
 
+    @Test
+    fun `daily graph column count stays stable when navigating backward gains extra data`() = runBlocking {
+        // GIVEN: 9-column widget.  At offset 0 only 3 days have data (yesterday, today, tomorrow).
+        // At offset -1 all 9 slots happen to have data → days.size would be 9 without capping.
+        val now = LocalDateTime.of(2026, 3, 20, 12, 0)
+        val today = now.toLocalDate()
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(30)
+        stateManager.setZoomLevel(30, ZoomLevel.WIDE)
+        stateManager.setViewMode(30, com.weatherwidget.widget.ViewMode.DAILY)
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 300)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300)
+        }
+        every { appWidgetManager.getAppWidgetOptions(30) } returns options
+        val capturedViews = mutableListOf<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(30, any()) } answers {
+            capturedViews += secondArg<android.widget.RemoteViews>()
+        }
+
+        // Offset 0 render: 3 days of data → baseline = 3
+        val sparseWeather = listOf(
+            createWeather(today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            createWeather(today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)),
+        )
+        DailyViewHandler.updateWidget(
+            context = context, appWidgetManager = appWidgetManager, appWidgetId = 30,
+            weatherList = sparseWeather, forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(), currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(), repository = null, now = now,
+        )
+
+        // Offset -1 render: more data available (7 days) but should cap to baseline of 3
+        stateManager.setDateOffset(30, -1)
+        val fullWeather = (-3L..5L).map { offset ->
+            createWeather(today.plusDays(offset).format(DateTimeFormatter.ISO_LOCAL_DATE))
+        }
+        DailyViewHandler.updateWidget(
+            context = context, appWidgetManager = appWidgetManager, appWidgetId = 30,
+            weatherList = fullWeather, forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(), currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(), repository = null, now = now,
+        )
+
+        assertEquals(2, capturedViews.size)
+        val firstApplied = capturedViews[0].apply(context, FrameLayout(context))
+        val secondApplied = capturedViews[1].apply(context, FrameLayout(context))
+
+        // Count visible zones in each render — must be equal
+        val zoneIds = listOf(
+            R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
+            R.id.graph_day5_zone, R.id.graph_day6_zone, R.id.graph_day7_zone, R.id.graph_day8_zone,
+            R.id.graph_day9_zone, R.id.graph_day10_zone,
+        )
+        val firstVisibleCount = zoneIds.count { firstApplied.findViewById<View>(it).visibility == View.VISIBLE }
+        val secondVisibleCount = zoneIds.count { secondApplied.findViewById<View>(it).visibility == View.VISIBLE }
+
+        assertEquals(
+            "Column count must stay stable across navigation offsets",
+            firstVisibleCount, secondVisibleCount,
+        )
+    }
+
     private fun createWeather(date: String): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),

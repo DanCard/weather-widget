@@ -139,6 +139,21 @@ print_unit_report_paths() {
     fi
 }
 
+ASM_CACHE_DIRS=(
+    "$PROJECT_DIR/app/build/intermediates/classes/debug/transformDebugClassesWithAsm"
+    "$PROJECT_DIR/app/build/intermediates/classes/debugAndroidTest/transformDebugClassesWithAsm"
+    "$PROJECT_DIR/app/build/intermediates/incremental/transformDebugClassesWithAsm"
+    "$PROJECT_DIR/app/build/intermediates/incremental/transformDebugAndroidTestClassesWithAsm"
+)
+
+clear_asm_cache() {
+    rm -rf "${ASM_CACHE_DIRS[@]}"
+}
+
+# Emulator script defers ASM retries to us (--no-retry → exit 2).
+# This avoids 'gradlew clean' racing with the parallel unit-test build.
+EMULATOR_NO_RETRY_ARGS=(--no-retry)
+
 echo -e "${BLUE}Starting unit tests and emulator tests in parallel${NC}"
 
 set -o pipefail
@@ -148,7 +163,7 @@ set -o pipefail
     2> >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE" >&2) &
 UNIT_PID=$!
 
-"$EMULATOR_SCRIPT" "${EMULATOR_ARGS[@]}" \
+"$EMULATOR_SCRIPT" "${EMULATOR_NO_RETRY_ARGS[@]}" "${EMULATOR_ARGS[@]}" \
     > >(stream_with_prefix "emulator" "$YELLOW" "$EMULATOR_LOG_FILE") \
     2> >(stream_with_prefix "emulator" "$YELLOW" "$EMULATOR_LOG_FILE" >&2) &
 EMULATOR_PID=$!
@@ -158,6 +173,24 @@ UNIT_STATUS=$?
 
 wait "$EMULATOR_PID"
 EMULATOR_STATUS=$?
+
+# Handle ASM retry: emulator exited 2 → clear ASM cache, wait for unit tests, retry emulator
+if [ "$EMULATOR_STATUS" -eq 2 ]; then
+    echo -e "${YELLOW}Emulator hit ASM error — clearing cache and retrying...${NC}"
+    clear_asm_cache
+
+    # Wait for unit tests if still running (avoid build contention during retry)
+    if kill -0 "$UNIT_PID" 2>/dev/null; then
+        wait "$UNIT_PID" || true
+    fi
+
+    "$EMULATOR_SCRIPT" "${EMULATOR_ARGS[@]}" \
+        > >(stream_with_prefix "emulator" "$YELLOW" "$EMULATOR_LOG_FILE") \
+        2> >(stream_with_prefix "emulator" "$YELLOW" "$EMULATOR_LOG_FILE" >&2) &
+    EMULATOR_PID=$!
+    wait "$EMULATOR_PID"
+    EMULATOR_STATUS=$?
+fi
 
 if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ]; then
     echo -e "${GREEN}Both unit tests and emulator tests passed${NC}"

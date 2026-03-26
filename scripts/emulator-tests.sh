@@ -74,8 +74,9 @@ SHOW_HELP=false
 TEST_TIMEOUT_ARG=""
 
 LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
+NO_RETRY=false             # When true, exit 2 on ASM errors instead of retrying (for parallel orchestration)
 
-while getopts "e:c:d:qvuh" opt; do
+while getopts "e:c:d:qvuh-:" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG"; EMULATOR_NAME_EXPLICIT=true ;;
         c) TEST_CLASS="$OPTARG" ;;
@@ -84,6 +85,12 @@ while getopts "e:c:d:qvuh" opt; do
         v) VERBOSE_MODE=true ;;
         u) LEAVE_APKS_INSTALLED=false ;;
         h) SHOW_HELP=true ;;
+        -)
+            case "${OPTARG}" in
+                no-retry) NO_RETRY=true ;;
+                *) SHOW_HELP=true ;;
+            esac
+            ;;
         *) SHOW_HELP=true ;;
     esac
 done
@@ -109,6 +116,7 @@ if [ "$SHOW_HELP" = true ]; then
     echo "  -e EMULATOR    Use specific emulator (default: $DEFAULT_EMULATOR)"
     echo "  -c CLASS       Run specific test class (e.g., com.weatherwidget.WidgetSizeCalculatorTest)"
     echo "  -d DURATION    Test timeout (default: ${TEST_TIMEOUT}s; accepts 300, 90s, 10m, 1h)"
+    echo "  --no-retry     Exit 2 on ASM errors instead of retrying (for parallel orchestration)"
     echo "  -h             Show this help"
     echo ""
     echo "Examples:"
@@ -371,8 +379,16 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
         export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
         if ! "$PROJECT_DIR/gradlew" assembleDebug assembleDebugAndroidTest --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
             if grep -q "transformDebugClassesWithAsm" "$TEST_RESULTS_LOG" 2>/dev/null; then
-                echo -e "${YELLOW}ASM instrumentation error — retrying with clean build...${NC}"
-                if ! "$PROJECT_DIR/gradlew" clean assembleDebug assembleDebugAndroidTest --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
+                if [ "$NO_RETRY" = true ]; then
+                    echo -e "${YELLOW}ASM instrumentation error (--no-retry: deferring to caller)${NC}"
+                    exit 2
+                fi
+                echo -e "${YELLOW}ASM instrumentation error — clearing ASM cache and retrying...${NC}"
+                rm -rf "$PROJECT_DIR/app/build/intermediates/classes/debug/transformDebugClassesWithAsm" \
+                       "$PROJECT_DIR/app/build/intermediates/classes/debugAndroidTest/transformDebugClassesWithAsm" \
+                       "$PROJECT_DIR/app/build/intermediates/incremental/transformDebugClassesWithAsm" \
+                       "$PROJECT_DIR/app/build/intermediates/incremental/transformDebugAndroidTestClassesWithAsm"
+                if ! "$PROJECT_DIR/gradlew" assembleDebug assembleDebugAndroidTest --console=plain > "$TEST_RESULTS_LOG" 2>&1; then
                     echo -e "${RED}Build failed${NC}"
                     cat "$TEST_RESULTS_LOG"
                     exit 1
@@ -655,7 +671,9 @@ if [ "$VERBOSE_MODE" = true ]; then
 fi
 INSTALL_START_TS=$(date +%s)
 INSTALL_END_LOGGED=false
-echo -en "${YELLOW}APK install started on $ANDROID_SERIAL${NC} \t"
+if [ "$VERBOSE_MODE" = true ]; then
+	echo -en "${YELLOW}APK install started on $ANDROID_SERIAL${NC}  "
+fi
 debug_log "apk_install_start: serial=$ANDROID_SERIAL"
 
 # Truncate log so show_progress doesn't see stale content
@@ -726,12 +744,20 @@ if grep -q "BUILD SUCCESSFUL" "$TEST_RESULTS_LOG" 2>/dev/null; then
     TEST_SUCCESS=true
 fi
 
-# Retry with clean build on transient ASM instrumentation failure (stale incremental cache)
+# Retry on transient ASM instrumentation failure (stale incremental cache).
 if [ "$TEST_SUCCESS" = false ] && grep -q "transformDebugClassesWithAsm" "$TEST_RESULTS_LOG" 2>/dev/null; then
-    echo -e "${YELLOW}ASM instrumentation error — retrying with clean build...${NC}"
+    if [ "$NO_RETRY" = true ]; then
+        echo -e "${YELLOW}ASM instrumentation error (--no-retry: deferring to caller)${NC}"
+        exit 2
+    fi
+    echo -e "${YELLOW}ASM instrumentation error — clearing ASM cache and retrying...${NC}"
+    rm -rf "$PROJECT_DIR/app/build/intermediates/classes/debug/transformDebugClassesWithAsm" \
+           "$PROJECT_DIR/app/build/intermediates/classes/debugAndroidTest/transformDebugClassesWithAsm" \
+           "$PROJECT_DIR/app/build/intermediates/incremental/transformDebugClassesWithAsm" \
+           "$PROJECT_DIR/app/build/intermediates/incremental/transformDebugAndroidTestClassesWithAsm"
     : > "$TEST_RESULTS_LOG"
     # shellcheck disable=SC2086
-    script -qfc "./gradlew clean $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --console=plain --info" \
+    script -qfc "./gradlew $GRADLE_CMD $GRADLE_APK_PRESERVE_ARG --console=plain --info" \
         "$TEST_RESULTS_LOG" > /dev/null 2>&1 &
     GRADLE_PID=$!
     debug_log "ASM retry: gradle started via script(1) pid=$GRADLE_PID"

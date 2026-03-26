@@ -70,6 +70,7 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_DELTA_LAT_PREFIX = "widget_current_temp_delta_lat_"
             private const val KEY_CURRENT_TEMP_DELTA_LON_PREFIX = "widget_current_temp_delta_lon_"
             private const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
+            private const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
@@ -113,6 +114,14 @@ class WidgetStateManager
         ) {
             val clampedOffset = offset.coerceIn(MIN_DATE_OFFSET, MAX_DATE_OFFSET)
             prefs.edit().putInt("$KEY_DATE_OFFSET_PREFIX$widgetId", clampedOffset).apply()
+        }
+
+        fun getDailyColumnCount(widgetId: Int): Int {
+            return prefs.getInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", 0)
+        }
+
+        fun setDailyColumnCount(widgetId: Int, count: Int) {
+            prefs.edit().putInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", count).apply()
         }
 
         fun navigateLeft(widgetId: Int): Int {
@@ -276,6 +285,7 @@ class WidgetStateManager
                 .remove("$KEY_CURRENT_TEMP_DELTA_SOURCE_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LAT_PREFIX$widgetId")
                 .remove("$KEY_CURRENT_TEMP_DELTA_LON_PREFIX$widgetId")
+                .remove("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId")
             prefs.all.keys
                 .filter { key ->
                     key.startsWith(KEY_CURRENT_TEMP_DELTA_PREFIX) ||

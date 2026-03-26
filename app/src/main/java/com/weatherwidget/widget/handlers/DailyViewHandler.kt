@@ -366,9 +366,20 @@ object DailyViewHandler : WidgetViewHandler {
                 observedAt = observedAt
             )
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
-            Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days for $numColumns columns.")
 
-            val missingTodaySnapshot = days.firstOrNull { day ->
+            // Stabilize column count: at offset 0 (home view), record days.size as the
+            // baseline.  When navigating away, cap to that baseline so the grid doesn't
+            // gain or lose a column as data availability shifts.
+            val displayDays = if (dateOffset == 0) {
+                stateManager.setDailyColumnCount(appWidgetId, days.size)
+                days
+            } else {
+                val baseline = stateManager.getDailyColumnCount(appWidgetId)
+                if (baseline > 0 && days.size > baseline) days.take(baseline) else days
+            }
+            Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days, displaying ${displayDays.size} for $numColumns columns (offset=$dateOffset).")
+
+            val missingTodaySnapshot = displayDays.firstOrNull { day ->
                 day.isToday &&
                     day.forecastHigh != null &&
                     day.forecastLow != null &&
@@ -390,7 +401,7 @@ object DailyViewHandler : WidgetViewHandler {
                 )
             }
 
-            val missingVisiblePastActuals = days.firstOrNull { day ->
+            val missingVisiblePastActuals = displayDays.firstOrNull { day ->
                 day.isPast &&
                     dailyActuals[day.date] == null &&
                     day.forecastHigh != null &&
@@ -410,7 +421,7 @@ object DailyViewHandler : WidgetViewHandler {
             }
 
             // Mark rain as shown if today's rain is in the list
-            if (days.any { it.isToday && it.rainSummary != null }) {
+            if (displayDays.any { it.isToday && it.rainSummary != null }) {
                 stateManager.markRainShown(appWidgetId, todayStr)
             }
 
@@ -424,7 +435,7 @@ object DailyViewHandler : WidgetViewHandler {
                 useGraph = true,
                 isEveningMode = isEveningMode,
                 centerDate = centerDate,
-                visibleDates = days.map { it.date },
+                visibleDates = displayDays.map { it.date },
             )
 
             // Render graph
@@ -436,11 +447,11 @@ object DailyViewHandler : WidgetViewHandler {
             val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
 
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, days, widthPx, heightPx, bitmapScale, days.size)
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size)
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-            setupGraphDayClickHandlers(context, views, appWidgetId, now, days, lat, lon, displaySource, days.size)
+            setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
