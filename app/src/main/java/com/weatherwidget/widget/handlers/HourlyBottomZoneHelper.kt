@@ -33,7 +33,7 @@ object HourlyBottomZoneHelper {
      * Sub-hourly observation points have null iconRes; top-of-hour forecasts have icons.
      * Returns null only if no icon exists within a reasonable search radius.
      */
-    private fun findNearestIcon(icons: List<Int?>, centerIndex: Int): Int? {
+    internal fun findNearestIcon(icons: List<Int?>, centerIndex: Int): Int? {
         // Check center first
         icons[centerIndex]?.let { return it }
         // Search outward up to half the zone width (icons.size / 13 / 2)

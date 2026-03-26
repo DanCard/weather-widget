@@ -14,8 +14,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 UNIT_SCRIPT="$SCRIPT_DIR/test-unit-by-duration.sh"
 EMULATOR_SCRIPT="$SCRIPT_DIR/emulator-tests.sh"
-UNIT_LOG_FILE="$(mktemp)"
-EMULATOR_LOG_FILE="$(mktemp)"
+LOG_DIR="$PROJECT_DIR/logs/parallel-tests"
+mkdir -p "$LOG_DIR"
+find "$LOG_DIR" -type f -mtime +14 -delete 2>/dev/null
+TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+BUILD_LOG="$LOG_DIR/build-${TIMESTAMP}.log"
+UNIT_LOG_FILE="$LOG_DIR/unit-${TIMESTAMP}.log"
+EMULATOR_LOG_FILE="$LOG_DIR/emulator-${TIMESTAMP}.log"
 UNIT_TAIL_LINES=120
 
 RED='\033[0;31m'
@@ -27,7 +32,7 @@ NC='\033[0m'
 EMULATOR_ARGS=()
 
 cleanup() {
-    rm -f "$UNIT_LOG_FILE" "$EMULATOR_LOG_FILE"
+    :  # logs kept under $LOG_DIR for post-mortem debugging
 }
 
 trap cleanup EXIT
@@ -153,6 +158,24 @@ clear_asm_cache() {
 # Emulator script defers ASM retries to us (--no-retry → exit 2).
 # This avoids 'gradlew clean' racing with the parallel unit-test build.
 EMULATOR_NO_RETRY_ARGS=(--no-retry)
+
+# Pre-build: compile and ASM-transform in a single Gradle invocation so the
+# parallel test processes that follow all find these tasks UP-TO-DATE.
+# Without this, 4 concurrent Gradle daemons race on transformDebugClassesWithAsm,
+# corrupting each other's intermediate output.
+BUILD_START=$(date +%s)
+printf "${BLUE}Pre-building...${NC} "
+if JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
+    "$PROJECT_DIR/gradlew" -p "$PROJECT_DIR" --console=plain \
+    transformDebugUnitTestClassesWithAsm \
+    assembleDebugAndroidTest >"$BUILD_LOG" 2>&1; then
+    BUILD_ELAPSED=$(( $(date +%s) - BUILD_START ))
+    echo -e "${GREEN}done${NC} (${BUILD_ELAPSED}s)"
+else
+    echo -e "${RED}failed${NC} (see $BUILD_LOG)"
+    tail -20 "$BUILD_LOG"
+    exit 1
+fi
 
 echo -e "${BLUE}Starting unit tests and emulator tests in parallel${NC}"
 

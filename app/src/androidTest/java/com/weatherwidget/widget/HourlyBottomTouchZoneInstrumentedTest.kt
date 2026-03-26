@@ -17,9 +17,9 @@ import org.junit.runner.RunWith
 /**
  * Regression tests for the hourly graph footer touch target.
  *
- * The zoom zones only cover the graph body. The bottom footer used by hourly and precipitation
- * mode must reserve the same vertical space as the graph bottom tap zone, otherwise taps on the
- * rendered hour-icon row can leak into the zoom hit area.
+ * The zoom zones only cover the graph body (graph_interaction_body). The bottom row
+ * uses per-hour tap zones (graph_bottom_hour_zones) that sit below the graph body
+ * inside graph_interaction_container. These tests verify correct sizing and alignment.
  */
 @RunWith(AndroidJUnit4::class)
 class HourlyBottomTouchZoneInstrumentedTest {
@@ -32,44 +32,40 @@ class HourlyBottomTouchZoneInstrumentedTest {
     }
 
     @Test
-    fun graphBottomZone_matchesReservedFooterHeight() {
+    fun graphBottomHourZones_matchesReservedFooterHeight() {
         val root = inflateMeasuredWidget()
         val reservedFooter = root.findViewById<View>(R.id.graph_bottom_reserved_space)
-        val bottomZone = root.findViewById<View>(R.id.graph_bottom_zone)
+        val bottomHourZones = root.findViewById<View>(R.id.graph_bottom_hour_zones)
 
-        bottomZone.visibility = View.VISIBLE
+        // Show both to compare measured heights
+        reservedFooter.visibility = View.VISIBLE
+        bottomHourZones.visibility = View.VISIBLE
         measureAndLayout(root)
 
         assertEquals(
-            "Bottom tap zone height must match the footer height reserved out of the zoom body",
+            "Per-hour bottom zones height must match the reserved footer height",
             reservedFooter.height,
-            bottomZone.height,
+            bottomHourZones.height,
         )
         assertTrue(
             "Regression guard: bottom touch target must remain at least 56dp tall",
-            bottomZone.height >= dpToPx(56f),
+            bottomHourZones.height >= dpToPx(56f),
         )
     }
 
     @Test
-    fun graphBottomZone_startsAtGraphBodyBoundary() {
+    fun graphBottomHourZones_startsAtGraphBodyBoundary() {
         val root = inflateMeasuredWidget()
         val graphBody = root.findViewById<View>(R.id.graph_interaction_body)
-        val reservedFooter = root.findViewById<View>(R.id.graph_bottom_reserved_space)
-        val bottomZone = root.findViewById<View>(R.id.graph_bottom_zone)
+        val bottomHourZones = root.findViewById<View>(R.id.graph_bottom_hour_zones)
 
-        bottomZone.visibility = View.VISIBLE
+        bottomHourZones.visibility = View.VISIBLE
         measureAndLayout(root)
 
         assertEquals(
-            "Reserved footer should begin exactly where the zoomable graph body ends",
+            "Per-hour bottom zones should begin exactly where the zoomable graph body ends",
             graphBody.bottom,
-            reservedFooter.top,
-        )
-        assertEquals(
-            "Bottom tap zone should align with the reserved footer after root padding is applied",
-            reservedFooter.top + root.paddingBottom,
-            bottomZone.top,
+            bottomHourZones.top,
         )
     }
 
