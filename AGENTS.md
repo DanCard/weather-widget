@@ -332,9 +332,7 @@ The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test 
 ./scripts/emulator-tests.sh -c com.weatherwidget.util.RainAnalyzerIntegrationTest  # specific class
 ```
 
-- When running `./scripts/emulator-tests.sh` interactively, **do not** pass `-s` by default.
 - Assume the user wants the emulator to remain running after tests unless they explicitly request shutdown.
-- Use `-s` only for explicit user request or CI-style cleanup runs.
 
 ### Emulator Resize Troubleshooting
 - On Pixel/Nexus Launcher emulators, resizing from the left edge can "bounce back" when the widget is on the top row or near constrained cells.

@@ -92,7 +92,7 @@ set -o pipefail
     2> >(prefix_output "unit" "$GREEN" >&2) &
 UNIT_PID=$!
 
-"$EMULATOR_SCRIPT" -s "${EMULATOR_ARGS[@]}" \
+"$EMULATOR_SCRIPT" "${EMULATOR_ARGS[@]}" \
     > >(prefix_output "emulator" "$YELLOW") \
     2> >(prefix_output "emulator" "$YELLOW" >&2) &
 EMULATOR_PID=$!
