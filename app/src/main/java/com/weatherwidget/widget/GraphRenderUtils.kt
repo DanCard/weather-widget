@@ -252,6 +252,38 @@ internal object GraphRenderUtils {
     }
 
     /**
+     * Applies smoothing with configurable extrema preservation.
+     * Useful when you want to preserve some features (like peaks) but not others (like dips).
+     */
+    fun smoothValuesPreservingExtrema(
+        values: List<Float>,
+        iterations: Int = 1,
+        preserveGlobalMax: Boolean = true,
+        preserveGlobalMin: Boolean = true,
+        preserveStart: Boolean = true,
+        preserveEnd: Boolean = true,
+    ): List<Float> {
+        if (values.size < 3 || iterations <= 0) return values
+
+        val globalMaxIndex = values.indices.maxByOrNull { values[it] } ?: 0
+        val globalMinIndex = values.indices.minByOrNull { values[it] } ?: 0
+
+        val preservedIndices = mutableSetOf<Int>()
+        if (preserveStart) preservedIndices.add(0)
+        if (preserveEnd) preservedIndices.add(values.lastIndex)
+        if (preserveGlobalMax) preservedIndices.add(globalMaxIndex)
+        if (preserveGlobalMin) preservedIndices.add(globalMinIndex)
+
+        var smoothed = smoothValues(values, iterations)
+
+        smoothed = smoothed.toMutableList().apply {
+            preservedIndices.forEach { this[it] = values[it] }
+        }
+
+        return smoothed
+    }
+
+    /**
      * Draws a "last fetch dot" on the graph curve, with optional staleness age label (below the
      * dot) and value label (right/left/top of the dot).
      *

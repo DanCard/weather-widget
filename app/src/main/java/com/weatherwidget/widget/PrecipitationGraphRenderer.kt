@@ -210,7 +210,27 @@ object PrecipitationGraphRenderer {
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val probs = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = smoothIterations)
+
+        // Detect "far out" data (>3 days from now) - for far-out forecast, don't preserve dips
+        val isFarOutData = hours.isNotEmpty() && kotlin.math.abs(
+            java.time.Duration.between(
+                hours.first().dateTime.plusHours(hours.size.toLong() / 2),
+                currentTime,
+            ).toHours()
+        ) > 72
+
+        val probs = if (isFarOutData) {
+            GraphRenderUtils.smoothValuesPreservingExtrema(
+                rawProbs,
+                iterations = smoothIterations,
+                preserveGlobalMax = true,
+                preserveGlobalMin = false, // Don't preserve dips for far-out data
+                preserveStart = true,
+                preserveEnd = true,
+            )
+        } else {
+            GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = smoothIterations)
+        }
 
         val rawMax = probs.maxOrNull() ?: 0f
         val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
