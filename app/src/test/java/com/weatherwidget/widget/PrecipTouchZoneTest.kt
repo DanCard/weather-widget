@@ -36,10 +36,10 @@ class PrecipTouchZoneTest {
 
     @Test
     fun `precip touch zone is positioned correctly relative to current temp`() {
-        // Touch zone starts at 72dp from the left edge (after current_temp_zone which is 80dp)
+        // Touch zone starts at 72dp from the left edge and overlaps the expanded current temp zone.
         // This places it right next to where the % label appears
         val precipTouchZoneMarginStartDp = 72
-        val currentTempZoneWidthDp = 80
+        val currentTempZoneWidthDp = 96
 
         // The precip zone should overlap or be adjacent to the current temp zone
         // to ensure no gap between the two touch targets
@@ -64,7 +64,7 @@ class PrecipTouchZoneTest {
     fun `combined touch area is sufficient`() {
         // Combined touch area = text with padding + touch zone
         // This should cover the area between current temp and API source button
-        val currentTempZoneWidthDp = 80
+        val currentTempZoneWidthDp = 96
         val precipTextPaddingEndDp = 48
         val precipTouchZoneWidthDp = 72
         val precipTouchZoneMarginStartDp = 72

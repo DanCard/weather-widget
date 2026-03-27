@@ -803,9 +803,10 @@
     <!-- Current temperature touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/current_temp_zone"
-        android:layout_width="80dp"
-        android:layout_height="56dp"
+        android:layout_width="96dp"
+        android:layout_height="72dp"
         android:layout_gravity="top|start"
+        android:layout_marginTop="-4dp"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true" />
