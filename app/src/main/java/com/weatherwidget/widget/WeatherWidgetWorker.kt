@@ -199,10 +199,10 @@ class WeatherWidgetWorker
             lon: Double,
         ): Map<LocalDate, List<ForecastEntity>> {
             return try {
-                val startDate = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
-                val endDate = LocalDate.now().plusDays(14).toEpochDay() * 86400_000L
+                val startDate = LocalDate.now().minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val endDate = LocalDate.now().plusDays(14).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val snapshots = weatherRepository.getAllForecastsInRange(startDate, endDate, lat, lon)
-                snapshots.groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }
+                snapshots.groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch forecast snapshots", e)
                 emptyMap()
@@ -260,7 +260,7 @@ class WeatherWidgetWorker
 
             for (appWidgetId in appWidgetIds) {
                 val job = launch {
-                    WeatherWidgetProvider.updateWidgetWithData(
+                    WidgetRenderer.updateWidgetWithData(
                         context = context,
                         appWidgetManager = appWidgetManager,
                         appWidgetId = appWidgetId,

@@ -1,6 +1,7 @@
 package com.weatherwidget.testutil
 
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 
@@ -14,7 +15,7 @@ object TestData {
     const val LOCATION_NAME = "Test Location"
 
     fun dateEpoch(dateStr: String): Long =
-        java.time.LocalDate.parse(dateStr).toEpochDay() * 86400_000L
+        java.time.LocalDate.parse(dateStr).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
     fun forecast(
         targetDate: String = "2026-02-20",

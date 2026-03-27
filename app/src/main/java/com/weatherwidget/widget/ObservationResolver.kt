@@ -193,7 +193,7 @@ object ObservationResolver {
                 val date = Instant.ofEpochMilli(obs.timestamp)
                     .atZone(local)
                     .toLocalDate()
-                    .toEpochDay() * 86400_000L
+                    .toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 date to inferSource(obs.stationId)
             }
             .mapNotNull { (key, dayObs) ->
@@ -237,7 +237,7 @@ object ObservationResolver {
                 val date = Instant.ofEpochMilli(obs.timestamp)
                     .atZone(ZoneId.systemDefault())
                     .toLocalDate()
-                    .toEpochDay() * 86400_000L
+                    .toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 date to inferSource(obs.stationId)
             }
             .mapNotNull { (key, dayObs) ->
@@ -261,7 +261,7 @@ object ObservationResolver {
      */
     fun extremesToDailyActuals(extremes: List<DailyExtremeEntity>): List<DailyActual> =
         extremes.map { entity ->
-            val date = LocalDate.ofEpochDay(entity.date / 86400_000L)
+            val date = LocalDate.ofEpochDay(entity.date / WidgetConstants.MS_IN_A_DAY)
             DailyActual(
                 date = date,
                 highTemp = entity.highTemp,
@@ -278,7 +278,7 @@ object ObservationResolver {
             .groupBy { it.source }
             .mapValues { (_, sourceExtremes) ->
                 sourceExtremes.associate { entity ->
-                    val date = LocalDate.ofEpochDay(entity.date / 86400_000L)
+                    val date = LocalDate.ofEpochDay(entity.date / WidgetConstants.MS_IN_A_DAY)
                     date to DailyActual(
                         date = date,
                         highTemp = entity.highTemp,

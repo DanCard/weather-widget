@@ -34,6 +34,7 @@ import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
@@ -195,7 +196,7 @@ object DailyViewHandler : WidgetViewHandler {
         val weatherByDate =
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
-                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }
+                .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
                 .mapValues { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
 
         // Set API source indicator
@@ -333,7 +334,7 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
 
         // Set up navigation click handlers
-        val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }.toSet() + dailyActuals.keys
+        val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys
         val sortedDates = availableDates.sorted()
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${sortedDates.firstOrNull()}, maxDate=${sortedDates.lastOrNull()}")
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode)

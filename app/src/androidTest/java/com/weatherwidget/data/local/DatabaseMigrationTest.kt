@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local
 
 import androidx.room.testing.MigrationTestHelper
+import com.weatherwidget.widget.WidgetConstants
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
@@ -334,7 +335,7 @@ class DatabaseMigrationTest {
     @Test
     fun migrate40to41() {
         val testDate = "2026-03-22"
-        val expectedDateEpoch = java.time.LocalDate.parse(testDate).toEpochDay() * 86400_000L
+        val expectedDateEpoch = java.time.LocalDate.parse(testDate).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val now = System.currentTimeMillis()
 
         helper.createDatabase(testDb, 40).apply {
@@ -368,7 +369,7 @@ class DatabaseMigrationTest {
         fCursor.moveToFirst()
         val migratedTargetDate = fCursor.getLong(0)
         val migratedForecastDate = fCursor.getLong(1)
-        val expectedForecastEpoch = java.time.LocalDate.parse("2026-03-21").toEpochDay() * 86400_000L
+        val expectedForecastEpoch = java.time.LocalDate.parse("2026-03-21").toEpochDay() * WidgetConstants.MS_IN_A_DAY
         assert(migratedTargetDate == expectedDateEpoch) { "forecasts targetDate: expected $expectedDateEpoch but got $migratedTargetDate" }
         assert(migratedForecastDate == expectedForecastEpoch) { "forecasts forecastDate: expected $expectedForecastEpoch but got $migratedForecastDate" }
         assert(fCursor.isNull(2)) { "periodStartTime should be NULL after migration" }

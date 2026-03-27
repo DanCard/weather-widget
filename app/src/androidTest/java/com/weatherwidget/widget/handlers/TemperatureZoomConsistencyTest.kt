@@ -131,7 +131,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
 
         // 1. Trigger update in WIDE zoom
         db.appLogDao().clearAllLogs()
-        com.weatherwidget.widget.WeatherWidgetProvider.updateWidgetWithData(
+        com.weatherwidget.widget.WidgetRenderer.updateWidgetWithData(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = testWidgetId,
@@ -149,7 +149,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         // 2. Trigger update in NARROW zoom
         db.appLogDao().clearAllLogs()
         stateManager.setZoomLevel(testWidgetId, com.weatherwidget.widget.ZoomLevel.NARROW)
-        com.weatherwidget.widget.WeatherWidgetProvider.updateWidgetWithData(
+        com.weatherwidget.widget.WidgetRenderer.updateWidgetWithData(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = testWidgetId,

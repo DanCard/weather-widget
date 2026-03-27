@@ -18,6 +18,7 @@ import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.Module
 import dagger.Provides
@@ -77,7 +78,7 @@ object AppModule {
                     else -> "UNKNOWN"
                 }
                 if (source != "UNKNOWN") {
-                    val date = LocalDate.now().toEpochDay() * 86400_000L
+                    val date = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY
                     apiUsageDao.logCall(date, source)
                 }
                 execute(request)

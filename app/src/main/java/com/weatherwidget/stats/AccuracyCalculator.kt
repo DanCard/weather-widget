@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.WidgetConstants
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -100,8 +101,8 @@ class AccuracyCalculator
             val endDate = LocalDate.now().minusDays(1)
             val startDate = endDate.minusDays(days.toLong() - 1)
 
-            val startEpoch = startDate.toEpochDay() * 86400_000L
-            val endEpoch = endDate.toEpochDay() * 86400_000L
+            val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
             val extremes = dailyExtremeDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
                 .filter { it.source == source.id }
@@ -114,8 +115,8 @@ class AccuracyCalculator
             for (actual in dailyActuals) {
                 val targetDate = actual.date
                 val forecastDate = targetDate.minusDays(1)
-                val targetEpoch = targetDate.toEpochDay() * 86400_000L
-                val forecastEpoch = forecastDate.toEpochDay() * 86400_000L
+                val targetEpoch = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val forecastEpoch = forecastDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
                 val forecast = forecasts
                     .filter {

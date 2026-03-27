@@ -13,6 +13,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.WidgetConstants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -150,8 +151,8 @@ class ObservationRepository @Inject constructor(
         val yesterday = now.minusDays(1).toLocalDate()
         val today = now.toLocalDate()
         val currentHour = now.hour
-        val yesterdayEpoch = yesterday.toEpochDay() * 86400_000L
-        val todayEpoch = today.toEpochDay() * 86400_000L
+        val yesterdayEpoch = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val todayEpoch = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val requiredDates = buildSet {
             add(yesterdayEpoch)
             if (currentHour >= 2) add(todayEpoch)
@@ -163,14 +164,14 @@ class ObservationRepository @Inject constructor(
                 .toSet()
         val missingDates = requiredDates - existingDates
 
-        Log.d(TAG, "History check: requiredDates=${requiredDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }} existingDates=${existingDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }} missingDates=${missingDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }} hour=$currentHour")
+        Log.d(TAG, "History check: requiredDates=${requiredDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} existingDates=${existingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} missingDates=${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }} hour=$currentHour")
 
         if (missingDates.isEmpty()) {
             Log.d(TAG, "Skipping backfill: required NWS daily_extremes rows already exist")
             return
         }
 
-        Log.i(TAG, "Missing NWS daily_extremes for ${missingDates.map { java.time.LocalDate.ofEpochDay(it / 86400_000L) }}, backfilling last 48 hours")
+        Log.i(TAG, "Missing NWS daily_extremes for ${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }}, backfilling last 48 hours")
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
         if (gridPoint == null) {
             Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
@@ -327,8 +328,8 @@ class ObservationRepository @Inject constructor(
         val today = LocalDate.now()
 
         // Past days: read from DB cache
-        val startDate = today.minusDays(30).toEpochDay() * 86400_000L
-        val endDate = today.minusDays(1).toEpochDay() * 86400_000L
+        val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val pastExtremes = dailyExtremeDao.getExtremesInRange(startDate, endDate, latitude, longitude)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes)
 
@@ -373,7 +374,7 @@ class ObservationRepository @Inject constructor(
         date: LocalDate,
     ) {
         val zone = ZoneId.systemDefault()
-        val dateMillis = date.toEpochDay() * 86400_000L
+        val dateMillis = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val endTs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
