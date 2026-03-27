@@ -1,3 +1,26 @@
+/*
+
+WeatherWidgetProvider is the main entry point for the home screen widget.
+The orchestrator that connects Android widget lifecycle events → database queries → view renderers,
+and routes user tap interactions → state changes → re-renders.
+
+It extends AppWidgetProvider and handles:
+	Lifecycle — onUpdate (widgets added/update cycle), onEnabled/onDisabled (first/last widget), onDeleted (per-widget cleanup),
+	            and onAppWidgetOptionsChanged (resize).
+	Data loading — onUpdate opens the Room database, queries forecasts/snapshots/hourly data/current temps/daily extremes,
+	               then routes each widget to the appropriate renderer
+	               (DailyViewHandler, TemperatureViewHandler, PrecipViewHandler, CloudCoverViewHandler).
+	               It also checks staleness and triggers background fetches via WorkManager when needed.
+	User interactions — onReceive dispatches intent actions (refresh, navigation, API toggle, view toggle, zoom cycle, day click, etc.)
+	                    to handler methods that use goAsync() + coroutines to do work off the main thread.
+	Work scheduling — schedulePeriodicUpdate enqueues a periodic WorkManager job (1-hour interval),
+	                  triggerImmediateUpdate enqueues one-off workers, and triggerUiOnlyUpdate enqueues a lightweight cache-only refresh.
+	                  Each toggle/zoom handler also restarts heartbeat schedulers (restartHeartbeats).
+	Rendering — The companion updateWidgetWithData is the central render dispatcher.
+	            It reads the widget's view mode, zoom, offset, and display source from WidgetStateManager,
+	            resolves the current observed temperature, then delegates to the appropriate view handler.
+*/
+
 package com.weatherwidget.widget
 
 import android.appwidget.AppWidgetManager
@@ -25,6 +48,7 @@ import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import com.weatherwidget.widget.handlers.WidgetSizeCalculator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -253,13 +277,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         Log.d(TAG, "onAppWidgetOptionsChanged: widgetId=$appWidgetId")
-        val pendingResult = goAsync()
-        val job = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                WidgetIntentRouter.handleResize(context, appWidgetId, repository)
-            } finally {
-                pendingResult.finish()
-            }
+        val job = launchAsync {
+            WidgetIntentRouter.handleResize(context, appWidgetId, repository)
         }
         WidgetUpdateTracker.trackJob(appWidgetId, job)
     }
@@ -320,7 +339,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     }
 
     private fun handleShowObservationsAction(context: Context, intent: Intent) {
-        val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+        val appWidgetId = getWidgetId(intent)
         val intentToActivity = Intent(context, com.weatherwidget.ui.WeatherObservationsActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -332,11 +351,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         val dateStr = intent.getStringExtra("date") ?: ""
         val isHistory = intent.getBooleanExtra("isHistory", false)
         val index = intent.getIntExtra("index", -1)
@@ -345,64 +360,59 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index")
 
         val receiveTimeMs = System.currentTimeMillis()
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        launchAsync {
             val coroutineStartMs = System.currentTimeMillis()
-            try {
-                val database = WeatherDatabase.getDatabase(context)
-                database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
+            val database = WeatherDatabase.getDatabase(context)
+            database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
 
-                if (showHistory) {
-                    val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
-                    val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
-                    val source = intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE) ?: ""
+            if (showHistory) {
+                val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
+                val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
+                val source = intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE) ?: ""
 
-                    val historyIntent = Intent(context, ForecastHistoryActivity::class.java).apply {
-                        putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
-                        putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                        putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                        putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source)
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                val historyIntent = Intent(context, ForecastHistoryActivity::class.java).apply {
+                    putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+                    putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+                    putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+                    putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(historyIntent)
+                val totalMs = System.currentTimeMillis() - receiveTimeMs
+                val coroutineDelayMs = coroutineStartMs - receiveTimeMs
+                database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
+                if (totalMs > 500) {
+                    database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
+                }
+            } else {
+                val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
+                val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
+                val targetMode =
+                    try {
+                        ViewMode.valueOf(targetViewName)
+                    } catch (_: Exception) {
+                        ViewMode.PRECIPITATION
+                    }
+                val hasHourlyData =
+                    hasHourlyDataForDate(
+                        context = context,
+                        database = database,
+                        appWidgetId = appWidgetId,
+                        dateStr = dateStr,
+                        intent = intent,
+                    )
+                if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE)) {
+                    database.appLogDao().log(
+                        "CLICK_DAILY_NO_HOURLY",
+                        "date=$dateStr mode=$targetMode -> settings",
+                    )
+                    val settingsIntent = Intent(context, SettingsActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                    context.startActivity(historyIntent)
-                    val totalMs = System.currentTimeMillis() - receiveTimeMs
-                    val coroutineDelayMs = coroutineStartMs - receiveTimeMs
-                    database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
-                    if (totalMs > 500) {
-                        database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
-                    }
+                    context.startActivity(settingsIntent)
                 } else {
-                    // Future day click was already setup with ACTION_SET_VIEW extras
-                    val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
-                    val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
-                    val targetMode =
-                        try {
-                            ViewMode.valueOf(targetViewName)
-                        } catch (_: Exception) {
-                            ViewMode.PRECIPITATION
-                        }
-                    val hasHourlyData =
-                        hasHourlyDataForDate(
-                            context = context,
-                            database = database,
-                            appWidgetId = appWidgetId,
-                            dateStr = dateStr,
-                            intent = intent,
-                        )
-                    if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE)) {
-                        database.appLogDao().log(
-                            "CLICK_DAILY_NO_HOURLY",
-                            "date=$dateStr mode=$targetMode -> settings",
-                        )
-                        val settingsIntent = Intent(context, SettingsActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        context.startActivity(settingsIntent)
-                        return@launch
-                    }
                     Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
-                    // Always reset to WIDE when clicking a day and going to PRECIPITATION
                     if (targetMode == ViewMode.PRECIPITATION) {
                         WidgetStateManager(context).setZoomLevel(appWidgetId, ZoomLevel.WIDE)
                     }
@@ -414,8 +424,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
                     }
                 }
-            } finally {
-                pendingResult.finish()
             }
         }
     }
@@ -460,23 +468,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
         
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                // Ensure background heartbeats are alive
-                UIUpdateScheduler(context).scheduleNextUpdate()
-                
-                val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-                val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-                    CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
-                }
+        launchAsync {
+            UIUpdateScheduler(context).scheduleNextUpdate()
+            
+            val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+            }
 
-                if (uiOnly) return@launch
-
-                // Always ensure current temperature gets refreshed on a manual widget refresh
+            if (!uiOnly) {
                 val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()
@@ -499,8 +502,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 } else {
                     Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
                 }
-            } finally {
-                pendingResult.finish()
             }
         }
     }
@@ -509,21 +510,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Navigation action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val pendingResult = goAsync()
             val isLeft = intent.action == ACTION_NAV_LEFT
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft, repository)
-                } finally {
-                    pendingResult.finish()
-                }
+            launchAsync {
+                WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft, repository)
             }
         }
     }
@@ -532,30 +524,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Toggle API action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
-                    
-                    // Restart heartbeats
-                    UIUpdateScheduler(context).scheduleNextUpdate()
-                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
-                    }
-                } finally {
-                    pendingResult.finish()
-                }
+            launchAsync {
+                WidgetIntentRouter.handleToggleApi(context, appWidgetId, repository)
+                restartHeartbeats(context)
             }
         }
     }
@@ -564,46 +538,29 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Toggle View action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             val interactionSource = intent.getStringExtra(EXTRA_INTERACTION_SOURCE) ?: "unknown"
             val receiveTimeMs = System.currentTimeMillis()
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val database = WeatherDatabase.getDatabase(context)
-                    val handlerStartMs = SystemClock.elapsedRealtime()
-                    WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
-                    val handlerMs = SystemClock.elapsedRealtime() - handlerStartMs
+            launchAsync {
+                val database = WeatherDatabase.getDatabase(context)
+                val handlerStartMs = SystemClock.elapsedRealtime()
+                WidgetIntentRouter.handleToggleView(context, appWidgetId, repository)
+                val handlerMs = SystemClock.elapsedRealtime() - handlerStartMs
                     
-                    // Restart heartbeats
-                    UIUpdateScheduler(context).scheduleNextUpdate()
-                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
-                    }
+                restartHeartbeats(context)
 
-                    val totalMs = System.currentTimeMillis() - receiveTimeMs
+                val totalMs = System.currentTimeMillis() - receiveTimeMs
+                database.appLogDao().log(
+                    "TOGGLE_VIEW_TIMING",
+                    "widget=$appWidgetId source=$interactionSource total=${totalMs}ms handler=${handlerMs}ms",
+                )
+                if (totalMs > 500) {
                     database.appLogDao().log(
-                        "TOGGLE_VIEW_TIMING",
+                        "TOGGLE_VIEW_SLOW",
                         "widget=$appWidgetId source=$interactionSource total=${totalMs}ms handler=${handlerMs}ms",
                     )
-                    if (totalMs > 500) {
-                        database.appLogDao().log(
-                            "TOGGLE_VIEW_SLOW",
-                            "widget=$appWidgetId source=$interactionSource total=${totalMs}ms handler=${handlerMs}ms",
-                        )
-                    }
-                } finally {
-                    pendingResult.finish()
                 }
             }
         }
@@ -613,30 +570,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Toggle Precip action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
-
-                    // Restart heartbeats
-                    UIUpdateScheduler(context).scheduleNextUpdate()
-                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
-                    }
-                } finally {
-                    pendingResult.finish()
-                }
+            launchAsync {
+                WidgetIntentRouter.handleTogglePrecip(context, appWidgetId, repository)
+                restartHeartbeats(context)
             }
         }
     }
@@ -645,11 +584,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         val zoomCenterOffset = if (intent.hasExtra(EXTRA_ZOOM_CENTER_OFFSET)) {
             intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
         } else {
@@ -662,23 +597,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             Log.e(TAG, "BUG: CYCLE_ZOOM fired while in DAILY mode! This should be ACTION_DAY_CLICK. Extras: ${intent.extras}")
         }
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset, repository)
-                    
-                    // Restart heartbeats
-                    UIUpdateScheduler(context).scheduleNextUpdate()
-                    val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-                    val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                    val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                    if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-                        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
-                    }
-                } finally {
-                    pendingResult.finish()
-                }
+            launchAsync {
+                WidgetIntentRouter.handleCycleZoom(context, appWidgetId, zoomCenterOffset, repository)
+                restartHeartbeats(context)
             }
         }
     }
@@ -687,29 +608,44 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val appWidgetId =
-            intent.getIntExtra(
-                AppWidgetManager.EXTRA_APPWIDGET_ID,
-                AppWidgetManager.INVALID_APPWIDGET_ID,
-            )
+        val appWidgetId = getWidgetId(intent)
         val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: ""
         val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
         Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName, offset=$targetOffset")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
-                try {
-                    val targetMode =
-                        try {
-                            ViewMode.valueOf(targetViewName)
-                        } catch (_: Exception) {
-                            ViewMode.DAILY
-                        }
-                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
-                    } finally {
+            launchAsync {
+                val targetMode =
+                    try {
+                        ViewMode.valueOf(targetViewName)
+                    } catch (_: Exception) {
+                        ViewMode.DAILY
+                    }
+                WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
+            }
+        }
+    }
 
-                    pendingResult.finish()
-                }
+    private suspend fun restartHeartbeats(context: Context) {
+        UIUpdateScheduler(context).scheduleNextUpdate()
+        val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+        }
+    }
+
+    private fun getWidgetId(intent: Intent): Int =
+        intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
+
+    private fun launchAsync(block: suspend CoroutineScope.() -> Unit): Job {
+        val pendingResult = goAsync()
+        return CoroutineScope(Dispatchers.IO).launch {
+            try {
+                block()
+            } finally {
+                pendingResult.finish()
             }
         }
     }
