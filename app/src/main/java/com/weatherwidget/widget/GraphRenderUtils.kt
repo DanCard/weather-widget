@@ -209,16 +209,7 @@ internal object GraphRenderUtils {
         var current = values
 
         repeat(iterations) {
-            val smoothed = mutableListOf<Float>()
-            for (i in current.indices) {
-                val prev = if (i > 0) current[i - 1] else current[i]
-                val curr = current[i]
-                val next = if (i < current.lastIndex) current[i + 1] else current[i]
-
-                // Weighted average: 25% prev, 50% current, 25% next
-                smoothed.add(prev * 0.25f + curr * 0.5f + next * 0.25f)
-            }
-            current = smoothed
+            current = smoothValuesOnePass(current)
         }
 
         return current
@@ -240,15 +231,7 @@ internal object GraphRenderUtils {
         val globalMinIndex = values.indices.minByOrNull { values[it] } ?: 0
         val preservedIndices = setOf(0, values.lastIndex, globalMaxIndex, globalMinIndex)
 
-        // Apply standard smoothing
-        var smoothed = smoothValues(values, iterations)
-
-        // Restore original values at preserved indices
-        smoothed = smoothed.toMutableList().apply {
-            preservedIndices.forEach { this[it] = values[it] }
-        }
-
-        return smoothed
+        return smoothValuesWithPreservedAnchors(values, iterations, preservedIndices)
     }
 
     /**
@@ -274,13 +257,36 @@ internal object GraphRenderUtils {
         if (preserveGlobalMax) preservedIndices.add(globalMaxIndex)
         if (preserveGlobalMin) preservedIndices.add(globalMinIndex)
 
-        var smoothed = smoothValues(values, iterations)
+        return smoothValuesWithPreservedAnchors(values, iterations, preservedIndices)
+    }
 
-        smoothed = smoothed.toMutableList().apply {
-            preservedIndices.forEach { this[it] = values[it] }
+    private fun smoothValuesOnePass(values: List<Float>): List<Float> {
+        val smoothed = MutableList(values.size) { 0f }
+        for (i in values.indices) {
+            val prev = if (i > 0) values[i - 1] else values[i]
+            val curr = values[i]
+            val next = if (i < values.lastIndex) values[i + 1] else values[i]
+
+            // Weighted average: 25% prev, 50% current, 25% next
+            smoothed[i] = prev * 0.25f + curr * 0.5f + next * 0.25f
+        }
+        return smoothed
+    }
+
+    private fun smoothValuesWithPreservedAnchors(
+        values: List<Float>,
+        iterations: Int,
+        preservedIndices: Set<Int>,
+    ): List<Float> {
+        var current = values
+
+        repeat(iterations) {
+            val smoothed = smoothValuesOnePass(current).toMutableList()
+            preservedIndices.forEach { smoothed[it] = values[it] }
+            current = smoothed
         }
 
-        return smoothed
+        return current
     }
 
     /**

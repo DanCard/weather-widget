@@ -159,10 +159,13 @@ clear_asm_cache() {
 # This avoids 'gradlew clean' racing with the parallel unit-test build.
 EMULATOR_NO_RETRY_ARGS=(--no-retry)
 
+# Remove stale .lock files from ASM cache dirs (prevents failures after crashes)
+for dir in "${ASM_CACHE_DIRS[@]}"; do
+    find "$dir" -name "*.lock" -delete 2>/dev/null || true
+done
+
 # Pre-build: compile and ASM-transform in a single Gradle invocation so the
-# parallel test processes that follow all find these tasks UP-TO-DATE.
-# Without this, 4 concurrent Gradle daemons race on transformDebugClassesWithAsm,
-# corrupting each other's intermediate output.
+# two parallel test processes that follow both find these tasks UP-TO-DATE.
 BUILD_START=$(date +%s)
 printf "${BLUE}Pre-building...${NC} "
 if JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
@@ -181,7 +184,7 @@ echo -e "${BLUE}Starting unit tests and emulator tests in parallel${NC}"
 
 set -o pipefail
 
-"$UNIT_SCRIPT" \
+"$UNIT_SCRIPT" --single-invocation \
     > >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE") \
     2> >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE" >&2) &
 UNIT_PID=$!

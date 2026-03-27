@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 GRADLEW="$ROOT_DIR/gradlew"
 RUN_MODE="Fresh"
+SINGLE_INVOCATION=false
 BUCKETS=()
 OVERALL_START=$(date +%s)
 
@@ -15,6 +16,9 @@ for arg in "$@"; do
       ;;
     --cached)
       RUN_MODE=""
+      ;;
+    --single-invocation)
+      SINGLE_INVOCATION=true
       ;;
     *)
       BUCKETS+=("$arg")
@@ -77,11 +81,55 @@ for bucket in "${BUCKETS[@]}"; do
     Short|Medium|Long) ;;
     *)
       echo "Unknown bucket: $bucket" >&2
-      echo "Usage: $0 [--fresh|--cached] [Short] [Medium] [Long]" >&2
+      echo "Usage: $0 [--fresh|--cached] [--single-invocation] [Short] [Medium] [Long]" >&2
       exit 2
       ;;
   esac
+done
 
+# Single-invocation mode: run all buckets in one Gradle process (avoids ASM races).
+# Gradle's own parallel executor handles concurrent test tasks safely.
+if [ "$SINGLE_INVOCATION" = true ]; then
+  if [ ${#BUCKETS[@]} -eq 3 ] && [ "$RUN_MODE" = "Fresh" ]; then
+    task_name="testByDurationDebugUnitTestFresh"
+  else
+    # Build individual task names for the requested buckets
+    task_name=""
+    for bucket in "${BUCKETS[@]}"; do
+      task_name="$task_name :app:test${bucket}DebugUnitTest${RUN_MODE}"
+    done
+  fi
+
+  overall_status=0
+  (
+    cd "$ROOT_DIR"
+    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
+  ) || overall_status=$?
+
+  # Report per-bucket results from JUnit XML
+  total_tests=0
+  for bucket in "${BUCKETS[@]}"; do
+    results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
+    if [ -d "$results_dir" ]; then
+      IFS='|' read -r test_count failures errors skipped <<<"$(bucket_result_summary "$results_dir")"
+      total_tests=$((total_tests + test_count))
+      if [ "$skipped" -gt 0 ]; then
+        echo "${test_count} ${bucket,,} tests passed (${skipped} skipped)."
+      else
+        echo "${test_count} ${bucket,,} tests passed."
+      fi
+    fi
+  done
+
+  overall_elapsed=$(( $(date +%s) - OVERALL_START ))
+  if [ "$overall_status" -eq 0 ]; then
+    echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
+  fi
+  exit "$overall_status"
+fi
+
+# Multi-process mode (default): spawn a separate Gradle process per bucket.
+for bucket in "${BUCKETS[@]}"; do
   log_file=$(mktemp)
   task_name="test${bucket}DebugUnitTest${RUN_MODE}"
   results_dir="$ROOT_DIR/app/build/test-results/${task_name}"
