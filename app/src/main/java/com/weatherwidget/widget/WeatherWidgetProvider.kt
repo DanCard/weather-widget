@@ -27,34 +27,45 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
+import android.widget.Toast
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
+import com.weatherwidget.ui.WeatherObservationsActivity
+import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.widget.handlers.CloudCoverViewHandler
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
-import com.weatherwidget.widget.handlers.WidgetSizeCalculator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 /**
  * Weather Widget Provider - Main entry point for the widget.
@@ -73,10 +84,9 @@ import java.util.concurrent.TimeUnit
  */
 @dagger.hilt.android.AndroidEntryPoint
 class WeatherWidgetProvider : AppWidgetProvider() {
-    private val TAG = "WeatherWidgetProvider"
 
-    @javax.inject.Inject
-    lateinit var repository: com.weatherwidget.data.repository.WeatherRepository
+    @Inject
+    lateinit var repository: WeatherRepository
 
     override fun onUpdate(
         context: Context,
@@ -138,8 +148,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
                     // We have some data, refresh all widgets from cache immediately
-                    val historyStart = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
-                    val thirtyDays = LocalDate.now().plusDays(30).toEpochDay() * 86400_000L
+                    val historyStart = LocalDate.now().minusDays(30).toEpochDay() * DAY_MS
+                    val thirtyDays = LocalDate.now().plusDays(30).toEpochDay() * DAY_MS
 
                     val forecastQueryStartMs = SystemClock.elapsedRealtime()
                     val weatherList =
@@ -154,7 +164,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         if (needsDailyData) {
                             val snapshotQueryStartMs = SystemClock.elapsedRealtime()
                             forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
-                                .groupBy { LocalDate.ofEpochDay(it.targetDate / 86400_000L) }
+                                .groupBy { LocalDate.ofEpochDay(it.targetDate / DAY_MS) }
                                 .also {
                                     snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
                                 }
@@ -188,8 +198,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     val dailyActualsBySource =
                         if (needsDailyData) {
-                            val historyStartDate = LocalDate.now().minusDays(30).toEpochDay() * 86400_000L
-                            val tomorrowDate = LocalDate.now().plusDays(1).toEpochDay() * 86400_000L
+                            val historyStartDate = LocalDate.now().minusDays(30).toEpochDay() * DAY_MS
+                            val tomorrowDate = LocalDate.now().plusDays(1).toEpochDay() * DAY_MS
                             val extremesQueryStartMs = SystemClock.elapsedRealtime()
                             val extremes = database.dailyExtremeDao().getExtremesInRange(
                                 historyStartDate,
@@ -259,7 +269,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     ),
                     debugTag = TAG,
                 )
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 database.appLogDao().log("WIDGET_LIFECYCLE", "phase=onUpdate_cancelled msg=${e.message}", "VERBOSE")
             } catch (e: Exception) {
                 database.appLogDao().log("WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
@@ -286,6 +296,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         schedulePeriodicUpdate(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            OpportunisticUpdateJobService.scheduleOpportunisticUpdate(context)
+        }
     }
 
     override fun onDisabled(context: Context) {
@@ -296,7 +309,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val uiScheduler = UIUpdateScheduler(context)
         uiScheduler.cancelScheduledUpdates()
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             OpportunisticUpdateJobService.cancelOpportunisticUpdate(context)
         }
     }
@@ -335,12 +348,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     private fun handleShowToastAction(context: Context, intent: Intent) {
         val message = intent.getStringExtra(EXTRA_TOAST_MESSAGE) ?: "No additional data"
-        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     private fun handleShowObservationsAction(context: Context, intent: Intent) {
         val appWidgetId = getWidgetId(intent)
-        val intentToActivity = Intent(context, com.weatherwidget.ui.WeatherObservationsActivity::class.java).apply {
+        val intentToActivity = Intent(context, WeatherObservationsActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
@@ -412,9 +425,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     }
                     context.startActivity(settingsIntent)
                 } else {
-                    Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${WidgetStateManager(context).getViewMode(appWidgetId)} currentStoredZoom=${WidgetStateManager(context).getZoomLevel(appWidgetId)}")
+                    val stateManager = WidgetStateManager(context)
+                    Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
                     if (targetMode == ViewMode.PRECIPITATION) {
-                        WidgetStateManager(context).setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                        stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
                     }
                     WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
                     val totalMs = System.currentTimeMillis() - receiveTimeMs
@@ -466,20 +480,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val uiOnly = intent.getBooleanExtra(EXTRA_UI_ONLY, false)
         Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
 
-        triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
-        
         launchAsync {
             UIUpdateScheduler(context).scheduleNextUpdate()
             
-            val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-            val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-            val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
             }
 
-            if (!uiOnly) {
+            val isDataStale = DataFreshness.isDataStale(context)
+            if (uiOnly || !WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
+                triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
+                Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
+            } else {
                 val tempWorkRequest = OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
                     .setInputData(
                         Data.Builder()
@@ -494,14 +510,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     ExistingWorkPolicy.REPLACE,
                     tempWorkRequest
                 )
-                
-                val isDataStale = DataFreshness.isDataStale(context)
-                if (WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
-                    Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
-                    triggerImmediateUpdate(context, forceRefresh = true, reason = "refresh_action_stale")
-                } else {
-                    Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
-                }
+                Log.d(TAG, "onReceive: Data is stale, triggering background fetch")
+                triggerImmediateUpdate(context, forceRefresh = true, reason = "refresh_action_stale")
             }
         }
     }
@@ -590,10 +600,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         } else {
             null
         }
-        val currentMode = WidgetStateManager(context).getViewMode(appWidgetId)
-        val currentZoom = WidgetStateManager(context).getZoomLevel(appWidgetId)
+        val stateManager = WidgetStateManager(context)
+        val currentMode = stateManager.getViewMode(appWidgetId)
+        val currentZoom = stateManager.getZoomLevel(appWidgetId)
         Log.d(TAG, "handleCycleZoomAction: widget=$appWidgetId centerOffset=$zoomCenterOffset currentMode=$currentMode currentZoom=$currentZoom")
-        if (currentMode == com.weatherwidget.widget.ViewMode.DAILY) {
+        if (currentMode == ViewMode.DAILY) {
             Log.e(TAG, "BUG: CYCLE_ZOOM fired while in DAILY mode! This should be ACTION_DAY_CLICK. Extras: ${intent.extras}")
         }
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
@@ -627,10 +638,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     private suspend fun restartHeartbeats(context: Context) {
         UIUpdateScheduler(context).scheduleNextUpdate()
-        val batteryStatus: Intent? = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-        val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-        val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
             CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
         }
@@ -787,11 +798,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 // 13 zones covering 4 hours. Index 6 is the visual center (offset 0).
                 // Each zone is 1/3h. 4/12 * (index - 6) = (index - 6) / 3.
                 val offsetFloat = (zoneIndex - 6f) / 3f
-                currentHourlyOffset + Math.round(offsetFloat)
+                currentHourlyOffset + offsetFloat.roundToInt()
             }
         }
         private const val TAG = "WeatherWidgetProvider"
         const val EXTRA_INTERACTION_SOURCE = "com.weatherwidget.EXTRA_INTERACTION_SOURCE"
+        const val DAY_MS = 86_400_000L
 
         /**
          * Update widget with loading state.
@@ -807,7 +819,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             views.setTextViewText(R.id.day2_label, "Today")
             views.setTextViewText(R.id.day2_high, "--°")
             views.setTextViewText(R.id.day2_low, "Loading...")
-            android.util.Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=loading state=loading thread=${Thread.currentThread().name}")
+            Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=loading state=loading thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
 
@@ -822,9 +834,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             weatherList: List<ForecastEntity>,
             forecastSnapshots: Map<LocalDate, List<ForecastEntity>> = emptyMap(),
             hourlyForecasts: List<HourlyForecastEntity> = emptyList(),
-            currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+            currentTemps: List<ObservationEntity> = emptyList(),
             dailyActualsBySource: DailyActualsBySource = emptyMap(),
-            repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+            repository: WeatherRepository? = null,
             startupToken: String? = null,
         ) {
             val renderStartMs = SystemClock.elapsedRealtime()
@@ -838,7 +850,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
             val centerTime = now.plusHours(hourlyOffset.toLong())
 
-            val graphStyleObs = com.weatherwidget.util.ObservationBlender.resolveCurrentObservation(
+            val graphStyleObs = ObservationBlender.resolveCurrentObservation(
                 observations = currentTemps,
                 hourlyForecasts = hourlyForecasts,
                 displaySource = displaySource,
@@ -850,13 +862,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             )
             val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)?.let { Triple(it.temperature, it.observedAt, it.observedAt) }
 
+            val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * DAY_MS
+            val targetPrecip = weatherList
+                .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
+                ?.precipProbability
+
             when (viewMode) {
                 ViewMode.TEMPERATURE -> {
-                    val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
-                    val targetPrecip =
-                        weatherList
-                            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
-                            ?.precipProbability
                     TemperatureViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -873,11 +885,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     )
                 }
                 ViewMode.PRECIPITATION -> {
-                    val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
-                    val targetPrecip =
-                        weatherList
-                            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
-                            ?.precipProbability
                     PrecipViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
@@ -892,12 +899,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     )
                 }
                 ViewMode.CLOUD_COVER -> {
-                    val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * 86400_000L
-                    val targetPrecip =
-                        weatherList
-                            .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
-                            ?.precipProbability
-                    com.weatherwidget.widget.handlers.CloudCoverViewHandler.updateWidget(
+                    CloudCoverViewHandler.updateWidget(
                         context = context,
                         appWidgetManager = appWidgetManager,
                         appWidgetId = appWidgetId,

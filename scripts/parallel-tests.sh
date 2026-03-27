@@ -159,17 +159,22 @@ clear_asm_cache() {
 # This avoids 'gradlew clean' racing with the parallel unit-test build.
 EMULATOR_NO_RETRY_ARGS=(--no-retry)
 
-# Remove stale .lock files from ASM cache dirs (prevents failures after crashes)
+TOTAL_START=$(date +%s)
+
+# Clear stale ASM cache and lock files upfront (prevents failures from
+# interrupted builds or parallel Gradle process contention)
+clear_asm_cache
 for dir in "${ASM_CACHE_DIRS[@]}"; do
     find "$dir" -name "*.lock" -delete 2>/dev/null || true
 done
 
 # Pre-build: compile and ASM-transform in a single Gradle invocation so the
 # two parallel test processes that follow both find these tasks UP-TO-DATE.
+# --no-build-cache prevents serving stale ASM artifacts from the Gradle cache.
 BUILD_START=$(date +%s)
 printf "${BLUE}Pre-building...${NC} "
 if JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 \
-    "$PROJECT_DIR/gradlew" -p "$PROJECT_DIR" --console=plain \
+    "$PROJECT_DIR/gradlew" -p "$PROJECT_DIR" --console=plain --no-build-cache \
     transformDebugUnitTestClassesWithAsm \
     assembleDebugAndroidTest >"$BUILD_LOG" 2>&1; then
     BUILD_ELAPSED=$(( $(date +%s) - BUILD_START ))
@@ -218,8 +223,10 @@ if [ "$EMULATOR_STATUS" -eq 2 ]; then
     EMULATOR_STATUS=$?
 fi
 
+TOTAL_DURATION=$(( $(date +%s) - TOTAL_START ))
+
 if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ]; then
-    echo -e "${GREEN}Both unit tests and emulator tests passed${NC}"
+    echo -e "${GREEN}Both unit tests and emulator tests passed${NC} (${TOTAL_DURATION}s)"
     exit 0
 fi
 
@@ -234,4 +241,5 @@ if [ "$EMULATOR_STATUS" -ne 0 ]; then
     print_failure_tail "Recent emulator test output:" "$EMULATOR_LOG_FILE"
 fi
 
+echo -e "${RED}Tests failed${NC} (${TOTAL_DURATION}s)"
 exit 1
