@@ -1,124 +1,205 @@
-#!/bin/bash
-#
-# Run unit tests and show a summary
-#
+#!/usr/bin/env bash
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+set -euo pipefail
 
-echo -en "${BLUE}Running unit tests...${NC} \t"
-START_TIME=$(date +%s)
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+GRADLEW="$ROOT_DIR/gradlew"
+RUN_MODE="Fresh"
+SINGLE_INVOCATION=false
+BUCKETS=()
+OVERALL_START=$(date +%s)
 
-FORCE_FLAG=""
-if [[ "$1" == "--force" ]]; then
-    FORCE_FLAG="--rerun-tasks"
-    echo -e "${YELLOW}Forcing tests to rerun...${NC}"
+for arg in "$@"; do
+  case "$arg" in
+    --fresh)
+      RUN_MODE="Fresh"
+      ;;
+    --cached)
+      RUN_MODE=""
+      ;;
+    --single-invocation)
+      SINGLE_INVOCATION=true
+      ;;
+    *)
+      BUCKETS+=("$arg")
+      ;;
+  esac
+done
+
+if [ ${#BUCKETS[@]} -eq 0 ]; then
+  BUCKETS=(Short Medium Long)
 fi
 
-# Delete old test results so we never parse stale XML from a previous run
-RESULTS_DIR="app/build/test-results/testDebugUnitTest"
-rm -rf "$RESULTS_DIR"
+declare -A pids
+declare -A logs
+declare -A starts
+declare -A results_dirs
 
-LOG_DIR="logs/unit-tests"
-mkdir -p "$LOG_DIR"
-UNIT_LOG="$LOG_DIR/unit-tests-$(date +%Y%m%d-%H%M%S).log"
+cleanup() {
+  for pid in "${pids[@]:-}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+}
 
-# Prune old files (>14 days)
-set -x
-find logs/ -mtime +14 -delete
-set +x
+format_seconds() {
+  local seconds=$1
+  if [ "$seconds" -eq 1 ]; then
+    printf '%s second' "$seconds"
+  else
+    printf '%s seconds' "$seconds"
+  fi
+}
 
-# Run gradle: full output to log file, filtered output to screen
-# Screen: show build tasks only, hide test execution lines and warnings
-# Log: everything for debugging
-./gradlew :app:testDebugUnitTest $FORCE_FLAG --console=plain 2>&1 | tee "$UNIT_LOG" | grep -E '(^> Task |^[[:space:]]*$)'
+bucket_result_summary() {
+  local results_dir=$1
+  python3 - "$results_dir" <<'PY'
+import sys
+from pathlib import Path
+import xml.etree.ElementTree as ET
 
-EXIT_CODE=${PIPESTATUS[0]}
-END_TIME=$(date +%s)
-DURATION_SECONDS=$((END_TIME - START_TIME))
+results_dir = Path(sys.argv[1])
+test_count = 0
+failures = 0
+errors = 0
+skipped = 0
 
-# Parse results from XML files
-TOTAL=0
-PASSED=0
-FAILED=0
-ERRORS=0
-SKIPPED=0
-FAILED_TESTS=()
-declare -A CLASS_PASSED_COUNTS
+for xml_file in sorted(results_dir.glob("TEST-*.xml")):
+    suite = ET.parse(xml_file).getroot()
+    test_count += int(suite.attrib.get("tests", "0"))
+    failures += int(suite.attrib.get("failures", "0"))
+    errors += int(suite.attrib.get("errors", "0"))
+    skipped += int(suite.attrib.get("skipped", "0"))
 
-if [ -d "$RESULTS_DIR" ]; then
-    for xml in "$RESULTS_DIR"/TEST-*.xml; do
-        if [ -f "$xml" ]; then
-            T=$(grep -oP 'tests="\K[0-9]+' "$xml" | head -1)
-            F=$(grep -oP 'failures="\K[0-9]+' "$xml" | head -1)
-            E=$(grep -oP 'errors="\K[0-9]+' "$xml" | head -1)
-            S=$(grep -oP 'skipped="\K[0-9]+' "$xml" | head -1)
-            XML_BASENAME=$(basename "$xml")
-            SUITE_NAME=${XML_BASENAME#TEST-}
-            SUITE_NAME=${SUITE_NAME%.xml}
-            CLASS_NAME=${SUITE_NAME##*.}
-            CLASS_PASSED=$((T - F - E - S))
-            
-            TOTAL=$((TOTAL + T))
-            FAILED=$((FAILED + F))
-            ERRORS=$((ERRORS + E))
-            SKIPPED=$((SKIPPED + S))
+print(f"{test_count}|{failures}|{errors}|{skipped}")
+PY
+}
 
-            if [ "$CLASS_PASSED" -gt 0 ]; then
-                CLASS_PASSED_COUNTS["$CLASS_NAME"]=$CLASS_PASSED
-            fi
-            
-            if [ "$F" -gt 0 ] || [ "$E" -gt 0 ]; then
-                # Extract failed test names
-                while read -r line; do
-                    test_name=$(echo "$line" | grep -oP 'name="\K[^"]+')
-                    FAILED_TESTS+=("$test_name")
-                done < <(grep '<testcase' "$xml" | grep -E '<failure|<error')
-            fi
-        fi
+for bucket in "${BUCKETS[@]}"; do
+  case "$bucket" in
+    Short|Medium|Long) ;;
+    *)
+      echo "Unknown bucket: $bucket" >&2
+      echo "Usage: $0 [--fresh|--cached] [--single-invocation] [Short] [Medium] [Long]" >&2
+      exit 2
+      ;;
+  esac
+done
+
+# Single-invocation mode: run all buckets in one Gradle process (avoids ASM races).
+# Gradle's own parallel executor handles concurrent test tasks safely.
+if [ "$SINGLE_INVOCATION" = true ]; then
+  if [ ${#BUCKETS[@]} -eq 3 ] && [ "$RUN_MODE" = "Fresh" ]; then
+    task_name="testByDurationDebugUnitTestFresh"
+  else
+    # Build individual task names for the requested buckets
+    task_name=""
+    for bucket in "${BUCKETS[@]}"; do
+      task_name="$task_name :app:test${bucket}DebugUnitTest${RUN_MODE}"
     done
-    PASSED=$((TOTAL - FAILED - ERRORS - SKIPPED))
+  fi
+
+  gradle_log=$(mktemp)
+  overall_status=0
+  (
+    cd "$ROOT_DIR"
+    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
+  ) >"$gradle_log" 2>&1 || overall_status=$?
+
+  # Report per-bucket results from JUnit XML
+  total_tests=0
+  total_failures=0
+  for bucket in "${BUCKETS[@]}"; do
+    results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
+    if [ -d "$results_dir" ]; then
+      IFS='|' read -r test_count failures errors skipped <<<"$(bucket_result_summary "$results_dir")"
+      total_tests=$((total_tests + test_count))
+      bucket_failures=$((failures + errors))
+      total_failures=$((total_failures + bucket_failures))
+      if [ "$bucket_failures" -gt 0 ]; then
+        echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
+      elif [ "$skipped" -gt 0 ]; then
+        echo "${test_count} ${bucket,,} tests passed (${skipped} skipped)."
+      else
+        echo "${test_count} ${bucket,,} tests passed."
+      fi
+    fi
+  done
+
+  overall_elapsed=$(( $(date +%s) - OVERALL_START ))
+  if [ "$overall_status" -eq 0 ]; then
+    echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
+  else
+    echo "${total_tests} tests, ${total_failures} failed in $(format_seconds "$overall_elapsed")."
+    # Show Gradle output only on failure
+    cat "$gradle_log"
+  fi
+  rm -f "$gradle_log"
+  exit "$overall_status"
 fi
 
-# echo -e "${BLUE}Unit Test Summary${NC}"
+# Multi-process mode (default): spawn a separate Gradle process per bucket.
+for bucket in "${BUCKETS[@]}"; do
+  log_file=$(mktemp)
+  task_name="test${bucket}DebugUnitTest${RUN_MODE}"
+  results_dir="$ROOT_DIR/app/build/test-results/${task_name}"
 
-if [ "$TOTAL" -gt 0 ]; then
-    if [ "$FAILED" -eq 0 ] && [ "$ERRORS" -eq 0 ]; then
-        echo -en "${GREEN}✓ All $TOTAL tests passed${NC} \t"
-    else
-        echo -e "${RED}  ✗ $FAILED tests failed, $ERRORS errors${NC}"
-        echo -e "${RED}Failed tests:${NC}"
-        for ft in "${FAILED_TESTS[@]}"; do
-            echo -e "  ${RED}✗ $ft${NC}"
-        done
-    fi
-    echo -e "  Total:   $TOTAL"
-    echo -e "  Duration: ${DURATION_SECONDS}s"
-    echo -e "  ${GREEN}Passed:  $PASSED${NC}"
-    if [ "$FAILED" -gt 0 ]; then
-        echo -e "  ${RED}Failed:  $FAILED${NC}"
-    fi
-    if [ "$ERRORS" -gt 0 ]; then
-        echo -e "  ${RED}Errors:  $ERRORS${NC}"
-    fi
-    if [ "$SKIPPED" -gt 0 ]; then
-        echo -e "  ${YELLOW}Skipped: $SKIPPED${NC}"
-    fi
+  logs["$bucket"]="$log_file"
+  results_dirs["$bucket"]="$results_dir"
+  starts["$bucket"]=$(date +%s)
 
- 
-else
-    if [ "$EXIT_CODE" -ne 0 ]; then
-        echo -e "${RED}✗ Build failed (no test results produced)${NC}"
-    else
-        echo -e "${YELLOW}  ⚠ No test results found${NC}"
+  (
+    cd "$ROOT_DIR"
+    "$GRADLEW" ":app:${task_name}" --console=plain
+  ) >"$log_file" 2>&1 &
+  pids["$bucket"]=$!
+done
+
+overall_status=0
+remaining=${#BUCKETS[@]}
+total_tests=0
+
+while [ "$remaining" -gt 0 ]; do
+  wait -n -p finished_pid
+  exit_code=$?
+  remaining=$((remaining - 1))
+
+  if [ "$exit_code" -ne 0 ]; then
+    overall_status=1
+  fi
+
+  # Find which bucket this PID belongs to
+  bucket=""
+  for b in "${!pids[@]}"; do
+    if [ "${pids[$b]}" = "$finished_pid" ]; then
+      bucket="$b"
+      break
     fi
-    echo -e "  Duration: ${DURATION_SECONDS}s"
+  done
+
+  if [ "$exit_code" -eq 0 ]; then
+    IFS='|' read -r test_count failures errors skipped <<<"$(bucket_result_summary "${results_dirs[$bucket]}")"
+    total_tests=$((total_tests + test_count))
+    elapsed=$(( $(date +%s) - ${starts[$bucket]} ))
+    if [ "$skipped" -gt 0 ]; then
+      echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$elapsed")."
+    else
+      echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$elapsed")."
+    fi
+  else
+    echo "===== $bucket ====="
+    cat "${logs[$bucket]}"
+    echo
+    echo "$bucket bucket failed with exit code $exit_code" >&2
+  fi
+  rm -f "${logs[$bucket]}"
+done
+
+overall_elapsed=$(( $(date +%s) - OVERALL_START ))
+
+if [ "$overall_status" -eq 0 ]; then
+  echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
 fi
 
-echo -e "${BLUE}Unit test log:${NC} $UNIT_LOG"
-
-exit $EXIT_CODE
+exit "$overall_status"

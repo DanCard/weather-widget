@@ -12,7 +12,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-UNIT_SCRIPT="$SCRIPT_DIR/test-unit-by-duration.sh"
+UNIT_SCRIPT="$SCRIPT_DIR/unit-tests.sh"
 EMULATOR_SCRIPT="$SCRIPT_DIR/emulator-tests.sh"
 LOG_DIR="$PROJECT_DIR/logs/parallel-tests"
 mkdir -p "$LOG_DIR"
@@ -184,7 +184,7 @@ echo -e "${BLUE}Starting unit tests and emulator tests in parallel${NC}"
 
 set -o pipefail
 
-"$UNIT_SCRIPT" --single-invocation \
+"$UNIT_SCRIPT" \
     > >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE") \
     2> >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE" >&2) &
 UNIT_PID=$!
