@@ -334,20 +334,23 @@ object TemperatureViewHandler {
                         emptyList()
                     } else {
                         val minEpoch = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val maxEpoch = graphEnd.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        val maxEpoch = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                         val obsStartMs = SystemClock.elapsedRealtime()
                         val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
                         val afterObsMs = SystemClock.elapsedRealtime()
                         obsQueryMs = afterObsMs - obsStartMs
                         Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${loaded.size}, zoom=$zoom")
+                        
+                        val queryStart = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+                        val queryEnd = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
                         maybeEnqueueHourlyObservationBackfill(
                             context = context,
                             database = database,
                             stateManager = stateManager,
                             appWidgetId = appWidgetId,
                             displaySource = displaySource,
-                            graphStart = graphStart,
-                            graphEnd = graphEnd,
+                            graphStart = queryStart,
+                            graphEnd = queryEnd,
                             observations = loaded,
                             repositoryPresent = repository != null,
                         )

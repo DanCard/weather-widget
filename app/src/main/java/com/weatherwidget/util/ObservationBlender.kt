@@ -106,8 +106,8 @@ object ObservationBlender {
         
         val startHour = alignedCenter.minusHours(lookbackHours)
         val endHour = alignedCenter.plusHours(lookaheadHours)
-        val contextStartMs = alignedCenter.minusHours(24L).atZone(zoneId).toInstant().toEpochMilli()
-        val contextEndMs = alignedCenter.plusHours(12L).atZone(zoneId).toInstant().toEpochMilli()
+        val contextStartMs = alignedCenter.minusHours(com.weatherwidget.widget.WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val contextEndMs = alignedCenter.plusHours(com.weatherwidget.widget.WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
 
         val result = blendObservationSeries(
             observations = observations,

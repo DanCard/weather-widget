@@ -6,6 +6,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 GRADLEW="$ROOT_DIR/gradlew"
 RUN_MODE="Fresh"
 SINGLE_INVOCATION=false
+STREAM_OUTPUT=false
 BUCKETS=()
 OVERALL_START=$(date +%s)
 
@@ -19,6 +20,9 @@ for arg in "$@"; do
       ;;
     --single-invocation)
       SINGLE_INVOCATION=true
+      ;;
+    --stream)
+      STREAM_OUTPUT=true
       ;;
     *)
       BUCKETS+=("$arg")
@@ -102,10 +106,17 @@ if [ "$SINGLE_INVOCATION" = true ]; then
 
   gradle_log=$(mktemp)
   overall_status=0
-  (
-    cd "$ROOT_DIR"
-    JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
-  ) >"$gradle_log" 2>&1 || overall_status=$?
+  if [ "$STREAM_OUTPUT" = true ]; then
+    (
+      cd "$ROOT_DIR"
+      JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
+    ) | tee "$gradle_log" || overall_status=$?
+  else
+    (
+      cd "$ROOT_DIR"
+      JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$GRADLEW" $task_name --console=plain
+    ) >"$gradle_log" 2>&1 || overall_status=$?
+  fi
 
   # Report per-bucket results from JUnit XML
   total_tests=0

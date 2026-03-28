@@ -75,8 +75,9 @@ TEST_TIMEOUT_ARG=""
 
 LEAVE_APKS_INSTALLED=true  # Preserve app/test APKs to avoid widget removal side-effects
 NO_RETRY=false             # When true, exit 2 on ASM errors instead of retrying (for parallel orchestration)
+BOOT_ONLY=false            # Exit after boot if true
 
-while getopts "e:c:d:qvuh-:" opt; do
+while getopts "e:c:d:qvuhb-:" opt; do
     case $opt in
         e) EMULATOR_NAME="$OPTARG"; EMULATOR_NAME_EXPLICIT=true ;;
         c) TEST_CLASS="$OPTARG" ;;
@@ -84,10 +85,12 @@ while getopts "e:c:d:qvuh-:" opt; do
         q) VISIBLE_MODE=false ;;
         v) VERBOSE_MODE=true ;;
         u) LEAVE_APKS_INSTALLED=false ;;
+        b) BOOT_ONLY=true ;;
         h) SHOW_HELP=true ;;
         -)
             case "${OPTARG}" in
                 no-retry) NO_RETRY=true ;;
+                boot-only) BOOT_ONLY=true ;;
                 *) SHOW_HELP=true ;;
             esac
             ;;
@@ -116,12 +119,14 @@ if [ "$SHOW_HELP" = true ]; then
     echo "  -e EMULATOR    Use specific emulator (default: $DEFAULT_EMULATOR)"
     echo "  -c CLASS       Run specific test class (e.g., com.weatherwidget.WidgetSizeCalculatorTest)"
     echo "  -d DURATION    Test timeout (default: ${TEST_TIMEOUT}s; accepts 300, 90s, 10m, 1h)"
+    echo "  -b             Boot only: exit once emulator is ready (no tests)"
     echo "  --no-retry     Exit 2 on ASM errors instead of retrying (for parallel orchestration)"
     echo "  -h             Show this help"
     echo ""
     echo "Examples:"
     echo "  $(basename "$0")                              # Run tests, keep emulator running"
     echo "  $(basename "$0") -q                           # Headless mode (no GUI window)"
+    echo "  $(basename "$0") -b                           # Boot emulator and exit"
     echo "  $(basename "$0") -e Medium_Phone_API_36      # Use phone emulator"
     echo "  $(basename "$0") -c WidgetSizeCalculatorTest # Run specific test class"
     echo "  $(basename "$0") -d 15m                       # Allow up to 15 minutes for tests"
@@ -338,6 +343,11 @@ if [ "$VERBOSE_MODE" = true ]; then
     MODEL=$($TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.product.model 2>/dev/null | tr -d '\r\n')
     echo -en "${BLUE}Device info: product model:${NC} ${MODEL:-Unknown}   Android build version: "
     $TIMEOUT_CMD $ADB_BIN -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release 2>/dev/null || echo "  Unknown"
+fi
+
+if [ "$BOOT_ONLY" = true ]; then
+    echo -e "${GREEN}Boot complete — exiting${NC}"
+    exit 0
 fi
 
 
@@ -745,7 +755,8 @@ if grep -q "BUILD SUCCESSFUL" "$TEST_RESULTS_LOG" 2>/dev/null; then
 fi
 
 # Retry on transient ASM instrumentation failure (stale incremental cache).
-if [ "$TEST_SUCCESS" = false ] && grep -q "transformDebugClassesWithAsm" "$TEST_RESULTS_LOG" 2>/dev/null; then
+# Only retry if the transformation task itself failed or caused the build failure.
+if [ "$TEST_SUCCESS" = false ] && grep -qE "transform.*ClassesWithAsm.*FAILED|Execution failed for task ':app:transform.*ClassesWithAsm'" "$TEST_RESULTS_LOG" 2>/dev/null; then
     if [ "$NO_RETRY" = true ]; then
         echo -e "${YELLOW}ASM instrumentation error (--no-retry: deferring to caller)${NC}"
         exit 2

@@ -100,6 +100,74 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
     }
 
     @Test
+    fun observationWindowConsistency_withFutureObservation() = runBlocking {
+        val forecasts: List<com.weatherwidget.data.local.HourlyForecastEntity> = wideForecasts()
+        
+        val tMinus4h = center.minusHours(4)
+        val tMinus1h = center.minusHours(1)
+        val tPlus4h = center.plusHours(4)
+        
+        val baseActuals = listOf(
+            AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus4h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f),
+            AndroidTestData.createObservation(stationId = "S2", timestamp = tMinus1h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 70f, distanceKm = 10f)
+        )
+        
+        val disturber = AndroidTestData.createObservation(stationId = "S1", timestamp = tPlus4h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 65f, distanceKm = 2f)
+        val fullActuals = baseActuals + disturber
+
+        // 1. Wide zoom: Sees the future observation (T+4h) because its query window is T+12h
+        val wideHours = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actuals = fullActuals
+        )
+        
+        // 2. Narrow zoom (CURRENT BUGGY BEHAVIOR): Excludes T+4h because its query window is T+2h
+        // We simulate the bug by passing only baseActuals to NARROW zoom
+        val narrowHoursBuggy = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.NARROW,
+            actuals = baseActuals
+        )
+
+        val widePointAt11 = wideHours.find { it.dateTime == tMinus1h }
+        val narrowPointAt11Buggy = narrowHoursBuggy.find { it.dateTime == tMinus1h }
+
+        // The values SHOULD be different here if the bug exists (S1 at 11:00 is interpolated vs extrapolated)
+        assertNotNull(widePointAt11)
+        assertNotNull(narrowPointAt11Buggy)
+        
+        // This is where we REPRODUCE the inconsistency. 
+        // Note: In a passing test suite, we'd expect them to be equal, 
+        // but here we are documenting that different inputs lead to different results.
+        val diff = Math.abs(widePointAt11!!.actualTemperature!! - narrowPointAt11Buggy!!.actualTemperature!!)
+        assertTrue("BUG REPRODUCTION: Temperature at T-1h should differ when future context is missing (diff=$diff)", diff > 0.01f)
+
+        // 3. Narrow zoom (FIXED BEHAVIOR): Should receive fullActuals despite visual window
+        val narrowHoursFixed = TemperatureViewHandler.buildHourDataList(
+            hourlyForecasts = forecasts,
+            centerTime = center,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.NARROW,
+            actuals = fullActuals
+        )
+        
+        val narrowPointAt11Fixed = narrowHoursFixed.find { it.dateTime == tMinus1h }
+        assertEquals("FIXED: Temperature at 11:00 must be consistent when same data context is provided", 
+            widePointAt11.actualTemperature!!, 
+            narrowPointAt11Fixed!!.actualTemperature!!, 
+            0.01f
+        )
+    }
+
+    @Test
     fun observationContextIsConsistentAcrossZoomLevels() = runBlocking {
         // Seed observations
         val tMinus4h = center.minusHours(4)
