@@ -88,21 +88,13 @@ clear_asm_cache() {
 
 TOTAL_START=$(date +%s)
 
-echo -e "${BLUE}Clearing ASM cache...${NC}"
-clear_asm_cache
-
-# Phase 1: Boot emulator in background (no Gradle involved yet)
-echo -e "${BLUE}Phase 1: Booting emulator...${NC}"
-"$EMULATOR_SCRIPT" -b "${EMULATOR_ARGS[@]}" >"$EMULATOR_BOOT_LOG" 2>&1 &
-BOOT_PID=$!
-
-# Phase 2: Start unit tests (this will start the first Gradle build)
+# Phase 1: Start unit tests (this will start the first Gradle build)
 # We use --log-file to keep output clean while allowing us to monitor progress.
-echo -e "${BLUE}Phase 2: Starting unit tests...${NC}"
+echo -e "${BLUE}Phase 1: Starting unit tests...${NC}"
 "$UNIT_SCRIPT" --single-invocation --log-file "$UNIT_LOG_FILE" &
 UNIT_PID=$!
 
-# Phase 3: Wait for unit tests to reach execution phase
+# Phase 2: Wait for unit tests to reach execution phase
 echo -e "${YELLOW}Waiting for unit test build to finish before starting emulator tests...${NC}"
 
 # Wait for log file to be created
@@ -128,22 +120,21 @@ fi
 if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
     echo -e "${YELLOW}Unit test build finished early or failed.${NC}"
 fi
-
-# Phase 4: Start emulator tests (now that unit test transformations are done)
-echo -e "${BLUE}Phase 4: Starting emulator tests...${NC}"
+# Phase 3: Start emulator tests (now that unit test transformations are done)
+echo -e "${BLUE}Phase 3: Starting emulator tests...${NC}"
 # We stream emulator tests but we want to filter out the noise.
 # For now, let's just let it print its normal condensed output to stdout,
 # but also capture everything in the log.
 "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE" &
 EMULATOR_PID=$!
 
+echo -e "${BLUE}Both test suites are now active.${NC}"
+
 wait "$UNIT_PID"
 UNIT_STATUS=$?
 
 wait "$EMULATOR_PID"
 EMULATOR_STATUS=$?
-
-wait "$BOOT_PID" || true # Boot script should be done by now
 
 TOTAL_DURATION=$(( $(date +%s) - TOTAL_START ))
 
