@@ -44,6 +44,7 @@ object CloudCoverViewHandler {
     private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
     private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
     private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
+    private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
     private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
     private const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
@@ -143,18 +144,17 @@ object CloudCoverViewHandler {
         views.setOnClickPendingIntent(R.id.current_temp, goTempPending)
         views.setOnClickPendingIntent(R.id.current_temp_zone, goTempPending)
 
-        // Precip % → daily forecast
-        val goDailyIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_SET_VIEW
+        // Precip % → precipitation view
+        val precipIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            action = ACTION_TOGGLE_PRECIP
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.DAILY.name)
         }
-        val goDailyPending = PendingIntent.getBroadcast(
-            context, appWidgetId * 2 + 300, goDailyIntent,
+        val precipPendingIntent = PendingIntent.getBroadcast(
+            context, WidgetRequestCodes.precipToggle(appWidgetId), precipIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        views.setOnClickPendingIntent(R.id.precip_probability, goDailyPending)
-        views.setOnClickPendingIntent(R.id.precip_touch_zone, goDailyPending)
+        views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
+        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
 
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {

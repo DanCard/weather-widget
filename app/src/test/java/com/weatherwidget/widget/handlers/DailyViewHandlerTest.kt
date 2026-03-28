@@ -570,10 +570,9 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `prepareGraphDays assigns sequential columnIndex when middle days are missing`() {
+    fun `prepareGraphDays returns all slots when middle days are missing`() {
         // dayOffsets for numColumns=5 are [-1, 0, 1, 2, 3]; only yesterday and today+2 have data
-        // With the old `columnIndex = index` (forEachIndexed), today+2 would get columnIndex=3 (its offset index)
-        // With the fix `columnIndex = days.size` (before .add()), today+2 gets columnIndex=1
+        // With current behavior, all 5 slots are returned to maintain grid stability.
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val yesterday = today.minusDays(1)
@@ -595,9 +594,9 @@ class DailyViewHandlerTest {
             hourlyForecasts = emptyList()
         )
 
-        assertEquals("should have 2 days", 2, result.size)
+        assertEquals("should have 5 slots", 5, result.size)
         assertEquals("yesterday should be columnIndex 0", 0, result[0].columnIndex)
-        assertEquals("today+2 should be columnIndex 1 (sequential, not offset 3)", 1, result[1].columnIndex)
+        assertEquals("today+2 should be columnIndex 3", 3, result[3].columnIndex)
     }
 
     @Test

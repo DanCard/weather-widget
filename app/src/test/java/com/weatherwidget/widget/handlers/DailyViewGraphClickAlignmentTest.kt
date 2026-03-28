@@ -103,11 +103,11 @@ class DailyViewGraphClickAlignmentTest {
         val root = FrameLayout(context)
         val applied = viewsSlot.captured.apply(context, root)
 
-        // Sequential columnIndex: yesterday=zone0, today=zone1, tomorrow=zone2, zone3+ GONE
+        // Sequential columnIndex: yesterday=zone0, today=zone1, tomorrow=zone2, zone3+ still visible but empty
         assertEquals("Zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day1_zone).visibility)
         assertEquals("Zone 1 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day2_zone).visibility)
         assertEquals("Zone 2 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day3_zone).visibility)
-        assertEquals("Zone 3 should be GONE (beyond days.size)", View.GONE, applied.findViewById<View>(R.id.graph_day4_zone).visibility)
+        assertEquals("Zone 3 should be VISIBLE (empty but present for grid stability)", View.VISIBLE, applied.findViewById<View>(R.id.graph_day4_zone).visibility)
 
         // Zone 1 = today (colIndex 1) — click fires broadcast
         val zone1 = applied.findViewById<View>(R.id.graph_day2_zone)
@@ -182,27 +182,27 @@ class DailyViewGraphClickAlignmentTest {
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
 
         // Sequential columnIndex: today=zone0, today+6=zone1, zone2+ GONE
-        // Zone 1 (graph_day2_zone) = today+6 — click must fire a broadcast
-        val zone1 = applied.findViewById<View>(R.id.graph_day2_zone)
-        assertEquals("Zone 1 should be VISIBLE", View.VISIBLE, zone1.visibility)
+        // Zone 7 (graph_day8_zone) = today+6 (offset 6) — click must fire a broadcast
+        val zone7 = applied.findViewById<View>(R.id.graph_day8_zone)
+        assertEquals("Zone 7 should be VISIBLE", View.VISIBLE, zone7.visibility)
         val countBefore = broadcasts.size
-        zone1.performClick()
-        assertEquals("Zone 1 click should fire a broadcast", countBefore + 1, broadcasts.size)
+        zone7.performClick()
+        assertEquals("Zone 7 click should fire a broadcast", countBefore + 1, broadcasts.size)
         assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(col7Str, broadcasts.last().getStringExtra("date"))
 
-        // Zone 2 (graph_day3_zone) is beyond days.size — must be GONE
-        val zone2 = applied.findViewById<View>(R.id.graph_day3_zone)
-        assertEquals("Zone 2 should be GONE", View.GONE, zone2.visibility)
-        val bottomZone2 = applied.findViewById<View>(R.id.graph_bottom_day3_zone)
-        assertEquals("Bottom zone 2 should be GONE", View.GONE, bottomZone2.visibility)
+        // Zone 8 (graph_day9_zone) is empty — must still be VISIBLE for grid stability
+        val zone8 = applied.findViewById<View>(R.id.graph_day9_zone)
+        assertEquals("Zone 8 should be VISIBLE", View.VISIBLE, zone8.visibility)
+        val bottomZone8 = applied.findViewById<View>(R.id.graph_bottom_day9_zone)
+        assertEquals("Bottom zone 8 should be VISIBLE", View.VISIBLE, bottomZone8.visibility)
     }
 
     @Test
     fun `setupGraphDayClickHandlers aligns touch zones with columns when middle days are missing`() = runBlocking {
         // GIVEN: 9 columns, data for yesterday and today+2 only (today and tomorrow absent)
         // dayOffsets = [-1, 0, 1, 2, 3, 4, 5, 6, 7]; yesterday hits index 0, today+2 hits index 3
-        // With sequential columnIndex (days.size before .add), yesterday=0, today+2=1
+        // With current behavior, all 9 slots are returned. yesterday=0, today+2=3
         val now = LocalDateTime.of(2026, 3, 20, 12, 0)
         val today = now.toLocalDate()
         val yesterdayStr = today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -244,21 +244,19 @@ class DailyViewGraphClickAlignmentTest {
         val applied = viewsSlot.captured.apply(context, root)
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
 
-        // Sequential columnIndex: yesterday=zone0, today+2=zone1, zone2+ GONE
+        // yesterday=zone0, skipped=zone3, other zones still visible but empty
         assertEquals("Zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day1_zone).visibility)
-        assertEquals("Zone 1 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day2_zone).visibility)
-        assertEquals("Zone 2 should be GONE", View.GONE, applied.findViewById<View>(R.id.graph_day3_zone).visibility)
+        assertEquals("Zone 3 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_day4_zone).visibility)
         assertEquals("Bottom zone 0 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day1_zone).visibility)
-        assertEquals("Bottom zone 1 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day2_zone).visibility)
-        assertEquals("Bottom zone 2 should be GONE", View.GONE, applied.findViewById<View>(R.id.graph_bottom_day3_zone).visibility)
+        assertEquals("Bottom zone 3 should be VISIBLE", View.VISIBLE, applied.findViewById<View>(R.id.graph_bottom_day4_zone).visibility)
 
         // Zone 0 = yesterday — click fires broadcast
         applied.findViewById<View>(R.id.graph_day1_zone).performClick()
         assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
 
-        // Zone 1 = today+2 (columnIndex 1, not 3) — click fires broadcast
-        applied.findViewById<View>(R.id.graph_day2_zone).performClick()
+        // Zone 3 = today+2 (skippedStr) — click fires broadcast
+        applied.findViewById<View>(R.id.graph_day4_zone).performClick()
         assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(skippedStr, broadcasts.last().getStringExtra("date"))
     }
