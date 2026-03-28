@@ -76,13 +76,15 @@ bucket_result_summary() {
 import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 
 results_dir = Path(sys.argv[1])
 test_count = 0
 failures = 0
 errors = 0
 skipped = 0
-total_time = 0.0
+min_start = None
+max_end = None
 
 for xml_file in sorted(results_dir.glob("TEST-*.xml")):
     try:
@@ -91,11 +93,28 @@ for xml_file in sorted(results_dir.glob("TEST-*.xml")):
         failures += int(suite.attrib.get("failures", "0"))
         errors += int(suite.attrib.get("errors", "0"))
         skipped += int(suite.attrib.get("skipped", "0"))
-        total_time += float(suite.attrib.get("time", "0.0"))
-    except (ET.ParseError, ValueError):
+        
+        # Calculate wall-clock span
+        ts_str = suite.attrib.get("timestamp")
+        duration_str = suite.attrib.get("time", "0.0")
+        if ts_str:
+            # fromisoformat handles 'Z' in 3.11+
+            start = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+            duration = float(duration_str)
+            end = start + timedelta(seconds=duration)
+            
+            if min_start is None or start < min_start:
+                min_start = start
+            if max_end is None or end > max_end:
+                max_end = end
+    except (ET.ParseError, ValueError, Exception):
         continue
 
-print(f"{test_count}|{failures}|{errors}|{skipped}|{int(total_time)}")
+wall_duration = 0
+if min_start and max_end:
+    wall_duration = int((max_end - min_start).total_seconds())
+
+print(f"{test_count}|{failures}|{errors}|{skipped}|{wall_duration}")
 PY
 }
 
