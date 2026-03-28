@@ -88,14 +88,13 @@ clear_asm_cache() {
 
 TOTAL_START=$(date +%s)
 
-# Phase 1: Start unit tests (this will start the first Gradle build)
+# Start unit tests (this will start the first Gradle build)
 # We use --log-file to keep output clean while allowing us to monitor progress.
-echo -e "${BLUE}Phase 1: Starting unit tests...${NC}"
 "$UNIT_SCRIPT" --single-invocation --log-file "$UNIT_LOG_FILE" &
 UNIT_PID=$!
 
-# Phase 2: Wait for unit tests to reach execution phase
-echo -e "${YELLOW}Waiting for unit test build to finish before starting emulator tests...${NC}"
+# Wait for unit tests to reach execution phase
+echo -e "${YELLOW}Waiting for unit test build to finish...${NC}"
 
 # Wait for log file to be created
 while [ ! -f "$UNIT_LOG_FILE" ] && kill -0 "$UNIT_PID" 2>/dev/null; do
@@ -108,7 +107,7 @@ if [ -f "$UNIT_LOG_FILE" ]; then
         # Look for the start of the first test task
         if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
             BUILD_DONE=true
-            echo -e "${GREEN}Unit test build finished (tests starting).${NC}"
+            echo -e "${GREEN}Unit test build finished.${NC}"
             # Give it a tiny bit more time to finish all transformations if they are parallel
             sleep 2
             break
@@ -120,15 +119,14 @@ fi
 if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
     echo -e "${YELLOW}Unit test build finished early or failed.${NC}"
 fi
-# Phase 3: Start emulator tests (now that unit test transformations are done)
-echo -e "${BLUE}Phase 3: Starting emulator tests...${NC}"
+
+# Start emulator tests (now that unit test transformations are done)
+echo -e "${BLUE}Starting emulator tests...${NC}"
 # We stream emulator tests but we want to filter out the noise.
 # For now, let's just let it print its normal condensed output to stdout,
 # but also capture everything in the log.
 "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE" &
 EMULATOR_PID=$!
-
-echo -e "${BLUE}Both test suites are now active.${NC}"
 
 wait "$UNIT_PID"
 UNIT_STATUS=$?
