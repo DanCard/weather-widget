@@ -292,7 +292,7 @@ object DailyViewHandler : WidgetViewHandler {
             kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
         if (deltaVisible) {
             val deltaText = String.format("%+.1f", delta)
-            val deltaColor = if (delta > 0) Color.parseColor("#FF6B35") else Color.parseColor("#5AC8FA")
+            val deltaColor = Color.parseColor("#FF6B35")
             views.setTextViewText(R.id.current_temp_delta, deltaText)
             views.setTextColor(R.id.current_temp_delta, deltaColor)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)

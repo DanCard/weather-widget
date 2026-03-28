@@ -45,7 +45,7 @@ class TemperatureDeltaVisibilityRoboTest {
     }
 
     @Test
-    fun `delta badge is visible and orange for positive delta`() = runBlocking {
+    fun `delta badge is visible and red for positive delta`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
@@ -92,11 +92,11 @@ class TemperatureDeltaVisibilityRoboTest {
         
         assertEquals("Delta badge should be VISIBLE", View.VISIBLE, deltaBadge.visibility)
         assertEquals("+1.2", deltaBadge.text.toString())
-        assertEquals("Should be orange for positive", Color.parseColor("#FF6B35"), deltaBadge.currentTextColor)
+        assertEquals("Should be red for positive", Color.parseColor("#FF6B35"), deltaBadge.currentTextColor)
     }
 
     @Test
-    fun `delta badge is blue for negative delta`() = runBlocking {
+    fun `delta badge is red for negative delta`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
@@ -142,7 +142,7 @@ class TemperatureDeltaVisibilityRoboTest {
         
         assertEquals("Delta badge should be VISIBLE", View.VISIBLE, deltaBadge.visibility)
         assertEquals("-0.9", deltaBadge.text.toString())
-        assertEquals("Should be blue for negative", Color.parseColor("#5AC8FA"), deltaBadge.currentTextColor)
+        assertEquals("Should be red for negative", Color.parseColor("#FF6B35"), deltaBadge.currentTextColor)
     }
 
     @Test
