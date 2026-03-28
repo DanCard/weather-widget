@@ -275,15 +275,16 @@ object DailyViewHandler : WidgetViewHandler {
                 fallbackDailyProbability = todayWeather?.precipProbability,
                 referenceTime = now,
             )
-        val isPrecipVisible = precipProb != null && precipProb > 0
+        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
         if (isPrecipVisible) {
             views.setTextViewText(R.id.precip_probability, "$precipProb%")
-            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(precipProb)
+            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(precipProb))
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =
@@ -587,27 +588,8 @@ object DailyViewHandler : WidgetViewHandler {
     }
 
     private fun setupCurrentTempToggle(context: Context, views: RemoteViews, appWidgetId: Int) {
-        val toggleIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_TOGGLE_VIEW
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        }
-        val togglePendingIntent = PendingIntent.getBroadcast(
-            context, WidgetRequestCodes.viewToggle(appWidgetId), toggleIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.current_temp, togglePendingIntent)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, togglePendingIntent)
-
-        val precipIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_TOGGLE_PRECIP
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        }
-        val precipPendingIntent = PendingIntent.getBroadcast(
-            context, WidgetRequestCodes.precipToggle(appWidgetId), precipIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
-        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
+        HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
+        HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
     }
 
     private suspend fun logDailyRenderSummary(

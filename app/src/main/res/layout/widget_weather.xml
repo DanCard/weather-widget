@@ -920,14 +920,15 @@
     <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/precip_touch_zone"
-        android:layout_width="72dp"
+        android:layout_width="52dp"
         android:layout_height="40dp"
         android:layout_gravity="top|start"
-        android:layout_marginStart="72dp"
+        android:layout_marginStart="92dp"
         android:layout_marginTop="4dp"
         android:background="@android:color/transparent"
         android:clickable="true"
-        android:focusable="true" />
+        android:focusable="true"
+        android:visibility="gone" />
 
     <!-- Current temperature and weather icon - positioned in top-left corner -->
     <LinearLayout

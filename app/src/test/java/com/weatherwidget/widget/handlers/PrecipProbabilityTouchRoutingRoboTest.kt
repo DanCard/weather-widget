@@ -5,6 +5,8 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
@@ -20,6 +22,7 @@ import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -64,6 +67,20 @@ class PrecipProbabilityTouchRoutingRoboTest {
     }
 
     @Test
+    fun `temperature precip touch zone is hidden when precip header is hidden`() = runBlocking {
+        val views = renderTemperatureWidget(precipProbability = 0)
+
+        val applied = applyViews(views)
+        val touchZone = applied.findViewById<View>(R.id.precip_touch_zone)
+        val label = applied.findViewById<View>(R.id.precip_probability)
+
+        assertNotNull("Expected precip touch zone to exist", touchZone)
+        assertEquals(View.GONE, touchZone.visibility)
+        assertEquals(View.GONE, label.visibility)
+        assertNull(clickPrecipProbabilityZone(views))
+    }
+
+    @Test
     fun `precipitation precip probability touch zone toggles precip mode`() = runBlocking {
         val views = renderPrecipitationWidget()
         val intent = clickPrecipProbabilityZone(views)
@@ -94,7 +111,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
             appWidgetId = appWidgetId,
             weatherList = sampleDailyForecasts(now.toLocalDate()),
             forecastSnapshots = emptyMap(),
-            hourlyForecasts = sampleHourlyForecasts(now),
+            hourlyForecasts = sampleHourlyForecasts(now, 30),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
             repository = null,
@@ -103,7 +120,9 @@ class PrecipProbabilityTouchRoutingRoboTest {
         return appWidgetManager.second.captured
     }
 
-    private suspend fun renderTemperatureWidget(): RemoteViews {
+    private suspend fun renderTemperatureWidget(
+        precipProbability: Int = 30,
+    ): RemoteViews {
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
@@ -114,10 +133,10 @@ class PrecipProbabilityTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
+            hourlyForecasts = sampleHourlyForecasts(now, precipProbability),
             centerTime = now,
             displaySource = WeatherSource.NWS,
-            precipProbability = 30,
+            precipProbability = precipProbability,
         )
         return appWidgetManager.second.captured
     }
@@ -133,7 +152,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
+            hourlyForecasts = sampleHourlyForecasts(now, 30),
             centerTime = now,
             precipProbability = 30,
         )
@@ -151,7 +170,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
+            hourlyForecasts = sampleHourlyForecasts(now, 30),
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = 30,
@@ -160,14 +179,20 @@ class PrecipProbabilityTouchRoutingRoboTest {
     }
 
     private fun clickPrecipProbabilityZone(views: RemoteViews): android.content.Intent? {
-        val applied = views.apply(context, null)
+        val applied = applyViews(views)
         val touchZone = applied.findViewById<View>(R.id.precip_touch_zone)
         assertNotNull("Expected precip_touch_zone to exist", touchZone)
 
         val shadowApp = shadowOf(app)
         val beforeTap = shadowApp.broadcastIntents.size
+        if (touchZone.visibility != View.VISIBLE) return null
         touchZone.performClick()
         return shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
+    }
+
+    private fun applyViews(views: RemoteViews): View {
+        val root = FrameLayout(context)
+        return views.apply(context, root as ViewGroup)
     }
 
     private fun mockWidgetManager(
@@ -191,7 +216,10 @@ class PrecipProbabilityTouchRoutingRoboTest {
 
     private val zoneId = java.time.ZoneId.systemDefault()
 
-    private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
+    private fun sampleHourlyForecasts(
+        now: LocalDateTime,
+        precipProbability: Int,
+    ): List<HourlyForecastEntity> {
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
         val fetchedAt = System.currentTimeMillis()
         return (0..24).map { index ->
@@ -203,7 +231,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
                 temperature = 60f + index,
                 condition = "Clear",
                 source = WeatherSource.NWS.id,
-                precipProbability = 30,
+                precipProbability = precipProbability,
                 cloudCover = 50,
                 fetchedAt = fetchedAt,
             )

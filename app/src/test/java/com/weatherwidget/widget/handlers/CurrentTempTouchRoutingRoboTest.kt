@@ -25,6 +25,7 @@ import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -76,6 +77,17 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     @Test
+    fun `daily current temp delta routes to temperature view`() = runBlocking {
+        val views = renderDailyWidget(observedCurrentTemp = 72.4f, precipProbability = 0)
+
+        val intent = clickView(views, R.id.current_temp_delta)
+
+        assertNotNull("Expected current temp delta to send a broadcast", intent)
+        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_VIEW, intent!!.action)
+        assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+    }
+
+    @Test
     fun `precipitation current temp touch zone routes to temperature view`() = runBlocking {
         val views = renderPrecipitationWidget()
 
@@ -99,7 +111,10 @@ class CurrentTempTouchRoutingRoboTest {
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
-    private suspend fun renderDailyWidget(): RemoteViews {
+    private suspend fun renderDailyWidget(
+        observedCurrentTemp: Float? = null,
+        precipProbability: Int = 20,
+    ): RemoteViews {
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
@@ -117,25 +132,32 @@ class CurrentTempTouchRoutingRoboTest {
             dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
             repository = null,
             now = now,
+            observedCurrentTemp = observedCurrentTemp,
+            observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
         return appWidgetManager.second.captured
     }
 
-    private suspend fun renderTemperatureWidget(): RemoteViews {
+    private suspend fun renderTemperatureWidget(
+        observedCurrentTemp: Float? = null,
+        precipProbability: Int = 20,
+    ): RemoteViews {
         val stateManager = WidgetStateManager(context)
         stateManager.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
-        val appWidgetManager = mockWidgetManager(textOptions())
+        val appWidgetManager = mockWidgetManager(graphOptions())
         val now = LocalDateTime.of(2026, 3, 27, 12, 0)
         TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
+            hourlyForecasts = sampleHourlyForecasts(now, precipProbability),
             centerTime = now,
             displaySource = WeatherSource.NWS,
-            precipProbability = 20,
+            precipProbability = precipProbability,
+            observedCurrentTemp = observedCurrentTemp,
+            observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
         return appWidgetManager.second.captured
     }
@@ -145,7 +167,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setViewMode(appWidgetId, ViewMode.PRECIPITATION)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
-        val appWidgetManager = mockWidgetManager(textOptions())
+        val appWidgetManager = mockWidgetManager(graphOptions())
         val now = LocalDateTime.of(2026, 3, 27, 12, 0)
         PrecipViewHandler.updateWidget(
             context = context,
@@ -163,7 +185,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setViewMode(appWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
-        val appWidgetManager = mockWidgetManager(textOptions())
+        val appWidgetManager = mockWidgetManager(graphOptions())
         val now = LocalDateTime.of(2026, 3, 27, 12, 0)
         CloudCoverViewHandler.updateWidget(
             context = context,
@@ -178,13 +200,18 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     private fun clickCurrentTempZone(views: RemoteViews): android.content.Intent? {
+        return clickView(views, R.id.current_temp_zone)
+    }
+
+    private fun clickView(views: RemoteViews, viewId: Int): android.content.Intent? {
         val applied = applyViews(views)
-        val currentTempZone = applied.findViewById<View>(R.id.current_temp_zone)
-        assertNotNull("Expected current_temp_zone to exist", currentTempZone)
+        val target = applied.findViewById<View>(viewId)
+        assertNotNull("Expected tapped view to exist", target)
 
         val shadowApp = shadowOf(app)
         val beforeTap = shadowApp.broadcastIntents.size
-        currentTempZone.performClick()
+        assertTrue("Expected tapped view to be visible", target.visibility == View.VISIBLE)
+        target.performClick()
         return shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
     }
 
@@ -216,7 +243,18 @@ class CurrentTempTouchRoutingRoboTest {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
         }
 
-    private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
+    private fun graphOptions(): Bundle =
+        Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 200)
+        }
+
+    private fun sampleHourlyForecasts(
+        now: LocalDateTime,
+        precipProbability: Int = 20,
+    ): List<HourlyForecastEntity> {
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
         val fetchedAt = System.currentTimeMillis()
         return (0..24).map { index ->
@@ -228,7 +266,7 @@ class CurrentTempTouchRoutingRoboTest {
                 temperature = 60f + index,
                 condition = if (index % 3 == 0) "Cloudy" else "Clear",
                 source = WeatherSource.NWS.id,
-                precipProbability = if (index % 4 == 0) 20 else 0,
+                precipProbability = precipProbability,
                 cloudCover = (30 + index).coerceAtMost(100),
                 fetchedAt = fetchedAt,
             )

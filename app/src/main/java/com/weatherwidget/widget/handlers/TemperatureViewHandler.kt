@@ -492,19 +492,21 @@ object TemperatureViewHandler {
             )
 
         // Show precipitation probability next to current temp when rain is expected
-        if (headerPrecipProbability != null && headerPrecipProbability > 0) {
+        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
+        if (isPrecipVisible) {
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
-            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
+            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(headerPrecipProbability))
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
         positionCenterIcons(
             views = views,
             widthDp = dimensions.widthDp,
-            isPrecipVisible = headerPrecipProbability != null && headerPrecipProbability > 0,
+            isPrecipVisible = isPrecipVisible,
         )
 
         database.appLogDao().log(
@@ -523,7 +525,7 @@ object TemperatureViewHandler {
                 appliedDelta = delta,
                 deltaVisible = deltaVisible,
                 deltaHiddenReason = temperatureDeltaHiddenReason(currentTemp, delta, isNowLineVisible),
-                precipVisible = headerPrecipProbability != null && headerPrecipProbability > 0,
+                precipVisible = isPrecipVisible,
                 precipProbability = headerPrecipProbability,
                 isNowLineVisible = isNowLineVisible,
                 offset = hourlyOffset,
@@ -915,36 +917,13 @@ object TemperatureViewHandler {
         views: RemoteViews,
         appWidgetId: Int,
     ) {
-        val toggleIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_TOGGLE_VIEW
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WeatherWidgetProvider.EXTRA_INTERACTION_SOURCE, "current_temp_header")
-            }
-        val togglePendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.viewToggle(appWidgetId),
-                toggleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.current_temp, togglePendingIntent)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, togglePendingIntent)
-
-        val precipIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_TOGGLE_PRECIP
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-        val precipPendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.precipToggle(appWidgetId),
-                precipIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
-        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
+        HeaderTapTargetHelper.bindToggleTemperatureHeader(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            interactionSource = "current_temp_header",
+        )
+        HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
     }
 
     private fun setupApiToggle(

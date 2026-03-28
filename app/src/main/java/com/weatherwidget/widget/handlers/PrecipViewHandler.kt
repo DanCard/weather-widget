@@ -90,36 +90,8 @@ object PrecipViewHandler {
         setupSettingsShortcut(context, views, appWidgetId)
 
         // In precipitation mode: current temp → hourly graph, precip % → daily forecast
-        val goTempIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_SET_VIEW
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
-            }
-        val goTempPending =
-            PendingIntent.getBroadcast(
-                context,
-                appWidgetId * 2 + 200,
-                goTempIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.current_temp, goTempPending)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, goTempPending)
-
-        val precipIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_TOGGLE_PRECIP
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-        val precipPendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.precipToggle(appWidgetId),
-                precipIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
-        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
+        HeaderTapTargetHelper.bindSetTemperatureHeader(context, views, appWidgetId)
+        HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
         // Get current display source
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -209,7 +181,8 @@ object PrecipViewHandler {
 
         // Show precipitation probability next to current temp.
         // In precipitation mode, show even if 0% so the user gets confirmation.
-        if (headerPrecipProbability != null) {
+        val isPrecipVisible = headerPrecipProbability != null
+        if (isPrecipVisible) {
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
             val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
@@ -217,6 +190,7 @@ object PrecipViewHandler {
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
         // Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP

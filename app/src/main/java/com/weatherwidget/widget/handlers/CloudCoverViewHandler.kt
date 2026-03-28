@@ -132,29 +132,8 @@ object CloudCoverViewHandler {
         setupSettingsShortcut(context, views, appWidgetId)
 
         // Current temp → hourly temp graph
-        val goTempIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_SET_VIEW
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
-        }
-        val goTempPending = PendingIntent.getBroadcast(
-            context, appWidgetId * 2 + 200, goTempIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.current_temp, goTempPending)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, goTempPending)
-
-        // Precip % → precipitation view
-        val precipIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_TOGGLE_PRECIP
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        }
-        val precipPendingIntent = PendingIntent.getBroadcast(
-            context, WidgetRequestCodes.precipToggle(appWidgetId), precipIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.precip_probability, precipPendingIntent)
-        views.setOnClickPendingIntent(R.id.precip_touch_zone, precipPendingIntent)
+        HeaderTapTargetHelper.bindSetTemperatureHeader(context, views, appWidgetId)
+        HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
@@ -237,14 +216,16 @@ object CloudCoverViewHandler {
             fallbackDailyProbability = precipProbability,
             referenceTime = centerTime,
         )
-        if (headerPrecipProbability != null && headerPrecipProbability > 0) {
+        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
+        if (isPrecipVisible) {
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
-            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
+            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(headerPrecipProbability))
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
