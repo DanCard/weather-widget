@@ -54,6 +54,7 @@ object DailyViewLogic {
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
         dailyActuals: com.weatherwidget.widget.DailyActualMap = emptyMap(),
+        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
@@ -71,7 +72,7 @@ object DailyViewLogic {
             // For future days, we need both high and low.
             // For today and past days, we can show partial data (High-only or Low-only).
             val hasData = if (!isToday && !isPast) {
-                weather != null && weather.highTemp != null && weather.lowTemp != null
+                (weather != null && weather.highTemp != null && weather.lowTemp != null) || dailyActuals.containsKey(date)
             } else {
                 (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
             }
@@ -84,7 +85,7 @@ object DailyViewLogic {
                 numColumns == 3 -> index <= 2
                 numColumns == 2 -> index in 1..2
                 else -> index == 1
-            } && hasData
+            } // Removed && hasData to always show the column space if navigation reaches it.
 
             Triple(index + 1, date, isVisible)
         }
@@ -146,6 +147,15 @@ object DailyViewLogic {
                     tripleValues.observedHigh == null &&
                         tripleValues.observedLow == null &&
                         (visibleHigh != null || visibleLow != null)
+            } else {
+                // Future day fallback to climate normals if missing
+                if (highLabel == null || lowLabel == null) {
+                    val normal = climateNormals[java.time.MonthDay.from(date)]
+                    if (normal != null) {
+                        highLabel = formatTemp(normal.first.toFloat())
+                        lowLabel = formatTemp(normal.second.toFloat())
+                    }
+                }
             }
 
             val todayIconForecast =
@@ -221,15 +231,6 @@ object DailyViewLogic {
 
             val isToday = date == today
             val isPastDate = date.isBefore(today)
-            if (weather == null && actual == null && forecast == null) return@forEachIndexed
-            
-            if (!isToday && !isPastDate) {
-                if (weather?.highTemp == null || weather.lowTemp == null) return@forEachIndexed
-            } else {
-                if (weather?.highTemp == null && weather?.lowTemp == null && actual == null && forecast == null) {
-                    return@forEachIndexed
-                }
-            }
 
             val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             val showComparison = (isPastDate || (isToday && isEveningMode))
@@ -297,9 +298,21 @@ object DailyViewLogic {
                     tripleValues.observedHigh == null &&
                         tripleValues.observedLow == null &&
                         (finalHigh != null || finalLow != null)
-            } else if (showComparison) {
-                fHigh = forecast?.highTemp
-                fLow = forecast?.lowTemp
+            } else {
+                // Future day
+                if (finalHigh == null || finalLow == null) {
+                    val normal = climateNormals[java.time.MonthDay.from(date)]
+                    if (normal != null) {
+                        finalHigh = normal.first.toFloat()
+                        finalLow = normal.second.toFloat()
+                        isClimateOverlay = true
+                    }
+                }
+
+                if (showComparison) {
+                    fHigh = forecast?.highTemp
+                    fLow = forecast?.lowTemp
+                }
             }
 
             val todayIconForecast =

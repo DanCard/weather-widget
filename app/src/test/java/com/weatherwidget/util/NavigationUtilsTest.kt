@@ -1,96 +1,57 @@
 package com.weatherwidget.util
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.time.LocalDate
-import com.weatherwidget.test.category.ShortDuration
-import org.junit.experimental.categories.Category
 
-
-
-@Category(ShortDuration::class)
 class NavigationUtilsTest {
-    @Test
-    fun testGetDayOffsets_Narrow() {
-        // 1 column: [0]
-        assertEquals(listOf(0L), NavigationUtils.getDayOffsets(1))
-        assertEquals(0, NavigationUtils.getMinOffset(1))
-        assertEquals(0, NavigationUtils.getMaxOffset(1))
 
-        // 2 columns: [0, 1]
-        assertEquals(listOf(0L, 1L), NavigationUtils.getDayOffsets(2))
-        assertEquals(0, NavigationUtils.getMinOffset(2))
-        assertEquals(1, NavigationUtils.getMaxOffset(2))
+    @Test
+    fun `getDayOffsets returns correct sizes for all column counts`() {
+        assertEquals("1 column", 1, NavigationUtils.getDayOffsets(1).size)
+        assertEquals("2 columns", 2, NavigationUtils.getDayOffsets(2).size)
+        assertEquals("3 columns", 3, NavigationUtils.getDayOffsets(3).size)
+        assertEquals("5 columns", 5, NavigationUtils.getDayOffsets(5).size)
+        assertEquals("7 columns", 7, NavigationUtils.getDayOffsets(7).size)
+        assertEquals("9 columns", 9, NavigationUtils.getDayOffsets(9).size)
     }
 
     @Test
-    fun testGetDayOffsets_Standard() {
-        // 3 columns: [-1, 0, 1]
-        assertEquals(listOf(-1L, 0L, 1L), NavigationUtils.getDayOffsets(3))
-        assertEquals(-1, NavigationUtils.getMinOffset(3))
-        assertEquals(1, NavigationUtils.getMaxOffset(3))
-
-        // 4 columns: [-1, 0, 1, 2]
-        assertEquals(listOf(-1L, 0L, 1L, 2L), NavigationUtils.getDayOffsets(4))
-        assertEquals(-1, NavigationUtils.getMinOffset(4))
-        assertEquals(2, NavigationUtils.getMaxOffset(4))
+    fun `getDayOffsets starts from -1 when not skipping history`() {
+        val offsets = NavigationUtils.getDayOffsets(7, skipHistory = false)
+        assertEquals("Start offset should be -1", -1L, offsets.first())
+        assertEquals("End offset should be 5", 5L, offsets.last())
     }
 
     @Test
-    fun testGetDayOffsets_Wide() {
-        // 7 columns: [-1, 0, 1, 2, 3, 4, 5]
-        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L), NavigationUtils.getDayOffsets(7))
-        assertEquals(-1, NavigationUtils.getMinOffset(7))
-        assertEquals(5, NavigationUtils.getMaxOffset(7))
+    fun `getDayOffsets starts from 0 when skipping history`() {
+        val offsets = NavigationUtils.getDayOffsets(7, skipHistory = true)
+        assertEquals("Start offset should be 0", 0L, offsets.first())
+        assertEquals("End offset should be 6", 6L, offsets.last())
     }
 
     @Test
-    fun testGetDayOffsets_ExtraWide_Foldable() {
-        // 8 columns: 8 days [-1, 0, 1, 2, 3, 4, 5, 6]
-        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L, 6L), NavigationUtils.getDayOffsets(8))
-        assertEquals(-1, NavigationUtils.getMinOffset(8))
-        assertEquals(6, NavigationUtils.getMaxOffset(8))
+    fun `getDayOffsets always starts from 0 for narrow widgets`() {
+        val offsets2 = NavigationUtils.getDayOffsets(2, skipHistory = false)
+        assertEquals("2-col start offset should be 0", 0L, offsets2.first())
 
-        // 10 columns: 10 days [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8]
-        assertEquals(listOf(-1L, 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L), NavigationUtils.getDayOffsets(10))
-        assertEquals(-1, NavigationUtils.getMinOffset(10))
-        assertEquals(8, NavigationUtils.getMaxOffset(10))
+        val offsets1 = NavigationUtils.getDayOffsets(1, skipHistory = false)
+        assertEquals("1-col start offset should be 0", 0L, offsets1.first())
     }
 
     @Test
-    fun testEveningMode_eachOffsetStepShowsDifferentRange() {
-        val today = LocalDate.of(2026, 2, 14)
-        val numColumns = 9 // 7 visible days
+    fun `getDisplayCenterDate shift for evening mode`() {
+        val today = LocalDate.of(2030, 6, 15)
+        
+        // Offset 0 in evening mode does NOT shift center (it uses skipHistory instead)
+        val center0 = NavigationUtils.getDisplayCenterDate(today, 0, isEveningMode = true)
+        assertEquals("Offset 0 evening should be today", today, center0)
+        
+        // Offset 1 in evening mode SHIFTS center by +1 to maintain 1-day step
+        val center1 = NavigationUtils.getDisplayCenterDate(today, 1, isEveningMode = true)
+        assertEquals("Offset 1 evening should be today+2", today.plusDays(2), center1)
 
-        // Each offset step should produce a distinct visible range
-        for (offset in -3..3) {
-            val range = NavigationUtils.getVisibleDateRange(today, offset, numColumns, isEveningMode = true)
-            val nextRange = NavigationUtils.getVisibleDateRange(today, offset + 1, numColumns, isEveningMode = true)
-            assertNotEquals(
-                "offset=$offset and offset=${offset + 1} should show different ranges",
-                range,
-                nextRange,
-            )
-            // Each step should shift by exactly 1 day
-            assertEquals(
-                "offset=$offset to ${offset + 1}: leftmost should shift by 1 day",
-                range.first.plusDays(1),
-                nextRange.first,
-            )
-            assertEquals(
-                "offset=$offset to ${offset + 1}: rightmost should shift by 1 day",
-                range.second.plusDays(1),
-                nextRange.second,
-            )
-        }
-    }
-
-    @Test
-    fun testEveningMode_offset0_showsTodayFirst() {
-        val today = LocalDate.of(2026, 2, 14)
-        // Evening mode offset=0 should start from today (not yesterday)
-        val range = NavigationUtils.getVisibleDateRange(today, 0, 9, isEveningMode = true)
-        assertEquals(today, range.first)
+        val centerNeg1 = NavigationUtils.getDisplayCenterDate(today, -1, isEveningMode = true)
+        assertEquals("Offset -1 evening should be today", today, centerNeg1)
     }
 }

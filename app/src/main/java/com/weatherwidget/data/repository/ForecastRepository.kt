@@ -79,6 +79,16 @@ class ForecastRepository
                     existing.cloudCover != newlyFetched.cloudCover ||
                     newlyFetched.fetchedAt - existing.fetchedAt > 60 * 60 * 1000L
             }
+
+            @androidx.annotation.VisibleForTesting
+            internal fun removePhantomFutureDays(
+                temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
+                today: java.time.LocalDate,
+            ) {
+                temperatureMap.entries.removeAll { (dateStr, temps) ->
+                    java.time.LocalDate.parse(dateStr).isAfter(today) && temps.first == null
+                }
+            }
         }
 
         private var lastFetchTime: Long
@@ -386,9 +396,11 @@ class ForecastRepository
                 periodTimeMap
             )
             logTodayDiagnostics(
-                todayDateString, temperatureMap, highTempSourceMap, lowTempSourceMap, 
+                todayDateString, temperatureMap, highTempSourceMap, lowTempSourceMap,
                 conditionMap, conditionSourceMap, todayForecastPeriods, latitude, longitude
             )
+
+            removePhantomFutureDays(temperatureMap, todayDate)
 
             temperatureMap.map { (dateString, temperatures) ->
                 val (pStart, pEnd) = periodTimeMap[dateString] ?: (null to null)

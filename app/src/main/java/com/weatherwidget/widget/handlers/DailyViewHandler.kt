@@ -205,6 +205,8 @@ object DailyViewHandler : WidgetViewHandler {
         // Set weather icon
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
+
         val todayIconForecast = resolveTodayHeaderForecast(now, hourlyForecasts, displaySource)
         val iconDateTime = todayIconForecast?.let { 
             Instant.ofEpochMilli(it.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime() 
@@ -356,10 +358,6 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
             views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
 
-            val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-            val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-            val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
-
             val prepareStartMs = SystemClock.elapsedRealtime()
             val days = DailyViewLogic.prepareGraphDays(
                 now, centerDate, today, weatherByDate, forecastSnapshots,
@@ -472,7 +470,8 @@ object DailyViewHandler : WidgetViewHandler {
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
                 hourlyForecasts, numColumns, displaySource, skipHistory,
-                stateManager, appWidgetId, precipProb, dailyActuals, currentTemps,
+                stateManager, appWidgetId, precipProb, dailyActuals, climateNormals,
+                currentTemps,
                 currentTemp = currentTemp,
                 observedAt = observedAt
             )
@@ -774,6 +773,7 @@ object DailyViewHandler : WidgetViewHandler {
         stateManager: WidgetStateManager?, appWidgetId: Int,
         todayNext8HourPrecipProbability: Int?,
         dailyActuals: DailyActualMap = emptyMap(),
+        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null
@@ -781,6 +781,7 @@ object DailyViewHandler : WidgetViewHandler {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
             displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals,
+            climateNormals,
             currentTemps,
             currentTemp = currentTemp,
             observedAt = observedAt

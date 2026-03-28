@@ -283,6 +283,9 @@ done
 
 ## Testing the Widget
 
+- No mocking framework — prefer pure function extraction for testability
+- See [arch/testing-strategy.md](arch/testing-strategy.md) for full analysis and rationale
+
 ### Emulator Inspection Preference
 - User phrase mapping: when the user says "look at emulator", assume the emulator is already running.
 - Default inspection actions: take a screenshot and/or inspect runtime logs with `adb logcat`.
