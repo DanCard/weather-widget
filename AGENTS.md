@@ -47,12 +47,6 @@ Use plain `./gradlew ...` by default.
 
 # Run all tests
 ./gradlew test
-
-# Run specific test class
-./gradlew test --tests com.weatherwidget.data.repository.WeatherRepositoryTest
-
-# Run specific test method
-./gradlew test --tests "com.weatherwidget.util.TemperatureInterpolatorTest.getInterpolatedTemperature returns null for empty list"
 ```
 
 ## Project Structure
@@ -123,6 +117,8 @@ app/src/main/java/com/weatherwidget/
   - `Log.i(TAG, "message")` for informational
   - `Log.e(TAG, "message", exception)` for errors (always include exception)
 - Log important state transitions and data fetches
+- Do not be eager to delete debug logging
+- Use database logging for important logging
 
 ### Error Handling
 - Don't silently swallow exceptions - log them
@@ -138,7 +134,6 @@ app/src/main/java/com/weatherwidget/
 - Use `suspend` functions for async work
 - Use `runTest` in unit tests for coroutine testing
 - Use `coroutineScope` for structured concurrency
-- Never use `GlobalScope`
 - Use `goAsync()` in BroadcastReceivers to avoid ANRs
 
 ### Database (Room)
@@ -277,12 +272,7 @@ $ADB devices | sed '1d;/^$/d' | while IFS=$'\t' read -r serial state; do
 done
 ```
 
-### ADB Path Reliability
-- Before assuming `adb` is unavailable, run `which adb`.
-- If `adb` is not found in non-interactive shells, use the absolute path:
-  - `/home/dcar/.Android/Sdk/platform-tools/adb`
-- For one-off commands, you can also prepend:
-  - `PATH="$PATH:/home/dcar/.Android/Sdk/platform-tools"`
+### adb Paths
 - SDK path note: on this machine use `~/.Android/Sdk` (not `~/Android/Sdk`) for both `adb` and `emulator` commands.
 
 **Example from this project:**
@@ -364,7 +354,6 @@ The `leaveApksInstalledAfterRun` flag in `gradle.properties` prevents post-test 
 For detailed architecture documentation, see:
 - `/arch/ARCHITECTURE.md` - Comprehensive system architecture
 - `/arch/BitmapScalingArchitectureAnalysis-260203.md` - Bitmap rendering details
-- `/HOURLY_VIEW_PLAN.md` - Hourly view implementation plan
 
 ## Configuration Files
 
@@ -373,17 +362,3 @@ For detailed architecture documentation, see:
 - `build.gradle.kts` - Project-level build configuration
 - `settings.gradle.kts` - Project structure settings
 - `gradle.properties` - Gradle build properties
-
-## Codex CLI Usage
-
-- For evidence-first debugging sessions, start Codex with:
-  - `codex "$(cat .codex/prompts/evidence-first-debug.md)"`
-- For explain-first sessions, start Codex with:
-  - `./scripts/codex-explain.sh`
-  - (equivalent) `codex "$(cat .codex/prompts/explain-first.md)"`
-- Explain-first script supports standard Codex flags, for example:
-  - `./scripts/codex-explain.sh -m gpt-5.3-codex`
-  - `./scripts/codex-explain.sh --full-auto`
-- Optional shell aliases:
-  - `alias codex-debug='codex "$(cat .codex/prompts/evidence-first-debug.md)"'`
-  - `alias codex-explain='codex "$(cat .codex/prompts/explain-first.md)"'`
