@@ -492,7 +492,7 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
 
         _emu_progress_monitor() {
             local serial="$1" emu_log="$2" color="$3"
-            local last_count=0 last_print=$SECONDS
+            local last_count=0 last_print=$SECONDS start_time=$SECONDS
             # Wait for log file to appear (APK install phase)
             local waited=0
             while [ ! -f "$emu_log" ] && [ $waited -lt 120 ]; do sleep 1; waited=$((waited + 1)); done
@@ -501,7 +501,8 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
                 local dots
                 dots=$(grep -oE '\.' "$emu_log" 2>/dev/null | wc -l)
                 if [ "$dots" -gt "$last_count" ] && [ $((SECONDS - last_print)) -ge 7 ]; then
-                    printf "%b[%s]%b   ... %d passed\n" "$color" "$serial" "$NC" "$dots"
+                    local elapsed=$((SECONDS - start_time))
+                    printf "%b[%s]%b   ... %d passed in %ds\n" "$color" "$serial" "$NC" "$dots" "$elapsed"
                     last_count=$dots
                     last_print=$SECONDS
                 fi
@@ -639,6 +640,7 @@ show_progress() {
     local pass_count=0
     local last_printed_count=0
     local last_progress_time=$SECONDS
+    local start_time=$SECONDS
 
     while true; do
         if [ -f "$logfile" ]; then
@@ -666,7 +668,8 @@ show_progress() {
 
                 # Print progress every ~7 seconds if tests are passing
                 if [ $pass_count -gt $last_printed_count ] && [ $((SECONDS - last_progress_time)) -ge 7 ]; then
-                    echo -e "${GREEN}  ... ${pass_count} passed${NC}"
+                    local elapsed=$((SECONDS - start_time))
+                    echo -e "${GREEN}  ... ${pass_count} passed in ${elapsed}s${NC}"
                     last_progress_time=$SECONDS
                     last_printed_count=$pass_count
                 fi

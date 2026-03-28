@@ -82,15 +82,20 @@ test_count = 0
 failures = 0
 errors = 0
 skipped = 0
+total_time = 0.0
 
 for xml_file in sorted(results_dir.glob("TEST-*.xml")):
-    suite = ET.parse(xml_file).getroot()
-    test_count += int(suite.attrib.get("tests", "0"))
-    failures += int(suite.attrib.get("failures", "0"))
-    errors += int(suite.attrib.get("errors", "0"))
-    skipped += int(suite.attrib.get("skipped", "0"))
+    try:
+        suite = ET.parse(xml_file).getroot()
+        test_count += int(suite.attrib.get("tests", "0"))
+        failures += int(suite.attrib.get("failures", "0"))
+        errors += int(suite.attrib.get("errors", "0"))
+        skipped += int(suite.attrib.get("skipped", "0"))
+        total_time += float(suite.attrib.get("time", "0.0"))
+    except (ET.ParseError, ValueError):
+        continue
 
-print(f"{test_count}|{failures}|{errors}|{skipped}")
+print(f"{test_count}|{failures}|{errors}|{skipped}|{int(total_time)}")
 PY
 }
 
@@ -144,16 +149,16 @@ if [ "$SINGLE_INVOCATION" = true ]; then
   for bucket in "${BUCKETS[@]}"; do
     results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
     if [ -d "$results_dir" ]; then
-      IFS='|' read -r test_count failures errors skipped <<<"$(bucket_result_summary "$results_dir")"
+      IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "$results_dir")"
       total_tests=$((total_tests + test_count))
       bucket_failures=$((failures + errors))
       total_failures=$((total_failures + bucket_failures))
       if [ "$bucket_failures" -gt 0 ]; then
         echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
       elif [ "$skipped" -gt 0 ]; then
-        echo "${test_count} ${bucket,,} tests passed (${skipped} skipped)."
+        echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
       else
-        echo "${test_count} ${bucket,,} tests passed."
+        echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
       fi
     fi
   done
@@ -212,7 +217,7 @@ while [ "$remaining" -gt 0 ]; do
   done
 
   if [ "$exit_code" -eq 0 ]; then
-    IFS='|' read -r test_count failures errors skipped <<<"$(bucket_result_summary "${results_dirs[$bucket]}")"
+    IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "${results_dirs[$bucket]}")"
     total_tests=$((total_tests + test_count))
     elapsed=$(( $(date +%s) - ${starts[$bucket]} ))
     if [ "$skipped" -gt 0 ]; then
