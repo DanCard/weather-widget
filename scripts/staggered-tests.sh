@@ -72,22 +72,6 @@ done
 
 cd "$PROJECT_DIR"
 
-prefix_output() {
-    local label="$1"
-    local color="$2"
-    while IFS= read -r line; do
-        printf "%b[%s]%b %s\n" "$color" "$label" "$NC" "$line"
-    done
-}
-
-stream_with_prefix() {
-    local label="$1"
-    local color="$2"
-    local log_file="$3"
-
-    tee "$log_file" | prefix_output "$label" "$color"
-}
-
 ASM_CACHE_DIRS=(
     "$PROJECT_DIR/app/build/intermediates/classes/debug/transformDebugClassesWithAsm"
     "$PROJECT_DIR/app/build/intermediates/classes/debugAndroidTest/transformDebugClassesWithAsm"
@@ -113,46 +97,45 @@ echo -e "${BLUE}Phase 1: Booting emulator...${NC}"
 BOOT_PID=$!
 
 # Phase 2: Start unit tests (this will start the first Gradle build)
-echo -e "${BLUE}Phase 2: Starting unit tests build...${NC}"
-# Use --single-invocation and --stream to reduce Gradle process count and allow log monitoring
-"$UNIT_SCRIPT" --single-invocation --stream \
-    > >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE") \
-    2> >(stream_with_prefix "unit" "$GREEN" "$UNIT_LOG_FILE" >&2) &
+# We use --log-file to keep output clean while allowing us to monitor progress.
+echo -e "${BLUE}Phase 2: Starting unit tests...${NC}"
+"$UNIT_SCRIPT" --single-invocation --log-file "$UNIT_LOG_FILE" &
 UNIT_PID=$!
 
 # Phase 3: Wait for unit tests to reach execution phase
 echo -e "${YELLOW}Waiting for unit test build to finish before starting emulator tests...${NC}"
 
 # Wait for log file to be created
-while [ ! -f "$UNIT_LOG_FILE" ]; do
+while [ ! -f "$UNIT_LOG_FILE" ] && kill -0 "$UNIT_PID" 2>/dev/null; do
     sleep 0.5
 done
 
 BUILD_DONE=false
-while kill -0 "$UNIT_PID" 2>/dev/null; do
-    # Look for the start of the first test task
-    if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
-        BUILD_DONE=true
-        echo -e "${GREEN}Unit test build finished (tests starting).${NC}"
-        # Give it a tiny bit more time to finish all transformations if they are parallel
-        sleep 2
-        break
-    fi
-    sleep 1
-done
+if [ -f "$UNIT_LOG_FILE" ]; then
+    while kill -0 "$UNIT_PID" 2>/dev/null; do
+        # Look for the start of the first test task
+        if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
+            BUILD_DONE=true
+            echo -e "${GREEN}Unit test build finished (tests starting).${NC}"
+            # Give it a tiny bit more time to finish all transformations if they are parallel
+            sleep 2
+            break
+        fi
+        sleep 1
+    done
+fi
 
 if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
-    echo -e "${YELLOW}Unit test process finished early (perhaps already built or failed).${NC}"
+    echo -e "${YELLOW}Unit test build finished early or failed.${NC}"
 fi
 
 # Phase 4: Start emulator tests (now that unit test transformations are done)
 echo -e "${BLUE}Phase 4: Starting emulator tests...${NC}"
-"$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" \
-    > >(stream_with_prefix "emulator" "$YELLOW" "$EMULATOR_LOG_FILE") \
-    2> >(stream_with_prefix "emulator" "$YELLOW" "$EMULATOR_LOG_FILE" >&2) &
+# We stream emulator tests but we want to filter out the noise.
+# For now, let's just let it print its normal condensed output to stdout,
+# but also capture everything in the log.
+"$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE" &
 EMULATOR_PID=$!
-
-echo -e "${BLUE}Both test suites are now active.${NC}"
 
 wait "$UNIT_PID"
 UNIT_STATUS=$?
@@ -171,10 +154,14 @@ fi
 
 if [ "$UNIT_STATUS" -ne 0 ]; then
     echo -e "${RED}Unit tests failed with exit code $UNIT_STATUS${NC}"
+    echo -e "${RED}Full unit test log:${NC}"
+    cat "$UNIT_LOG_FILE"
 fi
 
 if [ "$EMULATOR_STATUS" -ne 0 ]; then
     echo -e "${RED}Emulator tests failed with exit code $EMULATOR_STATUS${NC}"
+    echo -e "${RED}Full emulator test log:${NC}"
+    cat "$EMULATOR_LOG_FILE"
 fi
 
 echo -e "${RED}Tests failed${NC} (${TOTAL_DURATION}s)"

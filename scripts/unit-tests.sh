@@ -7,25 +7,39 @@ GRADLEW="$ROOT_DIR/gradlew"
 RUN_MODE="Fresh"
 SINGLE_INVOCATION=false
 STREAM_OUTPUT=false
+LOG_FILE=""
 BUCKETS=()
 OVERALL_START=$(date +%s)
 
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --fresh)
       RUN_MODE="Fresh"
+      shift
       ;;
     --cached)
       RUN_MODE=""
+      shift
       ;;
     --single-invocation)
       SINGLE_INVOCATION=true
+      shift
       ;;
     --stream)
       STREAM_OUTPUT=true
+      shift
+      ;;
+    --log-file)
+      if [ $# -lt 2 ]; then
+        echo "Error: --log-file requires a value" >&2
+        exit 1
+      fi
+      LOG_FILE="$2"
+      shift 2
       ;;
     *)
-      BUCKETS+=("$arg")
+      BUCKETS+=("$1")
+      shift
       ;;
   esac
 done
@@ -104,7 +118,13 @@ if [ "$SINGLE_INVOCATION" = true ]; then
     done
   fi
 
-  gradle_log=$(mktemp)
+  gradle_log="${LOG_FILE}"
+  is_temp_log=false
+  if [ -z "$gradle_log" ]; then
+    gradle_log=$(mktemp)
+    is_temp_log=true
+  fi
+
   overall_status=0
   if [ "$STREAM_OUTPUT" = true ]; then
     (
@@ -146,7 +166,9 @@ if [ "$SINGLE_INVOCATION" = true ]; then
     # Show Gradle output only on failure
     cat "$gradle_log"
   fi
-  rm -f "$gradle_log"
+  if [ "$is_temp_log" = true ]; then
+    rm -f "$gradle_log"
+  fi
   exit "$overall_status"
 fi
 
