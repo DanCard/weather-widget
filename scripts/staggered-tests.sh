@@ -87,6 +87,7 @@ clear_asm_cache() {
 }
 
 TOTAL_START=$(date +%s)
+BUILD_START=$(date +%s)
 
 # Start unit tests (this will start the first Gradle build)
 # We use --log-file to keep output clean while allowing us to monitor progress.
@@ -107,7 +108,8 @@ if [ -f "$UNIT_LOG_FILE" ]; then
         # Look for the start of the first test task
         if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
             BUILD_DONE=true
-            echo -e "${GREEN}Unit test build finished.${NC}"
+            BUILD_DURATION=$(( $(date +%s) - BUILD_START ))
+            echo -e "${GREEN}Unit test build finished in ${BUILD_DURATION}s.${NC}"
             # Give it a tiny bit more time to finish all transformations if they are parallel
             sleep 2
             break
