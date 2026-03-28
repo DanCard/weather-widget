@@ -95,7 +95,7 @@ BUILD_START=$(date +%s)
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase
-echo -e "${YELLOW}Waiting for unit test build to finish...${NC}"
+echo -en "${YELLOW}Waiting for unit test build to finish...${NC}  "
 
 # Wait for log file to be created
 while [ ! -f "$UNIT_LOG_FILE" ] && kill -0 "$UNIT_PID" 2>/dev/null; do
@@ -123,7 +123,7 @@ if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
 fi
 
 # Start emulator tests (now that unit test transformations are done)
-echo -e "${BLUE}Starting emulator tests...${NC}"
+# echo -e "${BLUE}Starting emulator tests...${NC}"
 # We stream emulator tests but we want to filter out the noise.
 # For now, let's just let it print its normal condensed output to stdout,
 # but also capture everything in the log.
