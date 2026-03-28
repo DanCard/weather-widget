@@ -6,19 +6,17 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import com.weatherwidget.util.WeatherTimeUtils
 
 /**
  * Pure decision logic for day-click behavior, extracted for testability.
  *
- * When a user taps a day in the daily forecast view:
- * - Past days always open ForecastHistoryActivity (showHistory=true)
- * - Today/future days stay in the widget:
- *   - If any rain indication exists, navigate to the PRECIPITATION graph
- *   - Otherwise, navigate to the TEMPERATURE graph
+ * Daily and hourly icon taps share the same icon-home routing:
+ * - Rain/storm/snow -> precipitation graph
+ * - Cloud/mixed/mostly clear -> cloud cover graph
+ * - Otherwise -> temperature graph
  *
- * Rain is indicated by either:
- * - RainAnalyzer detecting future hourly rain (>= 40% probability threshold)
- * - Daily weather data showing any precipitation probability (> 0%)
+ * Legacy rain heuristics remain for display decisions only.
  */
 object DayClickHelper {
 
@@ -47,23 +45,14 @@ object DayClickHelper {
         return isPastDay
     }
 
-    /**
-     * Resolves the target ViewMode for a day click when not showing history.
-     *
-     * @param hasRainForecast true if any rain indication exists for this day
-     * @return the resolved ViewMode (TEMPERATURE or PRECIPITATION)
-     */
-    fun resolveTargetViewMode(hasRainForecast: Boolean): ViewMode {
-        return if (hasRainForecast) ViewMode.PRECIPITATION else ViewMode.TEMPERATURE
-    }
+    fun resolveDailyTargetViewMode(iconRes: Int?): ViewMode = iconRes?.let(::resolveIconHome) ?: ViewMode.TEMPERATURE
 
-    fun resolveBottomRowTargetViewMode(
-        hasRainForecast: Boolean,
-        isCloudForecastEligible: Boolean,
-    ): ViewMode {
+    fun resolveBottomRowTargetViewMode(iconRes: Int?): ViewMode = iconRes?.let(::resolveIconHome) ?: ViewMode.TEMPERATURE
+
+    private fun resolveIconHome(iconRes: Int): ViewMode {
         return when {
-            hasRainForecast -> ViewMode.PRECIPITATION
-            isCloudForecastEligible -> ViewMode.CLOUD_COVER
+            WeatherIconMapper.isRainy(iconRes) -> ViewMode.PRECIPITATION
+            WeatherIconMapper.isCloudForecastEligible(iconRes) -> ViewMode.CLOUD_COVER
             else -> ViewMode.TEMPERATURE
         }
     }
@@ -84,11 +73,7 @@ object DayClickHelper {
         currentView: ViewMode,
     ): ViewMode? {
         if (iconRes == null) return null
-        val iconHome = when {
-            WeatherIconMapper.isRainy(iconRes) -> ViewMode.PRECIPITATION
-            WeatherIconMapper.isCloudForecastEligible(iconRes) -> ViewMode.CLOUD_COVER
-            else -> ViewMode.TEMPERATURE
-        }
+        val iconHome = resolveIconHome(iconRes)
         return if (iconHome == currentView) null else iconHome
     }
 
@@ -99,7 +84,7 @@ object DayClickHelper {
      * Returns 0 to center the graph on the current hour.
      *
      * For FUTURE days:
-     * Returns the offset required to center the graph on 8 AM of the target day.
+     * Returns the offset required to center the graph on noon of the target day.
      *
      * @param now the current date-time (will be truncated to the hour)
      * @param targetDay the day being clicked
@@ -111,8 +96,8 @@ object DayClickHelper {
             return 0
         }
 
-        val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
-        val targetCenter = targetDay.atTime(8, 0)
-        return Duration.between(truncatedNow, targetCenter).toHours().toInt()
+        val alignedNow = WeatherTimeUtils.alignToNearestHourHalfUp(now)
+        val targetCenter = targetDay.atTime(12, 0)
+        return Duration.between(alignedNow, targetCenter).toHours().toInt()
     }
 }

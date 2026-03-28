@@ -487,7 +487,7 @@ object DailyViewHandler : WidgetViewHandler {
                 useGraph = false,
                 isEveningMode = isEveningMode,
                 centerDate = centerDate,
-                visibleDates = visibleDaysInfo.map { it.second },
+                visibleDates = visibleDaysInfo.map { it.date },
             )
 
             setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
@@ -777,7 +777,7 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null
-    ): List<Triple<Int, LocalDate, Boolean>> {
+    ): List<DailyViewLogic.TextDayData> {
         val dayDataList = DailyViewLogic.prepareTextDays(
             now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
             displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals,
@@ -810,7 +810,7 @@ object DailyViewHandler : WidgetViewHandler {
             stateManager?.markRainShown(appWidgetId, today.format(DateTimeFormatter.ISO_LOCAL_DATE))
         }
 
-        return dayDataList.filter { it.isVisible }.map { Triple(it.dayIndex, it.date, it.hasRainForecast) }
+        return dayDataList.filter { it.isVisible }
     }
 
     private fun populateDay(
@@ -847,7 +847,7 @@ object DailyViewHandler : WidgetViewHandler {
     @VisibleForTesting
     internal fun buildDayClickIntent(
         context: Context, appWidgetId: Int, dayIndex: Int, date: LocalDate,
-        hasRainForecast: Boolean, lat: Double, lon: Double,
+        iconRes: Int?, lat: Double, lon: Double,
         displaySource: WeatherSource,
         now: LocalDateTime = LocalDateTime.now(),
         targetModeOverride: com.weatherwidget.widget.ViewMode? = null,
@@ -867,7 +867,7 @@ object DailyViewHandler : WidgetViewHandler {
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
 
             if (!showHistory) {
-                val targetMode = targetModeOverride ?: DayClickHelper.resolveTargetViewMode(hasRainForecast)
+                val targetMode = targetModeOverride ?: DayClickHelper.resolveDailyTargetViewMode(iconRes)
                 val offset = DayClickHelper.calculatePrecipitationOffset(now, date)
                 putExtra(EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(EXTRA_HOURLY_OFFSET, offset)
@@ -877,13 +877,13 @@ object DailyViewHandler : WidgetViewHandler {
 
     private fun setupTextDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
-        visibleDays: List<Triple<Int, LocalDate, Boolean>>, lat: Double, lon: Double, displaySource: WeatherSource
+        visibleDays: List<DailyViewLogic.TextDayData>, lat: Double, lon: Double, displaySource: WeatherSource
     ) {
         val containerIds = listOf(R.id.day1_container, R.id.day2_container, R.id.day3_container, R.id.day4_container, R.id.day5_container, R.id.day6_container, R.id.day7_container)
-        visibleDays.forEach { (dayIndex, date, hasRainForecast) ->
-            val intent = buildDayClickIntent(context, appWidgetId, dayIndex, date, hasRainForecast, lat, lon, displaySource, now)
-            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.dayClick(appWidgetId, dayIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(containerIds[dayIndex - 1], pendingIntent)
+        visibleDays.forEach { day ->
+            val intent = buildDayClickIntent(context, appWidgetId, day.dayIndex, day.date, day.iconRes, lat, lon, displaySource, now)
+            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.dayClick(appWidgetId, day.dayIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            views.setOnClickPendingIntent(containerIds[day.dayIndex - 1], pendingIntent)
         }
     }
 
@@ -917,7 +917,7 @@ object DailyViewHandler : WidgetViewHandler {
             val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
 
             // Build intent with colIndex + 1 as the day index (1-based for intent extras)
-            val intent = buildDayClickIntent(context, appWidgetId, colIndex + 1, dayData.date, dayData.hasRainForecast, lat, lon, displaySource, now)
+            val intent = buildDayClickIntent(context, appWidgetId, colIndex + 1, dayData.date, dayData.iconRes, lat, lon, displaySource, now)
             val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.graphClick(appWidgetId, colIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
@@ -954,16 +954,13 @@ object DailyViewHandler : WidgetViewHandler {
         days.forEachIndexed { index, dayData ->
             val colIndex = dayData.columnIndex ?: index
             val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
-            val targetMode = DayClickHelper.resolveBottomRowTargetViewMode(
-                hasRainForecast = dayData.hasRainForecast,
-                isCloudForecastEligible = dayData.iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false,
-            )
+            val targetMode = DayClickHelper.resolveBottomRowTargetViewMode(dayData.iconRes)
             val intent = buildDayClickIntent(
                 context = context,
                 appWidgetId = appWidgetId,
                 dayIndex = colIndex + 1,
                 date = dayData.date,
-                hasRainForecast = dayData.hasRainForecast,
+                iconRes = dayData.iconRes,
                 lat = lat,
                 lon = lon,
                 displaySource = displaySource,

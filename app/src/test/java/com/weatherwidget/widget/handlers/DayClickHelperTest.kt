@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.ViewMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -80,23 +81,28 @@ class DayClickHelperTest {
         assertFalse(DayClickHelper.shouldShowHistory(isPastDay = false))
     }
 
-    // ── resolveTargetViewMode: basic decision truth table ──
+    // ── icon-home routing ──
 
     @Test
-    fun `day with rain navigates to precipitation`() {
-        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRainForecast = true))
+    fun `daily rainy icon navigates to precipitation`() {
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain))
     }
 
     @Test
-    fun `day without rain navigates to temperature`() {
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRainForecast = false))
+    fun `daily cloud eligible icon navigates to cloud cover`() {
+        assertEquals(com.weatherwidget.widget.ViewMode.CLOUD_COVER, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear))
+    }
+
+    @Test
+    fun `daily clear icon navigates to temperature`() {
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
     }
 
     @Test
     fun `bottom row day with rain navigates to precipitation`() {
         assertEquals(
             com.weatherwidget.widget.ViewMode.PRECIPITATION,
-            DayClickHelper.resolveBottomRowTargetViewMode(hasRainForecast = true, isCloudForecastEligible = true),
+            DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_snow),
         )
     }
 
@@ -104,7 +110,7 @@ class DayClickHelperTest {
     fun `bottom row cloudy day without rain navigates to cloud cover`() {
         assertEquals(
             com.weatherwidget.widget.ViewMode.CLOUD_COVER,
-            DayClickHelper.resolveBottomRowTargetViewMode(hasRainForecast = false, isCloudForecastEligible = true),
+            DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_partly_cloudy),
         )
     }
 
@@ -112,7 +118,7 @@ class DayClickHelperTest {
     fun `bottom row clear day without rain navigates to temperature`() {
         assertEquals(
             com.weatherwidget.widget.ViewMode.TEMPERATURE,
-            DayClickHelper.resolveBottomRowTargetViewMode(hasRainForecast = false, isCloudForecastEligible = false),
+            DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_clear),
         )
     }
 
@@ -131,22 +137,40 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `offset is zero when current time is exactly 8am`() {
-        val now = LocalDateTime.of(2024, 6, 15, 8, 0)
+    fun `offset is zero when current time is exactly noon`() {
+        val now = LocalDateTime.of(2024, 6, 15, 12, 0)
         assertEquals(0, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 15)))
     }
 
     @Test
-    fun `offset remains calculated for future days`() {
+    fun `offset remains calculated for future days using noon anchor`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        // Tomorrow 8am is 18 hours from today 2pm
-        assertEquals(18, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+        // Tomorrow noon is 22 hours from today 2pm.
+        assertEquals(22, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
     }
 
     @Test
     fun `offset is positive for tomorrow`() {
         val now = LocalDateTime.of(2024, 6, 15, 14, 0)
-        assertEquals(18, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+        assertEquals(22, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+    }
+
+    @Test
+    fun `offset truncates current time to the hour before computing noon anchor`() {
+        val now = LocalDateTime.of(2024, 6, 15, 10, 45)
+        assertEquals(25, DayClickHelper.calculatePrecipitationOffset(now, LocalDate.of(2024, 6, 16)))
+    }
+
+    @Test
+    fun `offset keeps future day wide view aligned to midnight boundaries after half hour`() {
+        val now = LocalDateTime.of(2024, 6, 15, 10, 45)
+        val targetDay = LocalDate.of(2024, 6, 16)
+
+        val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
+        val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(now.plusHours(offset.toLong()))
+
+        assertEquals(targetDay.atStartOfDay(), alignedCenter.minusHours(12))
+        assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
     }
 
     // ── End-to-end: daily precip + hourly data drive click decision ──
@@ -185,7 +209,7 @@ class DayClickHelperTest {
 
         assertTrue("Daily precipitation 16% should count as rain", hasRain)
         assertFalse("Today should NOT show history", DayClickHelper.shouldShowHistory(false))
-        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRain))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_rain))
     }
 
     @Test
@@ -201,7 +225,7 @@ class DayClickHelperTest {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary, dailyPrecipProbability)
 
         assertFalse("8% daily precip should NOT count as rain for navigation", hasRain)
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
     }
 
     @Test
@@ -217,7 +241,7 @@ class DayClickHelperTest {
 
         assertTrue(hasRain)
         assertFalse(DayClickHelper.shouldShowHistory(false))
-        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveTargetViewMode(hasRain))
+        assertEquals(com.weatherwidget.widget.ViewMode.PRECIPITATION, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_storm))
     }
 
     @Test
@@ -233,7 +257,7 @@ class DayClickHelperTest {
 
         assertFalse(hasRain)
         assertFalse(DayClickHelper.shouldShowHistory(false))
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
     }
 
     @Test
@@ -264,7 +288,7 @@ class DayClickHelperTest {
 
         assertEquals(0, todayNext8HourPrecip)
         assertFalse(hasRain)
-        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveTargetViewMode(hasRain))
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
     }
 
     // ── resolveHourlyBottomRowAction: icon-dependent routing for hourly graphs ──

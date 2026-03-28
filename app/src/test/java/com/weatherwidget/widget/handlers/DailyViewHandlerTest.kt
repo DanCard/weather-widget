@@ -611,7 +611,7 @@ class DailyViewHandlerTest {
             appWidgetId = 42,
             dayIndex = 1,
             date = date,
-            hasRainForecast = true,
+            iconRes = R.drawable.ic_weather_rain,
             lat = 37.0,
             lon = -122.0,
             displaySource = WeatherSource.NWS,
@@ -622,11 +622,11 @@ class DailyViewHandlerTest {
         assertEquals(dateStr, intent.getStringExtra("date"))
         assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals("PRECIPITATION", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
-        assertEquals(20, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+        assertEquals(24, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
     }
 
     @Test
-    fun `buildDayClickIntent tomorrow without rain navigates to temperature`() {
+    fun `buildDayClickIntent tomorrow cloudy icon navigates to cloud cover`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val date = LocalDate.of(2030, 6, 16) // Tomorrow
 
@@ -635,7 +635,7 @@ class DailyViewHandlerTest {
             appWidgetId = 42,
             dayIndex = 1,
             date = date,
-            hasRainForecast = false,
+            iconRes = R.drawable.ic_weather_mostly_clear,
             lat = 37.0,
             lon = -122.0,
             displaySource = WeatherSource.NWS,
@@ -644,8 +644,8 @@ class DailyViewHandlerTest {
 
         assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
         assertFalse(intent.getBooleanExtra("showHistory", true))
-        assertEquals("TEMPERATURE", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
-        assertEquals(20, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
+        assertEquals("CLOUD_COVER", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
+        assertEquals(24, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
     }
 
     @Test
@@ -658,7 +658,7 @@ class DailyViewHandlerTest {
             appWidgetId = 42,
             dayIndex = 1,
             date = date,
-            hasRainForecast = false,
+            iconRes = R.drawable.ic_weather_clear,
             lat = 37.0,
             lon = -122.0,
             displaySource = WeatherSource.NWS,

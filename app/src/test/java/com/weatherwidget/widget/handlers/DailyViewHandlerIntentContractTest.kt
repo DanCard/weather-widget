@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.WeatherWidgetProvider
@@ -44,7 +45,7 @@ class DailyViewHandlerIntentContractTest {
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 1,
                 date = targetDate,
-                hasRainForecast = true,
+                iconRes = R.drawable.ic_weather_rain,
                 lat = LAT,
                 lon = LON,
                 displaySource = WeatherSource.NWS,
@@ -74,7 +75,7 @@ class DailyViewHandlerIntentContractTest {
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
                 date = targetDate,
-                hasRainForecast = true,
+                iconRes = R.drawable.ic_weather_rain,
                 lat = LAT,
                 lon = LON,
                 displaySource = WeatherSource.NWS,
@@ -98,7 +99,7 @@ class DailyViewHandlerIntentContractTest {
     }
 
     @Test
-    fun todaySuppressedDisplayRainStillBuildsPrecipitationIntentContract() {
+    fun todayRainyIconStillBuildsPrecipitationIntentContract() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
         val today = LocalDate.of(2030, 6, 15)
 
@@ -108,7 +109,7 @@ class DailyViewHandlerIntentContractTest {
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
                 date = today,
-                hasRainForecast = true,
+                iconRes = R.drawable.ic_weather_rain,
                 lat = LAT,
                 lon = LON,
                 displaySource = WeatherSource.NWS,
@@ -132,7 +133,7 @@ class DailyViewHandlerIntentContractTest {
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
                 date = today,
-                hasRainForecast = false,
+                iconRes = R.drawable.ic_weather_cloudy,
                 lat = LAT,
                 lon = LON,
                 displaySource = WeatherSource.NWS,
@@ -156,7 +157,7 @@ class DailyViewHandlerIntentContractTest {
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 3,
                 date = targetDate,
-                hasRainForecast = false,
+                iconRes = R.drawable.ic_weather_clear,
                 lat = LAT,
                 lon = LON,
                 displaySource = WeatherSource.NWS,
