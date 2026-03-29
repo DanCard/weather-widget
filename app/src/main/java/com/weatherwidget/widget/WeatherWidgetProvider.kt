@@ -410,7 +410,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         dateStr = dateStr,
                         intent = intent,
                     )
-                if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE)) {
+                if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE || targetMode == ViewMode.CLOUD_COVER)) {
                     database.appLogDao().log(
                         "CLICK_DAILY_NO_HOURLY",
                         "date=$dateStr mode=$targetMode -> settings",

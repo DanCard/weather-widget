@@ -114,8 +114,13 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
     }
 
     @Test
-    fun cloudEligibleIcon_navigatesToCloudCover() {
-        assertEquals(ViewMode.CLOUD_COVER, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear))
+    fun cloudEligibleIcon_onDailyColumn_navigatesToTemperature() {
+        assertEquals(ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear))
+    }
+
+    @Test
+    fun cloudEligibleIcon_onBottomRow_navigatesToCloudCover() {
+        assertEquals(ViewMode.CLOUD_COVER, DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_mostly_clear))
     }
 
     @Test

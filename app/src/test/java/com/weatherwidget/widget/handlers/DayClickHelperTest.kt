@@ -89,8 +89,8 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `daily cloud eligible icon navigates to cloud cover`() {
-        assertEquals(com.weatherwidget.widget.ViewMode.CLOUD_COVER, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear))
+    fun `daily cloud eligible icon navigates to temperature`() {
+        assertEquals(com.weatherwidget.widget.ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_mostly_clear))
     }
 
     @Test

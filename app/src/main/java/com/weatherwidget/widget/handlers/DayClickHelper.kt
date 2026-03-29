@@ -45,7 +45,14 @@ object DayClickHelper {
         return isPastDay
     }
 
-    fun resolveDailyTargetViewMode(iconRes: Int?): ViewMode = iconRes?.let(::resolveIconHome) ?: ViewMode.TEMPERATURE
+    fun resolveDailyTargetViewMode(iconRes: Int?): ViewMode {
+        if (iconRes == null) return ViewMode.TEMPERATURE
+        return if (WeatherIconMapper.isRainy(iconRes)) {
+            ViewMode.PRECIPITATION
+        } else {
+            ViewMode.TEMPERATURE
+        }
+    }
 
     fun resolveBottomRowTargetViewMode(iconRes: Int?): ViewMode = iconRes?.let(::resolveIconHome) ?: ViewMode.TEMPERATURE
 

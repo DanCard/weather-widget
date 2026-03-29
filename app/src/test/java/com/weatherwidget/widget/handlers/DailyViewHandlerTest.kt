@@ -625,7 +625,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `buildDayClickIntent tomorrow cloudy icon navigates to cloud cover`() {
+    fun `buildDayClickIntent tomorrow cloudy icon navigates to temperature`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val date = LocalDate.of(2030, 6, 16) // Tomorrow
 
@@ -643,7 +643,7 @@ class DailyViewHandlerTest {
 
         assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
         assertFalse(intent.getBooleanExtra("showHistory", true))
-        assertEquals("CLOUD_COVER", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
+        assertEquals("TEMPERATURE", intent.getStringExtra("com.weatherwidget.EXTRA_TARGET_VIEW"))
         assertEquals(24, intent.getIntExtra("com.weatherwidget.EXTRA_HOURLY_OFFSET", -1))
     }
 
