@@ -101,7 +101,7 @@ class TemperaturePipelineBenchmark {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourlyForecasts,
-                observedCurrentTemp = graphStyleObs.first,
+                lastObservedTemp = graphStyleObs.first,
                 observedAt = graphStyleObs.second,
                 storedDeltaState = null,
                 currentLat = lat,

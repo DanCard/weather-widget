@@ -296,4 +296,28 @@ class TemperatureInterpolatorTest {
 
         assertEquals(LocalDateTime.of(2026, 1, 15, 15, 0), result)
     }
+
+    @Test
+    fun `getInterpolatedTemperature uses smoothedForecasts when provided`() {
+        val forecasts =
+            listOf(
+                createHourlyForecast("2026-01-15T14:00", 70),
+                createHourlyForecast("2026-01-15T15:00", 74), // Raw is 74
+            )
+
+        val smoothedForecasts = mapOf(
+            forecasts[0].dateTime to 68f, // Overridden to 68
+            forecasts[1].dateTime to 72f  // Overridden to 72
+        )
+
+        // At 14:30 (halfway), should use smoothed values: 68 + (72-68)*0.5 = 70
+        val result =
+            interpolator.getInterpolatedTemperature(
+                forecasts,
+                LocalDateTime.of(2026, 1, 15, 14, 30),
+                smoothedForecasts = smoothedForecasts
+            )
+
+        assertEquals(70.0f, result!!, 0.01f)
+    }
 }

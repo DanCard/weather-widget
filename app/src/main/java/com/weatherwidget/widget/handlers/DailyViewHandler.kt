@@ -112,7 +112,7 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
-        observedCurrentTemp: Float? = null,
+        lastObservedTemp: Float? = null,
         observedAt: Long? = null,
         startupToken: String? = null,
     ) {
@@ -126,7 +126,7 @@ object DailyViewHandler : WidgetViewHandler {
             currentTemps = currentTemps,
             dailyActualsBySource = dailyActualsBySource,
             repository = repository,
-            observedCurrentTemp = observedCurrentTemp,
+            lastObservedTemp = lastObservedTemp,
             observedAt = observedAt,
             now = LocalDateTime.now(),
             startupToken = startupToken,
@@ -144,7 +144,7 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: com.weatherwidget.data.repository.WeatherRepository?,
-        observedCurrentTemp: Float? = null,
+        lastObservedTemp: Float? = null,
         observedAt: Long? = null,
         now: LocalDateTime,
         startupToken: String? = null,
@@ -221,9 +221,9 @@ object DailyViewHandler : WidgetViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
-        val resolvedObs = if (observedCurrentTemp != null) {
+        val resolvedObs = if (lastObservedTemp != null) {
             ObservationResolver.ObservedCurrentTemperature(
-                temperature = observedCurrentTemp,
+                temperature = lastObservedTemp,
                 observedAt = observedAt ?: now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 source = displaySource.id,
                 rowFetchedAt = System.currentTimeMillis()
@@ -238,7 +238,7 @@ object DailyViewHandler : WidgetViewHandler {
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
-                observedCurrentTemp = resolvedObs?.temperature,
+                lastObservedTemp = resolvedObs?.temperature,
                 observedAt = resolvedObs?.observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,

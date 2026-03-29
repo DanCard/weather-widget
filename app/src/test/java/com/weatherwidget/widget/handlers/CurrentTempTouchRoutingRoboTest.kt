@@ -78,7 +78,7 @@ class CurrentTempTouchRoutingRoboTest {
 
     @Test
     fun `daily current temp delta routes to temperature view`() = runBlocking {
-        val views = renderDailyWidget(observedCurrentTemp = 72.4f, precipProbability = 0)
+        val views = renderDailyWidget(lastObservedTemp = 72.4f, precipProbability = 0)
 
         val intent = clickView(views, R.id.current_temp_delta)
 
@@ -112,7 +112,7 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     private suspend fun renderDailyWidget(
-        observedCurrentTemp: Float? = null,
+        lastObservedTemp: Float? = null,
         precipProbability: Int = 20,
     ): RemoteViews {
         val stateManager = WidgetStateManager(context)
@@ -132,14 +132,14 @@ class CurrentTempTouchRoutingRoboTest {
             dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
             repository = null,
             now = now,
-            observedCurrentTemp = observedCurrentTemp,
+            lastObservedTemp = lastObservedTemp,
             observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
         return appWidgetManager.second.captured
     }
 
     private suspend fun renderTemperatureWidget(
-        observedCurrentTemp: Float? = null,
+        lastObservedTemp: Float? = null,
         precipProbability: Int = 20,
     ): RemoteViews {
         val stateManager = WidgetStateManager(context)
@@ -156,7 +156,7 @@ class CurrentTempTouchRoutingRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = precipProbability,
-            observedCurrentTemp = observedCurrentTemp,
+            lastObservedTemp = lastObservedTemp,
             observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
         return appWidgetManager.second.captured

@@ -800,7 +800,7 @@ object WidgetIntentRouter {
             ctCurrentTemps,
             finalDailyActuals,
             repository,
-            observedCurrentTemp = graphStyleObs?.temperature,
+            lastObservedTemp = graphStyleObs?.temperature,
             observedAt = graphStyleObs?.observedAt,
         )
 
@@ -907,7 +907,7 @@ object WidgetIntentRouter {
                     hourlyForecasts = hourlyForecasts,
                     centerTime = centerTime,
                     precipProbability = todayPrecip,
-                    observedCurrentTemp = observation?.temperature,
+                    lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
                     repository = repository
                 )
@@ -921,7 +921,7 @@ object WidgetIntentRouter {
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = todayPrecip,
-                    observedCurrentTemp = observation?.temperature,
+                    lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
                     repository = repository
                 )
@@ -935,7 +935,7 @@ object WidgetIntentRouter {
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = todayPrecip,
-                    observedCurrentTemp = observation?.temperature,
+                    lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
                     repository = repository
                 )

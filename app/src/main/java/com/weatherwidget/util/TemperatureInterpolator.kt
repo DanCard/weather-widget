@@ -128,6 +128,7 @@ class TemperatureInterpolator
             hourlyForecasts: List<HourlyForecastEntity>,
             targetTime: LocalDateTime,
             source: WeatherSource? = null,
+            smoothedForecasts: Map<Long, Float>? = null,
         ): Float? {
             if (hourlyForecasts.isEmpty()) return null
 
@@ -194,22 +195,22 @@ class TemperatureInterpolator
 
             // If we only have current hour, return that
             if (currentHourForecast != null && nextHourForecast == null) {
-                return currentHourForecast.temperature
+                return smoothedForecasts?.get(currentHourForecast.dateTime) ?: currentHourForecast.temperature
             }
 
             // If we only have next hour, return that
             if (currentHourForecast == null && nextHourForecast != null) {
-                return nextHourForecast.temperature
+                return smoothedForecasts?.get(nextHourForecast.dateTime) ?: nextHourForecast.temperature
             }
 
             // If we have neither, try to find the closest data point
             if (currentHourForecast == null && nextHourForecast == null) {
-                return findClosestTemperature(filteredForecasts, targetTime)
+                return findClosestTemperature(filteredForecasts, targetTime, smoothedForecasts)
             }
 
             // We have both hours - interpolate
-            val currentTemp = currentHourForecast!!.temperature
-            val nextTemp = nextHourForecast!!.temperature
+            val currentTemp = smoothedForecasts?.get(currentHourForecast!!.dateTime) ?: currentHourForecast!!.temperature
+            val nextTemp = smoothedForecasts?.get(nextHourForecast!!.dateTime) ?: nextHourForecast!!.temperature
             val tempDiff = nextTemp - currentTemp
 
             // If difference is below threshold, just return current hour temp
@@ -235,14 +236,17 @@ class TemperatureInterpolator
         private fun findClosestTemperature(
             hourlyForecasts: List<HourlyForecastEntity>,
             targetTime: LocalDateTime,
+            smoothedForecasts: Map<Long, Float>?,
         ): Float? {
             if (hourlyForecasts.isEmpty()) return null
             val zoneId = ZoneId.systemDefault()
 
-            return hourlyForecasts.minByOrNull { forecast ->
+            val closestForecast = hourlyForecasts.minByOrNull { forecast ->
                 val forecastTime = Instant.ofEpochMilli(forecast.dateTime).atZone(zoneId).toLocalDateTime()
                 kotlin.math.abs(Duration.between(targetTime, forecastTime).toMinutes())
-            }?.temperature
+            } ?: return null
+            
+            return smoothedForecasts?.get(closestForecast.dateTime) ?: closestForecast.temperature
         }
 
         /**

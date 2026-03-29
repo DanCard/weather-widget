@@ -81,7 +81,7 @@ class TemperatureDeltaVisibilityRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
-            observedCurrentTemp = 71.2f,
+            lastObservedTemp = 71.2f,
             observedAt = System.currentTimeMillis()
         )
 
@@ -131,7 +131,7 @@ class TemperatureDeltaVisibilityRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
-            observedCurrentTemp = 69.1f,
+            lastObservedTemp = 69.1f,
             observedAt = System.currentTimeMillis()
         )
 
@@ -181,7 +181,7 @@ class TemperatureDeltaVisibilityRoboTest {
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
-            observedCurrentTemp = 70.05f,
+            lastObservedTemp = 70.05f,
             observedAt = System.currentTimeMillis()
         )
 
@@ -228,7 +228,7 @@ class TemperatureDeltaVisibilityRoboTest {
             centerTime = now.plusHours(24), // Graph window excludes current hour -> no NOW line
             displaySource = WeatherSource.NWS,
             precipProbability = 0,
-            observedCurrentTemp = 72.0f,
+            lastObservedTemp = 72.0f,
             observedAt = System.currentTimeMillis(),
         )
 

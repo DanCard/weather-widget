@@ -1248,7 +1248,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `DailyViewHandler uses provided observedCurrentTemp`() = runBlocking {
+    fun `DailyViewHandler uses provided lastObservedTemp`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>(relaxed = true)
         val stateManager = mockk<WidgetStateManager>(relaxed = true)
         every { stateManager.getViewMode(any()) } returns com.weatherwidget.widget.ViewMode.DAILY
@@ -1272,7 +1272,7 @@ class DailyViewHandlerTest {
                 now = any(),
                 displaySource = any(),
                 hourlyForecasts = any(),
-                observedCurrentTemp = 72.5f, // Our provided value
+                lastObservedTemp = 72.5f, // Our provided value
                 observedAt = any(),
                 storedDeltaState = any(),
                 currentLat = any(),
@@ -1302,7 +1302,7 @@ class DailyViewHandlerTest {
             dailyActualsBySource = emptyMap(),
             repository = null,
             now = now,
-            observedCurrentTemp = 72.5f,
+            lastObservedTemp = 72.5f,
             observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
@@ -1312,7 +1312,7 @@ class DailyViewHandlerTest {
                 now = any(),
                 displaySource = any(),
                 hourlyForecasts = any(),
-                observedCurrentTemp = 72.5f,
+                lastObservedTemp = 72.5f,
                 observedAt = any(),
                 storedDeltaState = any(),
                 currentLat = any(),

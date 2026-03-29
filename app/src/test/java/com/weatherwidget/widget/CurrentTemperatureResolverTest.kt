@@ -28,7 +28,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
-                observedCurrentTemp = 39f,
+                lastObservedTemp = 39f,
                 observedAt = observedFetchedAt,
                 storedDeltaState = null,
                 currentLat = 0.0,
@@ -51,7 +51,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = emptyList(),
-                observedCurrentTemp = 57f,
+                lastObservedTemp = 57f,
                 observedAt = nowMs(now),
                 storedDeltaState = null,
                 currentLat = 0.0,
@@ -78,7 +78,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
-                observedCurrentTemp = null,
+                lastObservedTemp = null,
                 observedAt = null,
                 storedDeltaState = null,
                 currentLat = 0.0,
@@ -125,7 +125,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
-                observedCurrentTemp = 39f,
+                lastObservedTemp = 39f,
                 observedAt = 1000L,
                 storedDeltaState = stored,
                 currentLat = 0.0,
@@ -166,7 +166,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
-                observedCurrentTemp = 39f,
+                lastObservedTemp = 39f,
                 observedAt = 1000L,
                 storedDeltaState = stored,
                 currentLat = 0.0,
@@ -205,7 +205,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
-                observedCurrentTemp = 41f,
+                lastObservedTemp = 41f,
                 observedAt = nowMs,
                 storedDeltaState = stored,
                 currentLat = 0.0,
@@ -243,7 +243,7 @@ class CurrentTemperatureResolverTest {
                 now = now,
                 displaySource = WeatherSource.NWS,
                 hourlyForecasts = hourly,
-                observedCurrentTemp = 37f,
+                lastObservedTemp = 37f,
                 observedAt = 1000L,
                 storedDeltaState = stored,
                 currentLat = 0.0,
@@ -253,6 +253,42 @@ class CurrentTemperatureResolverTest {
         assertEquals(43f, result.estimatedTemp!!, 0.01f)
         assertEquals(43f, result.displayTemp!!, 0.01f)
         assertEquals(0f, result.appliedDelta!!, 0.01f)
+    }
+
+    @Test
+    fun `resolve uses smoothedForecasts when provided`() {
+        val now = LocalDateTime.of(2026, 1, 15, 14, 30) // Middle of 14:00 and 15:00
+        val recentFetchMs = nowMs(now.minusMinutes(10))
+
+        // Raw temperatures are 70 and 74 (would interpolate to 72 without smoothing)
+        val hourlyForecasts =
+            listOf(
+                hourly(LocalDateTime.of(2026, 1, 15, 14, 0), 70f, recentFetchMs),
+                hourly(LocalDateTime.of(2026, 1, 15, 15, 0), 74f, recentFetchMs),
+            )
+
+        // Provide smoothed overrides
+        val smoothedForecasts = mapOf(
+            hourlyForecasts[0].dateTime to 68f,
+            hourlyForecasts[1].dateTime to 72f
+        )
+
+        val result =
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = WeatherSource.NWS,
+                hourlyForecasts = hourlyForecasts,
+                lastObservedTemp = null,
+                observedAt = null,
+                storedDeltaState = null,
+                currentLat = 0.0,
+                currentLon = 0.0,
+                smoothedForecasts = smoothedForecasts
+            )
+
+        // Should interpolate between 68 and 72 at halfway point -> 70.0
+        assertEquals(70.0f, result.displayTemp!!, 0.01f)
+        assertEquals(70.0f, result.estimatedTemp!!, 0.01f)
     }
 
     private fun hourly(

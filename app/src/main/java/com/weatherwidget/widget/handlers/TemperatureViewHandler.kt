@@ -233,7 +233,7 @@ object TemperatureViewHandler {
         centerTime: LocalDateTime,
         displaySource: WeatherSource,
         precipProbability: Int? = null,
-        observedCurrentTemp: Float? = null,
+        lastObservedTemp: Float? = null,
         observedAt: Long? = null,
         onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
@@ -321,6 +321,25 @@ object TemperatureViewHandler {
 
         val database = WeatherDatabase.getDatabase(context)
 
+        // --- Smooth Forecasts ---
+        val forecastsByTimeForSmoothing =
+            hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    val preferred = entry.value.find { it.source == displaySource.id }
+                    val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
+                    val fallback = entry.value.firstOrNull()
+                    preferred ?: gap ?: fallback
+                }
+        val sortedTimes = forecastsByTimeForSmoothing.keys.sorted()
+        val rawForecastTemps = sortedTimes.map { forecastsByTimeForSmoothing[it]!!.temperature }
+        val smoothedTemps = com.weatherwidget.widget.GraphRenderUtils.smoothValuesPreservingGlobalExtrema(
+            rawForecastTemps,
+            iterations = zoom.smoothIterations,
+        )
+        val smoothedForecasts = sortedTimes.mapIndexed { index, time ->
+            time to smoothedTemps[index]
+        }.toMap()
+
         val graphHours =
             if (useGraph) {
                 // Query actuals for the graph's time window (WIDE: backHours=8)
@@ -366,6 +385,7 @@ object TemperatureViewHandler {
                     zoom,
                     observations,
                     onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
+                    smoothedForecasts = smoothedForecasts,
                 )
                 val hourData = hourDataResult.hours
                 val afterBlendMs = SystemClock.elapsedRealtime()
@@ -436,7 +456,8 @@ object TemperatureViewHandler {
                         now = now,
                         displaySource = displaySource,
                         hourlyForecasts = hourlyForecasts,
-                        observedCurrentTemp = observedCurrentTemp,
+                        lastObservedTemp = lastObservedTemp,
+                        smoothedForecasts = smoothedForecasts,
                     )
                 CurrentTemperatureResolution(
                     displayTemp = quick.displayTemp,
@@ -452,11 +473,12 @@ object TemperatureViewHandler {
                     now = now,
                     displaySource = displaySource,
                     hourlyForecasts = hourlyForecasts,
-                    observedCurrentTemp = observedCurrentTemp,
+                    lastObservedTemp = lastObservedTemp,
                     observedAt = observedAt,
                     storedDeltaState = storedDeltaState,
                     currentLat = lat,
                     currentLon = lon,
+                    smoothedForecasts = smoothedForecasts,
                 )
             }
         val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
@@ -612,7 +634,7 @@ object TemperatureViewHandler {
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
-                observedCurrentTemp = observedCurrentTemp,
+                lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
                 currentLat = lat,
                 currentLon = lon,
@@ -657,7 +679,7 @@ object TemperatureViewHandler {
         now: LocalDateTime,
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
-        observedCurrentTemp: Float?,
+        lastObservedTemp: Float?,
         observedAt: Long?,
         currentLat: Double,
         currentLon: Double,
@@ -675,7 +697,7 @@ object TemperatureViewHandler {
                     now = now,
                     displaySource = displaySource,
                     hourlyForecasts = hourlyForecasts,
-                    observedCurrentTemp = observedCurrentTemp,
+                    lastObservedTemp = lastObservedTemp,
                     observedAt = observedAt,
                     storedDeltaState = storedDeltaState,
                     currentLat = currentLat,
@@ -1100,6 +1122,7 @@ object TemperatureViewHandler {
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
         actuals: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
+        smoothedForecasts: Map<Long, Float>? = null,
     ): List<TemperatureGraphRenderer.HourData> =
         buildHourDataResult(
             hourlyForecasts = hourlyForecasts,
@@ -1109,6 +1132,7 @@ object TemperatureViewHandler {
             zoom = zoom,
             actuals = actuals,
             onBlendDebug = onBlendDebug,
+            smoothedForecasts = smoothedForecasts,
         ).hours
 
     private fun buildHourDataResult(
@@ -1119,6 +1143,7 @@ object TemperatureViewHandler {
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
         actuals: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
+        smoothedForecasts: Map<Long, Float>? = null,
     ): BuildHourDataResult {
         val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
@@ -1217,7 +1242,7 @@ object TemperatureViewHandler {
                 hours.add(
                     TemperatureGraphRenderer.HourData(
                         dateTime = currentHour,
-                        temperature = forecast.temperature,
+                        temperature = smoothedForecasts?.get(hourMs) ?: forecast.temperature,
                         label = formatHourLabel(currentHour),
                         iconRes = iconRes,
                         isNight = isNight,

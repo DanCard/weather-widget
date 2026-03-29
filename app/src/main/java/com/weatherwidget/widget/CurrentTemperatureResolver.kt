@@ -57,19 +57,23 @@ object CurrentTemperatureResolver {
         }
     }
 
+    private fun formatTemp(value: Float?): String =
+        value?.let { String.format("%.2f", it) } ?: "none"
+
     fun resolve(
         now: LocalDateTime,
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
-        observedCurrentTemp: Float?,
+        lastObservedTemp: Float?,
         observedAt: Long?,
         storedDeltaState: CurrentTemperatureDeltaState?,
         currentLat: Double,
         currentLon: Double,
+        smoothedForecasts: Map<Long, Float>? = null,
     ): CurrentTemperatureResolution {
         debugLog(
             "resolve:start now=$now source=${displaySource.id} hourlyCount=${hourlyForecasts.size} " +
-                "observedTemp=$observedCurrentTemp observedAt=$observedAt " +
+                "observedTemp=$lastObservedTemp observedAt=$observedAt " +
                 "currentLat=$currentLat currentLon=$currentLon hasStoredDelta=${storedDeltaState != null}",
         )
         val estimatedTemp =
@@ -77,6 +81,7 @@ object CurrentTemperatureResolver {
                 hourlyForecasts = hourlyForecasts,
                 targetTime = now,
                 source = displaySource,
+                smoothedForecasts = smoothedForecasts,
             )
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         debugLog("resolve:estimatedTemp=$estimatedTemp nowMs=$nowMs")
@@ -122,7 +127,9 @@ object CurrentTemperatureResolver {
             }
         var updatedDeltaState: CurrentTemperatureDeltaState? = null
 
-        if (observedCurrentTemp != null && observedAt != null) {
+        var estimatedAtObservationTime: Float? = null
+
+        if (lastObservedTemp != null && observedAt != null) {
             val hasNewObservedReading = scopedStoredDelta?.lastObservedAt != observedAt
             debugLog(
                 "resolve:observed available hasNewObservedReading=$hasNewObservedReading " +
@@ -138,16 +145,18 @@ object CurrentTemperatureResolver {
                 val estimatedAtObsTime = interpolator.getInterpolatedTemperature(
                     hourlyForecasts = hourlyForecasts,
                     targetTime = obsTime,
-                    source = displaySource
+                    source = displaySource,
+                    smoothedForecasts = smoothedForecasts,
                 )
+                estimatedAtObservationTime = estimatedAtObsTime
 
                 if (estimatedAtObsTime != null) {
-                    val delta = observedCurrentTemp - estimatedAtObsTime
+                    val delta = lastObservedTemp - estimatedAtObsTime
                     appliedDelta = delta
                     updatedDeltaState =
                         CurrentTemperatureDeltaState(
                             delta = delta,
-                            lastObservedTemp = observedCurrentTemp,
+                            lastObservedTemp = lastObservedTemp,
                             lastObservedAt = observedAt,
                             updatedAtMs = observedAt.coerceAtMost(nowMs),
                             sourceId = displaySource.id,
@@ -156,16 +165,16 @@ object CurrentTemperatureResolver {
                         )
                     debugLog(
                         "resolve:updatedDeltaState rawDelta=$delta updatedAt=${updatedDeltaState.updatedAtMs} " +
-                            "observedTemp=$observedCurrentTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
+                            "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
                     )
                 } else if (estimatedTemp != null) {
                     // Fallback to current estimate if we can't find forecast for the observation time
-                    val delta = observedCurrentTemp - estimatedTemp
+                    val delta = lastObservedTemp - estimatedTemp
                     appliedDelta = delta
                     updatedDeltaState =
                         CurrentTemperatureDeltaState(
                             delta = delta,
-                            lastObservedTemp = observedCurrentTemp,
+                            lastObservedTemp = lastObservedTemp,
                             lastObservedAt = observedAt,
                             updatedAtMs = observedAt.coerceAtMost(nowMs),
                             sourceId = displaySource.id,
@@ -178,7 +187,7 @@ object CurrentTemperatureResolver {
             }
         } else {
             debugLog(
-                "resolve:delta update skipped observedTemp=$observedCurrentTemp " +
+                "resolve:delta update skipped observedTemp=$lastObservedTemp " +
                     "observedAt=$observedAt estimatedTemp=$estimatedTemp",
             )
         }
@@ -187,18 +196,27 @@ object CurrentTemperatureResolver {
         val displayTemp =
             when {
                 estimatedTemp != null -> estimatedTemp + (appliedDelta ?: 0f)
-                else -> observedCurrentTemp
+                else -> lastObservedTemp
             }
         debugLog(
-            "resolve:result displayTemp=$displayTemp estimatedTemp=$estimatedTemp observedTemp=$observedCurrentTemp " +
+            "resolve:result displayTemp=$displayTemp estimatedTemp=$estimatedTemp observedTemp=$lastObservedTemp " +
                 "appliedDelta=$appliedDelta isStaleEstimate=$isStaleEstimate " +
                 "shouldClearStoredDelta=${storedDeltaState != null && !scopeMatch}",
+        )
+        debugLog(
+            "resolve:explain nowForecast=${formatTemp(estimatedTemp)} " +
+                "lastObserved=${formatTemp(lastObservedTemp)} " +
+                "estimatedAtObs=${formatTemp(estimatedAtObservationTime)} " +
+                "rawStoredDelta=${formatTemp(scopedStoredDelta?.delta)} " +
+                "appliedDelta=${formatTemp(appliedDelta)} " +
+                "displayTemp=${formatTemp(displayTemp)} " +
+                "observedAt=${observedAt ?: "none"}",
         )
 
         return CurrentTemperatureResolution(
             displayTemp = displayTemp,
             estimatedTemp = estimatedTemp,
-            observedTemp = observedCurrentTemp,
+            observedTemp = lastObservedTemp,
             isStaleEstimate = isStaleEstimate,
             appliedDelta = appliedDelta,
             updatedDeltaState = updatedDeltaState,
@@ -210,20 +228,22 @@ object CurrentTemperatureResolver {
         now: LocalDateTime,
         displaySource: WeatherSource,
         hourlyForecasts: List<HourlyForecastEntity>,
-        observedCurrentTemp: Float?,
+        lastObservedTemp: Float?,
+        smoothedForecasts: Map<Long, Float>? = null,
     ): QuickCurrentTemperature {
         val estimatedTemp =
             interpolator.getInterpolatedTemperature(
                 hourlyForecasts = hourlyForecasts,
                 targetTime = now,
                 source = displaySource,
+                smoothedForecasts = smoothedForecasts,
             )
-        val displayTemp = observedCurrentTemp ?: estimatedTemp
-        val isStaleEstimate = observedCurrentTemp == null && estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
+        val displayTemp = lastObservedTemp ?: estimatedTemp
+        val isStaleEstimate = lastObservedTemp == null && estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
         return QuickCurrentTemperature(
             displayTemp = displayTemp,
             estimatedTemp = estimatedTemp,
-            observedTemp = observedCurrentTemp,
+            observedTemp = lastObservedTemp,
             isStaleEstimate = isStaleEstimate,
         )
     }

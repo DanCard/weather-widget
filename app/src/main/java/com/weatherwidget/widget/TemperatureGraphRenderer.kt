@@ -401,8 +401,7 @@ object TemperatureGraphRenderer {
         onPointsResolved: ((PointsDebug) -> Unit)?,
     ): RenderContextUpdate {
         val effectiveDelta = appliedDelta ?: 0f
-        val rawForecastTemps = hours.map { it.temperature }
-        val smoothedForecastTemps = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawForecastTemps, iterations = 1)
+        val smoothedForecastTemps = hours.map { it.temperature }
         val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         val fetchTime = observedAt?.let {
