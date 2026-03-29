@@ -790,6 +790,10 @@ object WidgetIntentRouter {
             zoom = zoom
         )
 
+        val smoothedForecasts = TemperatureViewHandler.computeSmoothedForecasts(
+            hourlyForecasts, displaySource
+        )
+
         DailyViewHandler.updateWidget(
             context,
             appWidgetManager,
@@ -802,6 +806,7 @@ object WidgetIntentRouter {
             repository,
             lastObservedTemp = graphStyleObs?.temperature,
             observedAt = graphStyleObs?.observedAt,
+            smoothedForecasts = smoothedForecasts,
         )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs

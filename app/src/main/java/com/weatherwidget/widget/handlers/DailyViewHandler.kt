@@ -115,6 +115,7 @@ object DailyViewHandler : WidgetViewHandler {
         lastObservedTemp: Float? = null,
         observedAt: Long? = null,
         startupToken: String? = null,
+        smoothedForecasts: Map<Long, Float>? = null,
     ) {
         updateWidget(
             context = context,
@@ -130,6 +131,7 @@ object DailyViewHandler : WidgetViewHandler {
             observedAt = observedAt,
             now = LocalDateTime.now(),
             startupToken = startupToken,
+            smoothedForecasts = smoothedForecasts,
         )
     }
 
@@ -148,6 +150,7 @@ object DailyViewHandler : WidgetViewHandler {
         observedAt: Long? = null,
         now: LocalDateTime,
         startupToken: String? = null,
+        smoothedForecasts: Map<Long, Float>? = null,
     ) {
         Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
         val handlerStartMs = SystemClock.elapsedRealtime()
@@ -243,6 +246,7 @@ object DailyViewHandler : WidgetViewHandler {
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,
+                smoothedForecasts = smoothedForecasts,
             )
         val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
         if (currentTempResolution.shouldClearStoredDelta) {

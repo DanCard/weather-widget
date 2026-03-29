@@ -167,6 +167,38 @@ object TemperatureViewHandler {
     private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
 
+    /** Fixed smoothing iterations for the current temp header, independent of zoom level. */
+    internal const val HEADER_SMOOTH_ITERATIONS = 3
+
+    /**
+     * Compute bezier-smoothed forecast temperatures from raw hourly data.
+     * Used by both TemperatureViewHandler and DailyViewHandler to ensure the
+     * current temp header is consistent across view modes.
+     */
+    internal fun computeSmoothedForecasts(
+        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        smoothIterations: Int = HEADER_SMOOTH_ITERATIONS,
+    ): Map<Long, Float> {
+        val forecastsByTime =
+            hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    val preferred = entry.value.find { it.source == displaySource.id }
+                    val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
+                    val fallback = entry.value.firstOrNull()
+                    preferred ?: gap ?: fallback
+                }
+        val sortedTimes = forecastsByTime.keys.sorted()
+        val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
+        val smoothedTemps = com.weatherwidget.widget.GraphRenderUtils.smoothValuesPreservingGlobalExtrema(
+            rawTemps,
+            iterations = smoothIterations,
+        )
+        return sortedTimes.mapIndexed { index, time ->
+            time to smoothedTemps[index]
+        }.toMap()
+    }
+
     internal data class SelectedObservationSeries(
         val stationId: String?,
         val stationName: String?,
@@ -322,23 +354,8 @@ object TemperatureViewHandler {
         val database = WeatherDatabase.getDatabase(context)
 
         // --- Smooth Forecasts ---
-        val forecastsByTimeForSmoothing =
-            hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { entry ->
-                    val preferred = entry.value.find { it.source == displaySource.id }
-                    val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    val fallback = entry.value.firstOrNull()
-                    preferred ?: gap ?: fallback
-                }
-        val sortedTimes = forecastsByTimeForSmoothing.keys.sorted()
-        val rawForecastTemps = sortedTimes.map { forecastsByTimeForSmoothing[it]!!.temperature }
-        val smoothedTemps = com.weatherwidget.widget.GraphRenderUtils.smoothValuesPreservingGlobalExtrema(
-            rawForecastTemps,
-            iterations = zoom.smoothIterations,
-        )
-        val smoothedForecasts = sortedTimes.mapIndexed { index, time ->
-            time to smoothedTemps[index]
-        }.toMap()
+        // Fixed iterations for consistency: temps must not change when zooming or toggling views.
+        val smoothedForecasts = computeSmoothedForecasts(hourlyForecasts, displaySource)
 
         val graphHours =
             if (useGraph) {

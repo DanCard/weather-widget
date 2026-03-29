@@ -11,6 +11,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import android.os.Looper
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import kotlinx.coroutines.runBlocking
@@ -197,9 +198,11 @@ class ScreenOnReceiverTest {
     ): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
+            shadowOf(Looper.getMainLooper()).idle()
             if (condition()) return true
             Thread.sleep(20)
         }
+        shadowOf(Looper.getMainLooper()).idle()
         return condition()
     }
 }
