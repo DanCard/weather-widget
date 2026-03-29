@@ -13,6 +13,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.SettingsActivity
+import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
@@ -48,7 +49,6 @@ object PrecipViewHandler {
     private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
     private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
-    private const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
 
     /**
@@ -502,12 +502,12 @@ object PrecipViewHandler {
         views: RemoteViews,
         appWidgetId: Int,
     ) {
-        val obsIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_SHOW_OBSERVATIONS
+        val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        val pendingIntent = PendingIntent.getBroadcast(
+        val pendingIntent = PendingIntent.getActivity(
             context,
             appWidgetId * 100 + 800,
             obsIntent,

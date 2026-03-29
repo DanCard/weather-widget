@@ -47,7 +47,6 @@ object CloudCoverViewHandler {
     private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
     private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
-    private const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
 
     @androidx.annotation.VisibleForTesting

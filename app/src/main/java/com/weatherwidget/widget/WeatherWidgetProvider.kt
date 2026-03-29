@@ -45,7 +45,6 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
-import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
@@ -336,7 +335,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
-            ACTION_SHOW_OBSERVATIONS -> handleShowObservationsAction(context, intent)
             ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
         }
     }
@@ -346,14 +344,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
-    private fun handleShowObservationsAction(context: Context, intent: Intent) {
-        val appWidgetId = getWidgetId(intent)
-        val intentToActivity = Intent(context, WeatherObservationsActivity::class.java).apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(intentToActivity)
-    }
 
     private fun handleDayClickAction(
         context: Context,
@@ -728,7 +718,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
         const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
         const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
-        const val ACTION_SHOW_OBSERVATIONS = "com.weatherwidget.ACTION_SHOW_OBSERVATIONS"
         const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
