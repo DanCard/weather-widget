@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -238,11 +239,11 @@ class TemperatureGraphLabelTest {
     }
 
     @Test
-    fun actualEndLabel_isDrawnAtEndOfActualSeries() {
+    fun actualEndLabel_isNotDrawn() {
         val start = LocalDateTime.of(2026, 2, 17, 19, 0)
         val hours = listOf(
             TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 50f, actualTemperature = 50f, isActual = true, label = "7p"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 52f, actualTemperature = 52f, isActual = true, label = "8p", isCurrentHour = true), // effective end (clips at 8:30p)
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 52f, actualTemperature = 52f, isActual = true, label = "8p", isCurrentHour = true),
             TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 54f, actualTemperature = 54f, isActual = true, label = "9p"),
             TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 56f, label = "10p"),
             TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 58f, label = "11p")
@@ -259,7 +260,6 @@ class TemperatureGraphLabelTest {
         )
 
         val actualEnd = placements.find { it.role == "ACTUAL_END" }
-        assertTrue("Expected ACTUAL_END label at index 1 (52°) where line is clipped. placements=$placements", 
-            actualEnd != null && actualEnd.index == 1 && actualEnd.temperature == 52f)
+        assertNull("ACTUAL_END label should not be placed (fetch dot covers this)", actualEnd)
     }
 }

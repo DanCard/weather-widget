@@ -168,7 +168,7 @@ object TemperatureViewHandler {
     private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
 
     /** Fixed smoothing iterations for the current temp header, independent of zoom level. */
-    internal const val HEADER_SMOOTH_ITERATIONS = 3
+    internal const val HEADER_SMOOTH_ITERATIONS = 0
 
     /**
      * Compute bezier-smoothed forecast temperatures from raw hourly data.

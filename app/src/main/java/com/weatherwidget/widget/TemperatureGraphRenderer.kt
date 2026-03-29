@@ -582,15 +582,7 @@ object TemperatureGraphRenderer {
                 }
             }
         }
-        if (ctx.effectiveActualEndIndex > 0 && ctx.effectiveActualEndIndex < hours.size - 1) {
-            val isFetchDotPoint = ctx.fetchDotX != null && abs(ctx.originalPoints[ctx.effectiveActualEndIndex].first - ctx.fetchDotX) < 1f
-            if (specialCandidates.none { it.index == ctx.effectiveActualEndIndex } && !isFetchDotPoint) {
-                val text = formatTemp(labelTemps[ctx.effectiveActualEndIndex])
-                if (specialCandidates.none { abs(ctx.effectiveActualEndIndex - it.index) <= 3 && formatTemp(it.labelTemps[it.index]) == text }) {
-                    addCandidate(ctx.effectiveActualEndIndex, "ACTUAL_END", labelTemps)
-                }
-            }
-        }
+        // ACTUAL_END label removed — the fetch dot already shows the last observed temp with age.
         if (specialCandidates.none { it.index == 0 }) addCandidate(0, "START", labelTemps)
         if (hours.size > 1 && specialCandidates.none { it.index == hours.size - 1 }) addCandidate(hours.size - 1, "END", labelTemps)
 

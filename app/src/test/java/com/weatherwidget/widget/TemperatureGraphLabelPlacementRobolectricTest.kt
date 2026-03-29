@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -138,7 +139,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
-    fun `actuals end is labeled with ACTUAL_END role`() {
+    fun `actuals end does not produce a label (fetch dot shows observed temp instead)`() {
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
         val start = LocalDateTime.of(2026, 3, 19, 15, 0)
@@ -146,7 +147,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             listOf(
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "3p"),
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "4p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"), // ACTUAL_END
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"),
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 87.0f, label = "6p"),
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
             )
@@ -161,42 +162,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         val actualEnd = placements.find { it.role == "ACTUAL_END" }
-
-        assertNotNull("Expected ACTUAL_END label. placements=$placements", actualEnd)
-        assertEquals("Expected ACTUAL_END at index 2 (last actual index matches transitionX).", 2, actualEnd!!.index)
-        assertEquals(86.0f, actualEnd.temperature, 0.01f)
-        assertEquals("actual", actualEnd.series)
-        assertEquals("actual", actualEnd.colorFamily)
-    }
-
-    @Test
-    fun `actuals end label shifts to effective end when line is clipped by nowX`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
-
-        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
-        val hours =
-            listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "10a"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "11a", isCurrentHour = true),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "12p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 87.0f, actualTemperature = 87.0f, isActual = true, label = "1p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "2p"),
-            )
-
-        // Clip at 11:30a (halfway between 11a and 12p) using currentTime
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 400, // 80px per hour
-            heightPx = 400,
-            currentTime = start.plusHours(1).plusMinutes(30),
-            onLabelPlaced = { placements.add(it) },
-        )
-
-        val actualEnd = placements.find { it.role == "ACTUAL_END" }
-        assertNotNull("Expected ACTUAL_END label. placements=$placements", actualEnd)
-        assertEquals("Expected ACTUAL_END at index 1 because line is clipped by nowX.", 1, actualEnd!!.index)
-        assertEquals(85.0f, actualEnd.temperature, 0.01f)
+        assertNull("ACTUAL_END label should not be placed (fetch dot covers this)", actualEnd)
     }
 
     @Test
