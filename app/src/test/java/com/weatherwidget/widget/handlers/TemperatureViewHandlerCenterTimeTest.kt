@@ -68,6 +68,9 @@ class TemperatureViewHandlerCenterTimeTest {
                 hourly(nextHour, 66f),
                 hourly(nextHour.plusHours(1), 66f),
                 hourly(nextHour.plusHours(2), 66f),
+                hourly(nextHour.plusHours(3), 66f),
+                hourly(nextHour.plusHours(4), 66f),
+                hourly(nextHour.plusHours(5), 66f),
                 // Future center points: if center-time semantics return, this test should fail.
                 hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS), 52f),
                 hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1), 58f),

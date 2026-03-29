@@ -344,7 +344,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
-
     private fun handleDayClickAction(
         context: Context,
         intent: Intent,
