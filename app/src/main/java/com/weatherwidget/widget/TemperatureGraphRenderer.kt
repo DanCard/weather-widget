@@ -405,7 +405,7 @@ object TemperatureGraphRenderer {
         val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         val fetchTime = observedAt?.let {
-            Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDateTime()
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime()
         }
         val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
         val fetchFraction = if (fetchTime != null && fetchIdx != -1 && fetchIdx < smoothedForecastTemps.lastIndex) {
