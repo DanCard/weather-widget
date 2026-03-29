@@ -197,8 +197,10 @@ internal object GraphRenderUtils {
 
         val text = "NOW"
         val textWidth = nowLabelTextPaint.measureText(text)
-        val fontMetrics = nowLabelTextPaint.fontMetrics
-        val textHeight = fontMetrics.descent - fontMetrics.ascent
+        val fontMetrics = nowLabelTextPaint.fontMetrics ?: Paint.FontMetrics().apply {
+            ascent = -nowLabelTextPaint.textSize
+            descent = nowLabelTextPaint.textSize * 0.2f
+        }
         val labelY = lineTop - dpToPx(2f)
         
         val textBounds = RectF(
