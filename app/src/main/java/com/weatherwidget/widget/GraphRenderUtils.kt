@@ -185,6 +185,7 @@ internal object GraphRenderUtils {
         graphHeight: Float,
         currentTimePaint: Paint,
         nowLabelTextPaint: Paint,
+        drawnBounds: List<RectF> = emptyList(),
         dpToPx: (Float) -> Float,
     ) {
         if (nowX == null) return
@@ -193,7 +194,24 @@ internal object GraphRenderUtils {
         val lineTop = graphTop + (graphHeight - lineHeight) / 2f
         val lineBottom = lineTop + lineHeight
         canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
-        canvas.drawText("NOW", nowX, lineTop - dpToPx(2f), nowLabelTextPaint)
+
+        val text = "NOW"
+        val textWidth = nowLabelTextPaint.measureText(text)
+        val fontMetrics = nowLabelTextPaint.fontMetrics
+        val textHeight = fontMetrics.descent - fontMetrics.ascent
+        val labelY = lineTop - dpToPx(2f)
+        
+        val textBounds = RectF(
+            nowX - textWidth / 2f,
+            labelY + fontMetrics.ascent,
+            nowX + textWidth / 2f,
+            labelY + fontMetrics.descent
+        )
+
+        val hasCollision = drawnBounds.any { RectF.intersects(it, textBounds) }
+        if (!hasCollision) {
+            canvas.drawText(text, nowX, labelY, nowLabelTextPaint)
+        }
     }
 
     /**

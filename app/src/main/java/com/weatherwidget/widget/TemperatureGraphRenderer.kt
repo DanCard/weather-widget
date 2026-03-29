@@ -405,7 +405,7 @@ object TemperatureGraphRenderer {
         val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
 
         val fetchTime = observedAt?.let {
-            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDateTime()
+            Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDateTime()
         }
         val fetchIdx = fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
         val fetchFraction = if (fetchTime != null && fetchIdx != -1 && fetchIdx < smoothedForecastTemps.lastIndex) {
@@ -560,9 +560,14 @@ object TemperatureGraphRenderer {
             bilateralExtremaProminence(index, labelTemps, localExtrema) >= MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES
         }
 
+        val fetchIdx = ctx.fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
+
         val specialCandidates = mutableListOf<TempLabelCandidate>()
         fun addCandidate(index: Int, role: String, temps: List<Float>, forceForecast: Boolean = false) {
             if (index !in temps.indices) return
+            // Suppress if this point is already being labeled by the Fetch Dot
+            if (index == fetchIdx && ctx.observedAt != null) return
+
             val text = formatTemp(temps[index])
             if (specialCandidates.none { it.index == index || (abs(it.index - index) <= 3 && formatTemp(it.labelTemps[it.index]) == text) }) {
                 specialCandidates.add(TempLabelCandidate(index, role, temps, hours[index].temperature, forceForecast))
@@ -683,8 +688,9 @@ object TemperatureGraphRenderer {
         }
     }
 
-    private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>) {
-        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.interpolatedTruthAtFetch == null) return
+    private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
+        val drawnBounds = mutableListOf<RectF>()
+        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.interpolatedTruthAtFetch == null) return drawnBounds
         val fetchY = ctx.graphTop + ctx.graphHeight * (1 - (ctx.interpolatedTruthAtFetch - ctx.minTemp) / ctx.tempRange)
         val dotRadius = dpToPx(ctx.context, 3.2f * ctx.labelScale)
         val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
@@ -701,7 +707,17 @@ object TemperatureGraphRenderer {
 
         if (ageLabel != null) {
             val ageY = fetchY + dotRadius + dpToPx(ctx.context, 4f * ctx.labelScale) - ctx.paints.stalenessTextPaint.ascent()
-            if (ageY + ctx.paints.stalenessTextPaint.descent() <= ctx.heightPx) ctx.canvas.drawText(ageLabel, clampedX, ageY, ctx.paints.stalenessTextPaint)
+            if (ageY + ctx.paints.stalenessTextPaint.descent() <= ctx.heightPx) {
+                val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
+                val ageBounds = RectF(
+                    clampedX - ageWidth / 2f,
+                    ageY + ctx.paints.stalenessTextPaint.ascent(),
+                    clampedX + ageWidth / 2f,
+                    ageY + ctx.paints.stalenessTextPaint.descent()
+                )
+                ctx.canvas.drawText(ageLabel, clampedX, ageY, ctx.paints.stalenessTextPaint)
+                drawnBounds.add(ageBounds)
+            }
         }
 
         val valueLabel = formatTemp(ctx.interpolatedTruthAtFetch) + "°"
@@ -709,22 +725,34 @@ object TemperatureGraphRenderer {
         val sideGap = dpToPx(ctx.context, 4f * ctx.labelScale)
         var drawn = false
 
+        val valueBaselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+
         if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
             ctx.paints.valueTextPaint.textAlign = Paint.Align.LEFT
-            ctx.canvas.drawText(valueLabel, clampedX + dotRadius + sideGap, fetchY + ctx.paints.valueTextPaint.textSize / 3f, ctx.paints.valueTextPaint)
+            val x = clampedX + dotRadius + sideGap
+            val y = fetchY + valueBaselineOffset
+            ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
+            drawnBounds.add(RectF(x, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth, y + ctx.paints.valueTextPaint.descent()))
             drawn = true
         }
         if (!drawn && clampedX - dotRadius - sideGap - valueWidth >= 0) {
             ctx.paints.valueTextPaint.textAlign = Paint.Align.RIGHT
-            ctx.canvas.drawText(valueLabel, clampedX - dotRadius - sideGap, fetchY + ctx.paints.valueTextPaint.textSize / 3f, ctx.paints.valueTextPaint)
+            val x = clampedX - dotRadius - sideGap
+            val y = fetchY + valueBaselineOffset
+            ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
+            drawnBounds.add(RectF(x - valueWidth, y + ctx.paints.valueTextPaint.ascent(), x, y + ctx.paints.valueTextPaint.descent()))
             drawn = true
         }
         if (!drawn && fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale) + ctx.paints.valueTextPaint.ascent() >= 0) {
             ctx.paints.valueTextPaint.textAlign = Paint.Align.CENTER
-            ctx.canvas.drawText(valueLabel, clampedX, fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale), ctx.paints.valueTextPaint)
+            val x = clampedX
+            val y = fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale)
+            ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
+            drawnBounds.add(RectF(x - valueWidth / 2f, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth / 2f, y + ctx.paints.valueTextPaint.descent()))
         }
 
         ctx.onFetchDotResolved?.invoke(FetchDotDebug(ctx.observedAt, clampedX, fetchY, true, if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel, ctx.paints.valueTextPaint.color, if (ageLabel != null) ctx.paints.stalenessTextPaint.color else null))
+        return drawnBounds
     }
 
     private fun findLocalExtremaIndices(temps: List<Float>): List<Int> {
@@ -892,12 +920,13 @@ object TemperatureGraphRenderer {
         placeTemperatureLabels(ctx, hours, drawnIconBounds)
         placeDayLabels(ctx, hours, drawnIconBounds)
 
+        val fetchDotBounds = drawFetchDot(ctx, hours)
+        ctx.drawnLabelBounds.addAll(fetchDotBounds)
+
         GraphRenderUtils.drawNowIndicator(
             canvas, if (update.nowIndicatorVisible) update.nowX else null, ctx.graphTop, ctx.graphHeight,
-            paints.currentTimePaint, paints.nowLabelTextPaint
+            paints.currentTimePaint, paints.nowLabelTextPaint, ctx.drawnLabelBounds + drawnIconBounds
         ) { dpToPx(context, it) }
-
-        drawFetchDot(ctx, hours)
 
         return bitmap
     }
