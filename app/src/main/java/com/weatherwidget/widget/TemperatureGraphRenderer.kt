@@ -45,6 +45,8 @@ object TemperatureGraphRenderer {
         val isObservedActual: Boolean = false,   // Backed by a real blended/observed point, not carry-forward filler
     )
 
+    private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
+
     // Temperature-to-color thresholds
     private const val COLD_THRESHOLD = 50f
     private const val MILD_TEMP = 70f
@@ -113,6 +115,8 @@ object TemperatureGraphRenderer {
         val outerRingPaint: Paint,
         val valueTextPaint: Paint,
         val stalenessTextPaint: Paint,
+        val actualLeaderLinePaint: Paint,
+        val forecastLeaderLinePaint: Paint,
     )
 
     private var cachedPaints: PaintSet? = null
@@ -229,6 +233,18 @@ object TemperatureGraphRenderer {
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
 
+        val actualLeaderLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = withAlpha(COLOR_ACTUAL_LABEL, 80)
+            strokeWidth = dpToPx(context, 0.5f)
+            style = Paint.Style.STROKE
+        }
+
+        val forecastLeaderLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = withAlpha(COLOR_FORECAST_LABEL, 80)
+            strokeWidth = dpToPx(context, 0.5f)
+            style = Paint.Style.STROKE
+        }
+
         return PaintSet(
             density = density,
             labelScale = labelScale,
@@ -247,6 +263,8 @@ object TemperatureGraphRenderer {
             outerRingPaint = outerRingPaint,
             valueTextPaint = valueTextPaint,
             stalenessTextPaint = stalenessTextPaint,
+            actualLeaderLinePaint = actualLeaderLinePaint,
+            forecastLeaderLinePaint = forecastLeaderLinePaint,
         ).also { cachedPaints = it }
     }
 
@@ -312,6 +330,7 @@ object TemperatureGraphRenderer {
         val series: String = "",
         val colorFamily: String = "",
         val reason: String = "",
+        val displacementSteps: Int = 0,
     )
 
     data class FetchDotDebug(
@@ -616,20 +635,49 @@ object TemperatureGraphRenderer {
             val isValley = candidate.role == "LOW" || candidate.role == "FORECAST_LOW" || (candidate.role == "LOCAL" && idx in significantLocalExtrema && temps[idx] < leftVal)
             val isEssential = candidate.role in listOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "START", "END", "ACTUAL_END")
             
-            val attempts = if (isValley) listOf(true, false) else listOf(false, true)
-            for (attemptIdx in attempts.indices) {
-                val drawBelow = attempts[attemptIdx]
-                val baselineY = if (drawBelow) sy + belowGap - labelAscent else sy - aboveGap - labelDescent
-                val bounds = RectF(clampedX - textWidth / 2f, baselineY + labelAscent, clampedX + textWidth / 2f, baselineY + labelDescent)
-                val onScreen = bounds.top >= 0f && bounds.bottom <= ctx.heightPx
-                val hasCollision = drawnLabelBounds.any { RectF.intersects(it, bounds) } || drawnIconBounds.any { RectF.intersects(it, bounds) }
-
-                if (onScreen && (!hasCollision || (isEssential && attemptIdx > 0))) {
-                    ctx.canvas.drawText(label, clampedX, baselineY, labelPaint)
-                    drawnLabelBounds.add(bounds)
-                    ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, baselineY, !drawBelow, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", if (hasCollision) "FORCED" else if (drawBelow) "below" else "above"))
-                    break
+            val directions = if (isValley) listOf(true, false) else listOf(false, true)
+            val labelHeight = labelDescent - labelAscent
+            val leaderLinePaint = if (isFuture) ctx.paints.forecastLeaderLinePaint else ctx.paints.actualLeaderLinePaint
+            var placed = false
+            // Track last on-screen position as fallback for forced essential labels
+            var forceBaselineY = Float.NaN
+            var forceBounds: RectF? = null
+            var forceDrawBelow = false
+            var forceStep = 0
+            outer@ for ((_, drawBelow) in directions.withIndex()) {
+                for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
+                    val displacement = step * labelHeight
+                    val baselineY = if (drawBelow) sy + belowGap - labelAscent + displacement
+                                    else sy - aboveGap - labelDescent - displacement
+                    val bounds = RectF(clampedX - textWidth / 2f, baselineY + labelAscent, clampedX + textWidth / 2f, baselineY + labelDescent)
+                    val onScreen = bounds.top >= 0f && bounds.bottom <= ctx.heightPx
+                    if (!onScreen) break  // further displacement in this direction won't help
+                    val hasCollision = drawnLabelBounds.any { RectF.intersects(it, bounds) } || drawnIconBounds.any { RectF.intersects(it, bounds) }
+                    if (isEssential) { forceBaselineY = baselineY; forceBounds = bounds; forceDrawBelow = drawBelow; forceStep = step }
+                    if (!hasCollision) {
+                        if (step > 0) {
+                            val lineEndY = if (drawBelow) bounds.top else bounds.bottom
+                            ctx.canvas.drawLine(clampedX, sy, clampedX, lineEndY, leaderLinePaint)
+                        }
+                        ctx.canvas.drawText(label, clampedX, baselineY, labelPaint)
+                        drawnLabelBounds.add(bounds)
+                        val reasonBase = if (drawBelow) "below" else "above"
+                        val reason = if (step > 0) "$reasonBase+$step" else reasonBase
+                        ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, baselineY, !drawBelow, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", reason, step))
+                        placed = true
+                        break@outer
+                    }
                 }
+            }
+            // Essential labels always appear — force onto the last on-screen position if not placed
+            if (!placed && isEssential && forceBounds != null) {
+                if (forceStep > 0) {
+                    val lineEndY = if (forceDrawBelow) forceBounds.top else forceBounds.bottom
+                    ctx.canvas.drawLine(clampedX, sy, clampedX, lineEndY, leaderLinePaint)
+                }
+                ctx.canvas.drawText(label, clampedX, forceBaselineY, labelPaint)
+                drawnLabelBounds.add(forceBounds)
+                ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, forceBaselineY, !forceDrawBelow, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", "FORCED", forceStep))
             }
         }
         ctx.drawnLabelBounds.addAll(drawnLabelBounds)
