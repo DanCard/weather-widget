@@ -25,6 +25,7 @@ data class ForecastEntity(
     val precipProbability: Int? = null, // Rain chance percentage (0-100)
     val periodStartTime: Long? = null,  // NWS only: epoch millis of daytime forecast period start
     val periodEndTime: Long? = null,    // NWS only: epoch millis of daytime forecast period end
+    val precipAmountMm: Float? = null, // Daily precipitation amount in millimeters
     val batchFetchedAt: Long = System.currentTimeMillis(), // Shared across all rows from one provider fetch batch
     val fetchedAt: Long = System.currentTimeMillis(),
 )

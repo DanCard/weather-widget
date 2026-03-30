@@ -40,6 +40,14 @@ object DailyForecastGraphRenderer {
         val color: Int,
     )
 
+    data class RainLabelDrawnDebug(
+        val date: LocalDate,
+        val text: String,
+        val placement: String,
+        val centerX: Float,
+        val baselineY: Float,
+    )
+
     data class DayData(
         val date: LocalDate,
         val label: String,
@@ -57,6 +65,8 @@ object DailyForecastGraphRenderer {
         val forecastLow: Float? = null,
         val rainSummary: String? = null,
         val dailyPrecipProbability: Int? = null,
+        val dailyPrecipAmountMm: Float? = null,
+        val dailyRainLabelText: String? = null,
         val hasRainForecast: Boolean = false,
         val columnIndex: Int? = null,
         val isTodayForecastFallback: Boolean = false,
@@ -115,6 +125,7 @@ object DailyForecastGraphRenderer {
         bitmapScale: Float = 1f,
         numColumns: Int = 0,
         onBarDrawn: ((BarDrawnDebug) -> Unit)? = null,
+        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -127,14 +138,11 @@ object DailyForecastGraphRenderer {
 
         android.util.Log.d(TAG, "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx")
 
-        var firstRainShown = false
         days.forEachIndexed { index, day ->
             val columnIndex = day.columnIndex ?: index
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
             
-            drawDayColumn(canvas, context, day, centerX, layout, paints, firstRainShown)
-            if (!day.rainSummary.isNullOrEmpty()) firstRainShown = true
-            
+            drawDayColumn(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
         }
 
@@ -244,7 +252,7 @@ object DailyForecastGraphRenderer {
             ),
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
-            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 9f * scaleFactor)),
+            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 8f * scaleFactor)),
             iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 colorFilter = PorterDuffColorFilter(Color.parseColor(COLOR_LABEL_GRAY), PorterDuff.Mode.SRC_IN)
             },
@@ -278,7 +286,7 @@ object DailyForecastGraphRenderer {
         centerX: Float,
         layout: LayoutInfo,
         paints: PaintSet,
-        firstRainShown: Boolean
+        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?
     ) {
         val labelPaint = if (day.isToday) paints.todayTextPaint else paints.textPaint
         canvas.drawText(day.label, centerX, layout.heightPx - 3f, labelPaint)
@@ -297,11 +305,9 @@ object DailyForecastGraphRenderer {
             val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
             canvas.drawText(lowLabelText, centerX, lowTempY, tempPaint)
 
-            if (!day.rainSummary.isNullOrEmpty() && !firstRainShown) {
-                val rainTextY = lowTempY + dpToPx(context, 10f * layout.scaleFactor)
-                canvas.drawText("\uD83D\uDCA7 ${day.rainSummary}", centerX, rainTextY, paints.rainTextPaint)
-            }
         }
+
+        drawDailyRainLabel(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
     }
 
     private fun drawWeatherIcon(canvas: Canvas, context: Context, day: DayData, centerX: Float, iconY: Float, iconSize: Int) {
@@ -436,6 +442,73 @@ object DailyForecastGraphRenderer {
         }
         
         onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", obsHighY, effectiveObsLowY, centerX, paints.todayObservedRedPaint.color))
+    }
+
+    private fun drawDailyRainLabel(
+        canvas: Canvas,
+        context: Context,
+        day: DayData,
+        centerX: Float,
+        layout: LayoutInfo,
+        paints: PaintSet,
+        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
+    ) {
+        val label = day.dailyRainLabelText ?: return
+        val rainText = label
+        val textWidth = paints.rainTextPaint.measureText(rainText)
+        val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
+        if (textWidth > maxTextWidth) return
+
+        val metrics = paints.rainTextPaint.fontMetrics
+        val topMargin = dpToPx(context, 2f * layout.scaleFactor)
+        val spacing = dpToPx(context, 10f * layout.scaleFactor)
+        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
+
+        resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
+            val aboveBaseline = highBaseline - spacing
+            if (aboveBaseline + metrics.ascent >= topMargin) {
+                canvas.drawText(rainText, centerX, aboveBaseline, paints.rainTextPaint)
+                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "ABOVE_HIGH", centerX, aboveBaseline))
+                return
+            }
+        }
+
+        resolveLowLabelBaseline(context, day, layout)?.let { lowBaseline ->
+            val belowBaseline = lowBaseline + spacing - metrics.ascent
+            if (belowBaseline + metrics.descent <= bottomLimit) {
+                canvas.drawText(rainText, centerX, belowBaseline, paints.rainTextPaint)
+                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
+            }
+        }
+    }
+
+    private fun resolveHighLabelBaseline(
+        context: Context,
+        day: DayData,
+        layout: LayoutInfo,
+    ): Float? {
+        val highY = day.high?.let {
+            layout.graphTop + layout.graphHeight * (1 - (it - layout.minTemp) / layout.tempRange)
+        } ?: return null
+        val labelY =
+            if (day.isToday) {
+                val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: return null
+                layout.graphTop + layout.graphHeight * (1 - (absoluteHigh - layout.minTemp) / layout.tempRange)
+            } else {
+                highY
+            }
+        return labelY - dpToPx(context, 6f * layout.scaleFactor)
+    }
+
+    private fun resolveLowLabelBaseline(
+        context: Context,
+        day: DayData,
+        layout: LayoutInfo,
+    ): Float? {
+        val lowTemp = day.low ?: return null
+        val lowY = layout.graphTop + layout.graphHeight * (1 - (lowTemp - layout.minTemp) / layout.tempRange)
+        val iconY = lowY + dpToPx(context, 3f)
+        return iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, 1f)
     }
 
     private fun dpToPx(context: Context, dp: Float): Float {

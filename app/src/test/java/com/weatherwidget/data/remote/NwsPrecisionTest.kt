@@ -166,4 +166,101 @@ class NwsPrecisionTest {
             // Daily forecast is stored as Int, should round correctly (72.6 -> 73)
             assertEquals(73, periods[0].temperature)
         }
+
+    @Test
+    fun `getForecast parses quantitative precipitation in millimeters`() =
+        runTest {
+            val forecastResponse =
+                """
+                {
+                    "properties": {
+                        "periods": [
+                            {
+                                "name": "Tonight",
+                                "startTime": "2026-02-01T18:00:00-08:00",
+                                "endTime": "2026-02-02T06:00:00-08:00",
+                                "temperature": 50,
+                                "temperatureUnit": "F",
+                                "shortForecast": "Rain",
+                                "isDaytime": false,
+                                "quantitativePrecipitation": {
+                                    "unitCode": "wmoUnit:mm",
+                                    "value": 12.7
+                                }
+                            }
+                        ]
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = forecastResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
+            val periods = api.getForecast(gridPoint)
+
+            assertEquals(1, periods.size)
+            assertEquals(12.7f, periods[0].precipAmountMm)
+        }
+
+    @Test
+    fun `getHourlyForecast converts quantitative precipitation inches to millimeters`() =
+        runTest {
+            val forecastResponse =
+                """
+                {
+                    "properties": {
+                        "periods": [
+                            {
+                                "startTime": "2026-02-01T10:00:00-08:00",
+                                "temperature": 72,
+                                "temperatureUnit": "F",
+                                "shortForecast": "Rain",
+                                "quantitativePrecipitation": {
+                                    "unitCode": "wmoUnit:in",
+                                    "value": 0.5
+                                }
+                            }
+                        ]
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = forecastResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
+            val periods = api.getHourlyForecast(gridPoint)
+
+            assertEquals(1, periods.size)
+            assertEquals(12.7f, periods[0].precipAmountMm)
+        }
 }

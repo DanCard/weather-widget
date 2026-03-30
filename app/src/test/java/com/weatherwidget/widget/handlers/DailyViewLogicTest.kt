@@ -254,12 +254,106 @@ class DailyViewLogicTest {
         assertEquals("Labels should be null", null, emptyDay.lowLabel)
     }
 
+    @Test
+    fun `prepareGraphDays rainy future day shows percent label`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 65,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals("65%", futureDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays rainy future day with 100 percent and amount shows amount`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 100,
+                precipAmountMm = 0.0508f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals(".002in", futureDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays today omits graph rain label`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 100,
+                precipAmountMm = 10f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals(null, todayDay.dailyRainLabelText)
+    }
+
     private fun createWeather(
         date: String,
         source: String = WeatherSource.NWS.id,
         highTemp: Float? = 70f,
         lowTemp: Float? = 55f,
         isClimateNormal: Boolean = false,
+        condition: String = "Clear",
+        precipProbability: Int? = 0,
+        precipAmountMm: Float? = null,
     ): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
@@ -269,10 +363,11 @@ class DailyViewLogicTest {
             locationName = "Test",
             highTemp = highTemp,
             lowTemp = lowTemp,
-            condition = "Clear",
+            condition = condition,
             source = source,
             isClimateNormal = isClimateNormal,
-            precipProbability = 0,
+            precipProbability = precipProbability,
+            precipAmountMm = precipAmountMm,
             fetchedAt = 1L,
         )
     }

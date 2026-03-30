@@ -17,5 +17,6 @@ data class HourlyForecastEntity(
     val source: String, // Database storage: "NWS", "OPEN_METEO", or "Generic". Use WeatherSource.fromId() to convert.
     val precipProbability: Int? = null, // Precipitation probability percentage (0-100)
     val cloudCover: Int? = null, // Cloud cover percentage (0-100)
+    val precipAmountMm: Float? = null, // Hourly precipitation amount in millimeters
     val fetchedAt: Long, // When this data was fetched
 )

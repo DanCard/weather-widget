@@ -16,6 +16,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.weatherwidget.test.category.MediumDuration
 import org.junit.experimental.categories.Category
 
@@ -180,12 +181,70 @@ class DailyGapFallbackGraphIntegrationTest {
         assertEquals(-52378, todayBar.color)
     }
 
+    @Test
+    fun `renderGraph shows rainfall amount label for rainy future day at 100 percent`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+        try {
+            val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+            val today = now.toLocalDate()
+            val fmt = DateTimeFormatter.ISO_LOCAL_DATE
+
+            val weatherByDate = mapOf(
+                today to forecast(today.format(fmt), 70f, 55f, WeatherSource.NWS),
+                today.plusDays(1) to forecast(
+                    date = today.plusDays(1).format(fmt),
+                    highTemp = 72f,
+                    lowTemp = 56f,
+                    source = WeatherSource.NWS,
+                    condition = "Rain",
+                    precipProbability = 100,
+                    precipAmountMm = 0.0508f,
+                ),
+            )
+
+            val days = DailyViewLogic.prepareGraphDays(
+                now = now,
+                centerDate = today,
+                today = today,
+                weatherByDate = weatherByDate,
+                forecastSnapshots = emptyMap(),
+                numColumns = 2,
+                displaySource = WeatherSource.NWS,
+                isEveningMode = false,
+                skipHistory = false,
+                hourlyForecasts = emptyList(),
+            )
+
+            val rainLabels = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 400,
+                heightPx = 300,
+                bitmapScale = 1f,
+                numColumns = days.size,
+                onRainLabelDrawn = rainLabels::add,
+            )
+
+            val tomorrow = today.plusDays(1)
+            val amountLabel = rainLabels.single { it.date == tomorrow }
+            assertEquals(".002in", amountLabel.text)
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
     private fun forecast(
         date: String,
         highTemp: Float,
         lowTemp: Float,
         source: WeatherSource,
         isClimateNormal: Boolean = false,
+        condition: String = "Clear",
+        precipProbability: Int? = null,
+        precipAmountMm: Float? = null,
     ): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
@@ -195,9 +254,11 @@ class DailyGapFallbackGraphIntegrationTest {
             locationName = "Test",
             highTemp = highTemp,
             lowTemp = lowTemp,
-            condition = "Clear",
+            condition = condition,
             isClimateNormal = isClimateNormal,
             source = source.id,
+            precipProbability = precipProbability,
+            precipAmountMm = precipAmountMm,
             fetchedAt = 1L,
         )
     }

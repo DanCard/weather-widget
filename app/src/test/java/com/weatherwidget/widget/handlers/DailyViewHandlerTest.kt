@@ -749,8 +749,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
-                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
+                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, null, 1L),
+                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, null, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -801,8 +801,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, 1L),
-                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, 1L)
+                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, null, 1L),
+                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, null, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -846,8 +846,8 @@ class DailyViewHandlerTest {
             weatherList = listOf(createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f)),
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
             ),
             currentTemps = listOf(
                 ObservationEntity(
@@ -902,8 +902,8 @@ class DailyViewHandlerTest {
             weatherList = listOf(createWeather(todayStr, precipProbability = 65, highTemp = 70f, lowTemp = 55f)),
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, null, 1L),
             ),
             currentTemps = listOf(
                 ObservationEntity(
@@ -1078,8 +1078,8 @@ class DailyViewHandlerTest {
         val forecast = DailyViewHandler.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
             ),
             displaySource = WeatherSource.NWS,
         )
@@ -1096,7 +1096,7 @@ class DailyViewHandlerTest {
         val forecast = DailyViewHandler.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, null, 1L),
             ),
             displaySource = WeatherSource.NWS,
         )
@@ -1134,8 +1134,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -1181,8 +1181,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, 1L)
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),

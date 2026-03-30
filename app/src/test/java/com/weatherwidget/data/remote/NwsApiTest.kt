@@ -226,6 +226,56 @@ class NwsApiTest {
         }
 
     @Test
+    fun `getQuantitativePrecipitation parses grid intervals and preserves zeroes`() =
+        runTest {
+            val gridResponse =
+                """
+                {
+                    "properties": {
+                        "quantitativePrecipitation": {
+                            "values": [
+                                {
+                                    "validTime": "2026-03-31T18:00:00+00:00/PT6H",
+                                    "unitCode": "wmoUnit:mm",
+                                    "value": 0
+                                },
+                                {
+                                    "validTime": "2026-04-01T00:00:00+00:00/PT6H",
+                                    "unitCode": "wmoUnit:in",
+                                    "value": 0.5
+                                }
+                            ]
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = gridResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
+            val result = api.getQuantitativePrecipitation(gridPoint)
+
+            assertEquals(2, result.size)
+            assertEquals(0f, result[0].amountMm)
+            assertEquals(12.7f, result[1].amountMm, 0.001f)
+        }
+
+    @Test
     fun `getLatestObservationDetailed falls back when latest temp is null`() =
         runTest {
             val latestResponse =

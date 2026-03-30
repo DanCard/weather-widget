@@ -1,6 +1,7 @@
 package com.weatherwidget.widget.handlers
 
 import android.util.Log
+import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
@@ -359,6 +360,15 @@ object DailyViewLogic {
                     forecastLow = fLow,
                     rainSummary = rainSummary,
                     dailyPrecipProbability = precip,
+                    dailyPrecipAmountMm = weather?.precipAmountMm,
+                    dailyRainLabelText = buildDailyRainLabel(
+                        date = date,
+                        today = today,
+                        isPastDate = isPastDate,
+                        iconRes = iconRes,
+                        precipProbability = precip,
+                        precipAmountMm = weather?.precipAmountMm,
+                    ),
                     hasRainForecast = hasRainForecast,
                     columnIndex = days.size,
                     isTodayForecastFallback = isTodayForecastFallback,
@@ -375,5 +385,55 @@ object DailyViewLogic {
         if (v == null) return null
         val rounded = v.roundToInt()
         return if (kotlin.math.abs(v - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", v)
+    }
+
+    private fun buildDailyRainLabel(
+        date: LocalDate,
+        today: LocalDate,
+        isPastDate: Boolean,
+        iconRes: Int,
+        precipProbability: Int?,
+        precipAmountMm: Float?,
+    ): String? {
+        if (date == today || isPastDate || !isRainIndicatorIcon(iconRes)) return null
+        return when {
+            precipProbability == 100 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
+            precipProbability != null && precipProbability > 0 -> "$precipProbability%"
+            else -> null
+        }
+    }
+
+    private fun isRainIndicatorIcon(iconRes: Int): Boolean {
+        return iconRes == R.drawable.ic_weather_rain || iconRes == R.drawable.ic_weather_storm
+    }
+
+    private fun formatPrecipAmount(amountMm: Float): String {
+        val country = Locale.getDefault().country.uppercase(Locale.US)
+        return if (country == "US" || country == "GB") {
+            formatInches(amountMm / 25.4f)
+        } else {
+            formatMillimeters(amountMm)
+        }
+    }
+
+    private fun formatInches(amountInches: Float): String {
+        val precision = when {
+            amountInches < 0.01f -> 3
+            amountInches < 0.1f -> 3
+            amountInches < 1f -> 2
+            else -> 1
+        }
+        val formatted = String.format(Locale.US, "%.${precision}f", amountInches)
+            .trimEnd('0')
+            .trimEnd('.')
+        return "${formatted.removePrefix("0")}in"
+    }
+
+    private fun formatMillimeters(amountMm: Float): String {
+        val precision = if (amountMm < 10f) 1 else 0
+        val formatted = String.format(Locale.US, "%.${precision}f", amountMm)
+            .trimEnd('0')
+            .trimEnd('.')
+        return "${formatted.removePrefix("0")}mm"
     }
 }

@@ -49,6 +49,23 @@ class DailyForecastGraphRendererTest {
         return results
     }
 
+    private fun renderRainLabels(
+        days: List<DailyForecastGraphRenderer.DayData>,
+        widthPx: Int = 300,
+        heightPx: Int = 200,
+    ): List<DailyForecastGraphRenderer.RainLabelDrawnDebug> {
+        val results = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
+        val bitmap = DailyForecastGraphRenderer.renderGraph(
+            context = context,
+            days = days,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            onRainLabelDrawn = { results.add(it) },
+        )
+        assertNotNull(bitmap)
+        return results
+    }
+
     // ── Tests ─────────────────────────────────────────────────────────────────
 
     @Test
@@ -309,5 +326,57 @@ class DailyForecastGraphRendererTest {
             "Forecast lowY (${forecast.lowY}) should be below observed lowY (${history.lowY})",
             forecast.lowY > history.lowY,
         )
+    }
+
+    @Test
+    fun renderGraph_placesRainLabelAboveHighWhenThereIsRoom() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 2),
+                    label = "Sun",
+                    high = 88f,
+                    low = 32f,
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                    dailyRainLabelText = "65%",
+                ),
+            ),
+            widthPx = 500,
+            heightPx = 500,
+        )
+
+        assertEquals(1, labels.size)
+        assertEquals("ABOVE_HIGH", labels.first().placement)
+        assertEquals("65%", labels.first().text)
+    }
+
+    @Test
+    fun renderGraph_omitsRainLabelWhenPlacementDoesNotFit() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 100f,
+                    low = 72f,
+                    dailyRainLabelText = "65%",
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 4),
+                    label = "Tue",
+                    high = 78f,
+                    low = 22f,
+                ),
+            ),
+            widthPx = 500,
+            heightPx = 280,
+        )
+
+        assertEquals(0, labels.size)
     }
 }

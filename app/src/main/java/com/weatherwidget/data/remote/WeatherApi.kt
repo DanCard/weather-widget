@@ -61,6 +61,7 @@ class WeatherApi
                         lowTemp = dayData["mintemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
                         condition = dayData["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                         precipProbability = dayData["daily_chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
+                        precipAmountMm = dayData["totalprecip_mm"]?.jsonPrimitive?.content?.toFloatOrNull(),
                     )
                 }
 
@@ -83,6 +84,7 @@ class WeatherApi
                             temperature = hourObj["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return@mapNotNull null,
                             condition = hourObj["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                             precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
+                            precipAmountMm = hourObj["precip_mm"]?.jsonPrimitive?.content?.toFloatOrNull(),
                             cloudCover = hourObj["cloud"]?.jsonPrimitive?.content?.toIntOrNull(),
                         )
                     }
@@ -141,6 +143,7 @@ class WeatherApi
                         temperature = hourObj["temp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return@mapNotNull null,
                         condition = hourObj["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                         precipProbability = hourObj["chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
+                        precipAmountMm = hourObj["precip_mm"]?.jsonPrimitive?.content?.toFloatOrNull(),
                         cloudCover = hourObj["cloud"]?.jsonPrimitive?.content?.toIntOrNull(),
                     )
                 }
@@ -187,6 +190,7 @@ class WeatherApi
             val lowTemp: Float,
             val condition: String,
             val precipProbability: Int? = null,
+            val precipAmountMm: Float? = null,
         )
 
         data class HourlyForecast(
@@ -194,6 +198,7 @@ class WeatherApi
             val temperature: Float,
             val condition: String,
             val precipProbability: Int? = null,
+            val precipAmountMm: Float? = null,
             val cloudCover: Int? = null,
         )
 

@@ -49,6 +49,7 @@ class SilurianApi @Inject constructor(
         val lowTemp: Int,
         val condition: String,
         val precipProbability: Int,
+        val precipAmountMm: Float? = null,
     )
 
     data class HourlyForecast(
@@ -56,6 +57,7 @@ class SilurianApi @Inject constructor(
         val temperature: Float,
         val condition: String,
         val precipProbability: Int,
+        val precipAmountMm: Float? = null,
         val cloudCover: Int? = null,
     )
 
@@ -108,7 +110,14 @@ class SilurianApi @Inject constructor(
                 val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
                 val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
 
-                DailyForecast(time.take(10), high, low, condition, precip)
+                DailyForecast(
+                    date = time.take(10),
+                    highTemp = high,
+                    lowTemp = low,
+                    condition = condition,
+                    precipProbability = precip,
+                    precipAmountMm = parsePrecipAmountMm(entry),
+                )
             }
         } else emptyList()
 
@@ -126,7 +135,14 @@ class SilurianApi @Inject constructor(
                     return@mapNotNull null
                 }
 
-                HourlyForecast(ts, temp, condition, precip, cloudCover)
+                HourlyForecast(
+                    dateTime = ts,
+                    temperature = temp,
+                    condition = condition,
+                    precipProbability = precip,
+                    precipAmountMm = parsePrecipAmountMm(entry),
+                    cloudCover = cloudCover,
+                )
             }
         } else emptyList()
 
@@ -149,5 +165,10 @@ class SilurianApi @Inject constructor(
             Log.e(TAG, "Failed to parse Silurian timeseries ($key): ${e.message}")
             emptyList()
         }
+    }
+
+    private fun parsePrecipAmountMm(entry: kotlinx.serialization.json.JsonObject): Float? {
+        return entry["precipitation_mm"]?.jsonPrimitive?.floatOrNull
+            ?: entry["precipitation_amount_mm"]?.jsonPrimitive?.floatOrNull
     }
 }

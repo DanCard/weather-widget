@@ -76,6 +76,7 @@ class ForecastRepository
                 return existing.temperature != newlyFetched.temperature ||
                     existing.condition != newlyFetched.condition ||
                     existing.precipProbability != newlyFetched.precipProbability ||
+                    existing.precipAmountMm != newlyFetched.precipAmountMm ||
                     existing.cloudCover != newlyFetched.cloudCover ||
                     newlyFetched.fetchedAt - existing.fetchedAt > 60 * 60 * 1000L
             }
@@ -256,7 +257,8 @@ class ForecastRepository
                             condition = openMeteoApi.weatherCodeToCondition(day.weatherCode),
                             isClimateNormal = false,
                             source = WeatherSource.OPEN_METEO.id,
-                            precipProbability = day.precipProbability
+                            precipProbability = day.precipProbability,
+                            precipAmountMm = day.precipAmountMm,
                         )
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -285,7 +287,8 @@ class ForecastRepository
                             condition = day.condition,
                             isClimateNormal = false,
                             source = WeatherSource.WEATHER_API.id,
-                            precipProbability = day.precipProbability
+                            precipProbability = day.precipProbability,
+                            precipAmountMm = day.precipAmountMm,
                         )
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -314,7 +317,8 @@ class ForecastRepository
                             condition = day.condition,
                             isClimateNormal = false,
                             source = WeatherSource.SILURIAN.id,
-                            precipProbability = day.precipProbability
+                            precipProbability = day.precipProbability,
+                            precipAmountMm = day.precipAmountMm,
                         )
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -352,13 +356,24 @@ class ForecastRepository
                     emptyMap()
                 }
             }
+            val qpfDeferred = async {
+                try {
+                    nwsApi.getQuantitativePrecipitation(grid)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w(TAG, "getQuantitativePrecipitation failed: ${e.message}")
+                    emptyList()
+                }
+            }
 
             val forecastPeriods = forecastDeferred.await()
             val rawHourlyPeriods = hourlyDeferred.await()
             val skyCoverMap = skyCoverDeferred.await()
+            val gridQpfIntervals = qpfDeferred.await()
 
             // Merge sky cover into hourly periods
-            val hourlyPeriods = if (skyCoverMap.isNotEmpty()) {
+            val hourlyPeriodsWithSkyCover = if (skyCoverMap.isNotEmpty()) {
                 rawHourlyPeriods.map { period ->
                     val hourKey = runCatching {
                         Instant.ofEpochMilli(period.startTime)
@@ -370,6 +385,18 @@ class ForecastRepository
                 }
             } else {
                 rawHourlyPeriods
+            }
+            val hourlyPeriods = if (gridQpfIntervals.isNotEmpty()) {
+                hourlyPeriodsWithSkyCover.map { period ->
+                    val gridAmount = resolveGridQpfForHourlyPeriod(period, gridQpfIntervals)
+                    if (gridAmount != null) {
+                        period.copy(precipAmountMm = gridAmount)
+                    } else {
+                        period
+                    }
+                }
+            } else {
+                hourlyPeriodsWithSkyCover
             }
             val todayDate = LocalDate.now()
             val todayDateString = todayDate.toString()
@@ -383,16 +410,18 @@ class ForecastRepository
             val conditionMap = mutableMapOf<String, String>()
             val conditionSourceMap = mutableMapOf<String, String>()
             val precipProbabilityMap = mutableMapOf<String, Int>()
+            val precipAmountMap = mutableMapOf<String, Float>()
             val highTempSourceMap = mutableMapOf<String, String>()
             val lowTempSourceMap = mutableMapOf<String, String>()
             val periodTimeMap = mutableMapOf<String, Pair<String?, String?>>()
 
-            initPrecipFromHourly(hourlyPeriods, precipProbabilityMap)
+            initPrecipFromHourly(hourlyPeriods, precipProbabilityMap, precipAmountMap)
             initConditionsFromHourly(hourlyPeriods, conditionMap, conditionSourceMap)
 
             val todayForecastPeriods = applyForecastPeriods(
                 forecastPeriods, todayDateString, temperatureMap, conditionMap,
                 conditionSourceMap, highTempSourceMap, lowTempSourceMap, precipProbabilityMap,
+                precipAmountMap,
                 periodTimeMap
             )
             logTodayDiagnostics(
@@ -416,6 +445,7 @@ class ForecastRepository
                     isClimateNormal = false,
                     source = WeatherSource.NWS.id,
                     precipProbability = precipProbabilityMap[dateString],
+                    precipAmountMm = precipAmountMap[dateString],
                     periodStartTime = pStart?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
                     periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
                 )
@@ -425,6 +455,7 @@ class ForecastRepository
         private fun initPrecipFromHourly(
             hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
             precipProbabilityMap: MutableMap<String, Int>,
+            precipAmountMap: MutableMap<String, Float>,
         ) {
             hourlyPeriods.forEach { hour ->
                 val dateString = hour.localDate
@@ -432,7 +463,34 @@ class ForecastRepository
                 if (probability > (precipProbabilityMap[dateString] ?: 0)) {
                     precipProbabilityMap[dateString] = probability
                 }
+                hour.precipAmountMm?.let { amount ->
+                    precipAmountMap[dateString] = (precipAmountMap[dateString] ?: 0f) + amount
+                }
             }
+        }
+
+        private fun resolveGridQpfForHourlyPeriod(
+            period: NwsApi.HourlyForecastPeriod,
+            intervals: List<NwsApi.QuantitativePrecipitationInterval>,
+        ): Float? {
+            if (intervals.isEmpty()) return null
+            val periodEnd = period.startTime + 60 * 60 * 1000L
+            val overlapping = intervals.filter { interval ->
+                interval.startTime < periodEnd && interval.endTime > period.startTime
+            }
+            if (overlapping.isEmpty()) return null
+
+            return overlapping.sumOf { interval ->
+                val overlapStart = maxOf(period.startTime, interval.startTime)
+                val overlapEnd = minOf(periodEnd, interval.endTime)
+                val overlapMs = (overlapEnd - overlapStart).coerceAtLeast(0L)
+                if (overlapMs == 0L) {
+                    0.0
+                } else {
+                    val intervalMs = (interval.endTime - interval.startTime).coerceAtLeast(1L)
+                    interval.amountMm.toDouble() * overlapMs.toDouble() / intervalMs.toDouble()
+                }
+            }.toFloat()
         }
 
         private fun initConditionsFromHourly(
@@ -490,6 +548,7 @@ class ForecastRepository
             highTempSourceMap: MutableMap<String, String>,
             lowTempSourceMap: MutableMap<String, String>,
             precipProbabilityMap: MutableMap<String, Int>,
+            precipAmountMap: MutableMap<String, Float>,
             periodTimeMap: MutableMap<String, Pair<String?, String?>>
         ): List<NwsApi.ForecastPeriod> {
             val todayPeriods = mutableListOf<NwsApi.ForecastPeriod>()
@@ -500,6 +559,10 @@ class ForecastRepository
                 val probability = period.precipProbability
                 if (probability != null && !precipProbabilityMap.containsKey(dateString)) {
                     precipProbabilityMap[dateString] = probability
+                }
+                val periodAmount = period.precipAmountMm
+                if (periodAmount != null && !precipAmountMap.containsKey(dateString)) {
+                    precipAmountMap[dateString] = periodAmount
                 }
 
                 if (period.isDaytime) {
@@ -597,6 +660,7 @@ class ForecastRepository
                     isClimateNormal = forecast.isClimateNormal,
                     source = sourceId,
                     precipProbability = forecast.precipProbability,
+                    precipAmountMm = forecast.precipAmountMm,
                     batchFetchedAt = batchFetchedAt,
                     fetchedAt = System.currentTimeMillis()
                 )
@@ -622,7 +686,8 @@ class ForecastRepository
                         existing.highTemp == newlyFetched.highTemp && 
                         existing.lowTemp == newlyFetched.lowTemp && 
                         existing.condition == newlyFetched.condition &&
-                        existing.precipProbability == newlyFetched.precipProbability) {
+                        existing.precipProbability == newlyFetched.precipProbability &&
+                        existing.precipAmountMm == newlyFetched.precipAmountMm) {
                         appLogDao.log("SNAPSHOT_SKIP", "date=${newlyFetched.targetDate} source=$sourceId")
                         false
                     } else {
@@ -723,7 +788,7 @@ class ForecastRepository
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature,
                     openMeteoApi.weatherCodeToCondition(it.weatherCode),
-                    WeatherSource.OPEN_METEO.id, it.precipProbability, it.cloudCover, fetchedAt
+                    WeatherSource.OPEN_METEO.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
         }
@@ -733,7 +798,7 @@ class ForecastRepository
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.WEATHER_API.id, it.precipProbability, it.cloudCover, fetchedAt
+                    WeatherSource.WEATHER_API.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
         }
@@ -743,7 +808,7 @@ class ForecastRepository
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.SILURIAN.id, it.precipProbability, it.cloudCover, fetchedAt
+                    WeatherSource.SILURIAN.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
         }
@@ -751,7 +816,7 @@ class ForecastRepository
             saveHourlyEntities(hourlyPeriods.map { period ->
                 HourlyForecastEntity(
                     period.startTime, latitude, longitude, period.temperature,
-                    period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, System.currentTimeMillis()
+                    period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, System.currentTimeMillis()
                 )
             })
 

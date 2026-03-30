@@ -10,6 +10,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import javax.inject.Inject
+import java.time.Duration
+import java.time.ZonedDateTime
 import kotlin.math.roundToInt
 
 class NwsApi
@@ -256,10 +258,11 @@ class NwsApi
                 val precipProbability =
                     obj["probabilityOfPrecipitation"]?.jsonObject
                         ?.get("value")?.jsonPrimitive?.content?.toIntOrNull()
+                val precipAmountMm = parseQuantitativePrecipitationMm(obj["quantitativePrecipitation"]?.jsonObject)
 
                 Log.d(
                     TAG,
-                    "getForecast[$index]: name=$name start=$startTime end=$endTime tempRaw=$tempRaw tempRounded=$temperature unit=$temperatureUnit isDaytime=$isDaytime short=$shortForecast pop=$precipProbability",
+                    "getForecast[$index]: name=$name start=$startTime end=$endTime tempRaw=$tempRaw tempRounded=$temperature unit=$temperatureUnit isDaytime=$isDaytime short=$shortForecast pop=$precipProbability qpfMm=$precipAmountMm",
                 )
 
                 ForecastPeriod(
@@ -271,6 +274,7 @@ class NwsApi
                     shortForecast = shortForecast,
                     isDaytime = isDaytime,
                     precipProbability = precipProbability,
+                    precipAmountMm = precipAmountMm,
                 )
             }
         }
@@ -303,6 +307,7 @@ class NwsApi
                 val precipProbability =
                     obj["probabilityOfPrecipitation"]?.jsonObject
                         ?.get("value")?.jsonPrimitive?.content?.toIntOrNull()
+                val precipAmountMm = parseQuantitativePrecipitationMm(obj["quantitativePrecipitation"]?.jsonObject)
 
                 // Convert to Fahrenheit if needed (NWS usually returns F)
                 val tempF =
@@ -319,6 +324,7 @@ class NwsApi
                     temperature = tempF,
                     shortForecast = shortForecast,
                     precipProbability = precipProbability,
+                    precipAmountMm = precipAmountMm,
                 )
             }
         }
@@ -364,6 +370,40 @@ class NwsApi
             }
             Log.d(TAG, "getSkyCover: parsed ${result.size} hourly entries from gridpoints")
             return result
+        }
+
+        suspend fun getQuantitativePrecipitation(gridPoint: GridPointInfo): List<QuantitativePrecipitationInterval> {
+            val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}"
+            val response: String =
+                httpClient.get(url) {
+                    header("User-Agent", USER_AGENT)
+                    header("Accept", "application/json")
+                }.body()
+
+            val jsonObj = json.parseToJsonElement(response).jsonObject
+            val values =
+                jsonObj["properties"]?.jsonObject
+                    ?.get("quantitativePrecipitation")?.jsonObject
+                    ?.get("values")?.jsonArray
+                    ?: return emptyList()
+
+            return values.mapNotNull { entry ->
+                val obj = entry.jsonObject
+                val validTime = obj["validTime"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                val slashIndex = validTime.indexOf('/')
+                if (slashIndex == -1) return@mapNotNull null
+
+                val start = runCatching { ZonedDateTime.parse(validTime.substring(0, slashIndex)) }.getOrNull() ?: return@mapNotNull null
+                val duration = runCatching { Duration.parse(validTime.substring(slashIndex + 1)) }.getOrNull() ?: return@mapNotNull null
+                val end = start.plus(duration)
+                val amountMm = parseQuantitativePrecipitationMm(obj) ?: return@mapNotNull null
+
+                QuantitativePrecipitationInterval(
+                    startTime = start.toInstant().toEpochMilli(),
+                    endTime = end.toInstant().toEpochMilli(),
+                    amountMm = amountMm,
+                )
+            }
         }
 
         private fun parseObservationProperties(props: JsonObject, defaultStationName: String): Observation? {
@@ -474,6 +514,7 @@ class NwsApi
             val shortForecast: String,
             val isDaytime: Boolean,
             val precipProbability: Int? = null,
+            val precipAmountMm: Float? = null,
         )
 
         data class Observation(
@@ -492,6 +533,26 @@ class NwsApi
             val temperature: Float, // Fahrenheit
             val shortForecast: String,
             val precipProbability: Int? = null,
+            val precipAmountMm: Float? = null,
             val cloudCover: Int? = null, // Sky cover percentage (0-100)
         )
+
+        data class QuantitativePrecipitationInterval(
+            val startTime: Long,
+            val endTime: Long,
+            val amountMm: Float,
+        )
+
+        private fun parseQuantitativePrecipitationMm(obj: JsonObject?): Float? {
+            if (obj == null) return null
+            val value = obj["value"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
+            val unitCode = obj["unitCode"]?.jsonPrimitive?.content
+            return when (unitCode) {
+                null, "", "wmoUnit:mm" -> value
+                "wmoUnit:cm" -> value * 10f
+                "wmoUnit:m" -> value * 1000f
+                "wmoUnit:in" -> value * 25.4f
+                else -> value
+            }
+        }
     }

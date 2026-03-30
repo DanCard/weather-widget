@@ -36,8 +36,8 @@ class OpenMeteoApi
                 httpClient.get("$BASE_URL/forecast") {
                     parameter("latitude", lat)
                     parameter("longitude", lon)
-                    parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max")
-                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability,cloud_cover")
+                    parameter("daily", "temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,precipitation_sum")
+                    parameter("hourly", "temperature_2m,weather_code,precipitation_probability,precipitation,cloud_cover")
                     parameter("current", "temperature_2m,weather_code")
                     parameter("temperature_unit", "fahrenheit")
                     parameter("timezone", "auto")
@@ -71,6 +71,10 @@ class OpenMeteoApi
                 daily?.get("precipitation_probability_max")?.jsonArray?.map {
                     it.jsonPrimitive.content.toIntOrNull()
                 } ?: emptyList()
+            val dailyPrecipAmountsMm =
+                daily?.get("precipitation_sum")?.jsonArray?.map {
+                    it.jsonPrimitive.content.toFloatOrNull()
+                } ?: emptyList()
 
             val dailyForecasts =
                 dates.mapIndexed { index, date ->
@@ -80,6 +84,7 @@ class OpenMeteoApi
                         lowTemp = minTemps.getOrNull(index) ?: 0f,
                         weatherCode = weatherCodes.getOrNull(index) ?: 0,
                         precipProbability = precipProbs.getOrNull(index),
+                        precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
                     )
                 }
 
@@ -97,6 +102,10 @@ class OpenMeteoApi
             val hourlyPrecipProbs =
                 hourly?.get("precipitation_probability")?.jsonArray?.map {
                     it.jsonPrimitive.content.toIntOrNull()
+                } ?: emptyList()
+            val hourlyPrecipAmountsMm =
+                hourly?.get("precipitation")?.jsonArray?.map {
+                    it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
             val hourlyCloudCover =
                 hourly?.get("cloud_cover")?.jsonArray?.map {
@@ -120,6 +129,7 @@ class OpenMeteoApi
                             temperature = temp,
                             weatherCode = code,
                             precipProbability = hourlyPrecipProbs.getOrNull(index),
+                            precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
                             cloudCover = hourlyCloudCover.getOrNull(index),
                         )
                     } else {
@@ -258,6 +268,7 @@ class OpenMeteoApi
             val lowTemp: Float,
             val weatherCode: Int,
             val precipProbability: Int? = null,
+            val precipAmountMm: Float? = null,
         )
 
         data class HourlyForecast(
@@ -265,6 +276,7 @@ class OpenMeteoApi
             val temperature: Float,
             val weatherCode: Int,
             val precipProbability: Int? = null,
+            val precipAmountMm: Float? = null,
             val cloudCover: Int? = null,
         )
 

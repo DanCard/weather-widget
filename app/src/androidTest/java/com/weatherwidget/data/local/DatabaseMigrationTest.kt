@@ -383,4 +383,38 @@ class DatabaseMigrationTest {
         dCursor.close()
         assert(migratedExtremeDate == expectedDateEpoch) { "daily_extremes: expected $expectedDateEpoch but got $migratedExtremeDate" }
     }
+
+    @Test
+    fun migrate41to42() {
+        val testDateEpoch = java.time.LocalDate.parse("2026-03-22").toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val now = System.currentTimeMillis()
+
+        helper.createDatabase(testDb, 41).apply {
+            execSQL(
+                """
+                INSERT INTO forecasts (targetDate, forecastDate, locationLat, locationLon, locationName, highTemp, lowTemp, `condition`, isClimateNormal, source, precipProbability, periodStartTime, periodEndTime, batchFetchedAt, fetchedAt)
+                VALUES ($testDateEpoch, $testDateEpoch, 37.42, -122.08, 'Test', 72.0, 50.0, 'Rain', 0, 'NWS', 100, NULL, NULL, $now, $now)
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO hourly_forecasts (dateTime, locationLat, locationLon, temperature, `condition`, source, precipProbability, cloudCover, fetchedAt)
+                VALUES ($now, 37.42, -122.08, 61.0, 'Rain', 'NWS', 100, 90, $now)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 42, true, WeatherDatabase.MIGRATION_41_42)
+
+        val forecastCursor = db.query("SELECT precipAmountMm FROM forecasts")
+        forecastCursor.moveToFirst()
+        assert(forecastCursor.isNull(0)) { "forecasts.precipAmountMm should default to NULL after migration" }
+        forecastCursor.close()
+
+        val hourlyCursor = db.query("SELECT precipAmountMm FROM hourly_forecasts")
+        hourlyCursor.moveToFirst()
+        assert(hourlyCursor.isNull(0)) { "hourly_forecasts.precipAmountMm should default to NULL after migration" }
+        hourlyCursor.close()
+    }
 }
