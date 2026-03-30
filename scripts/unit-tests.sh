@@ -10,6 +10,7 @@ STREAM_OUTPUT=false
 LOG_FILE=""
 BUCKETS=()
 OVERALL_START=$(date +%s)
+SINGLE_INVOCATION_REPORTED_DIR=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -52,6 +53,7 @@ declare -A pids
 declare -A logs
 declare -A starts
 declare -A results_dirs
+SINGLE_INVOCATION_MONITOR_PID=""
 
 cleanup() {
   for pid in "${pids[@]:-}"; do
@@ -59,7 +61,15 @@ cleanup() {
       kill "$pid" 2>/dev/null || true
     fi
   done
+  if [ -n "${SINGLE_INVOCATION_MONITOR_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
+    kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
+  fi
+  if [ -n "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] && [ -d "$SINGLE_INVOCATION_REPORTED_DIR" ]; then
+    rm -rf "$SINGLE_INVOCATION_REPORTED_DIR"
+  fi
 }
+
+trap cleanup EXIT
 
 format_seconds() {
   local seconds=$1
@@ -118,6 +128,59 @@ print(f"{test_count}|{failures}|{errors}|{skipped}|{wall_duration}")
 PY
 }
 
+emit_bucket_summary() {
+  local bucket=$1
+  local results_dir=$2
+  if [ ! -d "$results_dir" ]; then
+    return 1
+  fi
+  if ! compgen -G "$results_dir/TEST-*.xml" >/dev/null; then
+    return 1
+  fi
+
+  IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "$results_dir")"
+  bucket_failures=$((failures + errors))
+  if [ "$bucket_failures" -gt 0 ]; then
+    echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
+  elif [ "$skipped" -gt 0 ]; then
+    echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
+  else
+    echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
+  fi
+}
+
+start_single_invocation_summary_monitor() {
+  local gradle_log=$1
+  SINGLE_INVOCATION_REPORTED_DIR=$(mktemp -d)
+
+  (
+    declare -A reported
+    tail -n 0 -F "$gradle_log" 2>/dev/null | while IFS= read -r line; do
+      for bucket in "${BUCKETS[@]}"; do
+        if [ -n "${reported[$bucket]:-}" ]; then
+          continue
+        fi
+
+        local task_marker="> Task :app:test${bucket}DebugUnitTest${RUN_MODE}"
+        if [[ "$line" != *"$task_marker"* ]]; then
+          continue
+        fi
+
+        local results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
+        for _ in $(seq 1 20); do
+          if emit_bucket_summary "$bucket" "$results_dir"; then
+            reported["$bucket"]=1
+            touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
+            break
+          fi
+          sleep 0.5
+        done
+      done
+    done
+  ) &
+  SINGLE_INVOCATION_MONITOR_PID=$!
+}
+
 for bucket in "${BUCKETS[@]}"; do
   case "$bucket" in
     Short|Medium|Long) ;;
@@ -150,6 +213,7 @@ if [ "$SINGLE_INVOCATION" = true ]; then
   fi
 
   overall_status=0
+  start_single_invocation_summary_monitor "$gradle_log"
   if [ "$STREAM_OUTPUT" = true ]; then
     (
       cd "$ROOT_DIR"
@@ -162,6 +226,11 @@ if [ "$SINGLE_INVOCATION" = true ]; then
     ) >"$gradle_log" 2>&1 || overall_status=$?
   fi
 
+  if [ -n "$SINGLE_INVOCATION_MONITOR_PID" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
+    kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
+    SINGLE_INVOCATION_MONITOR_PID=""
+  fi
+
   # Report per-bucket results from JUnit XML
   total_tests=0
   total_failures=0
@@ -172,12 +241,14 @@ if [ "$SINGLE_INVOCATION" = true ]; then
       total_tests=$((total_tests + test_count))
       bucket_failures=$((failures + errors))
       total_failures=$((total_failures + bucket_failures))
-      if [ "$bucket_failures" -gt 0 ]; then
-        echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
-      elif [ "$skipped" -gt 0 ]; then
-        echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
-      else
-        echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
+      if [ -z "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] || [ ! -f "$SINGLE_INVOCATION_REPORTED_DIR/$bucket" ]; then
+        if [ "$bucket_failures" -gt 0 ]; then
+          echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
+        elif [ "$skipped" -gt 0 ]; then
+          echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
+        else
+          echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
+        fi
       fi
     fi
   done
