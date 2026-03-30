@@ -567,7 +567,11 @@ object TemperatureGraphRenderer {
         hours: List<HourData>,
         drawnIconBounds: List<RectF>
     ) {
-        val labelTemps = hours.map { it.actualTemperature ?: it.temperature }
+        val labelTemps = hours.mapIndexed { idx, h ->
+            val isPastTransition = ctx.originalPoints[idx].first <= (ctx.transitionX ?: -1f)
+            if (isPastTransition && h.isActual) h.actualTemperature ?: h.temperature
+            else h.temperature
+        }
         val forecastLabelTemps = hours.map { it.temperature }
         val dailyHighIndex = labelTemps.indices.maxByOrNull { labelTemps[it] } ?: -1
         val dailyLowIndex = labelTemps.indices.minByOrNull { labelTemps[it] } ?: -1
@@ -606,6 +610,12 @@ object TemperatureGraphRenderer {
                 }
             }
         }
+        specialCandidates.forEach { c ->
+            val h = hours[c.index]
+            Log.d(TAG, "LABEL_CANDIDATE role=${c.role} idx=${c.index} time=${h.dateTime} isActual=${h.isActual} " +
+                "afterNow=${h.dateTime.isAfter(ctx.currentTime)} temp=${h.temperature} " +
+                "actualTemp=${h.actualTemperature} labelTemp=${c.labelTemps[c.index]}")
+        }
         // ACTUAL_END label removed — the fetch dot already shows the last observed temp with age.
         if (specialCandidates.none { it.index == 0 }) addCandidate(0, "START", labelTemps)
         if (hours.size > 1 && specialCandidates.none { it.index == hours.size - 1 }) addCandidate(hours.size - 1, "END", labelTemps)
@@ -622,9 +632,10 @@ object TemperatureGraphRenderer {
             val temps = candidate.labelTemps
             val isFuture = candidate.forceForecastSeries || ctx.originalPoints[idx].first > (ctx.transitionX ?: -1f)
             val points = if (isFuture) ctx.forecastPoints else ctx.originalPoints
-            val (sx, sy) = if (candidate.role == "LOW" || candidate.role == "HIGH" || candidate.role == "FORECAST_HIGH") {
-                centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX)
-            } else points[idx].first to points[idx].second
+            val sx = if (candidate.role == "LOW" || candidate.role == "HIGH" || candidate.role == "FORECAST_HIGH") {
+                centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX).first
+            } else points[idx].first
+            val sy = ctx.graphTop + ctx.graphHeight * (1 - (temps[idx] - ctx.minTemp) / ctx.tempRange)
 
             val label = formatTemp(temps[idx]) + "°"
             val labelPaint = if (isFuture) ctx.paints.forecastTempLabelTextPaint else ctx.paints.actualTempLabelTextPaint

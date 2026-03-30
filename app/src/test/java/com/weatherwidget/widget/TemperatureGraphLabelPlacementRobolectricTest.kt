@@ -196,6 +196,81 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
+    fun `extrapolated actualTemperature on future hours does not produce HIGH label at extrapolated value`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        // transitionX is driven by observedAt (fetch dot), not currentTime.
+        // Hours after the fetch dot are "future" on the graph even if their timestamp is in the past.
+        // Scenario: fetch dot at hour 1 (observedAt), but station has isActual=true readings up to hour 3.
+        val observedAtMs = start.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours = listOf(
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 74f, actualTemperature = 74f, isActual = true, label = "10a"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 76f, actualTemperature = 76f, isActual = true, label = "11a"),  // fetch dot here
+            // These hours are past currentTime but AFTER the fetch dot — graph treats them as future
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 77f, actualTemperature = 82f, isActual = true, label = "12p"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 77f, actualTemperature = 82f, isActual = true, label = "1p"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 76f, label = "2p"),
+        )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 500,
+            heightPx = 400,
+            currentTime = start.plusHours(3),  // currentTime is past hour 3, but fetch dot is at hour 1
+            observedAt = observedAtMs,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertTrue(
+            "No label should show extrapolated future temperature (~82°). placements=$placements",
+            placements.none { it.temperature > 79f },
+        )
+        val highLabel = placements.find { it.role == "HIGH" }
+        assertNotNull("Expected a HIGH label from actual observations. placements=$placements", highLabel)
+        assertTrue(
+            "HIGH label temperature should reflect actual observation peak (78°), not extrapolated future value. placement=$highLabel",
+            highLabel!!.temperature <= 78f + 0.1f,
+        )
+    }
+
+    @Test
+    fun `label Y positions are consistent with their temperature values`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        val hours = listOf(
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 70f, actualTemperature = 73f, isActual = true, label = "10a"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 74f, actualTemperature = 77f, isActual = true, label = "11a"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 76f, actualTemperature = 79f, isActual = true, label = "12p"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 74f, label = "1p"),
+            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 71f, label = "2p"),
+        )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 500,
+            heightPx = 400,
+            currentTime = start.plusHours(2),
+            appliedDelta = 3f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val sorted = placements.sortedByDescending { it.temperature }
+        for (i in 0 until sorted.size - 1) {
+            val higher = sorted[i]
+            val lower = sorted[i + 1]
+            if (higher.temperature != lower.temperature) {
+                assertTrue(
+                    "Higher temp (${higher.temperature}) should have lower Y pixel than (${lower.temperature}). " +
+                    "higher.y=${higher.y} lower.y=${lower.y} — label positions are inverted (ghost line influence?)",
+                    higher.y < lower.y,
+                )
+            }
+        }
+    }
+
+    @Test
     fun `essential labels are forced into fallback position if preferred is off-screen and fallback collides`() {
         // This test simulates the Samsung failure where LOW was rejected from both above and below.
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
