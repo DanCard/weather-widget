@@ -201,18 +201,21 @@ internal object GraphRenderUtils {
             ascent = -nowLabelTextPaint.textSize
             descent = nowLabelTextPaint.textSize * 0.2f
         }
-        val labelY = lineTop - dpToPx(2f)
-        
-        val textBounds = RectF(
-            nowX - textWidth / 2f,
-            labelY + fontMetrics.ascent,
-            nowX + textWidth / 2f,
-            labelY + fontMetrics.descent
-        )
+        val labelYTop = lineTop - dpToPx(2f)
+        val labelYBottom = lineBottom - fontMetrics.ascent + dpToPx(2f)
 
-        val hasCollision = drawnBounds.any { RectF.intersects(it, textBounds) }
-        if (!hasCollision) {
-            canvas.drawText(text, nowX, labelY, nowLabelTextPaint)
+        for (labelY in listOf(labelYBottom, labelYTop)) {
+            val textBounds = RectF(
+                nowX - textWidth / 2f,
+                labelY + fontMetrics.ascent,
+                nowX + textWidth / 2f,
+                labelY + fontMetrics.descent
+            )
+            val hasCollision = drawnBounds.any { RectF.intersects(it, textBounds) }
+            if (!hasCollision) {
+                canvas.drawText(text, nowX, labelY, nowLabelTextPaint)
+                break
+            }
         }
     }
 
