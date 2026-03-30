@@ -48,6 +48,11 @@ object CloudCoverGraphRenderer {
         val isToday: Boolean,
     )
 
+    data class WatermarkPlacementDebug(
+        val placed: Boolean,
+        val candidateCenterIndex: Int? = null,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<CloudHourData>,
@@ -60,6 +65,7 @@ object CloudCoverGraphRenderer {
         observedAt: Long? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
+        onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -392,31 +398,63 @@ object CloudCoverGraphRenderer {
             val iconSizePx = dpToPx(context, 20f).toInt()
             val windowSize = (points.size / 5).coerceIn(3, 6)
             val iconGap = dpToPx(context, 2f)
+            val candidateCenters =
+                (0..points.size - windowSize)
+                    .map { start ->
+                        val avg = (start until start + windowSize).map { smoothedValues[it] }.average().toFloat()
+                        val center = start + windowSize / 2
+                        val edgeDistance = minOf(center, points.lastIndex - center)
+                        Triple(center, avg, edgeDistance)
+                    }
+                    .sortedWith(compareBy<Triple<Int, Float, Int>> { it.second }.thenByDescending { it.third })
+                    .map { it.first }
+                    .distinct()
 
-            var lowStart = 0; var lowAvg = Float.MAX_VALUE
-            for (start in 0..points.size - windowSize) {
-                val avg = (start until start + windowSize).map { smoothedValues[it] }.average().toFloat()
-                if (avg < lowAvg) { lowAvg = avg; lowStart = start }
+            var placed = false
+            var placedCandidateIndex: Int? = null
+
+            for (candidateCenter in candidateCenters) {
+                val curveX = points[candidateCenter].first
+                val curveY = points[candidateCenter].second
+                val verticalFractions = listOf(0.5f, 0.65f, 0.35f)
+
+                for (fraction in verticalFractions) {
+                    val centerY = graphTop + (curveY - graphTop) * fraction
+                    val bounds = RectF(
+                        curveX - iconSizePx / 2f,
+                        centerY - iconSizePx / 2f,
+                        curveX + iconSizePx / 2f,
+                        centerY + iconSizePx / 2f,
+                    )
+
+                    val fitsAboveCurve = bounds.top >= 0f && bounds.bottom < curveY - iconGap
+                    val overlapsLabels = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                    val overlapsIcons = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                    if (!fitsAboveCurve || overlapsLabels || overlapsIcons) continue
+
+                    cloudDrawable.alpha = 96
+                    cloudDrawable.setTint(Color.parseColor("#BBBBBB"))
+                    cloudDrawable.setBounds(
+                        bounds.left.toInt(),
+                        bounds.top.toInt(),
+                        bounds.right.toInt(),
+                        bounds.bottom.toInt(),
+                    )
+                    cloudDrawable.draw(canvas)
+                    placed = true
+                    placedCandidateIndex = candidateCenter
+                    break
+                }
+
+                if (placed) break
             }
-            val lowCenter = lowStart + windowSize / 2
-            val lowX = points[lowCenter].first
-            val lowCurveY = points[lowCenter].second
-            val aboveCenterY = graphTop + (lowCurveY - graphTop) / 2f
-            val aboveBounds = RectF(
-                lowX - iconSizePx / 2f, aboveCenterY - iconSizePx / 2f,
-                lowX + iconSizePx / 2f, aboveCenterY + iconSizePx / 2f,
+
+            onWatermarkPlaced?.invoke(
+                WatermarkPlacementDebug(
+                    placed = placed,
+                    candidateCenterIndex = placedCandidateIndex,
+                ),
             )
-            if (aboveBounds.top >= 0f && aboveBounds.bottom < lowCurveY - iconGap &&
-                !drawnLabelBounds.any { RectF.intersects(it, aboveBounds) }
-            ) {
-                cloudDrawable.alpha = 80
-                cloudDrawable.setTint(Color.parseColor("#BBBBBB"))
-                cloudDrawable.setBounds(
-                    aboveBounds.left.toInt(), aboveBounds.top.toInt(),
-                    aboveBounds.right.toInt(), aboveBounds.bottom.toInt(),
-                )
-                cloudDrawable.draw(canvas)
-            }
         }
 
         return bitmap
