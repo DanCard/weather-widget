@@ -141,7 +141,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 .maxByOrNull { it.fetchedAt }
 
         internal fun isNwsObservationStation(stationId: String): Boolean =
-            !stationId.startsWith("OPEN_METEO_") && !stationId.startsWith("WEATHER_API_")
+            !stationId.startsWith("OPEN_METEO_") &&
+                !stationId.startsWith("VISUAL_CROSSING_") &&
+                !stationId.startsWith("WEATHER_API_")
 
         internal fun buildActualFromNwsObservations(
             targetDate: String,
@@ -389,33 +391,33 @@ class ForecastHistoryActivity : AppCompatActivity() {
             }
 
         val nwsPoints = evolutionPoints.filter { it.source == WeatherSource.NWS }
-        val openWeatherMapPoints = evolutionPoints.filter { it.source == WeatherSource.OPEN_WEATHER_MAP }
+        val visualCrossingPoints = evolutionPoints.filter { it.source == WeatherSource.VISUAL_CROSSING }
         val meteoPoints = evolutionPoints.filter { it.source == WeatherSource.OPEN_METEO }
         val weatherApiPoints = evolutionPoints.filter { it.source == WeatherSource.WEATHER_API }
-        val meteoLikePoints = openWeatherMapPoints + meteoPoints + weatherApiPoints
+        val meteoLikePoints = visualCrossingPoints + meteoPoints + weatherApiPoints
         val gapPoints = evolutionPoints.filter { it.source == WeatherSource.GENERIC_GAP }
 
         val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
         val summaryCount =
             when (requestedSource) {
                 WeatherSource.NWS -> nwsPoints.size
-                WeatherSource.OPEN_WEATHER_MAP -> openWeatherMapPoints.size
+                WeatherSource.VISUAL_CROSSING -> visualCrossingPoints.size
                 WeatherSource.OPEN_METEO -> meteoPoints.size
                 WeatherSource.WEATHER_API -> weatherApiPoints.size
-                else -> nwsPoints.size + openWeatherMapPoints.size + meteoPoints.size + weatherApiPoints.size
+                else -> nwsPoints.size + visualCrossingPoints.size + meteoPoints.size + weatherApiPoints.size
             }
         val summaryText =
             buildString {
                 if (requestedSource == WeatherSource.NWS) {
                     append("$summaryCount NWS forecast snapshots")
-                } else if (requestedSource == WeatherSource.OPEN_WEATHER_MAP) {
-                    append("$summaryCount OpenWeatherMap forecast snapshots")
+                } else if (requestedSource == WeatherSource.VISUAL_CROSSING) {
+                    append("$summaryCount Visual Crossing forecast snapshots")
                 } else if (requestedSource == WeatherSource.OPEN_METEO) {
                     append("$summaryCount Open-Meteo forecast snapshots")
                 } else if (requestedSource == WeatherSource.WEATHER_API) {
                     append("$summaryCount WeatherAPI forecast snapshots")
                 } else {
-                    append("${nwsPoints.size} NWS + ${openWeatherMapPoints.size} OpenWeatherMap + ${meteoPoints.size} Open-Meteo + ${weatherApiPoints.size} WeatherAPI snapshots")
+                    append("${nwsPoints.size} NWS + ${visualCrossingPoints.size} Visual Crossing + ${meteoPoints.size} Open-Meteo + ${weatherApiPoints.size} WeatherAPI snapshots")
                     if (gapPoints.isNotEmpty()) append(" • ${gapPoints.size} climate-fill points")
                 }
             }
@@ -439,7 +441,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 nwsLegend.visibility = View.VISIBLE
                 meteoLegend.visibility = View.GONE
             }
-            WeatherSource.OPEN_WEATHER_MAP -> {
+            WeatherSource.VISUAL_CROSSING -> {
                 nwsLegend.visibility = View.GONE
                 meteoLegend.visibility = View.VISIBLE
             }
@@ -590,6 +592,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
                 val hasAnyData =
                     (comparison.nwsStats?.totalForecasts ?: 0) > 0 ||
+                        (comparison.visualCrossingStats?.totalForecasts ?: 0) > 0 ||
                         (comparison.openWeatherMapStats?.totalForecasts ?: 0) > 0 ||
                         (comparison.meteoStats?.totalForecasts ?: 0) > 0 ||
                         (comparison.weatherApiStats?.totalForecasts ?: 0) > 0
@@ -614,18 +617,18 @@ class ForecastHistoryActivity : AppCompatActivity() {
                                 append("NWS: No data yet\n\n")
                             }
 
-                            val openWeatherMap = comparison.openWeatherMapStats
-                            if (openWeatherMap != null && openWeatherMap.totalForecasts > 0) {
-                                append("OpenWeatherMap\n")
+                            val visualCrossing = comparison.visualCrossingStats
+                            if (visualCrossing != null && visualCrossing.totalForecasts > 0) {
+                                append("Visual Crossing\n")
                                 append("High ±%.1f°%s  Low ±%.1f°%s\n".format(
-                                    openWeatherMap.avgHighError,
-                                    formatBias(openWeatherMap.highBias),
-                                    openWeatherMap.avgLowError,
-                                    formatBias(openWeatherMap.lowBias),
+                                    visualCrossing.avgHighError,
+                                    formatBias(visualCrossing.highBias),
+                                    visualCrossing.avgLowError,
+                                    formatBias(visualCrossing.lowBias),
                                 ))
-                                append("%% within 3°: %.0f%%  Forecasts: %d\n\n".format(openWeatherMap.percentWithin3Degrees, openWeatherMap.totalForecasts))
+                                append("%% within 3°: %.0f%%  Forecasts: %d\n\n".format(visualCrossing.percentWithin3Degrees, visualCrossing.totalForecasts))
                             } else {
-                                append("OpenWeatherMap: No data yet\n\n")
+                                append("Visual Crossing: No data yet\n\n")
                             }
 
                             val meteo = comparison.meteoStats

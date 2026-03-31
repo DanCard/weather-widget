@@ -21,6 +21,11 @@ enum class WeatherSource(
         displayName = "Open-Meteo",
         shortDisplayName = "Meteo",
     ),
+    VISUAL_CROSSING(
+        id = "VISUAL_CROSSING",
+        displayName = "Visual Crossing",
+        shortDisplayName = "VisCr",
+    ),
     OPEN_WEATHER_MAP(
         id = "OPEN_WEATHER_MAP",
         displayName = "OpenWeatherMap",
@@ -53,6 +58,7 @@ enum class WeatherSource(
             when (displaySource) {
                 "NWS" -> NWS
                 "Open-Meteo", "OPEN_METEO" -> OPEN_METEO
+                "Visual Crossing", "VISUAL_CROSSING" -> VISUAL_CROSSING
                 "OpenWeatherMap", "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 "Silurian", "SILURIAN" -> SILURIAN
@@ -73,6 +79,7 @@ enum class WeatherSource(
             when (id) {
                 "NWS" -> NWS
                 "OPEN_METEO" -> OPEN_METEO
+                "VISUAL_CROSSING" -> VISUAL_CROSSING
                 "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
                 "WEATHER_API" -> WEATHER_API
                 "SILURIAN" -> SILURIAN

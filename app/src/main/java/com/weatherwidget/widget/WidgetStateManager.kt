@@ -56,8 +56,9 @@ class WidgetStateManager
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
-            private const val KEY_OPEN_WEATHER_MAP_MIGRATION_DONE = "open_weather_map_migration_done_v3"
-            private const val DEFAULT_VISIBLE_SOURCES = "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN"
+            private const val KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE = "hide_open_weather_map_migration_done_v4"
+            private const val KEY_VISUAL_CROSSING_MIGRATION_DONE = "visual_crossing_migration_done_v5"
+            private const val DEFAULT_VISIBLE_SOURCES = "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN"
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
@@ -86,6 +87,9 @@ class WidgetStateManager
 
             @Deprecated("Use WeatherSource.OPEN_METEO.displayName instead", ReplaceWith("WeatherSource.OPEN_METEO.displayName"))
             const val SOURCE_OPEN_METEO = "Open-Meteo"
+
+            @Deprecated("Use WeatherSource.VISUAL_CROSSING.displayName instead", ReplaceWith("WeatherSource.VISUAL_CROSSING.displayName"))
+            const val SOURCE_VISUAL_CROSSING = "Visual Crossing"
 
             @Deprecated("Use WeatherSource.OPEN_WEATHER_MAP.displayName instead", ReplaceWith("WeatherSource.OPEN_WEATHER_MAP.displayName"))
             const val SOURCE_OPEN_WEATHER_MAP = "OpenWeatherMap"
@@ -166,7 +170,8 @@ class WidgetStateManager
         private fun getStoredVisibleSourcesOrder(): List<WeatherSource> {
             migrateApiPreferenceIfNeeded()
             migrateSilurianIfNeeded()
-            migrateOpenWeatherMapIfNeeded()
+            migrateHideOpenWeatherMapIfNeeded()
+            migrateVisualCrossingIfNeeded()
             val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, DEFAULT_VISIBLE_SOURCES) ?: DEFAULT_VISIBLE_SOURCES
             val sources = raw.split(",")
                 .mapNotNull { id ->
@@ -174,7 +179,7 @@ class WidgetStateManager
                         WeatherSource.entries.find { it.id == id.trim() || it.name == id.trim() }
                     }
                 }
-                .filter { it != WeatherSource.GENERIC_GAP }
+                .filter { it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP }
                 .distinct()
             return sources.ifEmpty { listOf(WeatherSource.NWS) }
         }
@@ -220,9 +225,9 @@ class WidgetStateManager
             }
         }
 
-        /** Ensures OPEN_WEATHER_MAP is inserted into existing source lists as second priority. */
-        private fun migrateOpenWeatherMapIfNeeded() {
-            if (prefs.getBoolean(KEY_OPEN_WEATHER_MAP_MIGRATION_DONE, false)) return
+        /** Removes OPEN_WEATHER_MAP from existing source lists now that it is hidden from the UI. */
+        private fun migrateHideOpenWeatherMapIfNeeded() {
+            if (prefs.getBoolean(KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE, false)) return
 
             val currentOrder = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
             if (currentOrder != null) {
@@ -231,23 +236,48 @@ class WidgetStateManager
                     .filter { it.isNotEmpty() && it != "OPEN_WEATHER_MAP" }
                     .toMutableList()
 
+                val sanitized = if (sources.isEmpty()) DEFAULT_VISIBLE_SOURCES else sources.joinToString(",")
+
+                prefs.edit()
+                    .putString(KEY_VISIBLE_SOURCES_ORDER, sanitized)
+                    .putBoolean(KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE, true)
+                    .apply()
+                Log.d("SOURCE_ORDER", "migrateHideOpenWeatherMap: Removed OPEN_WEATHER_MAP from order: $sanitized")
+            } else {
+                prefs.edit().putBoolean(KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE, true).apply()
+            }
+        }
+
+        /** Ensures VISUAL_CROSSING is inserted into existing visible-source lists as second priority. */
+        private fun migrateVisualCrossingIfNeeded() {
+            if (prefs.getBoolean(KEY_VISUAL_CROSSING_MIGRATION_DONE, false)) return
+
+            val currentOrder = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
+            if (currentOrder != null) {
+                val sources = currentOrder.split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() && it != "VISUAL_CROSSING" && it != "OPEN_WEATHER_MAP" }
+                    .toMutableList()
+
                 val insertIndex = if (sources.isEmpty()) 0 else 1
-                sources.add(insertIndex, "OPEN_WEATHER_MAP")
+                sources.add(insertIndex, "VISUAL_CROSSING")
                 val newOrder = sources.joinToString(",")
 
                 prefs.edit()
                     .putString(KEY_VISIBLE_SOURCES_ORDER, newOrder)
-                    .putBoolean(KEY_OPEN_WEATHER_MAP_MIGRATION_DONE, true)
+                    .putBoolean(KEY_VISUAL_CROSSING_MIGRATION_DONE, true)
                     .apply()
-                Log.d("SOURCE_ORDER", "migrateOpenWeatherMap: Inserted OPEN_WEATHER_MAP into order: $newOrder")
+                Log.d("SOURCE_ORDER", "migrateVisualCrossing: Inserted VISUAL_CROSSING into order: $newOrder")
             } else {
-                prefs.edit().putBoolean(KEY_OPEN_WEATHER_MAP_MIGRATION_DONE, true).apply()
+                prefs.edit().putBoolean(KEY_VISUAL_CROSSING_MIGRATION_DONE, true).apply()
             }
         }
 
         fun setVisibleSourcesOrder(sources: List<WeatherSource>) {
             val oldOrder = getVisibleSourcesOrder().map { it.name }
-            val filtered = sources.filter { it != WeatherSource.GENERIC_GAP }
+            val filtered = sources.filter {
+                it != WeatherSource.GENERIC_GAP && it != WeatherSource.OPEN_WEATHER_MAP
+            }
             val csv = filtered.joinToString(",") { it.name }
             val newOrder = filtered.map { it.name }
             Log.d("SOURCE_ORDER", "setVisibleSourcesOrder: $oldOrder -> $newOrder")

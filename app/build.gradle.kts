@@ -36,6 +36,12 @@ val openWeatherMapApiKey =
             ?: System.getenv("OPEN_WEATHER_MAP_API_KEY")
             ?: ""
     )
+val visualCrossingApiKey =
+    (
+        localProperties.getProperty("VISUAL_CROSSING_API_KEY")
+            ?: System.getenv("VISUAL_CROSSING_API_KEY")
+            ?: ""
+    )
 
 ktlint {
     version.set("1.2.1")
@@ -69,6 +75,7 @@ android {
         buildConfigField("String", "WEATHER_API_KEY", "\"$weatherApiKey\"")
         buildConfigField("String", "SILURIAN_API_KEY", "\"$silurianApiKey\"")
         buildConfigField("String", "OPEN_WEATHER_MAP_API_KEY", "\"$openWeatherMapApiKey\"")
+        buildConfigField("String", "VISUAL_CROSSING_API_KEY", "\"$visualCrossingApiKey\"")
     }
 
     buildFeatures {

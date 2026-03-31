@@ -22,6 +22,7 @@ data class AccuracyStatistics(
  */
 data class ComparisonStatistics(
     val nwsStats: AccuracyStatistics?,
+    val visualCrossingStats: AccuracyStatistics?,
     val openWeatherMapStats: AccuracyStatistics?,
     val meteoStats: AccuracyStatistics?,
     val weatherApiStats: AccuracyStatistics?,

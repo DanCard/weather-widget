@@ -79,6 +79,7 @@ class WeatherRepositoryTest {
             appLogDao,
             nwsApi,
             openMeteoApi,
+            mockk(relaxed = true),
             weatherApi,
             mockk(relaxed = true),
             widgetStateManager,
@@ -87,7 +88,21 @@ class WeatherRepositoryTest {
             dailyExtremeDao,
             mockk(relaxed = true)
         )
-        currentTempRepository = CurrentTempRepository(context, observationDao, hourlyForecastDao, appLogDao, nwsApi, openMeteoApi, weatherApi, mockk(relaxed = true), widgetStateManager, temperatureInterpolator, mockk(relaxed = true), mockk(relaxed = true))
+        currentTempRepository = CurrentTempRepository(
+            context,
+            observationDao,
+            hourlyForecastDao,
+            appLogDao,
+            nwsApi,
+            openMeteoApi,
+            mockk(relaxed = true),
+            weatherApi,
+            mockk(relaxed = true),
+            widgetStateManager,
+            temperatureInterpolator,
+            mockk(relaxed = true),
+            mockk(relaxed = true)
+        )
 
         repository =
             WeatherRepository(context, forecastRepository, currentTempRepository, forecastDao, appLogDao, mockk(relaxed = true))

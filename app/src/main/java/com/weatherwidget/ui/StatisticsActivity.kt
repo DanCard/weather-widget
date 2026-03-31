@@ -63,10 +63,10 @@ class StatisticsActivity : AppCompatActivity() {
 
                 // Get daily breakdown for both sources and combine
                 val nwsDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
-                val openWeatherMapDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.OPEN_WEATHER_MAP, lat, lon, 30)
+                val visualCrossingDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.VISUAL_CROSSING, lat, lon, 30)
                 val meteoDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.OPEN_METEO, lat, lon, 30)
                 val weatherApiDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.WEATHER_API, lat, lon, 30)
-                val allDaily = (nwsDaily + openWeatherMapDaily + meteoDaily + weatherApiDaily).sortedByDescending { it.date }
+                val allDaily = (nwsDaily + visualCrossingDaily + meteoDaily + weatherApiDaily).sortedByDescending { it.date }
 
                 // Check if we have any data
                 val hasAnyData = allDaily.isNotEmpty()
@@ -92,10 +92,10 @@ class StatisticsActivity : AppCompatActivity() {
                                 append("NWS: No data yet\n")
                             }
 
-                            if (comparison.openWeatherMapStats != null && comparison.openWeatherMapStats.totalForecasts > 0) {
-                                val stats = comparison.openWeatherMapStats
+                            if (comparison.visualCrossingStats != null && comparison.visualCrossingStats.totalForecasts > 0) {
+                                val stats = comparison.visualCrossingStats
                                 append(
-                                    "OpenWeatherMap: High ±%.1f°%s, Low ±%.1f°%s\n".format(
+                                    "Visual Crossing: High ±%.1f°%s, Low ±%.1f°%s\n".format(
                                         stats.avgHighError,
                                         formatBias(stats.highBias),
                                         stats.avgLowError,
@@ -103,7 +103,7 @@ class StatisticsActivity : AppCompatActivity() {
                                     ),
                                 )
                             } else {
-                                append("OpenWeatherMap: No data yet\n")
+                                append("Visual Crossing: No data yet\n")
                             }
 
                             if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {

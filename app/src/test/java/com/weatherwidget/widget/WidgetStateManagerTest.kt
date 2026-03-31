@@ -196,7 +196,9 @@ class WidgetStateManagerTest {
         // Already migrated, visible sources set
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_WEATHER_MAP,OPEN_METEO"
+        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
+        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,VISUAL_CROSSING,OPEN_METEO"
         every { prefs.contains("widget_display_source_$widgetId") } returns true
         var storedStep = 0
         every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
@@ -211,7 +213,7 @@ class WidgetStateManagerTest {
         val fourth = stateManager.toggleDisplaySource(widgetId)
 
         assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, first)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP, second)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING, second)
         assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, third)
         assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, fourth)
     }
@@ -219,6 +221,9 @@ class WidgetStateManagerTest {
     @Test
     fun `getEffectiveVisibleSourcesOrder preserves Open-Meteo when enabled`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
+        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
+        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
         every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
 
         val sources = stateManager.getEffectiveVisibleSourcesOrder(37.42, -122.08)
@@ -234,10 +239,11 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder uses new default order with open weather map on fresh install`() {
+    fun `getVisibleSourcesOrder uses visual crossing default order on fresh install`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("open_weather_map_migration_done_v3", false) } returns true
+        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
+        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
         every { prefs.getString("visible_sources_order", any()) } returns null
 
         val sources = stateManager.getVisibleSourcesOrder()
@@ -245,7 +251,7 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP,
+                com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING,
                 com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
                 com.weatherwidget.data.model.WeatherSource.SILURIAN,
             ),
@@ -254,14 +260,16 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder migrates existing stored order to append silurian then insert open weather map second`() {
+    fun `getVisibleSourcesOrder migrates existing stored order to append silurian remove owm and insert visual crossing second`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns false
-        every { prefs.getBoolean("open_weather_map_migration_done_v3", false) } returns false
+        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns false
+        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns false
         every { prefs.getString("visible_sources_order", any()) } returnsMany listOf(
             "NWS,WEATHER_API,OPEN_METEO",
             "NWS,WEATHER_API,OPEN_METEO,SILURIAN",
-            "NWS,OPEN_WEATHER_MAP,WEATHER_API,OPEN_METEO,SILURIAN",
+            "NWS,WEATHER_API,OPEN_METEO,SILURIAN",
+            "NWS,VISUAL_CROSSING,WEATHER_API,OPEN_METEO,SILURIAN",
         )
 
         val sources = stateManager.getVisibleSourcesOrder()
@@ -269,7 +277,7 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP,
+                com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING,
                 com.weatherwidget.data.model.WeatherSource.WEATHER_API,
                 com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
                 com.weatherwidget.data.model.WeatherSource.SILURIAN,
@@ -278,18 +286,22 @@ class WidgetStateManagerTest {
         )
         verify { editor.putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO,SILURIAN") }
         verify { editor.putBoolean("silurian_migration_done_v2", true) }
-        verify { editor.putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,WEATHER_API,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("open_weather_map_migration_done_v3", true) }
+        verify { editor.putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO,SILURIAN") }
+        verify { editor.putBoolean("hide_open_weather_map_migration_done_v4", true) }
+        verify { editor.putString("visible_sources_order", "NWS,VISUAL_CROSSING,WEATHER_API,OPEN_METEO,SILURIAN") }
+        verify { editor.putBoolean("visual_crossing_migration_done_v5", true) }
     }
 
     @Test
-    fun `getVisibleSourcesOrder does not reinsert open weather map when already present`() {
+    fun `getVisibleSourcesOrder strips open weather map and inserts visual crossing second`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("open_weather_map_migration_done_v3", false) } returns false
+        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns false
+        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns false
         every { prefs.getString("visible_sources_order", any()) } returnsMany listOf(
             "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN",
-            "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN",
+            "NWS,OPEN_METEO,SILURIAN",
+            "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN",
         )
 
         val sources = stateManager.getVisibleSourcesOrder()
@@ -297,20 +309,25 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP,
+                com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING,
                 com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
                 com.weatherwidget.data.model.WeatherSource.SILURIAN,
             ),
             sources
         )
-        verify { editor.putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("open_weather_map_migration_done_v3", true) }
+        verify { editor.putString("visible_sources_order", "NWS,OPEN_METEO,SILURIAN") }
+        verify { editor.putBoolean("hide_open_weather_map_migration_done_v4", true) }
+        verify { editor.putString("visible_sources_order", "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN") }
+        verify { editor.putBoolean("visual_crossing_migration_done_v5", true) }
     }
 
     @Test
     fun `toggleDisplaySource keeps current temp delta state`() {
         val widgetId = 1
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
+        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
+        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
         every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
         every { prefs.contains("widget_display_source_$widgetId") } returns true
         every { prefs.getInt("widget_display_source_$widgetId", any()) } returns 0

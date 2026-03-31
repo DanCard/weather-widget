@@ -81,6 +81,7 @@ class HistoryActivitySyncRoboTest {
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
                 nwsStats = null,
+                visualCrossingStats = null,
                 openWeatherMapStats = null,
                 meteoStats = null,
                 weatherApiStats = null,
@@ -138,6 +139,7 @@ class HistoryActivitySyncRoboTest {
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
                 nwsStats = null,
+                visualCrossingStats = null,
                 openWeatherMapStats = null,
                 meteoStats = null,
                 weatherApiStats = null,

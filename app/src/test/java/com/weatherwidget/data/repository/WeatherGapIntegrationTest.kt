@@ -40,8 +40,37 @@ class WeatherGapIntegrationTest {
     fun setup() {
         db = TestDatabase.create()
         val context = RuntimeEnvironment.getApplication()
-        val forecastRepo = ForecastRepository(context, db.forecastDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), db.climateNormalDao(), db.observationDao(), mockk(relaxed = true), mockk(relaxed = true))
-        val currentRepo = CurrentTempRepository(context, db.observationDao(), db.hourlyForecastDao(), db.appLogDao(), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), mockk(relaxed = true), TemperatureInterpolator(), mockk(relaxed = true), mockk(relaxed = true))
+        val forecastRepo = ForecastRepository(
+            context,
+            db.forecastDao(),
+            db.hourlyForecastDao(),
+            db.appLogDao(),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            db.climateNormalDao(),
+            db.observationDao(),
+            mockk(relaxed = true),
+            mockk(relaxed = true)
+        )
+        val currentRepo = CurrentTempRepository(
+            context,
+            db.observationDao(),
+            db.hourlyForecastDao(),
+            db.appLogDao(),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            TemperatureInterpolator(),
+            mockk(relaxed = true),
+            mockk(relaxed = true)
+        )
         repository = WeatherRepository(
             context,
             forecastRepo,

@@ -14,6 +14,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenWeatherMapApi
+import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.SpatialInterpolator
@@ -50,6 +51,7 @@ class CurrentTempRepository
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
+        private val visualCrossingApi: VisualCrossingApi,
         private val weatherApi: WeatherApi,
         private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
@@ -118,6 +120,7 @@ class CurrentTempRepository
         private suspend fun fetchFromSource(source: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? =
             when (source) {
                 WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapCurrent(latitude, longitude)
+                WeatherSource.VISUAL_CROSSING -> fetchVisualCrossingCurrent(latitude, longitude)
                 WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
@@ -161,6 +164,44 @@ class CurrentTempRepository
 
             deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
                 CurrentReadingPayload(WeatherSource.OPEN_WEATHER_MAP, reading.temperature, reading.condition, reading.observedAt)
+            }
+        }
+
+        private suspend fun fetchVisualCrossingCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
+            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
+            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
+                async {
+                    val reading = try {
+                        visualCrossingApi.getCurrent(point.first, point.second)
+                    } catch (e: ApiAccessException) {
+                        throw e
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (reading != null) {
+                        val stationId = if (point.third == "Current") "VISUAL_CROSSING_MAIN" else "VISUAL_CROSSING_$index"
+                        val obsEntity = ObservationEntity(
+                            stationId,
+                            "VisCr: ${point.third}",
+                            reading.observedAt ?: System.currentTimeMillis(),
+                            reading.temperature,
+                            reading.condition ?: "Unknown",
+                            latitude,
+                            longitude,
+                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
+                            "OFFICIAL",
+                            api = WeatherSource.VISUAL_CROSSING.id,
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                    }
+                    reading
+                }
+            }.map { it.await() }
+
+            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
+                CurrentReadingPayload(WeatherSource.VISUAL_CROSSING, reading.temperature, reading.condition, reading.observedAt)
             }
         }
 

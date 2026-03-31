@@ -80,12 +80,14 @@ class AccuracyCalculator
             val startDate = endDate.minusDays(days.toLong() - 1)
 
             val nwsStats = calculateAccuracy(WeatherSource.NWS, lat, lon, days)
+            val visualCrossingStats = calculateAccuracy(WeatherSource.VISUAL_CROSSING, lat, lon, days)
             val openWeatherMapStats = calculateAccuracy(WeatherSource.OPEN_WEATHER_MAP, lat, lon, days)
             val meteoStats = calculateAccuracy(WeatherSource.OPEN_METEO, lat, lon, days)
             val weatherApiStats = calculateAccuracy(WeatherSource.WEATHER_API, lat, lon, days)
 
             return ComparisonStatistics(
                 nwsStats = nwsStats,
+                visualCrossingStats = visualCrossingStats,
                 openWeatherMapStats = openWeatherMapStats,
                 meteoStats = meteoStats,
                 weatherApiStats = weatherApiStats,

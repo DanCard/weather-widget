@@ -179,7 +179,12 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     private fun showRenameDialog(entity: ObservationEntity) {
         val editText = android.widget.EditText(this).apply {
-            setText(entity.stationName.replace("Meteo: Recent: ", "").replace("WAPI: Recent: ", ""))
+            setText(
+                entity.stationName
+                    .replace("Meteo: Recent: ", "")
+                    .replace("VisCr: Recent: ", "")
+                    .replace("WAPI: Recent: ", ""),
+            )
             setSelectAllOnFocus(true)
         }
 
@@ -288,6 +293,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         private val runLevelTags = setOf("CURR_FETCH_DONE", "CURR_FETCH_EXCEPTION", "CURR_FETCH_SKIP")
         private val sourcePrefixes =
             mapOf(
+                WeatherSource.VISUAL_CROSSING to "VISUAL_CROSSING_",
                 WeatherSource.OPEN_WEATHER_MAP to "OPEN_WEATHER_MAP_",
                 WeatherSource.OPEN_METEO to "OPEN_METEO_",
                 WeatherSource.WEATHER_API to "WEATHER_API_",

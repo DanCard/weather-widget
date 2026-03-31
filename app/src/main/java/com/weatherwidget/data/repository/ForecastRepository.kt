@@ -18,6 +18,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenWeatherMapApi
+import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.widget.ForecastStalenessPolicy
@@ -53,6 +54,7 @@ class ForecastRepository
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
+        private val visualCrossingApi: VisualCrossingApi,
         private val weatherApi: WeatherApi,
         private val silurianApi: SilurianApi,
         private val widgetStateManager: WidgetStateManager,
@@ -145,12 +147,14 @@ class ForecastRepository
                     }
 
                     // Perform parallel fetches from all APIs
-                    val (nwsForecasts, owmForecasts, meteoForecasts, wapiForecasts, silurianForecasts) = fetchFromAllApis(
+                    val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts) = fetchFromAllApis(
                         latitude, longitude, locationName,
                         WeatherSource.NWS in enabledSources && (shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts)),
                         openWeatherMapApi != null &&
                             WeatherSource.OPEN_WEATHER_MAP in enabledSources &&
                             (shouldForceSource(WeatherSource.OPEN_WEATHER_MAP) || isStale(WeatherSource.OPEN_WEATHER_MAP, cachedForecasts)),
+                        WeatherSource.VISUAL_CROSSING in enabledSources &&
+                            (shouldForceSource(WeatherSource.VISUAL_CROSSING) || isStale(WeatherSource.VISUAL_CROSSING, cachedForecasts)),
                         WeatherSource.OPEN_METEO in enabledSources && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
                         WeatherSource.WEATHER_API in enabledSources && (shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts)),
                         WeatherSource.SILURIAN in enabledSources && (shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts)),
@@ -160,6 +164,7 @@ class ForecastRepository
                     val maxCoverageDates = mutableListOf<LocalDate>()
                     nwsForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
                     owmForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
+                    visualCrossingForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
                     meteoForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
                     wapiForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
                     silurianForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
@@ -201,6 +206,7 @@ class ForecastRepository
         ): Boolean {
             val sourcesToCheck = listOf(
                 WeatherSource.NWS,
+                WeatherSource.VISUAL_CROSSING,
                 WeatherSource.OPEN_WEATHER_MAP,
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
@@ -225,6 +231,7 @@ class ForecastRepository
         private data class FetchResult(
             val nws: List<ForecastEntity>?,
             val openWeatherMap: List<ForecastEntity>?,
+            val visualCrossing: List<ForecastEntity>?,
             val meteo: List<ForecastEntity>?,
             val wapi: List<ForecastEntity>?,
             val silurian: List<ForecastEntity>?
@@ -236,6 +243,7 @@ class ForecastRepository
             locationName: String,
             shouldFetchNws: Boolean,
             shouldFetchOpenWeatherMap: Boolean,
+            shouldFetchVisualCrossing: Boolean,
             shouldFetchMeteo: Boolean,
             shouldFetchWapi: Boolean,
             shouldFetchSilurian: Boolean,
@@ -281,6 +289,39 @@ class ForecastRepository
                     null
                 } catch (exception: Exception) {
                     logFetchFailure("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP, exception)
+                    null
+                }
+            } else null
+
+            val visualCrossingDeferred = if (shouldFetchVisualCrossing) async {
+                try {
+                    val result = visualCrossingApi.getForecast(latitude, longitude, 14)
+                    if (result.hourly.isNotEmpty()) {
+                        saveVisualCrossingHourlyForecasts(result.hourly, latitude, longitude)
+                    }
+                    result.daily.map { day ->
+                        ForecastEntity(
+                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                            locationLat = latitude,
+                            locationLon = longitude,
+                            locationName = locationName,
+                            highTemp = day.highTemp,
+                            lowTemp = day.lowTemp,
+                            condition = day.condition,
+                            isClimateNormal = false,
+                            source = WeatherSource.VISUAL_CROSSING.id,
+                            precipProbability = day.precipProbability,
+                            precipAmountMm = day.precipAmountMm,
+                        )
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (exception: ApiAccessException) {
+                    logFetchFailure("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING, exception)
+                    null
+                } catch (exception: Exception) {
+                    logFetchFailure("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING, exception)
                     null
                 }
             } else null
@@ -381,6 +422,7 @@ class ForecastRepository
             } else null
             val nwsForecasts = nwsDeferred?.await()
             val owmForecasts = openWeatherMapDeferred?.await()
+            val visualCrossingForecasts = visualCrossingDeferred?.await()
             val meteoForecasts = meteoDeferred?.await()
             val wapiForecasts = wapiDeferred?.await()
             val silurianForecasts = silurianDeferred?.await()
@@ -388,11 +430,12 @@ class ForecastRepository
             // Save each provider fetch as a coherent batch with a shared batchFetchedAt.
             nwsForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.NWS.id, System.currentTimeMillis()) }
             owmForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id, System.currentTimeMillis()) }
+            visualCrossingForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.VISUAL_CROSSING.id, System.currentTimeMillis()) }
             meteoForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.OPEN_METEO.id, System.currentTimeMillis()) }
             wapiForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.WEATHER_API.id, System.currentTimeMillis()) }
             silurianForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.SILURIAN.id, System.currentTimeMillis()) }
 
-            FetchResult(nwsForecasts, owmForecasts, meteoForecasts, wapiForecasts, silurianForecasts)
+            FetchResult(nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts)
         }
 
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String): List<ForecastEntity> = coroutineScope {
@@ -881,6 +924,16 @@ class ForecastRepository
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
                     WeatherSource.OPEN_WEATHER_MAP.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
+                )
+            })
+        }
+
+        private suspend fun saveVisualCrossingHourlyForecasts(hourlyData: List<VisualCrossingApi.HourlyForecast>, latitude: Double, longitude: Double) {
+            val fetchedAt = System.currentTimeMillis()
+            saveHourlyEntities(hourlyData.map {
+                HourlyForecastEntity(
+                    it.dateTime, latitude, longitude, it.temperature, it.condition,
+                    WeatherSource.VISUAL_CROSSING.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
         }
