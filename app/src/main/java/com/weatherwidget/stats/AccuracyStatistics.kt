@@ -22,6 +22,7 @@ data class AccuracyStatistics(
  */
 data class ComparisonStatistics(
     val nwsStats: AccuracyStatistics?,
+    val openWeatherMapStats: AccuracyStatistics?,
     val meteoStats: AccuracyStatistics?,
     val weatherApiStats: AccuracyStatistics?,
     val periodStart: String,

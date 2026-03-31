@@ -129,6 +129,7 @@ object ObservationResolver {
      * Mirrors TemperatureViewHandler.matchesObservationSource.
      */
     fun inferSource(stationId: String): String = when {
+        stationId.startsWith("OPEN_WEATHER_MAP") -> WeatherSource.OPEN_WEATHER_MAP.id
         stationId.startsWith("OPEN_METEO") -> WeatherSource.OPEN_METEO.id
         stationId.startsWith("WEATHER_API") -> WeatherSource.WEATHER_API.id
         stationId.startsWith("SILURIAN") -> WeatherSource.SILURIAN.id

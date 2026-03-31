@@ -21,6 +21,11 @@ enum class WeatherSource(
         displayName = "Open-Meteo",
         shortDisplayName = "Meteo",
     ),
+    OPEN_WEATHER_MAP(
+        id = "OPEN_WEATHER_MAP",
+        displayName = "OpenWeatherMap",
+        shortDisplayName = "OWM",
+    ),
     WEATHER_API(
         id = "WEATHER_API",
         displayName = "WeatherAPI",
@@ -48,6 +53,7 @@ enum class WeatherSource(
             when (displaySource) {
                 "NWS" -> NWS
                 "Open-Meteo", "OPEN_METEO" -> OPEN_METEO
+                "OpenWeatherMap", "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 "Silurian", "SILURIAN" -> SILURIAN
                 else -> null
@@ -67,6 +73,7 @@ enum class WeatherSource(
             when (id) {
                 "NWS" -> NWS
                 "OPEN_METEO" -> OPEN_METEO
+                "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
                 "WEATHER_API" -> WEATHER_API
                 "SILURIAN" -> SILURIAN
                 "Generic" -> GENERIC_GAP

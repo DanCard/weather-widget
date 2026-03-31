@@ -14,6 +14,7 @@ import com.weatherwidget.data.repository.ForecastRepository
 import com.weatherwidget.data.repository.ObservationRepository
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.TemperatureInterpolator
@@ -74,6 +75,7 @@ object AppModule {
                     host.contains("silurian.ai") -> "SILURIAN"
                     host.contains("weather.gov") -> "NWS"
                     host.contains("open-meteo.com") -> "OPEN_METEO"
+                    host.contains("openweathermap.org") -> "OPEN_WEATHER_MAP"
                     host.contains("weatherapi.com") -> "WEATHER_API"
                     else -> "UNKNOWN"
                 }
@@ -156,9 +158,10 @@ object AppModule {
         observationDao: ObservationDao,
         dailyExtremeDao: DailyExtremeDao,
         observationRepository: ObservationRepository,
+        openWeatherMapApi: OpenWeatherMapApi,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository, openWeatherMapApi
     )
 
     @Provides
@@ -176,9 +179,10 @@ object AppModule {
         temperatureInterpolator: TemperatureInterpolator,
         dailyExtremeDao: DailyExtremeDao,
         observationRepository: ObservationRepository,
+        openWeatherMapApi: OpenWeatherMapApi,
     ): CurrentTempRepository = CurrentTempRepository(
         context, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, temperatureInterpolator, dailyExtremeDao, observationRepository
+        nwsApi, openMeteoApi, weatherApi, silurianApi, widgetStateManager, temperatureInterpolator, dailyExtremeDao, observationRepository, openWeatherMapApi
     )
 
     @Provides
@@ -201,6 +205,13 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
     ): OpenMeteoApi = OpenMeteoApi(httpClient, json)
+
+    @Provides
+    @Singleton
+    fun provideOpenWeatherMapApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): OpenWeatherMapApi = OpenWeatherMapApi(httpClient, json)
 
     @Provides
     @Singleton

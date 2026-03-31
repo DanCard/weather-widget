@@ -56,7 +56,7 @@ class WidgetStateManager
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
-            private const val DEFAULT_VISIBLE_SOURCES = "NWS,WEATHER_API,OPEN_METEO"
+            private const val DEFAULT_VISIBLE_SOURCES = "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN"
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"
@@ -85,6 +85,9 @@ class WidgetStateManager
 
             @Deprecated("Use WeatherSource.OPEN_METEO.displayName instead", ReplaceWith("WeatherSource.OPEN_METEO.displayName"))
             const val SOURCE_OPEN_METEO = "Open-Meteo"
+
+            @Deprecated("Use WeatherSource.OPEN_WEATHER_MAP.displayName instead", ReplaceWith("WeatherSource.OPEN_WEATHER_MAP.displayName"))
+            const val SOURCE_OPEN_WEATHER_MAP = "OpenWeatherMap"
 
             @Deprecated("Use WeatherSource.WEATHER_API.displayName instead", ReplaceWith("WeatherSource.WEATHER_API.displayName"))
             const val SOURCE_WEATHER_API = "WeatherAPI"

@@ -195,7 +195,8 @@ class WidgetStateManagerTest {
         val widgetId = 1
         // Already migrated, visible sources set
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
+        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
+        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_WEATHER_MAP,OPEN_METEO"
         every { prefs.contains("widget_display_source_$widgetId") } returns true
         var storedStep = 0
         every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
@@ -210,8 +211,8 @@ class WidgetStateManagerTest {
         val fourth = stateManager.toggleDisplaySource(widgetId)
 
         assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, first)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, second)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.WEATHER_API, third)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP, second)
+        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, third)
         assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, fourth)
     }
 
@@ -233,7 +234,7 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder uses new default order without silurian on fresh install`() {
+    fun `getVisibleSourcesOrder uses new default order with open weather map on fresh install`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
         every { prefs.getString("visible_sources_order", any()) } returns null
@@ -243,8 +244,9 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.WEATHER_API,
+                com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP,
                 com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
+                com.weatherwidget.data.model.WeatherSource.SILURIAN,
             ),
             sources
         )

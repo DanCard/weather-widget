@@ -112,21 +112,45 @@ class WeatherIconMapperTest {
     }
 
     @Test
-    fun testGetIconResource_SlightChanceRain() {
+    fun testGetIconResource_SlightChanceRainWithLowCloudCoverUsesMostlyClear() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 10)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_SlightChanceRainWithMidCloudCoverUsesPartlyCloudy() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 50)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_SlightChanceRainWithHighCloudCoverUsesMostlyCloudy() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 80)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_SlightChanceRainWithNearTotalCloudCoverUsesCloudy() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 95)
+        assertEquals(R.drawable.ic_weather_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_SlightChanceRainWithoutCloudCoverFallsBackToPartlyCloudy() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false)
         assertEquals(R.drawable.ic_weather_partly_cloudy, res)
     }
 
     @Test
-    fun testGetIconResource_PatchySnow() {
-        val res = WeatherIconMapper.getIconResource("Patchy Snow", isNight = false)
-        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    fun testGetIconResource_PatchySnowUsesCloudCoverMapping() {
+        val res = WeatherIconMapper.getIconResource("Patchy Snow", isNight = false, cloudCover = 82)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
     }
 
     @Test
-    fun testGetIconResource_SlightChanceStormNight() {
-        val res = WeatherIconMapper.getIconResource("Slight Chance Thunderstorms", isNight = true)
-        assertEquals(R.drawable.ic_weather_partly_cloudy_night, res)
+    fun testGetIconResource_SlightChanceStormNightUsesCloudCoverMapping() {
+        val res = WeatherIconMapper.getIconResource("Slight Chance Thunderstorms", isNight = true, cloudCover = 80)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy_night, res)
     }
 
     @Test

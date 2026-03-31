@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.util.SpatialInterpolator
@@ -52,6 +53,7 @@ class CurrentTempRepository
         private val temperatureInterpolator: TemperatureInterpolator,
         private val dailyExtremeDao: DailyExtremeDao,
         private val observationRepository: ObservationRepository,
+        private val openWeatherMapApi: OpenWeatherMapApi? = null,
     ) {
         private val syncMutex = Mutex()
         companion object { 
@@ -110,12 +112,50 @@ class CurrentTempRepository
 
         private suspend fun fetchFromSource(source: WeatherSource, latitude: Double, longitude: Double): CurrentReadingPayload? =
             when (source) {
+                WeatherSource.OPEN_WEATHER_MAP -> fetchOpenWeatherMapCurrent(latitude, longitude)
                 WeatherSource.OPEN_METEO -> fetchOpenMeteoCurrent(latitude, longitude)
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
                 WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
                 else -> null
             }
+
+        private suspend fun fetchOpenWeatherMapCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
+            val api = openWeatherMapApi ?: return@coroutineScope null
+            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
+            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
+                async {
+                    val reading = try {
+                        api.getCurrent(point.first, point.second)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (reading != null) {
+                        val stationId = if (point.third == "Current") "OPEN_WEATHER_MAP_MAIN" else "OPEN_WEATHER_MAP_$index"
+                        val obsEntity = ObservationEntity(
+                            stationId,
+                            "OWM: ${point.third}",
+                            reading.observedAt ?: System.currentTimeMillis(),
+                            reading.temperature,
+                            reading.condition ?: "Unknown",
+                            latitude,
+                            longitude,
+                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
+                            "OFFICIAL",
+                            api = WeatherSource.OPEN_WEATHER_MAP.id,
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                    }
+                    reading
+                }
+            }.map { it.await() }
+
+            deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
+                CurrentReadingPayload(WeatherSource.OPEN_WEATHER_MAP, reading.temperature, reading.condition, reading.observedAt)
+            }
+        }
 
         private suspend fun fetchSilurianCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
             val pointsOfInterest = getPointsOfInterest(latitude, longitude)

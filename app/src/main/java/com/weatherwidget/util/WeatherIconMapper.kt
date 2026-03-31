@@ -4,6 +4,7 @@ import com.weatherwidget.R
 
 object WeatherIconMapper {
     private const val FULLY_CLOUDY_THRESHOLD = 97
+    private const val MOSTLY_CLOUDY_UPPER_THRESHOLD = 90
 
     fun getIconResource(
         condition: String?,
@@ -25,17 +26,17 @@ object WeatherIconMapper {
         return when {
             normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") -> {
                 if (isSlightChance) {
-                    if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+                    slightChanceCloudCoverIcon(isNight, cloudCover)
                 } else R.drawable.ic_weather_storm
             }
             normalizedCondition.contains("snow") || normalizedCondition.contains("flurries") || normalizedCondition.contains("blizzard") -> {
                 if (isSlightChance) {
-                    if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+                    slightChanceCloudCoverIcon(isNight, cloudCover)
                 } else R.drawable.ic_weather_snow
             }
             normalizedCondition.contains("rain") || normalizedCondition.contains("drizzle") || normalizedCondition.contains("shower") -> {
                 if (isSlightChance) {
-                    if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+                    slightChanceCloudCoverIcon(isNight, cloudCover)
                 } else R.drawable.ic_weather_rain
             }
             normalizedCondition.contains("fog") && (normalizedCondition.contains("sunny") || normalizedCondition.contains("clear")) -> R.drawable.ic_weather_fog_sunny
@@ -71,6 +72,19 @@ object WeatherIconMapper {
                 if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_clear
             }
             else -> R.drawable.ic_weather_clear // Optimistic fallback: default to CLEAR instead of CLOUDY
+        }
+    }
+
+    private fun slightChanceCloudCoverIcon(isNight: Boolean, cloudCover: Int?): Int {
+        if (cloudCover == null) {
+            return if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+        }
+
+        return when (cloudCover.coerceIn(0, 100)) {
+            in 0..25 -> if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
+            in 26..74 -> if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
+            in 75..MOSTLY_CLOUDY_UPPER_THRESHOLD -> if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_mostly_cloudy
+            else -> R.drawable.ic_weather_cloudy
         }
     }
 
