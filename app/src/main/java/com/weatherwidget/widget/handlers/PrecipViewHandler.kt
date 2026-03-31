@@ -73,6 +73,7 @@ object PrecipViewHandler {
         val numRows = dimensions.rows
 
         val stateManager = WidgetStateManager(context)
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
@@ -95,6 +96,24 @@ object PrecipViewHandler {
 
         // Get current display source
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
+        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
+            appLogDao = appLogDao,
+            displaySource = displaySource,
+            hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
+        )
+        if (warning != null) {
+            ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, warning)
+            setupApiToggle(context, views, appWidgetId, numRows)
+            appLogDao.log(
+                "PRECIP_SOURCE_BLOCKED",
+                "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
+                "WARN",
+            )
+            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=warning thread=${Thread.currentThread().name}")
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+            return
+        }
+        ApiSourceWarningHelper.hideSourceWarning(views)
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
             displaySource.shortDisplayName
@@ -264,7 +283,6 @@ object PrecipViewHandler {
             updatePrecipTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
         }
 
-        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs

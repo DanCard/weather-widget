@@ -53,6 +53,7 @@ object DailyForecastGraphRenderer {
         val label: String,
         val high: Float?,
         val low: Float?,
+        val bottomStackLow: Float? = null,
         val iconRes: Int? = null,
         val isSunny: Boolean = false,
         val isRainy: Boolean = false,
@@ -291,7 +292,7 @@ object DailyForecastGraphRenderer {
         val labelPaint = if (day.isToday) paints.todayTextPaint else paints.textPaint
         canvas.drawText(day.label, centerX, layout.heightPx - 3f, labelPaint)
 
-        val lowTemp = day.low
+        val lowTemp = resolveBottomStackLow(day)
         val lowY = lowTemp?.let {
             layout.graphTop + layout.graphHeight * (1 - (it - layout.minTemp) / layout.tempRange)
         }
@@ -381,7 +382,7 @@ object DailyForecastGraphRenderer {
             val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
             val y = highY ?: (lowY?.let { it - dpToPx(context, MIN_BAR_HEIGHT_DP) } ?: 0f)
             val labelY = if (day.isToday) {
-                val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: day.high ?: 0f
+                val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: 0f
                 layout.graphTop + layout.graphHeight * (1 - (absoluteHigh - layout.minTemp) / layout.tempRange)
             } else y
             val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
@@ -505,11 +506,13 @@ object DailyForecastGraphRenderer {
         day: DayData,
         layout: LayoutInfo,
     ): Float? {
-        val lowTemp = day.low ?: return null
+        val lowTemp = resolveBottomStackLow(day) ?: return null
         val lowY = layout.graphTop + layout.graphHeight * (1 - (lowTemp - layout.minTemp) / layout.tempRange)
         val iconY = lowY + dpToPx(context, 3f)
         return iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, 1f)
     }
+
+    internal fun resolveBottomStackLow(day: DayData): Float? = day.bottomStackLow ?: day.low
 
     private fun dpToPx(context: Context, dp: Float): Float {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)

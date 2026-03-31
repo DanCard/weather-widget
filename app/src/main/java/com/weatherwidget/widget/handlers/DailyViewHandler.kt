@@ -177,6 +177,7 @@ object DailyViewHandler : WidgetViewHandler {
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dailyActuals = dailyActualsBySource[displaySource.id].orEmpty()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         Log.d(
             TAG,
@@ -195,6 +196,40 @@ object DailyViewHandler : WidgetViewHandler {
             )
         }
 
+        val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
+            appLogDao = appLogDao,
+            displaySource = displaySource,
+            hasSelectedSourceData = weatherList.any { it.source == displaySource.id && !it.isClimateNormal },
+        )
+        if (warning != null) {
+            ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, warning)
+            setupApiToggle(context, views, appWidgetId, numRows)
+            logDailyRenderSummary(
+                context = context,
+                appWidgetId = appWidgetId,
+                dateOffset = dateOffset,
+                displaySource = displaySource,
+                numColumns = numColumns,
+                numRows = numRows,
+                useGraph = false,
+                isEveningMode = isEveningMode,
+                centerDate = centerDate,
+                visibleDates = emptyList(),
+            )
+            appLogDao.log(
+                "DAILY_SOURCE_BLOCKED",
+                "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
+                "WARN",
+            )
+            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+            return
+        }
+
+        ApiSourceWarningHelper.hideSourceWarning(views)
+
         // Build weather map: prefer the selected display source, fallback to generic gap
         val weatherByDate =
             weatherList
@@ -206,8 +241,6 @@ object DailyViewHandler : WidgetViewHandler {
         views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)
 
         // Set weather icon
-        val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
 
         val todayIconForecast = resolveTodayHeaderForecast(now, hourlyForecasts, displaySource)
@@ -497,7 +530,6 @@ object DailyViewHandler : WidgetViewHandler {
             setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
         }
 
-        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs

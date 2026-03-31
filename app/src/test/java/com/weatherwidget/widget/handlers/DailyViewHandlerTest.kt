@@ -36,6 +36,7 @@ import io.mockk.verify
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -212,6 +213,7 @@ class DailyViewHandlerTest {
         assertEquals(65f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test
@@ -270,6 +272,7 @@ class DailyViewHandlerTest {
         assertEquals(75f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test
@@ -310,6 +313,7 @@ class DailyViewHandlerTest {
         assertEquals(null, todayData.snapshotLow)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test
@@ -362,7 +366,57 @@ class DailyViewHandlerTest {
         assertEquals(60f, todayData.low!!, 0.1f)
         assertEquals(80f, todayData.forecastHigh!!, 0.1f)
         assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
         assertTrue(todayData.isTodayForecastFallback)
+    }
+
+    @Test
+    fun `prepareGraphDays today bottom stack low uses lower observed or forecast low`() {
+        val now = LocalDateTime.of(2030, 6, 15, 20, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherByDate = mapOf(
+            today to createWeather(todayStr, highTemp = 80f, lowTemp = 65f)
+        )
+
+        val hourlyForecasts = (0..23).map { hour ->
+            HourlyForecastEntity(
+                dateTime = today.atTime(hour, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                temperature = if (hour == 5) 67f else 72f,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                fetchedAt = 1L
+            )
+        }
+
+        val days = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = true,
+            skipHistory = false,
+            hourlyForecasts = hourlyForecasts,
+            dailyActuals = mapOf(
+                today to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                    date = today,
+                    highTemp = 74f,
+                    lowTemp = 67f,
+                    condition = "Clear",
+                )
+            )
+        )
+
+        val todayData = days.first { it.date == today }
+        assertEquals(67f, todayData.low!!, 0.1f)
+        assertEquals(65f, todayData.forecastLow!!, 0.1f)
+        assertEquals(65f, todayData.bottomStackLow!!, 0.1f)
     }
 
     @Test
@@ -999,6 +1053,66 @@ class DailyViewHandlerTest {
                     it.workSpec.input.getString(com.weatherwidget.widget.WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON) == "missing_actuals_NWS_history"
             },
         )
+    }
+
+    @Test
+    fun `classifyBlockingSourceWarning returns key missing warning for keyed source without data`() {
+        val warning = ApiSourceWarningHelper.classifyBlockingSourceWarning(
+            displaySource = WeatherSource.OPEN_WEATHER_MAP,
+            hasSelectedSourceData = false,
+            latestFailureMessages = listOf("source=OPEN_WEATHER_MAP code=ACCESS_ERROR detail=OpenWeatherMap API key missing. Add OPEN_WEATHER_MAP_API_KEY to local.properties or the environment."),
+        )
+
+        assertEquals("OWM key missing", warning?.headerText)
+        assertEquals("API key missing.", warning?.summaryText)
+        assertEquals("OWM key", warning?.sourceLabelText)
+        assertEquals("OpenWeatherMap API key missing. Add OPEN_WEATHER_MAP_API_KEY to local.properties or the environment.", warning?.detailText)
+        assertEquals("OpenWeatherMap key missing. OpenWeatherMap API key missing. Add OPEN_WEATHER_MAP_API_KEY to local.properties or the environment.", warning?.toastMessage)
+    }
+
+    @Test
+    fun `classifyBlockingSourceWarning returns 401 warning with details when source unauthorized`() {
+        val warning = ApiSourceWarningHelper.classifyBlockingSourceWarning(
+            displaySource = WeatherSource.OPEN_WEATHER_MAP,
+            hasSelectedSourceData = false,
+            latestFailureMessages = listOf(
+                "source=OPEN_WEATHER_MAP code=HTTP_401 detail=Please note that using One Call 3.0 requires a separate subscription to the One Call by Call plan. Learn more here https://openweathermap.org/price.",
+            ),
+        )
+
+        assertEquals("OWM 401 error", warning?.headerText)
+        assertEquals("One Call 3.0 subscription required.", warning?.summaryText)
+        assertEquals("OWM 401", warning?.sourceLabelText)
+        assertEquals(
+            "Please note that using One Call 3.0 requires a separate subscription to the One Call by Call plan. Learn more here https://openweathermap.org/price.",
+            warning?.detailText,
+        )
+        assertEquals(
+            "OpenWeatherMap 401 error. Please note that using One Call 3.0 requires a separate subscription to the One Call by Call plan. Learn more here https://openweathermap.org/price.",
+            warning?.toastMessage,
+        )
+    }
+
+    @Test
+    fun `classifyBlockingSourceWarning ignores failures when source data exists`() {
+        val warning = ApiSourceWarningHelper.classifyBlockingSourceWarning(
+            displaySource = WeatherSource.OPEN_WEATHER_MAP,
+            hasSelectedSourceData = true,
+            latestFailureMessages = listOf("source=OPEN_WEATHER_MAP code=HTTP_401 detail=One Call 3.0 subscription required."),
+        )
+
+        assertNull(warning)
+    }
+
+    @Test
+    fun `classifyBlockingSourceWarning ignores transient failure text`() {
+        val warning = ApiSourceWarningHelper.classifyBlockingSourceWarning(
+            displaySource = WeatherSource.OPEN_WEATHER_MAP,
+            hasSelectedSourceData = false,
+            latestFailureMessages = listOf("timeout contacting upstream"),
+        )
+
+        assertNull(warning)
     }
 
     @Test

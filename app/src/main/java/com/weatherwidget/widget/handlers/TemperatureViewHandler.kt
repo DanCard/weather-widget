@@ -280,6 +280,7 @@ object TemperatureViewHandler {
 
         val stateManager = WidgetStateManager(context)
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, hourlyCount=${hourlyForecasts.size}")
 
@@ -298,6 +299,25 @@ object TemperatureViewHandler {
         setupCurrentTempToggle(context, views, appWidgetId)
         setupHomeShortcut(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
+
+        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
+            appLogDao = appLogDao,
+            displaySource = displaySource,
+            hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
+        )
+        if (warning != null) {
+            ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, warning)
+            setupApiToggle(context, views, appWidgetId, numRows)
+            appLogDao.log(
+                "TEMP_SOURCE_BLOCKED",
+                "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
+                "WARN",
+            )
+            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMP state=warning thread=${Thread.currentThread().name}")
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+            return
+        }
+        ApiSourceWarningHelper.hideSourceWarning(views)
 
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {

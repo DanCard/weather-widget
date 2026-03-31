@@ -237,6 +237,7 @@ class WidgetStateManagerTest {
     fun `getVisibleSourcesOrder uses new default order with open weather map on fresh install`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
+        every { prefs.getBoolean("open_weather_map_migration_done_v3", false) } returns true
         every { prefs.getString("visible_sources_order", any()) } returns null
 
         val sources = stateManager.getVisibleSourcesOrder()
@@ -253,12 +254,14 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder migrates existing stored order to append silurian`() {
+    fun `getVisibleSourcesOrder migrates existing stored order to append silurian then insert open weather map second`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns false
+        every { prefs.getBoolean("open_weather_map_migration_done_v3", false) } returns false
         every { prefs.getString("visible_sources_order", any()) } returnsMany listOf(
             "NWS,WEATHER_API,OPEN_METEO",
             "NWS,WEATHER_API,OPEN_METEO,SILURIAN",
+            "NWS,OPEN_WEATHER_MAP,WEATHER_API,OPEN_METEO,SILURIAN",
         )
 
         val sources = stateManager.getVisibleSourcesOrder()
@@ -266,6 +269,7 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 com.weatherwidget.data.model.WeatherSource.NWS,
+                com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP,
                 com.weatherwidget.data.model.WeatherSource.WEATHER_API,
                 com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
                 com.weatherwidget.data.model.WeatherSource.SILURIAN,
@@ -274,6 +278,33 @@ class WidgetStateManagerTest {
         )
         verify { editor.putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO,SILURIAN") }
         verify { editor.putBoolean("silurian_migration_done_v2", true) }
+        verify { editor.putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,WEATHER_API,OPEN_METEO,SILURIAN") }
+        verify { editor.putBoolean("open_weather_map_migration_done_v3", true) }
+    }
+
+    @Test
+    fun `getVisibleSourcesOrder does not reinsert open weather map when already present`() {
+        every { prefs.getBoolean("api_pref_migrated", false) } returns true
+        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
+        every { prefs.getBoolean("open_weather_map_migration_done_v3", false) } returns false
+        every { prefs.getString("visible_sources_order", any()) } returnsMany listOf(
+            "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN",
+            "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN",
+        )
+
+        val sources = stateManager.getVisibleSourcesOrder()
+
+        assertEquals(
+            listOf(
+                com.weatherwidget.data.model.WeatherSource.NWS,
+                com.weatherwidget.data.model.WeatherSource.OPEN_WEATHER_MAP,
+                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
+                com.weatherwidget.data.model.WeatherSource.SILURIAN,
+            ),
+            sources
+        )
+        verify { editor.putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN") }
+        verify { editor.putBoolean("open_weather_map_migration_done_v3", true) }
     }
 
     @Test

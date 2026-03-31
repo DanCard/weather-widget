@@ -195,4 +195,34 @@ class OpenWeatherMapApiTest {
             assertEquals("Scattered Clouds", current.condition)
             assertEquals(1771894800000L, current.observedAt)
         }
+
+    @Test
+    fun `getForecast throws subscription required for OWM error payload`() =
+        runTest {
+            val responseJson =
+                """
+                {
+                  "cod": 401,
+                  "message": "Please note that using One Call 3.0 requires a separate subscription to the One Call by Call plan."
+                }
+                """.trimIndent()
+
+            val api = OpenWeatherMapApi(createMockClient(responseJson), json, apiKey = "test-key")
+
+            val exception =
+                try {
+                    api.getForecast(37.42, -122.08)
+                    throw AssertionError("Expected OpenWeatherMapAccessException")
+                } catch (e: OpenWeatherMapApi.OpenWeatherMapAccessException) {
+                    e
+                }
+
+            assertEquals(OpenWeatherMapApi.FailureReason.SUBSCRIPTION_REQUIRED, exception.reason)
+            assertEquals(401, exception.statusCode)
+            assertEquals(
+                "Please note that using One Call 3.0 requires a separate subscription to the One Call by Call plan.",
+                exception.detail,
+            )
+            assertEquals("OpenWeatherMap 401 error. One Call 3.0 subscription required.", exception.message)
+        }
 }

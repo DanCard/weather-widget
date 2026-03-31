@@ -245,6 +245,7 @@ object DailyViewLogic {
             var isClimateOverlay = false
             var isTodayForecastFallback = false
             var trueActualHigh: Float? = null
+            var bottomStackLow: Float? = null
 
             if (isPastDate) {
                 finalHigh = actual?.highTemp
@@ -292,6 +293,7 @@ object DailyViewLogic {
                 finalLow = tripleValues.observedLow ?: tripleValues.forecastLow
                 fHigh = tripleValues.forecastHigh
                 fLow = tripleValues.forecastLow
+                bottomStackLow = listOfNotNull(tripleValues.observedLow, tripleValues.forecastLow).minOrNull()
                 snapshotHigh = tripleValues.snapshotHigh
                 snapshotLow = tripleValues.snapshotLow
                 trueActualHigh = tripleValues.trueActualHigh
@@ -348,6 +350,7 @@ object DailyViewLogic {
                     label = label,
                     high = finalHigh,
                     low = finalLow,
+                    bottomStackLow = bottomStackLow ?: finalLow,
                     iconRes = iconRes,
                     isSunny = WeatherIconMapper.isSunny(iconRes),
                     isRainy = WeatherIconMapper.isRainy(iconRes),

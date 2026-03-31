@@ -2,6 +2,7 @@ package com.weatherwidget.data.remote
 
 import android.util.Log
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -28,6 +29,21 @@ class OpenWeatherMapApi
             private const val BASE_URL = "https://api.openweathermap.org/data/3.0"
         }
 
+        class OpenWeatherMapAccessException(
+            val reason: FailureReason,
+            statusCode: Int? = null,
+            detail: String,
+            message: String,
+        ) : ApiAccessException(WeatherSource.OPEN_WEATHER_MAP, statusCode, detail, message)
+
+        enum class FailureReason {
+            MISSING_KEY,
+            INVALID_KEY,
+            SUBSCRIPTION_REQUIRED,
+            RATE_LIMITED,
+            REMOTE_ERROR,
+        }
+
         suspend fun getForecast(
             lat: Double,
             lon: Double,
@@ -45,6 +61,7 @@ class OpenWeatherMapApi
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
+            throwIfErrorResponse(jsonObj)
             val timezoneOffsetSeconds = jsonObj["timezone_offset"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
             val zoneOffset = ZoneOffset.ofTotalSeconds(timezoneOffsetSeconds)
 
@@ -86,6 +103,7 @@ class OpenWeatherMapApi
                 }.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
+            throwIfErrorResponse(jsonObj)
             val current = jsonObj["current"]?.jsonObject ?: return null
             val temperature = current["temp"]?.jsonPrimitive?.content?.toFloatOrNull() ?: return null
 
@@ -98,10 +116,64 @@ class OpenWeatherMapApi
 
         private fun requireApiKey() {
             if (apiKey.isBlank()) {
-                throw IllegalStateException(
-                    "OPEN_WEATHER_MAP_API_KEY is missing. Add it to local.properties or OPEN_WEATHER_MAP_API_KEY env var.",
+                throw OpenWeatherMapAccessException(
+                    FailureReason.MISSING_KEY,
+                    statusCode = null,
+                    detail = "OpenWeatherMap API key missing. Add OPEN_WEATHER_MAP_API_KEY to local.properties or the environment.",
+                    message = "OpenWeatherMap API key missing. Add OPEN_WEATHER_MAP_API_KEY to local.properties or the environment.",
                 )
             }
+        }
+
+        private fun throwIfErrorResponse(jsonObj: JsonObject) {
+            val code = jsonObj["cod"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+            if (code.isNullOrBlank()) return
+
+            val message = jsonObj["message"]?.let { runCatching { it.jsonPrimitive.content }.getOrNull() }
+                ?.replace(Regex("\\s+"), " ")
+                ?.trim()
+                .orEmpty()
+            val normalizedMessage = message.lowercase()
+            val reason =
+                when {
+                    normalizedMessage.contains("separate subscription") ||
+                        normalizedMessage.contains("one call by call plan") ->
+                        FailureReason.SUBSCRIPTION_REQUIRED
+                    code == "401" || normalizedMessage.contains("invalid api key") || normalizedMessage.contains("unauthorized") ->
+                        FailureReason.INVALID_KEY
+                    code == "429" || normalizedMessage.contains("limit") ->
+                        FailureReason.RATE_LIMITED
+                    else -> FailureReason.REMOTE_ERROR
+                }
+            val summaryDetail =
+                when (reason) {
+                    FailureReason.SUBSCRIPTION_REQUIRED ->
+                        "One Call 3.0 subscription required."
+                    FailureReason.INVALID_KEY ->
+                        "API key invalid or unauthorized."
+                    FailureReason.RATE_LIMITED ->
+                        "Rate limited."
+                    FailureReason.REMOTE_ERROR ->
+                        if (message.isNotBlank()) message else "Request failed."
+                    FailureReason.MISSING_KEY ->
+                        "API key missing."
+                }
+            val detail =
+                when (reason) {
+                    FailureReason.SUBSCRIPTION_REQUIRED,
+                    FailureReason.INVALID_KEY,
+                    FailureReason.REMOTE_ERROR,
+                    FailureReason.RATE_LIMITED -> message.ifBlank { summaryDetail }
+                    FailureReason.MISSING_KEY -> summaryDetail
+                }
+            val statusCode = code.toIntOrNull()
+            val userMessage =
+                when (statusCode) {
+                    401 -> "${WeatherSource.OPEN_WEATHER_MAP.displayName} 401 error. $summaryDetail"
+                    429 -> "${WeatherSource.OPEN_WEATHER_MAP.displayName} rate limited. $summaryDetail"
+                    else -> "${WeatherSource.OPEN_WEATHER_MAP.displayName} request failed. $summaryDetail"
+                }
+            throw OpenWeatherMapAccessException(reason, statusCode, detail, userMessage)
         }
 
         private fun parseDailyForecast(

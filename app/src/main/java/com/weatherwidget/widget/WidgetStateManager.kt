@@ -56,6 +56,7 @@ class WidgetStateManager
             private const val KEY_API_PREFERENCE = "api_preference"
             private const val KEY_VISIBLE_SOURCES_ORDER = "visible_sources_order"
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
+            private const val KEY_OPEN_WEATHER_MAP_MIGRATION_DONE = "open_weather_map_migration_done_v3"
             private const val DEFAULT_VISIBLE_SOURCES = "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN"
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
@@ -165,6 +166,7 @@ class WidgetStateManager
         private fun getStoredVisibleSourcesOrder(): List<WeatherSource> {
             migrateApiPreferenceIfNeeded()
             migrateSilurianIfNeeded()
+            migrateOpenWeatherMapIfNeeded()
             val raw = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, DEFAULT_VISIBLE_SOURCES) ?: DEFAULT_VISIBLE_SOURCES
             val sources = raw.split(",")
                 .mapNotNull { id ->
@@ -215,6 +217,31 @@ class WidgetStateManager
                 Log.d("SOURCE_ORDER", "migrateSilurian: Injected SILURIAN into order: $newOrder")
             } else {
                 prefs.edit().putBoolean("silurian_migration_done_v2", true).apply()
+            }
+        }
+
+        /** Ensures OPEN_WEATHER_MAP is inserted into existing source lists as second priority. */
+        private fun migrateOpenWeatherMapIfNeeded() {
+            if (prefs.getBoolean(KEY_OPEN_WEATHER_MAP_MIGRATION_DONE, false)) return
+
+            val currentOrder = prefs.getString(KEY_VISIBLE_SOURCES_ORDER, null)
+            if (currentOrder != null) {
+                val sources = currentOrder.split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() && it != "OPEN_WEATHER_MAP" }
+                    .toMutableList()
+
+                val insertIndex = if (sources.isEmpty()) 0 else 1
+                sources.add(insertIndex, "OPEN_WEATHER_MAP")
+                val newOrder = sources.joinToString(",")
+
+                prefs.edit()
+                    .putString(KEY_VISIBLE_SOURCES_ORDER, newOrder)
+                    .putBoolean(KEY_OPEN_WEATHER_MAP_MIGRATION_DONE, true)
+                    .apply()
+                Log.d("SOURCE_ORDER", "migrateOpenWeatherMap: Inserted OPEN_WEATHER_MAP into order: $newOrder")
+            } else {
+                prefs.edit().putBoolean(KEY_OPEN_WEATHER_MAP_MIGRATION_DONE, true).apply()
             }
         }
 

@@ -54,6 +54,10 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<android.widget.ImageButton>(R.id.back_button).setOnClickListener {
             finish()
         }
+
+        findViewById<TextView>(R.id.settings_title).setOnClickListener {
+            finish()
+        }
     }
 
     /** All configurable weather sources (excludes GENERIC_GAP). */

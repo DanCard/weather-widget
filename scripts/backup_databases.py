@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import re
+import shutil
 from datetime import datetime
 import json
 import sqlite3
@@ -15,11 +16,27 @@ TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 BACKUP_ROOT = "backups"
 LOAD_THRESHOLD = 10.0
 EMULATOR_PATH = "/home/dcar/.Android/Sdk/emulator/emulator"
+DEFAULT_ADB_PATH = "/home/dcar/.Android/Sdk/platform-tools/adb"
 FILE_COPY_TIMEOUT = 30
 LOGCAT_TIMEOUT = 30
 
 # Global lock for clean printing
 print_lock = threading.Lock()
+
+
+def resolve_adb_bin():
+    adb_bin = os.environ.get("ADB_BIN") or shutil.which("adb") or DEFAULT_ADB_PATH
+    if os.path.isfile(adb_bin) and os.access(adb_bin, os.X_OK):
+        return adb_bin
+    print(
+        "Error: adb not found. Set ADB_BIN, add adb to PATH, or install it at "
+        f"{DEFAULT_ADB_PATH}.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+ADB_BIN = resolve_adb_bin()
 
 
 def log(serial, message):
@@ -40,7 +57,7 @@ def run_command(cmd, timeout=30, capture_output=True):
 
 
 def run_adb(args, serial=None, timeout=30):
-    cmd = ["adb"]
+    cmd = [ADB_BIN]
     if serial:
         cmd.extend(["-s", serial])
     cmd.extend(args)
@@ -48,7 +65,7 @@ def run_adb(args, serial=None, timeout=30):
 
 
 def run_adb_to_file(args, out_file, serial=None, timeout=30):
-    cmd = ["adb"]
+    cmd = [ADB_BIN]
     if serial:
         cmd.extend(["-s", serial])
     cmd.extend(args)
@@ -62,32 +79,39 @@ def run_adb_to_file(args, out_file, serial=None, timeout=30):
 
 
 def is_wireless_connection(serial):
-    stdout, _ = run_adb(["get-state"], serial=serial, timeout=5)
-    if stdout == "unknown":
-        stdout, _ = run_adb(
-            ["shell", "getprop", "sys.usb.state"], serial=serial, timeout=5
-        )
-        if "adb" in stdout and "usb" in stdout:
-            return False
-    stdout, _ = run_adb(["shell", "getprop", "init.svc.adbd"], serial=serial, timeout=5)
-    if stdout:
-        stdout, _ = run_adb(
-            ["shell", "cat", "/sys/kernel/debug/usb/usbmon/0U"],
-            serial=serial,
-            timeout=5,
-        )
-        if stdout and "usb" in stdout.lower():
-            return False
-    stdout, _ = run_adb(
+    if "._adb-tls-connect._tcp" in serial:
+        return True
+
+    stdout, code = run_adb(
         ["shell", "getprop", "service.adb.tcp.port"], serial=serial, timeout=5
     )
-    if stdout and stdout.strip():
-        return True
-    return False
+    if code != 0:
+        return False
+
+    port = stdout.strip()
+    return bool(port and port != "-1")
+
+
+def get_device_identity(serial):
+    manufacturer, manufacturer_code = run_adb(
+        ["shell", "getprop", "ro.product.manufacturer"], serial=serial, timeout=5
+    )
+    model, model_code = run_adb(
+        ["shell", "getprop", "ro.product.model"], serial=serial, timeout=5
+    )
+
+    manufacturer = manufacturer.strip() if manufacturer_code == 0 else ""
+    model = model.strip() if model_code == 0 else ""
+
+    if manufacturer or model:
+        return manufacturer or "unknown", model or "unknown"
+    return "serial", serial
 
 
 def get_unique_devices():
-    stdout, _ = run_adb(["devices"])
+    stdout, code = run_adb(["devices"])
+    if code != 0:
+        return []
     serials = []
 
     states = ["device", "offline", "unauthorized", "recovery", "sideload", "bootloader"]
@@ -106,22 +130,15 @@ def get_unique_devices():
 
     device_map = {}
     for serial in serials:
-        stdout, _ = run_adb(
-            ["shell", "getprop", "ro.product.manufacturer"], serial=serial, timeout=5
-        )
-        manufacturer = stdout.strip()
-        stdout, _ = run_adb(
-            ["shell", "getprop", "ro.product.model"], serial=serial, timeout=5
-        )
-        model = stdout.strip()
+        manufacturer, model = get_device_identity(serial)
         device_key = (manufacturer, model)
-
         is_wireless = is_wireless_connection(serial)
+        log(serial, f"Discovered {manufacturer} {model} ({'wireless' if is_wireless else 'non-wireless'})")
 
         if device_key not in device_map:
             device_map[device_key] = (serial, is_wireless)
         else:
-            existing_serial, existing_is_wireless = device_map[device_key]
+            _, existing_is_wireless = device_map[device_key]
             if is_wireless and not existing_is_wireless:
                 device_map[device_key] = (serial, is_wireless)
 
@@ -305,11 +322,13 @@ def backup_device(serial):
 
 def main():
     print(f"=== Weather Widget Backup Tool ({TIMESTAMP}) ===")
+    print(f"[*] Using adb: {ADB_BIN}")
     devices = get_unique_devices()
     if not devices:
         print("[!] No devices found.")
         sys.exit(1)
 
+    print(f"[*] Devices: {', '.join(devices)}")
     print(f"[*] Backing up {len(devices)} devices in parallel...")
     processed = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(devices)) as executor:

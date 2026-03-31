@@ -110,6 +110,7 @@ object CloudCoverViewHandler {
         val numRows = dimensions.rows
 
         val stateManager = WidgetStateManager(context)
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         val sourceRows = hourlyForecasts.count { it.source == displaySource.id }
         val sourceRowsWithCloudCover = hourlyForecasts.count { it.source == displaySource.id && it.cloudCover != null }
@@ -133,6 +134,25 @@ object CloudCoverViewHandler {
         // Current temp → hourly temp graph
         HeaderTapTargetHelper.bindSetTemperatureHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
+
+        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
+            appLogDao = appLogDao,
+            displaySource = displaySource,
+            hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
+        )
+        if (warning != null) {
+            ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, warning)
+            setupApiToggle(context, views, appWidgetId, numRows)
+            appLogDao.log(
+                "CLOUD_SOURCE_BLOCKED",
+                "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
+                "WARN",
+            )
+            appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=warning thread=${Thread.currentThread().name}")
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+            return
+        }
+        ApiSourceWarningHelper.hideSourceWarning(views)
 
         val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
@@ -286,7 +306,6 @@ object CloudCoverViewHandler {
             updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
         }
 
-        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs

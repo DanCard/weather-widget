@@ -16,6 +16,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
@@ -23,6 +24,8 @@ import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
@@ -273,8 +276,11 @@ class ForecastRepository
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
+                } catch (exception: ApiAccessException) {
+                    logFetchFailure("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP, exception)
+                    null
                 } catch (exception: Exception) {
-                    appLogDao.log("FETCH_OWM_FAIL", "${exception.message}", "WARN")
+                    logFetchFailure("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP, exception)
                     null
                 }
             } else null
@@ -339,7 +345,7 @@ class ForecastRepository
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (exception: Exception) {
-                    appLogDao.log("FETCH_WAPI_FAIL", "${exception.message}", "WARN")
+                    logFetchFailure("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API, exception)
                     null
                 }
             } else null
@@ -369,7 +375,7 @@ class ForecastRepository
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (exception: Exception) {
-                    appLogDao.log("FETCH_SILURIAN_FAIL", "${exception.message}", "WARN")
+                    logFetchFailure("FETCH_SILURIAN_FAIL", WeatherSource.SILURIAN, exception)
                     null
                 }
             } else null
@@ -661,6 +667,35 @@ class ForecastRepository
                 "low=${todayTemps.second} (${lowTempSourceMap[todayDateString]}) " +
                 "cond=${conditionMap[todayDateString]} (${conditionSourceMap[todayDateString]})"
             )
+        }
+
+        private suspend fun logFetchFailure(
+            tag: String,
+            source: WeatherSource,
+            exception: Exception,
+        ) {
+            when (exception) {
+                is ApiAccessException -> {
+                    val code = exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+                    appLogDao.log(tag, "source=${source.id} code=$code detail=${exception.detail}", "WARN")
+                }
+                is ClientRequestException -> {
+                    val statusCode = exception.response.status.value
+                    val detail = extractHttpErrorDetail(
+                        runCatching { exception.response.bodyAsText() }.getOrNull(),
+                        exception.message,
+                    )
+                    appLogDao.log(tag, "source=${source.id} code=HTTP_$statusCode detail=$detail", "WARN")
+                }
+                else -> appLogDao.log(tag, "source=${source.id} error=${exception.message}", "WARN")
+            }
+        }
+
+        private fun extractHttpErrorDetail(body: String?, fallbackMessage: String?): String {
+            val bodyText = body?.trim().orEmpty()
+            val messageMatch = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(bodyText)?.groupValues?.getOrNull(1)
+            val errorMatch = Regex("\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"([^\"]+)\"").find(bodyText)?.groupValues?.getOrNull(1)
+            return messageMatch ?: errorMatch ?: fallbackMessage ?: "Request failed"
         }
 
         @androidx.annotation.VisibleForTesting

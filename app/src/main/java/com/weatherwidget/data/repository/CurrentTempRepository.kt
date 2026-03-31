@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
+import com.weatherwidget.data.remote.ApiAccessException
 import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
@@ -20,6 +21,8 @@ import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.ktor.client.plugins.ClientRequestException
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -97,8 +100,10 @@ class CurrentTempRepository
                             fetchFromSource(targetSource, latitude, longitude) ?: return@forEach
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
+                        } catch (exception: ApiAccessException) {
+                            logCurrentFetchFailure(targetSource, exception)
                         } catch (exception: Exception) {
-                            appLogDao.log("CURR_FETCH_ERROR", "source=${targetSource.id} error=${exception.message}", "WARN")
+                            logCurrentFetchFailure(targetSource, exception)
                         }
                     }
                     
@@ -127,6 +132,8 @@ class CurrentTempRepository
                 async {
                     val reading = try {
                         api.getCurrent(point.first, point.second)
+                    } catch (e: ApiAccessException) {
+                        throw e
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -163,6 +170,9 @@ class CurrentTempRepository
                 async {
                     val reading = try {
                         silurianApi.getForecast(point.first, point.second, 1)
+                    } catch (e: ClientRequestException) {
+                        rethrowIfAuthFailure(WeatherSource.SILURIAN, e)
+                        null
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -241,6 +251,9 @@ class CurrentTempRepository
                 async {
                     val reading = try {
                         weatherApi.getCurrent(point.first, point.second)
+                    } catch (e: ClientRequestException) {
+                        rethrowIfAuthFailure(WeatherSource.WEATHER_API, e)
+                        null
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -286,6 +299,45 @@ class CurrentTempRepository
                 }
             }
             return points.distinctBy { "${it.first},${it.second}" }
+        }
+
+        private suspend fun logCurrentFetchFailure(source: WeatherSource, exception: Exception) {
+            when (exception) {
+                is ApiAccessException -> {
+                    val code = exception.statusCode?.let { "HTTP_$it" } ?: "ACCESS_ERROR"
+                    appLogDao.log("CURR_FETCH_ERROR", "source=${source.id} code=$code detail=${exception.detail}", "WARN")
+                }
+                is ClientRequestException -> {
+                    val statusCode = exception.response.status.value
+                    val detail = extractHttpErrorDetail(
+                        runCatching { exception.response.bodyAsText() }.getOrNull(),
+                        exception.message,
+                    )
+                    appLogDao.log("CURR_FETCH_ERROR", "source=${source.id} code=HTTP_$statusCode detail=$detail", "WARN")
+                }
+                else -> appLogDao.log("CURR_FETCH_ERROR", "source=${source.id} error=${exception.message}", "WARN")
+            }
+        }
+
+        private suspend fun rethrowIfAuthFailure(source: WeatherSource, exception: ClientRequestException) {
+            if (exception.response.status.value != 401) return
+            val detail = extractHttpErrorDetail(
+                runCatching { exception.response.bodyAsText() }.getOrNull(),
+                exception.message,
+            )
+            throw ApiAccessException(
+                source = source,
+                statusCode = 401,
+                detail = detail,
+                message = "${source.displayName} 401 error. $detail",
+            )
+        }
+
+        private fun extractHttpErrorDetail(body: String?, fallbackMessage: String?): String {
+            val bodyText = body?.trim().orEmpty()
+            val messageMatch = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"").find(bodyText)?.groupValues?.getOrNull(1)
+            val errorMatch = Regex("\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"([^\"]+)\"").find(bodyText)?.groupValues?.getOrNull(1)
+            return messageMatch ?: errorMatch ?: fallbackMessage ?: "Request failed"
         }
 
         suspend fun getInterpolatedTemperature(
