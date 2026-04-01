@@ -941,7 +941,10 @@ object TemperatureGraphRenderer {
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        if (hours.isEmpty()) return bitmap
+        if (hours.isEmpty()) {
+            Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
+            return bitmap
+        }
 
         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
         val paints = ensurePaints(context, labelScale)

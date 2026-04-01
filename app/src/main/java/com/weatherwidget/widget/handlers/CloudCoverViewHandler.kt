@@ -266,6 +266,13 @@ object CloudCoverViewHandler {
             val hours = buildCloudHourDataList(hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom)
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 
+            if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
+                Log.w(TAG, "buildCloudHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
+                    "centerTime=$centerTime zoom=$zoom source=$effectiveDisplaySource, skipping bitmap update")
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+                return
+            }
+
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
             val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)

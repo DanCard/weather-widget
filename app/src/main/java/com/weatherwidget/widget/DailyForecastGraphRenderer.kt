@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import android.graphics.*
+import android.util.Log
 import android.util.TypedValue
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -131,7 +132,10 @@ object DailyForecastGraphRenderer {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        if (days.isEmpty()) return bitmap
+        if (days.isEmpty()) {
+            Log.w(TAG, "renderGraph: empty days list, returning blank bitmap (${widthPx}x${heightPx})")
+            return bitmap
+        }
 
         val columns = if (numColumns > 0) numColumns else days.size
         val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale)

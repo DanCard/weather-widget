@@ -70,7 +70,10 @@ object CloudCoverGraphRenderer {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        if (hours.isEmpty()) return bitmap
+        if (hours.isEmpty()) {
+            Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
+            return bitmap
+        }
 
         val density = context.resources.displayMetrics.density
         val heightDp = heightPx / density

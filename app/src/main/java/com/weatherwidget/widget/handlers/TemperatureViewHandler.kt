@@ -430,6 +430,13 @@ object TemperatureViewHandler {
                 val actualCount = hourData.count { it.isActual }
                 Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
 
+                if (hourData.isEmpty() && hourlyForecasts.isNotEmpty()) {
+                    Log.w(TAG, "buildHourDataResult returned empty despite ${hourlyForecasts.size} hourly rows — " +
+                        "centerTime=$centerTime zoom=$zoom source=$displaySource, skipping bitmap update")
+                    appWidgetManager.updateAppWidget(appWidgetId, views)
+                    return
+                }
+
                 if (!deferStartupGraphActuals) {
                     val stationIds = observations
                         .filter { matchesObservationSource(it, displaySource) }

@@ -419,6 +419,12 @@ object DailyViewHandler : WidgetViewHandler {
             }
             Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days, displaying ${displayDays.size} for $numColumns columns (offset=$dateOffset).")
 
+            if (displayDays.isEmpty() && weatherList.isNotEmpty()) {
+                Log.w(TAG, "displayDays is empty despite ${weatherList.size} weather entries, skipping bitmap update")
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+                return
+            }
+
             val missingTodaySnapshot = displayDays.firstOrNull { day ->
                 day.isToday &&
                     day.forecastHigh != null &&

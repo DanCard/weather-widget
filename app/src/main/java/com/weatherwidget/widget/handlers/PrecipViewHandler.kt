@@ -229,7 +229,9 @@ object PrecipViewHandler {
             graphHoursCount = hours.size
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
                 Log.w(TAG, "buildPrecipHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
-                    "centerTime=$centerTime zoom=$zoom offset=$hourlyOffset")
+                    "centerTime=$centerTime zoom=$zoom offset=$hourlyOffset, skipping bitmap update")
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+                return
             }
 
             // Use actual widget dimensions for bitmap

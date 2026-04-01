@@ -14,6 +14,7 @@ import kotlin.math.roundToInt
 
 object PrecipitationGraphRenderer {
 
+    private const val TAG = "PrecipGraphRenderer"
     private const val MIN_ICON_GRAPH_WIDTH_PX = 420
 
     data class PrecipHourData(
@@ -104,7 +105,10 @@ object PrecipitationGraphRenderer {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        if (hours.isEmpty()) return bitmap
+        if (hours.isEmpty()) {
+            Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
+            return bitmap
+        }
 
         val density = context.resources.displayMetrics.density
         val heightDp = heightPx / density

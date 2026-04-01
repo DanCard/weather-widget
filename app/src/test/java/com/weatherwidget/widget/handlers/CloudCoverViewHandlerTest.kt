@@ -77,6 +77,47 @@ class CloudCoverViewHandlerTest {
         assertEquals(WeatherSource.SILURIAN, selected)
     }
 
+    @Test
+    fun `buildCloudHourDataList returns empty when source has null cloud cover`() {
+        // This is the race condition scenario: hourlyForecasts is non-empty,
+        // but the selected source has no cloud cover data, producing an empty
+        // hour list that would render as a black bitmap.
+        val hours = listOf(
+            hourly("2026-03-14T18:00", WeatherSource.NWS, null),
+            hourly("2026-03-14T19:00", WeatherSource.NWS, null),
+            hourly("2026-03-14T20:00", WeatherSource.NWS, null),
+        )
+
+        val result = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = hours,
+            centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertEquals("non-empty input but null cloud cover should yield empty output", 0, result.size)
+    }
+
+    @Test
+    fun `buildCloudHourDataList returns empty when data is outside time window`() {
+        // Data exists but is far outside the zoom window
+        val hours = listOf(
+            hourly("2026-03-20T18:00", WeatherSource.NWS, 50),
+            hourly("2026-03-20T19:00", WeatherSource.NWS, 60),
+        )
+
+        val result = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = hours,
+            centerTime = LocalDateTime.of(2026, 3, 14, 19, 0),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertEquals("data outside zoom window should yield empty output", 0, result.size)
+    }
+
     private fun hourly(
         dateTime: String,
         source: WeatherSource,
