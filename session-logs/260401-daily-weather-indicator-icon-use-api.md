@@ -12,7 +12,6 @@
 1. Added a Room migration from schema version `42` to `43`.
 1. Added resolver tests, migration coverage, and daily-view regression tests.
 1. Investigated the follow-up `testLongDebugUnitTestFresh` failure and fixed stale assertions in long-duration tests that still expected the old hourly-driven behavior.
-1. Committed all changes and pushed `main` to GitHub as commit `9c14c88`.
 
 ## Product Decision
 
