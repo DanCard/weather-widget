@@ -53,10 +53,16 @@ declare -A pids
 declare -A logs
 declare -A starts
 declare -A results_dirs
+declare -A monitor_pids
 SINGLE_INVOCATION_MONITOR_PID=""
 
 cleanup() {
   for pid in "${pids[@]:-}"; do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+  for pid in "${monitor_pids[@]:-}"; do
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
     fi
@@ -149,19 +155,52 @@ emit_bucket_summary() {
   fi
 }
 
+start_bucket_progress_monitor() {
+  local gradle_log=$1
+  local bucket=$2
+  local task_name=$3
+  local bucket_start=$4
+
+  (
+    local announced_execution=false
+
+    tail -n 0 -F "$gradle_log" 2>/dev/null | while IFS= read -r line; do
+      if [ "$announced_execution" = false ] && [[ "$line" == *"> Task :app:${task_name}"* ]]; then
+        local build_elapsed=$(( $(date +%s) - bucket_start ))
+        echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
+        announced_execution=true
+      fi
+
+      if [ "$announced_execution" = true ]; then
+        break
+      fi
+    done
+  ) &
+  monitor_pids["$bucket"]=$!
+}
+
 start_single_invocation_summary_monitor() {
   local gradle_log=$1
   SINGLE_INVOCATION_REPORTED_DIR=$(mktemp -d)
 
   (
     declare -A reported
+    declare -A announced_execution
     tail -n 0 -F "$gradle_log" 2>/dev/null | while IFS= read -r line; do
       for bucket in "${BUCKETS[@]}"; do
+        local task_name="test${bucket}DebugUnitTest${RUN_MODE}"
+        local task_marker="> Task :app:${task_name}"
+
+        if [ -z "${announced_execution[$bucket]:-}" ] && [[ "$line" == *"$task_marker"* ]]; then
+          local build_elapsed=$(( $(date +%s) - OVERALL_START ))
+          echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
+          announced_execution["$bucket"]=1
+        fi
+
         if [ -n "${reported[$bucket]:-}" ]; then
           continue
         fi
 
-        local task_marker="> Task :app:test${bucket}DebugUnitTest${RUN_MODE}"
         if [[ "$line" != *"$task_marker"* ]]; then
           continue
         fi
@@ -282,46 +321,61 @@ for bucket in "${BUCKETS[@]}"; do
     "$GRADLEW" ":app:${task_name}" --console=plain
   ) >"$log_file" 2>&1 &
   pids["$bucket"]=$!
+  start_bucket_progress_monitor "$log_file" "$bucket" "$task_name" "${starts[$bucket]}"
 done
 
 overall_status=0
 remaining=${#BUCKETS[@]}
 total_tests=0
+declare -A completed
 
 while [ "$remaining" -gt 0 ]; do
-  wait -n -p finished_pid
-  exit_code=$?
-  remaining=$((remaining - 1))
-
-  if [ "$exit_code" -ne 0 ]; then
-    overall_status=1
-  fi
-
-  # Find which bucket this PID belongs to
-  bucket=""
-  for b in "${!pids[@]}"; do
-    if [ "${pids[$b]}" = "$finished_pid" ]; then
-      bucket="$b"
-      break
+  for bucket in "${BUCKETS[@]}"; do
+    if [ -n "${completed[$bucket]:-}" ]; then
+      continue
     fi
+
+    if kill -0 "${pids[$bucket]}" 2>/dev/null; then
+      continue
+    fi
+
+    exit_code=0
+    if ! wait "${pids[$bucket]}"; then
+      exit_code=$?
+    fi
+
+    completed["$bucket"]=1
+    remaining=$((remaining - 1))
+
+    if [ "$exit_code" -ne 0 ]; then
+      overall_status=1
+    fi
+
+    if [ "$exit_code" -eq 0 ]; then
+      IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "${results_dirs[$bucket]}")"
+      total_tests=$((total_tests + test_count))
+      elapsed=$(( $(date +%s) - ${starts[$bucket]} ))
+      if [ "$skipped" -gt 0 ]; then
+        echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$elapsed")."
+      else
+        echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$elapsed")."
+      fi
+    else
+      echo "===== $bucket ====="
+      cat "${logs[$bucket]}"
+      echo
+      echo "$bucket bucket failed with exit code $exit_code" >&2
+    fi
+
+    if [ -n "${monitor_pids[$bucket]:-}" ] && kill -0 "${monitor_pids[$bucket]}" 2>/dev/null; then
+      kill "${monitor_pids[$bucket]}" 2>/dev/null || true
+    fi
+    rm -f "${logs[$bucket]}"
   done
 
-  if [ "$exit_code" -eq 0 ]; then
-    IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "${results_dirs[$bucket]}")"
-    total_tests=$((total_tests + test_count))
-    elapsed=$(( $(date +%s) - ${starts[$bucket]} ))
-    if [ "$skipped" -gt 0 ]; then
-      echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$elapsed")."
-    else
-      echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$elapsed")."
-    fi
-  else
-    echo "===== $bucket ====="
-    cat "${logs[$bucket]}"
-    echo
-    echo "$bucket bucket failed with exit code $exit_code" >&2
+  if [ "$remaining" -gt 0 ]; then
+    sleep 0.2
   fi
-  rm -f "${logs[$bucket]}"
 done
 
 overall_elapsed=$(( $(date +%s) - OVERALL_START ))
