@@ -417,4 +417,47 @@ class DatabaseMigrationTest {
         assert(hourlyCursor.isNull(0)) { "hourly_forecasts.precipAmountMm should default to NULL after migration" }
         hourlyCursor.close()
     }
+
+    @Test
+    fun migrate42to43_addsNativeDailyIconTokenColumn() {
+        helper.createDatabase(testDb, 42).apply {
+            execSQL(
+                """
+                INSERT INTO forecasts (
+                    targetDate, forecastDate, locationLat, locationLon, locationName,
+                    highTemp, lowTemp, `condition`, isClimateNormal, source,
+                    precipProbability, periodStartTime, periodEndTime, precipAmountMm,
+                    batchFetchedAt, fetchedAt
+                ) VALUES (
+                    ${WidgetConstants.MS_IN_A_DAY},
+                    ${WidgetConstants.MS_IN_A_DAY},
+                    37.42,
+                    -122.08,
+                    'Test',
+                    70.0,
+                    50.0,
+                    'Partly Cloudy',
+                    0,
+                    'NWS',
+                    20,
+                    NULL,
+                    NULL,
+                    1.5,
+                    1234,
+                    5678
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 43, true, WeatherDatabase.MIGRATION_42_43)
+        val cursor = db.query("SELECT `condition`, nativeDailyIconToken FROM forecasts WHERE fetchedAt = 5678")
+        cursor.moveToFirst()
+        assert(cursor.getString(cursor.getColumnIndex("condition")) == "Partly Cloudy")
+        assert(cursor.isNull(cursor.getColumnIndex("nativeDailyIconToken"))) {
+            "nativeDailyIconToken should default to NULL after migration"
+        }
+        cursor.close()
+    }
 }

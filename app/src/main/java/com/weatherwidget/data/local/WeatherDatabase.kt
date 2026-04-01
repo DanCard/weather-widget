@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 42,
+    version = 43,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -99,6 +99,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             MIGRATION_39_40,
                             MIGRATION_40_41,
                             MIGRATION_41_42,
+                            MIGRATION_42_43,
                         )
                         .addCallback(
                             object : RoomDatabase.Callback() {
@@ -1196,6 +1197,13 @@ abstract class WeatherDatabase : RoomDatabase() {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE forecasts ADD COLUMN precipAmountMm REAL")
                     db.execSQL("ALTER TABLE hourly_forecasts ADD COLUMN precipAmountMm REAL")
+                }
+            }
+
+        val MIGRATION_42_43 =
+            object : Migration(42, 43) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE forecasts ADD COLUMN nativeDailyIconToken TEXT")
                 }
             }
     }

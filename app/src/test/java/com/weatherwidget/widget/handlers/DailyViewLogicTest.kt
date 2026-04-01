@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
@@ -345,6 +346,61 @@ class DailyViewLogicTest {
         assertEquals(null, todayDay.dailyRainLabelText)
     }
 
+    @Test
+    fun `prepareTextDays today prefers native daily icon token over condition text`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "partly-cloudy-day",
+                source = WeatherSource.VISUAL_CROSSING.id,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 1,
+            displaySource = WeatherSource.VISUAL_CROSSING,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy, result.first { it.date == today }.iconRes)
+    }
+
+    @Test
+    fun `prepareGraphDays today prefers native daily icon token over condition text`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                nativeDailyIconToken = "01d",
+                source = WeatherSource.OPEN_WEATHER_MAP.id,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.OPEN_WEATHER_MAP,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        assertEquals(R.drawable.ic_weather_clear, result.first { it.date == today }.iconRes)
+    }
+
     private fun createWeather(
         date: String,
         source: String = WeatherSource.NWS.id,
@@ -352,6 +408,7 @@ class DailyViewLogicTest {
         lowTemp: Float? = 55f,
         isClimateNormal: Boolean = false,
         condition: String = "Clear",
+        nativeDailyIconToken: String? = null,
         precipProbability: Int? = 0,
         precipAmountMm: Float? = null,
     ): ForecastEntity {
@@ -364,6 +421,7 @@ class DailyViewLogicTest {
             highTemp = highTemp,
             lowTemp = lowTemp,
             condition = condition,
+            nativeDailyIconToken = nativeDailyIconToken,
             source = source,
             isClimateNormal = isClimateNormal,
             precipProbability = precipProbability,

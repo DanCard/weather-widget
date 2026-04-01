@@ -276,6 +276,7 @@ class ForecastRepository
                             highTemp = day.highTemp,
                             lowTemp = day.lowTemp,
                             condition = day.condition,
+                            nativeDailyIconToken = day.iconToken,
                             isClimateNormal = false,
                             source = WeatherSource.OPEN_WEATHER_MAP.id,
                             precipProbability = day.precipProbability,
@@ -309,6 +310,7 @@ class ForecastRepository
                             highTemp = day.highTemp,
                             lowTemp = day.lowTemp,
                             condition = day.condition,
+                            nativeDailyIconToken = day.iconToken,
                             isClimateNormal = false,
                             source = WeatherSource.VISUAL_CROSSING.id,
                             precipProbability = day.precipProbability,
@@ -347,6 +349,7 @@ class ForecastRepository
                             highTemp = day.highTemp,
                             lowTemp = day.lowTemp,
                             condition = openMeteoApi.weatherCodeToCondition(day.weatherCode),
+                            nativeDailyIconToken = day.weatherCode.toString(),
                             isClimateNormal = false,
                             source = WeatherSource.OPEN_METEO.id,
                             precipProbability = day.precipProbability,
@@ -377,6 +380,7 @@ class ForecastRepository
                             highTemp = day.highTemp,
                             lowTemp = day.lowTemp,
                             condition = day.condition,
+                            nativeDailyIconToken = day.iconToken,
                             isClimateNormal = false,
                             source = WeatherSource.WEATHER_API.id,
                             precipProbability = day.precipProbability,
@@ -407,6 +411,7 @@ class ForecastRepository
                             highTemp = day.highTemp.toFloat(),
                             lowTemp = day.lowTemp.toFloat(),
                             condition = day.condition,
+                            nativeDailyIconToken = day.condition,
                             isClimateNormal = false,
                             source = WeatherSource.SILURIAN.id,
                             precipProbability = day.precipProbability,
@@ -538,6 +543,7 @@ class ForecastRepository
                     highTemp = temperatures.first,
                     lowTemp = temperatures.second,
                     condition = conditionMap[dateString] ?: "Unknown",
+                    nativeDailyIconToken = conditionMap[dateString],
                     isClimateNormal = false,
                     source = WeatherSource.NWS.id,
                     precipProbability = precipProbabilityMap[dateString],
@@ -782,6 +788,7 @@ class ForecastRepository
                     highTemp = highTempSaved,
                     lowTemp = lowTempSaved,
                     condition = forecast.condition,
+                    nativeDailyIconToken = forecast.nativeDailyIconToken,
                     isClimateNormal = forecast.isClimateNormal,
                     source = sourceId,
                     precipProbability = forecast.precipProbability,
@@ -811,6 +818,7 @@ class ForecastRepository
                         existing.highTemp == newlyFetched.highTemp && 
                         existing.lowTemp == newlyFetched.lowTemp && 
                         existing.condition == newlyFetched.condition &&
+                        existing.nativeDailyIconToken == newlyFetched.nativeDailyIconToken &&
                         existing.precipProbability == newlyFetched.precipProbability &&
                         existing.precipAmountMm == newlyFetched.precipAmountMm) {
                         appLogDao.log("SNAPSHOT_SKIP", "date=${newlyFetched.targetDate} source=$sourceId")
@@ -842,11 +850,20 @@ class ForecastRepository
             while (!cursorDate.isAfter(targetEndDate)) {
                 normalsMap[MonthDay.from(cursorDate)]?.let { (highTemp, lowTemp) ->
                     val dateEpoch = cursorDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    gapEntities.add(ForecastEntity(
-                        dateEpoch, dateEpoch, latitude, longitude, "",
-                        highTemp.toFloat(), lowTemp.toFloat(), "Historical Avg", true,
-                        source = WeatherSource.GENERIC_GAP.id
-                    ))
+                    gapEntities.add(
+                        ForecastEntity(
+                            targetDate = dateEpoch,
+                            forecastDate = dateEpoch,
+                            locationLat = latitude,
+                            locationLon = longitude,
+                            locationName = "",
+                            highTemp = highTemp.toFloat(),
+                            lowTemp = lowTemp.toFloat(),
+                            condition = "Historical Avg",
+                            isClimateNormal = true,
+                            source = WeatherSource.GENERIC_GAP.id,
+                        ),
+                    )
                 }
                 cursorDate = cursorDate.plusDays(1)
             }

@@ -60,6 +60,7 @@ class WeatherApi
                         highTemp = dayData["maxtemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
                         lowTemp = dayData["mintemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
                         condition = dayData["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
+                        iconToken = dayData["condition"]?.jsonObject?.get("icon")?.jsonPrimitive?.content,
                         precipProbability = dayData["daily_chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),
                         precipAmountMm = dayData["totalprecip_mm"]?.jsonPrimitive?.content?.toFloatOrNull(),
                     )
@@ -189,6 +190,7 @@ class WeatherApi
             val highTemp: Float,
             val lowTemp: Float,
             val condition: String,
+            val iconToken: String? = null,
             val precipProbability: Int? = null,
             val precipAmountMm: Float? = null,
         )

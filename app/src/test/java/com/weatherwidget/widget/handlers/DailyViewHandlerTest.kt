@@ -521,12 +521,16 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `prepareGraphDays today icon uses next hour hourly condition`() {
+    fun `prepareGraphDays today icon prefers native daily token over hourly condition`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherByDate = mapOf(
-            today to createWeather(todayStr).copy(condition = "Rain")
+            today to createWeather(todayStr).copy(
+                condition = "Rain",
+                source = WeatherSource.VISUAL_CROSSING.id,
+                nativeDailyIconToken = "partly-cloudy-day",
+            )
         )
         val hourlyForecasts = listOf(
             HourlyForecastEntity(
@@ -560,14 +564,14 @@ class DailyViewHandlerTest {
             weatherByDate = weatherByDate,
             forecastSnapshots = emptyMap(),
             numColumns = 3,
-            displaySource = WeatherSource.NWS,
+            displaySource = WeatherSource.VISUAL_CROSSING,
             isEveningMode = false,
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
         )
 
         val todayData = days.first { it.date == today }
-        assertEquals(R.drawable.ic_weather_clear, todayData.iconRes)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, todayData.iconRes)
     }
 
     @Test
@@ -1220,15 +1224,19 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget daily header icon uses next hour hourly condition for today`() = runBlocking {
+    fun `updateWidget daily header icon prefers native daily token for today`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList = listOf(
-            createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(condition = "Rain")
+            createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(
+                condition = "Rain",
+                source = WeatherSource.VISUAL_CROSSING.id,
+                nativeDailyIconToken = "partly-cloudy-day",
+            )
         )
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(45)
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
         val appWidgetManager = mockk<AppWidgetManager>()
         val options = Bundle().apply {
@@ -1248,8 +1256,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L),
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -1261,21 +1269,29 @@ class DailyViewHandlerTest {
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
         val imageView = applied.findViewById<ImageView>(R.id.weather_icon)
 
-        assertEquals(R.drawable.ic_weather_clear, shadowOf(imageView.drawable).createdFromResId)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, shadowOf(imageView.drawable).createdFromResId)
     }
 
     @Test
-    fun `updateWidget today text icon uses next hour hourly condition`() = runBlocking {
+    fun `updateWidget today text icon prefers native daily token`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList = listOf(
-            createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(condition = "Rain"),
-            createWeather(tomorrowStr, highTemp = 71f, lowTemp = 56f).copy(condition = "Clear"),
+            createWeather(todayStr, highTemp = 70f, lowTemp = 55f).copy(
+                condition = "Rain",
+                source = WeatherSource.VISUAL_CROSSING.id,
+                nativeDailyIconToken = "partly-cloudy-day",
+            ),
+            createWeather(tomorrowStr, highTemp = 71f, lowTemp = 56f).copy(
+                condition = "Clear",
+                source = WeatherSource.VISUAL_CROSSING.id,
+                nativeDailyIconToken = "clear-day",
+            ),
         )
         val stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(46)
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
         val appWidgetManager = mockk<AppWidgetManager>()
         val options = Bundle().apply {
@@ -1295,8 +1311,8 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L)
+                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
+                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L)
             ),
             currentTemps = emptyList(),
             dailyActualsBySource = emptyMap(),
@@ -1308,7 +1324,7 @@ class DailyViewHandlerTest {
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
         val todayImageView = applied.findViewById<ImageView>(R.id.day2_icon)
 
-        assertEquals(R.drawable.ic_weather_clear, shadowOf(todayImageView.drawable).createdFromResId)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, shadowOf(todayImageView.drawable).createdFromResId)
     }
 
     @Test

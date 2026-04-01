@@ -23,6 +23,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
+import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
@@ -243,16 +244,12 @@ object DailyViewHandler : WidgetViewHandler {
         // Set weather icon
         val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
 
-        val todayIconForecast = resolveTodayHeaderForecast(now, hourlyForecasts, displaySource)
-        val iconDateTime = todayIconForecast?.let { 
-            Instant.ofEpochMilli(it.dateTime).atZone(ZoneId.systemDefault()).toLocalDateTime() 
-        } ?: now
-        val isNight = SunPositionUtils.isNight(iconDateTime, lat, lon)
-
-        val iconRes = WeatherIconMapper.getIconResource(
-            condition = todayIconForecast?.condition ?: weatherByDate[today]?.condition,
-            isNight = isNight,
-            cloudCover = todayIconForecast?.cloudCover,
+        val iconRes = DailyForecastIconResolver.resolveIcon(
+            weather = weatherByDate[today],
+            targetDate = today,
+            now = now,
+            latitude = lat,
+            longitude = lon,
         )
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)

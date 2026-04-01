@@ -192,6 +192,7 @@ class OpenWeatherMapApi
                 highTemp = highTemp,
                 lowTemp = lowTemp,
                 condition = dayObj.primaryWeatherDescription() ?: "Unknown",
+                iconToken = dayObj.primaryWeatherIconToken(),
                 precipProbability = precipitationProbability,
                 precipAmountMm = dayObj.totalPrecipitationMm(),
                 cloudCover = dayObj["clouds"]?.jsonPrimitive?.content?.toIntOrNull(),
@@ -227,6 +228,15 @@ class OpenWeatherMapApi
                     word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
                 }
 
+        private fun JsonObject.primaryWeatherIconToken(): String? =
+            this["weather"]?.jsonArray
+                ?.firstOrNull()
+                ?.jsonObject
+                ?.get("icon")
+                ?.jsonPrimitive
+                ?.content
+                ?.takeIf { it.isNotBlank() }
+
         private fun JsonObject.totalPrecipitationMm(): Float? {
             val rain = this["rain"]?.jsonPrimitive?.content?.toFloatOrNull()
             val snow = this["snow"]?.jsonPrimitive?.content?.toFloatOrNull()
@@ -246,6 +256,7 @@ class OpenWeatherMapApi
             val highTemp: Float,
             val lowTemp: Float,
             val condition: String,
+            val iconToken: String? = null,
             val precipProbability: Int? = null,
             val precipAmountMm: Float? = null,
             val cloudCover: Int? = null,

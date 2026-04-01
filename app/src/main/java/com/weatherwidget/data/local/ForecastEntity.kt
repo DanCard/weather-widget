@@ -20,6 +20,7 @@ data class ForecastEntity(
     val highTemp: Float?,
     val lowTemp: Float?,
     val condition: String,
+    val nativeDailyIconToken: String? = null, // Provider-native daily icon token/code when available
     val isClimateNormal: Boolean = false, // Historical averages
     val source: String, // Database storage: "NWS", "OPEN_METEO", "WEATHER_API", or "GENERIC_GAP"
     val precipProbability: Int? = null, // Rain chance percentage (0-100)

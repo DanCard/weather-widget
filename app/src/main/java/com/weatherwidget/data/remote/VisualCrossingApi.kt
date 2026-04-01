@@ -158,6 +158,7 @@ class VisualCrossingApi
                 highTemp = high,
                 lowTemp = low,
                 condition = day.primaryCondition() ?: "Unknown",
+                iconToken = day["icon"]?.jsonPrimitive?.contentOrNull,
                 precipProbability = day["precipprob"]?.jsonPrimitive?.floatOrNull?.toInt(),
                 precipAmountMm = day["precip"]?.jsonPrimitive?.floatOrNull?.times(25.4f),
             )
@@ -203,6 +204,7 @@ class VisualCrossingApi
             val highTemp: Float,
             val lowTemp: Float,
             val condition: String,
+            val iconToken: String? = null,
             val precipProbability: Int? = null,
             val precipAmountMm: Float? = null,
         )

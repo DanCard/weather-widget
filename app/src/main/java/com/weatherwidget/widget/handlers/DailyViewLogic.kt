@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.NavigationUtils
 import com.weatherwidget.util.RainAnalyzer
+import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
@@ -159,13 +160,18 @@ object DailyViewLogic {
                 }
             }
 
-            val todayIconForecast =
-                if (isToday) DailyViewHandler.resolveTodayHeaderForecast(now, hourlyForecasts, displaySource) else null
             val iconRes =
-                WeatherIconMapper.getIconResource(
-                    condition = todayIconForecast?.condition ?: weather?.condition,
-                    cloudCover = todayIconForecast?.cloudCover,
-                )
+                if (weather != null) {
+                    DailyForecastIconResolver.resolveIcon(
+                        weather = weather,
+                        targetDate = date,
+                        now = now,
+                        latitude = weather.locationLat,
+                        longitude = weather.locationLon,
+                    )
+                } else {
+                    WeatherIconMapper.getIconResource(condition = null)
+                }
 
             TextDayData(
                 dayIndex = dayIndex,
@@ -318,15 +324,19 @@ object DailyViewLogic {
                 }
             }
 
-            val todayIconForecast =
-                if (isToday) DailyViewHandler.resolveTodayHeaderForecast(now, hourlyForecasts, displaySource) else null
-            val effectiveCondition = todayIconForecast?.condition ?: weather?.condition ?: actual?.condition
-
             val iconRes =
-                WeatherIconMapper.getIconResource(
-                    condition = effectiveCondition,
-                    cloudCover = todayIconForecast?.cloudCover,
-                )
+                when {
+                    weather != null ->
+                        DailyForecastIconResolver.resolveIcon(
+                            weather = weather,
+                            targetDate = date,
+                            now = now,
+                            latitude = weather.locationLat,
+                            longitude = weather.locationLon,
+                        )
+                    actual != null -> WeatherIconMapper.getIconResource(condition = actual.condition)
+                    else -> WeatherIconMapper.getIconResource(condition = null)
+                }
 
             val rawRainSummary = if (!isPastDate) {
                 RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, now)
