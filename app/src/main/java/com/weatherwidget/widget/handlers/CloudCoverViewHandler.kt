@@ -50,6 +50,13 @@ object CloudCoverViewHandler {
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
 
     @androidx.annotation.VisibleForTesting
+    internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomLevel): Int =
+        when (zoom) {
+            com.weatherwidget.widget.ZoomLevel.WIDE -> zoom.smoothIterations + 1
+            com.weatherwidget.widget.ZoomLevel.NARROW -> zoom.smoothIterations
+        }
+
+    @androidx.annotation.VisibleForTesting
     internal fun selectCloudCoverSource(
         hourlyForecasts: List<HourlyForecastEntity>,
         requestedSource: WeatherSource,
@@ -278,7 +285,7 @@ object CloudCoverViewHandler {
                 heightPx = heightPx,
                 currentTime = now,
                 bitmapScale = bitmapScale,
-                smoothIterations = zoom.smoothIterations,
+                smoothIterations = smoothingIterationsFor(zoom),
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 observedAt = observedAt,
             )

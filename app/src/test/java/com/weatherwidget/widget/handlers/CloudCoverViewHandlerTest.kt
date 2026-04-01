@@ -16,6 +16,16 @@ import org.junit.experimental.categories.Category
 class CloudCoverViewHandlerTest {
 
     @Test
+    fun `wide zoom adds one smoothing iteration for cloud cover`() {
+        assertEquals(1, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.WIDE))
+    }
+
+    @Test
+    fun `narrow zoom keeps existing smoothing iteration for cloud cover`() {
+        assertEquals(1, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.NARROW))
+    }
+
+    @Test
     fun `selectCloudCoverSource keeps requested source when it has visible cloud cover`() {
         val hours = listOf(
             hourly("2026-03-14T20:00", WeatherSource.SILURIAN, 40),

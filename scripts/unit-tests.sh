@@ -151,7 +151,7 @@ emit_bucket_summary() {
   elif [ "$skipped" -gt 0 ]; then
     echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
   else
-    echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
+    echo -n "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration").  "
   fi
 }
 

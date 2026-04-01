@@ -108,7 +108,7 @@ start_unit_summary_monitor "$UNIT_LOG_FILE"
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase
-echo -en "${YELLOW}Waiting for unit test build to finish...${NC}  "
+# echo -en "${YELLOW}Waiting for unit test build to finish...${NC}  "
 
 # Wait for log file to be created
 while [ ! -f "$UNIT_LOG_FILE" ] && kill -0 "$UNIT_PID" 2>/dev/null; do
@@ -122,7 +122,7 @@ if [ -f "$UNIT_LOG_FILE" ]; then
         if grep -q "> Task :app:test" "$UNIT_LOG_FILE"; then
             BUILD_DONE=true
             BUILD_DURATION=$(( $(date +%s) - BUILD_START ))
-            echo -e "${GREEN}Unit test build finished in ${BUILD_DURATION}s.${NC}"
+            echo -en "${GREEN}Unit test build finished in ${BUILD_DURATION}s.${NC}  "
             # Give it a tiny bit more time to finish all transformations if they are parallel
             sleep 2
             break
