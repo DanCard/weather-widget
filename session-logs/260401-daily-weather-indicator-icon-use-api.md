@@ -4,15 +4,15 @@
 - 2026-04-01
 
 ## Summary
-- Changed daily-mode icon selection so it no longer derives today’s icon from the near-now hourly forecast row.
-- Added persistence for provider-native daily icon tokens in Room so the app can preserve provider intent across fetch and render.
-- Added a dedicated daily icon resolver that prefers native daily tokens and falls back to mapped daily conditions.
-- Updated daily widget header, daily text view, and daily graph view to use the new daily resolver.
-- Extended provider parsing and repository persistence for NWS, Open-Meteo, Visual Crossing, WeatherAPI, OpenWeatherMap, and Silurian.
-- Added a Room migration from schema version `42` to `43`.
-- Added resolver tests, migration coverage, and daily-view regression tests.
-- Investigated the follow-up `testLongDebugUnitTestFresh` failure and fixed stale assertions in long-duration tests that still expected the old hourly-driven behavior.
-- Committed all changes and pushed `main` to GitHub as commit `9c14c88`.
+1. Changed daily-mode icon selection so it no longer derives today’s icon from the near-now hourly forecast row.
+1. Added persistence for provider-native daily icon tokens in Room so the app can preserve provider intent across fetch and render.
+1. Added a dedicated daily icon resolver that prefers native daily tokens and falls back to mapped daily conditions.
+1. Updated daily widget header, daily text view, and daily graph view to use the new daily resolver.
+1. Extended provider parsing and repository persistence for NWS, Open-Meteo, Visual Crossing, WeatherAPI, OpenWeatherMap, and Silurian.
+1. Added a Room migration from schema version `42` to `43`.
+1. Added resolver tests, migration coverage, and daily-view regression tests.
+1. Investigated the follow-up `testLongDebugUnitTestFresh` failure and fixed stale assertions in long-duration tests that still expected the old hourly-driven behavior.
+1. Committed all changes and pushed `main` to GitHub as commit `9c14c88`.
 
 ## Product Decision
 
