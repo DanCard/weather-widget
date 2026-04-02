@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import com.weatherwidget.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.weatherwidget.test.category.ShortDuration
@@ -168,5 +169,16 @@ class WeatherIconMapperTest {
     @Test
     fun testIsCloudForecastEligible_MostlyClear() {
         assertTrue(WeatherIconMapper.isCloudForecastEligible(R.drawable.ic_weather_mostly_clear))
+    }
+
+    @Test
+    fun testChanceRainMixedIconIsNotRainy() {
+        assertFalse(WeatherIconMapper.isRainy(R.drawable.ic_weather_partly_cloudy_chance_rain))
+    }
+
+    @Test
+    fun testChanceRainMixedIconIsMixedAndCloudEligible() {
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_partly_cloudy_chance_rain))
+        assertTrue(WeatherIconMapper.isCloudForecastEligible(R.drawable.ic_weather_partly_cloudy_chance_rain))
     }
 }

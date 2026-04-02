@@ -122,6 +122,22 @@ class DayClickHelperTest {
         )
     }
 
+    @Test
+    fun `bottom row chance rain mixed icon navigates to cloud cover`() {
+        assertEquals(
+            ViewMode.CLOUD_COVER,
+            DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain),
+        )
+    }
+
+    @Test
+    fun `daily chance rain mixed icon stays on temperature graph`() {
+        assertEquals(
+            ViewMode.TEMPERATURE,
+            DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain),
+        )
+    }
+
     // ── calculatePrecipitationOffset ──
 
     @Test

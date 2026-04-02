@@ -180,6 +180,11 @@ class TemperatureInterpolatorTest {
 - Write descriptive test names using backticks explaining behavior
 - Test happy paths and edge cases
 
+## Documentation Preferences
+
+### Session Logs
+- Prefer numbered lists over bulleted lists in `session-logs/` for long lists.
+
 ## Widget Development
 
 ### Widget-Only App Considerations

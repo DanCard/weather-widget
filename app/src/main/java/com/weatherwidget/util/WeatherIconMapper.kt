@@ -112,6 +112,7 @@ object WeatherIconMapper {
                iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
                iconRes == R.drawable.ic_weather_partly_cloudy ||
                iconRes == R.drawable.ic_weather_partly_cloudy_night ||
+               iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain ||
                iconRes == R.drawable.ic_weather_fog_cloudy ||
                iconRes == R.drawable.ic_weather_fog_sunny
     }

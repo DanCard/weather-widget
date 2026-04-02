@@ -1279,9 +1279,9 @@ object TemperatureViewHandler {
                     isNight = isNight,
                     cloudCover = forecast.cloudCover,
                 )
-                val isSunny = iconRes == R.drawable.ic_weather_clear || iconRes == R.drawable.ic_weather_mostly_clear || iconRes == R.drawable.ic_weather_night
-                val isRainy = iconRes == R.drawable.ic_weather_rain || iconRes == R.drawable.ic_weather_storm || iconRes == R.drawable.ic_weather_snow
-                val isMixed = iconRes == R.drawable.ic_weather_mostly_cloudy || iconRes == R.drawable.ic_weather_mostly_cloudy_night || iconRes == R.drawable.ic_weather_partly_cloudy || iconRes == R.drawable.ic_weather_partly_cloudy_night || iconRes == R.drawable.ic_weather_fog_cloudy
+                val isSunny = WeatherIconMapper.isSunny(iconRes)
+                val isRainy = WeatherIconMapper.isRainy(iconRes)
+                val isMixed = WeatherIconMapper.isMixed(iconRes)
 
                 hours.add(
                     TemperatureGraphRenderer.HourData(
