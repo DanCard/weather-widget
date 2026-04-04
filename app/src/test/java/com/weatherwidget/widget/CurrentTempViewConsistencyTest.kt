@@ -4,7 +4,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.util.SpatialInterpolator
-import com.weatherwidget.widget.handlers.TemperatureViewHandler
+import com.weatherwidget.widget.handlers.buildHourDataList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
@@ -82,7 +82,7 @@ class CurrentTempViewConsistencyTest {
         assertNotNull("Should find a current temp observation", observation)
 
         // Graph view path: buildHourDataList → latest isObservedActual → CurrentTemperatureResolver
-        val graphHours = TemperatureViewHandler.buildHourDataList(
+        val graphHours = buildHourDataList(
             hourlyForecasts = hourlyForecasts,
             centerTime = now,
             numColumns = 5,

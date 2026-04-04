@@ -2,7 +2,8 @@ package com.weatherwidget.widget
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.handlers.TemperatureViewHandler
+import com.weatherwidget.widget.handlers.computeSmoothedForecasts
+import com.weatherwidget.widget.handlers.HEADER_SMOOTH_ITERATIONS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,7 +34,7 @@ class TemperatureConsistencyTest {
     @Test
     fun `current temp is identical between DAILY and TEMPERATURE views`() {
         // DailyViewHandler path: computes smoothedForecasts via computeSmoothedForecasts() with default iterations
-        val dailySmoothed = TemperatureViewHandler.computeSmoothedForecasts(
+        val dailySmoothed = computeSmoothedForecasts(
             hourlyForecasts, displaySource
         )
         val dailyResult = CurrentTemperatureResolver.resolve(
@@ -49,8 +50,8 @@ class TemperatureConsistencyTest {
         )
 
         // TemperatureViewHandler path: also computes smoothedForecasts with HEADER_SMOOTH_ITERATIONS
-        val tempSmoothed = TemperatureViewHandler.computeSmoothedForecasts(
-            hourlyForecasts, displaySource, TemperatureViewHandler.HEADER_SMOOTH_ITERATIONS
+        val tempSmoothed = computeSmoothedForecasts(
+            hourlyForecasts, displaySource, HEADER_SMOOTH_ITERATIONS
         )
         val tempResult = CurrentTemperatureResolver.resolve(
             now = now,
@@ -80,10 +81,10 @@ class TemperatureConsistencyTest {
     fun `zoom-dependent smoothing produces different values than header smoothing`() {
         // Precondition: different iteration counts DO produce different maps.
         // If this fails, the guard is unnecessary (but harmless).
-        val headerSmoothed = TemperatureViewHandler.computeSmoothedForecasts(
-            hourlyForecasts, displaySource, TemperatureViewHandler.HEADER_SMOOTH_ITERATIONS
+        val headerSmoothed = computeSmoothedForecasts(
+            hourlyForecasts, displaySource, HEADER_SMOOTH_ITERATIONS
         )
-        val narrowSmoothed = TemperatureViewHandler.computeSmoothedForecasts(
+        val narrowSmoothed = computeSmoothedForecasts(
             hourlyForecasts, displaySource, ZoomLevel.NARROW.smoothIterations
         )
 
@@ -105,11 +106,11 @@ class TemperatureConsistencyTest {
 
     @Test
     fun `computeSmoothedForecasts default uses HEADER_SMOOTH_ITERATIONS`() {
-        val defaultSmoothed = TemperatureViewHandler.computeSmoothedForecasts(
+        val defaultSmoothed = computeSmoothedForecasts(
             hourlyForecasts, displaySource
         )
-        val explicitSmoothed = TemperatureViewHandler.computeSmoothedForecasts(
-            hourlyForecasts, displaySource, TemperatureViewHandler.HEADER_SMOOTH_ITERATIONS
+        val explicitSmoothed = computeSmoothedForecasts(
+            hourlyForecasts, displaySource, HEADER_SMOOTH_ITERATIONS
         )
 
         assertEquals(

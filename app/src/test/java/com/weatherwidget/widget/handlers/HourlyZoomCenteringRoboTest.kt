@@ -34,7 +34,7 @@ class HourlyZoomCenteringRoboTest {
 
     @Test
     fun `temperature narrow window centers selected hour`() {
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = sampleHourlyForecasts(),
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
             numColumns = 9,
@@ -73,7 +73,7 @@ class HourlyZoomCenteringRoboTest {
 
     @Test
     fun `temperature wide window centers selected hour`() {
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = sampleHourlyForecasts(count = 30),
             centerTime = LocalDateTime.of(2026, 3, 15, 12, 0),
             numColumns = 9,

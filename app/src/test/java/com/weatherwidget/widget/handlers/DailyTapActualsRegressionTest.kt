@@ -86,7 +86,7 @@ class DailyTapActualsRegressionTest {
      */
     @Test
     fun `repository null — actuals not queried — no isActual hours — broken path`() {
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = wideForecasts(),
             centerTime = center,
             numColumns = 5,
@@ -129,7 +129,7 @@ class DailyTapActualsRegressionTest {
             lon = TestData.LON,
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = wideForecasts(),
             centerTime = center,
             numColumns = 5,
@@ -168,7 +168,7 @@ class DailyTapActualsRegressionTest {
         val forecasts = wideForecasts()
 
         // Broken path — repository was null, actuals never fetched
-        val brokenHours = TemperatureViewHandler.buildHourDataList(
+        val brokenHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -183,7 +183,7 @@ class DailyTapActualsRegressionTest {
         val minEpoch = graphStart.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val maxEpoch = graphEnd.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val actuals = dao.getObservationsInRange(minEpoch, maxEpoch, TestData.LAT, TestData.LON)
-        val fixedHours = TemperatureViewHandler.buildHourDataList(
+        val fixedHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,

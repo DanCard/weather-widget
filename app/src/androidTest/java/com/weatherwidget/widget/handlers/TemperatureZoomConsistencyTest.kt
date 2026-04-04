@@ -61,7 +61,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         )
 
         // 1. Wide zoom: 11:00 point should be a blend of S1 (extrapolated) and S2
-        val wideHours = TemperatureViewHandler.buildHourDataList(
+        val wideHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -72,7 +72,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         
         // 2. Narrow zoom: 11:00 point should be IDENTICAL to wide zoom 
         // because we removed the startMs filter in blendObservationSeries.
-        val narrowHours = TemperatureViewHandler.buildHourDataList(
+        val narrowHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -116,7 +116,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         val fullActuals = baseActuals + disturber
 
         // 1. Wide zoom: Sees the future observation (T+4h) because its query window is T+12h
-        val wideHours = TemperatureViewHandler.buildHourDataList(
+        val wideHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -127,7 +127,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         
         // 2. Narrow zoom (CURRENT BUGGY BEHAVIOR): Excludes T+4h because its query window is T+2h
         // We simulate the bug by passing only baseActuals to NARROW zoom
-        val narrowHoursBuggy = TemperatureViewHandler.buildHourDataList(
+        val narrowHoursBuggy = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -150,7 +150,7 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         assertTrue("BUG REPRODUCTION: Temperature at T-1h should differ when future context is missing (diff=$diff)", diff > 0.01f)
 
         // 3. Narrow zoom (FIXED BEHAVIOR): Should receive fullActuals despite visual window
-        val narrowHoursFixed = TemperatureViewHandler.buildHourDataList(
+        val narrowHoursFixed = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,

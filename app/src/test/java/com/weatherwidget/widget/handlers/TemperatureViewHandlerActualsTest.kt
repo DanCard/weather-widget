@@ -53,7 +53,7 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `blend debug collector throttles detailed lines within window`() {
         var nowMs = 1_000L
-        val collector = TemperatureViewHandler.BlendDebugCollector(
+        val collector = BlendDebugCollector(
             throttleMs = 50L,
             clockMs = { nowMs },
         )
@@ -75,7 +75,7 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `blend debug collector always emit bypasses throttle`() {
         var nowMs = 2_000L
-        val collector = TemperatureViewHandler.BlendDebugCollector(
+        val collector = BlendDebugCollector(
             throttleMs = 50L,
             clockMs = { nowMs },
         )
@@ -165,7 +165,7 @@ class TemperatureViewHandlerActualsTest {
             elapsedMs <= IDLE_BLEND_MAX_MS,
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -181,7 +181,7 @@ class TemperatureViewHandlerActualsTest {
         val forecasts = wideForecasts()
         val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 68f))
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -201,7 +201,7 @@ class TemperatureViewHandlerActualsTest {
         val forecasts = wideForecasts()
         val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 68f))
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -222,7 +222,7 @@ class TemperatureViewHandlerActualsTest {
     fun `no actuals produces all-forecast list with isActual false`() {
         val forecasts = wideForecasts()
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -242,7 +242,7 @@ class TemperatureViewHandlerActualsTest {
         // The forecast at 10:00 has temperature = 60 + 10 = 70f
         val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T10:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 99f))
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -261,14 +261,14 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `WIDE zoom covers 25 hours`() {
         val forecasts = wideForecasts()
-        val wideHours = TemperatureViewHandler.buildHourDataList(
+        val wideHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
             displaySource = WeatherSource.NWS,
             zoom = ZoomLevel.WIDE,
         )
-        val narrowHours = TemperatureViewHandler.buildHourDataList(
+        val narrowHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -299,7 +299,7 @@ class TemperatureViewHandlerActualsTest {
         )
 
         // Wide zoom: 11:00 point should be a blend of S1 (extrapolated) and S2
-        val wideHours = TemperatureViewHandler.buildHourDataList(
+        val wideHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -310,7 +310,7 @@ class TemperatureViewHandlerActualsTest {
         
         // Narrow zoom: 11:00 point should be IDENTICAL to wide zoom 
         // because we removed the startMs filter in blendObservationSeries.
-        val narrowHours = TemperatureViewHandler.buildHourDataList(
+        val narrowHours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -344,7 +344,7 @@ class TemperatureViewHandlerActualsTest {
         // Actual at 06:00 is outside NARROW window
         val actuals = listOf(TestData.observation(timestamp = java.time.LocalDateTime.parse("2026-02-20T06:00").atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 55f))
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -369,7 +369,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:00", 61f, stationId = "KPAO", distanceKm = 2f),
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -398,7 +398,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:05", 80f, stationId = "KSFO", distanceKm = 10f),
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -435,7 +435,7 @@ class TemperatureViewHandlerActualsTest {
         )
         val debugLines = mutableListOf<String>()
 
-        TemperatureViewHandler.buildHourDataList(
+        buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -460,7 +460,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:35", 62f, stationId = "KNUQ", distanceKm = 3.7f),
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -486,7 +486,7 @@ class TemperatureViewHandlerActualsTest {
         )
         val debugLines = mutableListOf<String>()
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -517,7 +517,7 @@ class TemperatureViewHandlerActualsTest {
         )
         val debugLines = mutableListOf<String>()
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -549,7 +549,7 @@ class TemperatureViewHandlerActualsTest {
         )
         val debugLines = mutableListOf<String>()
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -585,7 +585,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:30", 62f, stationId = "KSJC", distanceKm = 15.8f),
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -613,7 +613,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:10", 60f, stationId = "LOAC1", distanceKm = 9f),
         )
 
-        val decision = TemperatureViewHandler.evaluateHourlyBackfillNeed(
+        val decision = evaluateHourlyBackfillNeed(
             displaySource = WeatherSource.NWS,
             graphStart = LocalDateTime.parse("2026-02-20T10:00"),
             graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
@@ -636,7 +636,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:55", 58f, stationId = "KNUQ", distanceKm = 3.7f),
         )
 
-        val decision = TemperatureViewHandler.evaluateHourlyBackfillNeed(
+        val decision = evaluateHourlyBackfillNeed(
             displaySource = WeatherSource.NWS,
             graphStart = LocalDateTime.parse("2026-02-20T10:00"),
             graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
@@ -654,7 +654,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
         )
 
-        val decision = TemperatureViewHandler.evaluateHourlyBackfillNeed(
+        val decision = evaluateHourlyBackfillNeed(
             displaySource = WeatherSource.OPEN_METEO,
             graphStart = LocalDateTime.parse("2026-02-20T10:00"),
             graphEnd = LocalDateTime.parse("2026-02-20T14:00"),
@@ -677,7 +677,7 @@ class TemperatureViewHandlerActualsTest {
             observationAt("2026-02-20T10:25", 55f, stationId = "OPEN_METEO_1", distanceKm = 8f),
         )
 
-        val hours = TemperatureViewHandler.buildHourDataList(
+        val hours = buildHourDataList(
             hourlyForecasts = forecasts,
             centerTime = center,
             numColumns = 5,
@@ -695,7 +695,7 @@ class TemperatureViewHandlerActualsTest {
 
     @Test
     fun `when coverage ties nearest station wins`() {
-        val selected = TemperatureViewHandler.selectObservationSeries(
+        val selected = selectObservationSeries(
             observations = listOf(
                 observationAt("2026-02-20T10:05", 61f, stationId = "KNEAR", distanceKm = 1f),
                 observationAt("2026-02-20T11:05", 62f, stationId = "KNEAR", distanceKm = 1f),

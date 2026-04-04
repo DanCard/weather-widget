@@ -790,7 +790,7 @@ object WidgetIntentRouter {
             zoom = zoom
         )
 
-        val smoothedForecasts = TemperatureViewHandler.computeSmoothedForecasts(
+        val smoothedForecasts = computeSmoothedForecasts(
             hourlyForecasts, displaySource
         )
 
