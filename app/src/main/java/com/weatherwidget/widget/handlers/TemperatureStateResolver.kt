@@ -1,0 +1,483 @@
+package com.weatherwidget.widget.handlers
+
+import android.content.Context
+import android.graphics.Color
+import android.util.Log
+import android.util.TypedValue
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.util.HeaderPrecipCalculator
+import com.weatherwidget.util.SunPositionUtils
+import com.weatherwidget.util.WeatherIconMapper
+import com.weatherwidget.util.WeatherTimeUtils
+import com.weatherwidget.widget.CurrentTemperatureDeltaState
+import com.weatherwidget.widget.CurrentTemperatureResolution
+import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.TemperatureGraphRenderer
+import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetPerfLogger
+import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.ZoomLevel
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.TextStyle
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.min
+
+internal object TemperatureStateResolver {
+    private const val TAG = "TemperatureStateResolver"
+    private const val CELL_HEIGHT_DP = 90
+    private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
+    private const val GRAPH_MIN_ROWS = 1.4f
+    private const val DELTA_COLOR_HEX = "#FF6B35"
+    private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
+
+    data class ResolutionResult(
+        val state: TemperatureWidgetState,
+        val resolveMs: Long,
+        val obsQueryMs: Long,
+        val buildHourDataMs: Long,
+        val renderMs: Long,
+        val currentTempResolution: CurrentTemperatureResolution,
+        val headerPrecipProbability: Int?,
+        val lat: Double,
+        val lon: Double,
+        val smoothedForecasts: Map<Long, Float>,
+        val isNowLineVisible: Boolean
+    )
+
+    suspend fun resolve(
+        context: Context,
+        appWidgetId: Int,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        displaySource: WeatherSource,
+        precipProbability: Int?,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dimensions: WidgetDimensions,
+        stateManager: WidgetStateManager,
+        repository: WeatherRepository?,
+        deferCurrentTempResolution: Boolean,
+        startupToken: String? = null,
+        onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
+    ): ResolutionResult {
+        val now = LocalDateTime.now()
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val isNight = SunPositionUtils.isNight(now, lat, lon)
+        
+        val zoom = stateManager.getZoomLevel(appWidgetId)
+        val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
+
+        // 1. Source Warning
+        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
+            appLogDao = appLogDao,
+            displaySource = displaySource,
+            hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
+        )
+        if (warning != null) {
+            return buildWarningResult(appWidgetId, displaySource, zoom, hourlyOffset, warning, lat, lon)
+        }
+
+        // 2. Data Pre-processing
+        val smoothedForecasts = computeSmoothedForecasts(hourlyForecasts, displaySource)
+        val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
+        val useGraph = rawRows >= GRAPH_MIN_ROWS
+        val deferStartupGraphActuals = startupToken != null && useGraph
+
+        // 3. Load Graph Hours
+        val graphLoadResult = loadGraphHours(
+            context = context,
+            appWidgetId = appWidgetId,
+            database = WeatherDatabase.getDatabase(context),
+            stateManager = stateManager,
+            repository = repository,
+            hourlyForecasts = hourlyForecasts,
+            centerTime = centerTime,
+            numColumns = dimensions.cols,
+            displaySource = displaySource,
+            zoom = zoom,
+            lat = lat,
+            lon = lon,
+            useGraph = useGraph,
+            deferStartupGraphActuals = deferStartupGraphActuals,
+            smoothedForecasts = smoothedForecasts,
+        )
+
+        val graphHours: List<TemperatureGraphRenderer.HourData>
+        val obsQueryMs: Long
+        val buildHourDataMs: Long
+        when (graphLoadResult) {
+            is GraphLoadOutcome.Empty -> {
+                return buildEmptyGraphResult(appWidgetId, displaySource, zoom, hourlyOffset, lat, lon, smoothedForecasts)
+            }
+            is GraphLoadOutcome.Loaded -> {
+                graphHours = graphLoadResult.hours
+                obsQueryMs = graphLoadResult.obsQueryMs
+                buildHourDataMs = graphLoadResult.buildHourDataMs
+            }
+        }
+
+        // 4. Current Temp Resolution
+        val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
+        val resolveStartMs = System.currentTimeMillis()
+        val currentTempResolution = if (deferCurrentTempResolution) {
+            val quick = CurrentTemperatureResolver.resolveQuick(
+                now = now,
+                displaySource = displaySource,
+                hourlyForecasts = hourlyForecasts,
+                lastObservedTemp = lastObservedTemp,
+                smoothedForecasts = smoothedForecasts,
+            )
+            CurrentTemperatureResolution(
+                displayTemp = quick.displayTemp,
+                estimatedTemp = quick.estimatedTemp,
+                observedTemp = quick.observedTemp,
+                isStaleEstimate = quick.isStaleEstimate,
+                appliedDelta = null,
+                updatedDeltaState = null,
+                shouldClearStoredDelta = false,
+            )
+        } else {
+            CurrentTemperatureResolver.resolve(
+                now = now,
+                displaySource = displaySource,
+                hourlyForecasts = hourlyForecasts,
+                lastObservedTemp = lastObservedTemp,
+                observedAt = observedAt,
+                storedDeltaState = storedDeltaState,
+                currentLat = lat,
+                currentLon = lon,
+                smoothedForecasts = smoothedForecasts,
+            )
+        }
+        val resolveMs = System.currentTimeMillis() - resolveStartMs
+
+        // 5. Header State Resolution
+        val currentTemp = currentTempResolution.displayTemp
+        val isNowLineVisible = graphHours.any { it.isCurrentHour }
+        val delta = currentTempResolution.appliedDelta
+        val deltaVisible = currentTemp != null && isNowLineVisible && delta != null && abs(delta) >= DELTA_VISIBILITY_THRESHOLD
+
+        val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+        val sourceIndicator = if (centerTime.toLocalDate() == now.toLocalDate()) {
+            displaySource.shortDisplayName
+        } else {
+            "$dayName • ${displaySource.shortDisplayName}"
+        }
+
+        val currentHourForecast = getCurrentHourForecast(hourlyForecasts, displaySource)
+        val iconRes = WeatherIconMapper.getIconResource(
+            condition = currentHourForecast?.condition,
+            isNight = isNight,
+            cloudCover = currentHourForecast?.cloudCover,
+        )
+
+        val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            fallbackDailyProbability = precipProbability,
+            referenceTime = centerTime,
+        )
+        val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
+
+        val headerState = TemperatureWidgetState.HeaderState(
+            sourceIndicator = sourceIndicator,
+            iconRes = iconRes,
+            currentTemp = if (currentTemp != null) CurrentTemperatureResolver.formatDisplayTemperature(currentTemp, dimensions.cols, currentTempResolution.isStaleEstimate) else null,
+            currentTempSizeSp = if (dimensions.widthDp < 420) 22f else 26f,
+            deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+            deltaColor = Color.parseColor(DELTA_COLOR_HEX),
+            precipProbability = if (isPrecipVisible) "$headerPrecipProbability%" else null,
+            precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(headerPrecipProbability)) else 0f,
+            isPrecipVisible = isPrecipVisible,
+            isCurrentTempVisible = currentTemp != null,
+            isDeltaVisible = deltaVisible,
+            isStaleEstimate = currentTempResolution.isStaleEstimate
+        )
+
+        // 6. Graph Rendering
+        var renderMs = 0L
+        var bitmap: android.graphics.Bitmap? = null
+        if (useGraph) {
+            val widthDp = dimensions.widthDp - 24
+            val heightDp = dimensions.heightDp - 16
+            val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
+            val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
+            val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
+            val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
+
+            val renderStartMs = System.currentTimeMillis()
+            bitmap = try {
+                TemperatureGraphRenderer.renderGraph(
+                    context = context,
+                    hours = graphHours,
+                    widthPx = widthPx,
+                    heightPx = heightPx,
+                    currentTime = now,
+                    bitmapScale = bitmapScale,
+                    appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
+                    observedAt = observedAt,
+                    onFetchDotResolved = onFetchDotResolved,
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "renderGraph failed", e)
+                null
+            }
+            renderMs = System.currentTimeMillis() - renderStartMs
+        }
+
+        val graphState = TemperatureWidgetState.GraphState(
+            useGraph = useGraph,
+            bitmap = bitmap,
+            hourData = graphHours,
+            showTextMode = !useGraph || bitmap == null
+        )
+
+        return ResolutionResult(
+            state = TemperatureWidgetState(
+                appWidgetId = appWidgetId,
+                numRows = dimensions.rows,
+                widthDp = dimensions.widthDp,
+                header = headerState,
+                graph = graphState,
+                warning = null,
+                displaySource = displaySource,
+                zoom = zoom,
+                hourlyOffset = hourlyOffset
+            ),
+            resolveMs = resolveMs,
+            obsQueryMs = obsQueryMs,
+            buildHourDataMs = buildHourDataMs,
+            renderMs = renderMs,
+            currentTempResolution = currentTempResolution,
+            headerPrecipProbability = headerPrecipProbability,
+            lat = lat,
+            lon = lon,
+            smoothedForecasts = smoothedForecasts,
+            isNowLineVisible = isNowLineVisible
+        )
+    }
+
+    private sealed class GraphLoadOutcome {
+        data class Empty(val reason: String) : GraphLoadOutcome()
+        data class Loaded(
+            val hours: List<TemperatureGraphRenderer.HourData>,
+            val obsQueryMs: Long,
+            val buildHourDataMs: Long,
+        ) : GraphLoadOutcome()
+    }
+
+    private suspend fun loadGraphHours(
+        context: Context,
+        appWidgetId: Int,
+        database: WeatherDatabase,
+        stateManager: WidgetStateManager,
+        repository: WeatherRepository?,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        numColumns: Int,
+        displaySource: WeatherSource,
+        zoom: ZoomLevel,
+        lat: Double,
+        lon: Double,
+        useGraph: Boolean,
+        deferStartupGraphActuals: Boolean,
+        smoothedForecasts: Map<Long, Float>,
+    ): GraphLoadOutcome {
+        if (!useGraph) return GraphLoadOutcome.Loaded(emptyList(), 0L, 0L)
+
+        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+
+        var obsQueryMs = 0L
+        val observations = if (deferStartupGraphActuals) {
+            emptyList()
+        } else {
+            val minEpoch = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val maxEpoch = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            val obsStartMs = System.currentTimeMillis()
+            val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+            obsQueryMs = System.currentTimeMillis() - obsStartMs
+
+            maybeEnqueueHourlyObservationBackfill(
+                context = context,
+                database = database,
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                displaySource = displaySource,
+                graphStart = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS),
+                graphEnd = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS),
+                observations = loaded,
+                repositoryPresent = repository != null,
+            )
+            loaded
+        }
+
+        val buildHourDataStartMs = System.currentTimeMillis()
+        val blendDebugCollector = BlendDebugCollector()
+        val hourDataResult = buildHourDataResult(
+            hourlyForecasts,
+            centerTime,
+            numColumns,
+            displaySource,
+            zoom,
+            observations,
+            onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
+            smoothedForecasts = smoothedForecasts,
+        )
+        val hourData = hourDataResult.hours
+        val buildHourDataMs = System.currentTimeMillis() - buildHourDataStartMs
+        val actualCount = hourData.count { it.isActual }
+
+        if (hourData.isEmpty() && hourlyForecasts.isNotEmpty()) {
+            return GraphLoadOutcome.Empty("buildHourDataResult_empty")
+        }
+
+        if (!deferStartupGraphActuals) {
+            val stationIds = observations
+                .filter { matchesObservationSource(it, displaySource) }
+                .map { it.stationId }.toSet()
+            database.appLogDao().log(
+                "IDW_BLEND",
+                "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
+            )
+            blendDebugCollector.emittedLines()
+                .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
+                .forEach { line ->
+                    database.appLogDao().log("TEMP_ACTUALS_DEBUG", line)
+                }
+            database.appLogDao().log(
+                "TEMP_ACTUALS_DEBUG",
+                "summary " + blendDebugCollector.buildSummary(
+                    stationCount = stationIds.size,
+                    blendedPointCount = actualCount,
+                    blendDurationMs = buildHourDataMs,
+                ),
+            )
+            hourDataResult.blendStats?.let { stats ->
+                database.appLogDao().log(
+                    "TEMP_ACTUALS_PERF",
+                    "widget=$appWidgetId source=${displaySource.id} buildMs=$buildHourDataMs ${stats.summary()}",
+                )
+            }
+        }
+
+        return GraphLoadOutcome.Loaded(
+            hours = hourData,
+            obsQueryMs = obsQueryMs,
+            buildHourDataMs = buildHourDataMs,
+        )
+    }
+
+    private fun buildWarningResult(
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        zoom: ZoomLevel,
+        hourlyOffset: Int,
+        warning: ApiSourceWarningHelper.SourceWarning,
+        lat: Double,
+        lon: Double
+    ): ResolutionResult {
+        return ResolutionResult(
+            state = TemperatureWidgetState(
+                appWidgetId = appWidgetId,
+                numRows = 1, // Fallback for warning
+                widthDp = 300, // Fallback
+                header = emptyHeaderState(),
+                graph = emptyGraphState(),
+                warning = TemperatureWidgetState.SourceWarningState(warning),
+                displaySource = displaySource,
+                zoom = zoom,
+                hourlyOffset = hourlyOffset
+            ),
+            resolveMs = 0L,
+            obsQueryMs = 0L,
+            buildHourDataMs = 0L,
+            renderMs = 0L,
+            currentTempResolution = emptyResolution(),
+            headerPrecipProbability = null,
+            lat = lat,
+            lon = lon,
+            smoothedForecasts = emptyMap(),
+            isNowLineVisible = false
+        )
+    }
+
+    private fun buildEmptyGraphResult(
+        appWidgetId: Int,
+        displaySource: WeatherSource,
+        zoom: ZoomLevel,
+        hourlyOffset: Int,
+        lat: Double,
+        lon: Double,
+        smoothedForecasts: Map<Long, Float>
+    ): ResolutionResult {
+        return ResolutionResult(
+            state = TemperatureWidgetState(
+                appWidgetId = appWidgetId,
+                numRows = 1, // Fallback
+                widthDp = 300, // Fallback
+                header = emptyHeaderState(),
+                graph = emptyGraphState(),
+                warning = null,
+                displaySource = displaySource,
+                zoom = zoom,
+                hourlyOffset = hourlyOffset
+            ),
+            resolveMs = 0L,
+            obsQueryMs = 0L,
+            buildHourDataMs = 0L,
+            renderMs = 0L,
+            currentTempResolution = emptyResolution(),
+            headerPrecipProbability = null,
+            lat = lat,
+            lon = lon,
+            smoothedForecasts = smoothedForecasts,
+            isNowLineVisible = false
+        )
+    }
+
+    private fun emptyHeaderState() = TemperatureWidgetState.HeaderState(
+        sourceIndicator = "",
+        iconRes = 0,
+        currentTemp = null,
+        currentTempSizeSp = 0f,
+        deltaText = null,
+        deltaColor = 0,
+        precipProbability = null,
+        precipTextSizeSp = 0f,
+        isPrecipVisible = false,
+        isCurrentTempVisible = false,
+        isDeltaVisible = false,
+        isStaleEstimate = false
+    )
+
+    private fun emptyGraphState() = TemperatureWidgetState.GraphState(false, null, emptyList(), false)
+
+    private fun emptyResolution() = CurrentTemperatureResolution(null, null, null, false, null, null, false)
+
+    private fun getCurrentHourForecast(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+    ): HourlyForecastEntity? {
+        val currentHourKey = WeatherTimeUtils.toHourlyForecastKeyMs(LocalDateTime.now())
+
+        return hourlyForecasts
+            .filter { it.dateTime == currentHourKey }
+            .let { forecasts ->
+                forecasts.find { it.source == displaySource.id }
+                    ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
+                    ?: forecasts.firstOrNull()
+            }
+    }
+}

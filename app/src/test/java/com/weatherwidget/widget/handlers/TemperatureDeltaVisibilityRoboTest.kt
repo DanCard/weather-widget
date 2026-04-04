@@ -1,23 +1,13 @@
 package com.weatherwidget.widget.handlers
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.graphics.Color
-import android.os.Bundle
-import android.view.View
-import android.widget.FrameLayout
-import android.widget.RemoteViews
-import android.widget.TextView
 import androidx.test.core.app.ApplicationProvider
-import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.slot
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -28,37 +18,51 @@ import java.time.LocalDateTime
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
-
-
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @Category(LongDuration::class)
 class TemperatureDeltaVisibilityRoboTest {
     private lateinit var context: Context
     private val appWidgetId = 77
+    private lateinit var stateManager: WidgetStateManager
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        val stateManager = WidgetStateManager(context)
+        stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(appWidgetId)
+    }
+
+    private suspend fun resolveState(
+        hourly: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        now: LocalDateTime,
+        lastObservedTemp: Float?,
+        centerTime: LocalDateTime = now
+    ): TemperatureWidgetState {
+        val dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 180)
+        
+        val result = TemperatureStateResolver.resolve(
+            context = context,
+            appWidgetId = appWidgetId,
+            hourlyForecasts = hourly,
+            centerTime = centerTime,
+            displaySource = WeatherSource.NWS,
+            precipProbability = 0,
+            lastObservedTemp = lastObservedTemp,
+            observedAt = System.currentTimeMillis(),
+            dimensions = dimensions,
+            stateManager = stateManager,
+            repository = null,
+            deferCurrentTempResolution = false
+        )
+        return result.state
     }
 
     @Test
     fun `delta badge is visible and red for positive delta`() = runBlocking {
-        val appWidgetManager = mockk<AppWidgetManager>()
-        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-        }
-        
-        val viewsSlot = slot<RemoteViews>()
-        every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
-
         val now = LocalDateTime.now()
         val todayStr = now.toLocalDate().toString()
         
-        // 1. Setup hourly forecast at 70 degrees
         val hourly = listOf(
             com.weatherwidget.data.local.HourlyForecastEntity(
                 dateTime = com.weatherwidget.testutil.TestData.toEpoch(String.format("%sT%02d:00", todayStr, now.hour)),
@@ -72,40 +76,15 @@ class TemperatureDeltaVisibilityRoboTest {
             )
         )
 
-        // 2. Resolve with observed temp at 71.2 (+1.2 delta)
-        TemperatureViewHandler.updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            hourlyForecasts = hourly,
-            centerTime = now,
-            displaySource = WeatherSource.NWS,
-            precipProbability = 0,
-            lastObservedTemp = 71.2f,
-            observedAt = System.currentTimeMillis()
-        )
-
-        val root = FrameLayout(context)
-        val applied = viewsSlot.captured.apply(context, root)
+        val state = resolveState(hourly, now, 71.2f)
         
-        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
-        
-        assertEquals("Delta badge should be VISIBLE", View.VISIBLE, deltaBadge.visibility)
-        assertEquals("+1.2", deltaBadge.text.toString())
-        assertEquals("Should be red for positive", Color.parseColor("#FF6B35"), deltaBadge.currentTextColor)
+        assertTrue("Delta badge should be VISIBLE", state.header.isDeltaVisible)
+        assertEquals("+1.2", state.header.deltaText)
+        assertEquals("Should be red for positive", Color.parseColor("#FF6B35"), state.header.deltaColor)
     }
 
     @Test
     fun `delta badge is red for negative delta`() = runBlocking {
-        val appWidgetManager = mockk<AppWidgetManager>()
-        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-        }
-        
-        val viewsSlot = slot<RemoteViews>()
-        every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
-
         val now = LocalDateTime.now()
         val todayStr = now.toLocalDate().toString()
         
@@ -122,40 +101,15 @@ class TemperatureDeltaVisibilityRoboTest {
             )
         )
 
-        // Resolve with observed temp at 69.1 (-0.9 delta)
-        TemperatureViewHandler.updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            hourlyForecasts = hourly,
-            centerTime = now,
-            displaySource = WeatherSource.NWS,
-            precipProbability = 0,
-            lastObservedTemp = 69.1f,
-            observedAt = System.currentTimeMillis()
-        )
-
-        val root = FrameLayout(context)
-        val applied = viewsSlot.captured.apply(context, root)
+        val state = resolveState(hourly, now, 69.1f)
         
-        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
-        
-        assertEquals("Delta badge should be VISIBLE", View.VISIBLE, deltaBadge.visibility)
-        assertEquals("-0.9", deltaBadge.text.toString())
-        assertEquals("Should be red for negative", Color.parseColor("#FF6B35"), deltaBadge.currentTextColor)
+        assertTrue("Delta badge should be VISIBLE", state.header.isDeltaVisible)
+        assertEquals("-0.9", state.header.deltaText)
+        assertEquals("Should be red for negative", Color.parseColor("#FF6B35"), state.header.deltaColor)
     }
 
     @Test
     fun `delta badge is hidden when delta is below threshold`() = runBlocking {
-        val appWidgetManager = mockk<AppWidgetManager>()
-        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-        }
-        
-        val viewsSlot = slot<RemoteViews>()
-        every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
-
         val now = LocalDateTime.now()
         val todayStr = now.toLocalDate().toString()
         
@@ -172,37 +126,13 @@ class TemperatureDeltaVisibilityRoboTest {
             )
         )
 
-        // Resolve with observed temp at 70.05 (+0.05 delta, below 0.1 threshold)
-        TemperatureViewHandler.updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            hourlyForecasts = hourly,
-            centerTime = now,
-            displaySource = WeatherSource.NWS,
-            precipProbability = 0,
-            lastObservedTemp = 70.05f,
-            observedAt = System.currentTimeMillis()
-        )
-
-        val root = FrameLayout(context)
-        val applied = viewsSlot.captured.apply(context, root)
+        val state = resolveState(hourly, now, 70.05f)
         
-        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
-        assertEquals("Delta badge should be GONE for negligible delta", View.GONE, deltaBadge.visibility)
+        assertFalse("Delta badge should be hidden for negligible delta", state.header.isDeltaVisible)
     }
 
     @Test
     fun `delta badge is hidden when now line is not visible`() = runBlocking {
-        val appWidgetManager = mockk<AppWidgetManager>()
-        every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-        }
-
-        val viewsSlot = slot<RemoteViews>()
-        every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
-
         val now = LocalDateTime.now()
         val todayStr = now.toLocalDate().toString()
         val currentHourKey = String.format("%sT%02d:00", todayStr, now.hour)
@@ -220,21 +150,8 @@ class TemperatureDeltaVisibilityRoboTest {
             ),
         )
 
-        TemperatureViewHandler.updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            hourlyForecasts = hourly,
-            centerTime = now.plusHours(24), // Graph window excludes current hour -> no NOW line
-            displaySource = WeatherSource.NWS,
-            precipProbability = 0,
-            lastObservedTemp = 72.0f,
-            observedAt = System.currentTimeMillis(),
-        )
+        val state = resolveState(hourly, now, 72.0f, centerTime = now.plusHours(24))
 
-        val root = FrameLayout(context)
-        val applied = viewsSlot.captured.apply(context, root)
-        val deltaBadge = applied.findViewById<TextView>(R.id.current_temp_delta)
-        assertEquals("Delta badge should be GONE when NOW line is not visible", View.GONE, deltaBadge.visibility)
+        assertFalse("Delta badge should be hidden when NOW line is not visible", state.header.isDeltaVisible)
     }
 }
