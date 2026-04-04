@@ -155,124 +155,43 @@ object TemperatureViewHandler {
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
         val deferStartupGraphActuals = startupToken != null && useGraph
-        var obsQueryMs = 0L
-        var buildHourDataMs = 0L
-        var renderMs = 0L
 
         val database = WeatherDatabase.getDatabase(context)
 
         val smoothedForecasts = computeSmoothedForecasts(hourlyForecasts, displaySource)
 
-        val graphHours =
-            if (useGraph) {
-                val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-                val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-                val graphStart = alignedCenter.minusHours(zoom.backHours)
-                val graphEnd = alignedCenter.plusHours(zoom.forwardHours)
-                val observations =
-                    if (deferStartupGraphActuals) {
-                        Log.d(TAG, "updateWidget: widget=$appWidgetId startup graph fast path, skipping actual observation query")
-                        emptyList()
-                    } else {
-                        val minEpoch = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val maxEpoch = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val obsStartMs = SystemClock.elapsedRealtime()
-                        val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
-                        val afterObsMs = SystemClock.elapsedRealtime()
-                        obsQueryMs = afterObsMs - obsStartMs
-                        Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${loaded.size}, zoom=$zoom")
-                        
-                        val queryStart = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
-                        val queryEnd = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
-                        maybeEnqueueHourlyObservationBackfill(
-                            context = context,
-                            database = database,
-                            stateManager = stateManager,
-                            appWidgetId = appWidgetId,
-                            displaySource = displaySource,
-                            graphStart = queryStart,
-                            graphEnd = queryEnd,
-                            observations = loaded,
-                            repositoryPresent = repository != null,
-                        )
-                        loaded
-                    }
-                val buildHourDataStartMs = SystemClock.elapsedRealtime()
-                val blendDebugCollector = BlendDebugCollector()
-                val hourDataResult = buildHourDataResult(
-                    hourlyForecasts,
-                    centerTime,
-                    numColumns,
-                    displaySource,
-                    zoom,
-                    observations,
-                    onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
-                    smoothedForecasts = smoothedForecasts,
-                )
-                val hourData = hourDataResult.hours
-                val afterBlendMs = SystemClock.elapsedRealtime()
-                buildHourDataMs = afterBlendMs - buildHourDataStartMs
-                val actualCount = hourData.count { it.isActual }
-                Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
-
-                if (hourData.isEmpty() && hourlyForecasts.isNotEmpty()) {
-                    Log.w(TAG, "buildHourDataResult returned empty despite ${hourlyForecasts.size} hourly rows — " +
-                        "centerTime=$centerTime zoom=$zoom source=$displaySource, skipping bitmap update")
-                    appWidgetManager.updateAppWidget(appWidgetId, views)
-                    return
-                }
-
-                if (!deferStartupGraphActuals) {
-                    val stationIds = observations
-                        .filter { matchesObservationSource(it, displaySource) }
-                        .map { it.stationId }.toSet()
-                    database.appLogDao().log(
-                        "IDW_BLEND",
-                        "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
-                    )
-                    blendDebugCollector.emittedLines()
-                        .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
-                        .forEach { line ->
-                            database.appLogDao().log("TEMP_ACTUALS_DEBUG", line)
-                        }
-                    if (blendDebugCollector.emittedLines().size > MAX_PERSISTED_BLEND_DEBUG_LINES) {
-                        database.appLogDao().log(
-                            "TEMP_ACTUALS_DEBUG",
-                            "omitted=${blendDebugCollector.emittedLines().size - MAX_PERSISTED_BLEND_DEBUG_LINES} additional emitted blend debug lines",
-                        )
-                    }
-                    database.appLogDao().log(
-                        "TEMP_ACTUALS_DEBUG",
-                        "summary " + blendDebugCollector.buildSummary(
-                            stationCount = stationIds.size,
-                            blendedPointCount = actualCount,
-                            blendDurationMs = buildHourDataMs,
-                        ),
-                    )
-                    hourDataResult.blendStats?.let { stats ->
-                        database.appLogDao().log(
-                            "TEMP_ACTUALS_PERF",
-                            "widget=$appWidgetId source=${displaySource.id} buildMs=$buildHourDataMs ${stats.summary()}",
-                        )
-                    }
-                    val obsBlendMs = obsQueryMs + buildHourDataMs
-                    if (obsBlendMs > 100) {
-                        database.appLogDao().log(
-                            "TEMP_OBS_SLOW",
-                            "widget=$appWidgetId obsQuery=${obsQueryMs}ms blend=${buildHourDataMs}ms total=${obsBlendMs}ms " +
-                                hourDataResult.blendStats?.summary(topStations = 2).orEmpty(),
-                        )
-                    }
-                } else {
-                    database.appLogDao().log(
-                        "TEMP_STARTUP_FAST_PATH",
-                        "widget=$appWidgetId source=${displaySource.id} startup graph skipped observation blending",
-                    )
-                }
-                hourData
-            } else {
-                emptyList()
+        val graphLoadResult = loadGraphHours(
+            context = context,
+            appWidgetId = appWidgetId,
+            database = database,
+            stateManager = stateManager,
+            repository = repository,
+            hourlyForecasts = hourlyForecasts,
+            centerTime = centerTime,
+            numColumns = numColumns,
+            displaySource = displaySource,
+            zoom = zoom,
+            lat = lat,
+            lon = lon,
+            useGraph = useGraph,
+            deferStartupGraphActuals = deferStartupGraphActuals,
+            smoothedForecasts = smoothedForecasts,
+        )
+        val graphHours: List<TemperatureGraphRenderer.HourData>
+        val obsQueryMs: Long
+        val buildHourDataMs: Long
+        when (graphLoadResult) {
+            is GraphLoadOutcome.Empty -> {
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+                return
             }
+            is GraphLoadOutcome.Loaded -> {
+                graphHours = graphLoadResult.hours
+                obsQueryMs = graphLoadResult.obsQueryMs
+                buildHourDataMs = graphLoadResult.buildHourDataMs
+            }
+        }
+        var renderMs = 0L
 
         val storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource)
 
@@ -510,6 +429,145 @@ object TemperatureViewHandler {
                 "totalMs" to totalMs,
             ),
             debugTag = TAG,
+        )
+    }
+
+    private sealed class GraphLoadOutcome {
+        data class Empty(val reason: String) : GraphLoadOutcome()
+        data class Loaded(
+            val hours: List<TemperatureGraphRenderer.HourData>,
+            val obsQueryMs: Long,
+            val buildHourDataMs: Long,
+        ) : GraphLoadOutcome()
+    }
+
+    private suspend fun loadGraphHours(
+        context: Context,
+        appWidgetId: Int,
+        database: WeatherDatabase,
+        stateManager: WidgetStateManager,
+        repository: WeatherRepository?,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        numColumns: Int,
+        displaySource: WeatherSource,
+        zoom: ZoomLevel,
+        lat: Double,
+        lon: Double,
+        useGraph: Boolean,
+        deferStartupGraphActuals: Boolean,
+        smoothedForecasts: Map<Long, Float>,
+    ): GraphLoadOutcome {
+        if (!useGraph) return GraphLoadOutcome.Loaded(emptyList(), 0L, 0L)
+
+        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+
+        var obsQueryMs = 0L
+        val observations =
+            if (deferStartupGraphActuals) {
+                Log.d(TAG, "updateWidget: widget=$appWidgetId startup graph fast path, skipping actual observation query")
+                emptyList()
+            } else {
+                val minEpoch = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val maxEpoch = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val obsStartMs = SystemClock.elapsedRealtime()
+                val loaded = repository?.getObservationsInRange(minEpoch, maxEpoch, lat, lon) ?: emptyList()
+                val afterObsMs = SystemClock.elapsedRealtime()
+                obsQueryMs = afterObsMs - obsStartMs
+                Log.d(TAG, "updateWidget: widget=$appWidgetId observations=${loaded.size}, zoom=$zoom")
+
+                val queryStart = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS)
+                val queryEnd = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS)
+                maybeEnqueueHourlyObservationBackfill(
+                    context = context,
+                    database = database,
+                    stateManager = stateManager,
+                    appWidgetId = appWidgetId,
+                    displaySource = displaySource,
+                    graphStart = queryStart,
+                    graphEnd = queryEnd,
+                    observations = loaded,
+                    repositoryPresent = repository != null,
+                )
+                loaded
+            }
+
+        val buildHourDataStartMs = SystemClock.elapsedRealtime()
+        val blendDebugCollector = BlendDebugCollector()
+        val hourDataResult = buildHourDataResult(
+            hourlyForecasts,
+            centerTime,
+            numColumns,
+            displaySource,
+            zoom,
+            observations,
+            onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
+            smoothedForecasts = smoothedForecasts,
+        )
+        val hourData = hourDataResult.hours
+        val buildHourDataMs = SystemClock.elapsedRealtime() - buildHourDataStartMs
+        val actualCount = hourData.count { it.isActual }
+        Log.d(TAG, "updateWidget: widget=$appWidgetId hours=${hourData.size}, actualHours=$actualCount")
+
+        if (hourData.isEmpty() && hourlyForecasts.isNotEmpty()) {
+            Log.w(TAG, "buildHourDataResult returned empty despite ${hourlyForecasts.size} hourly rows — " +
+                "centerTime=$centerTime zoom=$zoom source=$displaySource, skipping bitmap update")
+            return GraphLoadOutcome.Empty("buildHourDataResult_empty")
+        }
+
+        if (!deferStartupGraphActuals) {
+            val stationIds = observations
+                .filter { matchesObservationSource(it, displaySource) }
+                .map { it.stationId }.toSet()
+            database.appLogDao().log(
+                "IDW_BLEND",
+                "source=${displaySource.id} stations=${stationIds.size} [${stationIds.joinToString(",")}] blendedPoints=$actualCount",
+            )
+            blendDebugCollector.emittedLines()
+                .take(MAX_PERSISTED_BLEND_DEBUG_LINES)
+                .forEach { line ->
+                    database.appLogDao().log("TEMP_ACTUALS_DEBUG", line)
+                }
+            if (blendDebugCollector.emittedLines().size > MAX_PERSISTED_BLEND_DEBUG_LINES) {
+                database.appLogDao().log(
+                    "TEMP_ACTUALS_DEBUG",
+                    "omitted=${blendDebugCollector.emittedLines().size - MAX_PERSISTED_BLEND_DEBUG_LINES} additional emitted blend debug lines",
+                )
+            }
+            database.appLogDao().log(
+                "TEMP_ACTUALS_DEBUG",
+                "summary " + blendDebugCollector.buildSummary(
+                    stationCount = stationIds.size,
+                    blendedPointCount = actualCount,
+                    blendDurationMs = buildHourDataMs,
+                ),
+            )
+            hourDataResult.blendStats?.let { stats ->
+                database.appLogDao().log(
+                    "TEMP_ACTUALS_PERF",
+                    "widget=$appWidgetId source=${displaySource.id} buildMs=$buildHourDataMs ${stats.summary()}",
+                )
+            }
+            val obsBlendMs = obsQueryMs + buildHourDataMs
+            if (obsBlendMs > 100) {
+                database.appLogDao().log(
+                    "TEMP_OBS_SLOW",
+                    "widget=$appWidgetId obsQuery=${obsQueryMs}ms blend=${buildHourDataMs}ms total=${obsBlendMs}ms " +
+                        hourDataResult.blendStats?.summary(topStations = 2).orEmpty(),
+                )
+            }
+        } else {
+            database.appLogDao().log(
+                "TEMP_STARTUP_FAST_PATH",
+                "widget=$appWidgetId source=${displaySource.id} startup graph skipped observation blending",
+            )
+        }
+
+        return GraphLoadOutcome.Loaded(
+            hours = hourData,
+            obsQueryMs = obsQueryMs,
+            buildHourDataMs = buildHourDataMs,
         )
     }
 
