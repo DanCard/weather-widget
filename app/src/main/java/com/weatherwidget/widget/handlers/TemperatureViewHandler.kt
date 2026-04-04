@@ -86,6 +86,33 @@ object TemperatureViewHandler {
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data thread=${Thread.currentThread().name}")
         appWidgetManager.updateAppWidget(appWidgetId, views)
 
+        val headerLog = buildHeaderStateLog(
+            widgetId = appWidgetId,
+            viewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
+            displaySource = displaySource,
+            configuredLocation = stateManager.getWidgetLocation(appWidgetId),
+            dataLat = resolutionResult.lat,
+            dataLon = resolutionResult.lon,
+            dimensions = dimensions,
+            currentTemp = resolutionResult.currentTempResolution.displayTemp,
+            estimatedTemp = resolutionResult.currentTempResolution.estimatedTemp,
+            observedTemp = resolutionResult.currentTempResolution.observedTemp,
+            appliedDelta = resolutionResult.currentTempResolution.appliedDelta,
+            deltaVisible = resolutionResult.state.header.isDeltaVisible,
+            deltaHiddenReason = temperatureDeltaHiddenReason(
+                currentTemp = resolutionResult.currentTempResolution.displayTemp,
+                appliedDelta = resolutionResult.currentTempResolution.appliedDelta,
+                isNowLineVisible = resolutionResult.isNowLineVisible
+            ),
+            precipVisible = resolutionResult.state.header.isPrecipVisible,
+            precipProbability = resolutionResult.headerPrecipProbability,
+            isNowLineVisible = resolutionResult.isNowLineVisible,
+            offset = resolutionResult.state.hourlyOffset,
+            zoom = resolutionResult.state.zoom,
+            resolveMs = resolutionResult.resolveMs
+        )
+        appLogDao.log(TAG, headerLog)
+
         if (!deferCurrentTempResolution) {
             val currentTempResolution = resolutionResult.currentTempResolution
             if (currentTempResolution.shouldClearStoredDelta) {
