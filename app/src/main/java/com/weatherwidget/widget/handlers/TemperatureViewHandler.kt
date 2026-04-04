@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -50,9 +51,11 @@ object TemperatureViewHandler {
     private const val MAX_PERSISTED_BLEND_DEBUG_LINES = 12
     private const val CURRENT_TEMP_FOLLOW_UP_EPSILON = 0.05f
     private const val STARTUP_FULL_GRAPH_REFRESH_DELAY_MS = 200L
+    private const val GRAPH_MIN_ROWS = 1.4f
+    private const val DELTA_COLOR_HEX = "#FF6B35"
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val refinementTokens = ConcurrentHashMap<Int, Long>()
-    private val fullGraphRefreshTokens = ConcurrentHashMap<Int, Long>()
+    private val refinementJobs = ConcurrentHashMap<Int, Job>()
+    private val fullGraphRefreshJobs = ConcurrentHashMap<Int, Job>()
     private val CLOCK_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
 
     suspend fun updateWidget(
@@ -153,7 +156,7 @@ object TemperatureViewHandler {
         setupCurrentStationsShortcut(context, views, appWidgetId)
 
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
-        val useGraph = rawRows >= 1.4f
+        val useGraph = rawRows >= GRAPH_MIN_ROWS
         val deferStartupGraphActuals = startupToken != null && useGraph
 
         val database = WeatherDatabase.getDatabase(context)
@@ -183,6 +186,23 @@ object TemperatureViewHandler {
         when (graphLoadResult) {
             is GraphLoadOutcome.Empty -> {
                 appWidgetManager.updateAppWidget(appWidgetId, views)
+                val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
+                WidgetPerfLogger.logIfSlow(
+                    appLogDao = database.appLogDao(),
+                    thresholdMs = WidgetPerfLogger.PIPELINE_SLOW_MS,
+                    totalMs = totalMs,
+                    appLogTag = WidgetPerfLogger.TAG_TEMP_PIPELINE_PERF,
+                    message = WidgetPerfLogger.kv(
+                        "token" to startupToken,
+                        "widget" to appWidgetId,
+                        "view" to "TEMPERATURE",
+                        "useGraph" to useGraph,
+                        "startupFastPath" to deferStartupGraphActuals,
+                        "emptyReason" to graphLoadResult.reason,
+                        "totalMs" to totalMs,
+                    ),
+                    debugTag = TAG,
+                )
                 return
             }
             is GraphLoadOutcome.Loaded -> {
@@ -593,9 +613,9 @@ object TemperatureViewHandler {
     private fun scheduleCurrentTempRefinement(
         params: CurrentTempRefinementParams,
     ) {
-        val token = SystemClock.elapsedRealtimeNanos()
-        refinementTokens[params.appWidgetId] = token
-        asyncScope.launch {
+        val appContext = params.context.applicationContext
+        refinementJobs[params.appWidgetId]?.cancel()
+        refinementJobs[params.appWidgetId] = asyncScope.launch {
             val refined =
                 CurrentTemperatureResolver.resolve(
                     now = params.now,
@@ -607,7 +627,6 @@ object TemperatureViewHandler {
                     currentLat = params.currentLat,
                     currentLon = params.currentLon,
                 )
-            if (refinementTokens[params.appWidgetId] != token) return@launch
 
             if (refined.shouldClearStoredDelta) {
                 params.stateManager.clearCurrentTempDeltaState(params.appWidgetId, params.displaySource)
@@ -618,7 +637,7 @@ object TemperatureViewHandler {
                 return@launch
             }
 
-            val partialViews = RemoteViews(params.context.packageName, R.layout.widget_weather)
+            val partialViews = RemoteViews(appContext.packageName, R.layout.widget_weather)
             applyCurrentTempHeader(
                 views = partialViews,
                 currentTemp = refined.displayTemp,
@@ -664,24 +683,26 @@ object TemperatureViewHandler {
         appWidgetId: Int,
         phase1StartMs: Long,
     ) {
-        val token = SystemClock.elapsedRealtimeNanos()
-        fullGraphRefreshTokens[appWidgetId] = token
+        val appContext = context.applicationContext
+        fullGraphRefreshJobs[appWidgetId]?.cancel()
         val phase1TotalMs = SystemClock.elapsedRealtime() - phase1StartMs
-        asyncScope.launch {
-            val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        fullGraphRefreshJobs[appWidgetId] = asyncScope.launch {
+            val appLogDao = WeatherDatabase.getDatabase(appContext).appLogDao()
             appLogDao.log("STARTUP_PHASE2", "widget=$appWidgetId status=scheduled delayMs=$STARTUP_FULL_GRAPH_REFRESH_DELAY_MS phase1TotalMs=${phase1TotalMs}ms")
-            delay(STARTUP_FULL_GRAPH_REFRESH_DELAY_MS)
-            val totalElapsedMs = SystemClock.elapsedRealtime() - phase1StartMs
-            if (fullGraphRefreshTokens[appWidgetId] != token) {
+            try {
+                delay(STARTUP_FULL_GRAPH_REFRESH_DELAY_MS)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                val totalElapsedMs = SystemClock.elapsedRealtime() - phase1StartMs
                 appLogDao.log("STARTUP_PHASE2", "widget=$appWidgetId status=cancelled totalElapsedMs=${totalElapsedMs}ms")
-                context.sendBroadcast(Intent(context, WeatherWidgetProvider::class.java).apply {
+                appContext.sendBroadcast(Intent(appContext, WeatherWidgetProvider::class.java).apply {
                     action = WeatherWidgetProvider.ACTION_SHOW_TOAST
                     putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "\u26A0\uFE0F Phase2 cancelled (${totalElapsedMs}ms)")
                 })
-                return@launch
+                throw e
             }
+            val totalElapsedMs = SystemClock.elapsedRealtime() - phase1StartMs
             appLogDao.log("STARTUP_PHASE2", "widget=$appWidgetId status=fired totalElapsedMs=${totalElapsedMs}ms")
-            context.sendBroadcast(Intent(context, WeatherWidgetProvider::class.java).apply {
+            appContext.sendBroadcast(Intent(appContext, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
@@ -715,7 +736,7 @@ object TemperatureViewHandler {
 
         if (currentTemp != null && isNowLineVisible && appliedDelta != null && kotlin.math.abs(appliedDelta) >= DELTA_VISIBILITY_THRESHOLD) {
             val deltaText = String.format("%+.1f", appliedDelta)
-            val deltaColor = Color.parseColor("#FF6B35")
+            val deltaColor = Color.parseColor(DELTA_COLOR_HEX)
             views.setTextViewText(R.id.current_temp_delta, deltaText)
             views.setTextColor(R.id.current_temp_delta, deltaColor)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
