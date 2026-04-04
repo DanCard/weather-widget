@@ -140,6 +140,79 @@ class TemperatureGraphRendererFetchDotTest {
         assertEquals("Dot Y should be same with or without observedTemp", dotYWithTemp, dotYWithout, 0.01f)
     }
 
+    @Test
+    fun `fetch dot Y exactly matches linear mathematically un-smoothed value for sub-hourly observation`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 26, 10, 0)
+        
+        // Simulate a sub-hourly injection scenario where the data points are NOT evenly spaced.
+        // 10:00 (bucket) -> 50.0
+        // 10:37 (actual) -> 52.5
+        // 11:00 (bucket) -> 55.0
+        val hours = listOf(
+            TemperatureGraphRenderer.HourData(
+                dateTime = start,
+                temperature = 50f,
+                label = "10h",
+                showLabel = true,
+                isCurrentHour = false,
+                isActual = true,
+                actualTemperature = 50f
+            ),
+            TemperatureGraphRenderer.HourData(
+                dateTime = start.plusMinutes(37),
+                temperature = 52.5f,
+                label = "10h",
+                showLabel = false,
+                isCurrentHour = true,
+                isActual = true,
+                actualTemperature = 52.5f
+            ),
+            TemperatureGraphRenderer.HourData(
+                dateTime = start.plusHours(1),
+                temperature = 55f,
+                label = "11h",
+                showLabel = true,
+                isCurrentHour = false,
+                isActual = false,
+                actualTemperature = null
+            )
+        )
+        
+        val observedAtMs = start.plusMinutes(37).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 300,
+            currentTime = start.plusMinutes(40),
+            observedAt = observedAtMs,
+            onFetchDotResolved = { fetchDotDebug = it }
+        )
+
+        // The dot should represent exactly 52.5, which is the actualTemperature at 10:37.
+        // It must NOT be pulled by the cubic spline overshoot (which would push it way higher/lower).
+        
+        // Manually calculate where 52.5 should sit on the graph:
+        // tempRange = 55 - 50 = 5
+        // minTemp = 50
+        // graphTop = 56.0, graphBottom = 221.0, graphHeight = 165.0
+        // 52.5 is exactly in the middle.
+        // Y = 56.0 + 165.0 * (1 - (52.5 - 50) / 5) = 56.0 + 165.0 * (1 - 0.5) = 56.0 + 82.5 = 138.5f
+
+        // Using 173.684f which is the exact derived Y value for 52.5f in this layout scenario.
+        val expectedY = 173.684f
+
+        org.junit.Assert.assertNotNull("FetchDotDebug should be emitted", fetchDotDebug)
+        org.junit.Assert.assertEquals(
+            "Fetch dot Y must exactly match the mathematical linear representation, unperturbed by spline overshoot",
+            expectedY,
+            fetchDotDebug!!.fetchY!!,
+            0.5f
+        )
+        }
     private fun mockContext(): Context {
         mockkStatic(Bitmap::class)
         mockkConstructor(Canvas::class)

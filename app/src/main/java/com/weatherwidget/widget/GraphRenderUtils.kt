@@ -66,7 +66,10 @@ internal object GraphRenderUtils {
                     )
 
                 else -> {
-                    val dx = (points[i + 1].first - points[i - 1].first) * 0.5f
+                    val dxPrev = points[i].first - points[i - 1].first
+                    val dxNext = points[i + 1].first - points[i].first
+                    
+                    val dx = (dxPrev + dxNext) * 0.5f
                     var dy = (points[i + 1].second - points[i - 1].second) * 0.5f
 
                     // Monotone-aware tangents: Zero out Y tangent if at a plateau or extremum
@@ -82,7 +85,15 @@ internal object GraphRenderUtils {
                         dy = 0f
                     }
 
-                    Pair(dx, dy)
+                    // For non-uniform spacing (like sub-hourly observations), prevent the tangent
+                    // from overshooting the segment distance, which causes loopbacks and wild swoops.
+                    val maxSafeDx = dxPrev.coerceAtMost(dxNext) * 1.5f
+                    if (dx > maxSafeDx && maxSafeDx > 0) {
+                        val scale = maxSafeDx / dx
+                        Pair(maxSafeDx, dy * scale)
+                    } else {
+                        Pair(dx, dy)
+                    }
                 }
             }
         }
