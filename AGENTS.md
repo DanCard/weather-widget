@@ -183,6 +183,7 @@ class TemperatureInterpolatorTest {
 ## Documentation Preferences
 
 ### Session Logs
+- Include user prompts
 - Prefer numbered lists over bulleted lists in `session-logs/` for long lists.
 
 ## Widget Development

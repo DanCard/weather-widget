@@ -56,7 +56,7 @@
              Renders with forecast data only and uses resolveQuick for the current temp header.
              The widget appears immediately.                                                                                     
 
-  - Phase 2: scheduleStartupFullGraphRefresh fires a broadcast 900ms later,
+   - Phase 2: scheduleStartupFullGraphRefresh fires a broadcast 200ms later,
              triggering a full re-render with real observations.
                                                                                                                                            
   Similarly, deferCurrentTempResolution separates the delta/bias calculation (which requires spatial math)
@@ -67,7 +67,7 @@
   ---
   Touch target architecture:
   WeatherWidgetProvider receives the broadcast and routes it.
-  Request codes are managed via WidgetRequestCodes (though a few are still raw arithmetic like appWidgetId * 100 + 700).                                                                                                
+   Request codes are managed via WidgetRequestCodes.
                                                                                                                                            
   ---                                                       
   Backfill triggering
@@ -103,22 +103,23 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.util.ObservationBlender
-import com.weatherwidget.util.ObservationBlender.BlendObservationResult
 import com.weatherwidget.util.ObservationBlender.BlendObservationStats
-import com.weatherwidget.util.ObservationBlender.StationSeriesStats
-import com.weatherwidget.util.ObservationBlender.StationSeriesBuildResult
-import com.weatherwidget.util.ObservationBlender.StationTimeSeriesPoint
 import com.weatherwidget.util.HeaderPrecipCalculator
-import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.util.WeatherTimeUtils
+import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
+import com.weatherwidget.widget.GraphRenderUtils
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -153,7 +154,7 @@ object TemperatureViewHandler {
     private const val HOURLY_BACKFILL_COOLDOWN_MS = 30 * 60 * 1000L
     private const val HOURLY_BACKFILL_SOURCE_KEY = "NWS_HOURLY_HISTORY"
     private const val CURRENT_TEMP_FOLLOW_UP_EPSILON = 0.05f
-    private const val STARTUP_FULL_GRAPH_REFRESH_DELAY_MS = 900L
+    private const val STARTUP_FULL_GRAPH_REFRESH_DELAY_MS = 200L
     private val asyncScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val refinementTokens = ConcurrentHashMap<Int, Long>()
     private val fullGraphRefreshTokens = ConcurrentHashMap<Int, Long>()
@@ -176,21 +177,14 @@ object TemperatureViewHandler {
      * current temp header is consistent across view modes.
      */
     internal fun computeSmoothedForecasts(
-        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         smoothIterations: Int = HEADER_SMOOTH_ITERATIONS,
     ): Map<Long, Float> {
-        val forecastsByTime =
-            hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { entry ->
-                    val preferred = entry.value.find { it.source == displaySource.id }
-                    val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    val fallback = entry.value.firstOrNull()
-                    preferred ?: gap ?: fallback
-                }
+        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
         val sortedTimes = forecastsByTime.keys.sorted()
         val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
-        val smoothedTemps = com.weatherwidget.widget.GraphRenderUtils.smoothValuesPreservingGlobalExtrema(
+        val smoothedTemps = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(
             rawTemps,
             iterations = smoothIterations,
         )
@@ -203,7 +197,7 @@ object TemperatureViewHandler {
         val stationId: String?,
         val stationName: String?,
         val stationType: String?,
-        val observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        val observations: List<ObservationEntity>,
         val rejectedGroupCount: Int,
     )
 
@@ -268,7 +262,7 @@ object TemperatureViewHandler {
         lastObservedTemp: Float? = null,
         observedAt: Long? = null,
         onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
         startupToken: String? = null,
         deferCurrentTempResolution: Boolean = false,
     ) {
@@ -347,10 +341,10 @@ object TemperatureViewHandler {
         val goCloudIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WidgetIntentRouter.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)
+            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, ViewMode.CLOUD_COVER.name)
         }
         val goCloudPending = PendingIntent.getBroadcast(
-            context, appWidgetId * 100 + 900, goCloudIntent,
+            context, WidgetRequestCodes.iconViewToggle(appWidgetId), goCloudIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
@@ -582,7 +576,7 @@ object TemperatureViewHandler {
             TAG,
             buildHeaderStateLog(
                 widgetId = appWidgetId,
-                viewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
+                viewMode = ViewMode.TEMPERATURE,
                 displaySource = displaySource,
                 configuredLocation = configuredLocation,
                 dataLat = lat,
@@ -604,12 +598,6 @@ object TemperatureViewHandler {
         )
 
         if (useGraph) {
-            views.setViewVisibility(R.id.text_container, View.GONE)
-            views.setViewVisibility(R.id.graph_view, View.VISIBLE)
-            views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
-
-            // Use actual widget dimensions for bitmap
-            // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
 
@@ -622,38 +610,58 @@ object TemperatureViewHandler {
                     heightPx.toFloat() / rawHeightPx.toFloat(),
                 )
 
-            // Render temperature graph
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = TemperatureGraphRenderer.renderGraph(
-                context = context,
-                hours = graphHours,
-                widthPx = widthPx,
-                heightPx = heightPx,
-                currentTime = now,
-                bitmapScale = bitmapScale,
-                appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
-                observedAt = observedAt,
-                onFetchDotResolved = onFetchDotResolved,
-            )
-            renderMs = SystemClock.elapsedRealtime() - renderStartMs
-            if (renderMs > 100) {
-                database.appLogDao().log(
-                    "TEMP_RENDER_SLOW",
-                    "widget=$appWidgetId renderMs=${renderMs}ms size=${widthPx}x${heightPx}",
+            val bitmap = try {
+                TemperatureGraphRenderer.renderGraph(
+                    context = context,
+                    hours = graphHours,
+                    widthPx = widthPx,
+                    heightPx = heightPx,
+                    currentTime = now,
+                    bitmapScale = bitmapScale,
+                    appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
+                    observedAt = observedAt,
+                    onFetchDotResolved = onFetchDotResolved,
                 )
+            } catch (e: Exception) {
+                Log.e(TAG, "renderGraph failed for widget=$appWidgetId size=${widthPx}x${heightPx}", e)
+                database.appLogDao().log("TEMP_RENDER_ERROR", "widget=$appWidgetId error=${e.message}")
+                null
             }
-            views.setImageViewBitmap(R.id.graph_view, bitmap)
+            renderMs = SystemClock.elapsedRealtime() - renderStartMs
 
-            // Per-hour bottom zones with icon-dependent routing
-            HourlyBottomZoneHelper.setup(
-                context = context,
-                views = views,
-                appWidgetId = appWidgetId,
-                hourIconResources = graphHours.map { it.iconRes },
-                currentViewMode = ViewMode.TEMPERATURE,
-                zoom = zoom,
-                hourlyOffset = hourlyOffset,
-            )
+            if (bitmap != null) {
+                if (renderMs > 100) {
+                    database.appLogDao().log(
+                        "TEMP_RENDER_SLOW",
+                        "widget=$appWidgetId renderMs=${renderMs}ms size=${widthPx}x${heightPx}",
+                    )
+                }
+                views.setViewVisibility(R.id.text_container, View.GONE)
+                views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+                views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
+                views.setImageViewBitmap(R.id.graph_view, bitmap)
+
+                HourlyBottomZoneHelper.setup(
+                    context = context,
+                    views = views,
+                    appWidgetId = appWidgetId,
+                    hourIconResources = graphHours.map { it.iconRes },
+                    currentViewMode = ViewMode.TEMPERATURE,
+                    zoom = zoom,
+                    hourlyOffset = hourlyOffset,
+                )
+            } else {
+                views.setViewVisibility(R.id.text_container, View.VISIBLE)
+                views.setViewVisibility(R.id.graph_view, View.GONE)
+                views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
+                views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
+                views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
+                views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+                views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+
+                updateHourlyTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
+            }
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
@@ -671,26 +679,28 @@ object TemperatureViewHandler {
         appWidgetManager.updateAppWidget(appWidgetId, views)
         if (deferCurrentTempResolution) {
             scheduleCurrentTempRefinement(
-                context = context,
-                appWidgetManager = appWidgetManager,
-                appWidgetId = appWidgetId,
-                stateManager = stateManager,
-                now = now,
-                displaySource = displaySource,
-                hourlyForecasts = hourlyForecasts,
-                lastObservedTemp = lastObservedTemp,
-                observedAt = observedAt,
-                currentLat = lat,
-                currentLon = lon,
-                numColumns = numColumns,
-                widthDp = dimensions.widthDp,
-                isNowLineVisible = isNowLineVisible,
-                quickResolution = currentTempResolution,
-                storedDeltaState = storedDeltaState,
+                CurrentTempRefinementParams(
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    stateManager = stateManager,
+                    now = now,
+                    displaySource = displaySource,
+                    hourlyForecasts = hourlyForecasts,
+                    lastObservedTemp = lastObservedTemp,
+                    observedAt = observedAt,
+                    currentLat = lat,
+                    currentLon = lon,
+                    numColumns = numColumns,
+                    widthDp = dimensions.widthDp,
+                    isNowLineVisible = isNowLineVisible,
+                    quickResolution = currentTempResolution,
+                    storedDeltaState = storedDeltaState,
+                )
             )
         }
         if (deferStartupGraphActuals) {
-            scheduleStartupFullGraphRefresh(context, appWidgetId)
+            scheduleStartupFullGraphRefresh(context, appWidgetId, handlerStartMs)
         }
         val totalMs = SystemClock.elapsedRealtime() - handlerStartMs
         WidgetPerfLogger.logIfSlow(
@@ -715,60 +725,64 @@ object TemperatureViewHandler {
         )
     }
 
+    private data class CurrentTempRefinementParams(
+        val context: Context,
+        val appWidgetManager: AppWidgetManager,
+        val appWidgetId: Int,
+        val stateManager: WidgetStateManager,
+        val now: LocalDateTime,
+        val displaySource: WeatherSource,
+        val hourlyForecasts: List<HourlyForecastEntity>,
+        val lastObservedTemp: Float?,
+        val observedAt: Long?,
+        val currentLat: Double,
+        val currentLon: Double,
+        val numColumns: Int,
+        val widthDp: Int,
+        val isNowLineVisible: Boolean,
+        val quickResolution: CurrentTemperatureResolution,
+        val storedDeltaState: CurrentTemperatureDeltaState?,
+    )
+
     private fun scheduleCurrentTempRefinement(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
-        stateManager: WidgetStateManager,
-        now: LocalDateTime,
-        displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        lastObservedTemp: Float?,
-        observedAt: Long?,
-        currentLat: Double,
-        currentLon: Double,
-        numColumns: Int,
-        widthDp: Int,
-        isNowLineVisible: Boolean,
-        quickResolution: CurrentTemperatureResolution,
-        storedDeltaState: com.weatherwidget.widget.CurrentTemperatureDeltaState?,
+        params: CurrentTempRefinementParams,
     ) {
         val token = SystemClock.elapsedRealtimeNanos()
-        refinementTokens[appWidgetId] = token
+        refinementTokens[params.appWidgetId] = token
         asyncScope.launch {
             val refined =
                 CurrentTemperatureResolver.resolve(
-                    now = now,
-                    displaySource = displaySource,
-                    hourlyForecasts = hourlyForecasts,
-                    lastObservedTemp = lastObservedTemp,
-                    observedAt = observedAt,
-                    storedDeltaState = storedDeltaState,
-                    currentLat = currentLat,
-                    currentLon = currentLon,
+                    now = params.now,
+                    displaySource = params.displaySource,
+                    hourlyForecasts = params.hourlyForecasts,
+                    lastObservedTemp = params.lastObservedTemp,
+                    observedAt = params.observedAt,
+                    storedDeltaState = params.storedDeltaState,
+                    currentLat = params.currentLat,
+                    currentLon = params.currentLon,
                 )
-            if (refinementTokens[appWidgetId] != token) return@launch
+            if (refinementTokens[params.appWidgetId] != token) return@launch
 
             if (refined.shouldClearStoredDelta) {
-                stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
+                params.stateManager.clearCurrentTempDeltaState(params.appWidgetId, params.displaySource)
             }
-            refined.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
+            refined.updatedDeltaState?.let { params.stateManager.setCurrentTempDeltaState(params.appWidgetId, params.displaySource, it) }
 
-            if (!shouldApplyRefinedHeaderUpdate(quickResolution, refined, isNowLineVisible)) {
+            if (!shouldApplyRefinedHeaderUpdate(params.quickResolution, refined, params.isNowLineVisible)) {
                 return@launch
             }
 
-            val partialViews = RemoteViews(context.packageName, R.layout.widget_weather)
+            val partialViews = RemoteViews(params.context.packageName, R.layout.widget_weather)
             applyCurrentTempHeader(
                 views = partialViews,
                 currentTemp = refined.displayTemp,
-                numColumns = numColumns,
-                widthDp = widthDp,
+                numColumns = params.numColumns,
+                widthDp = params.widthDp,
                 isStaleEstimate = refined.isStaleEstimate,
                 appliedDelta = refined.appliedDelta,
-                isNowLineVisible = isNowLineVisible,
+                isNowLineVisible = params.isNowLineVisible,
             )
-            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, partialViews)
+            params.appWidgetManager.partiallyUpdateAppWidget(params.appWidgetId, partialViews)
         }
     }
 
@@ -802,19 +816,30 @@ object TemperatureViewHandler {
     private fun scheduleStartupFullGraphRefresh(
         context: Context,
         appWidgetId: Int,
+        phase1StartMs: Long,
     ) {
         val token = SystemClock.elapsedRealtimeNanos()
         fullGraphRefreshTokens[appWidgetId] = token
+        val phase1TotalMs = SystemClock.elapsedRealtime() - phase1StartMs
         asyncScope.launch {
+            val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+            appLogDao.log("STARTUP_PHASE2", "widget=$appWidgetId status=scheduled delayMs=$STARTUP_FULL_GRAPH_REFRESH_DELAY_MS phase1TotalMs=${phase1TotalMs}ms")
             delay(STARTUP_FULL_GRAPH_REFRESH_DELAY_MS)
-            if (fullGraphRefreshTokens[appWidgetId] != token) return@launch
-            val refreshIntent =
-                Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = WeatherWidgetProvider.ACTION_REFRESH
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
-                }
-            context.sendBroadcast(refreshIntent)
+            val totalElapsedMs = SystemClock.elapsedRealtime() - phase1StartMs
+            if (fullGraphRefreshTokens[appWidgetId] != token) {
+                appLogDao.log("STARTUP_PHASE2", "widget=$appWidgetId status=cancelled totalElapsedMs=${totalElapsedMs}ms")
+                context.sendBroadcast(Intent(context, WeatherWidgetProvider::class.java).apply {
+                    action = WeatherWidgetProvider.ACTION_SHOW_TOAST
+                    putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "⚠️ Phase2 cancelled (${totalElapsedMs}ms)")
+                })
+                return@launch
+            }
+            appLogDao.log("STARTUP_PHASE2", "widget=$appWidgetId status=fired totalElapsedMs=${totalElapsedMs}ms")
+            context.sendBroadcast(Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = WeatherWidgetProvider.ACTION_REFRESH
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+            })
         }
     }
 
@@ -887,7 +912,7 @@ object TemperatureViewHandler {
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: ZoomLevel,
         hourlyOffset: Int,
     ) {
         // Show hour zones only over the graph body, not the bottom icon/label row.
@@ -905,7 +930,7 @@ object TemperatureViewHandler {
             }
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 100 + 500 + i,
+                WidgetRequestCodes.cycleZoomZone(appWidgetId, i),
                 zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -1043,23 +1068,20 @@ object TemperatureViewHandler {
             putExtra("date", dateStr)
             putExtra("showHistory", true)
             putExtra("isHistory", centerTime.toLocalDate().isBefore(LocalDate.now()))
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            appWidgetId * 100 + 700,
+            WidgetRequestCodes.history(appWidgetId),
             historyIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
         views.setOnClickPendingIntent(R.id.history_touch_zone_inline, pendingIntent)
-        views.setViewVisibility(R.id.history_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.history_touch_zone_inline, View.VISIBLE)
     }
 
     private fun setupHomeShortcut(
@@ -1070,7 +1092,7 @@ object TemperatureViewHandler {
         val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WidgetIntentRouter.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.DAILY.name)
+            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,
@@ -1081,9 +1103,6 @@ object TemperatureViewHandler {
         views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
         views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
-        views.setViewVisibility(R.id.home_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.home_touch_zone_inline, View.VISIBLE)
     }
 
     private fun setupCurrentStationsShortcut(
@@ -1098,22 +1117,19 @@ object TemperatureViewHandler {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            appWidgetId * 100 + 800,
+            WidgetRequestCodes.currentStations(appWidgetId),
             obsIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.current_stations_icon, pendingIntent)
         views.setOnClickPendingIntent(R.id.current_stations_touch_zone, pendingIntent)
         views.setOnClickPendingIntent(R.id.current_stations_touch_zone_inline, pendingIntent)
-        views.setViewVisibility(R.id.current_stations_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.current_stations_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.current_stations_touch_zone_inline, View.VISIBLE)
     }
 
     // On narrow widgets with precip visible, swap to inline icons (inside current_weather_container
     // LinearLayout) so they naturally flow to the right of the precip text.
     // Otherwise show the floating center_horizontal icons.
-    // Setup methods show both sets; this function hides the one not in use.
+    // This function is the single authority for center icon visibility.
     private fun positionCenterIcons(
         views: RemoteViews,
         widthDp: Int,
@@ -1163,8 +1179,8 @@ object TemperatureViewHandler {
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
-        zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
-        actuals: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+        zoom: ZoomLevel = ZoomLevel.WIDE,
+        actuals: List<ObservationEntity> = emptyList(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
         smoothedForecasts: Map<Long, Float>? = null,
     ): List<TemperatureGraphRenderer.HourData> =
@@ -1184,22 +1200,15 @@ object TemperatureViewHandler {
         centerTime: LocalDateTime,
         numColumns: Int,
         displaySource: WeatherSource,
-        zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
-        actuals: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
+        zoom: ZoomLevel = ZoomLevel.WIDE,
+        actuals: List<ObservationEntity> = emptyList(),
         onBlendDebug: ((() -> String) -> Unit)? = null,
         smoothedForecasts: Map<Long, Float>? = null,
     ): BuildHourDataResult {
         val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val now = LocalDateTime.now()
 
-        val forecastsByTime =
-            hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { entry ->
-                    val preferred = entry.value.find { it.source == displaySource.id }
-                    val gap = entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    val fallback = entry.value.firstOrNull()
-                    preferred ?: gap ?: fallback
-                }
+        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
 
         val zoneId = ZoneId.systemDefault()
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
@@ -1269,8 +1278,8 @@ object TemperatureViewHandler {
                 val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
                 val showLabel =
                     when (zoom) {
-                        com.weatherwidget.widget.ZoomLevel.WIDE -> hourIndex % labelInterval == 0
-                        com.weatherwidget.widget.ZoomLevel.NARROW -> true
+                        ZoomLevel.WIDE -> hourIndex % labelInterval == 0
+                        ZoomLevel.NARROW -> true
                     }
 
                 val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
@@ -1308,7 +1317,7 @@ object TemperatureViewHandler {
         // 2. Inject sub-hourly actuals
         val finalHours = mutableListOf<TemperatureGraphRenderer.HourData>()
         val allTimes = hours.map { it.dateTime }.toMutableSet()
-        val actualMap = mutableMapOf<LocalDateTime, com.weatherwidget.data.local.ObservationEntity>()
+        val actualMap = mutableMapOf<LocalDateTime, ObservationEntity>()
 
         // Pre-initialize lastActual from the full blended series to ensure consistency at window boundaries
         var lastActual: Float? = blendedActuals
@@ -1412,7 +1421,7 @@ object TemperatureViewHandler {
         displaySource: WeatherSource,
         graphStart: LocalDateTime,
         graphEnd: LocalDateTime,
-        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        observations: List<ObservationEntity>,
         now: LocalDateTime = LocalDateTime.now(),
     ): HourlyBackfillDecision {
         if (displaySource != WeatherSource.NWS) {
@@ -1448,7 +1457,7 @@ object TemperatureViewHandler {
 
     @androidx.annotation.VisibleForTesting
     internal fun selectObservationSeries(
-        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        observations: List<ObservationEntity>,
         displaySource: WeatherSource,
         startHour: LocalDateTime,
         endHour: LocalDateTime,
@@ -1466,7 +1475,7 @@ object TemperatureViewHandler {
 
         val grouped = sourceObservations.groupBy { it.stationId }
         val selectedEntry = grouped.entries.maxWithOrNull(
-            compareBy<Map.Entry<String, List<com.weatherwidget.data.local.ObservationEntity>>>(
+            compareBy<Map.Entry<String, List<ObservationEntity>>>(
                 { entry -> entry.value.map { observationHour(it) }.toSet().size },
                 { entry -> entry.value.size },
                 { entry -> -entry.value.minOfOrNull { it.distanceKm }!! },
@@ -1499,7 +1508,7 @@ object TemperatureViewHandler {
         displaySource: WeatherSource,
         graphStart: LocalDateTime,
         graphEnd: LocalDateTime,
-        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        observations: List<ObservationEntity>,
         repositoryPresent: Boolean,
     ) {
         if (!repositoryPresent) return
@@ -1563,14 +1572,14 @@ object TemperatureViewHandler {
     }
 
     private fun matchesObservationSource(
-        observation: com.weatherwidget.data.local.ObservationEntity,
+        observation: ObservationEntity,
         displaySource: WeatherSource,
     ): Boolean {
-        val inferred = com.weatherwidget.widget.ObservationResolver.inferSource(observation.stationId)
+        val inferred = ObservationResolver.inferSource(observation.stationId)
         return inferred == displaySource.id || inferred == WeatherSource.GENERIC_GAP.id
     }
 
-    private fun observationHour(observation: com.weatherwidget.data.local.ObservationEntity): LocalDateTime =
+    private fun observationHour(observation: ObservationEntity): LocalDateTime =
         Instant.ofEpochMilli(observation.timestamp)
             .atZone(ZoneId.systemDefault())
             .toLocalDateTime()
@@ -1593,13 +1602,7 @@ object TemperatureViewHandler {
         numColumns: Int,
         displaySource: WeatherSource,
     ) {
-        val forecastsByTime =
-            hourlyForecasts.groupBy { it.dateTime }
-                .mapValues { entry ->
-                    entry.value.find { it.source == displaySource.id }
-                        ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
-                        ?: entry.value.firstOrNull()
-                }
+        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
 
         val timeOffsets =
             when {
@@ -1613,12 +1616,12 @@ object TemperatureViewHandler {
 
         val containerIds =
             listOf(
-                R.id.day1_container to Quad(R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low),
-                R.id.day2_container to Quad(R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low),
-                R.id.day3_container to Quad(R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low),
-                R.id.day4_container to Quad(R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low),
-                R.id.day5_container to Quad(R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low),
-                R.id.day6_container to Quad(R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low),
+                R.id.day1_container to HourlyTextSlot(R.id.day1_label, R.id.day1_icon, R.id.day1_high, R.id.day1_low),
+                R.id.day2_container to HourlyTextSlot(R.id.day2_label, R.id.day2_icon, R.id.day2_high, R.id.day2_low),
+                R.id.day3_container to HourlyTextSlot(R.id.day3_label, R.id.day3_icon, R.id.day3_high, R.id.day3_low),
+                R.id.day4_container to HourlyTextSlot(R.id.day4_label, R.id.day4_icon, R.id.day4_high, R.id.day4_low),
+                R.id.day5_container to HourlyTextSlot(R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low),
+                R.id.day6_container to HourlyTextSlot(R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low),
             )
 
         containerIds.forEachIndexed { index, (containerId, ids) ->
@@ -1632,16 +1635,16 @@ object TemperatureViewHandler {
                 views.setViewVisibility(containerId, View.VISIBLE)
 
                 val label = if (offset == 0) "Now" else "+${offset}h"
-                views.setTextViewText(ids.first, label)
-                views.setViewVisibility(ids.second, View.GONE)
+                views.setTextViewText(ids.labelId, label)
+                views.setViewVisibility(ids.iconId, View.GONE)
 
                 if (forecast != null) {
                     val temp = String.format("%.1f°", forecast.temperature)
-                    views.setTextViewText(ids.third, temp)
-                    views.setTextViewText(ids.fourth, "")
+                    views.setTextViewText(ids.tempId, temp)
+                    views.setTextViewText(ids.lowId, "")
                 } else {
-                    views.setTextViewText(ids.third, "--°")
-                    views.setTextViewText(ids.fourth, "")
+                    views.setTextViewText(ids.tempId, "--°")
+                    views.setTextViewText(ids.lowId, "")
                 }
             } else {
                 views.setViewVisibility(containerId, View.GONE)
@@ -1664,7 +1667,7 @@ object TemperatureViewHandler {
 
     private fun buildHeaderStateLog(
         widgetId: Int,
-        viewMode: com.weatherwidget.widget.ViewMode,
+        viewMode: ViewMode,
         displaySource: WeatherSource,
         configuredLocation: Pair<Double, Double>?,
         dataLat: Double,
@@ -1699,5 +1702,10 @@ object TemperatureViewHandler {
 
     private fun formatTemp(value: Float?): String = value?.let { String.format("%.2f", it) } ?: "none"
 
-    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+    private data class HourlyTextSlot(
+        val labelId: Int,
+        val iconId: Int,
+        val tempId: Int,
+        val lowId: Int,
+    )
 }

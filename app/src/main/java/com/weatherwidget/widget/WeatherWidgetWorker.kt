@@ -186,7 +186,6 @@ class WeatherWidgetWorker
             } catch (e: kotlinx.coroutines.CancellationException) {
                 val reasonMsg = "Worker cancelled. stopReason=$stopReason msg=${e.message}"
                 appLogDao.log("SYNC_CANCELLED", reasonMsg, "INFO")
-                Log.i(TAG, reasonMsg)
                 throw e
             } catch (e: Exception) {
                 appLogDao.log("SYNC_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
@@ -327,7 +326,6 @@ class WeatherWidgetWorker
             } catch (e: kotlinx.coroutines.CancellationException) {
                 val reasonMsg = "CurrentTemp fetch cancelled. reason=$reason stopReason=$stopReason msg=${e.message}"
                 appLogDao.log("CURR_FETCH_CANCELLED", reasonMsg, "INFO")
-                Log.i(TAG, reasonMsg)
                 throw e
             } catch (e: Exception) {
                 appLogDao.log("CURR_FETCH_EXCEPTION", "reason=$reason ${e.javaClass.simpleName}: ${e.message}", "ERROR")
@@ -359,7 +357,6 @@ class WeatherWidgetWorker
             } catch (e: kotlinx.coroutines.CancellationException) {
                 val reasonMsg = "Observation backfill cancelled. reason=$reason stopReason=$stopReason msg=${e.message}"
                 appLogDao.log("OBS_BACKFILL_CANCELLED", reasonMsg, "INFO")
-                Log.i(TAG, reasonMsg)
                 throw e
             } catch (e: Exception) {
                 appLogDao.log(

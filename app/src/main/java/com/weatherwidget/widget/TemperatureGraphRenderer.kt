@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import android.graphics.*
+import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
 import java.time.LocalDateTime
@@ -465,9 +466,15 @@ object TemperatureGraphRenderer {
 
         onPointsResolved?.invoke(PointsDebug(originalPoints, forecastPoints, expectedPoints))
 
+        val tBezier0 = SystemClock.elapsedRealtime()
         val (originalPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(originalPoints, graphBottom)
+        val tBezier1 = SystemClock.elapsedRealtime()
         val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
+        val tBezier2 = SystemClock.elapsedRealtime()
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
+        val tBezier3 = SystemClock.elapsedRealtime()
+        Log.d(TAG, "BEZIER_BREAKDOWN pts=${originalPoints.size}" +
+            " actual=${tBezier1-tBezier0}ms expected=${tBezier2-tBezier1}ms forecast=${tBezier3-tBezier2}ms")
 
         val nowX = GraphRenderUtils.computeNowX(hours, originalPoints, currentTime, hourWidth, { it.isCurrentHour }, { it.dateTime })
         val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
@@ -946,12 +953,15 @@ object TemperatureGraphRenderer {
             return bitmap
         }
 
+        val t0 = SystemClock.elapsedRealtime()
         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
         val paints = ensurePaints(context, labelScale)
         val density = context.resources.displayMetrics.density
+        val t1 = SystemClock.elapsedRealtime()
 
         val (minTemp, maxTemp, tempRange) = computeScaling(hours)
         val layout = computeLayout(context, heightPx, labelScale)
+        val t2 = SystemClock.elapsedRealtime()
 
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
         val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
@@ -962,6 +972,7 @@ object TemperatureGraphRenderer {
             hours, minTemp, tempRange, layout.graphTop, layout.graphHeight, layout.graphBottom,
             hourWidth, minTimeEpoch, currentTime, appliedDelta, observedAt, widthPx, onPointsResolved
         )
+        val t3 = SystemClock.elapsedRealtime()
 
         val ctx = RenderContext(
             context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
@@ -976,11 +987,14 @@ object TemperatureGraphRenderer {
         )
 
         drawFillAndCurves(ctx, update.expectedFillPath)
-        
+        val t4 = SystemClock.elapsedRealtime()
+
         val drawnIconBounds = mutableListOf<RectF>()
         drawHourLabelsAndIcons(ctx, hours, drawnIconBounds)
+        val t5 = SystemClock.elapsedRealtime()
         placeTemperatureLabels(ctx, hours, drawnIconBounds)
         placeDayLabels(ctx, hours, drawnIconBounds)
+        val t6 = SystemClock.elapsedRealtime()
 
         val fetchDotBounds = drawFetchDot(ctx, hours)
         ctx.drawnLabelBounds.addAll(fetchDotBounds)
@@ -989,6 +1003,12 @@ object TemperatureGraphRenderer {
             canvas, if (update.nowIndicatorVisible) update.nowX else null, ctx.graphTop, ctx.graphHeight,
             paints.currentTimePaint, paints.nowLabelTextPaint, ctx.drawnLabelBounds + drawnIconBounds
         ) { dpToPx(context, it) }
+        val t7 = SystemClock.elapsedRealtime()
+
+        Log.d(TAG, "RENDER_BREAKDOWN size=${widthPx}x${heightPx} hours=${hours.size}" +
+            " paints=${t1-t0}ms layout=${t2-t1}ms points=${t3-t2}ms" +
+            " curves=${t4-t3}ms icons=${t5-t4}ms labels=${t6-t5}ms decorations=${t7-t6}ms" +
+            " total=${t7-t0}ms")
 
         return bitmap
     }

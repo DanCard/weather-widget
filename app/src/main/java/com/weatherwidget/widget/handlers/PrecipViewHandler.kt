@@ -143,7 +143,7 @@ object PrecipViewHandler {
             putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)
         }
         val goCloudPending = PendingIntent.getBroadcast(
-            context, appWidgetId * 100 + 900, goCloudIntent,
+            context, WidgetRequestCodes.iconViewToggle(appWidgetId), goCloudIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
@@ -354,7 +354,7 @@ object PrecipViewHandler {
             }
             val pendingIntent = PendingIntent.getBroadcast(
                 context,
-                appWidgetId * 100 + 500 + i,
+                WidgetRequestCodes.cycleZoomZone(appWidgetId, i),
                 zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
@@ -485,7 +485,7 @@ object PrecipViewHandler {
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            appWidgetId * 100 + 700,
+            WidgetRequestCodes.history(appWidgetId),
             historyIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -529,7 +529,7 @@ object PrecipViewHandler {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            appWidgetId * 100 + 800,
+            WidgetRequestCodes.currentStations(appWidgetId),
             obsIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

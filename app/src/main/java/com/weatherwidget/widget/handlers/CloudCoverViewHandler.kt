@@ -195,7 +195,7 @@ object CloudCoverViewHandler {
             putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
         }
         val goTempIconPending = PendingIntent.getBroadcast(
-            context, appWidgetId * 100 + 900, goTempIconIntent,
+            context, WidgetRequestCodes.iconViewToggle(appWidgetId), goTempIconIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goTempIconPending)
@@ -386,7 +386,7 @@ object CloudCoverViewHandler {
                 putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
             val pendingIntent = PendingIntent.getBroadcast(
-                context, appWidgetId * 100 + 500 + i, zoomIntent,
+                context, WidgetRequestCodes.cycleZoomZone(appWidgetId, i), zoomIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             views.setOnClickPendingIntent(zoneId, pendingIntent)
@@ -508,7 +508,7 @@ object CloudCoverViewHandler {
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
-            context, appWidgetId * 100 + 700, historyIntent,
+            context, WidgetRequestCodes.history(appWidgetId), historyIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
