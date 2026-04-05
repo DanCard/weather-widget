@@ -93,7 +93,7 @@ class TemperatureViewHandlerActualsTest {
     }
 
     @Test
-    fun `blend observation stats capture interpolation growth`() {
+    fun `blend observation stats with two observations at real timestamps`() {
         val forecasts = wideForecasts()
         val start = TestData.toEpoch("2026-02-20T10:00")
         val end = TestData.toEpoch("2026-02-20T11:00")
@@ -110,21 +110,14 @@ class TemperatureViewHandlerActualsTest {
             endMs = end,
         )
 
-        assertEquals(5, result.observations.size)
+        // Only 2 candidate times (real observation timestamps), no synthetic grid
         assertEquals(2, result.stats.rawObservationCount)
         assertEquals(2, result.stats.filteredObservationCount)
         assertEquals(1, result.stats.stationCount)
-        assertEquals(5, result.stats.candidateTimeCount)
-        assertEquals(5, result.stats.emittedPointCount)
+        assertEquals(2, result.stats.candidateTimeCount)
+        assertEquals(2, result.stats.emittedPointCount)
         assertEquals(0, result.stats.dedupSkippedCount)
-        assertEquals(0, result.stats.emptyPeerCount)
-        assertEquals(1, result.stats.stationSeriesStats.size)
-        val station = result.stats.stationSeriesStats.single()
-        assertEquals(2, station.rawObservationCount)
-        assertEquals(2, station.observedPointCount)
-        assertEquals(3, station.interpolatedPointCount)
-        assertEquals(0, station.extrapolatedPointCount)
-        assertEquals(5, station.outputPointCount)
+        assertEquals(2, result.observations.size)
     }
 
     @Test
@@ -147,19 +140,14 @@ class TemperatureViewHandlerActualsTest {
         val elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
 
         val stats = blendResult.stats
-        val maxSyntheticPerStation = stats.stationSeriesStats.maxOfOrNull {
-            it.interpolatedPointCount + it.extrapolatedPointCount
-        } ?: 0
         println("Idle-period NWS blend: elapsedMs=$elapsedMs ${stats.summary()}")
 
         assertEquals(15, stats.rawObservationCount)
         assertEquals(15, stats.filteredObservationCount)
         assertEquals(5, stats.stationCount)
-        assertTrue("candidate times should stay bounded: ${stats.summary()}", stats.candidateTimeCount <= 140)
-        assertTrue("emitted points should stay bounded: ${stats.summary()}", stats.emittedPointCount <= 140)
-        assertTrue("per-station synthetic growth should stay bounded: ${stats.summary()}", maxSyntheticPerStation <= 40)
-        assertTrue("scenario should exercise interpolation: ${stats.summary()}", stats.stationSeriesStats.any { it.interpolatedPointCount > 0 })
-        assertTrue("scenario should exercise extrapolation: ${stats.summary()}", stats.stationSeriesStats.any { it.extrapolatedPointCount > 0 })
+        // Candidate times = real observation timestamps only (≤15 unique times across 5 stations)
+        assertTrue("candidate times should be bounded to real observations: ${stats.summary()}", stats.candidateTimeCount <= 15)
+        assertTrue("emitted points should be bounded: ${stats.summary()}", stats.emittedPointCount <= 15)
         assertTrue(
             "idle-period blend took ${elapsedMs}ms; ${stats.summary()}",
             elapsedMs <= IDLE_BLEND_MAX_MS,
@@ -359,7 +347,7 @@ class TemperatureViewHandlerActualsTest {
         
         // BUT, the points that ARE in the window should be isActual=true because of carry-forward from 06:00!
         assertTrue("Hours in window should be isActual via carry-forward", hours.all { it.isActual })
-        assertEquals("Carry-forward temperature should match the extrapolated observation", 58.0f, hours.first().actualTemperature!!, 0.1f)
+        assertEquals("Carry-forward temperature should match the raw observation value", 55.0f, hours.first().actualTemperature!!, 0.1f)
     }
 
     @Test
@@ -446,8 +434,10 @@ class TemperatureViewHandlerActualsTest {
         )
 
         assertTrue(debugLines.any { it.contains("window source=NWS") && it.contains("AW020") && it.contains("KNUQ") })
-        assertTrue(debugLines.any { it.contains("station_interpolate") || it.contains("single_station=AW020") })
-        assertTrue(debugLines.any { it.contains("cohortChanged=true") && it.contains("KNUQ") })
+        // Single-station emit at 10:05 (only AW020 reported, KNUQ not yet)
+        assertTrue(debugLines.any { it.contains("single_station") && it.contains("source=observed") })
+        // Multi-station blend at 10:15 (both AW020 interpolated + KNUQ direct)
+        assertTrue(debugLines.any { it.contains("blended=") && it.contains("stationCount=2") })
     }
 
     @Test
@@ -496,15 +486,15 @@ class TemperatureViewHandlerActualsTest {
             onBlendDebug = { debugLines += it() },
         )
 
-        val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
-        val point1130 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:30") })
-        val blended1030 = requireNotNull(point1030.actualTemperature)
-        val blended1130 = requireNotNull(point1130.actualTemperature)
+        val point1035 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:35") })
+        val point1100 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:00") })
+        val blended1035 = requireNotNull(point1035.actualTemperature)
+        val blended1100 = requireNotNull(point1100.actualTemperature)
 
-        assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=10:30") })
-        assertTrue(debugLines.any { it.contains("station_interpolate station=KNUQ at=11:30") })
-        assertTrue("10:30 should stay above AW020-only 57F because KNUQ is bridged", blended1030 > 57.5f)
-        assertTrue("11:30 should stay above AW020-only 55F because KNUQ is bridged across the 2-hour gap", blended1130 > 57.5f)
+        assertTrue(debugLines.any { it.contains("emit t=10:35") && it.contains("source=observed") })
+        assertTrue("10:35 should stay above AW020-only 56F because KNUQ is bridged", blended1035 > 57.5f)
+        assertTrue("11:00 should carry the bridged value forward across the gap", blended1100 > 57.5f)
+        assertEquals("Carry-forward should preserve the last blended actual until the next real report", blended1035, blended1100, 0.01f)
     }
 
     @Test
@@ -527,18 +517,21 @@ class TemperatureViewHandlerActualsTest {
             onBlendDebug = { debugLines += it() },
         )
 
-        val point1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
-        val extrapolatedBlend = requireNotNull(point1030.actualTemperature)
+        val point1035 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:35") })
+        val point1100 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:00") })
+        val extrapolatedBlend = requireNotNull(point1035.actualTemperature)
+        val carriedBlend = requireNotNull(point1100.actualTemperature)
 
-        assertTrue(debugLines.any { it.contains("station_extrapolate station=LOAC1 at=10:30") })
+        assertTrue(debugLines.any { it.contains("emit t=10:35") && it.contains("source=observed") })
         assertTrue(
-            "10:30 should stay above AW020-only 56F because LOAC1 is briefly held forward after dropout",
+            "10:35 should stay above AW020-only 56F because LOAC1 is briefly held forward after dropout",
             extrapolatedBlend > 56f,
         )
         assertTrue(
-            "10:30 should stay below the original LOAC1 60F because forecast-guided extrapolation follows the cooling trend",
+            "10:35 should stay below the original LOAC1 60F because forecast-guided extrapolation follows the cooling trend",
             extrapolatedBlend < 60f,
         )
+        assertEquals("The extrapolated blend should carry forward to the next top-of-hour bucket", extrapolatedBlend, carriedBlend, 0.01f)
     }
 
     @Test
@@ -560,13 +553,13 @@ class TemperatureViewHandlerActualsTest {
         )
 
         val observed1015 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:15") })
-        val extrapolated1030 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T10:30") })
+        val carried1100 = requireNotNull(hours.find { it.dateTime == LocalDateTime.parse("2026-02-20T11:00") })
         val lastObserved = requireNotNull(hours.lastOrNull { it.isObservedActual })
 
-        assertTrue(debugLines.any { it.contains("station_extrapolate station=LOAC1 at=10:30") })
+        assertTrue(debugLines.any { it.contains("emit t=10:15") && it.contains("single_station") })
         assertTrue("Raw observation should remain observed actual", observed1015.isObservedActual)
-        assertTrue("Extrapolated point should still render as actual for continuity", extrapolated1030.isActual)
-        assertFalse("Extrapolated point must not become the observed anchor", extrapolated1030.isObservedActual)
+        assertTrue("Carry-forward point should still render as actual for continuity", carried1100.isActual)
+        assertFalse("Carry-forward point must not become the observed anchor", carried1100.isObservedActual)
         assertEquals(LocalDateTime.parse("2026-02-20T10:15"), lastObserved.dateTime)
     }
 

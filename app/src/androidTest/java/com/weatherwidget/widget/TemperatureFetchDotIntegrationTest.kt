@@ -41,6 +41,7 @@ class TemperatureFetchDotIntegrationTest {
             heightPx = 320,
             currentTime = currentTime,
             observedAt = firstObservedAt,
+            lastObservedTemp = 62f,
             onFetchDotResolved = { events.add(it) },
         )
 
@@ -51,6 +52,7 @@ class TemperatureFetchDotIntegrationTest {
             heightPx = 320,
             currentTime = currentTime,
             observedAt = secondObservedAt,
+            lastObservedTemp = 63f,
             onFetchDotResolved = { events.add(it) },
         )
 
@@ -91,6 +93,7 @@ class TemperatureFetchDotIntegrationTest {
             heightPx = 400,
             currentTime = currentTime,
             observedAt = observedAtMs,
+            lastObservedTemp = 65f,
             onFetchDotResolved = { events.add(it) },
         )
 

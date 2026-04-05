@@ -50,7 +50,7 @@ class TemperatureGraphRendererFetchDotTest {
     }
 
     @Test
-    fun `renderGraph draws fetch dot rings when observed timestamp is present in range`() {
+    fun `renderGraph draws fetch dot rings when observed timestamp and lastObservedTemp are present`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 2, 26, 10, 0)
         val hours = buildHours(start)
@@ -63,9 +63,30 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
+            lastObservedTemp = 55f,
         )
 
         verify(exactly = 3) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `renderGraph does not draw fetch dot when lastObservedTemp is null`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 26, 10, 0)
+        val hours = buildHours(start)
+        val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 900,
+            heightPx = 300,
+            currentTime = start.plusHours(3),
+            observedAt = observedAtMs,
+            lastObservedTemp = null,
+        )
+
+        verify(exactly = 0) { anyConstructed<Canvas>().drawCircle(any(), any(), any(), any()) }
     }
 
     @Test
@@ -88,12 +109,11 @@ class TemperatureGraphRendererFetchDotTest {
     }
 
     @Test
-    fun `fetch dot Y sits on the ghost curve at observation point`() {
+    fun `fetch dot Y reflects lastObservedTemp not graph curve position`() {
         val context = mockContext()
         val start = LocalDateTime.of(2026, 2, 26, 10, 0)
-        // Forecast temps flat at 60. observedTemp is 65 (different from curve).
-        // The dot should sit on the 60° curve, NOT at the 65° observation value,
-        // because visually the dot marks position on the solid line.
+        // Forecast temps flat at 60. lastObservedTemp = 65 (different from curve).
+        // The dot Y must reflect 65° (lastObservedTemp), not the 60° forecast curve.
         val hours = (0..7).map { offset ->
             TemperatureGraphRenderer.HourData(
                 dateTime = start.plusHours(offset.toLong()),
@@ -105,9 +125,8 @@ class TemperatureGraphRendererFetchDotTest {
         }
         val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        // Render WITH observedTemp=65
-        val yWithTemp = mutableListOf<Float>()
-        every { anyConstructed<Canvas>().drawCircle(any(), capture(yWithTemp), any(), any()) } returns Unit
+        val yAt65 = mutableListOf<Float>()
+        every { anyConstructed<Canvas>().drawCircle(any(), capture(yAt65), any(), any()) } returns Unit
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -116,15 +135,11 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
+            lastObservedTemp = 65f,
         )
 
-        assert(yWithTemp.size >= 3) { "Expected 3 drawCircle calls for fetch dot, got ${yWithTemp.size}" }
-        val dotYWithTemp = yWithTemp[0]
-        assertEquals("All dot circles at same Y", dotYWithTemp, yWithTemp[1], 0.01f)
-
-        // Render WITHOUT observedTemp — dot should be at same Y (both use curve)
-        val yWithout = mutableListOf<Float>()
-        every { anyConstructed<Canvas>().drawCircle(any(), capture(yWithout), any(), any()) } returns Unit
+        val yAt60 = mutableListOf<Float>()
+        every { anyConstructed<Canvas>().drawCircle(any(), capture(yAt60), any(), any()) } returns Unit
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -133,11 +148,15 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             observedAt = observedAtMs,
+            lastObservedTemp = 60f,
         )
 
-        val dotYWithout = yWithout[0]
-        // Both should be at the same Y since both use the curve
-        assertEquals("Dot Y should be same with or without observedTemp", dotYWithTemp, dotYWithout, 0.01f)
+        assert(yAt65.size >= 3) { "Expected 3 drawCircle calls for fetch dot, got ${yAt65.size}" }
+        assert(yAt60.size >= 3) { "Expected 3 drawCircle calls for fetch dot, got ${yAt60.size}" }
+        // 65° is warmer → higher on temp scale → lower Y value (graph draws hot at top)
+        assert(yAt65[0] < yAt60[0]) {
+            "Dot at 65° (Y=${yAt65[0]}) should be above dot at 60° (Y=${yAt60[0]})"
+        }
     }
 
     @Test
@@ -189,30 +208,25 @@ class TemperatureGraphRendererFetchDotTest {
             heightPx = 300,
             currentTime = start.plusMinutes(40),
             observedAt = observedAtMs,
+            lastObservedTemp = 52.5f,
             onFetchDotResolved = { fetchDotDebug = it }
         )
 
-        // The dot should represent exactly 52.5, which is the actualTemperature at 10:37.
-        // It must NOT be pulled by the cubic spline overshoot (which would push it way higher/lower).
-        
+        // The dot should represent exactly 52.5 (lastObservedTemp).
         // Manually calculate where 52.5 should sit on the graph:
-        // tempRange = 55 - 50 = 5
-        // minTemp = 50
-        // graphTop = 56.0, graphBottom = 221.0, graphHeight = 165.0
-        // 52.5 is exactly in the middle.
-        // Y = 56.0 + 165.0 * (1 - (52.5 - 50) / 5) = 56.0 + 165.0 * (1 - 0.5) = 56.0 + 82.5 = 138.5f
-
+        // tempRange = 55 - 50 = 5 (min=50, max=55)
+        // Y = graphTop + graphHeight * (1 - (52.5 - 50) / 5) = middle of graph
         // Using 173.684f which is the exact derived Y value for 52.5f in this layout scenario.
         val expectedY = 173.684f
 
         org.junit.Assert.assertNotNull("FetchDotDebug should be emitted", fetchDotDebug)
         org.junit.Assert.assertEquals(
-            "Fetch dot Y must exactly match the mathematical linear representation, unperturbed by spline overshoot",
+            "Fetch dot Y must reflect lastObservedTemp exactly",
             expectedY,
             fetchDotDebug!!.fetchY!!,
             0.5f
         )
-        }
+    }
     private fun mockContext(): Context {
         mockkStatic(Bitmap::class)
         mockkConstructor(Canvas::class)

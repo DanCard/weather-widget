@@ -59,6 +59,7 @@ class TemperatureFetchDotColorTest {
             heightPx = 200,
             currentTime = start.plusMinutes(15),
             observedAt = observedAtMs,
+            lastObservedTemp = 70f,
             onFetchDotResolved = { debugResult = it }
         )
 

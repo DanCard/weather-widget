@@ -15,11 +15,8 @@ import org.junit.experimental.categories.Category
 
 
 /**
- * Regression tests ensuring the fetch dot temperature uses linear interpolation,
- * not cubic Bezier evaluation, so the dot value matches actual observations exactly.
- *
- * Key invariant:
- * - interpolatedTruthAtFetch must be a plain linear interpolation between adjacent actual temps
+ * Regression tests ensuring the fetch dot uses the real lastObservedTemp value
+ * passed through from the header resolver, not a reconstructed graph-derived value.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -29,14 +26,10 @@ class TruthCurveLinearRenderingTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
 
     /**
-     * Verifies that interpolatedTruthAtFetch is computed via linear interpolation.
+     * Verifies that the fetch dot uses lastObservedTemp directly.
      *
-     * Given two truth temps a and b and a fetchFraction between them, the fetch dot must
-     * land at exactly a + (b-a)*fraction. If the code reverts to evaluateCubicY, the result
-     * will differ for the three-point case where tangent slopes are non-zero.
-     *
-     * We test via renderGraph's onFetchDotResolved callback and verify the reported age text
-     * corresponds to the correct observation time (not a drifted estimate).
+     * The dot label and position must reflect the lastObservedTemp passed in, and
+     * the observedAt timestamp on the debug callback must be the real observation time.
      */
     @Test
     fun `fetch dot observedAt reflects actual observation time not blend candidate time`() {
@@ -69,6 +62,7 @@ class TruthCurveLinearRenderingTest {
             heightPx = 200,
             currentTime = renderTime,
             observedAt = observedAtMs,
+            lastObservedTemp = 75.0f,
             onFetchDotResolved = { dotDebug = it },
         )
 
@@ -80,28 +74,18 @@ class TruthCurveLinearRenderingTest {
         )
 
         // Age label: renderTime (17:33) - observationTime (17:25) = 8 minutes
-        // Truth Temps: Hour 0 = 75.0, Hour 1 = 71.0 (forecast 73 - 2*1)
-        // Interpolation at 25m: 75.0 + (71.0 - 75.0) * 25/60 = 75.0 - 4.0 * 0.41666 = 75.0 - 1.666 = 73.333
-        // New format: "73.3° (8m)" (debug string uses space between parts)
-        assertEquals("Age label should reflect true observation age", "73.3° (8m)", dotDebug?.ageText)
+        // Dot shows lastObservedTemp = 75.0°
+        assertEquals("Age label should reflect lastObservedTemp and true observation age", "75° (8m)", dotDebug?.ageText)
     }
 
     /**
-     * Regression: truth curve linear interpolation at a known fractional position must
-     * equal a + (b-a)*fraction exactly. This catches a reversion to evaluateCubicY.
-     *
-     * We use three hours with different temperatures to ensure tangents are non-trivial,
-     * then verify the fetch dot interpolation is purely linear by checking the Y value
-     * against our own linear calculation.
+     * Verifies that the fetch dot renders when lastObservedTemp is provided.
      */
     @Test
-    fun `interpolatedTruthAtFetch is linear not cubic`() {
-        // Three hours: 80, 70, 60 (steadily decreasing)
-        // With non-trivial tangents, cubic would deviate from linear at mid-points
+    fun `fetch dot renders when lastObservedTemp is provided`() {
         val startTime = LocalDateTime.of(2026, 3, 23, 10, 0)
         val temps = listOf(80f, 70f, 60f)
 
-        // observedAt = 30 min into the first interval (fraction = 0.5 between hour 0 and hour 1)
         val observedAtMs = startTime.plusMinutes(30)
             .atZone(java.time.ZoneId.systemDefault())
             .toInstant()
@@ -127,14 +111,12 @@ class TruthCurveLinearRenderingTest {
             heightPx = 200,
             currentTime = startTime.plusHours(2),
             observedAt = observedAtMs,
+            lastObservedTemp = 75.0f,
             appliedDelta = 0f,
             onFetchDotResolved = { dotDebug = it },
         )
 
         assertNotNull("Fetch dot should appear within the graph window", dotDebug)
-        // Linear truth: temps[0] + (temps[1] - temps[0]) * 0.5 = 80 + (70-80)*0.5 = 75.0
-        // If cubic was used with a peak, the result would deviate from 75.0
-        // We verify the dot is within the graph (fetchDotX is non-null) as a sanity check
         assertNotNull("fetchDotX must be resolved", dotDebug!!.fetchDotX)
     }
 }

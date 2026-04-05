@@ -53,6 +53,7 @@ class TemperatureGraphRendererStalenessTest {
             heightPx = 300,
             currentTime = start.plusHours(2).plusMinutes(25),
             observedAt = observedAtMs,
+            lastObservedTemp = 60f,
         )
 
         // Verify drawText was called with "60°" and "25m"
@@ -84,6 +85,7 @@ class TemperatureGraphRendererStalenessTest {
             heightPx = 300,
             currentTime = start.plusHours(2).plusMinutes(25),
             observedAt = observedAtMs,
+            lastObservedTemp = 60f,
         )
 
         // Even with 49 points, it's only 4h duration, so it should draw "60°" and "25m"

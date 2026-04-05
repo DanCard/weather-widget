@@ -432,18 +432,7 @@ object TemperatureGraphRenderer {
             Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
         } else null
 
-        val interpolatedForecastAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            val t = GraphRenderUtils.computeTangents(hours.indices.map { 0f to smoothedForecastTemps[it] })
-            GraphRenderUtils.evaluateCubicY(smoothedForecastTemps[fetchIdx], t[fetchIdx].second, smoothedForecastTemps[fetchIdx + 1], t[fetchIdx + 1].second, fetchFraction)
-        } else null
-
-        val interpolatedTruthAtFetch = if (fetchFraction != null && fetchIdx != -1) {
-            actualTemps[fetchIdx] + (actualTemps[fetchIdx + 1] - actualTemps[fetchIdx]) * fetchFraction
-        } else null
-
-        val anchorDelta = if (interpolatedForecastAtFetch != null && interpolatedTruthAtFetch != null) {
-            interpolatedTruthAtFetch - interpolatedForecastAtFetch
-        } else effectiveDelta
+        val anchorDelta = effectiveDelta
 
         val smoothedExpectedTemps = smoothedForecastTemps.map { it + anchorDelta }
 
@@ -496,7 +485,7 @@ object TemperatureGraphRenderer {
         return RenderContextUpdate(
             smoothedForecastTemps, smoothedExpectedTemps, originalPoints, forecastPoints, expectedPoints,
             originalPath, expectedPath, expectedFillPath, forecastPath, forecastFillPath,
-            nowX, nowIndicatorVisible, fetchTime, fetchDotX, interpolatedTruthAtFetch,
+            nowX, nowIndicatorVisible, fetchTime, fetchDotX,
             anchorDelta, transitionX, effectiveActualEndIndex
         )
     }
@@ -509,8 +498,8 @@ object TemperatureGraphRenderer {
         ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
 
         if (ctx.nowIndicatorVisible && ctx.appliedDelta != null && abs(ctx.appliedDelta) >= MIN_GHOST_LINE_DELTA && ctx.fetchDotX != null) {
-            val expectedY = if (ctx.interpolatedTruthAtFetch != null) {
-                ctx.graphTop + ctx.graphHeight * (1 - (ctx.interpolatedTruthAtFetch - ctx.minTemp) / ctx.tempRange)
+            val expectedY = if (ctx.lastObservedTemp != null) {
+                ctx.graphTop + ctx.graphHeight * (1 - (ctx.lastObservedTemp - ctx.minTemp) / ctx.tempRange)
             } else null
             if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(ctx.fetchDotX, expectedY))
 
@@ -756,12 +745,12 @@ object TemperatureGraphRenderer {
 
     private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
         val drawnBounds = mutableListOf<RectF>()
-        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.interpolatedTruthAtFetch == null) return drawnBounds
-        val fetchY = ctx.graphTop + ctx.graphHeight * (1 - (ctx.interpolatedTruthAtFetch - ctx.minTemp) / ctx.tempRange)
+        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.lastObservedTemp == null) return drawnBounds
+        val fetchY = ctx.graphTop + ctx.graphHeight * (1 - (ctx.lastObservedTemp - ctx.minTemp) / ctx.tempRange)
         val dotRadius = dpToPx(ctx.context, 3.2f * ctx.labelScale)
         val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
-        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tempToColor(ctx.interpolatedTruthAtFetch); style = Paint.Style.FILL }
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tempToColor(ctx.lastObservedTemp); style = Paint.Style.FILL }
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, dotPaint)
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, ctx.paints.ringPaint)
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius + ctx.paints.ringPaint.strokeWidth / 2f, ctx.paints.outerRingPaint)
@@ -786,7 +775,7 @@ object TemperatureGraphRenderer {
             }
         }
 
-        val valueLabel = formatTemp(ctx.interpolatedTruthAtFetch) + "°"
+        val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, 4f * ctx.labelScale)
         var drawn = false
@@ -887,7 +876,7 @@ object TemperatureGraphRenderer {
         val nowIndicatorVisible: Boolean,
         val fetchTime: LocalDateTime?,
         val fetchDotX: Float?,
-        val interpolatedTruthAtFetch: Float?,
+        val lastObservedTemp: Float?,
         val anchorDelta: Float,
         val smoothedForecastTemps: List<Float>,
         val smoothedExpectedTemps: List<Float>,
@@ -925,7 +914,6 @@ object TemperatureGraphRenderer {
         val nowIndicatorVisible: Boolean,
         val fetchTime: LocalDateTime?,
         val fetchDotX: Float?,
-        val interpolatedTruthAtFetch: Float?,
         val anchorDelta: Float,
         val transitionX: Float?,
         val effectiveActualEndIndex: Int,
@@ -940,6 +928,7 @@ object TemperatureGraphRenderer {
         bitmapScale: Float = 1f,
         appliedDelta: Float? = null,
         observedAt: Long? = null,
+        lastObservedTemp: Float? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
@@ -978,7 +967,7 @@ object TemperatureGraphRenderer {
             context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
             layout.graphTop, layout.graphBottom, layout.graphHeight, layout.footerTop, hourWidth, minTimeEpoch,
             layout.iconSize, layout.iconTopPad, update.transitionX, update.nowX, update.nowIndicatorVisible,
-            update.fetchTime, update.fetchDotX, update.interpolatedTruthAtFetch, update.anchorDelta,
+            update.fetchTime, update.fetchDotX, lastObservedTemp, update.anchorDelta,
             update.smoothedForecastTemps, update.smoothedExpectedTemps, update.originalPoints,
             update.forecastPoints, update.expectedPoints, update.originalPath, update.expectedPath,
             update.forecastPath, update.forecastFillPath, update.effectiveActualEndIndex,

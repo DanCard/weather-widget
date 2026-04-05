@@ -105,13 +105,15 @@ class ObservationBlenderTest {
         val endObs = center.plusMinutes(30) // Observation in the "future" relative to center
         val startObsMs = startObs.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val endObsMs = endObs.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        
+
         val observations = listOf(
             TestData.observation(stationId = "S1", timestamp = startObsMs, temperature = 60f),
             TestData.observation(stationId = "S1", timestamp = endObsMs, temperature = 70f)
         )
 
         // Blend for a window including 'center' (which is between start and end)
+        // With observation-driven timestamps, candidate times are startObsMs and endObsMs only.
+        // No synthetic intermediate points are emitted — only real observation timestamps.
         val result = ObservationBlender.blendObservationSeries(
             observations = observations,
             hourlyForecasts = forecasts,
@@ -122,14 +124,18 @@ class ObservationBlenderTest {
             endMs = endObsMs
         )
 
-        // Find the point at 'center' (interpolated)
-        val centerMs = center.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val interpolated = result.observations.find { it.timestamp in (centerMs - 60000)..(centerMs + 60000) }
-        
-        assertNotNull("Should find interpolated point near center", interpolated)
-        assertEquals("interpolated", interpolated!!.condition)
-        // Anchor should be the LATER observation (endObsMs)
-        assertEquals(endObsMs, interpolated.fetchedAt)
+        // Candidate times are the two real observation timestamps
+        assertEquals(2, result.stats.candidateTimeCount)
+        assertEquals(2, result.observations.size)
+
+        val startPoint = result.observations.find { it.timestamp == startObsMs }
+        val endPoint = result.observations.find { it.timestamp == endObsMs }
+        assertNotNull("Should have point at start observation time", startPoint)
+        assertNotNull("Should have point at end observation time", endPoint)
+        assertEquals("observed", startPoint!!.condition)
+        assertEquals("observed", endPoint!!.condition)
+        assertEquals(60f, startPoint.temperature, 0.01f)
+        assertEquals(70f, endPoint.temperature, 0.01f)
     }
 
     @Test

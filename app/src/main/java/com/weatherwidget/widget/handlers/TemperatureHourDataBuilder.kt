@@ -146,10 +146,27 @@ internal fun buildHourDataResult(
     val lat = hourlyForecasts.firstOrNull()?.locationLat ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LAT
     val lon = hourlyForecasts.firstOrNull()?.locationLon ?: com.weatherwidget.widget.WeatherWidgetWorker.DEFAULT_LON
     val sourceActuals = actuals.filter { matchesObservationSource(it, displaySource) }
-    val stationCount = sourceActuals.map { it.stationId }.toSet().size
-    if (sourceActuals.isNotEmpty()) {
+    val selectedStationId =
+        if (displaySource != WeatherSource.NWS) {
+            selectObservationSeries(
+                observations = sourceActuals,
+                displaySource = displaySource,
+                startHour = alignedCenter.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS),
+                endHour = alignedCenter.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS),
+            ).stationId
+        } else {
+            null
+        }
+    val blendInputActuals =
+        if (selectedStationId != null) {
+            sourceActuals.filter { it.stationId == selectedStationId }
+        } else {
+            sourceActuals
+        }
+    val stationCount = blendInputActuals.map { it.stationId }.toSet().size
+    if (blendInputActuals.isNotEmpty()) {
         onBlendDebug?.invoke {
-            val stationBreakdown = sourceActuals
+            val stationBreakdown = blendInputActuals
                 .groupBy { it.stationId }
                 .entries
                 .sortedBy { it.key }
@@ -164,13 +181,13 @@ internal fun buildHourDataResult(
                         .format(DateTimeFormatter.ofPattern("HH:mm"))
                     "$stationId rows=${rows.size} span=$minTime-$maxTime"
                 }
-            "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=${sourceActuals.size} stations=$stationCount breakdown=[$stationBreakdown]"
+            "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=${blendInputActuals.size} stations=$stationCount breakdown=[$stationBreakdown]"
         }
     } else {
         onBlendDebug?.invoke { "window source=${displaySource.id} start=$startHour end=$endHour sourceRows=0 stations=0" }
     }
     val blendedActualsResult = ObservationBlender.blendObservationSeries(
-        observations = sourceActuals,
+        observations = blendInputActuals,
         hourlyForecasts = hourlyForecasts,
         displaySource = displaySource,
         userLat = lat,

@@ -227,6 +227,7 @@ internal object TemperatureStateResolver {
                     bitmapScale = bitmapScale,
                     appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
                     observedAt = observedAt,
+                    lastObservedTemp = lastObservedTemp,
                     onFetchDotResolved = onFetchDotResolved,
                 )
             } catch (e: Exception) {

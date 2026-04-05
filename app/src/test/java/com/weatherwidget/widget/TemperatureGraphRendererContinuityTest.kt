@@ -83,6 +83,7 @@ class TemperatureGraphRendererContinuityTest {
             currentTime = currentTime,
             appliedDelta = appliedDelta,
             observedAt = fetchedAtMs,
+            lastObservedTemp = 75f,
             onFetchDotResolved = { resolvedFetchY = it.fetchY },
             onGhostLineDebug = { ghostLineStartY = it.startY }
         )
