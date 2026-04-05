@@ -99,4 +99,35 @@ class CloudCoverGraphRendererTest {
 
         assertTrue(!result)
     }
+
+    @Test
+    fun `preferred label gap uses two dp above and below`() {
+        val gap = CloudCoverGraphRenderer.labelGapDp(isFallback = false)
+
+        assertEquals(2f, gap.aboveDp)
+        assertEquals(2f, gap.belowDp)
+    }
+
+    @Test
+    fun `fallback label gap uses fourteen dp above and fourteen dp below`() {
+        val gap = CloudCoverGraphRenderer.labelGapDp(isFallback = true)
+
+        assertEquals(14f, gap.aboveDp)
+        assertEquals(14f, gap.belowDp)
+    }
+
+    @Test
+    fun `below placement keeps glyph box below curve by requested gap`() {
+        val placement = CloudCoverGraphRenderer.computeLabelVerticalPlacement(
+            pointY = 100f,
+            placeAbove = false,
+            gapPx = 2f,
+            textAscent = -10f,
+            textDescent = 2f,
+        )
+
+        assertEquals(112f, placement.baselineY)
+        assertEquals(102f, placement.top)
+        assertEquals(114f, placement.bottom)
+    }
 }

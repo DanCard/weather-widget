@@ -18,8 +18,12 @@ object CloudCoverGraphRenderer {
     private const val MIN_ICON_GRAPH_WIDTH_PX = 420
     // Not sure yet whether 5 or 6 labels is the better cap here; start with 5 for now.
     private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = 5
-    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(5, 10, 15)
+    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(8, 12, 16)
     private const val NEARBY_LABEL_WINDOW = 3
+    private const val PREFERRED_ABOVE_GAP_DP = 2f
+    private const val PREFERRED_BELOW_GAP_DP = 2f
+    private const val FALLBACK_ABOVE_GAP_DP = 14f
+    private const val FALLBACK_BELOW_GAP_DP = 14f
 
     data class CloudHourData(
         val dateTime: LocalDateTime,
@@ -57,61 +61,40 @@ object CloudCoverGraphRenderer {
         val candidateCenterIndex: Int? = null,
     )
 
-    private enum class CandidateKind {
-        GLOBAL_MAX,
-        GLOBAL_MIN,
-        PEAK,
-        VALLEY,
-        EDGE,
-    }
+    internal data class LabelGapDp(
+        val aboveDp: Float,
+        val belowDp: Float,
+    )
 
-    fun renderGraph(
-        context: Context,
-        hours: List<CloudHourData>,
-        widthPx: Int,
-        heightPx: Int,
-        currentTime: LocalDateTime,
-        bitmapScale: Float = 1f,
-        smoothIterations: Int = 2,
-        hourLabelSpacingDp: Float = 28f,
-        observedAt: Long? = null,
-        onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
-        onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
-        onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
-    ): Bitmap {
-        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+    internal data class LabelVerticalPlacement(
+        val baselineY: Float,
+        val top: Float,
+        val bottom: Float,
+    )
 
-        if (hours.isEmpty()) {
-            Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
-            return bitmap
+    private class PaintSet(
+        val density: Float,
+        val tallGraph: Boolean,
+        val curvePaint: Paint,
+        val gradientPaint: Paint,
+        val currentTimePaint: Paint,
+        val hourLabelTextPaint: Paint,
+        val percentLabelPaint: Paint,
+        val nowLabelTextPaint: Paint,
+        val dayLabelTextPaint: Paint,
+        val todayDayLabelPaint: Paint,
+    )
+
+    private var cachedPaints: PaintSet? = null
+
+    private fun ensurePaints(context: Context, tallGraph: Boolean): PaintSet {
+        val density = context.resources.displayMetrics.density
+        val current = cachedPaints
+        if (current != null && current.density == density && current.tallGraph == tallGraph) {
+            return current
         }
 
-        val density = context.resources.displayMetrics.density
-        val heightDp = heightPx / density
-
-        val topPadding = dpToPx(context, 12f)
-        val hasHourlyIcons = hours.any { it.iconRes != null }
-        val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-        val iconSize = dpToPx(context, 16f).toInt()
-        val iconTopPad = dpToPx(context, 2f)
-        val iconBottomPad = dpToPx(context, 1f)
-        val labelHeight = dpToPx(context, 10f)
-        val bottomPadding = dpToPx(context, 3f)
-
-        val graphTop = topPadding
-        val graphBottom =
-            if (showHourlyIcons) {
-                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
-            } else {
-                heightPx - labelHeight - bottomPadding
-            }
-        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
-
-        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
-
-        // --- Paints (gray color scheme) ---
-        val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
+        val curveStrokeDp = if (tallGraph) 1.5f else 2f
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
             strokeWidth = dpToPx(context, curveStrokeDp)
@@ -122,12 +105,6 @@ object CloudCoverGraphRenderer {
 
         val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            shader = LinearGradient(
-                0f, graphTop, 0f, graphBottom,
-                Color.parseColor("#44AAAAAA"),
-                Color.parseColor("#00AAAAAA"),
-                Shader.TileMode.CLAMP,
-            )
         }
 
         val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -171,6 +148,84 @@ object CloudCoverGraphRenderer {
             color = Color.parseColor("#BBFF9F0A")
         }
 
+        val paints = PaintSet(
+            density = density,
+            tallGraph = tallGraph,
+            curvePaint = curvePaint,
+            gradientPaint = gradientPaint,
+            currentTimePaint = currentTimePaint,
+            hourLabelTextPaint = hourLabelTextPaint,
+            percentLabelPaint = percentLabelPaint,
+            nowLabelTextPaint = nowLabelTextPaint,
+            dayLabelTextPaint = dayLabelTextPaint,
+            todayDayLabelPaint = todayDayLabelPaint,
+        )
+        cachedPaints = paints
+        return paints
+    }
+
+    private enum class CandidateKind {
+        GLOBAL_MAX,
+        GLOBAL_MIN,
+        PEAK,
+        VALLEY,
+        EDGE,
+    }
+
+    fun renderGraph(
+        context: Context,
+        hours: List<CloudHourData>,
+        widthPx: Int,
+        heightPx: Int,
+        currentTime: LocalDateTime,
+        bitmapScale: Float = 1f,
+        smoothIterations: Int = 1,
+        hourLabelSpacingDp: Float = 28f,
+        onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
+        onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
+        onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        if (hours.isEmpty()) {
+            Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
+            return bitmap
+        }
+
+        val density = context.resources.displayMetrics.density
+        val heightDp = heightPx / density
+        val tallGraph = heightDp >= 160
+
+        val topPadding = dpToPx(context, 12f)
+        val hasHourlyIcons = hours.any { it.iconRes != null }
+        val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
+        val iconSize = dpToPx(context, 16f).toInt()
+        val iconTopPad = dpToPx(context, 2f)
+        val iconBottomPad = dpToPx(context, 1f)
+        val labelHeight = dpToPx(context, 10f)
+        val bottomPadding = dpToPx(context, 3f)
+
+        val graphTop = topPadding
+        val graphBottom =
+            if (showHourlyIcons) {
+                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
+            } else {
+                heightPx - labelHeight - bottomPadding
+            }
+        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+
+        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
+
+        // --- Paints (gray color scheme, cached by density + height band) ---
+        val paints = ensurePaints(context, tallGraph)
+        paints.gradientPaint.shader = LinearGradient(
+            0f, graphTop, 0f, graphBottom,
+            Color.parseColor("#44AAAAAA"),
+            Color.parseColor("#00AAAAAA"),
+            Shader.TileMode.CLAMP,
+        )
+
         // --- Build smooth curve + fill ---
         val points = mutableListOf<Pair<Float, Float>>()
         val rawValues = hours.map { it.cloudCover.coerceIn(0, 100).toFloat() }
@@ -184,8 +239,8 @@ object CloudCoverGraphRenderer {
         }
 
         val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
-        canvas.drawPath(fillPath, gradientPaint)
-        canvas.drawPath(curvePath, curvePaint)
+        canvas.drawPath(fillPath, paints.gradientPaint)
+        canvas.drawPath(curvePath, paints.curvePaint)
 
         // --- Hour labels and icons ---
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
@@ -207,7 +262,7 @@ object CloudCoverGraphRenderer {
             widthPx = widthPx,
             heightPx = heightPx,
             minHourLabelSpacing = minHourLabelSpacing,
-            hourLabelTextPaint = hourLabelTextPaint,
+            hourLabelTextPaint = paints.hourLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
             showLabel = { it.showLabel },
             labelText = { it.label },
@@ -241,9 +296,6 @@ object CloudCoverGraphRenderer {
         // --- Percentage labels at key points (simplified: extrema + edges) ---
         val labelSignal = smoothedValues.map { it.roundToInt().coerceIn(0, 100) }
         val drawnLabelBounds = mutableListOf<RectF>()
-        val aboveGap = dpToPx(context, 4f)
-        val belowGap = dpToPx(context, 14f)
-
         // Find local maxima and minima
         val candidates = mutableListOf<Int>()
         // Global max/min
@@ -285,8 +337,10 @@ object CloudCoverGraphRenderer {
             }
             val cloudPct = labelSignal[index]
             val labelText = "$cloudPct%"
-            val textWidth = percentLabelPaint.measureText(labelText)
-            val textHeight = percentLabelPaint.textSize
+            val fontMetrics = paints.percentLabelPaint.fontMetrics
+            val textAscent = fontMetrics?.ascent ?: -paints.percentLabelPaint.textSize
+            val textDescent = fontMetrics?.descent ?: 0f
+            val textWidth = paints.percentLabelPaint.measureText(labelText)
             val centerX = points[index].first
             val y = points[index].second
 
@@ -317,18 +371,29 @@ object CloudCoverGraphRenderer {
                     "preferAbove=$preferAbove order=${attempts.joinToString("->") { if (it) "above" else "below" }}",
             )
 
-            for (placeAbove in attempts) {
+            for ((attemptIndex, placeAbove) in attempts.withIndex()) {
+                val isFallbackAttempt = attemptIndex > 0
+                val gapDp = labelGapDp(isFallback = isFallbackAttempt)
+                val gapPx = if (placeAbove) dpToPx(context, gapDp.aboveDp) else dpToPx(context, gapDp.belowDp)
                 val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                val baselineY = if (placeAbove) y - aboveGap else y + belowGap
+                val verticalPlacement = computeLabelVerticalPlacement(
+                    pointY = y,
+                    placeAbove = placeAbove,
+                    gapPx = gapPx,
+                    textAscent = textAscent,
+                    textDescent = textDescent,
+                )
+                val baselineY = verticalPlacement.baselineY
                 val bounds = RectF(
-                    x - textWidth / 2f, baselineY - textHeight,
-                    x + textWidth / 2f, baselineY,
+                    x - textWidth / 2f, verticalPlacement.top,
+                    x + textWidth / 2f, verticalPlacement.bottom,
                 )
 
                 if (bounds.top < 0f || bounds.bottom > graphBottom - dpToPx(context, 2f)) {
                     Log.d(
                         TAG,
-                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} reason=out_of_bounds bounds=$bounds",
+                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
+                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=out_of_bounds bounds=$bounds",
                     )
                     continue
                 }
@@ -338,16 +403,18 @@ object CloudCoverGraphRenderer {
                     val reason = if (overlapsIcon) "overlap_icon" else "overlap_label"
                     Log.d(
                         TAG,
-                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} reason=$reason bounds=$bounds",
+                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
+                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=$reason bounds=$bounds",
                     )
                     continue
                 }
 
-                canvas.drawText(labelText, x, baselineY, percentLabelPaint)
+                canvas.drawText(labelText, x, baselineY, paints.percentLabelPaint)
                 drawnLabelBounds.add(bounds)
                 Log.d(
                     TAG,
-                    "labelPlaced: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} x=$x y=$baselineY",
+                    "labelPlaced: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
+                        "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} x=$x y=$baselineY",
                 )
                 onLabelPlaced?.invoke(LabelPlacementDebug(
                     index = index,
@@ -367,8 +434,8 @@ object CloudCoverGraphRenderer {
         val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
 
-        val leftPaint = if (leftDate == today) todayDayLabelPaint else dayLabelTextPaint
-        val rightPaint = if (rightDate == today) todayDayLabelPaint else dayLabelTextPaint
+        val leftPaint = if (leftDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
+        val rightPaint = if (rightDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint
         val leftTextWidth = leftPaint.measureText(leftText)
         val rightTextWidth = rightPaint.measureText(rightText)
 
@@ -385,8 +452,8 @@ object CloudCoverGraphRenderer {
             graphTop = graphTop,
             graphBottom = graphBottom,
             heightPx = heightPx,
-            dayLabelTextPaint = dayLabelTextPaint,
-            todayDayLabelPaint = todayDayLabelPaint,
+            dayLabelTextPaint = paints.dayLabelTextPaint,
+            todayDayLabelPaint = paints.todayDayLabelPaint,
             drawnLabelBounds = drawnLabelBounds,
             drawnIconBounds = drawnIconBounds,
             dpToPx = { dpToPx(context, it) },
@@ -401,17 +468,10 @@ object CloudCoverGraphRenderer {
             nowX = nowX,
             graphTop = graphTop,
             graphHeight = graphHeight,
-            currentTimePaint = currentTimePaint,
-            nowLabelTextPaint = nowLabelTextPaint,
+            currentTimePaint = paints.currentTimePaint,
+            nowLabelTextPaint = paints.nowLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
         )
-
-        if (observedAt != null) {
-            Log.d(
-                TAG,
-                "renderGraph: suppressing fetch dot for cloud cover graph observedAt=$observedAt",
-            )
-        }
 
         // --- Cloud icon in emptiest region ---
         val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
@@ -629,5 +689,41 @@ object CloudCoverGraphRenderer {
                 candidateKind(candidateIdx, labelSignal, globalMaxIdx, globalMinIdx) in setOf(CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY) &&
                 (labelSignal.getOrNull(candidateIdx) ?: leftEdgeValue) < leftEdgeValue
         }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun labelGapDp(isFallback: Boolean): LabelGapDp =
+        if (isFallback) {
+            LabelGapDp(
+                aboveDp = FALLBACK_ABOVE_GAP_DP,
+                belowDp = FALLBACK_BELOW_GAP_DP,
+            )
+        } else {
+            LabelGapDp(
+                aboveDp = PREFERRED_ABOVE_GAP_DP,
+                belowDp = PREFERRED_BELOW_GAP_DP,
+            )
+        }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun computeLabelVerticalPlacement(
+        pointY: Float,
+        placeAbove: Boolean,
+        gapPx: Float,
+        textAscent: Float,
+        textDescent: Float,
+    ): LabelVerticalPlacement {
+        val baselineY =
+            if (placeAbove) {
+                pointY - gapPx - textDescent
+            } else {
+                pointY + gapPx - textAscent
+            }
+
+        return LabelVerticalPlacement(
+            baselineY = baselineY,
+            top = baselineY + textAscent,
+            bottom = baselineY + textDescent,
+        )
     }
 }

@@ -16,13 +16,13 @@ import org.junit.experimental.categories.Category
 class CloudCoverViewHandlerTest {
 
     @Test
-    fun `wide zoom adds one smoothing iteration for cloud cover`() {
-        assertEquals(1, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.WIDE))
+    fun `wide zoom keeps cloud cover at zero smoothing iterations`() {
+        assertEquals(0, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.WIDE))
     }
 
     @Test
-    fun `narrow zoom keeps existing smoothing iteration for cloud cover`() {
-        assertEquals(1, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.NARROW))
+    fun `narrow zoom reduces cloud cover smoothing to zero iterations`() {
+        assertEquals(0, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.NARROW))
     }
 
     @Test

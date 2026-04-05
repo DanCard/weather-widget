@@ -52,8 +52,8 @@ object CloudCoverViewHandler {
     @androidx.annotation.VisibleForTesting
     internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomLevel): Int =
         when (zoom) {
-            com.weatherwidget.widget.ZoomLevel.WIDE -> zoom.smoothIterations + 1
-            com.weatherwidget.widget.ZoomLevel.NARROW -> zoom.smoothIterations
+            com.weatherwidget.widget.ZoomLevel.WIDE -> zoom.smoothIterations
+            com.weatherwidget.widget.ZoomLevel.NARROW -> (zoom.smoothIterations - 1).coerceAtLeast(0)
         }
 
     @androidx.annotation.VisibleForTesting
@@ -294,7 +294,6 @@ object CloudCoverViewHandler {
                 bitmapScale = bitmapScale,
                 smoothIterations = smoothingIterationsFor(zoom),
                 hourLabelSpacingDp = hourLabelSpacingDp,
-                observedAt = observedAt,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)

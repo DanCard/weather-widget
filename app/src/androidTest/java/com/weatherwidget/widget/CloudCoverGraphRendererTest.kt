@@ -177,54 +177,6 @@ class CloudCoverGraphRendererTest {
         )
     }
 
-    @Test
-    fun observedAt_doesNotChangeCloudCoverBitmap() {
-        val currentTime = LocalDateTime.of(2026, 3, 14, 10, 0)
-        val start = currentTime
-        val covers = listOf(20, 35, 50, 65, 55, 40, 30, 25)
-        val hours = covers.mapIndexed { i, cover ->
-            val dt = start.plusHours(i.toLong())
-            CloudCoverGraphRenderer.CloudHourData(
-                dateTime = dt,
-                cloudCover = cover,
-                label = formatHour(dt.hour),
-                isCurrentHour = i == 0,
-                showLabel = true,
-            )
-        }
-
-        val withoutObservedAt = CloudCoverGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 800,
-            heightPx = 300,
-            currentTime = currentTime,
-        )
-        val withObservedAt = CloudCoverGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 800,
-            heightPx = 300,
-            currentTime = currentTime,
-            observedAt = start.plusHours(3).plusMinutes(20)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toInstant()
-                .toEpochMilli(),
-        )
-
-        assertEquals(withoutObservedAt.width, withObservedAt.width)
-        assertEquals(withoutObservedAt.height, withObservedAt.height)
-        for (x in 0 until withoutObservedAt.width) {
-            for (y in 0 until withoutObservedAt.height) {
-                assertEquals(
-                    "Cloud cover graph should ignore observedAt and render identically at pixel ($x,$y)",
-                    withoutObservedAt.getPixel(x, y),
-                    withObservedAt.getPixel(x, y),
-                )
-            }
-        }
-    }
-
     // -------------------------------------------------------------------------
     // Label values are clamped to 0-100
     // -------------------------------------------------------------------------
