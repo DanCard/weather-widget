@@ -349,6 +349,13 @@ object TemperatureGraphRenderer {
         val startY: Float,
     )
 
+    data class ActualLineDebug(
+        val endX: Float?,
+        val endY: Float?,
+        val pointCount: Int,
+        val anchoredToFetchDot: Boolean,
+    )
+
     data class DayLabelPlacementDebug(
         val side: String,       // "LEFT" or "RIGHT"
         val dayText: String,
@@ -417,6 +424,7 @@ object TemperatureGraphRenderer {
         currentTime: LocalDateTime,
         appliedDelta: Float?,
         observedAt: Long?,
+        lastObservedTemp: Float?,
         widthPx: Int,
         onPointsResolved: ((PointsDebug) -> Unit)?,
     ): RenderContextUpdate {
@@ -468,11 +476,19 @@ object TemperatureGraphRenderer {
         val nowX = GraphRenderUtils.computeNowX(hours, originalPoints, currentTime, hourWidth, { it.isCurrentHour }, { it.dateTime })
         val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
 
-        val lastActualIndex = hours.indexOfLast { it.isActual }
-        val rawTransitionX: Float? = if (lastActualIndex >= 0) originalPoints[lastActualIndex].first else null
         val fetchDotX: Float? = if (observedAt != null && fetchTime != null) {
             GraphRenderUtils.computeXForTime(fetchTime, hours, originalPoints, hourWidth) { it.dateTime }
         } else null
+        val lastObservedActualIndex = hours.indexOfLast { it.isObservedActual }
+        val lastObservedActualX: Float? = if (lastObservedActualIndex >= 0) originalPoints[lastObservedActualIndex].first else null
+        val lastActualIndex = hours.indexOfLast { it.isActual }
+        val rawTransitionX: Float? =
+            when {
+                fetchDotX != null -> fetchDotX
+                lastObservedActualX != null -> lastObservedActualX
+                lastActualIndex >= 0 -> originalPoints[lastActualIndex].first
+                else -> null
+            }
 
         val transitionX: Float? = rawTransitionX?.let { raw ->
             listOfNotNull(raw, nowX, fetchDotX).min()
@@ -482,12 +498,76 @@ object TemperatureGraphRenderer {
             if (idx >= 0) idx else lastActualIndex
         } else -1
 
+        val anchoredActualPoints =
+            buildAnchoredActualPoints(
+                originalPoints = originalPoints,
+                transitionX = transitionX,
+                fetchDotX = fetchDotX,
+                lastObservedTemp = lastObservedTemp,
+                minTemp = minTemp,
+                tempRange = tempRange,
+                graphTop = graphTop,
+                graphHeight = graphHeight,
+            )
+        val (actualPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(anchoredActualPoints, graphBottom)
+
         return RenderContextUpdate(
             smoothedForecastTemps, smoothedExpectedTemps, originalPoints, forecastPoints, expectedPoints,
-            originalPath, expectedPath, expectedFillPath, forecastPath, forecastFillPath,
+            originalPath, actualPath, anchoredActualPoints, expectedPath, expectedFillPath, forecastPath, forecastFillPath,
             nowX, nowIndicatorVisible, fetchTime, fetchDotX,
             anchorDelta, transitionX, effectiveActualEndIndex
         )
+    }
+
+    private fun buildAnchoredActualPoints(
+        originalPoints: List<Pair<Float, Float>>,
+        transitionX: Float?,
+        fetchDotX: Float?,
+        lastObservedTemp: Float?,
+        minTemp: Float,
+        tempRange: Float,
+        graphTop: Float,
+        graphHeight: Float,
+    ): List<Pair<Float, Float>> {
+        if (transitionX == null || originalPoints.isEmpty()) return emptyList()
+
+        val anchoredToFetchDot = fetchDotX != null && abs(fetchDotX - transitionX) <= 0.5f && lastObservedTemp != null
+        val terminalY =
+            if (anchoredToFetchDot) {
+                graphTop + graphHeight * (1 - (lastObservedTemp!! - minTemp) / tempRange)
+            } else {
+                interpolateYAtX(originalPoints, transitionX)
+            }
+
+        val visible = originalPoints.filter { it.first < transitionX - 0.5f }.toMutableList()
+        val terminalPoint = transitionX to terminalY
+        if (visible.isEmpty()) {
+            visible += terminalPoint
+        } else {
+            visible += terminalPoint
+        }
+        return visible
+    }
+
+    private fun interpolateYAtX(
+        points: List<Pair<Float, Float>>,
+        targetX: Float,
+    ): Float {
+        val exact = points.firstOrNull { abs(it.first - targetX) <= 0.5f }
+        if (exact != null) return exact.second
+
+        val afterIndex = points.indexOfFirst { it.first > targetX }
+        return when {
+            afterIndex <= 0 -> points.first().second
+            afterIndex == -1 -> points.last().second
+            else -> {
+                val before = points[afterIndex - 1]
+                val after = points[afterIndex]
+                val span = (after.first - before.first).coerceAtLeast(0.0001f)
+                val fraction = ((targetX - before.first) / span).coerceIn(0f, 1f)
+                before.second + (after.second - before.second) * fraction
+            }
+        }
     }
 
     private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path) {
@@ -514,7 +594,7 @@ object TemperatureGraphRenderer {
         if (ctx.transitionX != null) {
             ctx.canvas.save()
             ctx.canvas.clipRect(0f, 0f, ctx.transitionX + dpToPx(ctx.context, 1f), ctx.heightPx.toFloat())
-            ctx.canvas.drawPath(ctx.originalPath, paints.actualLinePaint)
+            ctx.canvas.drawPath(ctx.actualPath, paints.actualLinePaint)
             ctx.canvas.restore()
         }
     }
@@ -884,6 +964,8 @@ object TemperatureGraphRenderer {
         val forecastPoints: List<Pair<Float, Float>>,
         val expectedPoints: List<Pair<Float, Float>>,
         val originalPath: Path,
+        val actualPath: Path,
+        val actualVisiblePoints: List<Pair<Float, Float>>,
         val expectedPath: Path,
         val forecastPath: Path,
         val forecastFillPath: Path,
@@ -893,6 +975,7 @@ object TemperatureGraphRenderer {
         val paints: PaintSet,
         val currentTime: LocalDateTime,
         val onGhostLineDebug: ((GhostLineDebug) -> Unit)?,
+        val onActualLineResolved: ((ActualLineDebug) -> Unit)?,
         val onLabelPlaced: ((LabelPlacementDebug) -> Unit)?,
         val onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)?,
         val onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
@@ -906,6 +989,8 @@ object TemperatureGraphRenderer {
         val forecastPoints: List<Pair<Float, Float>>,
         val expectedPoints: List<Pair<Float, Float>>,
         val originalPath: Path,
+        val actualPath: Path,
+        val actualVisiblePoints: List<Pair<Float, Float>>,
         val expectedPath: Path,
         val expectedFillPath: Path,
         val forecastPath: Path,
@@ -934,6 +1019,7 @@ object TemperatureGraphRenderer {
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onGhostLineDebug: ((GhostLineDebug) -> Unit)? = null,
         onPointsResolved: ((PointsDebug) -> Unit)? = null,
+        onActualLineResolved: ((ActualLineDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -959,7 +1045,7 @@ object TemperatureGraphRenderer {
 
         val update = computePoints(
             hours, minTemp, tempRange, layout.graphTop, layout.graphHeight, layout.graphBottom,
-            hourWidth, minTimeEpoch, currentTime, appliedDelta, observedAt, widthPx, onPointsResolved
+            hourWidth, minTimeEpoch, currentTime, appliedDelta, observedAt, lastObservedTemp, widthPx, onPointsResolved
         )
         val t3 = SystemClock.elapsedRealtime()
 
@@ -969,10 +1055,20 @@ object TemperatureGraphRenderer {
             layout.iconSize, layout.iconTopPad, update.transitionX, update.nowX, update.nowIndicatorVisible,
             update.fetchTime, update.fetchDotX, lastObservedTemp, update.anchorDelta,
             update.smoothedForecastTemps, update.smoothedExpectedTemps, update.originalPoints,
-            update.forecastPoints, update.expectedPoints, update.originalPath, update.expectedPath,
+            update.forecastPoints, update.expectedPoints, update.originalPath, update.actualPath, update.actualVisiblePoints, update.expectedPath,
             update.forecastPath, update.forecastFillPath, update.effectiveActualEndIndex,
-            appliedDelta, observedAt, paints, currentTime, onGhostLineDebug, onLabelPlaced,
+            appliedDelta, observedAt, paints, currentTime, onGhostLineDebug, onActualLineResolved, onLabelPlaced,
             onDayLabelPlaced, onFetchDotResolved
+        )
+
+        onActualLineResolved?.invoke(
+            ActualLineDebug(
+                endX = update.actualVisiblePoints.lastOrNull()?.first,
+                endY = update.actualVisiblePoints.lastOrNull()?.second,
+                pointCount = update.actualVisiblePoints.size,
+                anchoredToFetchDot = update.fetchDotX != null &&
+                    update.actualVisiblePoints.lastOrNull()?.first?.let { abs(it - update.fetchDotX) <= 0.5f } == true,
+            ),
         )
 
         drawFillAndCurves(ctx, update.expectedFillPath)

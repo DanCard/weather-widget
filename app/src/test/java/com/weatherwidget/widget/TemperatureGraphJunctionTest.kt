@@ -74,6 +74,7 @@ class TemperatureGraphJunctionTest {
         val appliedDelta = 0.0f
 
         var resolvedFetchY: Float? = null
+        var actualLineEndY: Float? = null
         
         // We need a way to measure the actual Path Y at fetchDotX.
         // Since we can't easily query Path objects in unit tests, 
@@ -88,13 +89,13 @@ class TemperatureGraphJunctionTest {
             appliedDelta = appliedDelta,
             observedAt = fetchedAtMs,
             lastObservedTemp = 65f,
-            onFetchDotResolved = { resolvedFetchY = it.fetchY }
+            onFetchDotResolved = { resolvedFetchY = it.fetchY },
+            onActualLineResolved = { actualLineEndY = it.endY },
         )
 
         assertTrue("Fetch dot Y should be resolved", resolvedFetchY != null)
-        
-        // If we want exact matching, we must use the same interpolation.
-        // I will add a way to verify the path's interpolation in the renderer.
+        assertTrue("Actual line end Y should be resolved", actualLineEndY != null)
+        assertEquals("Actual line should terminate at the fetch dot Y", resolvedFetchY!!, actualLineEndY!!, 0.01f)
     }
     
     private fun assertTrue(msg: String, condition: Boolean) {

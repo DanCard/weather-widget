@@ -14,6 +14,7 @@ import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
@@ -267,6 +268,48 @@ class TemperatureGraphRendererActualsTest {
         assertTrue(
             "Actual line clip right ($actualLineRight) should be near real anchor (~$anchorApproxX) not synthetic actual (~$syntheticApproxX)",
             actualLineRight < anchorApproxX + 10f
+        )
+    }
+
+    @Test
+    fun `actual line geometry ends at fetch dot not later carry-forward actual bucket`() {
+        val context = mockContext()
+        val start = LocalDateTime.of(2026, 2, 20, 10, 0)
+        val hours =
+            buildHours(start, actualsCount = 6, markCurrentHour = true, currentHourIndex = 6).mapIndexed { index, hour ->
+                when {
+                    index <= 3 -> hour.copy(isObservedActual = true)
+                    index <= 5 -> hour.copy(isObservedActual = false)
+                    else -> hour
+                }
+            }
+        val anchorAtMs = start.plusHours(3).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        var actualLineDebug: TemperatureGraphRenderer.ActualLineDebug? = null
+        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 300,
+            currentTime = start.plusHours(6),
+            observedAt = anchorAtMs,
+            lastObservedTemp = 53f,
+            onActualLineResolved = { actualLineDebug = it },
+            onFetchDotResolved = { fetchDotDebug = it },
+        )
+
+        val hourWidth = 800f / 8f
+        val anchorApproxX = hourWidth * 3 + hourWidth / 2
+
+        assertTrue("Actual line debug should be resolved", actualLineDebug != null)
+        assertTrue("Fetch dot should be resolved", fetchDotDebug != null)
+        assertEquals("Actual line should end at fetch dot X", fetchDotDebug!!.fetchDotX!!, actualLineDebug!!.endX!!, 0.01f)
+        assertEquals("Actual line should end at fetch dot Y", fetchDotDebug!!.fetchY!!, actualLineDebug!!.endY!!, 0.01f)
+        assertTrue(
+            "Actual line end X (${actualLineDebug!!.endX}) should be near the real anchor (~$anchorApproxX)",
+            actualLineDebug!!.endX!! < anchorApproxX + 10f,
         )
     }
 
