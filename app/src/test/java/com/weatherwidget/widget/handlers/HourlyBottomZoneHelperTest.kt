@@ -45,10 +45,16 @@ class HourlyBottomZoneHelperTest {
     }
 
     @Test
-    fun `all null within radius returns null`() {
-        // 26 entries, icon only at index 25, center at 0 → radius = 26/13 = 2
+    fun `finds distant icon when nearby entries are null`() {
+        // 26 entries, icon only at index 25, center at 0 → searches full list
         val icons = MutableList<Int?>(26) { null }.also { it[25] = 42 }
-        assertNull(HourlyBottomZoneHelper.findNearestIcon(icons, 0))
+        assertEquals(42, HourlyBottomZoneHelper.findNearestIcon(icons, 0))
+    }
+
+    @Test
+    fun `all null returns null`() {
+        val icons = List<Int?>(10) { null }
+        assertNull(HourlyBottomZoneHelper.findNearestIcon(icons, 5))
     }
 
     @Test
@@ -79,5 +85,30 @@ class HourlyBottomZoneHelperTest {
         for (i in icons.indices step 2) icons[i] = 200 + i
         // Center at index 5 (null), nearest icon at index 4 (distance 1)
         assertEquals(204, HourlyBottomZoneHelper.findNearestIcon(icons, 5))
+    }
+
+    @Test
+    fun `resolveZoneIcon prefers icon inside tapped zone before neighboring zone`() {
+        val icons = MutableList<Int?>(26) { null }
+        icons[1] = 10
+        icons[3] = 20
+
+        assertEquals(20, HourlyBottomZoneHelper.resolveZoneIcon(icons, 1, 13))
+    }
+
+    @Test
+    fun `resolveZoneIcon falls back to nearest icon when tapped zone has none`() {
+        val icons = MutableList<Int?>(26) { null }
+        icons[0] = 10
+
+        assertEquals(10, HourlyBottomZoneHelper.resolveZoneIcon(icons, 1, 13))
+    }
+
+    @Test
+    fun `resolveZoneIcon snaps adjacent middle zones to nearest visible icon anchor`() {
+        val icons = listOf<Int?>(10, 10, 11, 20, 11, 10, 10)
+
+        assertEquals(20, HourlyBottomZoneHelper.resolveZoneIcon(icons, 5, 13))
+        assertEquals(20, HourlyBottomZoneHelper.resolveZoneIcon(icons, 6, 13))
     }
 }

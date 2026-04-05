@@ -35,6 +35,13 @@ private val HOUR_ZONE_IDS = listOf(
     R.id.graph_hour_zone_12,
 )
 
+/**
+ * Sets up per-zone tap handling for the temperature hourly graph body.
+ *
+ * Body taps in the temperature graph always toggle zoom. Icon-dependent routing is
+ * reserved for the bottom icon/label row so graph-body taps do not unexpectedly
+ * switch views when they align with cloudy or rainy hours.
+ */
 internal fun setupZoomTapZones(
     context: Context,
     views: RemoteViews,

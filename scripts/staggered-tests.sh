@@ -92,8 +92,17 @@ clear_asm_cache() {
 
 start_unit_summary_monitor() {
     local log_file=$1
-    local summary_pattern='^[0-9]+ (short|medium|long) tests (passed|: [0-9]+ failed\.)|^[0-9]+ tests (passed|, [0-9]+ failed)'
-    tail -n 0 -F "$log_file" 2>/dev/null | grep --line-buffered -E "$summary_pattern" &
+    # Match summaries like "172 medium tests: 1 failed." or "665 tests passed"
+    # Also match failure details like "  ✗ Class > Method"
+    local summary_pattern='^[0-9]+ (short|medium|long) tests (passed|: [0-9]+ failed\.)|^[0-9]+ tests (passed|, [0-9]+ failed)|^[[:space:]]*✗'
+    
+    tail -n 0 -F "$log_file" 2>/dev/null | grep --line-buffered -E "$summary_pattern" | while read -r line; do
+        if [[ "$line" == *"failed"* ]] || [[ "$line" == *"✗"* ]]; then
+            echo -e "${RED}${line}${NC}"
+        else
+            echo -e "${GREEN}${line}${NC}"
+        fi
+    done &
     UNIT_SUMMARY_MONITOR_PID=$!
 }
 
@@ -102,9 +111,10 @@ BUILD_START=$(date +%s)
 
 # Start unit tests (this will start the first Gradle build)
 # We use --log-file to keep output clean while allowing us to monitor progress.
+# Redirect stdout to /dev/null because summaries are teed to the log file and handled by our monitor.
 touch "$UNIT_LOG_FILE"
 start_unit_summary_monitor "$UNIT_LOG_FILE"
-"$UNIT_SCRIPT" --single-invocation --log-file "$UNIT_LOG_FILE" &
+"$UNIT_SCRIPT" --single-invocation --log-file "$UNIT_LOG_FILE" >/dev/null 2>&1 &
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase

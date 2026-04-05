@@ -12,6 +12,20 @@ BUCKETS=()
 OVERALL_START=$(date +%s)
 SINGLE_INVOCATION_REPORTED_DIR=""
 
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+log_and_echo() {
+  local msg=$1
+  echo -e "$msg"
+  if [ -n "${LOG_FILE:-}" ] && [ -f "$LOG_FILE" ]; then
+    # Strip ANSI colors for the log file to keep it clean and searchable
+    echo -e "$msg" | sed 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE"
+  fi
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --fresh)
@@ -134,6 +148,31 @@ print(f"{test_count}|{failures}|{errors}|{skipped}|{wall_duration}")
 PY
 }
 
+list_failed_tests() {
+  local results_dir=$1
+  python3 - "$results_dir" <<'PY'
+import sys
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+results_dir = Path(sys.argv[1])
+for xml_file in sorted(results_dir.glob("TEST-*.xml")):
+    try:
+        suite = ET.parse(xml_file).getroot()
+        for testcase in suite.findall("testcase"):
+            failure = testcase.find("failure")
+            error = testcase.find("error")
+            if failure is not None or error is not None:
+                classname = testcase.attrib.get("classname", "UnknownClass")
+                # Strip package for readability
+                short_classname = classname.split(".")[-1]
+                name = testcase.attrib.get("name", "UnknownTest")
+                print(f"  ✗ {short_classname} > {name}")
+    except:
+        continue
+PY
+}
+
 emit_bucket_summary() {
   local bucket=$1
   local results_dir=$2
@@ -147,11 +186,14 @@ emit_bucket_summary() {
   IFS='|' read -r test_count failures errors skipped bucket_duration <<<"$(bucket_result_summary "$results_dir")"
   bucket_failures=$((failures + errors))
   if [ "$bucket_failures" -gt 0 ]; then
-    echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
+    log_and_echo "${test_count} ${bucket,,} tests: ${RED}${bucket_failures} failed.${NC}"
+    list_failed_tests "$results_dir" | while IFS= read -r line; do
+      log_and_echo "${RED}${line}${NC}"
+    done
   elif [ "$skipped" -gt 0 ]; then
-    echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
+    log_and_echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
   else
-    echo -n "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration").  "
+    log_and_echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration").  "
   fi
 }
 
@@ -167,7 +209,7 @@ start_bucket_progress_monitor() {
     tail -n 0 -F "$gradle_log" 2>/dev/null | while IFS= read -r line; do
       if [ "$announced_execution" = false ] && [[ "$line" == *"> Task :app:${task_name}"* ]]; then
         local build_elapsed=$(( $(date +%s) - bucket_start ))
-        echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
+        log_and_echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
         announced_execution=true
       fi
 
@@ -193,7 +235,7 @@ start_single_invocation_summary_monitor() {
 
         if [ -z "${announced_execution[$bucket]:-}" ] && [[ "$line" == *"$task_marker"* ]]; then
           local build_elapsed=$(( $(date +%s) - OVERALL_START ))
-          echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
+          log_and_echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
           announced_execution["$bucket"]=1
         fi
 
@@ -282,21 +324,27 @@ if [ "$SINGLE_INVOCATION" = true ]; then
       total_failures=$((total_failures + bucket_failures))
       if [ -z "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] || [ ! -f "$SINGLE_INVOCATION_REPORTED_DIR/$bucket" ]; then
         if [ "$bucket_failures" -gt 0 ]; then
-          echo "${test_count} ${bucket,,} tests: ${bucket_failures} failed."
+          log_and_echo "${test_count} ${bucket,,} tests: ${RED}${bucket_failures} failed.${NC}"
+          list_failed_tests "$results_dir" | while IFS= read -r line; do
+            log_and_echo "${RED}${line}${NC}"
+          done
         elif [ "$skipped" -gt 0 ]; then
-          echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
+          log_and_echo "${test_count} ${bucket,,} tests passed (${skipped} skipped) in $(format_seconds "$bucket_duration")."
         else
-          echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
+          log_and_echo "${test_count} ${bucket,,} tests passed in $(format_seconds "$bucket_duration")."
         fi
       fi
     fi
   done
 
   overall_elapsed=$(( $(date +%s) - OVERALL_START ))
-  if [ "$overall_status" -eq 0 ]; then
-    echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
+  if [ "$overall_status" -eq 0 ] && [ "$total_failures" -eq 0 ]; then
+    log_and_echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
   else
-    echo "${total_tests} tests, ${total_failures} failed in $(format_seconds "$overall_elapsed")."
+    if [ "$total_failures" -gt 0 ] && [ "$overall_status" -eq 0 ]; then
+      overall_status=1
+    fi
+    log_and_echo "${total_tests} tests, ${RED}${total_failures} failed${NC} in $(format_seconds "$overall_elapsed")."
     # Show Gradle output only on failure
     cat "$gradle_log"
   fi
@@ -381,7 +429,9 @@ done
 overall_elapsed=$(( $(date +%s) - OVERALL_START ))
 
 if [ "$overall_status" -eq 0 ]; then
-  echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
+  log_and_echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
+else
+  log_and_echo "One or more unit test buckets failed."
 fi
 
 exit "$overall_status"

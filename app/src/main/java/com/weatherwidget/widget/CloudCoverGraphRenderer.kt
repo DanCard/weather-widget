@@ -373,56 +373,11 @@ object CloudCoverGraphRenderer {
             dpToPx = { dpToPx(context, it) },
         )
 
-        // --- Draw "Last Fetch Dot" on the curve ---
         if (observedAt != null) {
-            val fetchTime = java.time.Instant.ofEpochMilli(observedAt)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDateTime()
-
-            val fetchX = GraphRenderUtils.computeXForTime(
-                targetTime = fetchTime,
-                items = hours,
-                points = points,
-                hourWidth = hourWidth,
-                dateTimeOf = { it.dateTime }
+            Log.d(
+                TAG,
+                "renderGraph: suppressing fetch dot for cloud cover graph observedAt=$observedAt",
             )
-
-            if (fetchX != null) {
-                val fetchIdx = hours.indexOfLast { !it.dateTime.isAfter(fetchTime) }
-                if (fetchIdx != -1 && fetchIdx < hours.lastIndex) {
-                    val baseCloud = hours[fetchIdx].cloudCover.toFloat()
-                    val nextCloud = hours[fetchIdx + 1].cloudCover.toFloat()
-                    val fraction = java.time.Duration.between(hours[fetchIdx].dateTime, fetchTime).toMinutes() / 60f
-                    val interpolatedCloud = baseCloud + (nextCloud - baseCloud) * fraction
-                    val fetchY = graphBottom - graphHeight * (interpolatedCloud / 100f)
-                    val valueLabel = "${interpolatedCloud.roundToInt()}%"
-
-                    val windowHours = java.time.Duration.between(hours.first().dateTime, hours.last().dateTime).toHours()
-                    val ageMinutes = if (windowHours <= 12) {
-                        val age = java.time.Duration.between(fetchTime, currentTime).toMinutes()
-                        Log.d("CloudGraphRenderer", "staleness: fetchTime=$fetchTime currentTime=$currentTime ageMinutes=$age observedAt=$observedAt")
-                        age
-                    } else null
-
-                    GraphRenderUtils.drawFetchDot(
-                        context = context,
-                        canvas = canvas,
-                        fetchX = fetchX,
-                        fetchY = fetchY,
-                        valueLabel = valueLabel,
-                        ageMinutes = ageMinutes,
-                        bitmapScale = bitmapScale,
-                        widthPx = widthPx,
-                        heightPx = heightPx,
-                        dpToPx = { dpToPx(context, it) },
-                    )
-
-                    // Prevent double-labeling this index in the main loop
-                    if (ageMinutes != null) {
-                        drawnLabelBounds.add(RectF(fetchX - 1f, fetchY - 1f, fetchX + 1f, fetchY + 1f))
-                    }
-                }
-            }
         }
 
         // --- Cloud icon in emptiest region ---

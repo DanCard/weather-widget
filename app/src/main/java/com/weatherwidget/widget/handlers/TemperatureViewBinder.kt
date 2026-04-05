@@ -23,6 +23,10 @@ internal object TemperatureViewBinder {
     ) {
         val appWidgetId = state.appWidgetId
         val header = state.header
+        val routedHourIcons = state.graph.hourData
+            .filter { it.showLabel }
+            .map { it.iconRes }
+            .ifEmpty { state.graph.hourData.map { it.iconRes } }
 
         // 1. Warning
         if (state.warning != null) {
@@ -66,7 +70,9 @@ internal object TemperatureViewBinder {
         positionCenterIcons(views, state.widthDp, header.isPrecipVisible)
 
         // 4. Setup Intent Listeners
-        setupZoomTapZones(context, views, appWidgetId, state.zoom, state.hourlyOffset)
+        setupZoomTapZones(
+            context, views, appWidgetId, state.zoom, state.hourlyOffset,
+        )
         setupNavigationButtons(context, views, appWidgetId, stateManager)
         setupApiToggle(context, views, appWidgetId, state.numRows)
         setupHomeShortcut(context, views, appWidgetId)
@@ -93,10 +99,11 @@ internal object TemperatureViewBinder {
                 context = context,
                 views = views,
                 appWidgetId = appWidgetId,
-                hourIconResources = state.graph.hourData.map { it.iconRes },
+                hourIconResources = routedHourIcons,
                 currentViewMode = ViewMode.TEMPERATURE,
                 zoom = state.zoom,
                 hourlyOffset = state.hourlyOffset,
+                showBodyOverlayZones = false,
             )
         } else if (state.graph.showTextMode) {
             showTextMode(views)
@@ -110,6 +117,7 @@ internal object TemperatureViewBinder {
         views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
     }
 }

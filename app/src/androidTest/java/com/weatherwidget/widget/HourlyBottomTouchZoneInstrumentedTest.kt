@@ -58,14 +58,23 @@ class HourlyBottomTouchZoneInstrumentedTest {
         val root = inflateMeasuredWidget()
         val graphBody = root.findViewById<View>(R.id.graph_interaction_body)
         val bottomHourZones = root.findViewById<View>(R.id.graph_bottom_hour_zones)
+        val footerHourZones = root.findViewById<View>(R.id.graph_bottom_hour_footer_zones)
+        val reservedFooter = root.findViewById<View>(R.id.graph_bottom_reserved_space)
 
         bottomHourZones.visibility = View.VISIBLE
+        footerHourZones.visibility = View.VISIBLE
+        reservedFooter.visibility = View.VISIBLE
         measureAndLayout(root)
 
         assertEquals(
-            "Per-hour bottom zones should begin exactly where the zoomable graph body ends",
+            "Overlay hour zones should be pinned to the bottom edge of the graph body",
+            graphBody.bottom - bottomHourZones.height,
+            graphBody.top + bottomHourZones.top,
+        )
+        assertEquals(
+            "Footer hour zones should start exactly where the graph body ends",
             graphBody.bottom,
-            bottomHourZones.top,
+            reservedFooter.top + footerHourZones.top,
         )
     }
 

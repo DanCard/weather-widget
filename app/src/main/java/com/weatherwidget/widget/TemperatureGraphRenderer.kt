@@ -23,7 +23,7 @@ object TemperatureGraphRenderer {
 
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 1.5f
     private const val GRAPH_TOP_PADDING_DP = 8f
-    private const val GRAPH_BOTTOM_OVERLAP_DP = 10f
+    private const val GRAPH_TO_FOOTER_GAP_DP = 2f
     private const val TOP_TEMP_BUFFER_RATIO = 0.1f
     private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
@@ -406,7 +406,7 @@ object TemperatureGraphRenderer {
 
         val graphTop = topPadding
         val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
-        val graphBottom = (footerTop + dpToPx(context, GRAPH_BOTTOM_OVERLAP_DP)).coerceAtMost(heightPx.toFloat() - labelHeight)
+        val graphBottom = (footerTop - dpToPx(context, GRAPH_TO_FOOTER_GAP_DP)).coerceAtLeast(graphTop + 1f)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
         Log.d(TAG, "Layout: heightPx=$heightPx, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
         return Layout(topPadding, iconSize, footerTop, graphTop, graphBottom, graphHeight, iconTopPad)

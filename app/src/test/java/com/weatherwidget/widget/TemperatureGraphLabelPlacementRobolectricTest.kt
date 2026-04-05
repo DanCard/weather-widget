@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
+import android.util.DisplayMetrics
 import android.util.TypedValue
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
@@ -409,10 +410,46 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         assertNotNull("LOW label should be present even if it collides, as long as it's on-screen. Placements=$placements", lowLabel)
 
         // preferred (below) is off-screen.
-        // fallback (above) collides with icon.
-        // Logic should FORCE it above.
-        // Note: After refactor, reason is "FORCED" when collision exists on final placement
+        // With footer separation in place, fallback (above) should now fit without needing a forced collision placement.
         assertTrue("Expected label above line", lowLabel!!.placedAbove)
-        assertEquals("FORCED", lowLabel.reason)
+        assertEquals("above", lowLabel.reason)
+    }
+
+    @Test
+    fun `lowest plotted point stays above footer icon band`() {
+        var points: TemperatureGraphRenderer.PointsDebug? = null
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        val iconRes = com.weatherwidget.R.drawable.ic_weather_clear
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 90.0f, label = "10a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 10.0f, label = "11a", showLabel = true, iconRes = iconRes),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 90.0f, label = "12p"),
+            )
+
+        val heightPx = 120
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 400,
+            heightPx = heightPx,
+            currentTime = start,
+            onPointsResolved = { points = it },
+        )
+
+        val density = context.resources.displayMetrics.density
+        fun dp(dp: Float): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, DisplayMetrics().apply { this.density = density })
+
+        val iconSize = dp(16f)
+        val labelHeight = dp(10f)
+        val iconTopPad = dp(2f)
+        val iconBottomPad = dp(1f)
+        val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
+        val lowestY = requireNotNull(points).original.maxOf { it.second }
+
+        assertTrue(
+            "Lowest plotted point should stay above the footer/icon band. lowestY=$lowestY footerTop=$footerTop",
+            lowestY < footerTop,
+        )
     }
 }
