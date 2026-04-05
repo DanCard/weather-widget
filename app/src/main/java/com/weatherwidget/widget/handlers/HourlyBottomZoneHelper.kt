@@ -4,12 +4,15 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
+
+private const val TAG = "HourlyBottomZone"
 
 /**
  * Wires per-hour bottom-row tap zones on hourly graphs.
@@ -36,8 +39,10 @@ object HourlyBottomZoneHelper {
     internal fun findNearestIcon(icons: List<Int?>, centerIndex: Int): Int? {
         // Check center first
         icons[centerIndex]?.let { return it }
-        // Search outward up to half the zone width (icons.size / 13 / 2)
-        val maxRadius = (icons.size / BOTTOM_HOUR_ZONE_IDS.size).coerceAtLeast(1)
+        // Search outward across the full list. Sub-hourly observation entries have
+        // null iconRes, so the nearest top-of-hour icon can be several entries away,
+        // especially in NARROW zoom where sub-hourly points are dense.
+        val maxRadius = icons.size
         for (r in 1..maxRadius) {
             val left = centerIndex - r
             val right = centerIndex + r
@@ -66,7 +71,9 @@ object HourlyBottomZoneHelper {
     ) {
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_bottom_reserved_space, View.GONE)
+        // Reserved space maintains the LinearLayout height that bottom_hour_zones
+        // used to occupy before it was moved into the body overlay.
+        views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
 
         BOTTOM_HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
@@ -83,6 +90,7 @@ object HourlyBottomZoneHelper {
             }
             val iconRes = centerIndex?.let { findNearestIcon(hourIconResources, it) }
             val targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode)
+            Log.d(TAG, "zone=$i centerIdx=$centerIndex iconRes=$iconRes targetView=$targetView currentView=$currentViewMode listSize=${hourIconResources.size}")
 
             val pendingIntent = if (targetView == null) {
                 // Zoom — same offset calculation as the body zoom zones

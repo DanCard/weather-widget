@@ -263,13 +263,26 @@ object CloudCoverGraphRenderer {
 
             val isPeak = index == globalMaxIdx || (index > 0 && index < labelSignal.lastIndex &&
                 labelSignal[index] > labelSignal[index - 1] && labelSignal[index] > labelSignal[index + 1])
-            val preferAbove = isPeak || cloudPct <= 50
+            val isEndLabelCandidate = index == hours.lastIndex
+            val isRisingAtEnd = isEndLabelCandidate &&
+                index > 0 &&
+                points[index].second < points[index - 1].second - 0.5f
+            val preferAbove = isPeak || isRisingAtEnd
 
             val attempts = if (preferAbove) {
                 listOf(true, false)
             } else {
                 listOf(false, true)
             }
+            val hourLabel = hours[index].label
+
+            Log.d(
+                TAG,
+                "labelCandidate: idx=$index hour=$hourLabel value=$cloudPct% isPeak=$isPeak " +
+                    "isGlobalMax=${index == globalMaxIdx} isGlobalMin=${index == globalMinIdx} " +
+                    "isEndLabelCandidate=$isEndLabelCandidate isRisingAtEnd=$isRisingAtEnd " +
+                    "preferAbove=$preferAbove order=${attempts.joinToString("->") { if (it) "above" else "below" }}",
+            )
 
             for (placeAbove in attempts) {
                 val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
@@ -279,13 +292,30 @@ object CloudCoverGraphRenderer {
                     x + textWidth / 2f, baselineY,
                 )
 
-                if (bounds.top < 0f || bounds.bottom > graphBottom - dpToPx(context, 2f)) continue
-                val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) } ||
-                    drawnIconBounds.any { RectF.intersects(it, bounds) }
-                if (overlaps) continue
+                if (bounds.top < 0f || bounds.bottom > graphBottom - dpToPx(context, 2f)) {
+                    Log.d(
+                        TAG,
+                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} reason=out_of_bounds bounds=$bounds",
+                    )
+                    continue
+                }
+                val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                if (overlapsLabel || overlapsIcon) {
+                    val reason = if (overlapsIcon) "overlap_icon" else "overlap_label"
+                    Log.d(
+                        TAG,
+                        "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} reason=$reason bounds=$bounds",
+                    )
+                    continue
+                }
 
                 canvas.drawText(labelText, x, baselineY, percentLabelPaint)
                 drawnLabelBounds.add(bounds)
+                Log.d(
+                    TAG,
+                    "labelPlaced: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} x=$x y=$baselineY",
+                )
                 onLabelPlaced?.invoke(LabelPlacementDebug(
                     index = index,
                     cloudCover = cloudPct,

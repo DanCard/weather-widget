@@ -133,22 +133,47 @@ class CloudCoverGraphRendererTest {
     }
 
     // -------------------------------------------------------------------------
-    // Label placement: global min (low cover) prefers above
+    // Label placement: non-peak low cover prefers below
     // -------------------------------------------------------------------------
 
     @Test
-    fun globalMin_lowCover_isPlacedAbove() {
-        // Sustained dip across 5 hours: the center stays <=50 after 2 smoothing passes,
-        // so preferAbove fires (rule: prob <= 50 → prefer above).
-        // A single-point dip (e.g. [80,80,20,80,80]) would smooth to ~58% and miss the rule.
+    fun globalMin_lowCover_isPlacedBelow() {
+        // Sustained dip across 5 hours keeps the smoothed global minimum away from the edges,
+        // with enough room on both sides of the curve. Non-peak labels should now try below first.
         val covers = listOf(80, 80, 20, 20, 20, 20, 20, 80, 80)
         val (_, placements, _) = render(covers, widthPx = 800, heightPx = 400)
 
         val minLabel = placements.find { it.isGlobalMin }
         assertNotNull("Expected global min to be labeled. Placements=$placements", minLabel)
-        assertTrue(
-            "Sustained low cloud cover (<=50% after smoothing) should prefer above. Placement=$minLabel",
+        assertFalse(
+            "Sustained low cloud cover should now prefer below the curve when room exists. Placement=$minLabel",
             minLabel!!.placedAbove,
+        )
+    }
+
+    @Test
+    fun risingEndLabel_prefersAbove() {
+        val covers = listOf(60, 58, 40, 25, 15, 20, 28, 32)
+        val (_, placements, _) = render(covers, widthPx = 900, heightPx = 420)
+
+        val endLabel = placements.find { it.index == covers.lastIndex }
+        assertNotNull("Expected final rising endpoint label to be drawn. Placements=$placements", endLabel)
+        assertTrue(
+            "Final rising endpoint should prefer above the curve. Placement=$endLabel",
+            endLabel!!.placedAbove,
+        )
+    }
+
+    @Test
+    fun fallingEndLabel_prefersBelow() {
+        val covers = listOf(20, 28, 35, 42, 40, 37, 34, 32)
+        val (_, placements, _) = render(covers, widthPx = 900, heightPx = 420)
+
+        val endLabel = placements.find { it.index == covers.lastIndex }
+        assertNotNull("Expected final falling endpoint label to be drawn. Placements=$placements", endLabel)
+        assertFalse(
+            "Final falling endpoint should keep the default below-first behavior. Placement=$endLabel",
+            endLabel!!.placedAbove,
         )
     }
 
