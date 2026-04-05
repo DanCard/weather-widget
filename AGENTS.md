@@ -179,6 +179,8 @@ class TemperatureInterpolatorTest {
 ### Testing Conventions
 - Write descriptive test names using backticks explaining behavior
 - Test happy paths and edge cases
+- When running a focused Android instrumented test and multiple devices are attached, prefer emulator-only execution first to avoid slow multi-device `connectedDebugAndroidTest` runs.
+- Use `./scripts/emulator-tests.sh -c <fully.qualified.TestClass>` by default for emulator-only instrumented test iterations unless the user explicitly wants all connected devices.
 
 ## Documentation Preferences
 

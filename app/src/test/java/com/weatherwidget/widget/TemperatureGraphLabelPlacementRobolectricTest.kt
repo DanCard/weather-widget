@@ -139,6 +139,115 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
+    fun `end label is still emitted when observedAt lands on the final point`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 15, 0)
+        val observedAtMs = start.plusHours(4).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "3p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "4p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 87.0f, label = "6p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
+            )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 500,
+            heightPx = 450,
+            currentTime = start.plusHours(4),
+            observedAt = observedAtMs,
+            lastObservedTemp = 88.0f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val endPlacement = placements.find { it.role == "END" }
+        assertNotNull("Expected END label even when observedAt is on the final point. placements=$placements", endPlacement)
+        assertEquals(88.0f, endPlacement!!.temperature, 0.01f)
+    }
+
+    @Test
+    fun `end label uses forecast temperature after fetch transition not ghost line when endpoint is uncrowded`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 15, 0)
+        val observedAtMs = start.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 70.0f, actualTemperature = 70.0f, isActual = true, label = "3p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 75.0f, actualTemperature = 75.0f, isActual = true, label = "4p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 74.0f, label = "5p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 73.0f, label = "6p"),
+            )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 500,
+            heightPx = 450,
+            currentTime = start.plusHours(1),
+            observedAt = observedAtMs,
+            lastObservedTemp = 75.0f,
+            appliedDelta = 5.0f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val endPlacement = placements.find { it.role == "END" }
+        assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
+        assertEquals("END label should stay on forecast line value, not ghost line", 73.0f, endPlacement!!.temperature, 0.01f)
+        assertEquals("forecast", endPlacement.series)
+        assertEquals("forecast", endPlacement.colorFamily)
+    }
+
+    @Test
+    fun `end label is suppressed when same-index high already labels final point`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(listOf(70f, 75f, 81f)),
+            widthPx = 500,
+            heightPx = 450,
+            currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertNull("END should be suppressed when HIGH already labels the final point. placements=$placements", placements.find { it.role == "END" })
+        assertNotNull("HIGH should remain when it already labels the final point. placements=$placements", placements.find { it.role == "HIGH" })
+    }
+
+    @Test
+    fun `end label is suppressed when adjacent local label would crowd the endpoint`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 15, 0)
+        val observedAtMs = start.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 52.0f, actualTemperature = 53.5f, isActual = true, label = "3p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 81.0f, actualTemperature = 82.0f, isActual = true, label = "4p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 79.0f, label = "5p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 77.0f, label = "6p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 55.0f, label = "7p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(5), temperature = 57.0f, label = "8p"),
+            )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 584,
+            heightPx = 385,
+            currentTime = start.plusHours(1),
+            observedAt = observedAtMs,
+            lastObservedTemp = 82.0f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertNotNull("Expected adjacent local label near endpoint. placements=$placements", placements.find { it.role == "LOCAL" })
+        assertNull("END should be suppressed when another label is adjacent to the endpoint. placements=$placements", placements.find { it.role == "END" })
+    }
+
+    @Test
     fun `actuals end does not produce a label (fetch dot shows observed temp instead)`() {
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 
@@ -171,8 +280,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val start = LocalDateTime.of(2026, 3, 19, 10, 0)
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 60.0f, actualTemperature = 55.0f, isActual = true, label = "10a"), // LOW
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 62.0f, label = "11a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 63.0f, label = "10a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 60.0f, actualTemperature = 55.0f, isActual = true, label = "11a"), // LOW
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 58.0f, label = "12p"), // FORECAST_LOW
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 65.0f, label = "1p"),
             )

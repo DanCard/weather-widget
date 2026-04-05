@@ -662,13 +662,14 @@ object TemperatureGraphRenderer {
         val fetchIdx = ctx.fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
 
         val specialCandidates = mutableListOf<TempLabelCandidate>()
+        val endpointRoles = setOf("START", "END")
         fun addCandidate(index: Int, role: String, temps: List<Float>, forceForecast: Boolean = false) {
             if (index !in temps.indices) return
             val hour = hours[index]
             val text = formatTemp(temps[index])
             val series = if (forceForecast) "forecast" else "actual"
             // Suppress if this point is already being labeled by the Fetch Dot
-            if (index == fetchIdx && ctx.observedAt != null) {
+            if (index == fetchIdx && ctx.observedAt != null && role !in endpointRoles) {
                 Log.d(
                     TAG,
                     "LABEL_CANDIDATE_SKIPPED role=$role idx=$index text=$text series=$series " +
@@ -699,6 +700,34 @@ object TemperatureGraphRenderer {
                 )
             }
         }
+        fun addEndpointCandidate(index: Int, role: String) {
+            if (index !in labelTemps.indices) return
+            val endpointTemps =
+                if (ctx.originalPoints[index].first > (ctx.transitionX ?: -1f)) forecastLabelTemps else labelTemps
+            val nearbyCandidate =
+                specialCandidates.firstOrNull {
+                    it.role !in endpointRoles && abs(it.index - index) <= 1
+                }
+            if (nearbyCandidate != null) {
+                Log.d(
+                    TAG,
+                    "LABEL_CANDIDATE_SKIPPED role=$role idx=$index text=${formatTemp(endpointTemps[index])} " +
+                        "series=${if (endpointTemps === forecastLabelTemps) "forecast" else "actual"} " +
+                        "reason=NEARBY_ENDPOINT_CLUTTER conflictRole=${nearbyCandidate.role} conflictIdx=${nearbyCandidate.index}",
+                )
+                return
+            }
+
+            val replaced = specialCandidates.removeAll { it.index == index && it.role !in endpointRoles }
+            if (replaced) {
+                Log.d(
+                    TAG,
+                    "LABEL_CANDIDATE_REPLACED role=$role idx=$index reason=ENDPOINT_PRIORITY",
+                )
+            }
+
+            addCandidate(index, role, endpointTemps, forceForecast = endpointTemps === forecastLabelTemps)
+        }
 
         if (dailyLowIndex >= 0) addCandidate(dailyLowIndex, "LOW", labelTemps)
         if (dailyHighIndex >= 0 && dailyHighIndex != dailyLowIndex) addCandidate(dailyHighIndex, "HIGH", labelTemps)
@@ -720,8 +749,8 @@ object TemperatureGraphRenderer {
                 "actualTemp=${h.actualTemperature} labelTemp=${c.labelTemps[c.index]}")
         }
         // ACTUAL_END label removed — the fetch dot already shows the last observed temp with age.
-        if (specialCandidates.none { it.index == 0 }) addCandidate(0, "START", labelTemps)
-        if (hours.size > 1 && specialCandidates.none { it.index == hours.size - 1 }) addCandidate(hours.size - 1, "END", labelTemps)
+        addEndpointCandidate(0, "START")
+        if (hours.size > 1) addEndpointCandidate(hours.size - 1, "END")
 
         val drawnLabelBounds = mutableListOf<RectF>()
         val labelFontMetrics = ctx.paints.actualTempLabelTextPaint.fontMetrics

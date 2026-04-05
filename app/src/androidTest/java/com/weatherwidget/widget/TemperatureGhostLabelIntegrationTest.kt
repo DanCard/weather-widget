@@ -1,0 +1,167 @@
+package com.weatherwidget.widget
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.time.LocalDateTime
+import java.time.ZoneId
+
+@RunWith(AndroidJUnit4::class)
+class TemperatureGhostLabelIntegrationTest {
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+    @Test
+    fun endLabel_staysOnForecastLineAfterFetchTransition() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 15, 0)
+        val observedAtMs = start.plusHours(1).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(0),
+                    temperature = 70.0f,
+                    actualTemperature = 70.0f,
+                    isActual = true,
+                    label = "3p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(1),
+                    temperature = 75.0f,
+                    actualTemperature = 75.0f,
+                    isActual = true,
+                    label = "4p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(2),
+                    temperature = 74.0f,
+                    label = "5p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(3),
+                    temperature = 73.0f,
+                    label = "6p",
+                ),
+            )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 500,
+            heightPx = 450,
+            currentTime = start.plusHours(1),
+            observedAt = observedAtMs,
+            lastObservedTemp = 75.0f,
+            appliedDelta = 5.0f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val endPlacement = placements.find { it.role == "END" }
+        assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
+        assertEquals(
+            "END label should stay on forecast line value, not ghost line value",
+            73.0f,
+            endPlacement!!.temperature,
+            0.01f,
+        )
+        assertEquals("forecast", endPlacement.series)
+        assertEquals("forecast", endPlacement.colorFamily)
+    }
+
+    @Test
+    fun forecastLabels_afterFetchTransition_ignoreAppliedDelta() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 15, 0)
+        val observedAtMs = start.plusHours(1).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(0),
+                    temperature = 68.0f,
+                    actualTemperature = 68.0f,
+                    isActual = true,
+                    label = "3p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(1),
+                    temperature = 69.0f,
+                    actualTemperature = 69.0f,
+                    isActual = true,
+                    label = "4p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(2),
+                    temperature = 72.0f,
+                    label = "5p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(3),
+                    temperature = 76.0f,
+                    label = "6p",
+                ),
+                TemperatureGraphRenderer.HourData(
+                    dateTime = start.plusHours(4),
+                    temperature = 74.0f,
+                    label = "7p",
+                ),
+            )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 450,
+            currentTime = start.plusHours(1),
+            observedAt = observedAtMs,
+            lastObservedTemp = 69.0f,
+            appliedDelta = 6.0f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val futureLabels = placements.filter { it.series == "forecast" }
+        assertTrue("Expected at least one forecast-side label. placements=$placements", futureLabels.isNotEmpty())
+        assertTrue(
+            "Forecast-side labels should not use ghost-line temperatures shifted by delta. placements=$placements",
+            futureLabels.none { it.temperature > it.rawTemperature + 0.1f },
+        )
+    }
+
+    @Test
+    fun endLabel_isSuppressedWhenAdjacentFutureLabelWouldCrowdEndpoint() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 4, 4, 8, 0)
+        val observedAtMs = start.plusHours(7).plusMinutes(55).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val hours =
+            listOf(
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 52.0f, actualTemperature = 53.5f, isActual = true, label = "8a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 81.0f, actualTemperature = 82.0f, isActual = true, label = "9a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 79.0f, label = "10a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 77.0f, label = "11a"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 70.0f, label = "12p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(5), temperature = 65.0f, label = "1p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(6), temperature = 60.0f, label = "2p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(7), temperature = 58.0f, label = "3p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(8), temperature = 56.0f, label = "4p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(9), temperature = 55.0f, label = "5p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(10), temperature = 57.0f, label = "6p"),
+            )
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 584,
+            heightPx = 385,
+            currentTime = start.plusHours(7),
+            observedAt = observedAtMs,
+            lastObservedTemp = 82.0f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertNotNull("Expected adjacent future-side LOCAL label near endpoint. placements=$placements", placements.find { it.role == "LOCAL" })
+        assertNull("END should be suppressed when the right edge is already labeled nearby. placements=$placements", placements.find { it.role == "END" })
+    }
+}
