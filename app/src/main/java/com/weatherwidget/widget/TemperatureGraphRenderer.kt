@@ -29,6 +29,7 @@ object TemperatureGraphRenderer {
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 1.5f
     private const val MIN_GHOST_LINE_DELTA = 0.1f
+    private const val MINOR_OVERLAP_HEIGHT_RATIO = 0.15f
 
     data class HourData(
         val dateTime: LocalDateTime,
@@ -549,6 +550,25 @@ object TemperatureGraphRenderer {
         return visible
     }
 
+    internal fun isMinorOverlapEligible(role: String): Boolean =
+        role in setOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "START", "END", "LOCAL")
+
+    internal fun shouldAllowMinorOverlap(
+        role: String,
+        overlapHeight: Float,
+        labelHeight: Float,
+    ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO
+
+    internal fun maxVerticalOverlap(
+        bounds: RectF,
+        existingBounds: List<RectF>,
+    ): Float {
+        val intersect = RectF()
+        return existingBounds.maxOfOrNull { existing ->
+            if (intersect.setIntersect(existing, bounds)) intersect.height() else 0f
+        } ?: 0f
+    }
+
     private fun interpolateYAtX(
         points: List<Pair<Float, Float>>,
         targetX: Float,
@@ -781,6 +801,7 @@ object TemperatureGraphRenderer {
             val directions = if (isValley) listOf(true, false) else listOf(false, true)
             val labelHeight = labelDescent - labelAscent
             val leaderLinePaint = if (isFuture) ctx.paints.forecastLeaderLinePaint else ctx.paints.actualLeaderLinePaint
+            val minorOverlapThreshold = if (isMinorOverlapEligible(candidate.role)) labelHeight * MINOR_OVERLAP_HEIGHT_RATIO else 0f
             var placed = false
             // Track last on-screen position as fallback for forced essential labels
             var forceBaselineY = Float.NaN
@@ -803,23 +824,39 @@ object TemperatureGraphRenderer {
                         )
                         continue  // further displacement in this direction won't help, but other direction might
                     }
-                    val hasCollision = drawnLabelBounds.any { RectF.intersects(it, bounds) } || drawnIconBounds.any { RectF.intersects(it, bounds) }
+                    val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+                    val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                    val labelOverlap = if (overlapsLabel) maxVerticalOverlap(bounds, drawnLabelBounds) else 0f
+                    val iconOverlap = if (overlapsIcon) maxVerticalOverlap(bounds, drawnIconBounds) else 0f
+                    val allowMinorLabelOverlap = overlapsLabel && shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
+                    val allowMinorIconOverlap = overlapsIcon && shouldAllowMinorOverlap(candidate.role, iconOverlap, labelHeight)
+                    val hasCollision =
+                        (overlapsLabel && !allowMinorLabelOverlap) ||
+                            (overlapsIcon && !allowMinorIconOverlap)
                     if (isEssential && forceBounds == null) { forceBaselineY = baselineY; forceBounds = bounds; forceDrawBelow = drawBelow; forceStep = step }
                     if (hasCollision) {
-                        val collidingLabel = drawnLabelBounds.firstOrNull { RectF.intersects(it, bounds) }
-                        val collidingIcon = drawnIconBounds.firstOrNull { RectF.intersects(it, bounds) }
                         val collisionTarget = when {
-                            collidingLabel != null -> "LABEL"
-                            collidingIcon != null -> "ICON"
+                            overlapsLabel && overlapsIcon -> "LABEL+ICON"
+                            overlapsLabel -> "LABEL"
+                            overlapsIcon -> "ICON"
                             else -> "UNKNOWN"
                         }
                         Log.d(
                             TAG,
                             "LABEL_PLACEMENT_REJECTED role=${candidate.role} idx=$idx text=$label step=$step " +
-                                "preferred=${if (drawBelow) "below" else "above"} reason=COLLISION target=$collisionTarget bounds=$bounds",
+                                "preferred=${if (drawBelow) "below" else "above"} reason=COLLISION target=$collisionTarget " +
+                                "labelOverlap=$labelOverlap iconOverlap=$iconOverlap threshold=$minorOverlapThreshold bounds=$bounds",
                         )
                     }
                     if (!hasCollision) {
+                        if (allowMinorLabelOverlap || allowMinorIconOverlap) {
+                            Log.d(
+                                TAG,
+                                "LABEL_PLACEMENT_ACCEPTED_WITH_MINOR_OVERLAP role=${candidate.role} idx=$idx text=$label step=$step " +
+                                    "preferred=${if (drawBelow) "below" else "above"} labelOverlap=$labelOverlap " +
+                                    "iconOverlap=$iconOverlap threshold=$minorOverlapThreshold",
+                            )
+                        }
                         if (step > 0) {
                             val lineEndY = if (drawBelow) bounds.top else bounds.bottom
                             ctx.canvas.drawLine(clampedX, sy, clampedX, lineEndY, leaderLinePaint)
