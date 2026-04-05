@@ -109,10 +109,10 @@ class CloudCoverGraphRendererTest {
     }
 
     @Test
-    fun `fallback label gap uses fourteen dp above and fourteen dp below`() {
+    fun `fallback label gap uses eight dp above and fourteen dp below`() {
         val gap = CloudCoverGraphRenderer.labelGapDp(isFallback = true)
 
-        assertEquals(14f, gap.aboveDp)
+        assertEquals(8f, gap.aboveDp)
         assertEquals(14f, gap.belowDp)
     }
 
@@ -129,5 +129,77 @@ class CloudCoverGraphRendererTest {
         assertEquals(112f, placement.baselineY)
         assertEquals(102f, placement.top)
         assertEquals(114f, placement.bottom)
+    }
+
+    @Test
+    fun `low preferred below labels allow small bottom overflow`() {
+        assertTrue(
+            CloudCoverGraphRenderer.shouldAllowBottomOverflow(
+                cloudPct = 10,
+                placeAbove = false,
+                isFallbackAttempt = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `fallback and above labels do not allow bottom overflow`() {
+        assertTrue(
+            !CloudCoverGraphRenderer.shouldAllowBottomOverflow(
+                cloudPct = 10,
+                placeAbove = true,
+                isFallbackAttempt = false,
+            ),
+        )
+        assertTrue(
+            !CloudCoverGraphRenderer.shouldAllowBottomOverflow(
+                cloudPct = 10,
+                placeAbove = false,
+                isFallbackAttempt = true,
+            ),
+        )
+        assertTrue(
+            !CloudCoverGraphRenderer.shouldAllowBottomOverflow(
+                cloudPct = 29,
+                placeAbove = false,
+                isFallbackAttempt = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `low preferred below labels allow icon overlap`() {
+        assertTrue(
+            CloudCoverGraphRenderer.shouldAllowIconOverlap(
+                cloudPct = 10,
+                placeAbove = false,
+                isFallbackAttempt = false,
+            ),
+        )
+    }
+
+    @Test
+    fun `fallback above and higher labels do not allow icon overlap`() {
+        assertTrue(
+            !CloudCoverGraphRenderer.shouldAllowIconOverlap(
+                cloudPct = 10,
+                placeAbove = true,
+                isFallbackAttempt = false,
+            ),
+        )
+        assertTrue(
+            !CloudCoverGraphRenderer.shouldAllowIconOverlap(
+                cloudPct = 10,
+                placeAbove = false,
+                isFallbackAttempt = true,
+            ),
+        )
+        assertTrue(
+            !CloudCoverGraphRenderer.shouldAllowIconOverlap(
+                cloudPct = 29,
+                placeAbove = false,
+                isFallbackAttempt = false,
+            ),
+        )
     }
 }

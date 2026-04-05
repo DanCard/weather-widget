@@ -297,6 +297,7 @@ done
 ### Emulator Inspection Preference
 - User phrase mapping: when the user says "look at emulator", assume the emulator is already running.
 - Default inspection actions: take a screenshot and/or inspect runtime logs with `adb logcat`.
+- If the user says the widget still looks wrong after a change, treat the emulator screenshot and renderer-specific logcat as the source of truth over code inspection. Add targeted placement/rejection logging first, then decide the fix from the observed runtime evidence.
 
 ### Runtime Source Discovery
 - For live widget/API mismatch questions, do not ask the user for the location first if runtime context can provide it.

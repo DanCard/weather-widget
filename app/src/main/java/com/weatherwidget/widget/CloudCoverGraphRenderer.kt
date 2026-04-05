@@ -22,8 +22,10 @@ object CloudCoverGraphRenderer {
     private const val NEARBY_LABEL_WINDOW = 3
     private const val PREFERRED_ABOVE_GAP_DP = 2f
     private const val PREFERRED_BELOW_GAP_DP = 2f
-    private const val FALLBACK_ABOVE_GAP_DP = 14f
+    private const val FALLBACK_ABOVE_GAP_DP = 8f
     private const val FALLBACK_BELOW_GAP_DP = 14f
+    private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 20
+    private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
 
     data class CloudHourData(
         val dateTime: LocalDateTime,
@@ -389,22 +391,47 @@ object CloudCoverGraphRenderer {
                     x + textWidth / 2f, verticalPlacement.bottom,
                 )
 
-                if (bounds.top < 0f || bounds.bottom > graphBottom - dpToPx(context, 2f)) {
+                val safeBottom = graphBottom - dpToPx(context, 2f)
+                val lowCloudBelowOverflowPx = dpToPx(context, LOW_CLOUD_BELOW_OVERFLOW_DP)
+                val allowBottomOverflow =
+                    shouldAllowBottomOverflow(
+                        cloudPct = cloudPct,
+                        placeAbove = placeAbove,
+                        isFallbackAttempt = isFallbackAttempt,
+                    )
+                val exceedsTop = bounds.top < 0f
+                val exceedsBottom =
+                    if (allowBottomOverflow) {
+                        bounds.bottom > safeBottom + lowCloudBelowOverflowPx
+                    } else {
+                        bounds.bottom > safeBottom
+                    }
+                if (exceedsTop || exceedsBottom) {
                     Log.d(
                         TAG,
                         "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
-                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=out_of_bounds bounds=$bounds",
+                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=out_of_bounds " +
+                            "exceedsTop=$exceedsTop exceedsBottom=$exceedsBottom " +
+                            "allowBottomOverflow=$allowBottomOverflow safeBottom=$safeBottom " +
+                            "overflowAllowancePx=${if (allowBottomOverflow) lowCloudBelowOverflowPx else 0f} bounds=$bounds",
                     )
                     continue
                 }
                 val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
                 val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                if (overlapsLabel || overlapsIcon) {
-                    val reason = if (overlapsIcon) "overlap_icon" else "overlap_label"
+                val allowIconOverlap =
+                    shouldAllowIconOverlap(
+                        cloudPct = cloudPct,
+                        placeAbove = placeAbove,
+                        isFallbackAttempt = isFallbackAttempt,
+                    )
+                if (overlapsLabel || (overlapsIcon && !allowIconOverlap)) {
+                    val reason = if (overlapsLabel) "overlap_label" else "overlap_icon"
                     Log.d(
                         TAG,
                         "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
-                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=$reason bounds=$bounds",
+                            "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=$reason " +
+                            "overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon allowIconOverlap=$allowIconOverlap bounds=$bounds",
                     )
                     continue
                 }
@@ -726,4 +753,24 @@ object CloudCoverGraphRenderer {
             bottom = baselineY + textDescent,
         )
     }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun shouldAllowBottomOverflow(
+        cloudPct: Int,
+        placeAbove: Boolean,
+        isFallbackAttempt: Boolean,
+    ): Boolean =
+        !placeAbove &&
+            !isFallbackAttempt &&
+            cloudPct <= LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT
+
+    @androidx.annotation.VisibleForTesting
+    internal fun shouldAllowIconOverlap(
+        cloudPct: Int,
+        placeAbove: Boolean,
+        isFallbackAttempt: Boolean,
+    ): Boolean =
+        !placeAbove &&
+            !isFallbackAttempt &&
+            cloudPct <= LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT
 }
