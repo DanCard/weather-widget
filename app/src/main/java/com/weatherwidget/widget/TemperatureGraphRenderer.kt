@@ -664,12 +664,39 @@ object TemperatureGraphRenderer {
         val specialCandidates = mutableListOf<TempLabelCandidate>()
         fun addCandidate(index: Int, role: String, temps: List<Float>, forceForecast: Boolean = false) {
             if (index !in temps.indices) return
-            // Suppress if this point is already being labeled by the Fetch Dot
-            if (index == fetchIdx && ctx.observedAt != null) return
-
+            val hour = hours[index]
             val text = formatTemp(temps[index])
-            if (specialCandidates.none { it.index == index || (abs(it.index - index) <= 3 && formatTemp(it.labelTemps[it.index]) == text) }) {
+            val series = if (forceForecast) "forecast" else "actual"
+            // Suppress if this point is already being labeled by the Fetch Dot
+            if (index == fetchIdx && ctx.observedAt != null) {
+                Log.d(
+                    TAG,
+                    "LABEL_CANDIDATE_SKIPPED role=$role idx=$index text=$text series=$series " +
+                        "reason=FETCH_DOT_SUPPRESSED time=${hour.dateTime} observedAt=${ctx.observedAt}",
+                )
+                return
+            }
+
+            val conflictingCandidate =
+                specialCandidates.firstOrNull {
+                    it.index == index || (abs(it.index - index) <= 3 && formatTemp(it.labelTemps[it.index]) == text)
+                }
+            if (conflictingCandidate == null) {
                 specialCandidates.add(TempLabelCandidate(index, role, temps, hours[index].temperature, forceForecast))
+                Log.d(
+                    TAG,
+                    "LABEL_CANDIDATE_ADDED role=$role idx=$index text=$text series=$series " +
+                        "time=${hour.dateTime} rawTemp=${hour.temperature} actualTemp=${hour.actualTemperature}",
+                )
+            } else {
+                val conflictReason = if (conflictingCandidate.index == index) "DUPLICATE_INDEX" else "NEARBY_DUPLICATE_TEXT"
+                Log.d(
+                    TAG,
+                    "LABEL_CANDIDATE_SKIPPED role=$role idx=$index text=$text series=$series reason=$conflictReason " +
+                        "conflictRole=${conflictingCandidate.role} conflictIdx=${conflictingCandidate.index} " +
+                        "conflictText=${formatTemp(conflictingCandidate.labelTemps[conflictingCandidate.index])} " +
+                        "time=${hour.dateTime}",
+                )
             }
         }
 
@@ -731,16 +758,38 @@ object TemperatureGraphRenderer {
             var forceBounds: RectF? = null
             var forceDrawBelow = false
             var forceStep = 0
-            outer@ for ((_, drawBelow) in directions.withIndex()) {
-                for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
+            outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
+                for ((_, drawBelow) in directions.withIndex()) {
                     val displacement = step * labelHeight
                     val baselineY = if (drawBelow) sy + belowGap - labelAscent + displacement
                                     else sy - aboveGap - labelDescent - displacement
                     val bounds = RectF(clampedX - textWidth / 2f, baselineY + labelAscent, clampedX + textWidth / 2f, baselineY + labelDescent)
                     val onScreen = bounds.top >= 0f && bounds.bottom <= ctx.heightPx
-                    if (!onScreen) break  // further displacement in this direction won't help
+                    if (!onScreen) {
+                        Log.d(
+                            TAG,
+                            "LABEL_PLACEMENT_REJECTED role=${candidate.role} idx=$idx text=$label step=$step " +
+                                "preferred=${if (drawBelow) "below" else "above"} reason=OFF_SCREEN " +
+                                "bounds=$bounds size=${ctx.widthPx}x${ctx.heightPx}",
+                        )
+                        continue  // further displacement in this direction won't help, but other direction might
+                    }
                     val hasCollision = drawnLabelBounds.any { RectF.intersects(it, bounds) } || drawnIconBounds.any { RectF.intersects(it, bounds) }
-                    if (isEssential) { forceBaselineY = baselineY; forceBounds = bounds; forceDrawBelow = drawBelow; forceStep = step }
+                    if (isEssential && forceBounds == null) { forceBaselineY = baselineY; forceBounds = bounds; forceDrawBelow = drawBelow; forceStep = step }
+                    if (hasCollision) {
+                        val collidingLabel = drawnLabelBounds.firstOrNull { RectF.intersects(it, bounds) }
+                        val collidingIcon = drawnIconBounds.firstOrNull { RectF.intersects(it, bounds) }
+                        val collisionTarget = when {
+                            collidingLabel != null -> "LABEL"
+                            collidingIcon != null -> "ICON"
+                            else -> "UNKNOWN"
+                        }
+                        Log.d(
+                            TAG,
+                            "LABEL_PLACEMENT_REJECTED role=${candidate.role} idx=$idx text=$label step=$step " +
+                                "preferred=${if (drawBelow) "below" else "above"} reason=COLLISION target=$collisionTarget bounds=$bounds",
+                        )
+                    }
                     if (!hasCollision) {
                         if (step > 0) {
                             val lineEndY = if (drawBelow) bounds.top else bounds.bottom
@@ -750,6 +799,11 @@ object TemperatureGraphRenderer {
                         drawnLabelBounds.add(bounds)
                         val reasonBase = if (drawBelow) "below" else "above"
                         val reason = if (step > 0) "$reasonBase+$step" else reasonBase
+                        Log.d(
+                            TAG,
+                            "LABEL_PLACED role=${candidate.role} idx=$idx text=$label series=${if (isFuture) "forecast" else "actual"} " +
+                                "placement=$reason forced=false bounds=$bounds",
+                        )
                         ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, baselineY, !drawBelow, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", reason, step))
                         placed = true
                         break@outer
@@ -764,7 +818,17 @@ object TemperatureGraphRenderer {
                 }
                 ctx.canvas.drawText(label, clampedX, forceBaselineY, labelPaint)
                 drawnLabelBounds.add(forceBounds)
+                Log.d(
+                    TAG,
+                    "LABEL_PLACED role=${candidate.role} idx=$idx text=$label series=${if (isFuture) "forecast" else "actual"} " +
+                        "placement=${if (forceDrawBelow) "below" else "above"}+$forceStep forced=true bounds=$forceBounds",
+                )
                 ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, forceBaselineY, !forceDrawBelow, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", "FORCED", forceStep))
+            } else if (!placed) {
+                Log.d(
+                    TAG,
+                    "LABEL_NOT_PLACED role=${candidate.role} idx=$idx text=$label series=${if (isFuture) "forecast" else "actual"}",
+                )
             }
         }
         ctx.drawnLabelBounds.addAll(drawnLabelBounds)
