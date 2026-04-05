@@ -1,0 +1,72 @@
+package com.weatherwidget.widget
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class CloudCoverGraphRendererTest {
+
+    @Test
+    fun `dense filter leaves low density candidate list unchanged`() {
+        val labelSignal = listOf(10, 40, 20, 70, 35)
+        val candidates = listOf(0, 1, 3, 4)
+
+        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
+            labelSignal = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 3,
+            globalMinIdx = 0,
+        )
+
+        assertEquals(candidates, result)
+    }
+
+    @Test
+    fun `dense filter prefers peak over nearby edge label`() {
+        val labelSignal = listOf(55, 40, 18, 10, 22, 30, 35, 28, 35, 34, 37, 45, 33, 26, 22, 20, 18, 19, 25, 30, 35, 39, 43, 38, 34)
+        val candidates = listOf(0, 3, 8, 9, 11, 17, 22, 24)
+
+        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
+            labelSignal = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 0,
+            globalMinIdx = 3,
+        )
+
+        assertTrue(22 in result)
+        assertTrue(24 !in result)
+        assertTrue(result.size <= 5)
+    }
+
+    @Test
+    fun `dense filter prefers peak over nearby valley`() {
+        val labelSignal = listOf(55, 40, 18, 10, 22, 30, 35, 28, 35, 34, 37, 45, 33, 26, 22, 20, 18, 19, 25, 30, 35, 39, 43, 38, 34)
+        val candidates = listOf(0, 3, 8, 9, 11, 17, 22, 24)
+
+        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
+            labelSignal = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 0,
+            globalMinIdx = 3,
+        )
+
+        assertTrue(11 in result)
+        assertTrue(9 !in result)
+    }
+
+    @Test
+    fun `dense filter keeps global extrema protected`() {
+        val labelSignal = listOf(10, 12, 15, 18, 21, 50, 55, 60)
+        val candidates = labelSignal.indices.toList()
+
+        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
+            labelSignal = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 7,
+            globalMinIdx = 0,
+        )
+
+        assertTrue(0 in result)
+        assertTrue(7 in result)
+    }
+}
