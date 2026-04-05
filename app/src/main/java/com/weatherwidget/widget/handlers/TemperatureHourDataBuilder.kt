@@ -15,6 +15,7 @@ import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -105,6 +106,8 @@ internal fun buildHourDataList(
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
+    todayForecastHigh: Float? = null,
+    todayForecastLow: Float? = null,
 ): List<TemperatureGraphRenderer.HourData> =
     buildHourDataResult(
         hourlyForecasts = hourlyForecasts,
@@ -115,6 +118,8 @@ internal fun buildHourDataList(
         actuals = actuals,
         onBlendDebug = onBlendDebug,
         smoothedForecasts = smoothedForecasts,
+        todayForecastHigh = todayForecastHigh,
+        todayForecastLow = todayForecastLow,
     ).hours
 
 internal fun buildHourDataResult(
@@ -126,6 +131,8 @@ internal fun buildHourDataResult(
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
+    todayForecastHigh: Float? = null,
+    todayForecastLow: Float? = null,
 ): BuildHourDataResult {
     val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
     val now = LocalDateTime.now()
@@ -347,6 +354,54 @@ internal fun buildHourDataResult(
                     )
             }
         }
+    }
+
+    val today = LocalDate.now()
+    val todayHours = finalHours.filter { it.dateTime.toLocalDate() == today }
+    if (todayHours.isNotEmpty()) {
+        val maxTemp = todayHours.maxOfOrNull { it.temperature }
+        if (todayForecastHigh != null && maxTemp != null && todayForecastHigh > maxTemp) {
+            val maxHour = todayHours.maxByOrNull { h -> h.temperature }
+            val maxIndex = finalHours.indexOfFirst { it == maxHour }
+            if (maxIndex != -1) {
+                val peakHour = finalHours[maxIndex]
+                val prev = finalHours.getOrNull(maxIndex - 1)
+                val next = finalHours.getOrNull(maxIndex + 1)
+                val offsetMins = if ((next?.temperature ?: -100f) > (prev?.temperature ?: -100f)) 30L else -30L
+                val peakTime = peakHour.dateTime.plusMinutes(offsetMins)
+                val injected = peakHour.copy(
+                    dateTime = peakTime,
+                    temperature = todayForecastHigh,
+                    showLabel = false,
+                    isActual = false,
+                    actualTemperature = null,
+                    isObservedActual = false,
+                )
+                finalHours.add(injected)
+            }
+        }
+        val minTemp = todayHours.minOfOrNull { it.temperature }
+        if (todayForecastLow != null && minTemp != null && todayForecastLow < minTemp) {
+            val minHour = todayHours.minByOrNull { h -> h.temperature }
+            val minIndex = finalHours.indexOfFirst { it == minHour }
+            if (minIndex != -1) {
+                val troughHour = finalHours[minIndex]
+                val prev = finalHours.getOrNull(minIndex - 1)
+                val next = finalHours.getOrNull(minIndex + 1)
+                val offsetMins = if ((next?.temperature ?: 100f) < (prev?.temperature ?: 100f)) 30L else -30L
+                val troughTime = troughHour.dateTime.plusMinutes(offsetMins)
+                val injected = troughHour.copy(
+                    dateTime = troughTime,
+                    temperature = todayForecastLow,
+                    showLabel = false,
+                    isActual = false,
+                    actualTemperature = null,
+                    isObservedActual = false,
+                )
+                finalHours.add(injected)
+            }
+        }
+        finalHours.sortBy { it.dateTime }
     }
 
     return BuildHourDataResult(
