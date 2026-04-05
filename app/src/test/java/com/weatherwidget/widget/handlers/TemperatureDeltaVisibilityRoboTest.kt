@@ -58,14 +58,26 @@ class TemperatureDeltaVisibilityRoboTest {
         return result.state
     }
 
+    private fun epochFor(dateTime: LocalDateTime): Long =
+        com.weatherwidget.testutil.TestData.toEpoch(dateTime.toString().substring(0, 13) + ":00")
+
     @Test
     fun `delta badge is visible and red for positive delta`() = runBlocking {
         val now = LocalDateTime.now()
-        val todayStr = now.toLocalDate().toString()
         
         val hourly = listOf(
             com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = com.weatherwidget.testutil.TestData.toEpoch(String.format("%sT%02d:00", todayStr, now.hour)),
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis()
+            ),
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,
@@ -86,11 +98,20 @@ class TemperatureDeltaVisibilityRoboTest {
     @Test
     fun `delta badge is red for negative delta`() = runBlocking {
         val now = LocalDateTime.now()
-        val todayStr = now.toLocalDate().toString()
         
         val hourly = listOf(
             com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = com.weatherwidget.testutil.TestData.toEpoch(String.format("%sT%02d:00", todayStr, now.hour)),
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis()
+            ),
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,
@@ -111,11 +132,20 @@ class TemperatureDeltaVisibilityRoboTest {
     @Test
     fun `delta badge is hidden when delta is below threshold`() = runBlocking {
         val now = LocalDateTime.now()
-        val todayStr = now.toLocalDate().toString()
         
         val hourly = listOf(
             com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = com.weatherwidget.testutil.TestData.toEpoch(String.format("%sT%02d:00", todayStr, now.hour)),
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis()
+            ),
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,
@@ -134,12 +164,20 @@ class TemperatureDeltaVisibilityRoboTest {
     @Test
     fun `delta badge is hidden when now line is not visible`() = runBlocking {
         val now = LocalDateTime.now()
-        val todayStr = now.toLocalDate().toString()
-        val currentHourKey = String.format("%sT%02d:00", todayStr, now.hour)
 
         val hourly = listOf(
             com.weatherwidget.data.local.HourlyForecastEntity(
-                dateTime = com.weatherwidget.testutil.TestData.toEpoch(currentHourKey),
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0)),
+                locationLat = 37.0,
+                locationLon = -122.0,
+                temperature = 70.0f,
+                condition = "Clear",
+                source = WeatherSource.NWS.id,
+                precipProbability = 0,
+                fetchedAt = System.currentTimeMillis(),
+            ),
+            com.weatherwidget.data.local.HourlyForecastEntity(
+                dateTime = epochFor(now.withMinute(0).withSecond(0).withNano(0).plusHours(1)),
                 locationLat = 37.0,
                 locationLon = -122.0,
                 temperature = 70.0f,

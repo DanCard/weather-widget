@@ -125,7 +125,7 @@ class DailyForecastIconResolverTest {
                 source = WeatherSource.NWS.id,
                 condition = "Patchy Fog then Slight Chance Light Rain",
                 nativeDailyIconToken = "Patchy Fog then Slight Chance Light Rain",
-                precipProbability = 34,
+                precipProbability = 39,
             ),
             targetDate = today,
             now = now,
@@ -137,13 +137,49 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `nws chance light rain token stays rainy at 35 percent daily pop`() {
+    fun `nws chance light rain token stays mixed at 35 percent daily pop`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
                 precipProbability = 35,
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_chance_rain, icon)
+    }
+
+    @Test
+    fun `nws chance light rain token stays mixed at 39 percent daily pop`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 39,
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_chance_rain, icon)
+    }
+
+    @Test
+    fun `nws chance light rain token stays rainy at 40 percent daily pop`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 40,
             ),
             targetDate = today,
             now = now,

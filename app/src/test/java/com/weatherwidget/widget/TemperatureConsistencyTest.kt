@@ -119,7 +119,43 @@ class TemperatureConsistencyTest {
         )
     }
 
+    @Test
+    fun `header current temp is lower than observed anchor when post observation trend is down`() {
+        val contractNow = LocalDateTime.of(2026, 3, 27, 20, 30)
+        val contractForecasts = listOf(
+            hourly(contractNow.withHour(20).withMinute(0), 74f),
+            hourly(contractNow.withHour(21).withMinute(0), 70f),
+        )
+        val contractObservedTemp = 73f
+        val contractObservedAt = nowMs(contractNow.withHour(20).withMinute(15))
+
+        val result = CurrentTemperatureResolver.resolve(
+            now = contractNow,
+            displaySource = displaySource,
+            hourlyForecasts = contractForecasts,
+            lastObservedTemp = contractObservedTemp,
+            observedAt = contractObservedAt,
+            storedDeltaState = null,
+            currentLat = 37.0,
+            currentLon = -122.0,
+        )
+
+        assertTrue(result.displayTemp!! < result.observedTemp!!)
+    }
+
     // -- Helpers --
+
+    private fun hourly(dateTime: LocalDateTime, temperature: Float): HourlyForecastEntity =
+        HourlyForecastEntity(
+            dateTime = nowMs(dateTime),
+            locationLat = 37.0,
+            locationLon = -122.0,
+            temperature = temperature,
+            condition = "Clear",
+            source = WeatherSource.NWS.id,
+            precipProbability = null,
+            fetchedAt = nowMs(dateTime.minusMinutes(30)),
+        )
 
     private fun buildRealisticHourlyData(): List<HourlyForecastEntity> {
         // 24-hour curve: cool overnight, warm afternoon, cool evening

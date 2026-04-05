@@ -7,7 +7,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 object DailyForecastIconResolver {
-    private const val NWS_CHANCE_RAIN_MIXED_MAX_DAILY_POP = 34
+    private const val NWS_CHANCE_RAIN_MIXED_MAX_DAILY_POP = 39
     private val nwsChanceRainMixedConditions =
         listOf(
             "chance light rain",

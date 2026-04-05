@@ -13,10 +13,12 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.ObservationBlender
+import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import com.weatherwidget.widget.handlers.CloudCoverViewHandler
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
+import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -62,17 +64,74 @@ object WidgetRenderer {
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         val centerTime = now.plusHours(hourlyOffset.toLong())
 
-        val graphStyleObs = ObservationBlender.resolveCurrentObservation(
-            observations = currentTemps,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-            userLat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
-            userLon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
-            now = now,
-            lookbackHours = 12L,
-            lookaheadHours = 2L
+        val locationLat =
+            weatherList.firstOrNull()?.locationLat
+                ?: hourlyForecasts.firstOrNull()?.locationLat
+                ?: currentTemps.firstOrNull()?.locationLat
+                ?: WeatherWidgetWorker.DEFAULT_LAT
+        val locationLon =
+            weatherList.firstOrNull()?.locationLon
+                ?: hourlyForecasts.firstOrNull()?.locationLon
+                ?: currentTemps.firstOrNull()?.locationLon
+                ?: WeatherWidgetWorker.DEFAULT_LON
+
+        val graphStyleObs =
+            if (repository != null) {
+                val resolutionWindow = WidgetIntentRouter.buildCurrentTempResolutionWindow(now)
+                val zoneId = ZoneId.systemDefault()
+                val minEpoch = resolutionWindow.start.atZone(zoneId).toInstant().toEpochMilli()
+                val maxEpoch = resolutionWindow.end.atZone(zoneId).toInstant().toEpochMilli()
+                val observations = repository.getObservationsInRange(minEpoch, maxEpoch, locationLat, locationLon)
+                val canonicalForecasts =
+                    hourlyForecasts.filter { row ->
+                        row.locationLat == locationLat &&
+                            row.locationLon == locationLon &&
+                            row.dateTime in minEpoch..maxEpoch
+                    }
+                WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
+                    observations = observations,
+                    hourlyForecasts = canonicalForecasts,
+                    displaySource = displaySource,
+                    lat = locationLat,
+                    lon = locationLon,
+                    now = now,
+                    queryWindow = resolutionWindow,
+                )
+            } else {
+                ObservationBlender.resolveCurrentObservation(
+                    observations = currentTemps,
+                    hourlyForecasts = hourlyForecasts,
+                    displaySource = displaySource,
+                    userLat = locationLat,
+                    userLon = locationLon,
+                    now = now,
+                    lookbackHours = 12L,
+                    lookaheadHours = 2L,
+                )?.let { (temp, observedAt, anchorAt) ->
+                    ObservationResolver.ObservedCurrentTemperature(
+                        temperature = temp,
+                        observedAt = anchorAt,
+                        source = displaySource.id,
+                        rowFetchedAt = observedAt,
+                    )
+                }
+            }
+        val fallbackObservation = ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        val observation = graphStyleObs ?: fallbackObservation
+        val observationSource =
+            when {
+                graphStyleObs != null -> "graph_style"
+                observation != null -> "raw_observation"
+                else -> "none"
+            }
+        Log.d(
+            TAG,
+            "currentObservationSelection: widget=$appWidgetId viewMode=$viewMode zoom=$zoom " +
+                "source=${displaySource.id} selected=$observationSource " +
+                "graphStyleTemp=${graphStyleObs?.temperature} graphStyleObservedAt=${graphStyleObs?.observedAt} graphStyleRowFetchedAt=${graphStyleObs?.rowFetchedAt} " +
+                "fallbackTemp=${fallbackObservation?.temperature} fallbackObservedAt=${fallbackObservation?.observedAt} " +
+                "finalTemp=${observation?.temperature} finalObservedAt=${observation?.observedAt}",
         )
-        val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)?.let { Triple(it.temperature, it.observedAt, it.observedAt) }
 
         val targetDateEpoch = centerTime.toLocalDate().toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val targetPrecip = weatherList
@@ -89,8 +148,8 @@ object WidgetRenderer {
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = targetPrecip,
-                    lastObservedTemp = observation?.first,
-                    observedAt = observation?.second,
+                    lastObservedTemp = observation?.temperature,
+                    observedAt = observation?.observedAt,
                     repository = repository,
                     startupToken = startupToken,
                     deferCurrentTempResolution = startupToken != null,
@@ -104,8 +163,8 @@ object WidgetRenderer {
                     hourlyForecasts = hourlyForecasts,
                     centerTime = centerTime,
                     precipProbability = targetPrecip,
-                    lastObservedTemp = observation?.first,
-                    observedAt = observation?.second,
+                    lastObservedTemp = observation?.temperature,
+                    observedAt = observation?.observedAt,
                     repository = repository,
                     startupToken = startupToken,
                 )
@@ -119,8 +178,8 @@ object WidgetRenderer {
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = targetPrecip,
-                    lastObservedTemp = observation?.first,
-                    observedAt = observation?.second,
+                    lastObservedTemp = observation?.temperature,
+                    observedAt = observation?.observedAt,
                     repository = repository,
                     startupToken = startupToken,
                 )

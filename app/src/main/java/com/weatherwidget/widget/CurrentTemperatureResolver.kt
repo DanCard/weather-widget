@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 data class CurrentTemperatureResolution(
     val displayTemp: Float?,
@@ -38,8 +39,6 @@ data class QuickCurrentTemperature(
 object CurrentTemperatureResolver {
     private const val TAG = "CurrentTempResolver"
     private const val STALE_HOURLY_FETCH_THRESHOLD_MS = 2 * 60 * 60 * 1000L
-    private const val DELTA_DECAY_WINDOW_MS = 4 * 60 * 60 * 1000L
-    private const val DELTA_DECAY_GRACE_PERIOD_MS = 1 * 60 * 60 * 1000L
     private val interpolator = TemperatureInterpolator()
     @Volatile
     private var defaultAppLogDao: AppLogDao? = null
@@ -77,7 +76,7 @@ object CurrentTemperatureResolver {
                 "currentLat=$currentLat currentLon=$currentLon hasStoredDelta=${storedDeltaState != null}",
         )
         val estimatedTemp =
-            interpolator.getInterpolatedTemperature(
+            resolveStrictForecastTemperature(
                 hourlyForecasts = hourlyForecasts,
                 targetTime = now,
                 source = displaySource,
@@ -112,19 +111,7 @@ object CurrentTemperatureResolver {
                 " scopeMatch=$scopeMatch",
         )
         val scopedStoredDelta = if (scopeMatch) storedDeltaState else null
-        var appliedDelta =
-            scopedStoredDelta?.let {
-                val decay = getDecayedDelta(
-                    rawDelta = it.delta,
-                    updatedAtMs = it.updatedAtMs,
-                    nowMs = nowMs,
-                )
-                debugLog(
-                    "resolve: delta raw=${it.delta}, decayed=${decay.decayedDelta}, " +
-                        "elapsedMs=${decay.elapsedMs}, decayPercent=${(decay.decayFraction * 100f)}",
-                )
-                decay.decayedDelta
-            }
+        var appliedDelta: Float? = scopedStoredDelta?.delta
         var updatedDeltaState: CurrentTemperatureDeltaState? = null
 
         var estimatedAtObservationTime: Float? = null
@@ -135,45 +122,26 @@ object CurrentTemperatureResolver {
                 "resolve:observed available hasNewObservedReading=$hasNewObservedReading " +
                     "storedObservedAt=${scopedStoredDelta?.lastObservedAt}",
             )
-            if (scopedStoredDelta == null || hasNewObservedReading) {
-                // To calculate an accurate delta, we must compare the observation against
-                // what the forecast was at the moment that observation was taken.
-                val obsTime = LocalDateTime.ofInstant(
-                    java.time.Instant.ofEpochMilli(observedAt),
-                    ZoneId.systemDefault()
-                )
-                val estimatedAtObsTime = interpolator.getInterpolatedTemperature(
+            val obsTime = LocalDateTime.ofInstant(
+                java.time.Instant.ofEpochMilli(observedAt),
+                ZoneId.systemDefault()
+            )
+            val estimatedAtObsTime =
+                resolveStrictForecastTemperature(
                     hourlyForecasts = hourlyForecasts,
                     targetTime = obsTime,
                     source = displaySource,
                     smoothedForecasts = smoothedForecasts,
                 )
-                estimatedAtObservationTime = estimatedAtObsTime
+            estimatedAtObservationTime = estimatedAtObsTime
 
-                if (estimatedAtObsTime != null) {
-                    val delta = lastObservedTemp - estimatedAtObsTime
-                    appliedDelta = delta
+            if (estimatedAtObsTime != null) {
+                val rawDelta = lastObservedTemp - estimatedAtObsTime
+                appliedDelta = rawDelta
+                if (scopedStoredDelta == null || hasNewObservedReading || scopedStoredDelta.delta != rawDelta) {
                     updatedDeltaState =
                         CurrentTemperatureDeltaState(
-                            delta = delta,
-                            lastObservedTemp = lastObservedTemp,
-                            lastObservedAt = observedAt,
-                            updatedAtMs = observedAt.coerceAtMost(nowMs),
-                            sourceId = displaySource.id,
-                            locationLat = currentLat,
-                            locationLon = currentLon,
-                        )
-                    debugLog(
-                        "resolve:updatedDeltaState rawDelta=$delta updatedAt=${updatedDeltaState.updatedAtMs} " +
-                            "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
-                    )
-                } else if (estimatedTemp != null) {
-                    // Fallback to current estimate if we can't find forecast for the observation time
-                    val delta = lastObservedTemp - estimatedTemp
-                    appliedDelta = delta
-                    updatedDeltaState =
-                        CurrentTemperatureDeltaState(
-                            delta = delta,
+                            delta = rawDelta,
                             lastObservedTemp = lastObservedTemp,
                             lastObservedAt = observedAt,
                             updatedAtMs = observedAt.coerceAtMost(nowMs),
@@ -182,8 +150,16 @@ object CurrentTemperatureResolver {
                             locationLon = currentLon,
                         )
                 }
+                debugLog(
+                    "resolve:anchorDelta rawDelta=$rawDelta updatedAt=${updatedDeltaState?.updatedAtMs ?: scopedStoredDelta?.updatedAtMs} " +
+                        "observedTemp=$lastObservedTemp estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
+                )
             } else {
-                debugLog("resolve:reusing existing stored delta without update")
+                appliedDelta = null
+                debugLog(
+                    "resolve:anchorDelta unavailable observedTemp=$lastObservedTemp " +
+                        "estimatedAtObs=$estimatedAtObsTime nowForecast=$estimatedTemp",
+                )
             }
         } else {
             debugLog(
@@ -195,6 +171,9 @@ object CurrentTemperatureResolver {
         val isStaleEstimate = estimatedTemp != null && isStaleHourlyData(now, displaySource, hourlyForecasts)
         val displayTemp =
             when {
+                lastObservedTemp != null && observedAt != null && estimatedTemp != null && estimatedAtObservationTime != null && appliedDelta != null ->
+                    estimatedTemp + appliedDelta
+                lastObservedTemp != null && observedAt != null -> lastObservedTemp
                 estimatedTemp != null -> estimatedTemp + (appliedDelta ?: 0f)
                 else -> lastObservedTemp
             }
@@ -282,44 +261,57 @@ object CurrentTemperatureResolver {
         return stale
     }
 
-    private data class DeltaDecay(
-        val decayedDelta: Float,
-        val elapsedMs: Long,
-        val decayFraction: Float,
-    )
+    private fun resolveStrictForecastTemperature(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        targetTime: LocalDateTime,
+        source: WeatherSource,
+        smoothedForecasts: Map<Long, Float>?,
+    ): Float? {
+        if (hourlyForecasts.isEmpty()) return null
 
-    private fun getDecayedDelta(
-        rawDelta: Float,
-        updatedAtMs: Long,
-        nowMs: Long,
-    ): DeltaDecay {
-        val elapsedMs = (nowMs - updatedAtMs).coerceAtLeast(0L)
-        
-        if (elapsedMs < DELTA_DECAY_GRACE_PERIOD_MS) {
-            return DeltaDecay(
-                decayedDelta = rawDelta,
-                elapsedMs = elapsedMs,
-                decayFraction = 1f,
+        val zoneId = ZoneId.systemDefault()
+        val targetHour = targetTime.truncatedTo(ChronoUnit.HOURS)
+        val nextHour = targetHour.plusHours(1)
+        val targetHourMs = targetHour.atZone(zoneId).toInstant().toEpochMilli()
+        val nextHourMs = nextHour.atZone(zoneId).toInstant().toEpochMilli()
+
+        val sourceScopedForecasts =
+            hourlyForecasts.groupBy { it.dateTime }
+                .mapValues { entry ->
+                    entry.value.find { it.source == source.id }
+                        ?: entry.value.find { it.source == WeatherSource.GENERIC_GAP.id }
+                        ?: entry.value.firstOrNull()
+                }
+
+        val currentHourForecast = sourceScopedForecasts[targetHourMs]
+        val nextHourForecast = sourceScopedForecasts[nextHourMs]
+
+        if (currentHourForecast == null) {
+            debugLog(
+                "resolve:strictForecast unavailable target=$targetTime reason=missing_current_hour " +
+                    "targetHourMs=$targetHourMs nextHourMs=$nextHourMs",
             )
-        }
-        
-        if (elapsedMs >= DELTA_DECAY_WINDOW_MS) {
-            return DeltaDecay(
-                decayedDelta = 0f,
-                elapsedMs = elapsedMs,
-                decayFraction = 0f,
-            )
+            return null
         }
 
-        // Linear decay from GRACE_PERIOD to TOTAL_WINDOW
-        val decayDuration = DELTA_DECAY_WINDOW_MS - DELTA_DECAY_GRACE_PERIOD_MS
-        val elapsedAfterGrace = elapsedMs - DELTA_DECAY_GRACE_PERIOD_MS
-        val remainingFraction = 1f - (elapsedAfterGrace.toFloat() / decayDuration.toFloat())
-        
-        return DeltaDecay(
-            decayedDelta = rawDelta * remainingFraction,
-            elapsedMs = elapsedMs,
-            decayFraction = remainingFraction,
+        if (targetTime.minute == 0 && targetTime.second == 0 && targetTime.nano == 0) {
+            return smoothedForecasts?.get(currentHourForecast.dateTime) ?: currentHourForecast.temperature
+        }
+
+        if (nextHourForecast == null) {
+            debugLog(
+                "resolve:strictForecast unavailable target=$targetTime reason=missing_next_hour " +
+                    "targetHourMs=$targetHourMs nextHourMs=$nextHourMs",
+            )
+            return null
+        }
+
+        return interpolator.getInterpolatedTemperature(
+            hourlyForecasts = listOf(currentHourForecast, nextHourForecast),
+            targetTime = targetTime,
+            source = null,
+            smoothedForecasts = smoothedForecasts,
         )
     }
+
 }

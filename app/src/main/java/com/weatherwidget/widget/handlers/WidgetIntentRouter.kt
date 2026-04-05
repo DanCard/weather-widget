@@ -775,6 +775,13 @@ object WidgetIntentRouter {
         val ctCurrentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs)
             ?: database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
         val finalDailyActuals = dailyActuals ?: getDailyActuals(database, lat, lon)
+        val currentTempHourlyForecasts =
+            loadCurrentTempResolutionHourlyForecasts(
+                hourlyDao = hourlyDao,
+                lat = lat,
+                lon = lon,
+                now = now,
+            )
 
         val stateManager = WidgetStateManager(context)
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -785,9 +792,8 @@ object WidgetIntentRouter {
             lat = lat,
             lon = lon,
             displaySource = displaySource,
-            hourlyForecasts = hourlyForecasts,
-            centerTime = now,
-            zoom = zoom
+            hourlyForecasts = currentTempHourlyForecasts,
+            now = now,
         )
 
         val smoothedForecasts = computeSmoothedForecasts(
@@ -877,6 +883,13 @@ object WidgetIntentRouter {
         val weatherList = database.forecastDao().getForecastsInRange(todayEpoch, todayEpoch, lat, lon)
         val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
+        val currentTempHourlyForecasts =
+            loadCurrentTempResolutionHourlyForecasts(
+                hourlyDao = database.hourlyForecastDao(),
+                lat = lat,
+                lon = lon,
+                now = LocalDateTime.now(),
+            )
 
         val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
         val zoom = stateManager.getZoomLevel(appWidgetId)
@@ -887,9 +900,8 @@ object WidgetIntentRouter {
             lat = lat,
             lon = lon,
             displaySource = displaySource,
-            hourlyForecasts = hourlyForecasts,
-            centerTime = centerTime,
-            zoom = zoom
+            hourlyForecasts = currentTempHourlyForecasts,
+            now = LocalDateTime.now(),
         )
         
         val observation = graphStyleObs ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
@@ -953,32 +965,55 @@ object WidgetIntentRouter {
         lon: Double,
         displaySource: WeatherSource,
         hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
-        centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel
+        now: LocalDateTime,
     ): com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature? {
         if (repository == null) return null
-        
+
+        val queryWindow = buildCurrentTempResolutionWindow(now)
         val zoneId = ZoneId.systemDefault()
-        val truncated = centerTime.truncatedTo(ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(12L)
-        val endHour = alignedCenter.plusHours(2L)
-        
-        val minEpoch = startHour.atZone(zoneId).toInstant().toEpochMilli()
-        val maxEpoch = endHour.atZone(zoneId).toInstant().toEpochMilli()
+        val minEpoch = queryWindow.start.atZone(zoneId).toInstant().toEpochMilli()
+        val maxEpoch = queryWindow.end.atZone(zoneId).toInstant().toEpochMilli()
         val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
-        
+
+        return resolveGraphStyleCurrentTempFromInputs(
+            observations = observations,
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            lat = lat,
+            lon = lon,
+            now = now,
+            queryWindow = queryWindow,
+        )
+    }
+
+    @VisibleForTesting
+    internal fun resolveGraphStyleCurrentTempFromInputs(
+        observations: List<com.weatherwidget.data.local.ObservationEntity>,
+        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        lat: Double,
+        lon: Double,
+        now: LocalDateTime,
+        queryWindow: CurrentTempResolutionWindow = buildCurrentTempResolutionWindow(now),
+    ): com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature? {
         val resolved = com.weatherwidget.util.ObservationBlender.resolveCurrentObservation(
             observations = observations,
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
             userLat = lat,
             userLon = lon,
-            now = LocalDateTime.now(),
+            now = now,
             lookbackHours = 12L,
-            lookaheadHours = 2L
+            lookaheadHours = 2L,
         )
-        
+
+        Log.d(
+            TAG,
+            "resolveGraphStyleCurrentTemp: source=${displaySource.id} now=$now " +
+                "window=${queryWindow.start}..${queryWindow.end} obs=${observations.size} fcst=${hourlyForecasts.size} " +
+                "resolvedTemp=${resolved?.first} resolvedAt=${resolved?.second} anchorAt=${resolved?.third}",
+        )
+
         return resolved?.let { (temp, time, anchorTime) ->
             com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature(
                 temperature = temp,
@@ -987,6 +1022,22 @@ object WidgetIntentRouter {
                 rowFetchedAt = System.currentTimeMillis() // Synthetic
             )
         }
+    }
+
+    private suspend fun loadCurrentTempResolutionHourlyForecasts(
+        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        lat: Double,
+        lon: Double,
+        now: LocalDateTime,
+    ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
+        val window = buildCurrentTempResolutionWindow(now)
+        val zoneId = ZoneId.systemDefault()
+        return hourlyDao.getHourlyForecasts(
+            window.start.atZone(zoneId).toInstant().toEpochMilli(),
+            window.end.atZone(zoneId).toInstant().toEpochMilli(),
+            lat,
+            lon,
+        )
     }
 
     private suspend fun logCurrentTempStalenessDebug(
@@ -1156,5 +1207,23 @@ object WidgetIntentRouter {
         val centerEnd: LocalDateTime,
         val nowStart: LocalDateTime?,
         val nowEnd: LocalDateTime?,
+    )
+
+    @VisibleForTesting
+    internal fun buildCurrentTempResolutionWindow(
+        now: LocalDateTime,
+    ): CurrentTempResolutionWindow {
+        val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
+        val roundedNow = if (now.minute >= 30) truncatedNow.plusHours(1) else truncatedNow
+        return CurrentTempResolutionWindow(
+            start = roundedNow.minusHours(12L),
+            end = roundedNow.plusHours(2L),
+        )
+    }
+
+    @VisibleForTesting
+    internal data class CurrentTempResolutionWindow(
+        val start: LocalDateTime,
+        val end: LocalDateTime,
     )
 }

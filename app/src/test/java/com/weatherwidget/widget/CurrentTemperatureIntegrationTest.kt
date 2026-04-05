@@ -58,7 +58,7 @@ class CurrentTemperatureIntegrationTest {
     }
 
     @Test
-    fun `interpolated estimate plus observation delta produces correct display temp`() = runTest {
+    fun `current temperature extrapolates last observation forward using forecast delta`() = runTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 30)
         val nowMs = toEpochMs(now)
         val fetchedAt = nowMs
@@ -98,10 +98,9 @@ class CurrentTemperatureIntegrationTest {
             currentLon = lon,
         )
 
-        // Estimated at 10:15 (obs time) = 60 + 0.25 * 10 = 62.5
-        // Delta = 63 - 62.5 = 0.5
-        // Estimated at 10:30 (now) = 65
-        // Display = 65 + 0.5 = 65.5
+        // Estimated at 10:15 (obs time) = 62.5
+        // Forecast delta from 10:15 -> 10:30 = +2.5
+        // Current = 63.0 + 2.5 = 65.5
         assertEquals(65f, result.estimatedTemp!!, 0.01f)
         assertEquals(0.5f, result.appliedDelta!!, 0.01f)
         assertEquals(65.5f, result.displayTemp!!, 0.01f)
@@ -221,15 +220,17 @@ class CurrentTemperatureIntegrationTest {
     }
 
     @Test
-    fun `stored delta decays over time and resets on new observation`() = runTest {
+    fun `stored delta is replaced by strict anchor delta for the active observation`() = runTest {
         val now = LocalDateTime.of(2026, 2, 25, 12, 0)
         val nowMs = toEpochMs(now)
         val fetchedAt = nowMs
 
+        insertHourlyForecast("09:00", 69f, fetchedAt)
+        insertHourlyForecast("10:00", 71f, fetchedAt)
         insertHourlyForecast("12:00", 70f, fetchedAt)
         insertHourlyForecast("13:00", 75f, fetchedAt)
 
-        // Stored delta from 2.5 hours ago: -3°F
+        // Stored delta from an older calculation should not decay or drift the active anchor formula.
         val storedDelta = CurrentTemperatureDeltaState(
             delta = -3f,
             lastObservedTemp = 67f,
@@ -246,7 +247,7 @@ class CurrentTemperatureIntegrationTest {
             startMs, endMs, lat, lon,
         )
 
-        // First call with stored delta — should apply decayed delta
+        // The active observation is still anchored at 09:30 with a raw delta of -3.
         val result1 = CurrentTemperatureResolver.resolve(
             now = now,
             displaySource = WeatherSource.NWS,
@@ -258,9 +259,8 @@ class CurrentTemperatureIntegrationTest {
             currentLon = lon,
         )
 
-        // After 2.5h total elapsed (1.5h into 3h decay period): delta = -3 * 0.5 = -1.5
-        assertEquals(-1.5f, result1.appliedDelta!!, 0.01f)
-        assertEquals(70f - 1.5f, result1.displayTemp!!, 0.01f)
+        assertEquals(-3f, result1.appliedDelta!!, 0.01f)
+        assertEquals(67f, result1.displayTemp!!, 0.01f)
 
         // Second call with new observation — should recompute delta
         val newObsTemp = 68f
@@ -321,10 +321,9 @@ class CurrentTemperatureIntegrationTest {
             currentLon = lon,
         )
 
-        // Forecast at 10:00 = 65.0. Obs at 10:00 = 66.0. Delta = +1.0
-        // Forecast at 10:30 = 62.5 (halfway between 65 and 60)
-        // Display Temp should be 62.5 + 1.0 = 63.5
-        
+        // Forecast at 10:00 = 65.0. Obs at 10:00 = 66.0. Raw anchor delta = +1.0
+        // Forecast at 10:30 = 62.5, so current = 66.0 + (62.5 - 65.0) = 63.5
+
         assertEquals(66.0f, result.observedTemp!!, 0.01f)
         assertEquals(62.5f, result.estimatedTemp!!, 0.01f)
         assertEquals(1.0f, result.appliedDelta!!, 0.01f)
@@ -333,6 +332,113 @@ class CurrentTemperatureIntegrationTest {
         // CRITICAL: Current temp (63.5) must be LESS than observed temp (66.0) because it's trending down
         assertTrue("Current temp (${result.displayTemp}) should be less than observed temp (${result.observedTemp}) when trending down",
             result.displayTemp!! < result.observedTemp!!)
+    }
+
+    @Test
+    fun `current temperature trends up when forecast is warming`() = runTest {
+        val obsTime = LocalDateTime.of(2026, 2, 25, 10, 0)
+        val now = LocalDateTime.of(2026, 2, 25, 10, 30)
+        val nowMs = toEpochMs(now)
+        val fetchedAt = nowMs
+
+        insertHourlyForecast("10:00", 60f, fetchedAt)
+        insertHourlyForecast("11:00", 66f, fetchedAt)
+        insertObservation(
+            stationId = "KSJC",
+            timestamp = toEpochMs(obsTime),
+            temperature = 59f,
+            fetchedAt = fetchedAt,
+        )
+
+        val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
+        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)!!
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
+        val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
+
+        val result = CurrentTemperatureResolver.resolve(
+            now = now,
+            displaySource = WeatherSource.NWS,
+            hourlyForecasts = hourlyForecasts,
+            lastObservedTemp = lastObservedTemp.temperature,
+            observedAt = lastObservedTemp.observedAt,
+            storedDeltaState = null,
+            currentLat = lat,
+            currentLon = lon,
+        )
+
+        assertEquals(59f, result.observedTemp!!, 0.01f)
+        assertEquals(63f, result.estimatedTemp!!, 0.01f)
+        assertEquals(-1f, result.appliedDelta!!, 0.01f)
+        assertEquals(62f, result.displayTemp!!, 0.01f)
+        assertTrue(result.displayTemp!! > result.observedTemp!!)
+    }
+
+    @Test
+    fun `current temperature equals last observation when now equals observedAt`() = runTest {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 0)
+        val nowMs = toEpochMs(now)
+
+        insertHourlyForecast("10:00", 60f, nowMs)
+        insertHourlyForecast("11:00", 66f, nowMs)
+        insertObservation(
+            stationId = "KSJC",
+            timestamp = nowMs,
+            temperature = 59f,
+            fetchedAt = nowMs,
+        )
+
+        val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
+        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)!!
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
+        val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
+
+        val result = CurrentTemperatureResolver.resolve(
+            now = now,
+            displaySource = WeatherSource.NWS,
+            hourlyForecasts = hourlyForecasts,
+            lastObservedTemp = lastObservedTemp.temperature,
+            observedAt = lastObservedTemp.observedAt,
+            storedDeltaState = null,
+            currentLat = lat,
+            currentLon = lon,
+        )
+
+        assertEquals(result.observedTemp!!, result.displayTemp!!, 0.01f)
+    }
+
+    @Test
+    fun `falls back to last observation when forecast at observed time is unavailable`() = runTest {
+        val now = LocalDateTime.of(2026, 2, 25, 10, 30)
+        val nowMs = toEpochMs(now)
+        insertHourlyForecast("10:00", 60f, nowMs)
+        insertObservation(
+            stationId = "KSJC",
+            timestamp = toEpochMs(LocalDateTime.of(2026, 2, 25, 9, 0)),
+            temperature = 58f,
+            fetchedAt = nowMs,
+        )
+
+        val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
+        val lastObservedTemp = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)!!
+        val startMs = toEpochMs(LocalDateTime.parse("${todayStr}T00:00"))
+        val endMs = toEpochMs(LocalDateTime.parse("${todayStr}T23:00"))
+        val hourlyForecasts = db.hourlyForecastDao().getHourlyForecasts(startMs, endMs, lat, lon)
+
+        val result = CurrentTemperatureResolver.resolve(
+            now = now,
+            displaySource = WeatherSource.NWS,
+            hourlyForecasts = hourlyForecasts,
+            lastObservedTemp = lastObservedTemp.temperature,
+            observedAt = lastObservedTemp.observedAt,
+            storedDeltaState = null,
+            currentLat = lat,
+            currentLon = lon,
+        )
+
+        assertEquals(58f, result.displayTemp!!, 0.01f)
+        assertNull(result.appliedDelta)
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
