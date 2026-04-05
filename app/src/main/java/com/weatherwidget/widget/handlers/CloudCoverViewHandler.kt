@@ -298,9 +298,9 @@ object CloudCoverViewHandler {
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-            // Icon-dependent routing on body zones + bottom zones
+            // Cloud-cover body taps always zoom; bottom zones still route by icon.
             val hourIcons = hours.map { it.iconRes }
-            setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset, hourIcons)
+            setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
             HourlyBottomZoneHelper.setup(
                 context = context,
                 views = views,
@@ -373,7 +373,6 @@ object CloudCoverViewHandler {
         appWidgetId: Int,
         zoom: com.weatherwidget.widget.ZoomLevel,
         hourlyOffset: Int,
-        hourIconResources: List<Int?> = emptyList(),
     ) {
         views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
         views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
@@ -381,38 +380,30 @@ object CloudCoverViewHandler {
         views.setOnClickPendingIntent(R.id.graph_body_tap_zone, null)
 
         HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
-            val iconRes = if (hourIconResources.isNotEmpty()) {
-                val centerIndex = ((2 * i + 1) * hourIconResources.size / (2 * HOUR_ZONE_IDS.size))
-                    .coerceIn(0, hourIconResources.lastIndex)
-                HourlyBottomZoneHelper.findNearestIcon(hourIconResources, centerIndex)
-            } else null
-            val targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, com.weatherwidget.widget.ViewMode.CLOUD_COVER)
-
-            val pendingIntent = if (targetView != null) {
-                val navIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = WidgetIntentRouter.ACTION_SET_VIEW
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, targetView.name)
-                }
-                PendingIntent.getBroadcast(
-                    context, WidgetRequestCodes.cycleZoomZone(appWidgetId, i), navIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
-            } else {
-                val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset, zoom)
-                val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = ACTION_CYCLE_ZOOM
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
-                }
-                PendingIntent.getBroadcast(
-                    context, WidgetRequestCodes.cycleZoomZone(appWidgetId, i), zoomIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                )
+            val zoneCenterOffset = resolveBodyTapZoneCenterOffset(i, hourlyOffset, zoom)
+            Log.d(
+                TAG,
+                "setupZoomTapZones: widget=$appWidgetId zone=$i centerOffset=$zoneCenterOffset zoom=$zoom currentOffset=$hourlyOffset action=ZOOM",
+            )
+            val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = ACTION_CYCLE_ZOOM
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context, WidgetRequestCodes.cycleZoomZone(appWidgetId, i), zoomIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
             views.setOnClickPendingIntent(zoneId, pendingIntent)
         }
     }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun resolveBodyTapZoneCenterOffset(
+        zoneIndex: Int,
+        hourlyOffset: Int,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+    ): Int = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, hourlyOffset, zoom)
 
     private fun setupNavigationButtons(
         context: Context,

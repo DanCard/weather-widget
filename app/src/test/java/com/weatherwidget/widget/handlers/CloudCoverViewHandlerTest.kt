@@ -2,15 +2,13 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import java.time.LocalDateTime
 import java.time.ZoneId
-import com.weatherwidget.test.category.MediumDuration
-import org.junit.experimental.categories.Category
-
-
 
 @Category(MediumDuration::class)
 class CloudCoverViewHandlerTest {
@@ -116,6 +114,39 @@ class CloudCoverViewHandlerTest {
         )
 
         assertEquals("data outside zoom window should yield empty output", 0, result.size)
+    }
+
+    @Test
+    fun `cloud cover body tap uses zoom offset for clear temperature-home zone`() {
+        val offset = CloudCoverViewHandler.resolveBodyTapZoneCenterOffset(
+            zoneIndex = 6,
+            hourlyOffset = 0,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertEquals(0, offset)
+    }
+
+    @Test
+    fun `cloud cover body tap uses zoom offset for rainy zone instead of rerouting`() {
+        val offset = CloudCoverViewHandler.resolveBodyTapZoneCenterOffset(
+            zoneIndex = 0,
+            hourlyOffset = 0,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertEquals(-12, offset)
+    }
+
+    @Test
+    fun `cloud cover body tap preserves narrow zoom offset calculation`() {
+        val offset = CloudCoverViewHandler.resolveBodyTapZoneCenterOffset(
+            zoneIndex = 12,
+            hourlyOffset = 5,
+            zoom = ZoomLevel.NARROW,
+        )
+
+        assertEquals(7, offset)
     }
 
     private fun hourly(
