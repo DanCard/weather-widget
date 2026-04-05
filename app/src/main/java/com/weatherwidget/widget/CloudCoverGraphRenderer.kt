@@ -270,9 +270,19 @@ object CloudCoverGraphRenderer {
             globalMinIdx = globalMinIdx,
             logTag = TAG,
         )
+        val suppressLeftEdgeLabel = shouldSuppressLeftEdgeLabel(
+            labelSignal = labelSignal,
+            candidates = filteredCandidates,
+            globalMaxIdx = globalMaxIdx,
+            globalMinIdx = globalMinIdx,
+        )
 
         for (index in filteredCandidates) {
             if (index !in labelSignal.indices) continue
+            if (index == 0 && suppressLeftEdgeLabel) {
+                Log.d(TAG, "labelSkipped: idx=0 reason=nearby_lower_valley")
+                continue
+            }
             val cloudPct = labelSignal[index]
             val labelText = "$cloudPct%"
             val textWidth = percentLabelPaint.measureText(labelText)
@@ -286,7 +296,11 @@ object CloudCoverGraphRenderer {
             val isRisingAtEnd = isEndLabelCandidate &&
                 index > 0 &&
                 points[index].second < points[index - 1].second - 0.5f
-            val preferAbove = isPeak || isRisingAtEnd
+            val isFallingFromLeftEdge =
+                index == 0 &&
+                    points.size > 1 &&
+                    points[1].second > points[0].second + 0.5f
+            val preferAbove = isPeak || isRisingAtEnd || isFallingFromLeftEdge
 
             val attempts = if (preferAbove) {
                 listOf(true, false)
@@ -596,6 +610,24 @@ object CloudCoverGraphRenderer {
             CandidateKind.GLOBAL_MAX, CandidateKind.PEAK -> value
             CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY -> 100 - value
             CandidateKind.EDGE -> value
+        }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun shouldSuppressLeftEdgeLabel(
+        labelSignal: List<Int>,
+        candidates: List<Int>,
+        globalMaxIdx: Int,
+        globalMinIdx: Int,
+    ): Boolean {
+        if (0 !in candidates || 0 == globalMaxIdx) return false
+
+        val leftEdgeValue = labelSignal.getOrNull(0) ?: return false
+        return candidates.any { candidateIdx ->
+            candidateIdx in 1..NEARBY_LABEL_WINDOW &&
+                candidateIdx != globalMaxIdx &&
+                candidateKind(candidateIdx, labelSignal, globalMaxIdx, globalMinIdx) in setOf(CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY) &&
+                (labelSignal.getOrNull(candidateIdx) ?: leftEdgeValue) < leftEdgeValue
         }
     }
 }

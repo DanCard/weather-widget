@@ -69,4 +69,34 @@ class CloudCoverGraphRendererTest {
         assertTrue(0 in result)
         assertTrue(7 in result)
     }
+
+    @Test
+    fun `left edge label is suppressed when nearby lower valley exists`() {
+        val labelSignal = listOf(25, 18, 10, 22, 35, 53, 19, 43)
+        val candidates = listOf(0, 2, 5, 6, 7)
+
+        val result = CloudCoverGraphRenderer.shouldSuppressLeftEdgeLabel(
+            labelSignal = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 5,
+            globalMinIdx = 2,
+        )
+
+        assertTrue(result)
+    }
+
+    @Test
+    fun `left edge label is kept when it is the global max`() {
+        val labelSignal = listOf(55, 40, 10, 22, 35, 43)
+        val candidates = listOf(0, 2, 5)
+
+        val result = CloudCoverGraphRenderer.shouldSuppressLeftEdgeLabel(
+            labelSignal = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = 0,
+            globalMinIdx = 2,
+        )
+
+        assertTrue(!result)
+    }
 }
