@@ -261,7 +261,9 @@ class DailyViewHandlerTest {
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = emptyMap(),
-            currentTemps = currentTemps
+            currentTemps = currentTemps,
+            currentTemp = 75f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
         val todayData = days.first { it.date == today }
@@ -923,6 +925,8 @@ class DailyViewHandlerTest {
             dailyActualsBySource = emptyMap(),
             repository = null,
             now = now,
+            lastObservedTemp = 71f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
         val root = FrameLayout(context)
@@ -979,6 +983,8 @@ class DailyViewHandlerTest {
             dailyActualsBySource = emptyMap(),
             repository = null,
             now = now,
+            lastObservedTemp = 71f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
         val root = FrameLayout(context)

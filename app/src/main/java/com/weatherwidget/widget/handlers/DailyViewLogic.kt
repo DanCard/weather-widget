@@ -284,13 +284,9 @@ object DailyViewLogic {
                     .maxByOrNull { it.fetchedAt }
                     ?: snapshotCandidates.minByOrNull { it.fetchedAt }
 
-                val resolvedCurrentTemp = currentTemp ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
-                    currentTemps, displaySource
-                )?.temperature
-
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather, dailyActuals,
-                    currentTemp = resolvedCurrentTemp,
+                    currentTemp = currentTemp,
                     snapshotHigh = snapshot?.highTemp,
                     snapshotLow = snapshot?.lowTemp
                 )

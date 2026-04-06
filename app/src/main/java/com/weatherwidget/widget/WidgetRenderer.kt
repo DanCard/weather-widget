@@ -195,6 +195,8 @@ object WidgetRenderer {
                     currentTemps,
                     dailyActualsBySource,
                     repository,
+                    lastObservedTemp = observation?.temperature,
+                    observedAt = observation?.observedAt,
                     startupToken = startupToken,
                 )
             }

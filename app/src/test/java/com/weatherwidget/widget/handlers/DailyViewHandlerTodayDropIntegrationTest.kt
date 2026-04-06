@@ -131,7 +131,9 @@ class DailyViewHandlerTodayDropIntegrationTest {
             currentTemps = currentTemps,
             dailyActualsBySource = dailyActualsBySource,
             repository = null,
-            now = now
+            now = now,
+            lastObservedTemp = 75f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
         val todayData = daysSlot.captured.first { it.isToday }
@@ -205,7 +207,9 @@ class DailyViewHandlerTodayDropIntegrationTest {
             currentTemps = currentTemps,
             dailyActualsBySource = dailyActualsBySource,
             repository = null,
-            now = now
+            now = now,
+            lastObservedTemp = 75f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
         val root = FrameLayout(context)

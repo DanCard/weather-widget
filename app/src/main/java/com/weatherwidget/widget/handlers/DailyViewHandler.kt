@@ -254,25 +254,14 @@ object DailyViewHandler : WidgetViewHandler {
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
-        val resolvedObs = if (lastObservedTemp != null) {
-            ObservationResolver.ObservedCurrentTemperature(
-                temperature = lastObservedTemp,
-                observedAt = observedAt ?: now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                source = displaySource.id,
-                rowFetchedAt = System.currentTimeMillis()
-            )
-        } else {
-            ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
-        }
-
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
-                lastObservedTemp = resolvedObs?.temperature,
-                observedAt = resolvedObs?.observedAt,
+                lastObservedTemp = lastObservedTemp,
+                observedAt = observedAt,
                 storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
                 currentLat = lat,
                 currentLon = lon,
