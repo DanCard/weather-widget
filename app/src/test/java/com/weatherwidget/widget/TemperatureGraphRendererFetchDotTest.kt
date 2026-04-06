@@ -216,8 +216,8 @@ class TemperatureGraphRendererFetchDotTest {
         // Manually calculate where 52.5 should sit on the graph:
         // tempRange = 55 - 50 = 5 (min=50, max=55)
         // Y = graphTop + graphHeight * (1 - (52.5 - 50) / 5) = middle of graph
-        // Using 173.684f which is the exact derived Y value for 52.5f in this layout scenario.
-        val expectedY = 173.684f
+        // Using 157.14287f which is the exact derived Y value for 52.5f in this layout scenario after increasing bottom buffer.
+        val expectedY = 157.14287f
 
         org.junit.Assert.assertNotNull("FetchDotDebug should be emitted", fetchDotDebug)
         org.junit.Assert.assertEquals(

@@ -21,14 +21,14 @@ class TemperatureGraphRendererLabelPlacementTest {
 
     @Test
     fun `shouldAllowMinorOverlap allows eligible roles within threshold`() {
-        assertTrue(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "LOW", overlapHeight = 1.7f, labelHeight = 12f))
-        assertTrue(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "LOCAL", overlapHeight = 1.8f, labelHeight = 12f))
-        assertTrue(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "END", overlapHeight = 1.8f, labelHeight = 12f))
+        assertTrue(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "LOW", overlapHeight = 4.1f, labelHeight = 12f))
+        assertTrue(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "LOCAL", overlapHeight = 4.2f, labelHeight = 12f))
+        assertTrue(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "END", overlapHeight = 4.2f, labelHeight = 12f))
     }
 
     @Test
     fun `shouldAllowMinorOverlap rejects overlap above threshold or ineligible roles`() {
-        assertFalse(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "LOW", overlapHeight = 1.9f, labelHeight = 12f))
+        assertFalse(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "LOW", overlapHeight = 5.5f, labelHeight = 12f))
         assertFalse(TemperatureGraphRenderer.shouldAllowMinorOverlap(role = "ACTUAL_END", overlapHeight = 1.0f, labelHeight = 12f))
     }
 

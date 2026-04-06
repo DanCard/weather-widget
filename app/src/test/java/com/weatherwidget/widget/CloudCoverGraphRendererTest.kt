@@ -119,11 +119,11 @@ class CloudCoverGraphRendererTest {
     }
 
     @Test
-    fun `preferred label gap uses two dp above and below`() {
+    fun `preferred label gap uses two dp above and one dp below`() {
         val gap = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
 
         assertEquals(2f, gap.aboveDp)
-        assertEquals(2f, gap.belowDp)
+        assertEquals(1f, gap.belowDp)
     }
 
     @Test

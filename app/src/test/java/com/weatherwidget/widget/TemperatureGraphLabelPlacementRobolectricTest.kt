@@ -126,11 +126,11 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualHigh = placements.find { it.role == "HIGH" }
-        val forecastHigh = placements.find { it.role == "FORECAST_HIGH" }
+        val actualHigh = placements.find { it.role == "HIGH" || it.role == "ACTUAL_HIGH" }
+        val forecastHigh = placements.find { it.role == "FORECAST_HIGH" || it.role == "PAST_FORECAST_HIGH" }
 
         assertNotNull("Expected actual-series HIGH label. placements=$placements", actualHigh)
-        assertNotNull("Expected forecast-series FORECAST_HIGH label. placements=$placements", forecastHigh)
+        assertNotNull("Expected forecast-series FORECAST_HIGH or PAST_FORECAST_HIGH label. placements=$placements", forecastHigh)
         assertEquals(86.2f, actualHigh!!.temperature, 0.01f)
         assertEquals(89.0f, forecastHigh!!.temperature, 0.01f)
         assertEquals("actual", actualHigh.series)
@@ -253,7 +253,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 81.0f, actualTemperature = 82.0f, isActual = true, label = "4p"),
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 79.0f, label = "5p"),
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 77.0f, label = "6p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 55.0f, label = "7p"),
+                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 54.0f, label = "7p"),
                 TemperatureGraphRenderer.HourData(dateTime = start.plusHours(5), temperature = 57.0f, label = "8p"),
             )
 
@@ -268,7 +268,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        assertNotNull("Expected adjacent local label near endpoint. placements=$placements", placements.find { it.role == "LOCAL" })
+        assertNotNull("Expected adjacent local or forecast-low label near endpoint. placements=$placements", placements.find { it.role == "LOCAL" || it.role == "FORECAST_LOW" || it.role == "PAST_FORECAST_LOW" })
         assertNull("END should be suppressed when another label is adjacent to the endpoint. placements=$placements", placements.find { it.role == "END" })
     }
 

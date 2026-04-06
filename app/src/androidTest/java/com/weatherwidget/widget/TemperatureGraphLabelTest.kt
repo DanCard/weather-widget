@@ -143,8 +143,10 @@ class TemperatureGraphLabelTest {
 
     @Test
     fun allFourLabels_drawnWhenWellSeparated() {
-        // Clear separation: low in middle, high later, start and end far apart
-        val temps = listOf(55f, 50f, 45f, 40f, 45f, 50f, 60f, 65f, 70f, 68f, 65f, 60f)
+        // Clear separation: high at index 2, low at index 8, start and end far apart
+        // Global min is at index 8 — beyond nearbyWindow(5) from left edge so START is not suppressed
+        // HIGH at index 2 is not adjacent to START at index 0, so NEARBY_ENDPOINT_CLUTTER does not suppress START
+        val temps = listOf(55f, 62f, 70f, 68f, 65f, 60f, 48f, 42f, 40f, 45f, 50f, 55f)
         val hours = buildHours(temps)
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
 

@@ -44,6 +44,7 @@ object GraphLabelPlacementUtils {
         valueFunction: (T) -> Int,
         logTag: String,
         protectedIndices: Set<Int> = emptySet(),
+        nearbyWindow: Int = NEARBY_LABEL_WINDOW,
     ): List<Int> {
         if (candidates.size <= maxCandidates) {
             return candidates.sorted()
@@ -75,7 +76,7 @@ object GraphLabelPlacementUtils {
                     retained
                         .asSequence()
                         .filter { it != candidateIdx && it !in toRemove }
-                        .filter { abs(it - candidateIdx) <= NEARBY_LABEL_WINDOW }
+                        .filter { abs(it - candidateIdx) <= nearbyWindow }
                         .sortedWith(compareBy<Int> { abs(it - candidateIdx) }.thenBy { it })
                         .toList()
 
@@ -181,13 +182,14 @@ object GraphLabelPlacementUtils {
         globalMaxIdx: Int,
         globalMinIdx: Int,
         valueFunction: (T) -> Int,
+        nearbyWindow: Int = NEARBY_LABEL_WINDOW,
     ): Boolean {
         if (0 !in candidates || 0 == globalMaxIdx) return false
 
         val leftEdgeItem = items.getOrNull(0) ?: return false
         val leftEdgeValue = valueFunction(leftEdgeItem)
         return candidates.any { candidateIdx ->
-            candidateIdx in 1..NEARBY_LABEL_WINDOW &&
+            candidateIdx in 1..nearbyWindow &&
                 candidateIdx != globalMaxIdx &&
                 candidateKind(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction) in setOf(CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY) &&
                 (items.getOrNull(candidateIdx)?.let(valueFunction) ?: leftEdgeValue) < leftEdgeValue
