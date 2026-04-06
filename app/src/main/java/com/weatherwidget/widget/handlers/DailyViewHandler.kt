@@ -244,13 +244,27 @@ object DailyViewHandler : WidgetViewHandler {
         // Set weather icon
         val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
 
-        val iconRes = DailyForecastIconResolver.resolveIcon(
-            weather = weatherByDate[today],
-            targetDate = today,
+        val todayHeaderForecast = resolveTodayHeaderForecast(
             now = now,
-            latitude = lat,
-            longitude = lon,
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
         )
+        val iconRes =
+            if (todayHeaderForecast != null) {
+                WeatherIconMapper.getIconResource(
+                    condition = todayHeaderForecast.condition,
+                    isNight = SunPositionUtils.isNight(now, lat, lon),
+                    cloudCover = todayHeaderForecast.cloudCover,
+                )
+            } else {
+                DailyForecastIconResolver.resolveIcon(
+                    weather = weatherByDate[today],
+                    targetDate = today,
+                    now = now,
+                    latitude = lat,
+                    longitude = lon,
+                )
+            }
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 

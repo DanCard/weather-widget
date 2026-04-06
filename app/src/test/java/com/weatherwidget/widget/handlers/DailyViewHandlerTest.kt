@@ -1230,7 +1230,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget daily header icon prefers native daily token for today`() = runBlocking {
+    fun `updateWidget daily header icon prefers current hourly forecast for today`() = runBlocking {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList = listOf(
@@ -1275,7 +1275,7 @@ class DailyViewHandlerTest {
         val applied = viewsSlot.captured.apply(context, root as ViewGroup)
         val imageView = applied.findViewById<ImageView>(R.id.weather_icon)
 
-        assertEquals(R.drawable.ic_weather_partly_cloudy, shadowOf(imageView.drawable).createdFromResId)
+        assertEquals(R.drawable.ic_weather_clear, shadowOf(imageView.drawable).createdFromResId)
     }
 
     @Test

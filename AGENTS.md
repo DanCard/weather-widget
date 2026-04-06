@@ -154,6 +154,7 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 - Do not guess at root cause.
 - Do not propose or implement a fix until evidence is collected.
 - If database and logs are not accessible, stop and ask for the exact missing command/data needed.
+- For live widget questions about what icon/value/layout is currently showing on emulator/device, verify with runtime evidence first: screenshot plus renderer-specific `adb logcat`, and quote the actual emitted icon/resource log line when available before answering.
 
 ## Testing Guidelines
 

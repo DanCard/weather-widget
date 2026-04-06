@@ -700,15 +700,12 @@ class ForecastRepository
             latitude: Double,
             longitude: Double
         ) {
-            // Only use the nighttime condition if we are currently IN the night period (after 6 PM)
-            val currentHour = LocalDateTime.now().hour
-            if (currentHour >= 18) {
-                todayPeriods.firstOrNull { !it.isDaytime }?.let { period ->
-                    conditionMap[todayDateString] = period.shortForecast
-                    conditionSourceMap[todayDateString] = "FCST_ACTIVE:${period.name}@${period.startTime}"
-                }
+            // Keep today's daily icon aligned to the daytime forecast period.
+            todayPeriods.firstOrNull { it.isDaytime }?.let { period ->
+                conditionMap[todayDateString] = period.shortForecast
+                conditionSourceMap[todayDateString] = "FCST_DAY:${period.name}@${period.startTime}"
             }
-            
+
             val todayTemps = temperatureMap[todayDateString] ?: return
             appLogDao.log(
                 "NWS_TODAY_SOURCE", 
