@@ -68,8 +68,6 @@ internal object TemperatureStateResolver {
         deferCurrentTempResolution: Boolean,
         startupToken: String? = null,
         onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
-        todayForecastHigh: Float? = null,
-        todayForecastLow: Float? = null,
     ): ResolutionResult {
         val now = LocalDateTime.now()
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
@@ -113,8 +111,6 @@ internal object TemperatureStateResolver {
             useGraph = useGraph,
             deferStartupGraphActuals = deferStartupGraphActuals,
             smoothedForecasts = smoothedForecasts,
-            todayForecastHigh = todayForecastHigh,
-            todayForecastLow = todayForecastLow,
         )
 
         val graphHours: List<TemperatureGraphRenderer.HourData>
@@ -298,8 +294,6 @@ internal object TemperatureStateResolver {
         useGraph: Boolean,
         deferStartupGraphActuals: Boolean,
         smoothedForecasts: Map<Long, Float>,
-        todayForecastHigh: Float? = null,
-        todayForecastLow: Float? = null,
     ): GraphLoadOutcome {
         if (!useGraph) return GraphLoadOutcome.Loaded(emptyList(), 0L, 0L)
 
@@ -341,8 +335,6 @@ internal object TemperatureStateResolver {
             observations,
             onBlendDebug = { lineProvider -> blendDebugCollector.recordDetailed(lineProvider) },
             smoothedForecasts = smoothedForecasts,
-            todayForecastHigh = todayForecastHigh,
-            todayForecastLow = todayForecastLow,
         )
         val hourData = hourDataResult.hours
         val buildHourDataMs = System.currentTimeMillis() - buildHourDataStartMs

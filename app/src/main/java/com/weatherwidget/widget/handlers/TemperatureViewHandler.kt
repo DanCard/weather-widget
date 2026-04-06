@@ -50,8 +50,6 @@ object TemperatureViewHandler {
         repository: WeatherRepository? = null,
         startupToken: String? = null,
         deferCurrentTempResolution: Boolean = false,
-        todayForecastHigh: Float? = null,
-        todayForecastLow: Float? = null,
     ) {
         val handlerStartMs = SystemClock.elapsedRealtime()
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
@@ -72,9 +70,7 @@ object TemperatureViewHandler {
             repository = repository,
             deferCurrentTempResolution = deferCurrentTempResolution,
             startupToken = startupToken,
-            onFetchDotResolved = onFetchDotResolved,
-            todayForecastHigh = todayForecastHigh,
-            todayForecastLow = todayForecastLow,
+            onFetchDotResolved = onFetchDotResolved
         )
 
         val views = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)

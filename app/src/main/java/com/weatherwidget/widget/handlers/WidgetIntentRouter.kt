@@ -944,7 +944,6 @@ object WidgetIntentRouter {
                 )
             }
             else -> {
-                val todayWeather = weatherList.find { it.source == displaySource.id } ?: weatherList.find { it.source == com.weatherwidget.data.model.WeatherSource.GENERIC_GAP.id }
                 TemperatureViewHandler.updateWidget(
                     context = context,
                     appWidgetManager = appWidgetManager,
@@ -955,9 +954,7 @@ object WidgetIntentRouter {
                     precipProbability = todayPrecip,
                     lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
-                    repository = repository,
-                    todayForecastHigh = todayWeather?.highTemp,
-                    todayForecastLow = todayWeather?.lowTemp,
+                    repository = repository
                 )
             }
         }
