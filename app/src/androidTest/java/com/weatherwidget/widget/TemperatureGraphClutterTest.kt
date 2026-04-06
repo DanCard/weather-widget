@@ -57,7 +57,7 @@ class TemperatureGraphClutterTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        // We expect it to NOT be drawn as "OTHER" (which is the role for local extrema)
-        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == "OTHER" && it.index == 5 })
+        // We expect it to NOT be drawn as "LOCAL" (which is the role for local extrema)
+        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == "LOCAL" && it.index == 5 })
     }
 }

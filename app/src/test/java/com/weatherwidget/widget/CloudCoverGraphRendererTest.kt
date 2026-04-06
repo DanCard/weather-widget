@@ -11,11 +11,15 @@ class CloudCoverGraphRendererTest {
         val labelSignal = listOf(10, 40, 20, 70, 35)
         val candidates = listOf(0, 1, 3, 4)
 
-        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
-            labelSignal = labelSignal,
+        val result = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = 3,
             globalMinIdx = 0,
+            maxCandidates = 5,
+            diffThresholds = listOf(8, 12, 16),
+            valueFunction = { it },
+            logTag = "CloudCoverGraph",
         )
 
         assertEquals(candidates, result)
@@ -26,11 +30,15 @@ class CloudCoverGraphRendererTest {
         val labelSignal = listOf(55, 40, 18, 10, 22, 30, 35, 28, 35, 34, 37, 45, 33, 26, 22, 20, 18, 19, 25, 30, 35, 39, 43, 38, 34)
         val candidates = listOf(0, 3, 8, 9, 11, 17, 22, 24)
 
-        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
-            labelSignal = labelSignal,
+        val result = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = 0,
             globalMinIdx = 3,
+            maxCandidates = 5,
+            diffThresholds = listOf(8, 12, 16),
+            valueFunction = { it },
+            logTag = "CloudCoverGraph",
         )
 
         assertTrue(22 in result)
@@ -43,11 +51,15 @@ class CloudCoverGraphRendererTest {
         val labelSignal = listOf(55, 40, 18, 10, 22, 30, 35, 28, 35, 34, 37, 45, 33, 26, 22, 20, 18, 19, 25, 30, 35, 39, 43, 38, 34)
         val candidates = listOf(0, 3, 8, 9, 11, 17, 22, 24)
 
-        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
-            labelSignal = labelSignal,
+        val result = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = 0,
             globalMinIdx = 3,
+            maxCandidates = 5,
+            diffThresholds = listOf(8, 12, 16),
+            valueFunction = { it },
+            logTag = "CloudCoverGraph",
         )
 
         assertTrue(11 in result)
@@ -59,11 +71,15 @@ class CloudCoverGraphRendererTest {
         val labelSignal = listOf(10, 12, 15, 18, 21, 50, 55, 60)
         val candidates = labelSignal.indices.toList()
 
-        val result = CloudCoverGraphRenderer.filterDenseLabelCandidates(
-            labelSignal = labelSignal,
+        val result = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = 7,
             globalMinIdx = 0,
+            maxCandidates = 5,
+            diffThresholds = listOf(8, 12, 16),
+            valueFunction = { it },
+            logTag = "CloudCoverGraph",
         )
 
         assertTrue(0 in result)
@@ -75,11 +91,12 @@ class CloudCoverGraphRendererTest {
         val labelSignal = listOf(25, 18, 10, 22, 35, 53, 19, 43)
         val candidates = listOf(0, 2, 5, 6, 7)
 
-        val result = CloudCoverGraphRenderer.shouldSuppressLeftEdgeLabel(
-            labelSignal = labelSignal,
+        val result = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = 5,
             globalMinIdx = 2,
+            valueFunction = { it },
         )
 
         assertTrue(result)
@@ -90,11 +107,12 @@ class CloudCoverGraphRendererTest {
         val labelSignal = listOf(55, 40, 10, 22, 35, 43)
         val candidates = listOf(0, 2, 5)
 
-        val result = CloudCoverGraphRenderer.shouldSuppressLeftEdgeLabel(
-            labelSignal = labelSignal,
+        val result = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = 0,
             globalMinIdx = 2,
+            valueFunction = { it },
         )
 
         assertTrue(!result)
@@ -102,7 +120,7 @@ class CloudCoverGraphRendererTest {
 
     @Test
     fun `preferred label gap uses two dp above and below`() {
-        val gap = CloudCoverGraphRenderer.labelGapDp(isFallback = false)
+        val gap = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
 
         assertEquals(2f, gap.aboveDp)
         assertEquals(2f, gap.belowDp)
@@ -110,7 +128,7 @@ class CloudCoverGraphRendererTest {
 
     @Test
     fun `fallback label gap uses eight dp above and fourteen dp below`() {
-        val gap = CloudCoverGraphRenderer.labelGapDp(isFallback = true)
+        val gap = GraphLabelPlacementUtils.getLabelGapDp(isFallback = true)
 
         assertEquals(8f, gap.aboveDp)
         assertEquals(14f, gap.belowDp)
@@ -118,7 +136,7 @@ class CloudCoverGraphRendererTest {
 
     @Test
     fun `below placement keeps glyph box below curve by requested gap`() {
-        val placement = CloudCoverGraphRenderer.computeLabelVerticalPlacement(
+        val placement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
             pointY = 100f,
             placeAbove = false,
             gapPx = 2f,

@@ -219,6 +219,30 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
+    fun `placeTemperatureLabels thins out redundant labels on a monotonic rise`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 12, 0)
+        // Monotonic rise from 50 to 70 over 20 hours
+        val signal = (50..70).map { it.toFloat() }
+        
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(signal, start),
+            widthPx = 500,
+            heightPx = 400,
+            currentTime = start,
+            onLabelPlaced = { placements.add(it) }
+        )
+
+        assertTrue("Should have at most 6 labels. Placed: ${placements.size}", placements.size <= 6)
+        assertTrue("Should have START or LOW label at the beginning", placements.any { (it.role == "START" || it.role == "LOW") && it.index == 0 })
+        assertTrue("Should have HIGH or END label at the end", placements.any { (it.role == "HIGH" || it.role == "END") && it.index == signal.lastIndex })
+        // Middle points should be thinned out
+        val intermediate = placements.filter { it.index != 0 && it.index != signal.lastIndex }
+        assertTrue("Should have thinned out most intermediate labels. Found: ${intermediate.size}", intermediate.size < 5)
+    }
+
+    @Test
     fun `end label is suppressed when adjacent local label would crowd the endpoint`() {
         val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 15, 0)

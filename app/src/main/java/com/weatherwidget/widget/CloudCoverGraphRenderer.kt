@@ -20,10 +20,6 @@ object CloudCoverGraphRenderer {
     private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = 5
     private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(8, 12, 16)
     private const val NEARBY_LABEL_WINDOW = 3
-    private const val PREFERRED_ABOVE_GAP_DP = 2f
-    private const val PREFERRED_BELOW_GAP_DP = 2f
-    private const val FALLBACK_ABOVE_GAP_DP = 8f
-    private const val FALLBACK_BELOW_GAP_DP = 14f
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 20
     private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
 
@@ -61,17 +57,6 @@ object CloudCoverGraphRenderer {
     data class WatermarkPlacementDebug(
         val placed: Boolean,
         val candidateCenterIndex: Int? = null,
-    )
-
-    internal data class LabelGapDp(
-        val aboveDp: Float,
-        val belowDp: Float,
-    )
-
-    internal data class LabelVerticalPlacement(
-        val baselineY: Float,
-        val top: Float,
-        val bottom: Float,
     )
 
     private class PaintSet(
@@ -164,14 +149,6 @@ object CloudCoverGraphRenderer {
         )
         cachedPaints = paints
         return paints
-    }
-
-    private enum class CandidateKind {
-        GLOBAL_MAX,
-        GLOBAL_MIN,
-        PEAK,
-        VALLEY,
-        EDGE,
     }
 
     fun renderGraph(
@@ -317,18 +294,22 @@ object CloudCoverGraphRenderer {
         }
 
         candidates.sortBy { it }
-        val filteredCandidates = filterDenseLabelCandidates(
-            labelSignal = labelSignal,
+        val filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
             candidates = candidates,
             globalMaxIdx = globalMaxIdx,
             globalMinIdx = globalMinIdx,
+            maxCandidates = MAX_CLOUD_PERCENT_LABEL_CANDIDATES,
+            diffThresholds = DENSE_LABEL_DIFF_THRESHOLDS,
+            valueFunction = { it },
             logTag = TAG,
         )
-        val suppressLeftEdgeLabel = shouldSuppressLeftEdgeLabel(
-            labelSignal = labelSignal,
+        val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
+            items = labelSignal,
             candidates = filteredCandidates,
             globalMaxIdx = globalMaxIdx,
             globalMinIdx = globalMinIdx,
+            valueFunction = { it },
         )
 
         for (index in filteredCandidates) {
@@ -375,10 +356,10 @@ object CloudCoverGraphRenderer {
 
             for ((attemptIndex, placeAbove) in attempts.withIndex()) {
                 val isFallbackAttempt = attemptIndex > 0
-                val gapDp = labelGapDp(isFallback = isFallbackAttempt)
+                val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = isFallbackAttempt)
                 val gapPx = if (placeAbove) dpToPx(context, gapDp.aboveDp) else dpToPx(context, gapDp.belowDp)
                 val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                val verticalPlacement = computeLabelVerticalPlacement(
+                val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
                     pointY = y,
                     placeAbove = placeAbove,
                     gapPx = gapPx,
@@ -570,189 +551,6 @@ object CloudCoverGraphRenderer {
 
     private fun dpToPx(context: Context, dp: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
-
-    @androidx.annotation.VisibleForTesting
-    internal fun filterDenseLabelCandidates(
-        labelSignal: List<Int>,
-        candidates: List<Int>,
-        globalMaxIdx: Int,
-        globalMinIdx: Int,
-        logTag: String = TAG,
-    ): List<Int> {
-        if (candidates.size <= MAX_CLOUD_PERCENT_LABEL_CANDIDATES) {
-            return candidates.sorted()
-        }
-
-        val retained = candidates.distinct().sorted().toMutableList()
-        val protectedAnchors = buildSet {
-            if (globalMaxIdx in labelSignal.indices) add(globalMaxIdx)
-            if (globalMinIdx in labelSignal.indices) add(globalMinIdx)
-        }
-
-        for (threshold in DENSE_LABEL_DIFF_THRESHOLDS) {
-            if (retained.size <= MAX_CLOUD_PERCENT_LABEL_CANDIDATES) break
-
-            val toRemove = mutableSetOf<Int>()
-            val optionalCandidates =
-                retained
-                    .filter { it !in protectedAnchors }
-                    .sortedWith(
-                        compareByDescending<Int> { candidatePriority(it, labelSignal, globalMaxIdx, globalMinIdx) }
-                            .thenBy { candidateStrength(it, labelSignal, globalMaxIdx, globalMinIdx) }
-                            .thenByDescending { it },
-                    )
-            for (candidateIdx in optionalCandidates) {
-                if (retained.size - toRemove.size <= MAX_CLOUD_PERCENT_LABEL_CANDIDATES) break
-
-                val nearbyRetained =
-                    retained
-                        .asSequence()
-                        .filter { it != candidateIdx && it !in toRemove }
-                        .filter { abs(it - candidateIdx) <= NEARBY_LABEL_WINDOW }
-                        .sortedWith(compareBy<Int> { abs(it - candidateIdx) }.thenBy { it })
-                        .toList()
-
-                if (nearbyRetained.isEmpty()) continue
-
-                val candidateValue = labelSignal.getOrNull(candidateIdx) ?: continue
-                val candidatePriority = candidatePriority(candidateIdx, labelSignal, globalMaxIdx, globalMinIdx)
-                val competingRetained =
-                    nearbyRetained.firstOrNull { otherIdx ->
-                        val otherValue = labelSignal.getOrNull(otherIdx) ?: return@firstOrNull false
-                        val otherPriority = candidatePriority(otherIdx, labelSignal, globalMaxIdx, globalMinIdx)
-                        val valueDifference = abs(candidateValue - otherValue)
-                        valueDifference < threshold && (
-                            otherPriority < candidatePriority ||
-                                (otherPriority == candidatePriority &&
-                                    candidateStrength(otherIdx, labelSignal, globalMaxIdx, globalMinIdx) >
-                                    candidateStrength(candidateIdx, labelSignal, globalMaxIdx, globalMinIdx))
-                            )
-                    }
-
-                if (competingRetained != null) {
-                    val competingValue = labelSignal.getOrNull(competingRetained) ?: continue
-                    val valueDifference = abs(candidateValue - competingValue)
-                    toRemove.add(candidateIdx)
-                    Log.d(
-                        logTag,
-                        "labelCandidateFiltered: idx=$candidateIdx value=$candidateValue% nearestIdx=$competingRetained " +
-                            "nearestValue=$competingValue% diff=$valueDifference threshold=$threshold " +
-                            "candidateKind=${candidateKind(candidateIdx, labelSignal, globalMaxIdx, globalMinIdx)} " +
-                            "retainedKind=${candidateKind(competingRetained, labelSignal, globalMaxIdx, globalMinIdx)}",
-                    )
-                }
-            }
-
-            if (toRemove.isNotEmpty()) {
-                retained.removeAll(toRemove)
-            }
-        }
-
-        return retained
-    }
-
-    private fun candidateKind(
-        index: Int,
-        labelSignal: List<Int>,
-        globalMaxIdx: Int,
-        globalMinIdx: Int,
-    ): CandidateKind {
-        if (index == globalMaxIdx) return CandidateKind.GLOBAL_MAX
-        if (index == globalMinIdx) return CandidateKind.GLOBAL_MIN
-        if (index == 0 || index == labelSignal.lastIndex) return CandidateKind.EDGE
-
-        val prev = labelSignal.getOrNull(index - 1) ?: return CandidateKind.EDGE
-        val current = labelSignal.getOrNull(index) ?: return CandidateKind.EDGE
-        val next = labelSignal.getOrNull(index + 1) ?: return CandidateKind.EDGE
-
-        return when {
-            current > prev && current > next -> CandidateKind.PEAK
-            current < prev && current < next -> CandidateKind.VALLEY
-            else -> CandidateKind.EDGE
-        }
-    }
-
-    private fun candidatePriority(
-        index: Int,
-        labelSignal: List<Int>,
-        globalMaxIdx: Int,
-        globalMinIdx: Int,
-    ): Int =
-        when (candidateKind(index, labelSignal, globalMaxIdx, globalMinIdx)) {
-            CandidateKind.GLOBAL_MAX -> 0
-            CandidateKind.PEAK -> 1
-            CandidateKind.GLOBAL_MIN -> 2
-            CandidateKind.VALLEY -> 3
-            CandidateKind.EDGE -> 4
-        }
-
-    private fun candidateStrength(
-        index: Int,
-        labelSignal: List<Int>,
-        globalMaxIdx: Int,
-        globalMinIdx: Int,
-    ): Int {
-        val value = labelSignal.getOrNull(index) ?: return Int.MIN_VALUE
-        return when (candidateKind(index, labelSignal, globalMaxIdx, globalMinIdx)) {
-            CandidateKind.GLOBAL_MAX, CandidateKind.PEAK -> value
-            CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY -> 100 - value
-            CandidateKind.EDGE -> value
-        }
-    }
-
-    @androidx.annotation.VisibleForTesting
-    internal fun shouldSuppressLeftEdgeLabel(
-        labelSignal: List<Int>,
-        candidates: List<Int>,
-        globalMaxIdx: Int,
-        globalMinIdx: Int,
-    ): Boolean {
-        if (0 !in candidates || 0 == globalMaxIdx) return false
-
-        val leftEdgeValue = labelSignal.getOrNull(0) ?: return false
-        return candidates.any { candidateIdx ->
-            candidateIdx in 1..NEARBY_LABEL_WINDOW &&
-                candidateIdx != globalMaxIdx &&
-                candidateKind(candidateIdx, labelSignal, globalMaxIdx, globalMinIdx) in setOf(CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY) &&
-                (labelSignal.getOrNull(candidateIdx) ?: leftEdgeValue) < leftEdgeValue
-        }
-    }
-
-    @androidx.annotation.VisibleForTesting
-    internal fun labelGapDp(isFallback: Boolean): LabelGapDp =
-        if (isFallback) {
-            LabelGapDp(
-                aboveDp = FALLBACK_ABOVE_GAP_DP,
-                belowDp = FALLBACK_BELOW_GAP_DP,
-            )
-        } else {
-            LabelGapDp(
-                aboveDp = PREFERRED_ABOVE_GAP_DP,
-                belowDp = PREFERRED_BELOW_GAP_DP,
-            )
-        }
-
-    @androidx.annotation.VisibleForTesting
-    internal fun computeLabelVerticalPlacement(
-        pointY: Float,
-        placeAbove: Boolean,
-        gapPx: Float,
-        textAscent: Float,
-        textDescent: Float,
-    ): LabelVerticalPlacement {
-        val baselineY =
-            if (placeAbove) {
-                pointY - gapPx - textDescent
-            } else {
-                pointY + gapPx - textAscent
-            }
-
-        return LabelVerticalPlacement(
-            baselineY = baselineY,
-            top = baselineY + textAscent,
-            bottom = baselineY + textDescent,
-        )
-    }
 
     @androidx.annotation.VisibleForTesting
     internal fun shouldAllowBottomOverflow(
