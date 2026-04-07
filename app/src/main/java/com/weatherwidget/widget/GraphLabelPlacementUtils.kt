@@ -6,7 +6,7 @@ import kotlin.math.abs
 
 object GraphLabelPlacementUtils {
 
-    const val NEARBY_LABEL_WINDOW = 3
+    const val NEARBY_LABEL_WINDOW = 4
     const val PREFERRED_ABOVE_GAP_DP = 2f
     const val PREFERRED_BELOW_GAP_DP = 1f
     const val FALLBACK_ABOVE_GAP_DP = 8f
@@ -45,32 +45,47 @@ object GraphLabelPlacementUtils {
         logTag: String,
         protectedIndices: Set<Int> = emptySet(),
         nearbyWindow: Int = NEARBY_LABEL_WINDOW,
+        immovableIndices: Set<Int> = emptySet(),
     ): List<Int> {
-        if (candidates.size <= maxCandidates) {
-            return candidates.sorted()
-        }
-
         val retained = candidates.distinct().sorted().toMutableList()
-        val protectedAnchors = buildSet {
+        val immovableAnchors = buildSet {
             if (globalMaxIdx in items.indices) add(globalMaxIdx)
-            if (globalMinIdx in items.indices) add(globalMinIdx)
-            addAll(protectedIndices.filter { it in items.indices })
+            addAll(immovableIndices.filter { it in items.indices })
+        }
+        val softProtectedAnchors = protectedIndices.filter { it in items.indices && it !in immovableAnchors }.toSet()
+
+        // Add a mandatory small decluttering threshold if not already present
+        val effectiveThresholds = if ((diffThresholds.firstOrNull() ?: 0) > 5) {
+            listOf(5) + diffThresholds
+        } else {
+            diffThresholds
         }
 
-        for (threshold in diffThresholds) {
-            if (retained.size <= maxCandidates) break
+        for (threshold in effectiveThresholds) {
+            // If we are already under the cap AND this is a "reduction" threshold (not a decluttering one), break.
+            if (retained.size <= maxCandidates && threshold > 5) break
 
             val toRemove = mutableSetOf<Int>()
-            val optionalCandidates =
+            val processingOrder =
                 retained
-                    .filter { it !in protectedAnchors }
+                    .filter { it !in immovableAnchors }
                     .sortedWith(
-                        compareByDescending<Int> { candidatePriority(it, items, globalMaxIdx, globalMinIdx, valueFunction) }
-                            .thenBy { candidateStrength(it, items, globalMaxIdx, globalMinIdx, valueFunction) }
-                            .thenByDescending { it },
+                        // Sort so that the candidates we are MORE LIKELY to remove come first.
+                        // Higher priority integer = lower priority = process first.
+                        // Optional candidates (base 10) process before soft protected (base 0).
+                        compareByDescending<Int> { 
+                            val base = if (it in softProtectedAnchors) 0 else 10
+                            base + candidatePriority(it, items, globalMaxIdx, globalMinIdx, valueFunction)
+                        }.thenBy { candidateStrength(it, items, globalMaxIdx, globalMinIdx, valueFunction) }
+                        .thenByDescending { it }
                     )
-            for (candidateIdx in optionalCandidates) {
-                if (retained.size - toRemove.size <= maxCandidates) break
+
+            for (candidateIdx in processingOrder) {
+                // Mandatory decluttering threshold (5) should always run to completion.
+                // Thresholds > 5 are "reduction" thresholds and should respect maxCandidates.
+                if (retained.size - toRemove.size <= maxCandidates && threshold > 5) break
+                if (candidateIdx in toRemove) continue
+
 
                 val nearbyRetained =
                     retained
@@ -84,17 +99,22 @@ object GraphLabelPlacementUtils {
 
                 val item = items.getOrNull(candidateIdx) ?: continue
                 val candidateValue = valueFunction(item)
-                val candidatePriority = candidatePriority(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction)
+                val candidatePriVal = (if (candidateIdx in softProtectedAnchors) 0 else 10) + 
+                    candidatePriority(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction)
                 
                 val competingRetained =
                     nearbyRetained.firstOrNull { otherIdx ->
                         val otherItem = items.getOrNull(otherIdx) ?: return@firstOrNull false
                         val otherValue = valueFunction(otherItem)
-                        val otherPriority = candidatePriority(otherIdx, items, globalMaxIdx, globalMinIdx, valueFunction)
+                        val otherPriVal = (if (otherIdx in immovableAnchors || otherIdx in softProtectedAnchors) 0 else 10) + 
+                            candidatePriority(otherIdx, items, globalMaxIdx, globalMinIdx, valueFunction)
+                        
                         val valueDifference = abs(candidateValue - otherValue)
+                        
+                        // otherPriVal < candidatePriVal means 'other' has HIGHER priority.
                         valueDifference < threshold && (
-                            otherPriority < candidatePriority ||
-                                (otherPriority == candidatePriority && (
+                            otherPriVal < candidatePriVal ||
+                                (otherPriVal == candidatePriVal && (
                                     candidateStrength(otherIdx, items, globalMaxIdx, globalMinIdx, valueFunction) >
                                     candidateStrength(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction) ||
                                     (candidateStrength(otherIdx, items, globalMaxIdx, globalMinIdx, valueFunction) ==
@@ -143,8 +163,8 @@ object GraphLabelPlacementUtils {
         val nextValue = items.getOrNull(index + 1)?.let(valueFunction) ?: return CandidateKind.EDGE
 
         return when {
-            currentValue > prevValue && currentValue > nextValue -> CandidateKind.PEAK
-            currentValue < prevValue && currentValue < nextValue -> CandidateKind.VALLEY
+            currentValue >= prevValue && currentValue >= nextValue && (currentValue > prevValue || currentValue > nextValue) -> CandidateKind.PEAK
+            currentValue <= prevValue && currentValue <= nextValue && (currentValue < prevValue || currentValue < nextValue) -> CandidateKind.VALLEY
             else -> CandidateKind.EDGE
         }
     }
@@ -155,14 +175,18 @@ object GraphLabelPlacementUtils {
         globalMaxIdx: Int,
         globalMinIdx: Int,
         valueFunction: (T) -> Int,
-    ): Int =
-        when (candidateKind(index, items, globalMaxIdx, globalMinIdx, valueFunction)) {
+    ): Int {
+        val kind = candidateKind(index, items, globalMaxIdx, globalMinIdx, valueFunction)
+        val value = items.getOrNull(index)?.let(valueFunction) ?: 0
+        
+        return when (kind) {
             CandidateKind.GLOBAL_MAX -> 0
-            CandidateKind.PEAK -> 1
+            CandidateKind.PEAK -> if (value < 15) 3 else 1 // Peak is normally 1, but 3 if low value
             CandidateKind.GLOBAL_MIN -> 2
-            CandidateKind.VALLEY -> 3
+            CandidateKind.VALLEY -> if (value < 15) 1 else 3 // Valley is normally 3, but 1 if low value
             CandidateKind.EDGE -> 4
         }
+    }
 
     fun <T> candidateStrength(
         index: Int,
@@ -192,11 +216,11 @@ object GraphLabelPlacementUtils {
 
         val leftEdgeItem = items.getOrNull(0) ?: return false
         val leftEdgeValue = valueFunction(leftEdgeItem)
+        
+        // Suppress if ANY nearby candidate has a similar value (within 5%)
         return candidates.any { candidateIdx ->
             candidateIdx in 1..nearbyWindow &&
-                candidateIdx != globalMaxIdx &&
-                candidateKind(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction) in setOf(CandidateKind.GLOBAL_MIN, CandidateKind.VALLEY) &&
-                (items.getOrNull(candidateIdx)?.let(valueFunction) ?: leftEdgeValue) < leftEdgeValue
+                abs(valueFunction(items[candidateIdx]) - leftEdgeValue) < 5
         }
     }
 

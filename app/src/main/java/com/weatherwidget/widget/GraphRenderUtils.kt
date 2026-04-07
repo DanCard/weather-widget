@@ -507,4 +507,46 @@ internal object GraphRenderUtils {
             onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday)
         }
     }
+
+    /**
+     * Finds local maxima and minima indices in a series, correctly handling plateaus
+     * by marking the center of identical runs as the extremum.
+     */
+    fun findLocalExtremaIndices(
+        values: List<Int>,
+        isMax: Boolean,
+    ): Set<Int> {
+        if (values.size < 3) return emptySet()
+
+        val extrema = mutableSetOf<Int>()
+        var i = 1
+        while (i < values.lastIndex) {
+            val current = values[i]
+            val prev = values[i - 1]
+
+            val isPotential = if (isMax) current > prev else current < prev
+
+            if (isPotential) {
+                // We found the start of a potential peak/valley.
+                // Find how long this plateau lasts.
+                var j = i
+                while (j < values.lastIndex && values[j + 1] == current) {
+                    j++
+                }
+
+                // Now check the exit condition of the plateau
+                if (j < values.lastIndex) {
+                    val next = values[j + 1]
+                    val isExtremum = if (isMax) next < current else next > current
+                    if (isExtremum) {
+                        // Mark the middle (or first) of the plateau as the extremum
+                        extrema.add(i + (j - i) / 2)
+                    }
+                }
+                i = j // Skip to end of plateau
+            }
+            i++
+        }
+        return extrema
+    }
 }

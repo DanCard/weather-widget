@@ -18,7 +18,7 @@ object CloudCoverGraphRenderer {
     private const val MIN_ICON_GRAPH_WIDTH_PX = 420
     // Not sure yet whether 5 or 6 labels is the better cap here; start with 5 for now.
     private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = 5
-    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(8, 12, 16)
+    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(5, 10, 15)
     private const val NEARBY_LABEL_WINDOW = 3
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 20
     private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
@@ -276,21 +276,63 @@ object CloudCoverGraphRenderer {
         val labelSignal = smoothedValues.map { it.roundToInt().coerceIn(0, 100) }
         val drawnLabelBounds = mutableListOf<RectF>()
         // Find local maxima and minima
+        val localMaxima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = true)
+        val localMinima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = false)
+
+        val globalMaxVal = labelSignal.maxOrNull() ?: -1
+        val globalMinVal = labelSignal.minOrNull() ?: -1
+        
+        // Pick the plateau center if it exists, otherwise first occurrence.
+        val globalMaxIdx = localMaxima.firstOrNull { labelSignal[it] == globalMaxVal }
+            ?: labelSignal.indexOfFirst { it == globalMaxVal }
+        val globalMinIdx = localMinima.firstOrNull { labelSignal[it] == globalMinVal }
+            ?: labelSignal.indexOfFirst { it == globalMinVal }
+
+        // Soft dip candidates (mandatory)
+        val softDipCandidates = mutableListOf<Int>()
+        var jIdx = 0
+        while (jIdx < labelSignal.size) {
+            val prob = labelSignal[jIdx]
+            if (prob <= 0 || prob > 85) { // Dips are only relevant if not already fully overcast/clear
+                jIdx++
+                continue
+            }
+            
+            // Start of a potential plateau
+            var runEnd = jIdx
+            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
+                runEnd++
+            }
+            
+            val left = (jIdx - 5).coerceAtLeast(0)
+            val right = (runEnd + 5).coerceAtMost(labelSignal.lastIndex)
+            
+            if (left < jIdx && right > runEnd) {
+                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
+                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
+                
+                if (leftMax >= prob + 15 && rightMax >= prob + 15) {
+                    // This plateau is a "soft dip". Add the center.
+                    softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
+                }
+            }
+            jIdx = runEnd + 1
+        }
+
         val candidates = mutableListOf<Int>()
-        // Global max/min
-        val globalMaxIdx = labelSignal.indices.maxByOrNull { labelSignal[it] } ?: -1
-        val globalMinIdx = labelSignal.indices.minByOrNull { labelSignal[it] } ?: -1
         if (globalMaxIdx >= 0) candidates.add(globalMaxIdx)
         if (globalMinIdx >= 0 && globalMinIdx != globalMaxIdx) candidates.add(globalMinIdx)
         // Edges
         if (0 !in candidates) candidates.add(0)
         if (hours.lastIndex !in candidates && hours.isNotEmpty()) candidates.add(hours.lastIndex)
         // Local extrema
-        for (i in 1 until labelSignal.lastIndex) {
-            val prev = labelSignal[i - 1]; val cur = labelSignal[i]; val next = labelSignal[i + 1]
-            if ((cur > prev && cur > next) || (cur < prev && cur < next)) {
-                if (i !in candidates) candidates.add(i)
-            }
+        candidates.addAll(localMaxima)
+        candidates.addAll(localMinima)
+        // Soft dips
+        candidates.addAll(softDipCandidates)
+
+        val protectedIndices = buildSet {
+            addAll(softDipCandidates)
         }
 
         candidates.sortBy { it }
@@ -303,6 +345,8 @@ object CloudCoverGraphRenderer {
             diffThresholds = DENSE_LABEL_DIFF_THRESHOLDS,
             valueFunction = { it },
             logTag = TAG,
+            protectedIndices = protectedIndices,
+            nearbyWindow = 5,
         )
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
             items = labelSignal,

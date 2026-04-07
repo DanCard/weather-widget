@@ -773,7 +773,8 @@ object TemperatureGraphRenderer {
             diffThresholds = DENSE_TEMP_DIFF_THRESHOLDS,
             valueFunction = { it.roundToInt() },
             logTag = TAG,
-            protectedIndices = explicitAnchors + deduplicatedIndices.filter { it in significantLocalExtrema && it > ctx.effectiveActualEndIndex },
+            protectedIndices = deduplicatedIndices.filter { it in significantLocalExtrema && it > ctx.effectiveActualEndIndex }.toSet(),
+            immovableIndices = explicitAnchors,
         )
 
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(

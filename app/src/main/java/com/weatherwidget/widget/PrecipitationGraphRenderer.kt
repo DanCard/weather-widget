@@ -17,7 +17,7 @@ object PrecipitationGraphRenderer {
     private const val TAG = "PrecipGraphRenderer"
     private const val MIN_ICON_GRAPH_WIDTH_PX = 420
     private const val MAX_PRECIP_LABEL_CANDIDATES = 5
-    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(8, 12, 16)
+    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(5, 10, 15)
 
     data class PrecipHourData(
         val dateTime: LocalDateTime,
@@ -287,25 +287,49 @@ object PrecipitationGraphRenderer {
         }
 
         val labelSignal = probs.map { it.roundToInt().coerceIn(0, 100) }
-        val globalMaxIdx = labelSignal.indices.maxByOrNull { labelSignal[it] } ?: -1
-        val globalMinIdx = labelSignal.indices.minByOrNull { labelSignal[it] } ?: -1
+        val localMaxima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = true)
+        val localMinima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = false)
+
+        val globalMaxVal = labelSignal.maxOrNull() ?: -1
+        val globalMinVal = labelSignal.minOrNull() ?: -1
+
+        val globalMaxIdx = localMaxima.firstOrNull { labelSignal[it] == globalMaxVal }
+            ?: labelSignal.indexOfFirst { it == globalMaxVal }
+        val globalMinIdx = localMinima.firstOrNull { labelSignal[it] == globalMinVal }
+            ?: labelSignal.indexOfFirst { it == globalMinVal }
+
         val firstPositive = labelSignal.indexOfFirst { it > 0 }
         val firstLabeledPositive = hours.indexOfFirst { it.precipProbability > 0 && it.showLabel }
 
-        // Find extrema for priority logic
-        val localMaxima = findLocalExtremaIndices(labelSignal, isMax = true)
-        val localMinima = findLocalExtremaIndices(labelSignal, isMax = false)
-
         // Soft dip candidates (mandatory)
-        val softDipCandidates = labelSignal.indices.filter { idx ->
-            val prob = labelSignal[idx]
-            if (prob <= 0 || prob > 65) return@filter false
-            val left = (idx - 5).coerceAtLeast(0)
-            val right = (idx + 5).coerceAtMost(labelSignal.lastIndex)
-            if (left == idx || right == idx) return@filter false
-            val leftMax = (left until idx).maxOfOrNull { labelSignal[it] } ?: prob
-            val rightMax = ((idx + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
-            leftMax >= prob + 8 && rightMax >= prob + 8
+        val softDipCandidates = mutableListOf<Int>()
+        var jIdx = 0
+        while (jIdx < labelSignal.size) {
+            val prob = labelSignal[jIdx]
+            if (prob <= 0 || prob > 65) {
+                jIdx++
+                continue
+            }
+            
+            // Start of a potential plateau
+            var runEnd = jIdx
+            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
+                runEnd++
+            }
+            
+            val left = (jIdx - 5).coerceAtLeast(0)
+            val right = (runEnd + 5).coerceAtMost(labelSignal.lastIndex)
+            
+            if (left < jIdx && right > runEnd) {
+                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
+                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
+                
+                if (leftMax >= prob + 8 && rightMax >= prob + 8) {
+                    // This plateau is a "soft dip". Add the center.
+                    softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
+                }
+            }
+            jIdx = runEnd + 1
         }
 
         // Zero-run candidates (mandatory)
@@ -338,8 +362,6 @@ object PrecipitationGraphRenderer {
         val protectedIndices = buildSet {
             addAll(softDipCandidates)
             addAll(zeroRunCandidates)
-            if (firstPositive != -1) add(firstPositive)
-            if (firstLabeledPositive != -1) add(firstLabeledPositive)
         }
 
         candidates.sortBy { it }
@@ -350,10 +372,12 @@ object PrecipitationGraphRenderer {
             globalMinIdx = globalMinIdx,
             maxCandidates = MAX_PRECIP_LABEL_CANDIDATES,
             diffThresholds = DENSE_LABEL_DIFF_THRESHOLDS,
-            valueFunction = { v -> v },
+            valueFunction = { it },
             logTag = TAG,
             protectedIndices = protectedIndices,
+            nearbyWindow = 5,
         )
+
 
         val drawnLabelBounds = mutableListOf<RectF>()
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
@@ -695,44 +719,6 @@ object PrecipitationGraphRenderer {
         }
 
         return bitmap
-    }
-
-    private fun findLocalExtremaIndices(
-        values: List<Int>,
-        isMax: Boolean,
-    ): Set<Int> {
-        if (values.size < 3) return emptySet()
-
-        val extrema = mutableSetOf<Int>()
-        var i = 1
-        while (i < values.lastIndex) {
-            val current = values[i]
-            val prev = values[i - 1]
-            
-            val isPotential = if (isMax) current > prev else current < prev
-            
-            if (isPotential) {
-                // We found the start of a potential peak/valley. 
-                // Find how long this plateau lasts.
-                var j = i
-                while (j < values.lastIndex && values[j + 1] == current) {
-                    j++
-                }
-                
-                // Now check the exit condition of the plateau
-                if (j < values.lastIndex) {
-                    val next = values[j + 1]
-                    val isExtremum = if (isMax) next < current else next > current
-                    if (isExtremum) {
-                        // Mark the middle (or first) of the plateau as the extremum
-                        extrema.add(i + (j - i) / 2)
-                    }
-                }
-                i = j // Skip to end of plateau
-            }
-            i++
-        }
-        return extrema
     }
 
     private fun shouldShowHourlyIcons(widthPx: Int): Boolean {
