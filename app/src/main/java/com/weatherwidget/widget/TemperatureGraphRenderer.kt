@@ -666,36 +666,34 @@ object TemperatureGraphRenderer {
         hours: List<HourData>,
         drawnIconBounds: List<RectF>
     ) {
-        val labelTemps = hours.mapIndexed { idx, h ->
-            val isPastTransition = ctx.originalPoints[idx].first <= (ctx.transitionX ?: -1f)
-            if (isPastTransition && h.isActual) h.actualTemperature ?: h.temperature
-            else h.temperature
+        val labelTemps = hours.map { it.temperature }
+        val actualLabelTemps = hours.map { h ->
+            if (h.isActual) h.actualTemperature ?: h.temperature else h.temperature
         }
-        val forecastLabelTemps = hours.map { it.temperature }
         val dailyHighIndex = labelTemps.indices.maxByOrNull { labelTemps[it] } ?: -1
         val dailyLowIndex = labelTemps.indices.minByOrNull { labelTemps[it] } ?: -1
 
         val actualStartIndex = 0
         val actualEndIndex = if (ctx.transitionX != null) ctx.effectiveActualEndIndex else hours.lastIndex
-        val actualIndices = (actualStartIndex..actualEndIndex).filter { it in labelTemps.indices }
-        val actualHighIndex = actualIndices.maxByOrNull { labelTemps[it] } ?: -1
-        val actualLowIndex = actualIndices.minByOrNull { labelTemps[it] } ?: -1
+        val actualIndices = (actualStartIndex..actualEndIndex).filter { it in actualLabelTemps.indices }
+        val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
+        val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1
 
         val forecastStartIndex = if (ctx.transitionX != null) ctx.effectiveActualEndIndex else 0
         val forecastEndIndex = hours.lastIndex
-        val forecastIndices = (forecastStartIndex..forecastEndIndex).filter { it in forecastLabelTemps.indices }
-        val forecastHighIndex = forecastIndices.maxByOrNull { forecastLabelTemps[it] } ?: -1
-        val forecastLowIndex = forecastIndices.minByOrNull { forecastLabelTemps[it] } ?: -1
+        val forecastIndices = (forecastStartIndex..forecastEndIndex).filter { it in labelTemps.indices }
+        val forecastHighIndex = forecastIndices.maxByOrNull { labelTemps[it] } ?: -1
+        val forecastLowIndex = forecastIndices.minByOrNull { labelTemps[it] } ?: -1
 
         val hasTransition = ctx.transitionX != null
-        val pastForecastIndices = if (hasTransition) (0..actualEndIndex).filter { it in forecastLabelTemps.indices } else emptyList()
-        val pastForecastHighIndex = if (hasTransition) pastForecastIndices.maxByOrNull { forecastLabelTemps[it] } ?: -1 else -1
-        val pastForecastLowIndex = if (hasTransition) pastForecastIndices.minByOrNull { forecastLabelTemps[it] } ?: -1 else -1
+        val pastForecastIndices = if (hasTransition) (0..actualEndIndex).filter { it in labelTemps.indices } else emptyList()
+        val pastForecastHighIndex = if (hasTransition) pastForecastIndices.maxByOrNull { labelTemps[it] } ?: -1 else -1
+        val pastForecastLowIndex = if (hasTransition) pastForecastIndices.minByOrNull { labelTemps[it] } ?: -1 else -1
 
         if (forecastHighIndex >= 0 && forecastLowIndex >= 0) {
             val forecastDates = forecastIndices.map { hours[it].dateTime.toLocalDate() }.distinct()
-            Log.d(TAG, "FORECAST_EXTREMA highIdx=$forecastHighIndex highTemp=${forecastLabelTemps[forecastHighIndex]} " +
-                "lowIdx=$forecastLowIndex lowTemp=${forecastLabelTemps[forecastLowIndex]} " +
+            Log.d(TAG, "FORECAST_EXTREMA highIdx=$forecastHighIndex highTemp=${labelTemps[forecastHighIndex]} " +
+                "lowIdx=$forecastLowIndex lowTemp=${labelTemps[forecastLowIndex]} " +
                 "forecastDates=$forecastDates forecastRange=$forecastStartIndex..$forecastEndIndex")
         }
 
@@ -762,6 +760,7 @@ object TemperatureGraphRenderer {
 
         val specialCandidates = mutableListOf<TempLabelCandidate>()
         val filteredDistinct = filteredIndices.distinct()
+        val suppressedIndices = mutableSetOf<Int>()
         for (idx in filteredDistinct) {
             var role = when (idx) {
                 dailyHighIndex -> "HIGH"
@@ -779,6 +778,7 @@ object TemperatureGraphRenderer {
 
             if (idx == 0 && suppressLeftEdgeLabel) {
                 Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel")
+                suppressedIndices.add(idx)
                 continue
             }
 
@@ -791,42 +791,56 @@ object TemperatureGraphRenderer {
                     role = if (idx == 0) "START" else "END"
                 } else {
                     Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED")
+                    suppressedIndices.add(idx)
                     continue
                 }
             }
 
-            // Suppress ACTUAL extrema when near their global counterpart — the global HIGH/LOW already covers it
-            val redundantPairWindow = 8
-            if (role == "ACTUAL_HIGH" && dailyHighIndex >= 0 && abs(idx - dailyHighIndex) <= redundantPairWindow) {
-                Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_HIGH dist=${abs(idx - dailyHighIndex)}")
-                continue
+            // Suppress ACTUAL extrema when near their global counterpart AND showing a similar value.
+            // Skip suppression if the global HIGH/LOW was itself suppressed, or if the actual
+            // and forecast values differ meaningfully (the label adds information).
+            val redundantPairWindow = min(8, hours.lastIndex / 5)
+            val redundantValueThreshold = 2f
+            if (role == "ACTUAL_HIGH" && dailyHighIndex >= 0 && dailyHighIndex !in suppressedIndices && abs(idx - dailyHighIndex) <= redundantPairWindow) {
+                val actualVal = actualLabelTemps[idx]
+                val forecastVal = labelTemps[dailyHighIndex]
+                if (abs(actualVal - forecastVal) < redundantValueThreshold) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_HIGH dist=${abs(idx - dailyHighIndex)} valueDiff=${abs(actualVal - forecastVal)}")
+                    suppressedIndices.add(idx)
+                    continue
+                }
             }
-            if (role == "ACTUAL_LOW" && dailyLowIndex >= 0 && abs(idx - dailyLowIndex) <= redundantPairWindow) {
-                Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_LOW dist=${abs(idx - dailyLowIndex)}")
-                continue
+            if (role == "ACTUAL_LOW" && dailyLowIndex >= 0 && dailyLowIndex !in suppressedIndices && abs(idx - dailyLowIndex) <= redundantPairWindow) {
+                val actualVal = actualLabelTemps[idx]
+                val forecastVal = labelTemps[dailyLowIndex]
+                if (abs(actualVal - forecastVal) < redundantValueThreshold) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_LOW dist=${abs(idx - dailyLowIndex)} valueDiff=${abs(actualVal - forecastVal)}")
+                    suppressedIndices.add(idx)
+                    continue
+                }
             }
 
-            // Suppress extrema roles near graph edges — START/END labels already cover those values
+            // Suppress extrema roles near graph edges — START/END labels already cover those values.
+            // But don't suppress if this extrema IS the endpoint (since END/START are separate roles now).
+            // Scale window proportionally so small graphs (tests, narrow widgets) aren't over-suppressed.
             if (role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "ACTUAL_HIGH", "ACTUAL_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW")) {
+                val edgeWindow = min(8, hours.lastIndex / 6)
                 val edgeDist = min(idx, hours.lastIndex - idx)
-                if (edgeDist <= 8) {
+                val isEndpoint = idx == 0 || idx == hours.lastIndex
+                if (edgeDist <= edgeWindow && !isEndpoint) {
                     Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ENDPOINT edgeDist=$edgeDist")
+                    suppressedIndices.add(idx)
                     continue
                 }
             }
 
-            // Suppress endpoints if adjacent to another candidate
-            if (role == "START" || role == "END") {
-                val isAdjacent = filteredDistinct.any { it != idx && abs(it - idx) <= 1 }
-                if (isAdjacent) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=NEARBY_ENDPOINT_CLUTTER")
-                    continue
-                }
-            }
+            // END/START labels are essential boundary markers and should never be suppressed due to adjacency.
+            // They pass through to the essential label placement logic below.
 
-            val forceForecast = (role == "FORECAST_HIGH" || role == "FORECAST_LOW" || role == "PAST_FORECAST_LOW" || role == "PAST_FORECAST_HIGH")
-            val temps = if (forceForecast) forecastLabelTemps else labelTemps
-            
+            val isActualRole = role == "ACTUAL_HIGH" || role == "ACTUAL_LOW"
+            val forceForecast = role in listOf("FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW")
+            val temps = if (isActualRole) actualLabelTemps else labelTemps
+
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
 
@@ -851,6 +865,8 @@ object TemperatureGraphRenderer {
                 if (isPeak) -it.rawTemperature else it.rawTemperature
             }
         )
+
+        Log.d(TAG, "LABEL_CANDIDATES total=${specialCandidates.size} candidates=${specialCandidates.map { "idx=${it.index} role=${it.role} temp=${String.format("%.2f", it.labelTemps[it.index])}° (${formatTemp(it.labelTemps[it.index])}°) series=${if (it.forceForecastSeries) "forecast" else "actual"}" }}")
 
         for (candidate in specialCandidates) {
             val idx = candidate.index
@@ -957,12 +973,13 @@ object TemperatureGraphRenderer {
                         drawnLabelBounds.add(bounds)
                         val reasonBase = if (!placeAbove) "below" else "above"
                         val reason = if (step > 0) "$reasonBase+$step" else reasonBase
+                        val seriesLabel = if (isFuture) "forecast" else "actual"
                         Log.d(
                             TAG,
-                            "LABEL_PLACED role=${candidate.role} idx=$idx text=$label series=${if (isFuture) "forecast" else "actual"} " +
+                            "LABEL_PLACED role=${candidate.role} idx=$idx text=$label series=$seriesLabel " +
                                 "placement=$reason forced=false bounds=$bounds",
                         )
-                        ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, baselineY, placeAbove, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", reason, step))
+                        ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step))
                         placed = true
                         break@outer
                     }
@@ -976,16 +993,18 @@ object TemperatureGraphRenderer {
                 }
                 ctx.canvas.drawText(label, clampedX, forceBaselineY, labelPaint)
                 drawnLabelBounds.add(forceBounds)
+                val seriesLabel = if (isFuture) "forecast" else "actual"
                 Log.d(
                     TAG,
-                    "LABEL_PLACED role=${candidate.role} idx=$idx text=$label series=${if (isFuture) "forecast" else "actual"} " +
+                    "LABEL_PLACED role=${candidate.role} idx=$idx text=$label series=$seriesLabel " +
                         "placement=${if (forceDrawBelow) "below" else "above"}+$forceStep forced=true bounds=$forceBounds",
                 )
-                ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, forceBaselineY, !forceDrawBelow, if (isFuture) "forecast" else "actual", if (isFuture) "forecast" else "actual", "FORCED", forceStep))
+                ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, clampedX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep))
             } else if (!placed) {
+                val seriesLabel = if (isFuture) "forecast" else "actual"
                 Log.d(
                     TAG,
-                    "LABEL_NOT_PLACED role=${candidate.role} idx=$idx text=$label series=${if (isFuture) "forecast" else "actual"}",
+                    "LABEL_NOT_PLACED role=${candidate.role} idx=$idx text=$label series=$seriesLabel",
                 )
             }
         }

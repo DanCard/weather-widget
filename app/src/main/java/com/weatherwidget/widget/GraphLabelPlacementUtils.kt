@@ -8,7 +8,7 @@ object GraphLabelPlacementUtils {
 
     const val NEARBY_LABEL_WINDOW = 3
     const val PREFERRED_ABOVE_GAP_DP = 2f
-    const val PREFERRED_BELOW_GAP_DP = 2f
+    const val PREFERRED_BELOW_GAP_DP = 1f
     const val FALLBACK_ABOVE_GAP_DP = 8f
     const val FALLBACK_BELOW_GAP_DP = 14f
 

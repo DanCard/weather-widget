@@ -161,7 +161,7 @@ class TemperatureGhostLabelIntegrationTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        assertNotNull("Expected adjacent future-side LOCAL or FORECAST_LOW label near endpoint. placements=$placements", placements.find { it.role == "LOCAL" || it.role == "FORECAST_LOW" || it.role == "PAST_FORECAST_LOW" })
-        assertNull("END should be suppressed when the right edge is already labeled nearby. placements=$placements", placements.find { it.role == "END" })
+        val endPlacement = placements.find { it.role == "END" }
+        assertNotNull("END should always be shown as an essential boundary marker. placements=$placements", endPlacement)
     }
 }
