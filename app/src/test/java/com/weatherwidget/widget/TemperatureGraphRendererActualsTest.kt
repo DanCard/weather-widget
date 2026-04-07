@@ -30,12 +30,13 @@ import org.junit.experimental.categories.Category
  * Path drawing order in renderGraph:
  *   1. forecastFillPath     — always (fill under forecast curve)
  *   2. expectedPath (ghost) — only when nowIndicatorVisible && |appliedDelta| >= 0.1
- *   3. forecastPath (dashed)— always
+ *   3. forecastSegments     — always (one drawPath per hour segment, = hours - 1)
  *   4. originalPath (solid) — only when transitionX != null (i.e., actuals present)
  *
- * So baseline (no actuals, no ghost) = 2 paths.
- * Adding actuals = 3 paths (+solid actual).
- * Adding ghost (actuals + nowVisible + delta) = 4 paths.
+ * With 8 hours (default), forecast = 7 segments.
+ * Baseline (no actuals, no ghost) = 1 fill + 7 segments = 8 paths.
+ * Adding actuals = 8 + 1 = 9 paths.
+ * Adding ghost = 9 + 1 = 10 paths.
  */
 @Category(LongDuration::class)
 class TemperatureGraphRendererActualsTest {
@@ -46,7 +47,7 @@ class TemperatureGraphRendererActualsTest {
     }
 
     // -------------------------------------------------------------------
-    // Test 1: No actuals → 2 drawPath calls (fill + dashed forecast only)
+    // Test 1: No actuals → 8 drawPath calls (fill + 7 forecast segments)
     // -------------------------------------------------------------------
     @Test
     fun `no actuals produces 2 drawPath calls — fill and dashed forecast only`() {
@@ -62,11 +63,11 @@ class TemperatureGraphRendererActualsTest {
             currentTime = start.plusHours(2),
         )
 
-        verify(exactly = 2) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
-    // Test 2: With actuals → 3 drawPath calls (+solid actual line)
+    // Test 2: With actuals → 9 drawPath calls (fill + 7 segments + solid actual)
     // -------------------------------------------------------------------
     @Test
     fun `with actuals produces 3 drawPath calls — fill, dashed forecast, solid actual`() {
@@ -83,11 +84,11 @@ class TemperatureGraphRendererActualsTest {
             currentTime = start.plusHours(5),
         )
 
-        verify(exactly = 3) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 9) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
-    // Test 3: With actuals + nowVisible + delta → 4 drawPath calls (+ghost)
+    // Test 3: With actuals + nowVisible + delta → 10 drawPath calls (+ghost)
     // -------------------------------------------------------------------
     @Test
     fun `with actuals and ghost line produces 4 drawPath calls`() {
@@ -108,11 +109,11 @@ class TemperatureGraphRendererActualsTest {
             observedAt = observedAtMs,
         )
 
-        verify(exactly = 4) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 10) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
-    // Test 4: No actuals + delta active but NOW hidden → 2 paths, no ghost
+    // Test 4: No actuals + delta active but NOW hidden → 8 paths, no ghost
     //         (Mirrors existing TemperatureGraphRendererFetchDotTest case)
     // -------------------------------------------------------------------
     @Test
@@ -130,7 +131,7 @@ class TemperatureGraphRendererActualsTest {
             appliedDelta = 2.0f,
         )
 
-        verify(exactly = 2) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------
@@ -152,7 +153,7 @@ class TemperatureGraphRendererActualsTest {
             currentTime = start.plusHours(4),
         )
 
-        verify(exactly = 3) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        verify(exactly = 9) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     // -------------------------------------------------------------------

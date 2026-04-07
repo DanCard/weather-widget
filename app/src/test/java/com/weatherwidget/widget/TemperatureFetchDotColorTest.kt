@@ -63,12 +63,12 @@ class TemperatureFetchDotColorTest {
             onFetchDotResolved = { debugResult = it }
         )
 
-        val expectedValueColor = Color.parseColor("#BBF4C542")
-        val expectedStalenessColor = Color.parseColor("#88F4C542")
+        val expectedValueColor = Color.parseColor("#BBFF3366")
+        val expectedStalenessColor = Color.parseColor("#88FF3366")
 
         org.junit.Assert.assertNotNull("Fetch dot should have been resolved", debugResult)
-        assertEquals("Value label color should match actual line yellow (with alpha)", expectedValueColor, debugResult?.valueColor)
-        assertEquals("Staleness label color should match actual line yellow (with alpha)", expectedStalenessColor, debugResult?.stalenessColor)
+        assertEquals("Value label color should match actual line pink (with alpha)", expectedValueColor, debugResult?.valueColor)
+        assertEquals("Staleness label color should match actual line pink (with alpha)", expectedStalenessColor, debugResult?.stalenessColor)
     }
 
     private fun mockContext(): Context {

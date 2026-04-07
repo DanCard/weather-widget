@@ -76,7 +76,7 @@ class DailyGapFallbackGraphIntegrationTest {
         val providerBar = drawnBars.single { it.date == tomorrow && it.barType == "FUTURE" }
         val fallbackBar = drawnBars.single { it.date == dayAfterTomorrow && it.barType == "FUTURE" }
 
-        assertEquals(Color.parseColor("#5AC8FA"), providerBar.color)
+        assertEquals(Color.parseColor("#F4C542"), providerBar.color) // Weather-adaptive: Clear → amber/gold
         assertEquals(Color.parseColor("#34C759"), fallbackBar.color)
     }
 

@@ -45,6 +45,26 @@ internal object GraphRenderUtils {
     }
 
     /**
+     * Builds individual Path objects for each cubic segment between adjacent points.
+     * Used for per-segment coloring (e.g., weather-adaptive forecast line colors).
+     * Uses the same Catmull-Rom tangent logic as [buildSmoothCurveAndFillPaths].
+     */
+    fun buildPerSegmentPaths(points: List<Pair<Float, Float>>): List<Path> {
+        if (points.size < 2) return emptyList()
+        val tangents = computeTangents(points)
+        return (0 until points.size - 1).map { i ->
+            Path().apply {
+                moveTo(points[i].first, points[i].second)
+                val cp1x = points[i].first + tangents[i].first / 3f
+                val cp1y = points[i].second + tangents[i].second / 3f
+                val cp2x = points[i + 1].first - tangents[i + 1].first / 3f
+                val cp2y = points[i + 1].second - tangents[i + 1].second / 3f
+                cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
+            }
+        }
+    }
+
+    /**
      * Computes monotone-aware tangents for a set of points.
      * These tangents ensure the cubic spline doesn't overshoot at peaks/valleys.
      */

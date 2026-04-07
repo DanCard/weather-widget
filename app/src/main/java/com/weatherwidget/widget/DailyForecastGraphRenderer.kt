@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
+import com.weatherwidget.util.WeatherConditionColors
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
@@ -351,7 +352,9 @@ object DailyForecastGraphRenderer {
             val paint = when {
                 day.isPast -> paints.historyBarPaint
                 day.isSourceGapFallback -> paints.gapFallbackBarPaint
-                else -> paints.barPaint
+                else -> paints.barPaint.also {
+                    it.color = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
+                }
             }
             
             val minBarHeight = dpToPx(context, MIN_BAR_HEIGHT_DP)
@@ -371,7 +374,12 @@ object DailyForecastGraphRenderer {
             val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
             
             val forecastX = centerX + layout.forecastBarOffset
-            val overlayPaint = if (day.isClimateNormal) paints.climateOverlayBarPaint else paints.forecastBarPaint
+            val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
+            val overlayPaint = if (day.isClimateNormal) {
+                paints.climateOverlayBarPaint.also { it.color = condColor; it.alpha = 80 }
+            } else {
+                paints.forecastBarPaint.also { it.color = condColor }
+            }
             canvas.drawLine(forecastX, fHighY, forecastX, effectiveFLowY, overlayPaint)
             onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
         }
@@ -429,6 +437,7 @@ object DailyForecastGraphRenderer {
         val fLowY = layout.graphTop + layout.graphHeight * (1 - (fLow - layout.minTemp) / layout.tempRange)
         val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
         
+        paints.todayForecastBluePaint.color = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
         canvas.drawLine(centerX + layout.tripleBarOffset, fHighY, centerX + layout.tripleBarOffset, effectiveFLowY, paints.todayForecastBluePaint)
 
         // Draw Observed Bar and Bulb

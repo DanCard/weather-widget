@@ -18,6 +18,7 @@ import kotlin.math.min
 import kotlin.math.round
 import kotlin.math.max
 import kotlin.math.roundToInt
+import com.weatherwidget.util.WeatherConditionColors
 
 object TemperatureGraphRenderer {
     private const val TAG = "TempGraphRenderer"
@@ -60,9 +61,8 @@ object TemperatureGraphRenderer {
     private val COLOR_COLD = Color.parseColor("#5AC8FA") // Blue
     private val COLOR_MILD = Color.parseColor("#E8A24E") // Golden amber
     private val COLOR_HOT = Color.parseColor("#FF6B35") // Warm orange
-    private val COLOR_ACTUAL_LINE = Color.parseColor("#F4C542")
-    private val COLOR_FORECAST_LINE = Color.parseColor("#8FB7FF")
-    private val COLOR_ACTUAL_LABEL = Color.parseColor("#FFF1A8")
+    private val COLOR_ACTUAL_LINE = WeatherConditionColors.OBSERVED  // Hot pink #FF3366
+    private val COLOR_ACTUAL_LABEL = Color.parseColor("#FFB3C6")   // Light pink
     private val COLOR_FORECAST_LABEL = Color.parseColor("#C5DCFF")
 
     private fun tempToColor(temp: Float): Int {
@@ -146,7 +146,7 @@ object TemperatureGraphRenderer {
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
-            color = COLOR_FORECAST_LINE
+            color = WeatherConditionColors.FORECAST_SUNNY // Default; overridden per-segment
             pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 8f), dpToPx(context, 4f)), 0f)
         }
 
@@ -225,14 +225,14 @@ object TemperatureGraphRenderer {
         }
 
         val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#BBF4C542")
+            color = withAlpha(COLOR_ACTUAL_LINE, 187) // BB alpha
             textSize = dpToPx(context, 19.5f * labelScale)
             textAlign = Paint.Align.LEFT
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
 
         val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#88F4C542")
+            color = withAlpha(COLOR_ACTUAL_LINE, 136) // 88 alpha
             textSize = dpToPx(context, 12f * labelScale)
             textAlign = Paint.Align.CENTER
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
@@ -473,6 +473,7 @@ object TemperatureGraphRenderer {
         val (expectedPath, expectedFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(expectedPoints, graphBottom)
         val tBezier2 = SystemClock.elapsedRealtime()
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
+        val forecastSegmentPaths = GraphRenderUtils.buildPerSegmentPaths(forecastPoints)
         val tBezier3 = SystemClock.elapsedRealtime()
         Log.d(TAG, "BEZIER_BREAKDOWN pts=${originalPoints.size}" +
             " actual=${tBezier1-tBezier0}ms expected=${tBezier2-tBezier1}ms forecast=${tBezier3-tBezier2}ms")
@@ -517,7 +518,7 @@ object TemperatureGraphRenderer {
 
         return RenderContextUpdate(
             smoothedForecastTemps, smoothedExpectedTemps, originalPoints, forecastPoints, expectedPoints,
-            originalPath, actualPath, anchoredActualPoints, expectedPath, expectedFillPath, forecastPath, forecastFillPath,
+            originalPath, actualPath, anchoredActualPoints, expectedPath, expectedFillPath, forecastPath, forecastFillPath, forecastSegmentPaths,
             nowX, nowIndicatorVisible, fetchTime, fetchDotX,
             anchorDelta, transitionX, effectiveActualEndIndex
         )
@@ -593,7 +594,7 @@ object TemperatureGraphRenderer {
         }
     }
 
-    private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path) {
+    private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path, hours: List<HourData>) {
         val paints = ctx.paints
         paints.expectedFillPaint.shader = buildTempGradient(
             ctx.graphTop, ctx.graphBottom, ctx.minTemp, ctx.maxTemp, ctx.tempRange, alphaTop = 68, alphaBottom = 0
@@ -612,7 +613,15 @@ object TemperatureGraphRenderer {
             ctx.canvas.restore()
         }
 
-        ctx.canvas.drawPath(ctx.forecastPath, paints.forecastDashedPaint)
+        // Draw forecast line with per-hour weather-adaptive colors
+        val segmentPaint = Paint(paints.forecastDashedPaint)
+        for (i in ctx.forecastSegmentPaths.indices) {
+            val hour = hours[i.coerceAtMost(hours.lastIndex)]
+            segmentPaint.color = WeatherConditionColors.forecastColor(
+                hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight
+            )
+            ctx.canvas.drawPath(ctx.forecastSegmentPaths[i], segmentPaint)
+        }
 
         if (ctx.transitionX != null) {
             ctx.canvas.save()
@@ -813,12 +822,14 @@ object TemperatureGraphRenderer {
             }
 
             // Suppress if this point is already being labeled by the Fetch Dot,
-            // EXCEPT for endpoints (START/END) which should always be present.
-            // If a HIGH/LOW lands on the fetch dot endpoint, we switch its role to START/END
-            // to ensure it is shown (satisfying tests that expect END at the fetch dot).
+            // EXCEPT for endpoints (START/END) and global extrema (HIGH/LOW) which carry
+            // distinct information from the fetch dot's observed value.
             if (idx == fetchIdx && ctx.observedAt != null) {
                 if (idx == 0 || idx == hours.lastIndex) {
                     role = if (idx == 0) "START" else "END"
+                } else if (role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW")) {
+                    // Global extrema labels show forecast peak/valley — different info from fetch dot's observed value.
+                    Log.d(TAG, "LABEL_CANDIDATE_KEPT idx=$idx role=$role reason=EXTREMA_OVERRIDES_FETCH_DOT")
                 } else {
                     Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED")
                     suppressedIndices.add(idx)
@@ -853,8 +864,9 @@ object TemperatureGraphRenderer {
             // Suppress extrema roles near graph edges — START/END labels already cover those values.
             // But don't suppress if this extrema IS the endpoint (since END/START are separate roles now).
             // Scale window proportionally so small graphs (tests, narrow widgets) aren't over-suppressed.
+            // For longer graphs (100+ hours), use a tighter ratio to avoid over-suppressing distant labels.
             if (role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "ACTUAL_HIGH", "ACTUAL_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW")) {
-                val edgeWindow = min(8, hours.lastIndex / 6)
+                val edgeWindow = if (hours.lastIndex > 50) min(5, hours.lastIndex / 15) else min(8, hours.lastIndex / 6)
                 val edgeDist = min(idx, hours.lastIndex - idx)
                 val isEndpoint = idx == 0 || idx == hours.lastIndex
                 if (edgeDist <= edgeWindow && !isEndpoint) {
@@ -910,7 +922,12 @@ object TemperatureGraphRenderer {
             val sy = ctx.graphTop + ctx.graphHeight * (1 - (temps[idx] - ctx.minTemp) / ctx.tempRange)
 
             val label = formatTemp(temps[idx]) + "°"
-            val labelPaint = if (isFuture) ctx.paints.forecastTempLabelTextPaint else ctx.paints.actualTempLabelTextPaint
+            val labelPaint = if (isFuture) {
+                val hour = hours[idx.coerceAtMost(hours.lastIndex)]
+                ctx.paints.forecastTempLabelTextPaint.also {
+                    it.color = WeatherConditionColors.forecastColor(hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight)
+                }
+            } else ctx.paints.actualTempLabelTextPaint
             val textWidth = labelPaint.measureText(label)
             val clampedX = sx.coerceIn(textWidth / 2f, ctx.widthPx - textWidth / 2f)
 
@@ -921,7 +938,9 @@ object TemperatureGraphRenderer {
 
             val directions = if (isValley) listOf(false, true) else listOf(true, false) // placeAbove order: true=above, false=below
             val labelHeight = labelDescent - labelAscent
-            val leaderLinePaint = if (isFuture) ctx.paints.forecastLeaderLinePaint else ctx.paints.actualLeaderLinePaint
+            val leaderLinePaint = if (isFuture) {
+                ctx.paints.forecastLeaderLinePaint.also { it.color = withAlpha(labelPaint.color, 80) }
+            } else ctx.paints.actualLeaderLinePaint
             val minorOverlapThreshold = if (isMinorOverlapEligible(candidate.role)) labelHeight * MINOR_OVERLAP_HEIGHT_RATIO else 0f
             var placed = false
             // Track last on-screen position as fallback for forced essential labels
@@ -1241,6 +1260,7 @@ object TemperatureGraphRenderer {
         val expectedPath: Path,
         val forecastPath: Path,
         val forecastFillPath: Path,
+        val forecastSegmentPaths: List<Path>,
         val effectiveActualEndIndex: Int,
         val appliedDelta: Float?,
         val observedAt: Long?,
@@ -1267,6 +1287,7 @@ object TemperatureGraphRenderer {
         val expectedFillPath: Path,
         val forecastPath: Path,
         val forecastFillPath: Path,
+        val forecastSegmentPaths: List<Path>,
         val nowX: Float?,
         val nowIndicatorVisible: Boolean,
         val fetchTime: LocalDateTime?,
@@ -1328,7 +1349,7 @@ object TemperatureGraphRenderer {
             update.fetchTime, update.fetchDotX, lastObservedTemp, update.anchorDelta,
             update.smoothedForecastTemps, update.smoothedExpectedTemps, update.originalPoints,
             update.forecastPoints, update.expectedPoints, update.originalPath, update.actualPath, update.actualVisiblePoints, update.expectedPath,
-            update.forecastPath, update.forecastFillPath, update.effectiveActualEndIndex,
+            update.forecastPath, update.forecastFillPath, update.forecastSegmentPaths, update.effectiveActualEndIndex,
             appliedDelta, observedAt, paints, currentTime, onGhostLineDebug, onActualLineResolved, onLabelPlaced,
             onDayLabelPlaced, onFetchDotResolved
         )
@@ -1343,7 +1364,7 @@ object TemperatureGraphRenderer {
             ),
         )
 
-        drawFillAndCurves(ctx, update.expectedFillPath)
+        drawFillAndCurves(ctx, update.expectedFillPath, hours)
         val t4 = SystemClock.elapsedRealtime()
 
         val drawnIconBounds = mutableListOf<RectF>()

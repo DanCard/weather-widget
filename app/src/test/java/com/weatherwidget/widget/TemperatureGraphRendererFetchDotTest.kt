@@ -104,8 +104,8 @@ class TemperatureGraphRendererFetchDotTest {
             appliedDelta = 1.5f,
         )
 
-        // Hidden NOW indicator should force original-only fill + curve (2 paths).
-        verify(exactly = 2) { anyConstructed<Canvas>().drawPath(any(), any()) }
+        // Hidden NOW indicator: fill + 7 forecast segments = 8 paths (no ghost, no actual line).
+        verify(exactly = 8) { anyConstructed<Canvas>().drawPath(any(), any()) }
     }
 
     @Test
