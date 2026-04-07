@@ -14,8 +14,8 @@ import java.time.ZoneId
 class CloudCoverViewHandlerTest {
 
     @Test
-    fun `wide zoom uses one cloud cover smoothing iteration`() {
-        assertEquals(1, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.WIDE))
+    fun `wide zoom uses three cloud cover smoothing iterations`() {
+        assertEquals(3, CloudCoverViewHandler.smoothingIterationsFor(ZoomLevel.WIDE))
     }
 
     @Test
