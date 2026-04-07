@@ -87,8 +87,8 @@ class CloudCoverGraphRendererTest {
     }
 
     @Test
-    fun `left edge label is suppressed when nearby lower valley exists`() {
-        val labelSignal = listOf(25, 18, 10, 22, 35, 53, 19, 43)
+    fun `left edge label is suppressed when nearby candidate has a similar value`() {
+        val labelSignal = listOf(25, 18, 23, 22, 35, 53, 19, 43)
         val candidates = listOf(0, 2, 5, 6, 7)
 
         val result = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
