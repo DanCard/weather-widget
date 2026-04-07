@@ -522,7 +522,6 @@ object CloudCoverGraphRenderer {
                     if (!fitsAboveCurve || overlapsLabels || overlapsIcons) continue
 
                     cloudDrawable.alpha = 96
-                    cloudDrawable.setTint(Color.parseColor("#BBBBBB"))
                     cloudDrawable.setBounds(
                         bounds.left.toInt(),
                         bounds.top.toInt(),

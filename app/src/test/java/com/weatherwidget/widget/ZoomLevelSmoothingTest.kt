@@ -6,8 +6,8 @@ import org.junit.Test
 class ZoomLevelSmoothingTest {
 
     @Test
-    fun `wide zoom uses zero smoothing iterations`() {
-        assertEquals(0, ZoomLevel.WIDE.smoothIterations)
+    fun `wide zoom uses one smoothing iteration`() {
+        assertEquals(1, ZoomLevel.WIDE.smoothIterations)
     }
 
     @Test

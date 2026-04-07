@@ -611,7 +611,7 @@ object PrecipitationGraphRenderer {
         }
 
         // Raindrop icon placed in the emptiest region of the graph
-        val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
+        val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)
         if (rainDrawable != null && points.size >= 3) {
             val iconSizePx = dpToPx(context, 20f).toInt()
             val windowSize = (points.size / 5).coerceIn(3, 6)
@@ -645,7 +645,6 @@ object PrecipitationGraphRenderer {
                 !drawnLabelBounds.any { RectF.intersects(it, aboveBounds) }
             ) {
                 rainDrawable.alpha = 96
-                rainDrawable.setTint(Color.parseColor("#BBBBBB"))
                 rainDrawable.setBounds(
                     aboveBounds.left.toInt(),
                     aboveBounds.top.toInt(),
@@ -684,7 +683,6 @@ object PrecipitationGraphRenderer {
                     !drawnLabelBounds.any { RectF.intersects(it, belowBounds) }
                 ) {
                     rainDrawable.alpha = 96
-                    rainDrawable.setTint(Color.parseColor("#BBBBBB"))
                     rainDrawable.setBounds(
                         belowBounds.left.toInt(),
                         belowBounds.top.toInt(),
