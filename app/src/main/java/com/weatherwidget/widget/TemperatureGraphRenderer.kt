@@ -838,7 +838,7 @@ object TemperatureGraphRenderer {
             // They pass through to the essential label placement logic below.
 
             val isActualRole = role == "ACTUAL_HIGH" || role == "ACTUAL_LOW"
-            val forceForecast = role in listOf("FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW")
+            val forceForecast = role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW", "LOCAL")
             val temps = if (isActualRole) actualLabelTemps else labelTemps
 
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
