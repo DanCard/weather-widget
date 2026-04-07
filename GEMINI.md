@@ -88,6 +88,9 @@ The project follows a **pure function extraction** philosophy to maximize testab
 - **Avoid Over-Mocking**: Prefer extracting logic into pure functions with no Android dependencies over using mocking frameworks. This keeps tests simple, fast, and decoupled from Android OS variations.
 - **Pure Functions**: Extract logic (e.g., dimension calculation, temperature interpolation) into static or standalone functions that can be trivially tested with basic JUnit 4.
 - **On-Device Verification**: Use physical devices/emulators to verify visual rendering (stretched graphs, label overlap) and OEM-specific behaviors (e.g., Pixel vs. Samsung launchers) that unit tests cannot capture.
+- **Checking Distinction**:
+    - **"Check emulator tests"**: Run the automated instrumented test suite (`./scripts/emulator-tests.sh`). A visual audit (screenshot) is only required if tests fail or if the user explicitly requests visual verification of the test run.
+    - **"Check/Look at the emulator"**: Perform a mandatory empirical capture (screenshot via `adb` and `logcat` audit) to analyze the visual or runtime state of the widget. Speculative analysis of visual states is prohibited when an active device is available.
 
 ---
 
