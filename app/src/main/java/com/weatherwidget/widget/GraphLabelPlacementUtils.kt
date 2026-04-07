@@ -94,9 +94,13 @@ object GraphLabelPlacementUtils {
                         val valueDifference = abs(candidateValue - otherValue)
                         valueDifference < threshold && (
                             otherPriority < candidatePriority ||
-                                (otherPriority == candidatePriority &&
+                                (otherPriority == candidatePriority && (
                                     candidateStrength(otherIdx, items, globalMaxIdx, globalMinIdx, valueFunction) >
-                                    candidateStrength(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction))
+                                    candidateStrength(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction) ||
+                                    (candidateStrength(otherIdx, items, globalMaxIdx, globalMinIdx, valueFunction) ==
+                                        candidateStrength(candidateIdx, items, globalMaxIdx, globalMinIdx, valueFunction) &&
+                                        otherIdx < candidateIdx)
+                                ))
                             )
                     }
 

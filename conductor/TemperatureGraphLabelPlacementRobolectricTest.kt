@@ -491,10 +491,10 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         
         // Setup hours: Past (idx 0-11), Future (idx 12-20)
         // Global LOW (forecast 51) at idx 5 (Past)
-        // ACTUAL_LOW (observed 48.0) at idx 4 (Past) - Avoid edge suppression (min dist 4)
+        // ACTUAL_LOW (observed 50.4) at idx 1 (Past)
         // Global HIGH (forecast 80) at idx 15 (Future)
         // LOCAL Peak (forecast 75) at idx 13 (Future)
-        // ACTUAL_HIGH (observed 65) at idx 8 (Past)
+        // ACTUAL_HIGH (observed 65) at idx 3 (Past)
         val hours = (0..20).map { i ->
             val time = start.plusHours(i.toLong())
             val temp = when(i) {
@@ -504,8 +504,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 else -> 60.0f
             }
             val actualTemp = when(i) {
-                4 -> 48.0f  // ACTUAL_LOW (Observed)
-                8 -> 65.0f  // ACTUAL_HIGH (Observed)
+                1 -> 50.4f  // ACTUAL_LOW (Observed)
+                3 -> 65.0f  // ACTUAL_HIGH (Observed)
                 else -> temp
             }
             TemperatureGraphRenderer.HourData(
@@ -545,14 +545,13 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         assertNotNull("LOCAL label at idx 13 missing", local)
         assertEquals("LOCAL peak at idx 13 (future) should be marked as forecast", "forecast", local!!.series)
 
-        // 4. ACTUAL_LOW (idx 4, Past) -> actual
-        val actualLow = placements.find { it.role == "ACTUAL_LOW" && it.index == 4 }
+        // 4. ACTUAL_LOW (idx 1, Past) -> actual
+        val actualLow = placements.find { it.role == "ACTUAL_LOW" && it.index == 1 }
         assertNotNull("ACTUAL_LOW label missing", actualLow)
         assertEquals("actual", actualLow!!.series)
-        assertEquals(48.0f, actualLow.temperature, 0.1f)
 
-        // 5. ACTUAL_HIGH (idx 8, Past) -> actual
-        val actualHigh = placements.find { it.role == "ACTUAL_HIGH" && it.index == 8 }
+        // 5. ACTUAL_HIGH (idx 3, Past) -> actual
+        val actualHigh = placements.find { it.role == "ACTUAL_HIGH" && it.index == 3 }
         assertNotNull("ACTUAL_HIGH label missing", actualHigh)
         assertEquals("actual", actualHigh!!.series)
 

@@ -711,42 +711,69 @@ object TemperatureGraphRenderer {
 
         val fetchIdx = ctx.fetchTime?.let { time -> hours.indexOfLast { !it.dateTime.isAfter(time) } } ?: -1
 
-        val candidates = mutableListOf<Int>()
-        if (dailyHighIndex >= 0) candidates.add(dailyHighIndex)
-        if (dailyLowIndex >= 0) candidates.add(dailyLowIndex)
-        if (forecastHighIndex >= 0) candidates.add(forecastHighIndex)
-        if (forecastLowIndex >= 0) candidates.add(forecastLowIndex)
-        if (actualHighIndex >= 0) candidates.add(actualHighIndex)
-        if (actualLowIndex >= 0) candidates.add(actualLowIndex)
-        if (pastForecastHighIndex >= 0) candidates.add(pastForecastHighIndex)
-        if (pastForecastLowIndex >= 0) candidates.add(pastForecastLowIndex)
-        candidates.addAll(significantLocalExtrema)
-        candidates.add(0)
-        if (hours.size > 1) candidates.add(hours.size - 1)
+        // Collect all potential anchor candidates with their roles.
+        // Priority is implicit in the order they are evaluated for deduplication.
+        val potentialAnchors = mutableListOf<Pair<Int, String>>()
+        if (dailyHighIndex >= 0) potentialAnchors.add(dailyHighIndex to "HIGH")
+        if (dailyLowIndex >= 0) potentialAnchors.add(dailyLowIndex to "LOW")
+        if (actualHighIndex >= 0) potentialAnchors.add(actualHighIndex to "ACTUAL_HIGH")
+        if (actualLowIndex >= 0) potentialAnchors.add(actualLowIndex to "ACTUAL_LOW")
+        if (forecastHighIndex >= 0) potentialAnchors.add(forecastHighIndex to "FORECAST_HIGH")
+        if (forecastLowIndex >= 0) potentialAnchors.add(forecastLowIndex to "FORECAST_LOW")
+        if (pastForecastHighIndex >= 0) potentialAnchors.add(pastForecastHighIndex to "PAST_FORECAST_HIGH")
+        if (pastForecastLowIndex >= 0) potentialAnchors.add(pastForecastLowIndex to "PAST_FORECAST_LOW")
+        potentialAnchors.add(0 to "START")
+        if (hours.size > 1) potentialAnchors.add(hours.size - 1 to "END")
+        
+        // Also consider significant local extrema as potential candidates.
+        // They have lower priority than explicitly named roles.
+        significantLocalExtrema.forEach { potentialAnchors.add(it to "LOCAL") }
 
-        val explicitAnchors = setOfNotNull(
-            dailyHighIndex.takeIf { it >= 0 },
-            dailyLowIndex.takeIf { it >= 0 },
-            forecastHighIndex.takeIf { it >= 0 },
-            forecastLowIndex.takeIf { it >= 0 },
-            actualHighIndex.takeIf { it >= 0 },
-            actualLowIndex.takeIf { it >= 0 },
-            pastForecastHighIndex.takeIf { it >= 0 },
-            pastForecastLowIndex.takeIf { it >= 0 },
-            0,
-            if (hours.size > 1) hours.size - 1 else null
-        )
+        // Group anchors by their visual "slot" (same rounded value and same plateau).
+        // If multiple anchors land in the same slot, we only keep the one with the highest priority role.
+        val slotToAnchor = mutableMapOf<Triple<String, Int, Int>, Int>()
+        val rolePriority = listOf("HIGH", "LOW", "START", "END", "ACTUAL_HIGH", "ACTUAL_LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW", "LOCAL")
+        
+        for ((idx, role) in potentialAnchors) {
+            val isActualRole = role in listOf("ACTUAL_HIGH", "ACTUAL_LOW")
+            val temps = if (isActualRole) actualLabelTemps else labelTemps
+            val v = temps[idx]
+            val formattedValue = formatTemp(v)
+            
+            // Plateau boundaries
+            var first = idx; var last = idx
+            while (first > 0 && temps[first - 1] == v) first--
+            while (last < temps.lastIndex && temps[last + 1] == v) last++
+            
+            val slotKey = Triple(formattedValue, first, last)
+            val existingIdx = slotToAnchor[slotKey]
+            if (existingIdx == null) {
+                slotToAnchor[slotKey] = idx
+            } else {
+                val existingRole = potentialAnchors.find { it.first == existingIdx }?.second ?: "LOCAL"
+                val existingPriority = rolePriority.indexOf(existingRole).let { if (it == -1) Int.MAX_VALUE else it }
+                val currentPriority = rolePriority.indexOf(role).let { if (it == -1) Int.MAX_VALUE else it }
+                if (currentPriority < existingPriority) {
+                    slotToAnchor[slotKey] = idx
+                }
+            }
+        }
+        
+        val deduplicatedIndices = slotToAnchor.values.toSet()
+        val explicitAnchors = deduplicatedIndices.filter { idx ->
+            potentialAnchors.any { it.first == idx && it.second != "LOCAL" }
+        }.toSet()
 
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelTemps,
-            candidates = candidates,
+            candidates = deduplicatedIndices.toList(),
             globalMaxIdx = dailyHighIndex,
             globalMinIdx = dailyLowIndex,
             maxCandidates = MAX_TEMP_LABEL_CANDIDATES,
             diffThresholds = DENSE_TEMP_DIFF_THRESHOLDS,
             valueFunction = { it.roundToInt() },
             logTag = TAG,
-            protectedIndices = explicitAnchors + significantLocalExtrema.filter { it > ctx.effectiveActualEndIndex },
+            protectedIndices = explicitAnchors + deduplicatedIndices.filter { it in significantLocalExtrema && it > ctx.effectiveActualEndIndex },
         )
 
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
@@ -776,7 +803,9 @@ object TemperatureGraphRenderer {
                 else -> "LOCAL"
             }
 
-            if (idx == 0 && suppressLeftEdgeLabel) {
+            // Boundary labels (START/END) are essential markers and should not be suppressed by proximity logic.
+            val isBoundary = role == "START" || role == "END"
+            if (idx == 0 && suppressLeftEdgeLabel && !isBoundary) {
                 Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel")
                 suppressedIndices.add(idx)
                 continue
@@ -873,6 +902,7 @@ object TemperatureGraphRenderer {
             val temps = candidate.labelTemps
             val isFuture = candidate.forceForecastSeries || ctx.originalPoints[idx].first > (ctx.transitionX ?: -1f)
             val points = if (isFuture) ctx.forecastPoints else ctx.originalPoints
+            println("DEBUG_SERIES: idx=$idx role=${candidate.role} forceForecast=${candidate.forceForecastSeries} isFuture=$isFuture transitionX=${ctx.transitionX} pointX=${ctx.originalPoints[idx].first}")
             val sx = if (candidate.role in listOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "LOCAL")) {
                 centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX).first
             } else points[idx].first
