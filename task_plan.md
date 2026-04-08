@@ -4,7 +4,7 @@
 Mechanically extract self-contained sections from TemperatureGraphRenderer.kt (~1602 LOC) into GraphRenderUtils.kt, GraphLabelPlacementUtils.kt, and targeted new files. Only move code + minimal delegation/imports/qualification (no optimizations, no logic changes). One extraction per phase, run relevant `*TemperatureGraphRenderer*` tests after each. Update planning files after every 2 actions. End with optimization recommendations.
 
 ## Current Phase
-Phase 2: Extract Label/Overlap Helpers (in_progress)
+Phase 5: Extract Core Path/Compute + Label Placement (in_progress)
 
 ## Phases
 ### Phase 1: Requirements & Discovery (COMPLETE)
@@ -13,23 +13,21 @@ Phase 2: Extract Label/Overlap Helpers (in_progress)
 - [x] Updated findings.md/progress.md; baseline tests pass
 - **Status:** complete
 
-### Phase 2: Extract Label/Overlap Helpers to GraphLabelPlacementUtils.kt (in_progress)
-- [x] Moved MINOR_OVERLAP_HEIGHT_RATIO, isMinorOverlapEligible, shouldAllowMinorOverlap, maxVerticalOverlap + updated calls in placeTemperatureLabels + qualified TemperatureRole
-- [ ] Run label-specific tests (`*LabelPlacement*` + `*SuppressionTest*`)
-- [ ] Update test references if needed (mechanical)
-- **Status:** in_progress
+### Phase 2: Extract Label/Overlap Helpers to GraphLabelPlacementUtils.kt (COMPLETE)
+- [x] Moved MINOR_OVERLAP_HEIGHT_RATIO, isMinorOverlapEligible, shouldAllowMinorOverlap, maxVerticalOverlap + updated calls/test references + qualified TemperatureRole
+- [x] Ran label-specific tests (`*LabelPlacement*` + `*SuppressionTest*`); passed
+- **Status:** complete
 
-### Phase 3: Extract Paint + Color Utilities to GraphRenderUtils.kt
-- [ ] Move COLOR_*, thresholds, tempToColor, blendColors, formatTemp, withAlpha, ensurePaints, PaintSet, buildTempGradient, dpToPx, tempToY
-- [ ] Delegate calls in renderGraph/draw* methods
-- [ ] Run full renderer tests
-- **Status:** pending
+### Phase 3: Extract Paint + Color Utilities to GraphRenderUtils.kt (COMPLETE)
+- [x] Moved color/paint utils (delegated calls)
+- [x] Ran full renderer tests; passed
+- **Status:** complete
 
-### Phase 4: Extract Scaling/Layout + RenderContext
-- [ ] Move computeScaling, computeLayout, Layout data class, RenderContext/Update + related to GraphRenderUtils or new GraphLayout.kt
-- [ ] Update renderGraph orchestration (minimal)
-- [ ] Run tests
-- **Status:** pending
+### Phase 4: Extract Scaling/Layout + RenderContext (COMPLETE)
+- [x] Created GraphLayout.kt; moved computeScaling, computeLayout, Layout, related consts/dpToPx (restored dpToPx in renderer to avoid 40+ call updates)
+- [x] Updated renderGraph calls mechanically
+- [x] Ran full `*TemperatureGraphRenderer*` tests + compile; passed
+- **Status:** complete
 
 ### Phase 5: Extract Core Path/Compute + Label Placement
 - [ ] Move computePoints, buildAnchoredActualPoints, interpolateYAtX, placeTemperatureLabels/collectLabelCandidates/isRedundantNear/computeExtremaIndices to appropriate utils (addresses #5)
