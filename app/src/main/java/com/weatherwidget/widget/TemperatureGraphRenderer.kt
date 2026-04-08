@@ -33,7 +33,8 @@ object TemperatureGraphRenderer {
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 2.5f
     private const val MIN_GHOST_LINE_DELTA = 0.1f
-    private const val MINOR_OVERLAP_HEIGHT_RATIO = 0.45f
+
+    private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
 
     data class HourData(
         val dateTime: LocalDateTime,
@@ -50,8 +51,6 @@ object TemperatureGraphRenderer {
         val actualTemperature: Float? = null,    // Observed actual temp (past hours only)
         val isObservedActual: Boolean = false,   // Backed by a real blended/observed point, not carry-forward filler
     )
-
-    private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
 
     // Temperature-to-color thresholds
     private const val COLD_THRESHOLD = 50f
@@ -554,31 +553,6 @@ object TemperatureGraphRenderer {
         visible += terminalPoint
         return visible
     }
-internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
-    role in setOf(
-        TemperatureRole.LOW, TemperatureRole.HIGH,
-        TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH,
-        TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH,
-        TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH,
-        TemperatureRole.START, TemperatureRole.END,
-        TemperatureRole.LOCAL
-    )
-
-    internal fun shouldAllowMinorOverlap(
-        role: TemperatureRole,
-        overlapHeight: Float,
-        labelHeight: Float
-    ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO
-
-    internal fun maxVerticalOverlap(
-        bounds: RectF,
-        existingBounds: List<RectF>,
-    ): Float {
-        val intersect = RectF()
-        return existingBounds.maxOfOrNull { existing ->
-            if (intersect.setIntersect(existing, bounds)) intersect.height() else 0f
-        } ?: 0f
-    }
 
     private fun interpolateYAtX(
         points: List<Pair<Float, Float>>,
@@ -1031,7 +1005,7 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
             val leaderLinePaint = if (isFuture) {
                 ctx.paints.forecastLeaderLinePaint.also { it.color = withAlpha(labelPaint.color, 80) }
             } else ctx.paints.actualLeaderLinePaint
-            val minorOverlapThreshold = if (isMinorOverlapEligible(candidate.role)) labelHeight * MINOR_OVERLAP_HEIGHT_RATIO else 0f
+            val minorOverlapThreshold = if (GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role)) labelHeight * GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO else 0f
             var placed = false
             // Track last on-screen position as fallback for forced essential labels
             var forceBaselineY = Float.NaN
@@ -1067,10 +1041,10 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
                     }
                     val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
                     val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                    val labelOverlap = if (overlapsLabel) maxVerticalOverlap(bounds, drawnLabelBounds) else 0f
-                    val iconOverlap = if (overlapsIcon) maxVerticalOverlap(bounds, drawnIconBounds) else 0f
-                    val allowMinorLabelOverlap = overlapsLabel && shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
-                    val allowMinorIconOverlap = overlapsIcon && shouldAllowMinorOverlap(candidate.role, iconOverlap, labelHeight)
+                    val labelOverlap = if (overlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelBounds) else 0f
+                    val iconOverlap = if (overlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnIconBounds) else 0f
+                    val allowMinorLabelOverlap = overlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
+                    val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, iconOverlap, labelHeight)
                     val hasCollision =
                         (overlapsLabel && !allowMinorLabelOverlap) ||
                             (overlapsIcon && !allowMinorIconOverlap)
@@ -1423,8 +1397,6 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         val points = if (forceForecast || original[idx].first > (transitionX ?: -1f)) forecast else original
         return (points[first].first + points[last].first) / 2f to (points[first].second + points[last].second) / 2f
     }
-
-    private data class TempLabelCandidate(val index: Int, val role: TemperatureRole, val labelTemps: List<Float>, val rawTemperature: Float, val forceForecastSeries: Boolean)
 
     private data class RenderContext(
         val context: Context,

@@ -257,4 +257,32 @@ object GraphLabelPlacementUtils {
             bottom = baselineY + textDescent,
         )
     }
+
+    const val MINOR_OVERLAP_HEIGHT_RATIO = 0.45f
+
+    fun isMinorOverlapEligible(role: TemperatureGraphRenderer.TemperatureRole): Boolean =
+        role in setOf(
+            TemperatureGraphRenderer.TemperatureRole.LOW, TemperatureGraphRenderer.TemperatureRole.HIGH,
+            TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW, TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH,
+            TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW, TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH,
+            TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_LOW, TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_HIGH,
+            TemperatureGraphRenderer.TemperatureRole.START, TemperatureGraphRenderer.TemperatureRole.END,
+            TemperatureGraphRenderer.TemperatureRole.LOCAL
+        )
+
+    fun shouldAllowMinorOverlap(
+        role: TemperatureGraphRenderer.TemperatureRole,
+        overlapHeight: Float,
+        labelHeight: Float
+    ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO
+
+    fun maxVerticalOverlap(
+        bounds: RectF,
+        existingBounds: List<RectF>,
+    ): Float {
+        val intersect = RectF()
+        return existingBounds.maxOfOrNull { existing ->
+            if (intersect.setIntersect(existing, bounds)) intersect.height() else 0f
+        } ?: 0f
+    }
 }
