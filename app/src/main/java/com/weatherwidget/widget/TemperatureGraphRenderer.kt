@@ -26,12 +26,6 @@ object TemperatureGraphRenderer {
     private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5) // Degrees
 
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2.5f
-    private const val GRAPH_TOP_PADDING_DP = 8f
-    private const val GRAPH_TO_FOOTER_GAP_DP = 1.8f
-    private const val TOP_TEMP_BUFFER_RATIO = 0.1f
-    private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
-    private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
-    private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 2.5f
     private const val MIN_GHOST_LINE_DELTA = 0.1f
 
     private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
@@ -108,7 +102,11 @@ object TemperatureGraphRenderer {
     }
 
     private fun formatAgeLabel(ageMinutes: Long, hoursSpanHours: Long): String? {
-        if (ageMinutes < 0 || hoursSpanHours > 12) return null
+        if (ageMinutes < 0) {
+            Log.w(TAG, "formatAgeLabel: negative ageMinutes=$ageMinutes, possible clock skew")
+            return null
+        }
+        if (hoursSpanHours > 12) return null
         return if (ageMinutes >= 60) "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}" else "${ageMinutes}m"
     }
 
@@ -117,6 +115,16 @@ object TemperatureGraphRenderer {
         alpha: Int,
     ): Int {
         return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
+    private fun fontAscent(paint: Paint): Float {
+        val fm = paint.fontMetrics
+        return if (fm != null && fm.ascent != 0f) fm.ascent else -paint.textSize
+    }
+
+    private fun fontDescent(paint: Paint): Float {
+        val fm = paint.fontMetrics
+        return if (fm != null && fm.descent != 0f) fm.descent else paint.textSize * 0.2f
     }
 
     private class PaintSet(
@@ -139,6 +147,7 @@ object TemperatureGraphRenderer {
         val stalenessTextPaint: Paint,
         val actualLeaderLinePaint: Paint,
         val forecastLeaderLinePaint: Paint,
+        val dotPaint: Paint,
     )
 
     // Not thread-safe; widget rendering is single-threaded (main looper or WorkManager worker).
@@ -268,6 +277,10 @@ object TemperatureGraphRenderer {
             style = Paint.Style.STROKE
         }
 
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+
         return PaintSet(
             density = density,
             labelScale = labelScale,
@@ -288,6 +301,7 @@ object TemperatureGraphRenderer {
             stalenessTextPaint = stalenessTextPaint,
             actualLeaderLinePaint = actualLeaderLinePaint,
             forecastLeaderLinePaint = forecastLeaderLinePaint,
+            dotPaint = dotPaint,
         ).also { cachedPaints = it }
     }
 
@@ -694,50 +708,140 @@ object TemperatureGraphRenderer {
         return false
     }
 
-    private fun collectLabelCandidates(
-        hours: List<HourData>,
+    private data class SuppressionResult(
+        val suppressed: Boolean,
+        val overriddenRole: TemperatureRole? = null,
+    )
+
+    private fun checkLeftEdgeSuppression(
+        idx: Int,
+        role: TemperatureRole,
+        suppressLeftEdgeLabel: Boolean,
+    ): SuppressionResult {
+        val isBoundary = role == TemperatureRole.START || role == TemperatureRole.END
+        if (idx == 0 && suppressLeftEdgeLabel && !isBoundary) {
+            Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel")
+            return SuppressionResult(true)
+        }
+        return SuppressionResult(false)
+    }
+
+    private fun checkFetchDotSuppression(
+        idx: Int,
+        role: TemperatureRole,
         extrema: ExtremaIndices,
+        observedAt: Long?,
+        hours: List<HourData>,
+    ): SuppressionResult {
+        if (idx != extrema.fetchIdx || observedAt == null) return SuppressionResult(false)
+        if (idx == 0 || idx == hours.lastIndex) {
+            return SuppressionResult(false, overriddenRole = if (idx == 0) TemperatureRole.START else TemperatureRole.END)
+        }
+        if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW)) {
+            Log.d(TAG, "LABEL_CANDIDATE_KEPT idx=$idx role=$role reason=EXTREMA_OVERRIDES_FETCH_DOT")
+            return SuppressionResult(false)
+        }
+        Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED")
+        return SuppressionResult(true)
+    }
+
+    private fun checkRedundantPairSuppression(
+        idx: Int,
+        role: TemperatureRole,
+        extrema: ExtremaIndices,
+        suppressedIndices: Set<Int>,
+        labelTemps: List<Float>,
+        actualLabelTemps: List<Float>,
+    ): Boolean {
+        val redundantPairWindow = min(8, labelTemps.lastIndex / 5)
+        val redundantValueThreshold = 2f
+        return when (role) {
+            TemperatureRole.ACTUAL_HIGH -> isRedundantNear(idx, role, extrema.dailyHighIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyHighIndex], redundantPairWindow, redundantValueThreshold, "HIGH")
+            TemperatureRole.ACTUAL_LOW -> isRedundantNear(idx, role, extrema.dailyLowIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyLowIndex], redundantPairWindow, redundantValueThreshold, "LOW")
+            TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_HIGH")
+            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_LOW")
+            else -> false
+        }
+    }
+
+    private fun checkTransitionBoundarySuppression(
+        idx: Int,
+        role: TemperatureRole,
         effectiveActualEndIndex: Int,
         transitionX: Float?,
-        observedAt: Long?,
-    ): List<TempLabelCandidate> {
-        val labelTemps = extrema.labelTemps
-        val actualLabelTemps = extrema.actualLabelTemps
+        hours: List<HourData>,
+    ): Boolean {
+        if (role !in listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)) return false
+        if (transitionX == null) return false
+        val boundaryIdx = effectiveActualEndIndex
+        val transitionWindow = min(3, hours.lastIndex / 20)
+        if (boundaryIdx >= 0 && abs(idx - boundaryIdx) <= transitionWindow) {
+            Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=TRANSITION_BOUNDARY_SUPPRESSED dist=${abs(idx - boundaryIdx)} boundaryIdx=$boundaryIdx")
+            return true
+        }
+        return false
+    }
 
-        val potentialAnchors = mutableListOf<Pair<Int, TemperatureRole>>()
-        if (extrema.dailyHighIndex >= 0) potentialAnchors.add(extrema.dailyHighIndex to TemperatureRole.HIGH)
-        if (extrema.dailyLowIndex >= 0) potentialAnchors.add(extrema.dailyLowIndex to TemperatureRole.LOW)
-        if (extrema.actualHighIndex >= 0) potentialAnchors.add(extrema.actualHighIndex to TemperatureRole.ACTUAL_HIGH)
-        if (extrema.actualLowIndex >= 0) potentialAnchors.add(extrema.actualLowIndex to TemperatureRole.ACTUAL_LOW)
-        if (extrema.forecastHighIndex >= 0) potentialAnchors.add(extrema.forecastHighIndex to TemperatureRole.FORECAST_HIGH)
-        if (extrema.forecastLowIndex >= 0) potentialAnchors.add(extrema.forecastLowIndex to TemperatureRole.FORECAST_LOW)
-        if (extrema.pastForecastHighIndex >= 0) potentialAnchors.add(extrema.pastForecastHighIndex to TemperatureRole.PAST_FORECAST_HIGH)
-        if (extrema.pastForecastLowIndex >= 0) potentialAnchors.add(extrema.pastForecastLowIndex to TemperatureRole.PAST_FORECAST_LOW)
-        potentialAnchors.add(0 to TemperatureRole.START)
-        if (hours.size > 1) potentialAnchors.add(hours.size - 1 to TemperatureRole.END)
+    private fun checkEndpointSuppression(
+        idx: Int,
+        role: TemperatureRole,
+        hours: List<HourData>,
+    ): Boolean {
+        val extremaRoles = listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)
+        if (role !in extremaRoles) return false
+        val edgeWindow = when {
+            hours.lastIndex > 50 -> min(5, hours.lastIndex / 15)
+            hours.lastIndex > 24 -> min(8, hours.lastIndex / 6)
+            hours.lastIndex > 10 -> 1
+            else -> 0
+        }
+        val edgeDist = min(idx, hours.lastIndex - idx)
+        val isEndpoint = idx == 0 || idx == hours.lastIndex
+        if (edgeDist <= edgeWindow && !isEndpoint) {
+            Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ENDPOINT edgeDist=$edgeDist")
+            return true
+        }
+        return false
+    }
 
-        Log.d(TAG, "POTENTIAL_ANCHORS: $potentialAnchors")
+    private fun buildPotentialAnchors(
+        extrema: ExtremaIndices,
+        hoursCount: Int,
+    ): MutableList<Pair<Int, TemperatureRole>> {
+        val anchors = mutableListOf<Pair<Int, TemperatureRole>>()
+        if (extrema.dailyHighIndex >= 0) anchors.add(extrema.dailyHighIndex to TemperatureRole.HIGH)
+        if (extrema.dailyLowIndex >= 0) anchors.add(extrema.dailyLowIndex to TemperatureRole.LOW)
+        if (extrema.actualHighIndex >= 0) anchors.add(extrema.actualHighIndex to TemperatureRole.ACTUAL_HIGH)
+        if (extrema.actualLowIndex >= 0) anchors.add(extrema.actualLowIndex to TemperatureRole.ACTUAL_LOW)
+        if (extrema.forecastHighIndex >= 0) anchors.add(extrema.forecastHighIndex to TemperatureRole.FORECAST_HIGH)
+        if (extrema.forecastLowIndex >= 0) anchors.add(extrema.forecastLowIndex to TemperatureRole.FORECAST_LOW)
+        if (extrema.pastForecastHighIndex >= 0) anchors.add(extrema.pastForecastHighIndex to TemperatureRole.PAST_FORECAST_HIGH)
+        if (extrema.pastForecastLowIndex >= 0) anchors.add(extrema.pastForecastLowIndex to TemperatureRole.PAST_FORECAST_LOW)
+        anchors.add(0 to TemperatureRole.START)
+        if (hoursCount > 1) anchors.add(hoursCount - 1 to TemperatureRole.END)
+        return anchors
+    }
 
-        extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
-
-        val slotToAnchor = mutableMapOf<Triple<String, Int, Int>, Int>()
+    private fun deduplicateAnchors(
+        potentialAnchors: List<Pair<Int, TemperatureRole>>,
+        labelTemps: List<Float>,
+        actualLabelTemps: List<Float>,
+    ): Set<Int> {
         val rolePriority = listOf(
             TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.START, TemperatureRole.END,
             TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.FORECAST_HIGH,
             TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
             TemperatureRole.LOCAL
         )
-
+        val slotToAnchor = mutableMapOf<Triple<String, Int, Int>, Int>()
         for ((idx, role) in potentialAnchors) {
             val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW
             val temps = if (isActualRole) actualLabelTemps else labelTemps
             val v = temps[idx]
             val formattedValue = formatTemp(v)
-
             var first = idx; var last = idx
             while (first > 0 && temps[first - 1] == v) first--
             while (last < temps.lastIndex && temps[last + 1] == v) last++
-
             val slotKey = Triple(formattedValue, first, last)
             val existingIdx = slotToAnchor[slotKey]
             if (existingIdx == null) {
@@ -751,8 +855,24 @@ object TemperatureGraphRenderer {
                 }
             }
         }
+        return slotToAnchor.values.toSet()
+    }
 
-        val deduplicatedIndices = slotToAnchor.values.toSet()
+    private fun collectLabelCandidates(
+        hours: List<HourData>,
+        extrema: ExtremaIndices,
+        effectiveActualEndIndex: Int,
+        transitionX: Float?,
+        observedAt: Long?,
+    ): List<TempLabelCandidate> {
+        val labelTemps = extrema.labelTemps
+        val actualLabelTemps = extrema.actualLabelTemps
+
+        val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
+        Log.d(TAG, "POTENTIAL_ANCHORS: $potentialAnchors")
+        extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
+
+        val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
         Log.d(TAG, "DEDUPLICATED_INDICES: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != TemperatureRole.LOCAL }
@@ -784,79 +904,33 @@ object TemperatureGraphRenderer {
         val specialCandidates = mutableListOf<TempLabelCandidate>()
         val suppressedIndices = mutableSetOf<Int>()
         for (idx in filteredIndices.distinct()) {
-            var role = when (idx) {
-                extrema.dailyHighIndex -> TemperatureRole.HIGH
-                extrema.dailyLowIndex -> TemperatureRole.LOW
-                0 -> TemperatureRole.START
-                hours.lastIndex -> TemperatureRole.END
-                extrema.actualHighIndex -> TemperatureRole.ACTUAL_HIGH
-                extrema.actualLowIndex -> TemperatureRole.ACTUAL_LOW
-                extrema.forecastHighIndex -> TemperatureRole.FORECAST_HIGH
-                extrema.forecastLowIndex -> TemperatureRole.FORECAST_LOW
-                extrema.pastForecastHighIndex -> TemperatureRole.PAST_FORECAST_HIGH
-                extrema.pastForecastLowIndex -> TemperatureRole.PAST_FORECAST_LOW
-                else -> TemperatureRole.LOCAL
-            }
+            var role = resolveExtremaRole(idx, extrema, hours)
 
-            val isBoundary = role == TemperatureRole.START || role == TemperatureRole.END
-            if (idx == 0 && suppressLeftEdgeLabel && !isBoundary) {
-                Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel")
+            if (checkLeftEdgeSuppression(idx, role, suppressLeftEdgeLabel).suppressed) {
                 suppressedIndices.add(idx)
                 continue
             }
 
-            if (idx == extrema.fetchIdx && observedAt != null) {
-                if (idx == 0 || idx == hours.lastIndex) {
-                    role = if (idx == 0) TemperatureRole.START else TemperatureRole.END
-                } else if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW)) {
-                    Log.d(TAG, "LABEL_CANDIDATE_KEPT idx=$idx role=$role reason=EXTREMA_OVERRIDES_FETCH_DOT")
-                } else {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED")
-                    suppressedIndices.add(idx)
-                    continue
-                }
+            val fetchResult = checkFetchDotSuppression(idx, role, extrema, observedAt, hours)
+            if (fetchResult.suppressed) {
+                suppressedIndices.add(idx)
+                continue
             }
+            fetchResult.overriddenRole?.let { role = it }
 
-            val redundantPairWindow = min(8, hours.lastIndex / 5)
-            val redundantValueThreshold = 2f
-
-            val isRedundant = when (role) {
-                TemperatureRole.ACTUAL_HIGH -> isRedundantNear(idx, role, extrema.dailyHighIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyHighIndex], redundantPairWindow, redundantValueThreshold, "HIGH")
-                TemperatureRole.ACTUAL_LOW -> isRedundantNear(idx, role, extrema.dailyLowIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyLowIndex], redundantPairWindow, redundantValueThreshold, "LOW")
-                TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_HIGH")
-                TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_LOW")
-                else -> false
-            }
-
-            if (isRedundant) {
+            if (checkRedundantPairSuppression(idx, role, extrema, suppressedIndices, labelTemps, actualLabelTemps)) {
                 suppressedIndices.add(idx)
                 continue
             }
 
-            if (role in listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW) && transitionX != null) {
-                val boundaryIdx = effectiveActualEndIndex
-                val transitionWindow = min(3, hours.lastIndex / 20)
-                if (boundaryIdx >= 0 && abs(idx - boundaryIdx) <= transitionWindow) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=TRANSITION_BOUNDARY_SUPPRESSED dist=${abs(idx - boundaryIdx)} boundaryIdx=$boundaryIdx")
-                    suppressedIndices.add(idx)
-                    continue
-                }
+            if (checkTransitionBoundarySuppression(idx, role, effectiveActualEndIndex, transitionX, hours)) {
+                suppressedIndices.add(idx)
+                continue
             }
 
-            if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)) {
-                val edgeWindow = when {
-                    hours.lastIndex > 50 -> min(5, hours.lastIndex / 15)
-                    hours.lastIndex > 24 -> min(8, hours.lastIndex / 6)
-                    hours.lastIndex > 10 -> 1
-                    else -> 0 // Very small graphs (like in tests): don't suppress anything near edges
-                }
-                val edgeDist = min(idx, hours.lastIndex - idx)
-                val isEndpoint = idx == 0 || idx == hours.lastIndex
-                if (edgeDist <= edgeWindow && !isEndpoint) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ENDPOINT edgeDist=$edgeDist")
-                    suppressedIndices.add(idx)
-                    continue
-                }
+            if (checkEndpointSuppression(idx, role, hours)) {
+                suppressedIndices.add(idx)
+                continue
             }
 
             val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW
@@ -868,6 +942,24 @@ object TemperatureGraphRenderer {
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
         return specialCandidates
+    }
+
+    private fun resolveExtremaRole(
+        idx: Int,
+        extrema: ExtremaIndices,
+        hours: List<HourData>,
+    ): TemperatureRole = when (idx) {
+        extrema.dailyHighIndex -> TemperatureRole.HIGH
+        extrema.dailyLowIndex -> TemperatureRole.LOW
+        0 -> TemperatureRole.START
+        hours.lastIndex -> TemperatureRole.END
+        extrema.actualHighIndex -> TemperatureRole.ACTUAL_HIGH
+        extrema.actualLowIndex -> TemperatureRole.ACTUAL_LOW
+        extrema.forecastHighIndex -> TemperatureRole.FORECAST_HIGH
+        extrema.forecastLowIndex -> TemperatureRole.FORECAST_LOW
+        extrema.pastForecastHighIndex -> TemperatureRole.PAST_FORECAST_HIGH
+        extrema.pastForecastLowIndex -> TemperatureRole.PAST_FORECAST_LOW
+        else -> TemperatureRole.LOCAL
     }
 
     private data class CandidatePlacement(
@@ -955,9 +1047,8 @@ object TemperatureGraphRenderer {
         val specialCandidates = collectLabelCandidates(hours, extrema, ctx.effectiveActualEndIndex, ctx.transitionX, ctx.observedAt).toMutableList()
 
         val drawnLabelBounds = mutableListOf<RectF>()
-        val labelFontMetrics = ctx.paints.actualTempLabelTextPaint.fontMetrics
-        val labelAscent = if (labelFontMetrics != null && labelFontMetrics.ascent != 0f) labelFontMetrics.ascent else (-ctx.paints.actualTempLabelTextPaint.textSize)
-        val labelDescent = if (labelFontMetrics != null && labelFontMetrics.descent != 0f) labelFontMetrics.descent else (ctx.paints.actualTempLabelTextPaint.textSize * 0.2f)
+        val labelAscent = fontAscent(ctx.paints.actualTempLabelTextPaint)
+        val labelDescent = fontDescent(ctx.paints.actualTempLabelTextPaint)
         val labelHeight = labelDescent - labelAscent
         
         val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = false)
@@ -1146,6 +1237,78 @@ object TemperatureGraphRenderer {
         }
     }
 
+    private data class ValueLabelLayout(
+        val x: Float,
+        val y: Float,
+        val bounds: RectF,
+        val align: Paint.Align,
+    )
+
+    private data class StalenessInitialLayout(
+        val baselineY: Float,
+        val bounds: RectF,
+        val placeAbove: Boolean,
+    )
+
+    private fun resolveValueLabelLayout(
+        clampedX: Float,
+        fetchY: Float,
+        dotRadius: Float,
+        valueWidth: Float,
+        sideGap: Float,
+        aboveGap: Float,
+        widthPx: Int,
+        baselineOffset: Float,
+        ascent: Float,
+        descent: Float,
+    ): ValueLabelLayout? {
+        if (clampedX + dotRadius + sideGap + valueWidth <= widthPx) {
+            val x = clampedX + dotRadius + sideGap
+            val y = fetchY + baselineOffset
+            return ValueLabelLayout(x, y, RectF(x, y + ascent, x + valueWidth, y + descent), Paint.Align.LEFT)
+        }
+        if (clampedX - dotRadius - sideGap - valueWidth >= 0) {
+            val x = clampedX - dotRadius - sideGap
+            val y = fetchY + baselineOffset
+            return ValueLabelLayout(x, y, RectF(x - valueWidth, y + ascent, x, y + descent), Paint.Align.RIGHT)
+        }
+        if (fetchY - dotRadius - aboveGap + ascent >= 0) {
+            val x = clampedX
+            val y = fetchY - dotRadius - aboveGap
+            return ValueLabelLayout(x, y, RectF(x - valueWidth / 2f, y + ascent, x + valueWidth / 2f, y + descent), Paint.Align.CENTER)
+        }
+        return null
+    }
+
+    private fun resolveStalenessInitialLayout(
+        clampedX: Float,
+        fetchY: Float,
+        dotRadius: Float,
+        padding: Float,
+        ageWidth: Float,
+        ascent: Float,
+        descent: Float,
+        heightPx: Int,
+        existingBounds: List<RectF>,
+        minorOverlapThreshold: Float,
+    ): StalenessInitialLayout {
+        var placeAbove = false
+        var baselineY = fetchY + dotRadius + padding - ascent
+        var bounds = RectF(
+            clampedX - ageWidth / 2f,
+            baselineY + ascent,
+            clampedX + ageWidth / 2f,
+            baselineY + descent
+        )
+        val collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, existingBounds) > minorOverlapThreshold
+        if (collision || bounds.bottom > heightPx) {
+            placeAbove = true
+            baselineY = fetchY - dotRadius - padding - descent
+            bounds.offsetTo(clampedX - ageWidth / 2f, baselineY + ascent)
+        }
+        return StalenessInitialLayout(baselineY, bounds, placeAbove)
+    }
+
     /**
      * Pre-compute the bounding rectangles that [drawFetchDot] will occupy,
      * so temperature labels can treat them as collision obstacles.
@@ -1157,55 +1320,30 @@ object TemperatureGraphRenderer {
         val dotRadius = dpToPx(ctx.context, DOT_RADIUS_DP * ctx.labelScale)
         val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
-        // Dot circle bound
         val outerRadius = dotRadius + ctx.paints.ringPaint.strokeWidth / 2f
         bounds.add(RectF(clampedX - outerRadius, fetchY - outerRadius, clampedX + outerRadius, fetchY + outerRadius))
 
-        // Value label bound (mirrors placement logic in drawFetchDot)
         val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-        val valueBaselineOffset = ctx.paints.valueTextPaint.textSize / 3f
-        val vfm = ctx.paints.valueTextPaint.fontMetrics
-        val vAscent = if (vfm != null && vfm.ascent != 0f) vfm.ascent else (-ctx.paints.valueTextPaint.textSize)
-        val vDescent = if (vfm != null && vfm.descent != 0f) vfm.descent else (ctx.paints.valueTextPaint.textSize * 0.2f)
+        val aboveGap = dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
+        val baselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+        val vAscent = fontAscent(ctx.paints.valueTextPaint)
+        val vDescent = fontDescent(ctx.paints.valueTextPaint)
 
-        if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
-            val x = clampedX + dotRadius + sideGap
-            val y = fetchY + valueBaselineOffset
-            bounds.add(RectF(x, y + vAscent, x + valueWidth, y + vDescent))
-        } else if (clampedX - dotRadius - sideGap - valueWidth >= 0) {
-            val x = clampedX - dotRadius - sideGap
-            val y = fetchY + valueBaselineOffset
-            bounds.add(RectF(x - valueWidth, y + vAscent, x, y + vDescent))
-        } else if (fetchY - dotRadius - dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale) + vAscent >= 0) {
-            val x = clampedX
-            val y = fetchY - dotRadius - dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
-            bounds.add(RectF(x - valueWidth / 2f, y + vAscent, x + valueWidth / 2f, y + vDescent))
+        resolveValueLabelLayout(clampedX, fetchY, dotRadius, valueWidth, sideGap, aboveGap, ctx.widthPx, baselineOffset, vAscent, vDescent)?.let {
+            bounds.add(it.bounds)
         }
 
-        // Staleness label bound
         val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
         val ageLabel = formatAgeLabel(ageMinutes, Duration.between(hours.first().dateTime, hours.last().dateTime).toHours())
         if (ageLabel != null) {
-            val sfm = ctx.paints.stalenessTextPaint.fontMetrics
-            val sAscent = if (sfm != null && sfm.ascent != 0f) sfm.ascent else (-ctx.paints.stalenessTextPaint.textSize)
-            val sDescent = if (sfm != null && sfm.descent != 0f) sfm.descent else (ctx.paints.stalenessTextPaint.textSize * 0.2f)
+            val sAscent = fontAscent(ctx.paints.stalenessTextPaint)
+            val sDescent = fontDescent(ctx.paints.stalenessTextPaint)
             val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
             val padding = dpToPx(ctx.context, FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-            var ageBaselineY = fetchY + dotRadius + padding - sAscent
-            var ageBounds = RectF(
-                clampedX - ageWidth / 2f,
-                ageBaselineY + sAscent,
-                clampedX + ageWidth / 2f,
-                ageBaselineY + sDescent
-            )
-            val collision = bounds.any { RectF.intersects(ageBounds, it) }
-            if (collision || ageBounds.bottom > ctx.heightPx) {
-                ageBaselineY = fetchY - dotRadius - padding - sDescent
-                ageBounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
-            }
-            bounds.add(ageBounds)
+            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * 0.40f
+            bounds.add(resolveStalenessInitialLayout(clampedX, fetchY, dotRadius, padding, ageWidth, sAscent, sDescent, ctx.heightPx, bounds, minorOverlapThreshold).bounds)
         }
 
         return bounds
@@ -1218,80 +1356,49 @@ object TemperatureGraphRenderer {
         val dotRadius = dpToPx(ctx.context, DOT_RADIUS_DP * ctx.labelScale)
         val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
-        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tempToColor(ctx.lastObservedTemp); style = Paint.Style.FILL }
-        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, dotPaint)
+        ctx.paints.dotPaint.color = tempToColor(ctx.lastObservedTemp)
+        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, ctx.paints.dotPaint)
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, ctx.paints.ringPaint)
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius + ctx.paints.ringPaint.strokeWidth / 2f, ctx.paints.outerRingPaint)
-
-        val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
-        val ageLabel = formatAgeLabel(ageMinutes, Duration.between(hours.first().dateTime, hours.last().dateTime).toHours())
 
         val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-        var drawn = false
-
-        val valueBaselineOffset = ctx.paints.valueTextPaint.textSize / 3f
-        val vfm = ctx.paints.valueTextPaint.fontMetrics
-        val vAscent = if (vfm != null && vfm.ascent != 0f) vfm.ascent else (-ctx.paints.valueTextPaint.textSize)
-        val vDescent = if (vfm != null && vfm.descent != 0f) vfm.descent else (ctx.paints.valueTextPaint.textSize * 0.2f)
+        val aboveGap = dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
+        val baselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+        val vAscent = fontAscent(ctx.paints.valueTextPaint)
+        val vDescent = fontDescent(ctx.paints.valueTextPaint)
+        val valueLayout = resolveValueLabelLayout(clampedX, fetchY, dotRadius, valueWidth, sideGap, aboveGap, ctx.widthPx, baselineOffset, vAscent, vDescent)
 
         val savedAlign = ctx.paints.valueTextPaint.textAlign
         try {
-            if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
-                ctx.paints.valueTextPaint.textAlign = Paint.Align.LEFT
-                val x = clampedX + dotRadius + sideGap
-                val y = fetchY + valueBaselineOffset
-                ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
-                drawnBounds.add(RectF(x, y + vAscent, x + valueWidth, y + vDescent))
-                drawn = true
-            }
-            if (!drawn && clampedX - dotRadius - sideGap - valueWidth >= 0) {
-                ctx.paints.valueTextPaint.textAlign = Paint.Align.RIGHT
-                val x = clampedX - dotRadius - sideGap
-                val y = fetchY + valueBaselineOffset
-                ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
-                drawnBounds.add(RectF(x - valueWidth, y + vAscent, x, y + vDescent))
-                drawn = true
-            }
-            if (!drawn && fetchY - dotRadius - dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale) + vAscent >= 0) {
-                ctx.paints.valueTextPaint.textAlign = Paint.Align.CENTER
-                val x = clampedX
-                val y = fetchY - dotRadius - dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
-                ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
-                drawnBounds.add(RectF(x - valueWidth / 2f, y + vAscent, x + valueWidth / 2f, y + vDescent))
+            if (valueLayout != null) {
+                ctx.paints.valueTextPaint.textAlign = valueLayout.align
+                ctx.canvas.drawText(valueLabel, valueLayout.x, valueLayout.y, ctx.paints.valueTextPaint)
+                drawnBounds.add(valueLayout.bounds)
             }
         } finally {
             ctx.paints.valueTextPaint.textAlign = savedAlign
         }
 
+        val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
+        val ageLabel = formatAgeLabel(ageMinutes, Duration.between(hours.first().dateTime, hours.last().dateTime).toHours())
+
         var finalAgeY: Float? = null
         if (ageLabel != null) {
-            val sfm = ctx.paints.stalenessTextPaint.fontMetrics
-            val sAscent = if (sfm != null && sfm.ascent != 0f) sfm.ascent else (-ctx.paints.stalenessTextPaint.textSize)
-            val sDescent = if (sfm != null && sfm.descent != 0f) sfm.descent else (ctx.paints.stalenessTextPaint.textSize * 0.2f)
+            val sAscent = fontAscent(ctx.paints.stalenessTextPaint)
+            val sDescent = fontDescent(ctx.paints.stalenessTextPaint)
             val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
             val padding = dpToPx(ctx.context, FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
             val leaderLinePaint = ctx.paints.actualLeaderLinePaint
             val allBounds = ctx.drawnLabelBounds + drawnBounds
+            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * 0.40f
 
-            var placeAbove = false
-            var ageBaselineY = fetchY + dotRadius + padding - sAscent
-            var bounds = RectF(
-                clampedX - ageWidth / 2f,
-                ageBaselineY + sAscent,
-                clampedX + ageWidth / 2f,
-                ageBaselineY + sDescent
-            )
-
-            var collision = allBounds.any { RectF.intersects(bounds, it) }
-
-            if (collision || bounds.bottom > ctx.heightPx) {
-                placeAbove = true
-                ageBaselineY = fetchY - dotRadius - padding - sDescent
-                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
-                collision = allBounds.any { RectF.intersects(bounds, it) }
-            }
+            val initial = resolveStalenessInitialLayout(clampedX, fetchY, dotRadius, padding, ageWidth, sAscent, sDescent, ctx.heightPx, allBounds, minorOverlapThreshold)
+            var placeAbove = initial.placeAbove
+            var ageBaselineY = initial.baselineY
+            var bounds = initial.bounds
+            var collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > minorOverlapThreshold
 
             var step = 0
             while (collision && step < 15) {
@@ -1299,10 +1406,10 @@ object TemperatureGraphRenderer {
                 val bump = dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
                 ageBaselineY += if (placeAbove) -bump else bump
                 bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
-                collision = allBounds.any { RectF.intersects(bounds, it) }
+                collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > minorOverlapThreshold
             }
 
-            if (step > 0) {
+            if (step > 2) {
                 val lineEndY = if (placeAbove) bounds.bottom else bounds.top
                 val lineStartY = if (placeAbove) fetchY - dotRadius else fetchY + dotRadius
                 ctx.canvas.drawLine(clampedX, lineStartY, clampedX, lineEndY, leaderLinePaint)
