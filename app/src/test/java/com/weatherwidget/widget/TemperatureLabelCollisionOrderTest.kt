@@ -51,7 +51,7 @@ class TemperatureLabelCollisionOrderTest {
             widthPx = 300, // Narrow width to force horizontal collision
             heightPx = 400,
             currentTime = LocalDateTime.of(2026, 4, 8, 15, 0),
-            observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
+            observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
             onLabelPlaced = { placements.add(it) },
         )
 
@@ -91,7 +91,7 @@ class TemperatureLabelCollisionOrderTest {
             widthPx = 300, // Narrow width to force horizontal collision
             heightPx = 400,
             currentTime = LocalDateTime.of(2026, 4, 8, 15, 0),
-            observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).toInstant(java.time.ZoneOffset.UTC).toEpochMilli(),
+            observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
             onLabelPlaced = { placements.add(it) },
         )
 

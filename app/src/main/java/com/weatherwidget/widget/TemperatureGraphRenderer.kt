@@ -695,8 +695,8 @@ object TemperatureGraphRenderer {
         val actualEndIndex = if (ctx.transitionX != null) ctx.effectiveActualEndIndex else hours.lastIndex
         val actualIndices = (actualStartIndex..actualEndIndex).filter { it in actualLabelTemps.indices }
         
-        println("ACTUAL_END_INDEX: $actualEndIndex transitionX=${ctx.transitionX}")
-        println("ACTUAL_LABEL_TEMPS: $actualLabelTemps")
+        Log.d(TAG, "ACTUAL_END_INDEX: $actualEndIndex transitionX=${ctx.transitionX}")
+        Log.d(TAG, "ACTUAL_LABEL_TEMPS: $actualLabelTemps")
         
         val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
         val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1
@@ -747,7 +747,7 @@ object TemperatureGraphRenderer {
         potentialAnchors.add(0 to "START")
         if (hours.size > 1) potentialAnchors.add(hours.size - 1 to "END")
         
-        println("POTENTIAL_ANCHORS: $potentialAnchors")
+        Log.d(TAG, "POTENTIAL_ANCHORS: $potentialAnchors")
         
         // Also consider significant local extrema as potential candidates.
         // They have lower priority than explicitly named roles.
@@ -784,11 +784,11 @@ object TemperatureGraphRenderer {
         }
         
         val deduplicatedIndices = slotToAnchor.values.toSet()
-        println("DEDUPLICATED_INDICES: $deduplicatedIndices")
+        Log.d(TAG, "DEDUPLICATED_INDICES: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != "LOCAL" }
         }.toSet()
-        println("EXPLICIT_ANCHORS: $explicitAnchors")
+        Log.d(TAG, "EXPLICIT_ANCHORS: $explicitAnchors")
 
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelTemps,
@@ -809,7 +809,7 @@ object TemperatureGraphRenderer {
             globalMaxIdx = dailyHighIndex,
             globalMinIdx = dailyLowIndex,
             valueFunction = { it.roundToInt() },
-            nearbyWindow = 5
+            nearbyWindow = min(5, (hours.lastIndex / 3).coerceAtLeast(1))
         )
 
         val specialCandidates = mutableListOf<TempLabelCandidate>()
@@ -1005,7 +1005,7 @@ object TemperatureGraphRenderer {
 
             // Suppress positional labels that are redundant with the fetch dot label (status label).
             // Redundant if the text is identical and they are horizontally close.
-            if (ctx.fetchDotX != null && ctx.lastObservedTemp != null) {
+            if (ctx.fetchDotX != null && ctx.lastObservedTemp != null && candidate.role !in setOf("START", "END")) {
                 val fetchDotLabel = formatTemp(ctx.lastObservedTemp) + "°"
                 val dist = kotlin.math.abs(clampedX - ctx.fetchDotX)
                 if (label == fetchDotLabel && dist < dpToPx(ctx.context, 12f)) {
@@ -1217,19 +1217,22 @@ object TemperatureGraphRenderer {
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, 4f * ctx.labelScale)
         val valueBaselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+        val vfm = ctx.paints.valueTextPaint.fontMetrics
+        val vAscent = if (vfm != null && vfm.ascent != 0f) vfm.ascent else (-ctx.paints.valueTextPaint.textSize)
+        val vDescent = if (vfm != null && vfm.descent != 0f) vfm.descent else (ctx.paints.valueTextPaint.textSize * 0.2f)
 
         if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
             val x = clampedX + dotRadius + sideGap
             val y = fetchY + valueBaselineOffset
-            bounds.add(RectF(x, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth, y + ctx.paints.valueTextPaint.descent()))
+            bounds.add(RectF(x, y + vAscent, x + valueWidth, y + vDescent))
         } else if (clampedX - dotRadius - sideGap - valueWidth >= 0) {
             val x = clampedX - dotRadius - sideGap
             val y = fetchY + valueBaselineOffset
-            bounds.add(RectF(x - valueWidth, y + ctx.paints.valueTextPaint.ascent(), x, y + ctx.paints.valueTextPaint.descent()))
-        } else if (fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale) + ctx.paints.valueTextPaint.ascent() >= 0) {
+            bounds.add(RectF(x - valueWidth, y + vAscent, x, y + vDescent))
+        } else if (fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale) + vAscent >= 0) {
             val x = clampedX
             val y = fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale)
-            bounds.add(RectF(x - valueWidth / 2f, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth / 2f, y + ctx.paints.valueTextPaint.descent()))
+            bounds.add(RectF(x - valueWidth / 2f, y + vAscent, x + valueWidth / 2f, y + vDescent))
         }
 
         // Staleness label bound
@@ -1238,19 +1241,22 @@ object TemperatureGraphRenderer {
             if (ageMinutes >= 60) "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}" else "${ageMinutes}m"
         } else null
         if (ageLabel != null) {
+            val sfm = ctx.paints.stalenessTextPaint.fontMetrics
+            val sAscent = if (sfm != null && sfm.ascent != 0f) sfm.ascent else (-ctx.paints.stalenessTextPaint.textSize)
+            val sDescent = if (sfm != null && sfm.descent != 0f) sfm.descent else (ctx.paints.stalenessTextPaint.textSize * 0.2f)
             val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
             val padding = dpToPx(ctx.context, 4f * ctx.labelScale)
-            var ageBaselineY = fetchY + dotRadius + padding - ctx.paints.stalenessTextPaint.ascent()
+            var ageBaselineY = fetchY + dotRadius + padding - sAscent
             var ageBounds = RectF(
                 clampedX - ageWidth / 2f,
-                ageBaselineY + ctx.paints.stalenessTextPaint.ascent(),
+                ageBaselineY + sAscent,
                 clampedX + ageWidth / 2f,
-                ageBaselineY + ctx.paints.stalenessTextPaint.descent()
+                ageBaselineY + sDescent
             )
             val collision = bounds.any { RectF.intersects(ageBounds, it) }
             if (collision || ageBounds.bottom > ctx.heightPx) {
-                ageBaselineY = fetchY - dotRadius - padding - ctx.paints.stalenessTextPaint.descent()
-                ageBounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + ctx.paints.stalenessTextPaint.ascent())
+                ageBaselineY = fetchY - dotRadius - padding - sDescent
+                ageBounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
             }
             bounds.add(ageBounds)
         }
@@ -1281,53 +1287,64 @@ object TemperatureGraphRenderer {
         var drawn = false
 
         val valueBaselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+        val vfm = ctx.paints.valueTextPaint.fontMetrics
+        val vAscent = if (vfm != null && vfm.ascent != 0f) vfm.ascent else (-ctx.paints.valueTextPaint.textSize)
+        val vDescent = if (vfm != null && vfm.descent != 0f) vfm.descent else (ctx.paints.valueTextPaint.textSize * 0.2f)
 
-        if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
-            ctx.paints.valueTextPaint.textAlign = Paint.Align.LEFT
-            val x = clampedX + dotRadius + sideGap
-            val y = fetchY + valueBaselineOffset
-            ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
-            drawnBounds.add(RectF(x, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth, y + ctx.paints.valueTextPaint.descent()))
-            drawn = true
-        }
-        if (!drawn && clampedX - dotRadius - sideGap - valueWidth >= 0) {
-            ctx.paints.valueTextPaint.textAlign = Paint.Align.RIGHT
-            val x = clampedX - dotRadius - sideGap
-            val y = fetchY + valueBaselineOffset
-            ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
-            drawnBounds.add(RectF(x - valueWidth, y + ctx.paints.valueTextPaint.ascent(), x, y + ctx.paints.valueTextPaint.descent()))
-            drawn = true
-        }
-        if (!drawn && fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale) + ctx.paints.valueTextPaint.ascent() >= 0) {
-            ctx.paints.valueTextPaint.textAlign = Paint.Align.CENTER
-            val x = clampedX
-            val y = fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale)
-            ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
-            drawnBounds.add(RectF(x - valueWidth / 2f, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth / 2f, y + ctx.paints.valueTextPaint.descent()))
+        val savedAlign = ctx.paints.valueTextPaint.textAlign
+        try {
+            if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
+                ctx.paints.valueTextPaint.textAlign = Paint.Align.LEFT
+                val x = clampedX + dotRadius + sideGap
+                val y = fetchY + valueBaselineOffset
+                ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
+                drawnBounds.add(RectF(x, y + vAscent, x + valueWidth, y + vDescent))
+                drawn = true
+            }
+            if (!drawn && clampedX - dotRadius - sideGap - valueWidth >= 0) {
+                ctx.paints.valueTextPaint.textAlign = Paint.Align.RIGHT
+                val x = clampedX - dotRadius - sideGap
+                val y = fetchY + valueBaselineOffset
+                ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
+                drawnBounds.add(RectF(x - valueWidth, y + vAscent, x, y + vDescent))
+                drawn = true
+            }
+            if (!drawn && fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale) + vAscent >= 0) {
+                ctx.paints.valueTextPaint.textAlign = Paint.Align.CENTER
+                val x = clampedX
+                val y = fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale)
+                ctx.canvas.drawText(valueLabel, x, y, ctx.paints.valueTextPaint)
+                drawnBounds.add(RectF(x - valueWidth / 2f, y + vAscent, x + valueWidth / 2f, y + vDescent))
+            }
+        } finally {
+            ctx.paints.valueTextPaint.textAlign = savedAlign
         }
 
         var finalAgeY: Float? = null
         if (ageLabel != null) {
+            val sfm = ctx.paints.stalenessTextPaint.fontMetrics
+            val sAscent = if (sfm != null && sfm.ascent != 0f) sfm.ascent else (-ctx.paints.stalenessTextPaint.textSize)
+            val sDescent = if (sfm != null && sfm.descent != 0f) sfm.descent else (ctx.paints.stalenessTextPaint.textSize * 0.2f)
             val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
             val padding = dpToPx(ctx.context, 4f * ctx.labelScale)
             val leaderLinePaint = ctx.paints.actualLeaderLinePaint
             val allBounds = ctx.drawnLabelBounds + drawnBounds
 
             var placeAbove = false
-            var ageBaselineY = fetchY + dotRadius + padding - ctx.paints.stalenessTextPaint.ascent()
+            var ageBaselineY = fetchY + dotRadius + padding - sAscent
             var bounds = RectF(
                 clampedX - ageWidth / 2f,
-                ageBaselineY + ctx.paints.stalenessTextPaint.ascent(),
+                ageBaselineY + sAscent,
                 clampedX + ageWidth / 2f,
-                ageBaselineY + ctx.paints.stalenessTextPaint.descent()
+                ageBaselineY + sDescent
             )
 
             var collision = allBounds.any { RectF.intersects(bounds, it) }
 
             if (collision || bounds.bottom > ctx.heightPx) {
                 placeAbove = true
-                ageBaselineY = fetchY - dotRadius - padding - ctx.paints.stalenessTextPaint.descent()
-                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + ctx.paints.stalenessTextPaint.ascent())
+                ageBaselineY = fetchY - dotRadius - padding - sDescent
+                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
                 collision = allBounds.any { RectF.intersects(bounds, it) }
             }
 
@@ -1336,7 +1353,7 @@ object TemperatureGraphRenderer {
                 step++
                 val bump = dpToPx(ctx.context, 2f * ctx.labelScale)
                 ageBaselineY += if (placeAbove) -bump else bump
-                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + ctx.paints.stalenessTextPaint.ascent())
+                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
                 collision = allBounds.any { RectF.intersects(bounds, it) }
             }
 
