@@ -603,6 +603,98 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
+    fun `forecast low is suppressed when actual low is nearby with similar value`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 4, 8, 0, 0)
+        val observedAtMs = start.plusHours(10).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        // 25-hour span. Actual zone: 0-10, Forecast zone: 11-24.
+        // Global LOW at idx 9 (52.5), ACTUAL_LOW also at idx 9 (52.3).
+        // FORECAST_LOW at idx 13 (52.8) — 4 indices from actualLowIndex, 0.5° apart.
+        val forecastTemps = listOf(
+            70f, 68f, 66f, 64f, 62f, 60f, 58f, 56f, 54f, 52.5f, 52.5f,
+            54f, 53f, 52.8f, 54f, 56f, 58f, 60f, 62f, 64f, 66f, 68f, 70f, 72f, 74f
+        )
+        val hours = forecastTemps.mapIndexed { i, temp ->
+            val time = start.plusHours(i.toLong())
+            val actualTemp = if (i <= 10) temp - 0.2f else null
+            TemperatureGraphRenderer.HourData(
+                dateTime = time,
+                temperature = temp,
+                actualTemperature = actualTemp,
+                isActual = i <= 10,
+                label = "${time.hour}",
+            )
+        }
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 400,
+            currentTime = start.plusHours(15),
+            observedAt = observedAtMs,
+            lastObservedTemp = forecastTemps[10] - 0.2f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertNull(
+            "FORECAST_LOW should be suppressed when ACTUAL_LOW is nearby with similar value. placements=$placements",
+            placements.find { it.role == "FORECAST_LOW" },
+        )
+        assertNotNull(
+            "Actual low label should still be placed. placements=$placements",
+            placements.find { it.role == "LOW" || it.role == "ACTUAL_LOW" },
+        )
+    }
+
+    @Test
+    fun `forecast high is suppressed when actual high is nearby with similar value`() {
+        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 4, 8, 0, 0)
+        val observedAtMs = start.plusHours(10).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        // 25-hour span. Actual zone: 0-10, Forecast zone: 11-24.
+        // Global HIGH at idx 9 (72), ACTUAL_HIGH also at idx 9 (71.8).
+        // FORECAST_HIGH at idx 12 (70.5) — 3 indices from actualHighIndex, 1.3° apart.
+        val forecastTemps = listOf(
+            50f, 54f, 58f, 60f, 62f, 64f, 66f, 68f, 70f, 72f, 70f,
+            69f, 70.5f, 69f, 66f, 62f, 58f, 54f, 50f, 48f, 46f, 44f, 42f, 40f, 38f
+        )
+        val hours = forecastTemps.mapIndexed { i, temp ->
+            val time = start.plusHours(i.toLong())
+            val actualTemp = if (i <= 10) temp - 0.2f else null
+            TemperatureGraphRenderer.HourData(
+                dateTime = time,
+                temperature = temp,
+                actualTemperature = actualTemp,
+                isActual = i <= 10,
+                label = "${time.hour}",
+            )
+        }
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 700,
+            heightPx = 400,
+            currentTime = start.plusHours(15),
+            observedAt = observedAtMs,
+            lastObservedTemp = forecastTemps[10] - 0.2f,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertNull(
+            "FORECAST_HIGH should be suppressed when ACTUAL_HIGH is nearby with similar value. placements=$placements",
+            placements.find { it.role == "FORECAST_HIGH" },
+        )
+        assertNotNull(
+            "Actual high label should still be placed. placements=$placements",
+            placements.find { it.role == "HIGH" || it.role == "ACTUAL_HIGH" },
+        )
+    }
+
+    @Test
     fun `staleness time label is placed above dot when colliding with bottom bounds or other labels`() {
         val start = LocalDateTime.of(2026, 4, 6, 10, 0)
         // Create a graph where the dot is at the global minimum to force a LOW label
@@ -641,5 +733,108 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val labelY = fetchDotDebug!!.stalenessLabelY!!
         
         assertTrue("Staleness label ($labelY) should be placed ABOVE the dot ($fetchY) due to collision", labelY < fetchY)
+    }
+
+    @Test
+    fun `test colliding labels stack in correct temperature order`() {
+        val start = LocalDateTime.of(2026, 4, 8, 0, 0)
+        
+        // Scenario 1: Valley Collision (Bottom Labels)
+        // ACTUAL_LOW (48) at idx 2, FORECAST_LOW (50) at idx 3
+        val valleyHours = (0..5).map { i ->
+            val temp = when (i) {
+                0 -> 60f
+                1 -> 55f
+                2 -> 52f
+                3 -> 50f // FORECAST_LOW
+                4 -> 55f
+                5 -> 60f
+                else -> 60f
+            }
+            val actualTemp = when (i) {
+                0 -> 60f
+                1 -> 55f
+                2 -> 48f // ACTUAL_LOW
+                else -> null
+            }
+            TemperatureGraphRenderer.HourData(
+                dateTime = start.plusHours(i.toLong()),
+                temperature = temp,
+                actualTemperature = actualTemp,
+                isActual = actualTemp != null,
+                label = "${start.plusHours(i.toLong()).hour}h"
+            )
+        }
+
+        val valleyPlacements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = valleyHours,
+            widthPx = 200, // Small width to force horizontal collision
+            heightPx = 400,
+            currentTime = start.plusHours(1),
+            onLabelPlaced = { valleyPlacements.add(it) }
+        )
+
+        val actualLow = valleyPlacements.find { it.role == "ACTUAL_LOW" }
+        val forecastLow = valleyPlacements.find { it.role == "LOW" || it.role == "FORECAST_LOW" }
+
+        assertNotNull("Expected ACTUAL_LOW label", actualLow)
+        assertNotNull("Expected FORECAST_LOW label", forecastLow)
+        
+        assertTrue(
+            "Expected lower temperature (48) to have a larger Y (lower on screen) than higher temperature (50). " +
+            "actualLow.y=${actualLow!!.y} (temp=${actualLow.temperature}) vs forecastLow.y=${forecastLow!!.y} (temp=${forecastLow.temperature})",
+            actualLow.y > forecastLow.y
+        )
+
+        // Scenario 2: Peak Collision (Top Labels)
+        // ACTUAL_HIGH (64) at idx 2, FORECAST_HIGH (62) at idx 3
+        val peakHours = (0..5).map { i ->
+            val temp = when (i) {
+                0 -> 50f
+                1 -> 55f
+                2 -> 60f
+                3 -> 62f // FORECAST_HIGH
+                4 -> 55f
+                5 -> 50f
+                else -> 50f
+            }
+            val actualTemp = when (i) {
+                0 -> 50f
+                1 -> 55f
+                2 -> 64f // ACTUAL_HIGH
+                else -> null
+            }
+            TemperatureGraphRenderer.HourData(
+                dateTime = start.plusHours(i.toLong()),
+                temperature = temp,
+                actualTemperature = actualTemp,
+                isActual = actualTemp != null,
+                label = "${start.plusHours(i.toLong()).hour}h"
+            )
+        }
+
+        val peakPlacements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = peakHours,
+            widthPx = 200, // Small width to force horizontal collision
+            heightPx = 400,
+            currentTime = start.plusHours(1),
+            onLabelPlaced = { peakPlacements.add(it) }
+        )
+
+        val actualHigh = peakPlacements.find { it.role == "ACTUAL_HIGH" }
+        val forecastHigh = peakPlacements.find { it.role == "HIGH" || it.role == "FORECAST_HIGH" }
+
+        assertNotNull("Expected ACTUAL_HIGH label", actualHigh)
+        assertNotNull("Expected FORECAST_HIGH label", forecastHigh)
+        
+        assertTrue(
+            "Expected higher temperature (64) to have a smaller Y (higher on screen) than lower temperature (62). " +
+            "actualHigh.y=${actualHigh!!.y} (temp=${actualHigh.temperature}) vs forecastHigh.y=${forecastHigh!!.y} (temp=${forecastHigh.temperature})",
+            actualHigh.y < forecastHigh.y
+        )
     }
 }

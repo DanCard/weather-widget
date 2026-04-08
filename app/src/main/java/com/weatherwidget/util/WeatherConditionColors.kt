@@ -20,8 +20,8 @@ object WeatherConditionColors {
     fun forecastColor(isSunny: Boolean, isRainy: Boolean, isMixed: Boolean, isNight: Boolean): Int {
         return when {
             isRainy -> FORECAST_RAINY
-            isMixed -> FORECAST_CLOUDY
             isNight -> FORECAST_NIGHT
+            isMixed -> FORECAST_SUNNY
             isSunny -> FORECAST_SUNNY
             else -> FORECAST_SUNNY  // Default: clear
         }

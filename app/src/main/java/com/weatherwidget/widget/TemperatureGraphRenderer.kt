@@ -623,7 +623,7 @@ object TemperatureGraphRenderer {
         val segmentPaint = Paint(paints.forecastDashedPaint)
         var cumulativeLength = 0f
         for (i in ctx.forecastSegmentPaths.indices) {
-            val hour = hours[i.coerceAtMost(hours.lastIndex)]
+            val hour = hours[i + 1]
             segmentPaint.color = WeatherConditionColors.forecastColor(
                 hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight
             )
@@ -870,6 +870,58 @@ object TemperatureGraphRenderer {
                 }
             }
 
+            // Suppress FORECAST extrema when near their ACTUAL counterpart AND showing a similar value.
+            // The ACTUAL observation is more authoritative, so the FORECAST label is redundant.
+            if (role == "FORECAST_HIGH" && actualHighIndex >= 0 && actualHighIndex !in suppressedIndices && abs(idx - actualHighIndex) <= redundantPairWindow) {
+                val forecastVal = labelTemps[idx]
+                val actualVal = actualLabelTemps[actualHighIndex]
+                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_HIGH dist=${abs(idx - actualHighIndex)} valueDiff=${abs(forecastVal - actualVal)}")
+                    suppressedIndices.add(idx)
+                    continue
+                }
+            }
+            if (role == "FORECAST_LOW" && actualLowIndex >= 0 && actualLowIndex !in suppressedIndices && abs(idx - actualLowIndex) <= redundantPairWindow) {
+                val forecastVal = labelTemps[idx]
+                val actualVal = actualLabelTemps[actualLowIndex]
+                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_LOW dist=${abs(idx - actualLowIndex)} valueDiff=${abs(forecastVal - actualVal)}")
+                    suppressedIndices.add(idx)
+                    continue
+                }
+            }
+            if (role == "PAST_FORECAST_HIGH" && actualHighIndex >= 0 && actualHighIndex !in suppressedIndices && abs(idx - actualHighIndex) <= redundantPairWindow) {
+                val forecastVal = labelTemps[idx]
+                val actualVal = actualLabelTemps[actualHighIndex]
+                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_HIGH dist=${abs(idx - actualHighIndex)} valueDiff=${abs(forecastVal - actualVal)}")
+                    suppressedIndices.add(idx)
+                    continue
+                }
+            }
+            if (role == "PAST_FORECAST_LOW" && actualLowIndex >= 0 && actualLowIndex !in suppressedIndices && abs(idx - actualLowIndex) <= redundantPairWindow) {
+                val forecastVal = labelTemps[idx]
+                val actualVal = actualLabelTemps[actualLowIndex]
+                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_LOW dist=${abs(idx - actualLowIndex)} valueDiff=${abs(forecastVal - actualVal)}")
+                    suppressedIndices.add(idx)
+                    continue
+                }
+            }
+
+            // Suppress FORECAST extrema that sit at/near the transition boundary.
+            // The fetch dot already shows the observed value at that exact point,
+            // so a FORECAST_LOW/HIGH label there is an artifact of the data cut-off, not a meaningful pattern.
+            if (role in listOf("FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW") && ctx.transitionX != null) {
+                val boundaryIdx = ctx.effectiveActualEndIndex
+                val transitionWindow = min(3, hours.lastIndex / 20)
+                if (boundaryIdx >= 0 && abs(idx - boundaryIdx) <= transitionWindow) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=TRANSITION_BOUNDARY_SUPPRESSED dist=${abs(idx - boundaryIdx)} boundaryIdx=$boundaryIdx")
+                    suppressedIndices.add(idx)
+                    continue
+                }
+            }
+
             // Suppress extrema roles near graph edges — START/END labels already cover those values.
             // But don't suppress if this extrema IS the endpoint (since END/START are separate roles now).
             // Scale window proportionally so small graphs (tests, narrow widgets) aren't over-suppressed.
@@ -904,16 +956,16 @@ object TemperatureGraphRenderer {
 
         specialCandidates.sortWith(
             compareBy<TempLabelCandidate> {
-                when (it.role) {
-                    "HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH" -> 0
-                    "LOCAL", "ACTUAL_END" -> 1
-                    else -> 2 // START, END
-                }
-            }.thenBy {
                 val leftVal = it.labelTemps.subList(0, it.index).findLast { v -> v != it.rawTemperature } ?: it.rawTemperature
                 val rightVal = it.labelTemps.subList(it.index + 1, it.labelTemps.size).find { v -> v != it.rawTemperature } ?: it.rawTemperature
                 val isPeak = it.role in listOf("HIGH", "FORECAST_HIGH", "ACTUAL_HIGH", "PAST_FORECAST_HIGH") || (it.role == "LOCAL" && it.rawTemperature > leftVal && it.rawTemperature > rightVal)
-                if (isPeak) -it.rawTemperature else it.rawTemperature
+                if (isPeak) it.rawTemperature else -it.rawTemperature
+            }.thenBy {
+                when (it.role) {
+                    "HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "ACTUAL_HIGH", "ACTUAL_LOW" -> 0
+                    "LOCAL", "ACTUAL_END" -> 1
+                    else -> 2 // START, END
+                }
             }
         )
 
