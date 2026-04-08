@@ -167,6 +167,19 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testMoonIsNotSunny() {
+        // Clear night uses the moon icon — should NOT be classified as sunny (would tint it gold)
+        assertFalse(WeatherIconMapper.isSunny(R.drawable.ic_weather_night))
+    }
+
+    @Test
+    fun testMoonIsNotMixedOrRainy() {
+        // Moon should fall through to grey tinting, not skip tinting entirely
+        assertFalse(WeatherIconMapper.isMixed(R.drawable.ic_weather_night))
+        assertFalse(WeatherIconMapper.isRainy(R.drawable.ic_weather_night))
+    }
+
+    @Test
     fun testIsCloudForecastEligible_MostlyClear() {
         assertTrue(WeatherIconMapper.isCloudForecastEligible(R.drawable.ic_weather_mostly_clear))
     }

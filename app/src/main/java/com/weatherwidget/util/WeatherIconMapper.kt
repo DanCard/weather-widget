@@ -97,8 +97,7 @@ object WeatherIconMapper {
 
     fun isSunny(iconRes: Int): Boolean {
         return iconRes == R.drawable.ic_weather_clear ||
-               iconRes == R.drawable.ic_weather_mostly_clear ||
-               iconRes == R.drawable.ic_weather_night
+               iconRes == R.drawable.ic_weather_mostly_clear
     }
 
     fun isRainy(iconRes: Int): Boolean {
