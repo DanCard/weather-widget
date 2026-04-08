@@ -62,7 +62,7 @@ object TemperatureGraphRenderer {
     private val COLOR_MILD = Color.parseColor("#E8A24E") // Golden amber
     private val COLOR_HOT = Color.parseColor("#FF6B35") // Warm orange
     private val COLOR_ACTUAL_LINE = WeatherConditionColors.OBSERVED  // Hot pink #FF3366
-    private val COLOR_ACTUAL_LABEL = Color.parseColor("#FFB3C6")   // Light pink
+    private val COLOR_ACTUAL_LABEL = WeatherConditionColors.OBSERVED
     private val COLOR_FORECAST_LABEL = Color.parseColor("#C5DCFF")
 
     private fun tempToColor(temp: Float): Int {
@@ -924,7 +924,7 @@ object TemperatureGraphRenderer {
             val temps = candidate.labelTemps
             val isFuture = candidate.forceForecastSeries || ctx.originalPoints[idx].first > (ctx.transitionX ?: -1f)
             val points = if (isFuture) ctx.forecastPoints else ctx.originalPoints
-            println("DEBUG_SERIES: idx=$idx role=${candidate.role} forceForecast=${candidate.forceForecastSeries} isFuture=$isFuture transitionX=${ctx.transitionX} pointX=${ctx.originalPoints[idx].first}")
+            Log.d(TAG, "DEBUG_SERIES: idx=$idx role=${candidate.role} forceForecast=${candidate.forceForecastSeries} isFuture=$isFuture transitionX=${ctx.transitionX} pointX=${ctx.originalPoints[idx].first}")
             val sx = if (candidate.role in listOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "LOCAL")) {
                 centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX).first
             } else points[idx].first
@@ -939,6 +939,17 @@ object TemperatureGraphRenderer {
             } else ctx.paints.actualTempLabelTextPaint
             val textWidth = labelPaint.measureText(label)
             val clampedX = sx.coerceIn(textWidth / 2f, ctx.widthPx - textWidth / 2f)
+
+            // Suppress positional labels that are redundant with the fetch dot label (status label).
+            // Redundant if the text is identical and they are horizontally close.
+            if (ctx.fetchDotX != null && ctx.lastObservedTemp != null) {
+                val fetchDotLabel = formatTemp(ctx.lastObservedTemp) + "°"
+                val dist = kotlin.math.abs(clampedX - ctx.fetchDotX)
+                if (label == fetchDotLabel && dist < dpToPx(ctx.context, 12f)) {
+                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=${candidate.role} reason=REDUNDANT_WITH_FETCH_DOT dist=$dist")
+                    continue
+                }
+            }
 
             val leftVal = temps.subList(0, idx).findLast { it != temps[idx] } ?: temps[idx]
             val rightVal = temps.subList(idx + 1, temps.size).find { it != temps[idx] } ?: temps[idx]
@@ -1121,6 +1132,67 @@ object TemperatureGraphRenderer {
             ctx.canvas.drawText(candidate.text, candidate.x, dayYBottom, paint)
             ctx.onDayLabelPlaced?.invoke(DayLabelPlacementDebug(if (idx == 0) "LEFT" else "RIGHT", candidate.text, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday))
         }
+    }
+
+    /**
+     * Pre-compute the bounding rectangles that [drawFetchDot] will occupy,
+     * so temperature labels can treat them as collision obstacles.
+     */
+    private fun computeFetchDotBounds(ctx: RenderContext, hours: List<HourData>): List<RectF> {
+        val bounds = mutableListOf<RectF>()
+        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.lastObservedTemp == null) return bounds
+        val fetchY = ctx.graphTop + ctx.graphHeight * (1 - (ctx.lastObservedTemp - ctx.minTemp) / ctx.tempRange)
+        val dotRadius = dpToPx(ctx.context, 3.2f * ctx.labelScale)
+        val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
+
+        // Dot circle bound
+        val outerRadius = dotRadius + ctx.paints.ringPaint.strokeWidth / 2f
+        bounds.add(RectF(clampedX - outerRadius, fetchY - outerRadius, clampedX + outerRadius, fetchY + outerRadius))
+
+        // Value label bound (mirrors placement logic in drawFetchDot)
+        val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
+        val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
+        val sideGap = dpToPx(ctx.context, 4f * ctx.labelScale)
+        val valueBaselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+
+        if (clampedX + dotRadius + sideGap + valueWidth <= ctx.widthPx) {
+            val x = clampedX + dotRadius + sideGap
+            val y = fetchY + valueBaselineOffset
+            bounds.add(RectF(x, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth, y + ctx.paints.valueTextPaint.descent()))
+        } else if (clampedX - dotRadius - sideGap - valueWidth >= 0) {
+            val x = clampedX - dotRadius - sideGap
+            val y = fetchY + valueBaselineOffset
+            bounds.add(RectF(x - valueWidth, y + ctx.paints.valueTextPaint.ascent(), x, y + ctx.paints.valueTextPaint.descent()))
+        } else if (fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale) + ctx.paints.valueTextPaint.ascent() >= 0) {
+            val x = clampedX
+            val y = fetchY - dotRadius - dpToPx(ctx.context, 2f * ctx.labelScale)
+            bounds.add(RectF(x - valueWidth / 2f, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth / 2f, y + ctx.paints.valueTextPaint.descent()))
+        }
+
+        // Staleness label bound
+        val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
+        val ageLabel = if (ageMinutes >= 0 && Duration.between(hours.first().dateTime, hours.last().dateTime).toHours() <= 12) {
+            if (ageMinutes >= 60) "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}" else "${ageMinutes}m"
+        } else null
+        if (ageLabel != null) {
+            val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
+            val padding = dpToPx(ctx.context, 4f * ctx.labelScale)
+            var ageBaselineY = fetchY + dotRadius + padding - ctx.paints.stalenessTextPaint.ascent()
+            var ageBounds = RectF(
+                clampedX - ageWidth / 2f,
+                ageBaselineY + ctx.paints.stalenessTextPaint.ascent(),
+                clampedX + ageWidth / 2f,
+                ageBaselineY + ctx.paints.stalenessTextPaint.descent()
+            )
+            val collision = bounds.any { RectF.intersects(ageBounds, it) }
+            if (collision || ageBounds.bottom > ctx.heightPx) {
+                ageBaselineY = fetchY - dotRadius - padding - ctx.paints.stalenessTextPaint.descent()
+                ageBounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + ctx.paints.stalenessTextPaint.ascent())
+            }
+            bounds.add(ageBounds)
+        }
+
+        return bounds
     }
 
     private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
@@ -1409,6 +1481,10 @@ object TemperatureGraphRenderer {
         val drawnIconBounds = mutableListOf<RectF>()
         drawHourLabelsAndIcons(ctx, hours, drawnIconBounds)
         val t5 = SystemClock.elapsedRealtime()
+        // Pre-compute fetch dot bounds so temperature labels avoid overlapping them
+        val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)
+        Log.d(TAG, "FETCH_DOT_PRE_BOUNDS count=${fetchDotPreBounds.size} bounds=$fetchDotPreBounds")
+        ctx.drawnLabelBounds.addAll(fetchDotPreBounds)
         placeTemperatureLabels(ctx, hours, drawnIconBounds)
         placeDayLabels(ctx, hours, drawnIconBounds)
         val t6 = SystemClock.elapsedRealtime()
