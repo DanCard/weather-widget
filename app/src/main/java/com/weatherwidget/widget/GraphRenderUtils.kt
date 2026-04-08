@@ -12,6 +12,9 @@ import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 internal object GraphRenderUtils {
+    // Allocates two new Path objects per call. Caller invokes ~4x per render cycle (15-60 min interval),
+    // producing ~8 short-lived Path objects. Acceptable for widget update frequency; if interval drops
+    // below ~1 min, consider reusing Path instances via reset().
     fun buildSmoothCurveAndFillPaths(
         points: List<Pair<Float, Float>>,
         graphBottom: Float,
