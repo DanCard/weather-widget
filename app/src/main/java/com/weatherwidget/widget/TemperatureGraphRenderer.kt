@@ -763,6 +763,30 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         )
     }
 
+    /**
+     * Checks if a label at [idx] with [role] is redundant because it's too close to [targetIdx]
+     * (which has a different role) and their temperature values are nearly identical.
+     */
+    private fun isRedundantNear(
+        idx: Int,
+        role: TemperatureRole,
+        targetIdx: Int,
+        suppressedIndices: Set<Int>,
+        currentVal: Float,
+        targetVal: Float,
+        window: Int,
+        threshold: Float,
+        reasonSuffix: String
+    ): Boolean {
+        if (targetIdx >= 0 && targetIdx !in suppressedIndices && abs(idx - targetIdx) <= window) {
+            if (abs(currentVal - targetVal) < threshold) {
+                Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_$reasonSuffix dist=${abs(idx - targetIdx)} valueDiff=${abs(currentVal - targetVal)}")
+                return true
+            }
+        }
+        return false
+    }
+
     private fun collectLabelCandidates(
         hours: List<HourData>,
         extrema: ExtremaIndices,
@@ -888,60 +912,18 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
 
             val redundantPairWindow = min(8, hours.lastIndex / 5)
             val redundantValueThreshold = 2f
-            if (role == TemperatureRole.ACTUAL_HIGH && extrema.dailyHighIndex >= 0 && extrema.dailyHighIndex !in suppressedIndices && abs(idx - extrema.dailyHighIndex) <= redundantPairWindow) {
-                val actualVal = actualLabelTemps[idx]
-                val forecastVal = labelTemps[extrema.dailyHighIndex]
-                if (abs(actualVal - forecastVal) < redundantValueThreshold) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_HIGH dist=${abs(idx - extrema.dailyHighIndex)} valueDiff=${abs(actualVal - forecastVal)}")
-                    suppressedIndices.add(idx)
-                    continue
-                }
-            }
-            if (role == TemperatureRole.ACTUAL_LOW && extrema.dailyLowIndex >= 0 && extrema.dailyLowIndex !in suppressedIndices && abs(idx - extrema.dailyLowIndex) <= redundantPairWindow) {
-                val actualVal = actualLabelTemps[idx]
-                val forecastVal = labelTemps[extrema.dailyLowIndex]
-                if (abs(actualVal - forecastVal) < redundantValueThreshold) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_LOW dist=${abs(idx - extrema.dailyLowIndex)} valueDiff=${abs(actualVal - forecastVal)}")
-                    suppressedIndices.add(idx)
-                    continue
-                }
+
+            val isRedundant = when (role) {
+                TemperatureRole.ACTUAL_HIGH -> isRedundantNear(idx, role, extrema.dailyHighIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyHighIndex], redundantPairWindow, redundantValueThreshold, "HIGH")
+                TemperatureRole.ACTUAL_LOW -> isRedundantNear(idx, role, extrema.dailyLowIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyLowIndex], redundantPairWindow, redundantValueThreshold, "LOW")
+                TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_HIGH")
+                TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_LOW")
+                else -> false
             }
 
-            if (role == TemperatureRole.FORECAST_HIGH && extrema.actualHighIndex >= 0 && extrema.actualHighIndex !in suppressedIndices && abs(idx - extrema.actualHighIndex) <= redundantPairWindow) {
-                val forecastVal = labelTemps[idx]
-                val actualVal = actualLabelTemps[extrema.actualHighIndex]
-                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_HIGH dist=${abs(idx - extrema.actualHighIndex)} valueDiff=${abs(forecastVal - actualVal)}")
-                    suppressedIndices.add(idx)
-                    continue
-                }
-            }
-            if (role == TemperatureRole.FORECAST_LOW && extrema.actualLowIndex >= 0 && extrema.actualLowIndex !in suppressedIndices && abs(idx - extrema.actualLowIndex) <= redundantPairWindow) {
-                val forecastVal = labelTemps[idx]
-                val actualVal = actualLabelTemps[extrema.actualLowIndex]
-                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_LOW dist=${abs(idx - extrema.actualLowIndex)} valueDiff=${abs(forecastVal - actualVal)}")
-                    suppressedIndices.add(idx)
-                    continue
-                }
-            }
-            if (role == TemperatureRole.PAST_FORECAST_HIGH && extrema.actualHighIndex >= 0 && extrema.actualHighIndex !in suppressedIndices && abs(idx - extrema.actualHighIndex) <= redundantPairWindow) {
-                val forecastVal = labelTemps[idx]
-                val actualVal = actualLabelTemps[extrema.actualHighIndex]
-                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_HIGH dist=${abs(idx - extrema.actualHighIndex)} valueDiff=${abs(forecastVal - actualVal)}")
-                    suppressedIndices.add(idx)
-                    continue
-                }
-            }
-            if (role == TemperatureRole.PAST_FORECAST_LOW && extrema.actualLowIndex >= 0 && extrema.actualLowIndex !in suppressedIndices && abs(idx - extrema.actualLowIndex) <= redundantPairWindow) {
-                val forecastVal = labelTemps[idx]
-                val actualVal = actualLabelTemps[extrema.actualLowIndex]
-                if (abs(forecastVal - actualVal) < redundantValueThreshold) {
-                    Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ACTUAL_LOW dist=${abs(idx - extrema.actualLowIndex)} valueDiff=${abs(forecastVal - actualVal)}")
-                    suppressedIndices.add(idx)
-                    continue
-                }
+            if (isRedundant) {
+                suppressedIndices.add(idx)
+                continue
             }
 
             if (role in listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW) && transitionX != null) {
