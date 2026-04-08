@@ -16,12 +16,18 @@ import kotlinx.coroutines.launch
  * Receives scheduled UI update alarms and triggers UI-only widget refresh.
  */
 class UIUpdateReceiver : BroadcastReceiver() {
+    /**
+     * Dispatcher used for background operations.
+     * Can be overridden in tests to provide synchronous execution.
+     */
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
+
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(ioDispatcher).launch {
             try {
                 handleUiUpdateAlarm(context)
             } finally {

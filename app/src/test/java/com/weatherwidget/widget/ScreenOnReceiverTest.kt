@@ -2,25 +2,25 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.testutil.TestDatabase
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import android.os.Looper
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import kotlinx.coroutines.runBlocking
-
-import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.test.category.MediumDuration
-import org.junit.experimental.categories.Category
-
-
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -34,7 +34,13 @@ class ScreenOnReceiverTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         receiver = ScreenOnReceiver()
-        context.getSharedPreferences("screen_on_receiver_prefs", Context.MODE_PRIVATE)
+        // Inject UnconfinedTestDispatcher for synchronous deterministic execution
+        receiver.ioDispatcher = UnconfinedTestDispatcher()
+
+        // Inject TestDatabase with allowMainThreadQueries to avoid background offloading flakiness
+        WeatherDatabase.setDatabaseForTesting(TestDatabase.create())
+
+        com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "screen_on_receiver_prefs")
             .edit()
             .clear()
             .commit()
@@ -99,7 +105,7 @@ class ScreenOnReceiverTest {
 
     @Test
     fun `onReceive with POWER_CONNECTED records lazy refresh timestamp`() {
-        val prefs = context.getSharedPreferences("screen_on_receiver_prefs", Context.MODE_PRIVATE)
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "screen_on_receiver_prefs")
         assertEquals(0L, prefs.getLong("last_power_connected_refresh_ms", 0L))
 
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
@@ -110,7 +116,7 @@ class ScreenOnReceiverTest {
 
     @Test
     fun `onReceive with POWER_CONNECTED is debounced within window`() {
-        val prefs = context.getSharedPreferences("screen_on_receiver_prefs", Context.MODE_PRIVATE)
+        val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, "screen_on_receiver_prefs")
 
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
         val first = prefs.getLong("last_power_connected_refresh_ms", 0L)
@@ -123,59 +129,44 @@ class ScreenOnReceiverTest {
     }
 
     @Test
-    fun `onReceive with POWER_CONNECTED writes enqueued app log`() {
+    fun `onReceive with POWER_CONNECTED writes enqueued app log`() = runTest {
         val beforeCount = powerConnectedLogCount()
 
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
 
-        val foundLog = waitForCondition(timeoutMs = 1000) {
-            powerConnectedLogCount() > beforeCount
-        }
-        assertTrue("Expected POWER_CONNECTED_EVENT log entry", foundLog)
+        assertTrue("Expected POWER_CONNECTED_EVENT log entry", powerConnectedLogCount() > beforeCount)
 
         val latest =
-            runBlocking {
-                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 10).firstOrNull()
-            }
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 10).firstOrNull()
         assertNotNull("Expected latest POWER_CONNECTED_EVENT log", latest)
         assertTrue("Expected enqueued result in log message", latest!!.message.contains("result=enqueued"))
     }
 
     @Test
-    fun `onReceive with POWER_CONNECTED debounce writes skip app log`() {
+    fun `onReceive with POWER_CONNECTED debounce writes skip app log`() = runTest {
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
         val beforeCount = powerConnectedLogCount()
 
         receiver.onReceive(context, Intent(Intent.ACTION_POWER_CONNECTED))
 
-        val foundLog = waitForCondition(timeoutMs = 1000) {
-            powerConnectedLogCount() > beforeCount
-        }
-        assertTrue("Expected debounced POWER_CONNECTED_EVENT log entry", foundLog)
+        assertTrue("Expected debounced POWER_CONNECTED_EVENT log entry", powerConnectedLogCount() > beforeCount)
 
         val latest =
-            runBlocking {
-                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 10).firstOrNull()
-            }
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 10).firstOrNull()
         assertNotNull("Expected latest POWER_CONNECTED_EVENT log", latest)
         assertTrue("Expected debounce skip result in log message", latest!!.message.contains("result=debounced_skip"))
     }
 
     @Test
-    fun `onReceive with USER_PRESENT writes unlock policy app log`() {
+    fun `onReceive with USER_PRESENT writes unlock policy app log`() = runTest {
         val beforeCount = unlockPolicyLogCount()
 
         receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
 
-        val foundLog = waitForCondition(timeoutMs = 1000) {
-            unlockPolicyLogCount() > beforeCount
-        }
-        assertTrue("Expected UNLOCK_REFRESH_POLICY log entry", foundLog)
+        assertTrue("Expected UNLOCK_REFRESH_POLICY log entry", unlockPolicyLogCount() > beforeCount)
 
         val latest =
-            runBlocking {
-                WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 1).firstOrNull()
-            }
+            WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 1).firstOrNull()
         assertNotNull("Expected latest UNLOCK_REFRESH_POLICY log", latest)
         assertFalse("Expected uiOnly field in log message", latest!!.message.contains("uiOnly=").not())
     }
@@ -190,19 +181,5 @@ class ScreenOnReceiverTest {
         return runBlocking {
             WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("POWER_CONNECTED_EVENT", 100).size
         }
-    }
-
-    private fun waitForCondition(
-        timeoutMs: Long,
-        condition: () -> Boolean,
-    ): Boolean {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            shadowOf(Looper.getMainLooper()).idle()
-            if (condition()) return true
-            Thread.sleep(20)
-        }
-        shadowOf(Looper.getMainLooper()).idle()
-        return condition()
     }
 }

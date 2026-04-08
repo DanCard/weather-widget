@@ -19,6 +19,12 @@ import com.weatherwidget.data.local.log
  * If charging and data is stale, also triggers background data fetch.
  */
 class ScreenOnReceiver : BroadcastReceiver() {
+    /**
+     * Dispatcher used for background operations.
+     * Can be overridden in tests to provide synchronous execution.
+     */
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
+
     override fun onReceive(
         context: Context,
         intent: Intent,
@@ -95,7 +101,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
         // Resume background UI updates now that screen is on
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(ioDispatcher).launch {
             try {
                 WeatherDatabase.getDatabase(context).appLogDao().log(
                     "UNLOCK_REFRESH_POLICY",
@@ -123,7 +129,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         elapsedMs: Long,
     ) {
         val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        CoroutineScope(ioDispatcher).launch {
             try {
                 WeatherDatabase.getDatabase(context).appLogDao().log(
                     "POWER_CONNECTED_EVENT",

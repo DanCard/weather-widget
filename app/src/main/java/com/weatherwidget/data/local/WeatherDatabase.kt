@@ -141,6 +141,13 @@ abstract class WeatherDatabase : RoomDatabase() {
         }
 
         @Synchronized
+        fun setDatabaseForTesting(db: WeatherDatabase) {
+            resetInstanceForTesting()
+            INSTANCE = db
+            isTesting = true
+        }
+
+        @Synchronized
         fun isTestingMode(): Boolean = isTesting
 
         @Synchronized
