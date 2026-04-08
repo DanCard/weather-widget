@@ -1,31 +1,41 @@
-# Restore Extrema Dip and Fix Clutter Logic Plan
+# Plan - Fix Temperature Label Collision Priority
+
+Address the issue where colliding temperature labels on the hourly graph are placed in the wrong vertical order. Specifically, ensure that the more extreme temperature (higher for peaks, lower for valleys) occupies the more extreme position (top for peaks, bottom for valleys).
 
 ## Objective
-Restore the "extrema dip" (e.g., 53°) that was lost due to overly aggressive prominence filtering, while still solving the clutter issue by improving the "significance" logic in the dense label filter.
+Update the sorting logic for temperature label candidates to prioritize "more extreme" values. By placing the most extreme value first in its preferred direction (above for peaks, below for valleys), we ensure it gets the most prominent spot, while less extreme values that collide are displaced to the opposite side or further away.
 
-## Changes
+## Key Files & Context
+- **`app/src/main/java/com/weatherwidget/widget/TemperatureGraphRenderer.kt`**: Contains the label placement and sorting logic in `placeTemperatureLabels`.
 
-1. **Lower Prominence Threshold:**
-   In `TemperatureGraphRenderer.kt`, revert `MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES` to `1.8f` (from `2.5f`). This ensures that 2-degree dips are detected as candidates again.
+## Proposed Changes
 
-2. **Restore Candidate Capacity:**
-   In `TemperatureGraphRenderer.kt`, revert `MAX_TEMP_LABEL_CANDIDATES` to `6` (from `5`). This gives more room for local extrema when the graph is complex.
+### 1. Update Candidate Sorting Logic
+In `TemperatureGraphRenderer.kt`, modify the `sortWith` block in `placeTemperatureLabels` (around line 723).
 
-3. **Level the Priority Playing Field:**
-   In `GraphLabelPlacementUtils.kt`, update `candidatePriority` to:
-   - Priority 0: `GLOBAL_MAX`, `GLOBAL_MIN` (Both are equally vital anchors).
-   - Priority 1: `PEAK`, `VALLEY` (Both are equally vital local features).
-   - Priority 2: `EDGE` (Start/End are useful but subordinate to extrema).
+**Current Logic:**
+```kotlin
+if (isPeak) it.rawTemperature else -it.rawTemperature
+```
+*Problem:* This sorts peaks ascending (lowest first) and valleys descending (highest first), which causes less extreme values to take the preferred spots first.
 
-4. **Improve Significance Metric (`candidateStrength`):**
-   In `GraphLabelPlacementUtils.kt`, update `candidateStrength` to use the **distance from the global range center** as the metric for strength.
-   - Calculate `center = (globalMaxVal + globalMinVal) / 2`.
-   - `strength = abs(value - center)`.
-   - This ensures that a deep valley (like 53° in a 50-70° range) is recognized as "stronger" and more significant than a minor intermediate peak (like 55°), causing the minor peak to be pruned instead of the valley.
+**New Logic:**
+```kotlin
+if (isPeak) -it.rawTemperature else it.rawTemperature
+```
+*Rationale:* 
+- **Peaks:** Sorting by `-rawTemperature` (ascending) means higher temperatures come first. The highest peak gets step 0 `above`. Lower peaks that collide are displaced `below`.
+- **Valleys:** Sorting by `rawTemperature` (ascending) means lower temperatures come first. The lowest valley gets step 0 `below`. Higher valleys that collide are displaced `above`.
 
-5. **Update Tests:**
-   Adjust `TemperatureGraphRendererLabelPlacementTest.kt` and `TemperatureGraphLabelPlacementRobolectricTest.kt` to account for the improved priority and strength logic.
+## Verification & Testing
 
-## Verification
-- Unit tests: Run full widget suite.
-- Visual check: Verify the 53° dip is restored and the 55° clutter is gone.
+### 1. Unit Testing
+- Create/Run a test case (like the one in `conductor/TemperatureLabelCollisionOrderTest.kt`) that simulates nearby peaks and valleys.
+- Verify that for colliding peaks, the higher temperature has a smaller Y coordinate (higher on screen).
+- Verify that for colliding valleys, the lower temperature has a larger Y coordinate (lower on screen).
+
+### 2. On-Device Verification
+- Deploy to the emulator.
+- Observe the hourly graph in situations where forecast and actual extrema are close (e.g., a forecast low of 52 and an actual low of 50).
+- Confirm that the 50 label is below the 52 label.
+- Confirm that for peaks (e.g., 87 vs 85), the 87 label is above the 85 label.

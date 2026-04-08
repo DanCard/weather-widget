@@ -694,6 +694,10 @@ object TemperatureGraphRenderer {
         val actualStartIndex = 0
         val actualEndIndex = if (ctx.transitionX != null) ctx.effectiveActualEndIndex else hours.lastIndex
         val actualIndices = (actualStartIndex..actualEndIndex).filter { it in actualLabelTemps.indices }
+        
+        println("ACTUAL_END_INDEX: $actualEndIndex transitionX=${ctx.transitionX}")
+        println("ACTUAL_LABEL_TEMPS: $actualLabelTemps")
+        
         val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
         val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1
 
@@ -743,6 +747,8 @@ object TemperatureGraphRenderer {
         potentialAnchors.add(0 to "START")
         if (hours.size > 1) potentialAnchors.add(hours.size - 1 to "END")
         
+        println("POTENTIAL_ANCHORS: $potentialAnchors")
+        
         // Also consider significant local extrema as potential candidates.
         // They have lower priority than explicitly named roles.
         significantLocalExtrema.forEach { potentialAnchors.add(it to "LOCAL") }
@@ -778,9 +784,11 @@ object TemperatureGraphRenderer {
         }
         
         val deduplicatedIndices = slotToAnchor.values.toSet()
+        println("DEDUPLICATED_INDICES: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != "LOCAL" }
         }.toSet()
+        println("EXPLICIT_ANCHORS: $explicitAnchors")
 
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelTemps,
@@ -943,6 +951,8 @@ object TemperatureGraphRenderer {
             val isActualRole = role == "ACTUAL_HIGH" || role == "ACTUAL_LOW"
             val forceForecast = role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW", "LOCAL", "START", "END")
             val temps = if (isActualRole) actualLabelTemps else labelTemps
+            
+            Log.d(TAG, "ADDING_CANDIDATE idx=$idx role=$role temp=${temps[idx]} series=${if (forceForecast) "forecast" else "actual"}")
 
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
@@ -956,10 +966,11 @@ object TemperatureGraphRenderer {
 
         specialCandidates.sortWith(
             compareBy<TempLabelCandidate> {
-                val leftVal = it.labelTemps.subList(0, it.index).findLast { v -> v != it.rawTemperature } ?: it.rawTemperature
-                val rightVal = it.labelTemps.subList(it.index + 1, it.labelTemps.size).find { v -> v != it.rawTemperature } ?: it.rawTemperature
-                val isPeak = it.role in listOf("HIGH", "FORECAST_HIGH", "ACTUAL_HIGH", "PAST_FORECAST_HIGH") || (it.role == "LOCAL" && it.rawTemperature > leftVal && it.rawTemperature > rightVal)
-                if (isPeak) it.rawTemperature else -it.rawTemperature
+                val displayTemp = it.labelTemps[it.index]
+                val leftVal = it.labelTemps.subList(0, it.index).findLast { v -> v != displayTemp } ?: displayTemp
+                val rightVal = it.labelTemps.subList(it.index + 1, it.labelTemps.size).find { v -> v != displayTemp } ?: displayTemp
+                val isPeak = it.role in listOf("HIGH", "FORECAST_HIGH", "ACTUAL_HIGH", "PAST_FORECAST_HIGH") || (it.role == "LOCAL" && displayTemp > leftVal && displayTemp > rightVal)
+                if (isPeak) -displayTemp else displayTemp
             }.thenBy {
                 when (it.role) {
                     "HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "ACTUAL_HIGH", "ACTUAL_LOW" -> 0
@@ -969,7 +980,7 @@ object TemperatureGraphRenderer {
             }
         )
 
-        Log.d(TAG, "LABEL_CANDIDATES total=${specialCandidates.size} candidates=${specialCandidates.map { "idx=${it.index} role=${it.role} temp=${String.format("%.2f", it.labelTemps[it.index])}° (${formatTemp(it.labelTemps[it.index])}°) series=${if (it.forceForecastSeries) "forecast" else "actual"}" }}")
+        Log.d(TAG, "LABEL_CANDIDATES total=${specialCandidates.size} candidates=${specialCandidates.map { "idx=${it.index} role=${it.role} temp=${String.format("%.2f", it.labelTemps[it.index])}° rawTemp=${String.format("%.2f", it.rawTemperature)}° series=${if (it.forceForecastSeries) "forecast" else "actual"}" }}")
 
         for (candidate in specialCandidates) {
             val idx = candidate.index
