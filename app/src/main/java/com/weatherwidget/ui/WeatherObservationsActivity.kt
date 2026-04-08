@@ -31,6 +31,12 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class WeatherObservationsActivity : AppCompatActivity() {
     private val TAG = "WeatherObservations"
+
+    /**
+     * Dispatcher used for background operations.
+     * Can be overridden in tests to provide synchronous execution.
+     */
+    internal var ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO
     
     @Inject
     lateinit var weatherRepository: WeatherRepository
@@ -101,7 +107,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     private fun refreshData() {
         lifecycleScope.launch {
-            val location = activeLocation ?: withContext(Dispatchers.IO) {
+            val location = activeLocation ?: withContext(ioDispatcher) {
                 weatherRepository.getLatestLocation()
             }
             
@@ -113,7 +119,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
             findViewById<View>(R.id.refresh_button).isEnabled = false
             findViewById<View>(R.id.refresh_button).alpha = 0.5f
             
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 weatherRepository.refreshCurrentTemperature(
                     location.first,
                     location.second,
@@ -210,7 +216,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     private fun loadObservations() {
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(ioDispatcher) {
             try {
                 val observations = if (currentSource == WeatherSource.NWS) {
                     // Fetch detailed multi-station observations from the last 24 hours
@@ -271,7 +277,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     private fun loadFetchLogs() {
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(ioDispatcher) {
             try {
                 val filteredLogs = appLogDao.getRecentLogs(1000)
                     .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }

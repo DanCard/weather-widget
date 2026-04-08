@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.Looper
 import android.widget.TextView
-import androidx.core.view.get
 import androidx.recyclerview.widget.RecyclerView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -17,6 +16,8 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,8 +30,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
-
-
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -45,6 +44,9 @@ class WeatherObservationsActivityRobolectricTest {
     private val lon = -122.088776
     private var now = 0L
     private val dbName = "weather_observations_activity_test_db"
+    
+    // Test dispatcher for synchronous execution
+    private val testDispatcher = UnconfinedTestDispatcher()
 
     @Before
     fun setUp() {
@@ -140,9 +142,8 @@ class WeatherObservationsActivityRobolectricTest {
 
         scenario.onActivity { activity ->
             activity.findViewById<TextView>(R.id.api_source_button).performClick()
+            // After click, the activity triggers loadObservations() and loadFetchLogs() on ioDispatcher
         }
-
-        waitForUiWork()
 
         scenario.onActivity { activity ->
             val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
@@ -180,7 +181,24 @@ class WeatherObservationsActivityRobolectricTest {
 
         val intent = Intent(context, WeatherObservationsActivity::class.java)
         val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
-        waitForUiWork()
+        scenario.onActivity { it.ioDispatcher = testDispatcher }
+        // Force a re-load now that we have the synchronous dispatcher
+        scenario.onActivity { it.findViewById<TextView>(R.id.api_source_button).performClick(); it.findViewById<TextView>(R.id.api_source_button).performClick() } 
+        // Actually, onCreate already ran. Let's try to inject dispatcher via scenario.onActivity before it runs? 
+        // ActivityScenario.launch runs onCreate immediately.
+        // Let's use ActivityScenario.onActivity to re-trigger the loads.
+        scenario.onActivity { 
+            it.ioDispatcher = testDispatcher
+            // Directly call private methods if needed, but easier to just click or re-init
+            // Let's just call the load methods again
+            val methodObs = it.javaClass.getDeclaredMethod("loadObservations")
+            methodObs.isAccessible = true
+            methodObs.invoke(it)
+            
+            val methodLogs = it.javaClass.getDeclaredMethod("loadFetchLogs")
+            methodLogs.isAccessible = true
+            methodLogs.invoke(it)
+        }
 
         scenario.onActivity { activity ->
             val sourceButton = activity.findViewById<TextView>(R.id.api_source_button)
@@ -198,15 +216,18 @@ class WeatherObservationsActivityRobolectricTest {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             }
         val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
-        waitForUiWork()
-        return scenario
-    }
-
-    private fun waitForUiWork() {
-        repeat(20) {
-            shadowOf(Looper.getMainLooper()).idle()
-            Thread.sleep(25)
+        scenario.onActivity { 
+            it.ioDispatcher = testDispatcher
+            // Re-trigger loads with the synchronous dispatcher
+            val methodObs = it.javaClass.getDeclaredMethod("loadObservations")
+            methodObs.isAccessible = true
+            methodObs.invoke(it)
+            
+            val methodLogs = it.javaClass.getDeclaredMethod("loadFetchLogs")
+            methodLogs.isAccessible = true
+            methodLogs.invoke(it)
         }
+        return scenario
     }
 
     private fun observation(
