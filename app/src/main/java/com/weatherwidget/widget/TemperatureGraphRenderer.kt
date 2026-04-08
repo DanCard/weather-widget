@@ -614,14 +614,22 @@ object TemperatureGraphRenderer {
             ctx.canvas.restore()
         }
 
-        // Draw forecast line with per-hour weather-adaptive colors
+        // Draw forecast line with per-hour weather-adaptive colors.
+        // Each segment is a separate Path, so DashPathEffect phase resets to 0.
+        // Advance the phase by cumulative path length so dashes flow continuously.
+        val dashOn = dpToPx(ctx.context, 8f)
+        val dashOff = dpToPx(ctx.context, 4f)
+        val dashPattern = floatArrayOf(dashOn, dashOff)
         val segmentPaint = Paint(paints.forecastDashedPaint)
+        var cumulativeLength = 0f
         for (i in ctx.forecastSegmentPaths.indices) {
             val hour = hours[i.coerceAtMost(hours.lastIndex)]
             segmentPaint.color = WeatherConditionColors.forecastColor(
                 hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight
             )
+            segmentPaint.pathEffect = DashPathEffect(dashPattern, cumulativeLength)
             ctx.canvas.drawPath(ctx.forecastSegmentPaths[i], segmentPaint)
+            cumulativeLength += PathMeasure(ctx.forecastSegmentPaths[i], false).length
         }
 
         if (ctx.transitionX != null) {
