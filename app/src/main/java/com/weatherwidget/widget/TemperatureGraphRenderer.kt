@@ -346,6 +346,7 @@ object TemperatureGraphRenderer {
         val ageText: String? = null,
         val valueColor: Int? = null,
         val stalenessColor: Int? = null,
+        val stalenessLabelY: Float? = null,
     )
 
     data class GhostLineDebug(
@@ -1131,21 +1132,6 @@ object TemperatureGraphRenderer {
             if (ageMinutes >= 60) "${ageMinutes / 60}h${if (ageMinutes % 60 > 0) " ${ageMinutes % 60}m" else ""}" else "${ageMinutes}m"
         } else null
 
-        if (ageLabel != null) {
-            val ageY = fetchY + dotRadius + dpToPx(ctx.context, 4f * ctx.labelScale) - ctx.paints.stalenessTextPaint.ascent()
-            if (ageY + ctx.paints.stalenessTextPaint.descent() <= ctx.heightPx) {
-                val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
-                val ageBounds = RectF(
-                    clampedX - ageWidth / 2f,
-                    ageY + ctx.paints.stalenessTextPaint.ascent(),
-                    clampedX + ageWidth / 2f,
-                    ageY + ctx.paints.stalenessTextPaint.descent()
-                )
-                ctx.canvas.drawText(ageLabel, clampedX, ageY, ctx.paints.stalenessTextPaint)
-                drawnBounds.add(ageBounds)
-            }
-        }
-
         val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, 4f * ctx.labelScale)
@@ -1177,7 +1163,52 @@ object TemperatureGraphRenderer {
             drawnBounds.add(RectF(x - valueWidth / 2f, y + ctx.paints.valueTextPaint.ascent(), x + valueWidth / 2f, y + ctx.paints.valueTextPaint.descent()))
         }
 
-        ctx.onFetchDotResolved?.invoke(FetchDotDebug(ctx.observedAt, clampedX, fetchY, true, if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel, ctx.paints.valueTextPaint.color, if (ageLabel != null) ctx.paints.stalenessTextPaint.color else null))
+        var finalAgeY: Float? = null
+        if (ageLabel != null) {
+            val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
+            val padding = dpToPx(ctx.context, 4f * ctx.labelScale)
+            val leaderLinePaint = ctx.paints.actualLeaderLinePaint
+            val allBounds = ctx.drawnLabelBounds + drawnBounds
+
+            var placeAbove = false
+            var ageBaselineY = fetchY + dotRadius + padding - ctx.paints.stalenessTextPaint.ascent()
+            var bounds = RectF(
+                clampedX - ageWidth / 2f,
+                ageBaselineY + ctx.paints.stalenessTextPaint.ascent(),
+                clampedX + ageWidth / 2f,
+                ageBaselineY + ctx.paints.stalenessTextPaint.descent()
+            )
+
+            var collision = allBounds.any { RectF.intersects(bounds, it) }
+
+            if (collision || bounds.bottom > ctx.heightPx) {
+                placeAbove = true
+                ageBaselineY = fetchY - dotRadius - padding - ctx.paints.stalenessTextPaint.descent()
+                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + ctx.paints.stalenessTextPaint.ascent())
+                collision = allBounds.any { RectF.intersects(bounds, it) }
+            }
+
+            var step = 0
+            while (collision && step < 15) {
+                step++
+                val bump = dpToPx(ctx.context, 2f * ctx.labelScale)
+                ageBaselineY += if (placeAbove) -bump else bump
+                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + ctx.paints.stalenessTextPaint.ascent())
+                collision = allBounds.any { RectF.intersects(bounds, it) }
+            }
+
+            if (step > 0) {
+                val lineEndY = if (placeAbove) bounds.bottom else bounds.top
+                val lineStartY = if (placeAbove) fetchY - dotRadius else fetchY + dotRadius
+                ctx.canvas.drawLine(clampedX, lineStartY, clampedX, lineEndY, leaderLinePaint)
+            }
+
+            ctx.canvas.drawText(ageLabel, clampedX, ageBaselineY, ctx.paints.stalenessTextPaint)
+            drawnBounds.add(bounds)
+            finalAgeY = ageBaselineY
+        }
+
+        ctx.onFetchDotResolved?.invoke(FetchDotDebug(ctx.observedAt, clampedX, fetchY, true, if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel, ctx.paints.valueTextPaint.color, if (ageLabel != null) ctx.paints.stalenessTextPaint.color else null, finalAgeY))
         return drawnBounds
     }
 

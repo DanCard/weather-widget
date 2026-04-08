@@ -601,4 +601,45 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         assertNotNull("Label at idx 0 missing", startLabel)
         assertEquals("Label at start should be forecast series (blue)", "forecast", startLabel!!.series)
     }
+
+    @Test
+    fun `staleness time label is placed above dot when colliding with bottom bounds or other labels`() {
+        val start = LocalDateTime.of(2026, 4, 6, 10, 0)
+        // Create a graph where the dot is at the global minimum to force a LOW label
+        val hours = (0..5).map { i ->
+            val time = start.plusHours(i.toLong())
+            val temp = if (i == 2) 40.0f else 50.0f
+            TemperatureGraphRenderer.HourData(
+                dateTime = time,
+                temperature = temp,
+                actualTemperature = if (i <= 2) temp else null,
+                isActual = i <= 2,
+                label = "${time.hour}h"
+            )
+        }
+
+        // We observe at hour 2
+        val observedAtMs = start.plusHours(2).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        
+        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 200,
+            currentTime = start.plusHours(2).plusMinutes(90), // 90 min staleness so it shows "1h 30m"
+            observedAt = observedAtMs,
+            lastObservedTemp = 40f, // Minimum temp, places dot at bottom
+            onFetchDotResolved = { fetchDotDebug = it }
+        )
+
+        assertNotNull("fetchDotDebug must be captured", fetchDotDebug)
+        assertNotNull("stalenessLabelY must be captured", fetchDotDebug!!.stalenessLabelY)
+        
+        val fetchY = fetchDotDebug!!.fetchY!!
+        val labelY = fetchDotDebug!!.stalenessLabelY!!
+        
+        assertTrue("Staleness label ($labelY) should be placed ABOVE the dot ($fetchY) due to collision", labelY < fetchY)
+    }
 }
