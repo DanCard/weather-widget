@@ -19,11 +19,16 @@ import kotlin.math.round
 import kotlin.math.max
 import kotlin.math.roundToInt
 import com.weatherwidget.util.WeatherConditionColors
+import com.weatherwidget.BuildConfig
 
 object TemperatureGraphRenderer {
     private const val TAG = "TempGraphRenderer"
     private const val MAX_TEMP_LABEL_CANDIDATES = 6
-    private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5) // Degrees
+    private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5)
+
+    private inline fun debug(msg: () -> String) {
+        if (BuildConfig.DEBUG) Log.d(TAG, msg())
+    }
 
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2.5f
     private const val MIN_GHOST_LINE_DELTA = 0.1f
@@ -150,7 +155,7 @@ object TemperatureGraphRenderer {
         val dotPaint: Paint,
     )
 
-    // Not thread-safe; widget rendering is single-threaded (main looper or WorkManager worker).
+    @Volatile
     private var cachedPaints: PaintSet? = null
 
     private fun ensurePaints(context: Context, labelScale: Float): PaintSet {
@@ -472,8 +477,8 @@ object TemperatureGraphRenderer {
         val (forecastPath, forecastFillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(forecastPoints, graphBottom)
         val forecastSegmentPaths = GraphRenderUtils.buildPerSegmentPaths(forecastPoints)
         val tBezier3 = SystemClock.elapsedRealtime()
-        Log.d(TAG, "BEZIER_BREAKDOWN pts=${originalPoints.size}" +
-            " actual=${tBezier1-tBezier0}ms expected=${tBezier2-tBezier1}ms forecast=${tBezier3-tBezier2}ms")
+        debug { "BEZIER_BREAKDOWN pts=${originalPoints.size}" +
+            " actual=${tBezier1-tBezier0}ms expected=${tBezier2-tBezier1}ms forecast=${tBezier3-tBezier2}ms" }
 
         val nowX = GraphRenderUtils.computeNowX(hours, originalPoints, currentTime, hourWidth, { it.isCurrentHour }, { it.dateTime })
         val nowIndicatorVisible = nowX != null && nowX in 0f..widthPx.toFloat()
@@ -574,12 +579,15 @@ object TemperatureGraphRenderer {
         )
         ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
 
-        if (ctx.nowIndicatorVisible && ctx.appliedDelta != null && abs(ctx.appliedDelta) >= MIN_GHOST_LINE_DELTA && ctx.fetchDotX != null) {
-            val expectedY = ctx.lastObservedTemp?.let { ctx.tempToY(it) }
-            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(ctx.fetchDotX, expectedY))
+        val appliedDelta = ctx.appliedDelta
+        val fetchDotX = ctx.fetchDotX
+        val lastObservedTemp = ctx.lastObservedTemp
+        if (ctx.nowIndicatorVisible && appliedDelta != null && abs(appliedDelta) >= MIN_GHOST_LINE_DELTA && fetchDotX != null) {
+            val expectedY = lastObservedTemp?.let { ctx.tempToY(it) }
+            if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(fetchDotX, expectedY))
 
             ctx.canvas.save()
-            ctx.canvas.clipRect(ctx.fetchDotX, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
+            ctx.canvas.clipRect(fetchDotX, 0f, ctx.widthPx.toFloat(), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.expectedPath, paints.ghostPaint)
             ctx.canvas.restore()
         }
@@ -604,9 +612,10 @@ object TemperatureGraphRenderer {
             cumulativeLength += pathMeasure.length
         }
 
-        if (ctx.transitionX != null) {
+        val transitionX = ctx.transitionX
+        if (transitionX != null) {
             ctx.canvas.save()
-            ctx.canvas.clipRect(0f, 0f, ctx.transitionX + dpToPx(ctx.context, 1f), ctx.heightPx.toFloat())
+            ctx.canvas.clipRect(0f, 0f, transitionX + dpToPx(ctx.context, 1f), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.actualPath, paints.actualLinePaint)
             ctx.canvas.restore()
         }
@@ -701,7 +710,7 @@ object TemperatureGraphRenderer {
     ): Boolean {
         if (targetIdx >= 0 && targetIdx !in suppressedIndices && abs(idx - targetIdx) <= window) {
             if (abs(currentVal - targetVal) < threshold) {
-                Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_$reasonSuffix dist=${abs(idx - targetIdx)} valueDiff=${abs(currentVal - targetVal)}")
+                debug { "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_$reasonSuffix dist=${abs(idx - targetIdx)} valueDiff=${abs(currentVal - targetVal)}" }
                 return true
             }
         }
@@ -720,7 +729,7 @@ object TemperatureGraphRenderer {
     ): SuppressionResult {
         val isBoundary = role == TemperatureRole.START || role == TemperatureRole.END
         if (idx == 0 && suppressLeftEdgeLabel && !isBoundary) {
-            Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel")
+            debug { "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel" }
             return SuppressionResult(true)
         }
         return SuppressionResult(false)
@@ -738,10 +747,10 @@ object TemperatureGraphRenderer {
             return SuppressionResult(false, overriddenRole = if (idx == 0) TemperatureRole.START else TemperatureRole.END)
         }
         if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW)) {
-            Log.d(TAG, "LABEL_CANDIDATE_KEPT idx=$idx role=$role reason=EXTREMA_OVERRIDES_FETCH_DOT")
+            debug { "LABEL_CANDIDATE_KEPT idx=$idx role=$role reason=EXTREMA_OVERRIDES_FETCH_DOT" }
             return SuppressionResult(false)
         }
-        Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED")
+        debug { "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED" }
         return SuppressionResult(true)
     }
 
@@ -776,7 +785,7 @@ object TemperatureGraphRenderer {
         val boundaryIdx = effectiveActualEndIndex
         val transitionWindow = min(3, hours.lastIndex / 20)
         if (boundaryIdx >= 0 && abs(idx - boundaryIdx) <= transitionWindow) {
-            Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=TRANSITION_BOUNDARY_SUPPRESSED dist=${abs(idx - boundaryIdx)} boundaryIdx=$boundaryIdx")
+            debug { "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=TRANSITION_BOUNDARY_SUPPRESSED dist=${abs(idx - boundaryIdx)} boundaryIdx=$boundaryIdx" }
             return true
         }
         return false
@@ -798,7 +807,7 @@ object TemperatureGraphRenderer {
         val edgeDist = min(idx, hours.lastIndex - idx)
         val isEndpoint = idx == 0 || idx == hours.lastIndex
         if (edgeDist <= edgeWindow && !isEndpoint) {
-            Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ENDPOINT edgeDist=$edgeDist")
+            debug { "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=REDUNDANT_NEAR_ENDPOINT edgeDist=$edgeDist" }
             return true
         }
         return false
@@ -869,15 +878,15 @@ object TemperatureGraphRenderer {
         val actualLabelTemps = extrema.actualLabelTemps
 
         val potentialAnchors = buildPotentialAnchors(extrema, hours.size)
-        Log.d(TAG, "POTENTIAL_ANCHORS: $potentialAnchors")
+        debug { "POTENTIAL_ANCHORS: $potentialAnchors" }
         extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
 
         val deduplicatedIndices = deduplicateAnchors(potentialAnchors, labelTemps, actualLabelTemps)
-        Log.d(TAG, "DEDUPLICATED_INDICES: $deduplicatedIndices")
+        debug { "DEDUPLICATED_INDICES: $deduplicatedIndices" }
         val explicitAnchors = deduplicatedIndices.filter { idx ->
             potentialAnchors.any { it.first == idx && it.second != TemperatureRole.LOCAL }
         }.toSet()
-        Log.d(TAG, "EXPLICIT_ANCHORS: $explicitAnchors")
+        debug { "EXPLICIT_ANCHORS: $explicitAnchors" }
 
         val filteredIndices = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelTemps,
@@ -937,7 +946,7 @@ object TemperatureGraphRenderer {
             val forceForecast = role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.LOCAL, TemperatureRole.START, TemperatureRole.END)
             val temps = if (isActualRole) actualLabelTemps else labelTemps
 
-            Log.d(TAG, "ADDING_CANDIDATE idx=$idx role=$role temp=${temps[idx]} series=${if (forceForecast) "forecast" else "actual"}")
+            debug { "ADDING_CANDIDATE idx=$idx role=$role temp=${temps[idx]} series=${if (forceForecast) "forecast" else "actual"}" }
 
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
@@ -992,18 +1001,20 @@ object TemperatureGraphRenderer {
         val label = formatTemp(temps[idx]) + "°"
         val labelPaint = if (isFuture) {
             val hour = hours[idx.coerceAtMost(hours.lastIndex)]
-            ctx.paints.forecastTempLabelTextPaint.also {
+            Paint(ctx.paints.forecastTempLabelTextPaint).also {
                 it.color = WeatherConditionColors.forecastColor(hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight)
             }
         } else ctx.paints.actualTempLabelTextPaint
         val textWidth = labelPaint.measureText(label)
         val clampedX = sx.coerceIn(textWidth / 2f, ctx.widthPx - textWidth / 2f)
 
-        if (ctx.fetchDotX != null && ctx.lastObservedTemp != null && candidate.role !in setOf(TemperatureRole.START, TemperatureRole.END)) {
-            val fetchDotLabel = formatTemp(ctx.lastObservedTemp) + "°"
-            val dist = kotlin.math.abs(clampedX - ctx.fetchDotX)
+        val fetchDotX = ctx.fetchDotX
+        val lastObservedTemp = ctx.lastObservedTemp
+        if (fetchDotX != null && lastObservedTemp != null && candidate.role !in setOf(TemperatureRole.START, TemperatureRole.END)) {
+            val fetchDotLabel = formatTemp(lastObservedTemp) + "°"
+            val dist = kotlin.math.abs(clampedX - fetchDotX)
             if (label == fetchDotLabel && dist < dpToPx(ctx.context, 12f)) {
-                Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=${candidate.role} reason=REDUNDANT_WITH_FETCH_DOT dist=$dist")
+                debug { "LABEL_CANDIDATE_SKIPPED idx=$idx role=${candidate.role} reason=REDUNDANT_WITH_FETCH_DOT dist=$dist" }
                 return null
             }
         }
@@ -1014,7 +1025,7 @@ object TemperatureGraphRenderer {
         val isEssential = candidate.role in setOf(TemperatureRole.LOW, TemperatureRole.HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.START, TemperatureRole.END, TemperatureRole.ACTUAL_END)
 
         val leaderLinePaint = if (isFuture) {
-            ctx.paints.forecastLeaderLinePaint.also { it.color = withAlpha(labelPaint.color, 80) }
+            Paint(ctx.paints.forecastLeaderLinePaint).also { it.color = withAlpha(labelPaint.color, 80) }
         } else ctx.paints.actualLeaderLinePaint
 
         return CandidatePlacement(sx, sy, label, labelPaint, textWidth, clampedX, isFuture, isValley, isEssential, leaderLinePaint)
@@ -1055,7 +1066,7 @@ object TemperatureGraphRenderer {
 
         sortLabelCandidates(specialCandidates)
 
-        Log.d(TAG, "LABEL_CANDIDATES total=${specialCandidates.size} candidates=${specialCandidates.map { "idx=${it.index} role=${it.role} temp=${String.format("%.2f", it.labelTemps[it.index])}° rawTemp=${String.format("%.2f", it.rawTemperature)}° series=${if (it.forceForecastSeries) "forecast" else "actual"}" }}")
+        debug { "LABEL_CANDIDATES total=${specialCandidates.size} candidates=${specialCandidates.map { "idx=${it.index} role=${it.role} temp=${String.format("%.2f", it.labelTemps[it.index])}° rawTemp=${String.format("%.2f", it.rawTemperature)}° series=${if (it.forceForecastSeries) "forecast" else "actual"}" }}" }
 
         for (candidate in specialCandidates) {
             val idx = candidate.index
@@ -1063,7 +1074,7 @@ object TemperatureGraphRenderer {
             val placement = resolveCandidatePlacement(ctx, hours, candidate)
             if (placement == null) continue
 
-            Log.d(TAG, "DEBUG_SERIES: idx=$idx role=${candidate.role} forceForecast=${candidate.forceForecastSeries} isFuture=${placement.isFuture} transitionX=${ctx.transitionX} pointX=${ctx.originalPoints[idx].first}")
+            debug { "DEBUG_SERIES: idx=$idx role=${candidate.role} forceForecast=${candidate.forceForecastSeries} isFuture=${placement.isFuture} transitionX=${ctx.transitionX} pointX=${ctx.originalPoints[idx].first}" }
 
             val directions = if (placement.isValley) listOf(false, true) else listOf(true, false)
             val minorOverlapThreshold = if (GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role)) labelHeight * GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO else 0f
@@ -1315,15 +1326,18 @@ object TemperatureGraphRenderer {
      */
     private fun computeFetchDotBounds(ctx: RenderContext, hours: List<HourData>): List<RectF> {
         val bounds = mutableListOf<RectF>()
-        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.lastObservedTemp == null) return bounds
-        val fetchY = ctx.tempToY(ctx.lastObservedTemp)
+        val observedAt = ctx.observedAt
+        val fetchDotX = ctx.fetchDotX
+        val lastObservedTemp = ctx.lastObservedTemp
+        if (observedAt == null || fetchDotX == null || lastObservedTemp == null) return bounds
+        val fetchY = ctx.tempToY(lastObservedTemp)
         val dotRadius = dpToPx(ctx.context, DOT_RADIUS_DP * ctx.labelScale)
-        val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
+        val clampedX = fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
         val outerRadius = dotRadius + ctx.paints.ringPaint.strokeWidth / 2f
         bounds.add(RectF(clampedX - outerRadius, fetchY - outerRadius, clampedX + outerRadius, fetchY + outerRadius))
 
-        val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
+        val valueLabel = formatTemp(lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
         val aboveGap = dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
@@ -1351,17 +1365,20 @@ object TemperatureGraphRenderer {
 
     private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
         val drawnBounds = mutableListOf<RectF>()
-        if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.lastObservedTemp == null) return drawnBounds
-        val fetchY = ctx.tempToY(ctx.lastObservedTemp)
+        val observedAt = ctx.observedAt
+        val fetchDotX = ctx.fetchDotX
+        val lastObservedTemp = ctx.lastObservedTemp
+        if (observedAt == null || fetchDotX == null || lastObservedTemp == null) return drawnBounds
+        val fetchY = ctx.tempToY(lastObservedTemp)
         val dotRadius = dpToPx(ctx.context, DOT_RADIUS_DP * ctx.labelScale)
-        val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
+        val clampedX = fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
-        ctx.paints.dotPaint.color = tempToColor(ctx.lastObservedTemp)
-        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, ctx.paints.dotPaint)
+        val localDotPaint = Paint(ctx.paints.dotPaint).apply { color = tempToColor(lastObservedTemp) }
+        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, localDotPaint)
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, ctx.paints.ringPaint)
         ctx.canvas.drawCircle(clampedX, fetchY, dotRadius + ctx.paints.ringPaint.strokeWidth / 2f, ctx.paints.outerRingPaint)
 
-        val valueLabel = formatTemp(ctx.lastObservedTemp) + "°"
+        val valueLabel = formatTemp(lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
         val aboveGap = dpToPx(ctx.context, FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
@@ -1370,15 +1387,10 @@ object TemperatureGraphRenderer {
         val vDescent = fontDescent(ctx.paints.valueTextPaint)
         val valueLayout = resolveValueLabelLayout(clampedX, fetchY, dotRadius, valueWidth, sideGap, aboveGap, ctx.widthPx, baselineOffset, vAscent, vDescent)
 
-        val savedAlign = ctx.paints.valueTextPaint.textAlign
-        try {
-            if (valueLayout != null) {
-                ctx.paints.valueTextPaint.textAlign = valueLayout.align
-                ctx.canvas.drawText(valueLabel, valueLayout.x, valueLayout.y, ctx.paints.valueTextPaint)
-                drawnBounds.add(valueLayout.bounds)
-            }
-        } finally {
-            ctx.paints.valueTextPaint.textAlign = savedAlign
+        if (valueLayout != null) {
+            val localValuePaint = Paint(ctx.paints.valueTextPaint).apply { textAlign = valueLayout.align }
+            ctx.canvas.drawText(valueLabel, valueLayout.x, valueLayout.y, localValuePaint)
+            drawnBounds.add(valueLayout.bounds)
         }
 
         val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
@@ -1420,7 +1432,7 @@ object TemperatureGraphRenderer {
             finalAgeY = ageBaselineY
         }
 
-        ctx.onFetchDotResolved?.invoke(FetchDotDebug(ctx.observedAt, clampedX, fetchY, true, if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel, ctx.paints.valueTextPaint.color, if (ageLabel != null) ctx.paints.stalenessTextPaint.color else null, finalAgeY))
+        ctx.onFetchDotResolved?.invoke(FetchDotDebug(observedAt, clampedX, fetchY, true, if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel, ctx.paints.valueTextPaint.color, if (ageLabel != null) ctx.paints.stalenessTextPaint.color else null, finalAgeY))
         return drawnBounds
     }
 
@@ -1430,22 +1442,13 @@ object TemperatureGraphRenderer {
 
     private fun centerOfRun(idx: Int, temps: List<Float>, forceForecast: Boolean, original: List<Pair<Float, Float>>, forecast: List<Pair<Float, Float>>, transitionX: Float?): Pair<Float, Float> {
         val v = temps[idx]; var first = idx; var last = idx
-        while (first > 0 && temps[first - 1] == v) first--
-        while (last < temps.lastIndex && temps[last + 1] == v) last++
+        while (first > 0 && abs(temps[first - 1] - v) < 0.01f) first--
+        while (last < temps.lastIndex && abs(temps[last + 1] - v) < 0.01f) last++
         val points = if (forceForecast || original[idx].first > (transitionX ?: -1f)) forecast else original
         return (points[first].first + points[last].first) / 2f to (points[first].second + points[last].second) / 2f
     }
 
-    private data class RenderContext(
-        val context: Context,
-        val canvas: Canvas,
-        val widthPx: Int,
-        val heightPx: Int,
-        val density: Float,
-        val labelScale: Float,
-        val minTemp: Float,
-        val maxTemp: Float,
-        val tempRange: Float,
+    private data class Geometry(
         val graphTop: Float,
         val graphBottom: Float,
         val graphHeight: Float,
@@ -1454,6 +1457,12 @@ object TemperatureGraphRenderer {
         val minTimeEpoch: Long,
         val iconSize: Int,
         val iconTopPad: Float,
+        val minTemp: Float,
+        val maxTemp: Float,
+        val tempRange: Float,
+    )
+
+    private data class GraphData(
         val transitionX: Float?,
         val nowX: Float?,
         val nowIndicatorVisible: Boolean,
@@ -1476,15 +1485,67 @@ object TemperatureGraphRenderer {
         val effectiveActualEndIndex: Int,
         val appliedDelta: Float?,
         val observedAt: Long?,
-        val paints: PaintSet,
-        val currentTime: LocalDateTime,
+    )
+
+    private data class DebugCallbacks(
         val onGhostLineDebug: ((GhostLineDebug) -> Unit)?,
         val onActualLineResolved: ((ActualLineDebug) -> Unit)?,
         val onLabelPlaced: ((LabelPlacementDebug) -> Unit)?,
         val onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)?,
         val onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
+    )
+
+    private data class RenderContext(
+        val context: Context,
+        val canvas: Canvas,
+        val widthPx: Int,
+        val heightPx: Int,
+        val density: Float,
+        val labelScale: Float,
+        val geo: Geometry,
+        val data: GraphData,
+        val paints: PaintSet,
+        val currentTime: LocalDateTime,
+        val debug: DebugCallbacks,
         val drawnLabelBounds: MutableList<RectF> = mutableListOf()
     ) {
+        val graphTop get() = geo.graphTop
+        val graphBottom get() = geo.graphBottom
+        val graphHeight get() = geo.graphHeight
+        val footerTop get() = geo.footerTop
+        val minTemp get() = geo.minTemp
+        val maxTemp get() = geo.maxTemp
+        val tempRange get() = geo.tempRange
+        val transitionX get() = data.transitionX
+        val nowX get() = data.nowX
+        val nowIndicatorVisible get() = data.nowIndicatorVisible
+        val fetchTime get() = data.fetchTime
+        val fetchDotX get() = data.fetchDotX
+        val lastObservedTemp get() = data.lastObservedTemp
+        val anchorDelta get() = data.anchorDelta
+        val originalPoints get() = data.originalPoints
+        val forecastPoints get() = data.forecastPoints
+        val expectedPath get() = data.expectedPath
+        val actualPath get() = data.actualPath
+        val actualVisiblePoints get() = data.actualVisiblePoints
+        val forecastPath get() = data.forecastPath
+        val forecastFillPath get() = data.forecastFillPath
+        val forecastSegmentPaths get() = data.forecastSegmentPaths
+        val effectiveActualEndIndex get() = data.effectiveActualEndIndex
+        val appliedDelta get() = data.appliedDelta
+        val observedAt get() = data.observedAt
+        val iconSize get() = geo.iconSize
+        val iconTopPad get() = geo.iconTopPad
+        val hourWidth get() = geo.hourWidth
+        val smoothedForecastTemps get() = data.smoothedForecastTemps
+        val smoothedExpectedTemps get() = data.smoothedExpectedTemps
+        val expectedPoints get() = data.expectedPoints
+        val onGhostLineDebug get() = debug.onGhostLineDebug
+        val onActualLineResolved get() = debug.onActualLineResolved
+        val onLabelPlaced get() = debug.onLabelPlaced
+        val onDayLabelPlaced get() = debug.onDayLabelPlaced
+        val onFetchDotResolved get() = debug.onFetchDotResolved
+
         companion object {
             fun create(
                 context: Context,
@@ -1511,15 +1572,58 @@ object TemperatureGraphRenderer {
                 onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)?,
                 onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
             ): RenderContext = RenderContext(
-                context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
-                layout.graphTop, layout.graphBottom, layout.graphHeight, layout.footerTop, hourWidth, minTimeEpoch,
-                layout.iconSize, layout.iconTopPad, update.transitionX, update.nowX, update.nowIndicatorVisible,
-                update.fetchTime, update.fetchDotX, lastObservedTemp, update.anchorDelta,
-                update.smoothedForecastTemps, update.smoothedExpectedTemps, update.originalPoints,
-                update.forecastPoints, update.expectedPoints, update.originalPath, update.actualPath, update.actualVisiblePoints, update.expectedPath,
-                update.forecastPath, update.forecastFillPath, update.forecastSegmentPaths, update.effectiveActualEndIndex,
-                appliedDelta, observedAt, paints, currentTime, onGhostLineDebug, onActualLineResolved, onLabelPlaced,
-                onDayLabelPlaced, onFetchDotResolved
+                context = context,
+                canvas = canvas,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                density = density,
+                labelScale = labelScale,
+                geo = Geometry(
+                    graphTop = layout.graphTop,
+                    graphBottom = layout.graphBottom,
+                    graphHeight = layout.graphHeight,
+                    footerTop = layout.footerTop,
+                    hourWidth = hourWidth,
+                    minTimeEpoch = minTimeEpoch,
+                    iconSize = layout.iconSize,
+                    iconTopPad = layout.iconTopPad,
+                    minTemp = minTemp,
+                    maxTemp = maxTemp,
+                    tempRange = tempRange,
+                ),
+                data = GraphData(
+                    transitionX = update.transitionX,
+                    nowX = update.nowX,
+                    nowIndicatorVisible = update.nowIndicatorVisible,
+                    fetchTime = update.fetchTime,
+                    fetchDotX = update.fetchDotX,
+                    lastObservedTemp = lastObservedTemp,
+                    anchorDelta = update.anchorDelta,
+                    smoothedForecastTemps = update.smoothedForecastTemps,
+                    smoothedExpectedTemps = update.smoothedExpectedTemps,
+                    originalPoints = update.originalPoints,
+                    forecastPoints = update.forecastPoints,
+                    expectedPoints = update.expectedPoints,
+                    originalPath = update.originalPath,
+                    actualPath = update.actualPath,
+                    actualVisiblePoints = update.actualVisiblePoints,
+                    expectedPath = update.expectedPath,
+                    forecastPath = update.forecastPath,
+                    forecastFillPath = update.forecastFillPath,
+                    forecastSegmentPaths = update.forecastSegmentPaths,
+                    effectiveActualEndIndex = update.effectiveActualEndIndex,
+                    appliedDelta = appliedDelta,
+                    observedAt = observedAt,
+                ),
+                paints = paints,
+                currentTime = currentTime,
+                debug = DebugCallbacks(
+                    onGhostLineDebug = onGhostLineDebug,
+                    onActualLineResolved = onActualLineResolved,
+                    onLabelPlaced = onLabelPlaced,
+                    onDayLabelPlaced = onDayLabelPlaced,
+                    onFetchDotResolved = onFetchDotResolved,
+                ),
             )
         }
     }
@@ -1550,6 +1654,16 @@ object TemperatureGraphRenderer {
         val effectiveActualEndIndex: Int,
     )
 
+    private class RenderTimings {
+        private val marks = mutableListOf<Pair<String, Long>>()
+        fun mark(label: String) { marks.add(label to SystemClock.elapsedRealtime()) }
+        fun log(widthPx: Int, heightPx: Int, hoursSize: Int) {
+            if (!BuildConfig.DEBUG || marks.size < 2) return
+            val parts = marks.zipWithNext().map { (a, b) -> "${a.first}=${b.second - a.second}ms" }
+            debug { "RENDER_BREAKDOWN size=${widthPx}x${heightPx} hours=$hoursSize ${parts.joinToString(" ")} total=${marks.last().second - marks.first().second}ms" }
+        }
+    }
+
     fun renderGraph(
         context: Context,
         hours: List<HourData>,
@@ -1574,15 +1688,17 @@ object TemperatureGraphRenderer {
             return bitmap
         }
 
-        val t0 = SystemClock.elapsedRealtime()
+        val timings = RenderTimings()
+        timings.mark("start")
+
         val labelScale = bitmapScale.coerceIn(0.5f, 1f)
         val paints = ensurePaints(context, labelScale)
         val density = context.resources.displayMetrics.density
-        val t1 = SystemClock.elapsedRealtime()
+        timings.mark("paints")
 
         val (minTemp, maxTemp, tempRange) = GraphLayout.computeScaling(hours)
         val layout = GraphLayout.computeLayout(context, heightPx, labelScale)
-        val t2 = SystemClock.elapsedRealtime()
+        timings.mark("layout")
 
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
         val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
@@ -1593,7 +1709,7 @@ object TemperatureGraphRenderer {
             hours, minTemp, tempRange, layout.graphTop, layout.graphHeight, layout.graphBottom,
             hourWidth, minTimeEpoch, currentTime, appliedDelta, observedAt, lastObservedTemp, widthPx, onPointsResolved
         )
-        val t3 = SystemClock.elapsedRealtime()
+        timings.mark("points")
 
         val ctx = RenderContext.create(
             context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
@@ -1613,18 +1729,18 @@ object TemperatureGraphRenderer {
         )
 
         drawFillAndCurves(ctx, update.expectedFillPath, hours)
-        val t4 = SystemClock.elapsedRealtime()
+        timings.mark("curves")
 
         val drawnIconBounds = mutableListOf<RectF>()
         drawHourLabelsAndIcons(ctx, hours, drawnIconBounds)
-        val t5 = SystemClock.elapsedRealtime()
-        // Pre-compute fetch dot bounds so temperature labels avoid overlapping them
+        timings.mark("icons")
+
         val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)
-        Log.d(TAG, "FETCH_DOT_PRE_BOUNDS count=${fetchDotPreBounds.size} bounds=$fetchDotPreBounds")
+        debug { "FETCH_DOT_PRE_BOUNDS count=${fetchDotPreBounds.size} bounds=$fetchDotPreBounds" }
         ctx.drawnLabelBounds.addAll(fetchDotPreBounds)
         placeTemperatureLabels(ctx, hours, drawnIconBounds)
         placeDayLabels(ctx, hours, drawnIconBounds)
-        val t6 = SystemClock.elapsedRealtime()
+        timings.mark("labels")
 
         val fetchDotBounds = drawFetchDot(ctx, hours)
         ctx.drawnLabelBounds.addAll(fetchDotBounds)
@@ -1633,12 +1749,9 @@ object TemperatureGraphRenderer {
             canvas, if (update.nowIndicatorVisible) update.nowX else null, ctx.graphTop, ctx.graphHeight,
             paints.currentTimePaint, paints.nowLabelTextPaint, ctx.drawnLabelBounds + drawnIconBounds
         ) { dpToPx(context, it) }
-        val t7 = SystemClock.elapsedRealtime()
+        timings.mark("decorations")
 
-        Log.d(TAG, "RENDER_BREAKDOWN size=${widthPx}x${heightPx} hours=${hours.size}" +
-            " paints=${t1-t0}ms layout=${t2-t1}ms points=${t3-t2}ms" +
-            " curves=${t4-t3}ms icons=${t5-t4}ms labels=${t6-t5}ms decorations=${t7-t6}ms" +
-            " total=${t7-t0}ms")
+        timings.log(widthPx, heightPx, hours.size)
 
         return bitmap
     }
