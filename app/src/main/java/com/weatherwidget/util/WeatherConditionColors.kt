@@ -1,6 +1,9 @@
 package com.weatherwidget.util
 
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Shader
+import com.weatherwidget.R
 
 /**
  * Shared color mapping for weather-adaptive forecast rendering.
@@ -22,5 +25,32 @@ object WeatherConditionColors {
             isSunny -> FORECAST_SUNNY
             else -> FORECAST_SUNNY  // Default: clear
         }
+    }
+
+    /** Returns the cloud ratio (0.0 = clear, 1.0 = overcast) for mixed-condition icons, or null for non-mixed. */
+    fun cloudRatio(iconRes: Int): Float? {
+        return when (iconRes) {
+            R.drawable.ic_weather_fog_sunny -> 0.15f
+            R.drawable.ic_weather_partly_cloudy,
+            R.drawable.ic_weather_partly_cloudy_night -> 0.35f
+            R.drawable.ic_weather_partly_cloudy_chance_rain -> 0.40f
+            R.drawable.ic_weather_mostly_cloudy,
+            R.drawable.ic_weather_mostly_cloudy_night,
+            R.drawable.ic_weather_fog_cloudy -> 0.70f
+            else -> null
+        }
+    }
+
+    /** Returns a vertical LinearGradient for a mixed-condition bar (gold top → gray/blue bottom), or null for solid-color bars. */
+    fun forecastBarGradient(iconRes: Int, topY: Float, bottomY: Float): LinearGradient? {
+        val ratio = cloudRatio(iconRes) ?: return null
+        val topColor = FORECAST_SUNNY
+        val bottomColor = if (iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain) FORECAST_RAINY else FORECAST_CLOUDY
+        return LinearGradient(
+            0f, topY, 0f, bottomY,
+            intArrayOf(topColor, topColor, bottomColor),
+            floatArrayOf(0f, (1f - ratio).coerceIn(0.01f, 0.99f), 1f),
+            Shader.TileMode.CLAMP,
+        )
     }
 }

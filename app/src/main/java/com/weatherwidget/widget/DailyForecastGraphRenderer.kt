@@ -362,7 +362,11 @@ object DailyForecastGraphRenderer {
             val lY = lowY ?: (highY?.let { it + minBarHeight } ?: 0f)
             val effectiveLowY = if (kotlin.math.abs(hY - lY) < minBarHeight) hY + minBarHeight else lY
 
+            if (day.isMixed && day.iconRes != null) {
+                paint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, hY, effectiveLowY)
+            }
             canvas.drawLine(centerX, hY, centerX, effectiveLowY, paint)
+            paint.shader = null
             onBarDrawn?.invoke(BarDrawnDebug(day.date, if (day.isPast) "HISTORY" else "FUTURE", hY, effectiveLowY, centerX, paint.color))
         }
 
@@ -380,7 +384,11 @@ object DailyForecastGraphRenderer {
             } else {
                 paints.forecastBarPaint.also { it.color = condColor }
             }
+            if (day.isMixed && day.iconRes != null) {
+                overlayPaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY)
+            }
             canvas.drawLine(forecastX, fHighY, forecastX, effectiveFLowY, overlayPaint)
+            overlayPaint.shader = null
             onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
         }
 
@@ -438,7 +446,11 @@ object DailyForecastGraphRenderer {
         val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
         
         paints.todayForecastBluePaint.color = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
+        if (day.isMixed && day.iconRes != null) {
+            paints.todayForecastBluePaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY)
+        }
         canvas.drawLine(centerX + layout.tripleBarOffset, fHighY, centerX + layout.tripleBarOffset, effectiveFLowY, paints.todayForecastBluePaint)
+        paints.todayForecastBluePaint.shader = null
 
         // Draw Observed Bar and Bulb
         canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)
