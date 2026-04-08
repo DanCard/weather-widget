@@ -9,7 +9,8 @@
 
 - **#1 (println in prod)** — FIXED, committed as `120f1c0`
 - **#2 (paint textAlign mutation)** — FIXED, committed as `120f1c0`
-- Items #3–#16 remain open
+- **#8 (Role strings as raw string literals)** — FIXED, implemented with `TemperatureRole` enum.
+- Items #3–#7, #9–#16 remain open
 
 ---
 
@@ -54,13 +55,6 @@ The file mixes scaling, layout, path computation, gradient building, label place
 | `computePoints()` | 14 parameters |
 
 A builder or phased construction pattern would help. `RenderContextUpdate` partially addresses this but unpacks into `RenderContext` field-by-field (lines 1519-1528).
-
-### #8 Role strings as raw string literals
-
-Roles like `"HIGH"`, `"LOW"`, `"FORECAST_HIGH"`, etc. appear in ~40+ comparisons across the file. A sealed class or enum would provide:
-- Compile-time exhaustiveness checking
-- Typo prevention
-- IDE usage tracking
 
 ---
 

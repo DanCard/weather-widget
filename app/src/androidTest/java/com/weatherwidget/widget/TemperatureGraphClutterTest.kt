@@ -58,6 +58,6 @@ class TemperatureGraphClutterTest {
         )
 
         // We expect it to NOT be drawn as "LOCAL" (which is the role for local extrema)
-        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == "LOCAL" && it.index == 5 })
+        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.LOCAL && it.index == 5 })
     }
 }

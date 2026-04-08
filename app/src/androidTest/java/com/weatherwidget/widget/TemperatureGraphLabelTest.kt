@@ -59,7 +59,7 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        assertTrue("Expected LOW label to be drawn at 44°", placements.any { it.role == "LOW" && it.rawTemperature == 44f })
+        assertTrue("Expected LOW label to be drawn at 44°", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.LOW && it.rawTemperature == 44f })
     }
 
     @Test
@@ -77,7 +77,7 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        assertTrue("Expected HIGH label to be drawn at 51°", placements.any { it.role == "HIGH" && it.rawTemperature == 51f })
+        assertTrue("Expected HIGH label to be drawn at 51°", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH && it.rawTemperature == 51f })
     }
 
     @Test
@@ -96,7 +96,7 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        val lowPlacement = placements.find { it.role == "LOW" }
+        val lowPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
         assertTrue("Expected LOW label to be drawn", lowPlacement != null)
 
         // With 10 points at 700px width, indices 6-7 are in the right portion of the graph.
@@ -124,10 +124,10 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        assertTrue("Expected LOW to be drawn", placements.any { it.role == "LOW" })
-        val endPlacement = placements.find { it.role == "END" }
+        assertTrue("Expected LOW to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.LOW })
+        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         if (endPlacement != null) {
-            val lowPlacement = placements.find { it.role == "LOW" }
+            val lowPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
             assertTrue("Expected END to use the opposite side when both labels fit", lowPlacement != null)
             assertTrue(
                 "Expected LOW and END to prefer opposite sides when both are drawn. placements=$placements",
@@ -136,7 +136,7 @@ class TemperatureGraphLabelTest {
         } else {
             assertTrue(
                 "When both END placements are blocked on a very narrow graph, skipping END is acceptable. placements=$placements",
-                placements.none { it.role == "END" },
+                placements.none { it.role == TemperatureGraphRenderer.TemperatureRole.END },
             )
         }
     }
@@ -159,10 +159,10 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        assertTrue("Expected LOW to be drawn", placements.any { it.role == "LOW" })
-        assertTrue("Expected HIGH to be drawn", placements.any { it.role == "HIGH" })
-        assertTrue("Expected START to be drawn", placements.any { it.role == "START" })
-        assertTrue("Expected END to be drawn", placements.any { it.role == "END" })
+        assertTrue("Expected LOW to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.LOW })
+        assertTrue("Expected HIGH to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH })
+        assertTrue("Expected START to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.START })
+        assertTrue("Expected END to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.END })
     }
 
     @Test
@@ -183,7 +183,7 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        val highPlacement = placements.find { it.role == "HIGH" }
+        val highPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
         assertTrue("Expected HIGH label to be drawn", highPlacement != null)
         assertTrue("Expected HIGH label to be placed ABOVE peak", highPlacement!!.placedAbove)
     }
@@ -206,7 +206,7 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        val lowPlacement = placements.find { it.role == "LOW" }
+        val lowPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
         assertTrue("Expected LOW label to be drawn", lowPlacement != null)
         assertFalse("Expected LOW label to be placed BELOW valley", lowPlacement!!.placedAbove)
     }
@@ -228,14 +228,14 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        val highPlacement = placements.find { it.role == "HIGH" }
+        val highPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
         if (highPlacement != null) {
             // Should fall back to BELOW because ABOVE is off-screen
             assertFalse("Expected HIGH label to fall back BELOW when no room ABOVE", highPlacement.placedAbove)
         } else {
             assertTrue(
                 "When neither side fits on a constrained graph, skipping HIGH is acceptable. placements=$placements",
-                placements.none { it.role == "HIGH" },
+                placements.none { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH },
             )
         }
     }
@@ -261,7 +261,7 @@ class TemperatureGraphLabelTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        val actualEnd = placements.find { it.role == "ACTUAL_END" }
+        val actualEnd = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_END }
         assertNull("ACTUAL_END label should not be placed (fetch dot covers this)", actualEnd)
     }
 }

@@ -60,7 +60,7 @@ class TemperatureGhostLabelIntegrationTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == "END" }
+        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
         assertEquals(
             "END label should stay on forecast line value, not ghost line value",
@@ -161,7 +161,7 @@ class TemperatureGhostLabelIntegrationTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == "END" }
+        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         assertNotNull("END should always be shown as an essential boundary marker. placements=$placements", endPlacement)
     }
 }

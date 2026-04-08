@@ -324,9 +324,13 @@ object TemperatureGraphRenderer {
         )
     }
 
+    enum class TemperatureRole {
+        HIGH, LOW, START, END, ACTUAL_HIGH, ACTUAL_LOW, FORECAST_HIGH, FORECAST_LOW, PAST_FORECAST_HIGH, PAST_FORECAST_LOW, LOCAL, ACTUAL_END
+    }
+
     data class LabelPlacementDebug(
         val index: Int,
-        val role: String,
+        val role: TemperatureRole,
         val temperature: Float,
         val rawTemperature: Float,
         val x: Float,
@@ -550,14 +554,20 @@ object TemperatureGraphRenderer {
         visible += terminalPoint
         return visible
     }
-
-    internal fun isMinorOverlapEligible(role: String): Boolean =
-        role in setOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "ACTUAL_LOW", "ACTUAL_HIGH", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "START", "END", "LOCAL")
+internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
+    role in setOf(
+        TemperatureRole.LOW, TemperatureRole.HIGH,
+        TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH,
+        TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH,
+        TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH,
+        TemperatureRole.START, TemperatureRole.END,
+        TemperatureRole.LOCAL
+    )
 
     internal fun shouldAllowMinorOverlap(
-        role: String,
+        role: TemperatureRole,
         overlapHeight: Float,
-        labelHeight: Float,
+        labelHeight: Float
     ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO
 
     internal fun maxVerticalOverlap(
@@ -763,41 +773,46 @@ object TemperatureGraphRenderer {
         val labelTemps = extrema.labelTemps
         val actualLabelTemps = extrema.actualLabelTemps
 
-        val potentialAnchors = mutableListOf<Pair<Int, String>>()
-        if (extrema.dailyHighIndex >= 0) potentialAnchors.add(extrema.dailyHighIndex to "HIGH")
-        if (extrema.dailyLowIndex >= 0) potentialAnchors.add(extrema.dailyLowIndex to "LOW")
-        if (extrema.actualHighIndex >= 0) potentialAnchors.add(extrema.actualHighIndex to "ACTUAL_HIGH")
-        if (extrema.actualLowIndex >= 0) potentialAnchors.add(extrema.actualLowIndex to "ACTUAL_LOW")
-        if (extrema.forecastHighIndex >= 0) potentialAnchors.add(extrema.forecastHighIndex to "FORECAST_HIGH")
-        if (extrema.forecastLowIndex >= 0) potentialAnchors.add(extrema.forecastLowIndex to "FORECAST_LOW")
-        if (extrema.pastForecastHighIndex >= 0) potentialAnchors.add(extrema.pastForecastHighIndex to "PAST_FORECAST_HIGH")
-        if (extrema.pastForecastLowIndex >= 0) potentialAnchors.add(extrema.pastForecastLowIndex to "PAST_FORECAST_LOW")
-        potentialAnchors.add(0 to "START")
-        if (hours.size > 1) potentialAnchors.add(hours.size - 1 to "END")
-        
+        val potentialAnchors = mutableListOf<Pair<Int, TemperatureRole>>()
+        if (extrema.dailyHighIndex >= 0) potentialAnchors.add(extrema.dailyHighIndex to TemperatureRole.HIGH)
+        if (extrema.dailyLowIndex >= 0) potentialAnchors.add(extrema.dailyLowIndex to TemperatureRole.LOW)
+        if (extrema.actualHighIndex >= 0) potentialAnchors.add(extrema.actualHighIndex to TemperatureRole.ACTUAL_HIGH)
+        if (extrema.actualLowIndex >= 0) potentialAnchors.add(extrema.actualLowIndex to TemperatureRole.ACTUAL_LOW)
+        if (extrema.forecastHighIndex >= 0) potentialAnchors.add(extrema.forecastHighIndex to TemperatureRole.FORECAST_HIGH)
+        if (extrema.forecastLowIndex >= 0) potentialAnchors.add(extrema.forecastLowIndex to TemperatureRole.FORECAST_LOW)
+        if (extrema.pastForecastHighIndex >= 0) potentialAnchors.add(extrema.pastForecastHighIndex to TemperatureRole.PAST_FORECAST_HIGH)
+        if (extrema.pastForecastLowIndex >= 0) potentialAnchors.add(extrema.pastForecastLowIndex to TemperatureRole.PAST_FORECAST_LOW)
+        potentialAnchors.add(0 to TemperatureRole.START)
+        if (hours.size > 1) potentialAnchors.add(hours.size - 1 to TemperatureRole.END)
+
         Log.d(TAG, "POTENTIAL_ANCHORS: $potentialAnchors")
-        
-        extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to "LOCAL") }
+
+        extrema.significantLocalExtrema.forEach { potentialAnchors.add(it to TemperatureRole.LOCAL) }
 
         val slotToAnchor = mutableMapOf<Triple<String, Int, Int>, Int>()
-        val rolePriority = listOf("HIGH", "LOW", "START", "END", "ACTUAL_HIGH", "ACTUAL_LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW", "LOCAL")
-        
+        val rolePriority = listOf(
+            TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.START, TemperatureRole.END,
+            TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.FORECAST_HIGH,
+            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW,
+            TemperatureRole.LOCAL
+        )
+
         for ((idx, role) in potentialAnchors) {
-            val isActualRole = role in listOf("ACTUAL_HIGH", "ACTUAL_LOW")
+            val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW
             val temps = if (isActualRole) actualLabelTemps else labelTemps
             val v = temps[idx]
             val formattedValue = formatTemp(v)
-            
+
             var first = idx; var last = idx
             while (first > 0 && temps[first - 1] == v) first--
             while (last < temps.lastIndex && temps[last + 1] == v) last++
-            
+
             val slotKey = Triple(formattedValue, first, last)
             val existingIdx = slotToAnchor[slotKey]
             if (existingIdx == null) {
                 slotToAnchor[slotKey] = idx
             } else {
-                val existingRole = potentialAnchors.find { it.first == existingIdx }?.second ?: "LOCAL"
+                val existingRole = potentialAnchors.find { it.first == existingIdx }?.second ?: TemperatureRole.LOCAL
                 val existingPriority = rolePriority.indexOf(existingRole).let { if (it == -1) Int.MAX_VALUE else it }
                 val currentPriority = rolePriority.indexOf(role).let { if (it == -1) Int.MAX_VALUE else it }
                 if (currentPriority < existingPriority) {
@@ -805,11 +820,11 @@ object TemperatureGraphRenderer {
                 }
             }
         }
-        
+
         val deduplicatedIndices = slotToAnchor.values.toSet()
         Log.d(TAG, "DEDUPLICATED_INDICES: $deduplicatedIndices")
         val explicitAnchors = deduplicatedIndices.filter { idx ->
-            potentialAnchors.any { it.first == idx && it.second != "LOCAL" }
+            potentialAnchors.any { it.first == idx && it.second != TemperatureRole.LOCAL }
         }.toSet()
         Log.d(TAG, "EXPLICIT_ANCHORS: $explicitAnchors")
 
@@ -839,20 +854,20 @@ object TemperatureGraphRenderer {
         val suppressedIndices = mutableSetOf<Int>()
         for (idx in filteredIndices.distinct()) {
             var role = when (idx) {
-                extrema.dailyHighIndex -> "HIGH"
-                extrema.dailyLowIndex -> "LOW"
-                0 -> "START"
-                hours.lastIndex -> "END"
-                extrema.actualHighIndex -> "ACTUAL_HIGH"
-                extrema.actualLowIndex -> "ACTUAL_LOW"
-                extrema.forecastHighIndex -> "FORECAST_HIGH"
-                extrema.forecastLowIndex -> "FORECAST_LOW"
-                extrema.pastForecastHighIndex -> "PAST_FORECAST_HIGH"
-                extrema.pastForecastLowIndex -> "PAST_FORECAST_LOW"
-                else -> "LOCAL"
+                extrema.dailyHighIndex -> TemperatureRole.HIGH
+                extrema.dailyLowIndex -> TemperatureRole.LOW
+                0 -> TemperatureRole.START
+                hours.lastIndex -> TemperatureRole.END
+                extrema.actualHighIndex -> TemperatureRole.ACTUAL_HIGH
+                extrema.actualLowIndex -> TemperatureRole.ACTUAL_LOW
+                extrema.forecastHighIndex -> TemperatureRole.FORECAST_HIGH
+                extrema.forecastLowIndex -> TemperatureRole.FORECAST_LOW
+                extrema.pastForecastHighIndex -> TemperatureRole.PAST_FORECAST_HIGH
+                extrema.pastForecastLowIndex -> TemperatureRole.PAST_FORECAST_LOW
+                else -> TemperatureRole.LOCAL
             }
 
-            val isBoundary = role == "START" || role == "END"
+            val isBoundary = role == TemperatureRole.START || role == TemperatureRole.END
             if (idx == 0 && suppressLeftEdgeLabel && !isBoundary) {
                 Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=0 role=$role reason=suppressLeftEdgeLabel")
                 suppressedIndices.add(idx)
@@ -861,8 +876,8 @@ object TemperatureGraphRenderer {
 
             if (idx == extrema.fetchIdx && observedAt != null) {
                 if (idx == 0 || idx == hours.lastIndex) {
-                    role = if (idx == 0) "START" else "END"
-                } else if (role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW")) {
+                    role = if (idx == 0) TemperatureRole.START else TemperatureRole.END
+                } else if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW)) {
                     Log.d(TAG, "LABEL_CANDIDATE_KEPT idx=$idx role=$role reason=EXTREMA_OVERRIDES_FETCH_DOT")
                 } else {
                     Log.d(TAG, "LABEL_CANDIDATE_SKIPPED idx=$idx role=$role reason=FETCH_DOT_SUPPRESSED")
@@ -873,7 +888,7 @@ object TemperatureGraphRenderer {
 
             val redundantPairWindow = min(8, hours.lastIndex / 5)
             val redundantValueThreshold = 2f
-            if (role == "ACTUAL_HIGH" && extrema.dailyHighIndex >= 0 && extrema.dailyHighIndex !in suppressedIndices && abs(idx - extrema.dailyHighIndex) <= redundantPairWindow) {
+            if (role == TemperatureRole.ACTUAL_HIGH && extrema.dailyHighIndex >= 0 && extrema.dailyHighIndex !in suppressedIndices && abs(idx - extrema.dailyHighIndex) <= redundantPairWindow) {
                 val actualVal = actualLabelTemps[idx]
                 val forecastVal = labelTemps[extrema.dailyHighIndex]
                 if (abs(actualVal - forecastVal) < redundantValueThreshold) {
@@ -882,7 +897,7 @@ object TemperatureGraphRenderer {
                     continue
                 }
             }
-            if (role == "ACTUAL_LOW" && extrema.dailyLowIndex >= 0 && extrema.dailyLowIndex !in suppressedIndices && abs(idx - extrema.dailyLowIndex) <= redundantPairWindow) {
+            if (role == TemperatureRole.ACTUAL_LOW && extrema.dailyLowIndex >= 0 && extrema.dailyLowIndex !in suppressedIndices && abs(idx - extrema.dailyLowIndex) <= redundantPairWindow) {
                 val actualVal = actualLabelTemps[idx]
                 val forecastVal = labelTemps[extrema.dailyLowIndex]
                 if (abs(actualVal - forecastVal) < redundantValueThreshold) {
@@ -892,7 +907,7 @@ object TemperatureGraphRenderer {
                 }
             }
 
-            if (role == "FORECAST_HIGH" && extrema.actualHighIndex >= 0 && extrema.actualHighIndex !in suppressedIndices && abs(idx - extrema.actualHighIndex) <= redundantPairWindow) {
+            if (role == TemperatureRole.FORECAST_HIGH && extrema.actualHighIndex >= 0 && extrema.actualHighIndex !in suppressedIndices && abs(idx - extrema.actualHighIndex) <= redundantPairWindow) {
                 val forecastVal = labelTemps[idx]
                 val actualVal = actualLabelTemps[extrema.actualHighIndex]
                 if (abs(forecastVal - actualVal) < redundantValueThreshold) {
@@ -901,7 +916,7 @@ object TemperatureGraphRenderer {
                     continue
                 }
             }
-            if (role == "FORECAST_LOW" && extrema.actualLowIndex >= 0 && extrema.actualLowIndex !in suppressedIndices && abs(idx - extrema.actualLowIndex) <= redundantPairWindow) {
+            if (role == TemperatureRole.FORECAST_LOW && extrema.actualLowIndex >= 0 && extrema.actualLowIndex !in suppressedIndices && abs(idx - extrema.actualLowIndex) <= redundantPairWindow) {
                 val forecastVal = labelTemps[idx]
                 val actualVal = actualLabelTemps[extrema.actualLowIndex]
                 if (abs(forecastVal - actualVal) < redundantValueThreshold) {
@@ -910,7 +925,7 @@ object TemperatureGraphRenderer {
                     continue
                 }
             }
-            if (role == "PAST_FORECAST_HIGH" && extrema.actualHighIndex >= 0 && extrema.actualHighIndex !in suppressedIndices && abs(idx - extrema.actualHighIndex) <= redundantPairWindow) {
+            if (role == TemperatureRole.PAST_FORECAST_HIGH && extrema.actualHighIndex >= 0 && extrema.actualHighIndex !in suppressedIndices && abs(idx - extrema.actualHighIndex) <= redundantPairWindow) {
                 val forecastVal = labelTemps[idx]
                 val actualVal = actualLabelTemps[extrema.actualHighIndex]
                 if (abs(forecastVal - actualVal) < redundantValueThreshold) {
@@ -919,7 +934,7 @@ object TemperatureGraphRenderer {
                     continue
                 }
             }
-            if (role == "PAST_FORECAST_LOW" && extrema.actualLowIndex >= 0 && extrema.actualLowIndex !in suppressedIndices && abs(idx - extrema.actualLowIndex) <= redundantPairWindow) {
+            if (role == TemperatureRole.PAST_FORECAST_LOW && extrema.actualLowIndex >= 0 && extrema.actualLowIndex !in suppressedIndices && abs(idx - extrema.actualLowIndex) <= redundantPairWindow) {
                 val forecastVal = labelTemps[idx]
                 val actualVal = actualLabelTemps[extrema.actualLowIndex]
                 if (abs(forecastVal - actualVal) < redundantValueThreshold) {
@@ -929,7 +944,7 @@ object TemperatureGraphRenderer {
                 }
             }
 
-            if (role in listOf("FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW") && transitionX != null) {
+            if (role in listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW) && transitionX != null) {
                 val boundaryIdx = effectiveActualEndIndex
                 val transitionWindow = min(3, hours.lastIndex / 20)
                 if (boundaryIdx >= 0 && abs(idx - boundaryIdx) <= transitionWindow) {
@@ -939,7 +954,7 @@ object TemperatureGraphRenderer {
                 }
             }
 
-            if (role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "ACTUAL_HIGH", "ACTUAL_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW")) {
+            if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)) {
                 val edgeWindow = if (hours.lastIndex > 50) min(5, hours.lastIndex / 15) else min(8, hours.lastIndex / 6)
                 val edgeDist = min(idx, hours.lastIndex - idx)
                 val isEndpoint = idx == 0 || idx == hours.lastIndex
@@ -950,15 +965,14 @@ object TemperatureGraphRenderer {
                 }
             }
 
-            val isActualRole = role == "ACTUAL_HIGH" || role == "ACTUAL_LOW"
-            val forceForecast = role in listOf("HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_HIGH", "PAST_FORECAST_LOW", "LOCAL", "START", "END")
+            val isActualRole = role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.ACTUAL_LOW
+            val forceForecast = role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.LOCAL, TemperatureRole.START, TemperatureRole.END)
             val temps = if (isActualRole) actualLabelTemps else labelTemps
-            
+
             Log.d(TAG, "ADDING_CANDIDATE idx=$idx role=$role temp=${temps[idx]} series=${if (forceForecast) "forecast" else "actual"}")
 
             specialCandidates.add(TempLabelCandidate(idx, role, temps, hours[idx].temperature, forceForecast))
         }
-        
         return specialCandidates
     }
 
@@ -982,12 +996,12 @@ object TemperatureGraphRenderer {
                 val displayTemp = it.labelTemps[it.index]
                 val leftVal = it.labelTemps.subList(0, it.index).findLast { v -> v != displayTemp } ?: displayTemp
                 val rightVal = it.labelTemps.subList(it.index + 1, it.labelTemps.size).find { v -> v != displayTemp } ?: displayTemp
-                val isPeak = it.role in listOf("HIGH", "FORECAST_HIGH", "ACTUAL_HIGH", "PAST_FORECAST_HIGH") || (it.role == "LOCAL" && displayTemp > leftVal && displayTemp > rightVal)
+                val isPeak = it.role in listOf(TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_HIGH) || (it.role == TemperatureRole.LOCAL && displayTemp > leftVal && displayTemp > rightVal)
                 if (isPeak) -displayTemp else displayTemp
             }.thenBy {
                 when (it.role) {
-                    "HIGH", "LOW", "FORECAST_HIGH", "FORECAST_LOW", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "ACTUAL_HIGH", "ACTUAL_LOW" -> 0
-                    "LOCAL", "ACTUAL_END" -> 1
+                    TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW -> 0
+                    TemperatureRole.LOCAL, TemperatureRole.ACTUAL_END -> 1
                     else -> 2 // START, END
                 }
             }
@@ -1001,7 +1015,7 @@ object TemperatureGraphRenderer {
             val isFuture = candidate.forceForecastSeries || ctx.originalPoints[idx].first > (ctx.transitionX ?: -1f)
             val points = if (isFuture) ctx.forecastPoints else ctx.originalPoints
             Log.d(TAG, "DEBUG_SERIES: idx=$idx role=${candidate.role} forceForecast=${candidate.forceForecastSeries} isFuture=$isFuture transitionX=${ctx.transitionX} pointX=${ctx.originalPoints[idx].first}")
-            val sx = if (candidate.role in listOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "LOCAL")) {
+            val sx = if (candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.LOCAL)) {
                 centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX).first
             } else points[idx].first
             val sy = ctx.graphTop + ctx.graphHeight * (1 - (temps[idx] - ctx.minTemp) / ctx.tempRange)
@@ -1018,7 +1032,7 @@ object TemperatureGraphRenderer {
 
             // Suppress positional labels that are redundant with the fetch dot label (status label).
             // Redundant if the text is identical and they are horizontally close.
-            if (ctx.fetchDotX != null && ctx.lastObservedTemp != null && candidate.role !in setOf("START", "END")) {
+            if (ctx.fetchDotX != null && ctx.lastObservedTemp != null && candidate.role !in setOf(TemperatureRole.START, TemperatureRole.END)) {
                 val fetchDotLabel = formatTemp(ctx.lastObservedTemp) + "°"
                 val dist = kotlin.math.abs(clampedX - ctx.fetchDotX)
                 if (label == fetchDotLabel && dist < dpToPx(ctx.context, 12f)) {
@@ -1029,8 +1043,8 @@ object TemperatureGraphRenderer {
 
             val leftVal = temps.subList(0, idx).findLast { it != temps[idx] } ?: temps[idx]
             val rightVal = temps.subList(idx + 1, temps.size).find { it != temps[idx] } ?: temps[idx]
-            val isValley = candidate.role in listOf("LOW", "FORECAST_LOW", "ACTUAL_LOW", "PAST_FORECAST_LOW") || (candidate.role == "LOCAL" && temps[idx] < leftVal && temps[idx] < rightVal)
-            val isEssential = candidate.role in setOf("LOW", "HIGH", "FORECAST_LOW", "FORECAST_HIGH", "ACTUAL_LOW", "ACTUAL_HIGH", "PAST_FORECAST_LOW", "PAST_FORECAST_HIGH", "START", "END", "ACTUAL_END")
+            val isValley = candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_LOW) || (candidate.role == TemperatureRole.LOCAL && temps[idx] < leftVal && temps[idx] < rightVal)
+            val isEssential = candidate.role in setOf(TemperatureRole.LOW, TemperatureRole.HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.START, TemperatureRole.END, TemperatureRole.ACTUAL_END)
 
             val directions = if (isValley) listOf(false, true) else listOf(true, false) // placeAbove order: true=above, false=below
             val labelHeight = labelDescent - labelAscent
@@ -1426,7 +1440,7 @@ object TemperatureGraphRenderer {
         return (points[first].first + points[last].first) / 2f to (points[first].second + points[last].second) / 2f
     }
 
-    private data class TempLabelCandidate(val index: Int, val role: String, val labelTemps: List<Float>, val rawTemperature: Float, val forceForecastSeries: Boolean)
+    private data class TempLabelCandidate(val index: Int, val role: TemperatureRole, val labelTemps: List<Float>, val rawTemperature: Float, val forceForecastSeries: Boolean)
 
     private data class RenderContext(
         val context: Context,

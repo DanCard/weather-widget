@@ -55,7 +55,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val highPlacement = placements.find { it.role == "HIGH" }
+        val highPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
         if (highPlacement != null) {
             assertFalse(
                 "Expected constrained HIGH label to avoid above-placement when it would be off-screen. placement=$highPlacement",
@@ -79,7 +79,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onPointsResolved = { points = it },
         )
 
-        val highPlacement = placements.find { it.role == "HIGH" }
+        val highPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
         assertNotNull("Expected HIGH label to be drawn. placements=$placements", highPlacement)
         assertTrue("Expected HIGH label to prefer above when room exists. placement=$highPlacement", highPlacement!!.placedAbove)
 
@@ -131,8 +131,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualHigh = placements.find { it.role == "ACTUAL_HIGH" }
-        val forecastHigh = placements.find { it.role == "HIGH" || it.role == "FORECAST_HIGH" || it.role == "PAST_FORECAST_HIGH" }
+        val actualHigh = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH }
+        val forecastHigh = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_HIGH }
 
         assertNotNull("Expected ACTUAL_HIGH label. placements=$placements", actualHigh)
         assertNotNull("Expected forecast-series HIGH label. placements=$placements", forecastHigh)
@@ -165,7 +165,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == "END" }
+        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         assertNotNull("Expected END label even when observedAt is on the final point. placements=$placements", endPlacement)
         assertEquals(88.0f, endPlacement!!.temperature, 0.01f)
     }
@@ -195,7 +195,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == "END" }
+        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
         assertEquals("END label should stay on forecast line value, not ghost line", 73.0f, endPlacement!!.temperature, 0.01f)
         assertEquals("forecast", endPlacement.series)
@@ -215,8 +215,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        assertNotNull("HIGH or END should label the final point. placements=$placements", placements.find { it.role == "HIGH" || it.role == "END" })
-        assertNotNull("HIGH should remain when it already labels the final point. placements=$placements", placements.find { it.role == "HIGH" })
+        assertNotNull("HIGH or END should label the final point. placements=$placements", placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.END })
+        assertNotNull("HIGH should remain when it already labels the final point. placements=$placements", placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH })
     }
 
     @Test
@@ -236,8 +236,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         assertTrue("Should have at most 6 labels. Placed: ${placements.size}", placements.size <= 6)
-        assertTrue("Should have START or LOW label at the beginning", placements.any { (it.role == "START" || it.role == "LOW") && it.index == 0 })
-        assertTrue("Should have HIGH or END label at the end", placements.any { (it.role == "HIGH" || it.role == "END") && it.index == signal.lastIndex })
+        assertTrue("Should have START or LOW label at the beginning", placements.any { (it.role == TemperatureGraphRenderer.TemperatureRole.START || it.role == TemperatureGraphRenderer.TemperatureRole.LOW) && it.index == 0 })
+        assertTrue("Should have HIGH or END label at the end", placements.any { (it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.END) && it.index == signal.lastIndex })
         // Middle points should be thinned out
         val intermediate = placements.filter { it.index != 0 && it.index != signal.lastIndex }
         assertTrue("Should have thinned out most intermediate labels. Found: ${intermediate.size}", intermediate.size < 5)
@@ -269,7 +269,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == "END" }
+        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         assertNotNull("END should always be shown as an essential boundary marker. placements=$placements", endPlacement)
     }
 
@@ -296,7 +296,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualEnd = placements.find { it.role == "ACTUAL_END" }
+        val actualEnd = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_END }
         assertNull("ACTUAL_END label should not be placed (fetch dot covers this)", actualEnd)
     }
 
@@ -327,8 +327,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualLow = placements.find { it.role == "ACTUAL_LOW" }
-        val forecastLow = placements.find { it.role == "LOW" || it.role == "FORECAST_LOW" }
+        val actualLow = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW }
+        val forecastLow = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW }
 
         assertNotNull("Expected ACTUAL_LOW label. placements=$placements", actualLow)
         assertNotNull("Expected forecast LOW label. placements=$placements", forecastLow)
@@ -367,7 +367,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             "No label should show extrapolated future temperature (~82°). placements=$placements",
             placements.none { it.temperature > 79f },
         )
-        val highLabel = placements.find { it.role == "HIGH" }
+        val highLabel = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
         assertNotNull("Expected a HIGH label from actual observations. placements=$placements", highLabel)
         assertTrue(
             "HIGH label temperature should reflect actual observation peak (78°), not extrapolated future value. placement=$highLabel",
@@ -437,7 +437,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val lowLabel = placements.find { it.role == "LOW" }
+        val lowLabel = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
         assertNotNull("LOW label should be present even if it collides, as long as it's on-screen. Placements=$placements", lowLabel)
 
         // preferred (below) is off-screen.
@@ -531,28 +531,28 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         // 1. HIGH (idx 15, Future) -> forecast
-        val high = placements.find { it.role == "HIGH" }
+        val high = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
         assertNotNull("HIGH label missing", high)
         assertEquals("forecast", high!!.series)
 
         // 2. LOW (idx 5, Past) -> forecast
-        val low = placements.find { it.role == "LOW" }
+        val low = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
         assertNotNull("LOW label missing", low)
         assertEquals("LOW at idx 5 (past) should be marked as forecast", "forecast", low!!.series)
 
         // 3. LOCAL (idx 13, Future) -> forecast
-        val local = placements.find { it.role == "LOCAL" && it.index == 13 }
+        val local = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOCAL && it.index == 13 }
         assertNotNull("LOCAL label at idx 13 missing", local)
         assertEquals("LOCAL peak at idx 13 (future) should be marked as forecast", "forecast", local!!.series)
 
         // 4. ACTUAL_LOW (idx 4, Past) -> actual
-        val actualLow = placements.find { it.role == "ACTUAL_LOW" && it.index == 4 }
+        val actualLow = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW && it.index == 4 }
         assertNotNull("ACTUAL_LOW label missing", actualLow)
         assertEquals("actual", actualLow!!.series)
         assertEquals(48.0f, actualLow.temperature, 0.1f)
 
         // 5. ACTUAL_HIGH (idx 8, Past) -> actual
-        val actualHigh = placements.find { it.role == "ACTUAL_HIGH" && it.index == 8 }
+        val actualHigh = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH && it.index == 8 }
         assertNotNull("ACTUAL_HIGH label missing", actualHigh)
         assertEquals("actual", actualHigh!!.series)
 
@@ -562,7 +562,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         assertEquals("Label at start (past) should be forecast series (blue)", "forecast", startLabel!!.series)
 
         // 7. END (idx 20, Future) -> forecast
-        val endLabel = placements.find { it.role == "END" }
+        val endLabel = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
         assertNotNull("END label missing", endLabel)
         assertEquals("forecast", endLabel!!.series)
     }
@@ -640,11 +640,11 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
         assertNull(
             "FORECAST_LOW should be suppressed when ACTUAL_LOW is nearby with similar value. placements=$placements",
-            placements.find { it.role == "FORECAST_LOW" },
+            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW },
         )
         assertNotNull(
             "Actual low label should still be placed. placements=$placements",
-            placements.find { it.role == "LOW" || it.role == "ACTUAL_LOW" },
+            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW || it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW },
         )
     }
 
@@ -686,11 +686,11 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
         assertNull(
             "FORECAST_HIGH should be suppressed when ACTUAL_HIGH is nearby with similar value. placements=$placements",
-            placements.find { it.role == "FORECAST_HIGH" },
+            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH },
         )
         assertNotNull(
             "Actual high label should still be placed. placements=$placements",
-            placements.find { it.role == "HIGH" || it.role == "ACTUAL_HIGH" },
+            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH },
         )
     }
 
@@ -776,8 +776,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { valleyPlacements.add(it) }
         )
 
-        val actualLow = valleyPlacements.find { it.role == "ACTUAL_LOW" }
-        val forecastLow = valleyPlacements.find { it.role == "LOW" || it.role == "FORECAST_LOW" }
+        val actualLow = valleyPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW }
+        val forecastLow = valleyPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW }
 
         assertNotNull("Expected ACTUAL_LOW label", actualLow)
         assertNotNull("Expected FORECAST_LOW label", forecastLow)
@@ -825,8 +825,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { peakPlacements.add(it) }
         )
 
-        val actualHigh = peakPlacements.find { it.role == "ACTUAL_HIGH" }
-        val forecastHigh = peakPlacements.find { it.role == "HIGH" || it.role == "FORECAST_HIGH" }
+        val actualHigh = peakPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH }
+        val forecastHigh = peakPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH }
 
         assertNotNull("Expected ACTUAL_HIGH label", actualHigh)
         assertNotNull("Expected FORECAST_HIGH label", forecastHigh)
