@@ -460,13 +460,13 @@ object TemperatureGraphRenderer {
         hours.indices.forEach { index ->
             val pointEpoch = hours[index].dateTime.toEpochSecond(ZoneOffset.UTC)
             val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
-            val yTruth = graphTop + graphHeight * (1 - (actualTemps[index] - minTemp) / tempRange)
+            val yTruth = tempToY(actualTemps[index], graphTop, graphHeight, minTemp, tempRange)
             originalPoints.add(x to yTruth)
 
-            val yForecast = graphTop + graphHeight * (1 - (smoothedForecastTemps[index] - minTemp) / tempRange)
+            val yForecast = tempToY(smoothedForecastTemps[index], graphTop, graphHeight, minTemp, tempRange)
             forecastPoints.add(x to yForecast)
 
-            val yExpected = graphTop + graphHeight * (1 - (smoothedExpectedTemps[index] - minTemp) / tempRange)
+            val yExpected = tempToY(smoothedExpectedTemps[index], graphTop, graphHeight, minTemp, tempRange)
             expectedPoints.add(x to yExpected)
         }
 
@@ -544,7 +544,7 @@ object TemperatureGraphRenderer {
         val anchoredToFetchDot = fetchDotX != null && abs(fetchDotX - transitionX) <= 0.5f && lastObservedTemp != null
         val terminalY =
             if (anchoredToFetchDot) {
-                graphTop + graphHeight * (1 - (lastObservedTemp!! - minTemp) / tempRange)
+                tempToY(lastObservedTemp, graphTop, graphHeight, minTemp, tempRange)
             } else {
                 interpolateYAtX(originalPoints, transitionX)
             }
@@ -608,9 +608,7 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
 
         if (ctx.nowIndicatorVisible && ctx.appliedDelta != null && abs(ctx.appliedDelta) >= MIN_GHOST_LINE_DELTA && ctx.fetchDotX != null) {
-            val expectedY = if (ctx.lastObservedTemp != null) {
-                ctx.graphTop + ctx.graphHeight * (1 - (ctx.lastObservedTemp - ctx.minTemp) / ctx.tempRange)
-            } else null
+            val expectedY = ctx.lastObservedTemp?.let { ctx.tempToY(it) }
             if (expectedY != null) ctx.onGhostLineDebug?.invoke(GhostLineDebug(ctx.fetchDotX, expectedY))
 
             ctx.canvas.save()
@@ -1000,7 +998,7 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
             val sx = if (candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.LOCAL)) {
                 centerOfRun(idx, temps, candidate.forceForecastSeries, ctx.originalPoints, ctx.forecastPoints, ctx.transitionX).first
             } else points[idx].first
-            val sy = ctx.graphTop + ctx.graphHeight * (1 - (temps[idx] - ctx.minTemp) / ctx.tempRange)
+            val sy = ctx.tempToY(temps[idx])
 
             val label = formatTemp(temps[idx]) + "°"
             val labelPaint = if (isFuture) {
@@ -1213,7 +1211,7 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
     private fun computeFetchDotBounds(ctx: RenderContext, hours: List<HourData>): List<RectF> {
         val bounds = mutableListOf<RectF>()
         if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.lastObservedTemp == null) return bounds
-        val fetchY = ctx.graphTop + ctx.graphHeight * (1 - (ctx.lastObservedTemp - ctx.minTemp) / ctx.tempRange)
+        val fetchY = ctx.tempToY(ctx.lastObservedTemp)
         val dotRadius = dpToPx(ctx.context, 3.2f * ctx.labelScale)
         val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
@@ -1276,7 +1274,7 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
     private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
         val drawnBounds = mutableListOf<RectF>()
         if (ctx.observedAt == null || ctx.fetchDotX == null || ctx.lastObservedTemp == null) return drawnBounds
-        val fetchY = ctx.graphTop + ctx.graphHeight * (1 - (ctx.lastObservedTemp - ctx.minTemp) / ctx.tempRange)
+        val fetchY = ctx.tempToY(ctx.lastObservedTemp)
         val dotRadius = dpToPx(ctx.context, 3.2f * ctx.labelScale)
         val clampedX = ctx.fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
 
@@ -1399,6 +1397,10 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         return extrema
     }
 
+    private fun tempToY(temp: Float, graphTop: Float, graphHeight: Float, minTemp: Float, tempRange: Float): Float {
+        return graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
+    }
+
     private fun bilateralExtremaProminence(index: Int, temps: List<Float>, extrema: List<Int>): Float {
         val current = temps[index]; val extremaSet = extrema.toSet()
         fun maxDelta(step: Int): Float {
@@ -1473,6 +1475,9 @@ internal fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         val onFetchDotResolved: ((FetchDotDebug) -> Unit)?,
         val drawnLabelBounds: MutableList<RectF> = mutableListOf()
     )
+
+    private fun RenderContext.tempToY(temp: Float): Float =
+        this@TemperatureGraphRenderer.tempToY(temp, graphTop, graphHeight, minTemp, tempRange)
 
     private data class RenderContextUpdate(
         val smoothedForecastTemps: List<Float>,

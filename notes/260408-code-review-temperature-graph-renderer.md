@@ -10,8 +10,9 @@
 - **#1 (println in prod)** — FIXED, committed as `120f1c0`
 - **#2 (paint textAlign mutation)** — FIXED, committed as `120f1c0`
 - **#8 (Role strings as raw string literals)** — FIXED, implemented with `TemperatureRole` enum.
+- **#10 (`fetchY` computation repeated 3 times)** — FIXED, extracted to `tempToY` helper.
 - **#11 (Six near-identical suppression blocks)** — FIXED, deduplicated with `isRedundantNear` helper.
-- Items #3–#7, #9–#10, #12–#16 remain open
+- Items #3–#7, #9, #12–#16 remain open
 
 ---
 
