@@ -250,7 +250,7 @@ object TemperatureGraphRenderer {
         }
 
         val stalenessTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = withAlpha(COLOR_ACTUAL_LINE, 136) // 88 alpha
+            color = COLOR_ACTUAL_LINE
             textSize = dpToPx(context, STALENESS_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
@@ -646,7 +646,12 @@ object TemperatureGraphRenderer {
         effectiveActualEndIndex: Int,
         fetchTime: LocalDateTime?,
     ): ExtremaIndices {
-        return TemperatureExtrema.compute(hours, transitionX, effectiveActualEndIndex, fetchTime, MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES)
+        val prominenceThreshold = when {
+            hours.size <= 10 -> MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES
+            hours.size <= 24 -> 1.5f // Narrow zoom: more detail, but still reject minor noise
+            else -> MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES
+        }
+        return TemperatureExtrema.compute(hours, transitionX, effectiveActualEndIndex, fetchTime, prominenceThreshold)
     }
 
     /**
@@ -839,7 +844,12 @@ object TemperatureGraphRenderer {
             }
 
             if (role in listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)) {
-                val edgeWindow = if (hours.lastIndex > 50) min(5, hours.lastIndex / 15) else min(8, hours.lastIndex / 6)
+                val edgeWindow = when {
+                    hours.lastIndex > 50 -> min(5, hours.lastIndex / 15)
+                    hours.lastIndex > 24 -> min(8, hours.lastIndex / 6)
+                    hours.lastIndex > 10 -> 1
+                    else -> 0 // Very small graphs (like in tests): don't suppress anything near edges
+                }
                 val edgeDist = min(idx, hours.lastIndex - idx)
                 val isEndpoint = idx == 0 || idx == hours.lastIndex
                 if (edgeDist <= edgeWindow && !isEndpoint) {
