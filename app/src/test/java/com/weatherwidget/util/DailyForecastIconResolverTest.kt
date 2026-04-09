@@ -226,6 +226,57 @@ class DailyForecastIconResolverTest {
         assertEquals(R.drawable.ic_weather_rain, icon)
     }
 
+    @Test
+    fun `nws dense fog token maps to dense fog icon`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Dense Fog",
+                nativeDailyIconToken = "Dense Fog",
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_fog_dense, icon)
+    }
+
+    @Test
+    fun `weather api mist maps to light fog`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.WEATHER_API.id,
+                condition = "Mist",
+                nativeDailyIconToken = "//cdn.weatherapi.com/weather/64x64/day/1030.png",
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_fog_light, icon)
+    }
+
+    @Test
+    fun `open meteo 48 maps to dense fog`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.OPEN_METEO.id,
+                condition = "Dense Fog",
+                nativeDailyIconToken = "48",
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_fog_dense, icon)
+    }
+
     private fun forecast(
         source: String,
         condition: String,

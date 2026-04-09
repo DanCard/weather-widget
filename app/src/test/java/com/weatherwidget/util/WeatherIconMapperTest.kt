@@ -161,9 +161,36 @@ class WeatherIconMapperTest {
     }
 
     @Test
-    fun testGetIconResource_PatchyFogWithoutThenStillUsesFog() {
+    fun testGetIconResource_PatchyFogWithoutThenUsesLightFog() {
         val res = WeatherIconMapper.getIconResource("Patchy Fog", isNight = false)
+        assertEquals(R.drawable.ic_weather_fog_light, res)
+        
+        val nightRes = WeatherIconMapper.getIconResource("Patchy Fog", isNight = true)
+        assertEquals(R.drawable.ic_weather_fog_light_night, nightRes)
+    }
+
+    @Test
+    fun testGetIconResource_DenseFogUsesDenseFogIcon() {
+        val res = WeatherIconMapper.getIconResource("Dense Fog", isNight = false)
+        assertEquals(R.drawable.ic_weather_fog_dense, res)
+        
+        val nightRes = WeatherIconMapper.getIconResource("Dense Fog", isNight = true)
+        assertEquals(R.drawable.ic_weather_fog_dense, nightRes)
+    }
+
+    @Test
+    fun testGetIconResource_AreasOfFogUsesStandardFog() {
+        val res = WeatherIconMapper.getIconResource("Areas of Fog", isNight = false)
         assertEquals(R.drawable.ic_weather_fog, res)
+        
+        val nightRes = WeatherIconMapper.getIconResource("Areas of Fog", isNight = true)
+        assertEquals(R.drawable.ic_weather_fog_night, nightRes)
+    }
+
+    @Test
+    fun testGetIconResource_MistHazeUsesStandardFog() {
+        assertEquals(R.drawable.ic_weather_fog, WeatherIconMapper.getIconResource("Mist", isNight = false))
+        assertEquals(R.drawable.ic_weather_fog, WeatherIconMapper.getIconResource("Haze", isNight = false))
     }
 
     @Test

@@ -138,8 +138,9 @@ object HourlyBottomZoneHelper {
 
         BOTTOM_HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
             val iconRes = resolveZoneIcon(hourIconResources, i, BOTTOM_HOUR_ZONE_IDS.size)
+            val iconName = iconRes?.let { runCatching { context.resources.getResourceEntryName(it) }.getOrNull() } ?: "null"
             val targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode)
-            Log.d(TAG, "zone=$i iconRes=$iconRes targetView=$targetView currentView=$currentViewMode listSize=${hourIconResources.size}")
+            Log.d(TAG, "zone=$i iconRes=$iconRes iconName=$iconName targetView=$targetView currentView=$currentViewMode listSize=${hourIconResources.size}")
 
             val pendingIntent = if (targetView == null) {
                 // Zoom — same offset calculation as the body zoom zones

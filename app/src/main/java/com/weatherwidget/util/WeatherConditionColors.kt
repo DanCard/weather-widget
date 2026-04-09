@@ -23,7 +23,7 @@ object WeatherConditionColors {
             isNight -> FORECAST_NIGHT
             isMixed -> FORECAST_SUNNY
             isSunny -> FORECAST_SUNNY
-            else -> FORECAST_SUNNY  // Default: clear
+            else -> FORECAST_CLOUDY  // Default for cloudy/foggy/windy
         }
     }
 

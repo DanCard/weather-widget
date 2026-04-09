@@ -123,7 +123,9 @@ object DailyForecastIconResolver {
             1003 -> R.drawable.ic_weather_partly_cloudy
             1006 -> R.drawable.ic_weather_mostly_cloudy
             1009 -> R.drawable.ic_weather_cloudy
-            1030, 1135, 1147 -> R.drawable.ic_weather_fog
+            1030 -> R.drawable.ic_weather_fog_light
+            1135 -> R.drawable.ic_weather_fog
+            1147 -> R.drawable.ic_weather_fog_dense
             1063, 1150, 1153, 1180, 1183, 1186, 1189, 1192, 1195, 1240, 1243, 1246 -> R.drawable.ic_weather_rain
             1066, 1114, 1117, 1210, 1213, 1216, 1219, 1222, 1225, 1237, 1255, 1258, 1261, 1264 ->
                 R.drawable.ic_weather_snow
@@ -152,7 +154,8 @@ object DailyForecastIconResolver {
                 1 -> "Mostly Clear"
                 2 -> "Partly Cloudy"
                 3 -> "Cloudy"
-                45, 48 -> "Fog"
+                45 -> "Fog"
+                48 -> "Dense Fog"
                 51, 53, 55, 56, 57 -> "Drizzle"
                 61, 63, 65, 66, 67, 80, 81, 82 -> "Rain"
                 71, 73, 75, 77, 85, 86 -> "Snow"

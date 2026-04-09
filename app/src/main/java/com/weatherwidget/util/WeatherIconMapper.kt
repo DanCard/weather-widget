@@ -39,11 +39,19 @@ object WeatherIconMapper {
                     slightChanceCloudCoverIcon(isNight, cloudCover)
                 } else R.drawable.ic_weather_rain
             }
-            normalizedCondition.contains("fog") && (normalizedCondition.contains("sunny") || normalizedCondition.contains("clear")) -> R.drawable.ic_weather_fog_sunny
+            normalizedCondition.contains("fog") && (normalizedCondition.contains("sunny") || normalizedCondition.contains("clear")) -> {
+                if (isNight) R.drawable.ic_weather_fog_night else R.drawable.ic_weather_fog_sunny
+            }
             normalizedCondition.contains("fog") && (normalizedCondition.contains("cloudy") || normalizedCondition.contains("overcast")) -> R.drawable.ic_weather_fog_cloudy
+            normalizedCondition.contains("dense fog") -> R.drawable.ic_weather_fog_dense
+            normalizedCondition.contains("patchy fog") || normalizedCondition.contains("light fog") -> {
+                if (isNight) R.drawable.ic_weather_fog_light_night else R.drawable.ic_weather_fog_light
+            }
             normalizedCondition.contains(
                 "fog",
-            ) || normalizedCondition.contains("mist") || normalizedCondition.contains("haze") -> R.drawable.ic_weather_fog
+            ) || normalizedCondition.contains("mist") || normalizedCondition.contains("haze") -> {
+                if (isNight) R.drawable.ic_weather_fog_night else R.drawable.ic_weather_fog
+            }
             normalizedCondition.contains("(75%)") || normalizedCondition.contains("mostly cloudy") -> {
                 if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_partly_cloudy
             }
@@ -113,11 +121,17 @@ object WeatherIconMapper {
                iconRes == R.drawable.ic_weather_partly_cloudy_night ||
                iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain ||
                iconRes == R.drawable.ic_weather_fog_cloudy ||
-               iconRes == R.drawable.ic_weather_fog_sunny
+               iconRes == R.drawable.ic_weather_fog_sunny ||
+               iconRes == R.drawable.ic_weather_fog_night ||
+               iconRes == R.drawable.ic_weather_fog_light ||
+               iconRes == R.drawable.ic_weather_fog_light_night
     }
 
     fun isCloudForecastEligible(iconRes: Int): Boolean {
         return isMixed(iconRes) ||
+               iconRes == R.drawable.ic_weather_fog ||
+               iconRes == R.drawable.ic_weather_fog_light ||
+               iconRes == R.drawable.ic_weather_fog_dense ||
                iconRes == R.drawable.ic_weather_cloudy ||
                iconRes == R.drawable.ic_weather_mostly_clear
     }
