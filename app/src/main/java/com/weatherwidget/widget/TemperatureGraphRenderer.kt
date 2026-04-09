@@ -257,7 +257,7 @@ object TemperatureGraphRenderer {
         }
 
         val valueTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = withAlpha(COLOR_ACTUAL_LINE, 187) // BB alpha
+            color = COLOR_ACTUAL_LINE
             textSize = dpToPx(context, VALUE_LABEL_SIZE_DP * labelScale)
             textAlign = Paint.Align.LEFT
             setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
