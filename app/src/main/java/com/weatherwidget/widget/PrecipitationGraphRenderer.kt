@@ -365,7 +365,7 @@ object PrecipitationGraphRenderer {
         }
 
         candidates.sortBy { it }
-        val filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+        var filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelSignal,
             candidates = candidates,
             globalMaxIdx = globalMaxIdx,
@@ -378,8 +378,6 @@ object PrecipitationGraphRenderer {
             nearbyWindow = 5,
         )
 
-
-        val drawnLabelBounds = mutableListOf<RectF>()
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
             items = labelSignal,
             candidates = filteredCandidates,
@@ -387,6 +385,21 @@ object PrecipitationGraphRenderer {
             globalMinIdx = globalMinIdx,
             valueFunction = { v -> v },
         )
+        Log.d(TAG, "preInjection: candidates=$filteredCandidates suppressLeft=$suppressLeftEdgeLabel totalHours=${hours.size}")
+
+        if (filteredCandidates.size == 2 && filteredCandidates == listOf(0, hours.lastIndex)) {
+            val midIndex = hours.lastIndex / 2
+            if (midIndex != 0 && midIndex != hours.lastIndex && labelSignal[midIndex] > 0) {
+                filteredCandidates = (filteredCandidates + midIndex).sorted()
+                Log.d(TAG, "midpointLabelInjected: idx=$midIndex value=${labelSignal[midIndex]}% reason=only_two_edge_labels hours=${hours.size}")
+            } else {
+                Log.d(TAG, "midpointLabelSkipped: midIndex=$midIndex value=${labelSignal.getOrElse(midIndex) { -1 }}% reason=${when { midIndex == 0 -> "is_left_edge"; midIndex == hours.lastIndex -> "is_right_edge"; else -> "zero_value" }}")
+            }
+        }
+
+        Log.d(TAG, "postFilter: finalCandidates=$filteredCandidates suppressLeft=$suppressLeftEdgeLabel")
+
+        val drawnLabelBounds = mutableListOf<RectF>()
 
         for (index in filteredCandidates) {
             if (index !in labelSignal.indices) continue
