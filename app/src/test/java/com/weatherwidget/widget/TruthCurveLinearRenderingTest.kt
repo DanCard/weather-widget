@@ -43,7 +43,7 @@ class TruthCurveLinearRenderingTest {
             .toEpochMilli()
 
         val hours = (0..5).map { i ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = startTime.plusHours(i.toLong()),
                 temperature = 73f - i * 2f,   // falling forecast: 73, 71, 69, 67, 65, 63
                 label = "${startTime.plusHours(i.toLong()).hour}",
@@ -54,7 +54,7 @@ class TruthCurveLinearRenderingTest {
             )
         }
 
-        var dotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        var dotDebug: FetchDotDebug? = null
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -92,7 +92,7 @@ class TruthCurveLinearRenderingTest {
             .toEpochMilli()
 
         val hours = temps.mapIndexed { i, temp ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = startTime.plusHours(i.toLong()),
                 temperature = temp,
                 label = "${startTime.plusHours(i.toLong()).hour}",
@@ -103,7 +103,7 @@ class TruthCurveLinearRenderingTest {
             )
         }
 
-        var dotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        var dotDebug: FetchDotDebug? = null
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,

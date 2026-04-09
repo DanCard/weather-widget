@@ -260,18 +260,18 @@ object GraphLabelPlacementUtils {
 
     const val MINOR_OVERLAP_HEIGHT_RATIO = 0.45f
 
-    fun isMinorOverlapEligible(role: TemperatureGraphRenderer.TemperatureRole): Boolean =
+    fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         role in setOf(
-            TemperatureGraphRenderer.TemperatureRole.LOW, TemperatureGraphRenderer.TemperatureRole.HIGH,
-            TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW, TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH,
-            TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW, TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH,
-            TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_LOW, TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_HIGH,
-            TemperatureGraphRenderer.TemperatureRole.START, TemperatureGraphRenderer.TemperatureRole.END,
-            TemperatureGraphRenderer.TemperatureRole.LOCAL
+            TemperatureRole.LOW, TemperatureRole.HIGH,
+            TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH,
+            TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH,
+            TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH,
+            TemperatureRole.START, TemperatureRole.END,
+            TemperatureRole.LOCAL
         )
 
     fun shouldAllowMinorOverlap(
-        role: TemperatureGraphRenderer.TemperatureRole,
+        role: TemperatureRole,
         overlapHeight: Float,
         labelHeight: Float
     ): Boolean = isMinorOverlapEligible(role) && overlapHeight <= labelHeight * MINOR_OVERLAP_HEIGHT_RATIO

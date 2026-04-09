@@ -56,7 +56,7 @@ class TemperatureGraphRendererContinuityTest {
         // Setup hours: forecast is 60, observation is 65.
         // appliedDelta = 5.0
         val hours = (0..7).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 60f,
                 label = "${(10 + offset) % 24}h",
@@ -109,7 +109,7 @@ class TemperatureGraphRendererContinuityTest {
         
         // Forecast is a ramp.
         val hours = (0..7).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 50f + offset * 5f, 
                 label = "${(10 + offset) % 24}h",
@@ -119,7 +119,7 @@ class TemperatureGraphRendererContinuityTest {
         }
         
         val appliedDelta = 10.0f
-        var capturedPoints: TemperatureGraphRenderer.PointsDebug? = null
+        var capturedPoints: PointsDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,

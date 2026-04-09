@@ -2,7 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.graphics.Bitmap
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.TemperatureGraphRenderer
+import com.weatherwidget.widget.HourData
 import com.weatherwidget.widget.ZoomLevel
 
 internal data class TemperatureWidgetState(
@@ -34,7 +34,7 @@ internal data class TemperatureWidgetState(
     data class GraphState(
         val useGraph: Boolean,
         val bitmap: Bitmap?,
-        val hourData: List<TemperatureGraphRenderer.HourData>,
+        val hourData: List<HourData>,
         val showTextMode: Boolean,
     )
 

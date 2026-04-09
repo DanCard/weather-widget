@@ -36,7 +36,7 @@ class TemperatureLabelSuppressionTest {
         // Distance is 1, value diff is 0.2f. Should be suppressed.
         val hours = (0 until 10).map { offset ->
             val dt = start.plusHours(offset.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = if (offset == 4) 70.0f else 60.0f + offset,
                 label = "${dt.hour}h",
@@ -45,7 +45,7 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -56,8 +56,8 @@ class TemperatureLabelSuppressionTest {
         )
 
         // Verify HIGH (at index 4) is placed, but ACTUAL_HIGH (at index 3) is NOT.
-        assertTrue("HIGH should be placed at index 4", placements.any { it.index == 4 && it.role == TemperatureGraphRenderer.TemperatureRole.HIGH })
-        assertFalse("ACTUAL_HIGH at index 3 should be suppressed", placements.any { it.index == 3 && it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH })
+        assertTrue("HIGH should be placed at index 4", placements.any { it.index == 4 && it.role == TemperatureRole.HIGH })
+        assertFalse("ACTUAL_HIGH at index 3 should be suppressed", placements.any { it.index == 3 && it.role == TemperatureRole.ACTUAL_HIGH })
     }
 
     @Test
@@ -70,7 +70,7 @@ class TemperatureLabelSuppressionTest {
         // Distance is 1, value diff is 0.1f. Should be suppressed.
         val hours = (0 until 10).map { offset ->
             val dt = start.plusHours(offset.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = if (offset == 3) 75.1f else 65.0f + offset,
                 label = "${dt.hour}h",
@@ -79,7 +79,7 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -89,8 +89,8 @@ class TemperatureLabelSuppressionTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        assertTrue("HIGH should be placed at index 3", placements.any { it.index == 3 && it.role == TemperatureGraphRenderer.TemperatureRole.HIGH })
-        assertFalse("ACTUAL_HIGH at index 2 should be suppressed by HIGH at index 3", placements.any { it.index == 2 && it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH })
+        assertTrue("HIGH should be placed at index 3", placements.any { it.index == 3 && it.role == TemperatureRole.HIGH })
+        assertFalse("ACTUAL_HIGH at index 2 should be suppressed by HIGH at index 3", placements.any { it.index == 2 && it.role == TemperatureRole.ACTUAL_HIGH })
     }
 
     @Test
@@ -107,7 +107,7 @@ class TemperatureLabelSuppressionTest {
         val transitionX = 250f // index 2 approx.
         val hours = (0 until 10).map { offset ->
             val dt = start.plusHours(offset.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = when(offset) {
                     3 -> 75.1f
@@ -120,7 +120,7 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -132,9 +132,9 @@ class TemperatureLabelSuppressionTest {
 
         // ACTUAL_HIGH (at index 2) should be placed.
         // FORECAST_HIGH (at index 3) should be suppressed by ACTUAL_HIGH.
-        assertTrue("ACTUAL_HIGH should be placed at index 2", placements.any { it.index == 2 && it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH })
-        assertFalse("FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH at index 2", placements.any { it.index == 3 && it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH })
-        assertTrue("HIGH should be placed at index 9", placements.any { it.index == 9 && it.role == TemperatureGraphRenderer.TemperatureRole.HIGH })
+        assertTrue("ACTUAL_HIGH should be placed at index 2", placements.any { it.index == 2 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertFalse("FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH at index 2", placements.any { it.index == 3 && it.role == TemperatureRole.FORECAST_HIGH })
+        assertTrue("HIGH should be placed at index 9", placements.any { it.index == 9 && it.role == TemperatureRole.HIGH })
     }
 
     @Test
@@ -149,7 +149,7 @@ class TemperatureLabelSuppressionTest {
         // Both are in the "past" (offset <= effectiveActualEndIndex)
         val hours = (0 until 10).map { offset ->
             val dt = start.plusHours(offset.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = when(offset) {
                     3 -> 75.1f
@@ -162,7 +162,7 @@ class TemperatureLabelSuppressionTest {
             )
         }
 
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -172,8 +172,8 @@ class TemperatureLabelSuppressionTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        assertTrue("ACTUAL_HIGH should be placed at index 4", placements.any { it.index == 4 && it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH })
-        assertFalse("PAST_FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH at index 4", placements.any { it.index == 3 && it.role == TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_HIGH })
+        assertTrue("ACTUAL_HIGH should be placed at index 4", placements.any { it.index == 4 && it.role == TemperatureRole.ACTUAL_HIGH })
+        assertFalse("PAST_FORECAST_HIGH at index 3 should be suppressed by ACTUAL_HIGH at index 4", placements.any { it.index == 3 && it.role == TemperatureRole.PAST_FORECAST_HIGH })
     }
 
     private fun mockContext(): Context {

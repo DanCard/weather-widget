@@ -19,10 +19,10 @@ class TemperatureLabelCollisionOrderTest {
         forecastTemps: List<Float>,
         actualTemps: List<Float?>,
         startTime: LocalDateTime = LocalDateTime.of(2026, 4, 8, 0, 0),
-    ): List<TemperatureGraphRenderer.HourData> =
+    ): List<HourData> =
         forecastTemps.mapIndexed { index, temp ->
             val dateTime = startTime.plusHours(index.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dateTime,
                 temperature = temp,
                 actualTemperature = actualTemps[index],
@@ -34,7 +34,7 @@ class TemperatureLabelCollisionOrderTest {
 
     @Test
     fun `when two valleys collide the lower temperature should be on the bottom`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         
         // Two valleys close to each other. 
         // Index 10: 52 (Forecast LOW)
@@ -74,7 +74,7 @@ class TemperatureLabelCollisionOrderTest {
 
     @Test
     fun `when two peaks collide the higher temperature should be on top`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         
         // Two peaks close to each other.
         // Index 10: 85 (Forecast HIGH)

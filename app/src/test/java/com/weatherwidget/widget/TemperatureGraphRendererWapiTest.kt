@@ -57,7 +57,7 @@ class TemperatureGraphRendererWapiTest {
         // Observed was 65, but that was 2 hours ago (fetch at 10:00, now is 12:00).
         // appliedDelta would be decayed (e.g. 2.5 instead of 5.0).
         val hours = (0..7).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 60f,
                 label = "${(10 + offset) % 24}h",

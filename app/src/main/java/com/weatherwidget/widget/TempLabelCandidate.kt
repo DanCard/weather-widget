@@ -5,7 +5,7 @@ package com.weatherwidget.widget
 
 data class TempLabelCandidate(
     val index: Int,
-    val role: TemperatureGraphRenderer.TemperatureRole,
+    val role: TemperatureRole,
     val labelTemps: List<Float>,
     val rawTemperature: Float,
     val forceForecastSeries: Boolean

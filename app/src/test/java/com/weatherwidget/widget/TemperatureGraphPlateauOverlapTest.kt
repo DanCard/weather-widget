@@ -21,7 +21,7 @@ class TemperatureGraphPlateauOverlapTest {
 
     @Test
     fun `identical values on a plateau should not produce multiple overlapping labels`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 4, 6, 0, 0)
         
         // 24 hour span. Plateau at 49 degrees from 4am to 8am.
@@ -37,7 +37,7 @@ class TemperatureGraphPlateauOverlapTest {
 
         val hours = (0..23).map { i ->
             val time = start.plusHours(i.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = temps[i],
                 actualTemperature = if (i <= 5) temps[i] else null,

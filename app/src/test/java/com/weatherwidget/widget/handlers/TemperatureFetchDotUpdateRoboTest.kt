@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.TemperatureGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
@@ -99,7 +100,7 @@ class TemperatureFetchDotUpdateRoboTest {
                 api = "NWS",
             ),
         )
-        val resolved = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
+        val resolved = mutableListOf<FetchDotDebug>()
         io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns firstActuals andThen secondActuals
 
         TemperatureViewHandler.updateWidget(
@@ -172,7 +173,7 @@ class TemperatureFetchDotUpdateRoboTest {
                 api = "NWS",
             ),
         )
-        val resolved = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
+        val resolved = mutableListOf<FetchDotDebug>()
         io.mockk.coEvery { repository.getObservationsInRange(any(), any(), any(), any()) } returns actuals
 
         TemperatureViewHandler.updateWidget(

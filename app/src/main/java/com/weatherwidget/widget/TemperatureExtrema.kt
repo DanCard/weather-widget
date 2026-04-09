@@ -25,7 +25,7 @@ internal object TemperatureExtrema {
     )
 
     fun compute(
-        hours: List<TemperatureGraphRenderer.HourData>,
+        hours: List<HourData>,
         transitionX: Float?,
         effectiveActualEndIndex: Int,
         fetchTime: LocalDateTime?,

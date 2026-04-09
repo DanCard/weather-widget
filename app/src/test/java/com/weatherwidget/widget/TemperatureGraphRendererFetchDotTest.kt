@@ -115,7 +115,7 @@ class TemperatureGraphRendererFetchDotTest {
         // Forecast temps flat at 60. lastObservedTemp = 65 (different from curve).
         // The dot Y must reflect 65° (lastObservedTemp), not the 60° forecast curve.
         val hours = (0..7).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 60f,
                 label = "${(10 + offset) % 24}h",
@@ -169,7 +169,7 @@ class TemperatureGraphRendererFetchDotTest {
         // 10:37 (actual) -> 52.5
         // 11:00 (bucket) -> 55.0
         val hours = listOf(
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start,
                 temperature = 50f,
                 label = "10h",
@@ -178,7 +178,7 @@ class TemperatureGraphRendererFetchDotTest {
                 isActual = true,
                 actualTemperature = 50f
             ),
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusMinutes(37),
                 temperature = 52.5f,
                 label = "10h",
@@ -187,7 +187,7 @@ class TemperatureGraphRendererFetchDotTest {
                 isActual = true,
                 actualTemperature = 52.5f
             ),
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(1),
                 temperature = 55f,
                 label = "11h",
@@ -200,7 +200,7 @@ class TemperatureGraphRendererFetchDotTest {
         
         val observedAtMs = start.plusMinutes(37).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        var fetchDotDebug: FetchDotDebug? = null
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -234,7 +234,7 @@ class TemperatureGraphRendererFetchDotTest {
         val hours = buildHours(start)
         val observedAtMs = start.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        var fetchDotDebug: FetchDotDebug? = null
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
@@ -277,9 +277,9 @@ class TemperatureGraphRendererFetchDotTest {
         return context
     }
 
-    private fun buildHours(start: LocalDateTime): List<TemperatureGraphRenderer.HourData> {
+    private fun buildHours(start: LocalDateTime): List<HourData> {
         return (0..7).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 52f + offset,
                 label = "${start.plusHours(offset.toLong()).hour}h",

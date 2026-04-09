@@ -22,7 +22,7 @@ object GraphLayout {
         val iconTopPad: Float,
     )
 
-    fun computeScaling(hours: List<TemperatureGraphRenderer.HourData>): Triple<Float, Float, Float> {
+    fun computeScaling(hours: List<HourData>): Triple<Float, Float, Float> {
         val allTemps = hours.map { it.temperature } + hours.mapNotNull { it.actualTemperature }
         val rawMin = allTemps.minOrNull() ?: 0f
         val rawMax = allTemps.maxOrNull() ?: 100f

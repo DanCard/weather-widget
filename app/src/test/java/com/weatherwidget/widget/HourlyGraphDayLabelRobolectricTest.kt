@@ -35,10 +35,10 @@ class HourlyGraphDayLabelRobolectricTest {
         start: LocalDateTime,
         count: Int,
         temp: Float = 60f,
-    ): List<TemperatureGraphRenderer.HourData> =
+    ): List<HourData> =
         (0 until count).map { i ->
             val dt = start.plusHours(i.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = temp,
                 label = if (dt.hour == 0) "12a" else "${dt.hour % 12}${if (dt.hour < 12) "a" else "p"}",
@@ -61,12 +61,12 @@ class HourlyGraphDayLabelRobolectricTest {
         }
 
     private fun renderTemp(
-        hours: List<TemperatureGraphRenderer.HourData>,
+        hours: List<HourData>,
         currentTime: LocalDateTime = hours[hours.size / 2].dateTime,
         widthPx: Int = 800,
         heightPx: Int = 300,
-    ): List<TemperatureGraphRenderer.DayLabelPlacementDebug> {
-        val results = mutableListOf<TemperatureGraphRenderer.DayLabelPlacementDebug>()
+    ): List<DayLabelPlacementDebug> {
+        val results = mutableListOf<DayLabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,

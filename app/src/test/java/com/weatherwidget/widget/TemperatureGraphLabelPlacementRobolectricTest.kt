@@ -31,10 +31,10 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     private fun buildHours(
         temps: List<Float>,
         startTime: LocalDateTime = LocalDateTime.of(2026, 3, 19, 10, 0),
-    ): List<TemperatureGraphRenderer.HourData> =
+    ): List<HourData> =
         temps.mapIndexed { index, temp ->
             val dateTime = startTime.plusHours(index.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dateTime,
                 temperature = temp,
                 label = "${dateTime.hour}",
@@ -44,7 +44,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `peak falls back below when above placement would leave the screen`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -55,7 +55,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val highPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
+        val highPlacement = placements.find { it.role == TemperatureRole.HIGH }
         if (highPlacement != null) {
             assertFalse(
                 "Expected constrained HIGH label to avoid above-placement when it would be off-screen. placement=$highPlacement",
@@ -66,8 +66,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `peak label above stays close to the forecast line`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
-        var points: TemperatureGraphRenderer.PointsDebug? = null
+        val placements = mutableListOf<LabelPlacementDebug>()
+        var points: PointsDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -79,7 +79,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onPointsResolved = { points = it },
         )
 
-        val highPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
+        val highPlacement = placements.find { it.role == TemperatureRole.HIGH }
         assertNotNull("Expected HIGH label to be drawn. placements=$placements", highPlacement)
         assertTrue("Expected HIGH label to prefer above when room exists. placement=$highPlacement", highPlacement!!.placedAbove)
 
@@ -105,7 +105,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `actual and forecast highs are both labeled when peaks differ`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
 
         val start = LocalDateTime.of(2026, 3, 19, 6, 0)
         // 20-hour span so edge suppression doesn't interfere.
@@ -113,7 +113,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val forecastTemps = listOf(75f, 77f, 79f, 81f, 83f, 85f, 86f, 87f, 88f, 88.5f, 88.8f, 88.9f, 89f, 88f, 86f, 84f, 82f, 81f, 80f, 79f)
         val actualTemps =   listOf(75f, 77f, 79f, 82f, 84f, 85.5f, 86f, 86.1f, 86.2f, 85f, 84f, 83f, null, null, null, null, null, null, null, null)
         val hours = (0 until 20).map { i ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(i.toLong()),
                 temperature = forecastTemps[i],
                 actualTemperature = actualTemps[i],
@@ -131,8 +131,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualHigh = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH }
-        val forecastHigh = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.PAST_FORECAST_HIGH }
+        val actualHigh = placements.find { it.role == TemperatureRole.ACTUAL_HIGH }
+        val forecastHigh = placements.find { it.role == TemperatureRole.HIGH || it.role == TemperatureRole.FORECAST_HIGH || it.role == TemperatureRole.PAST_FORECAST_HIGH }
 
         assertNotNull("Expected ACTUAL_HIGH label. placements=$placements", actualHigh)
         assertNotNull("Expected forecast-series HIGH label. placements=$placements", forecastHigh)
@@ -142,16 +142,16 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `end label is still emitted when observedAt lands on the final point`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 15, 0)
         val observedAtMs = start.plusHours(4).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "3p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "4p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 87.0f, label = "6p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
+                HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "3p"),
+                HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "4p"),
+                HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"),
+                HourData(dateTime = start.plusHours(3), temperature = 87.0f, label = "6p"),
+                HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
             )
 
         TemperatureGraphRenderer.renderGraph(
@@ -165,22 +165,22 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
+        val endPlacement = placements.find { it.role == TemperatureRole.END }
         assertNotNull("Expected END label even when observedAt is on the final point. placements=$placements", endPlacement)
         assertEquals(88.0f, endPlacement!!.temperature, 0.01f)
     }
 
     @Test
     fun `end label uses forecast temperature after fetch transition not ghost line when endpoint is uncrowded`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 15, 0)
         val observedAtMs = start.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 70.0f, actualTemperature = 70.0f, isActual = true, label = "3p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 75.0f, actualTemperature = 75.0f, isActual = true, label = "4p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 74.0f, label = "5p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 73.0f, label = "6p"),
+                HourData(dateTime = start.plusHours(0), temperature = 70.0f, actualTemperature = 70.0f, isActual = true, label = "3p"),
+                HourData(dateTime = start.plusHours(1), temperature = 75.0f, actualTemperature = 75.0f, isActual = true, label = "4p"),
+                HourData(dateTime = start.plusHours(2), temperature = 74.0f, label = "5p"),
+                HourData(dateTime = start.plusHours(3), temperature = 73.0f, label = "6p"),
             )
 
         TemperatureGraphRenderer.renderGraph(
@@ -195,7 +195,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
+        val endPlacement = placements.find { it.role == TemperatureRole.END }
         assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
         assertEquals("END label should stay on forecast line value, not ghost line", 73.0f, endPlacement!!.temperature, 0.01f)
         assertEquals("forecast", endPlacement.series)
@@ -204,7 +204,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `end label is suppressed when same-index high already labels final point`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -215,13 +215,13 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        assertNotNull("HIGH or END should label the final point. placements=$placements", placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.END })
-        assertNotNull("HIGH should remain when it already labels the final point. placements=$placements", placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH })
+        assertNotNull("HIGH or END should label the final point. placements=$placements", placements.find { it.role == TemperatureRole.HIGH || it.role == TemperatureRole.END })
+        assertNotNull("HIGH should remain when it already labels the final point. placements=$placements", placements.find { it.role == TemperatureRole.HIGH })
     }
 
     @Test
     fun `placeTemperatureLabels thins out redundant labels on a monotonic rise`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 12, 0)
         // Monotonic rise from 50 to 70 over 20 hours
         val signal = (50..70).map { it.toFloat() }
@@ -236,8 +236,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         assertTrue("Should have at most 6 labels. Placed: ${placements.size}", placements.size <= 6)
-        assertTrue("Should have START or LOW label at the beginning", placements.any { (it.role == TemperatureGraphRenderer.TemperatureRole.START || it.role == TemperatureGraphRenderer.TemperatureRole.LOW) && it.index == 0 })
-        assertTrue("Should have HIGH or END label at the end", placements.any { (it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.END) && it.index == signal.lastIndex })
+        assertTrue("Should have START or LOW label at the beginning", placements.any { (it.role == TemperatureRole.START || it.role == TemperatureRole.LOW) && it.index == 0 })
+        assertTrue("Should have HIGH or END label at the end", placements.any { (it.role == TemperatureRole.HIGH || it.role == TemperatureRole.END) && it.index == signal.lastIndex })
         // Middle points should be thinned out
         val intermediate = placements.filter { it.index != 0 && it.index != signal.lastIndex }
         assertTrue("Should have thinned out most intermediate labels. Found: ${intermediate.size}", intermediate.size < 5)
@@ -245,17 +245,17 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `end label is shown even when another label is near the endpoint`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 15, 0)
         val observedAtMs = start.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 52.0f, actualTemperature = 53.5f, isActual = true, label = "3p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 81.0f, actualTemperature = 82.0f, isActual = true, label = "4p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 79.0f, label = "5p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 77.0f, label = "6p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 54.0f, label = "7p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(5), temperature = 57.0f, label = "8p"),
+                HourData(dateTime = start.plusHours(0), temperature = 52.0f, actualTemperature = 53.5f, isActual = true, label = "3p"),
+                HourData(dateTime = start.plusHours(1), temperature = 81.0f, actualTemperature = 82.0f, isActual = true, label = "4p"),
+                HourData(dateTime = start.plusHours(2), temperature = 79.0f, label = "5p"),
+                HourData(dateTime = start.plusHours(3), temperature = 77.0f, label = "6p"),
+                HourData(dateTime = start.plusHours(4), temperature = 54.0f, label = "7p"),
+                HourData(dateTime = start.plusHours(5), temperature = 57.0f, label = "8p"),
             )
 
         TemperatureGraphRenderer.renderGraph(
@@ -269,22 +269,22 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val endPlacement = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
+        val endPlacement = placements.find { it.role == TemperatureRole.END }
         assertNotNull("END should always be shown as an essential boundary marker. placements=$placements", endPlacement)
     }
 
     @Test
     fun `actuals end does not produce a label (fetch dot shows observed temp instead)`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
 
         val start = LocalDateTime.of(2026, 3, 19, 15, 0)
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "3p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "4p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 87.0f, label = "6p"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
+                HourData(dateTime = start.plusHours(0), temperature = 84.0f, actualTemperature = 84.0f, isActual = true, label = "3p"),
+                HourData(dateTime = start.plusHours(1), temperature = 85.0f, actualTemperature = 85.0f, isActual = true, label = "4p"),
+                HourData(dateTime = start.plusHours(2), temperature = 86.0f, actualTemperature = 86.0f, isActual = true, label = "5p"),
+                HourData(dateTime = start.plusHours(3), temperature = 87.0f, label = "6p"),
+                HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
             )
 
         TemperatureGraphRenderer.renderGraph(
@@ -296,20 +296,20 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualEnd = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_END }
+        val actualEnd = placements.find { it.role == TemperatureRole.ACTUAL_END }
         assertNull("ACTUAL_END label should not be placed (fetch dot covers this)", actualEnd)
     }
 
     @Test
     fun `actual and forecast lows are both labeled when peaks differ`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 6, 0)
         // 20-hour span so edge suppression doesn't interfere.
         // Forecast low at idx=12 (58°), actual low at idx=8 (55°) — different indices.
         val forecastTemps = listOf(70f, 69f, 67f, 65f, 64f, 63f, 62f, 61f, 60.5f, 60f, 59.5f, 59f, 58f, 59f, 60f, 61f, 62f, 63f, 64f, 65f)
         val actualTemps =   listOf(70f, 68f, 65f, 62f, 60f, 58f, 57f, 56f, 55f, 56f, 57f, 58f, null, null, null, null, null, null, null, null)
         val hours = (0 until 20).map { i ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(i.toLong()),
                 temperature = forecastTemps[i],
                 actualTemperature = actualTemps[i],
@@ -327,8 +327,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val actualLow = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW }
-        val forecastLow = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW }
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        val forecastLow = placements.find { it.role == TemperatureRole.LOW || it.role == TemperatureRole.FORECAST_LOW }
 
         assertNotNull("Expected ACTUAL_LOW label. placements=$placements", actualLow)
         assertNotNull("Expected forecast LOW label. placements=$placements", forecastLow)
@@ -338,19 +338,19 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `extrapolated actualTemperature on future hours does not produce HIGH label at extrapolated value`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 10, 0)
         // transitionX is driven by observedAt (fetch dot), not currentTime.
         // Hours after the fetch dot are "future" on the graph even if their timestamp is in the past.
         // Scenario: fetch dot at hour 1 (observedAt), but station has isActual=true readings up to hour 3.
         val observedAtMs = start.plusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         val hours = listOf(
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 74f, actualTemperature = 74f, isActual = true, label = "10a"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 76f, actualTemperature = 76f, isActual = true, label = "11a"),  // fetch dot here
+            HourData(dateTime = start.plusHours(0), temperature = 74f, actualTemperature = 74f, isActual = true, label = "10a"),
+            HourData(dateTime = start.plusHours(1), temperature = 76f, actualTemperature = 76f, isActual = true, label = "11a"),  // fetch dot here
             // These hours are past currentTime but AFTER the fetch dot — graph treats them as future
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 77f, actualTemperature = 82f, isActual = true, label = "12p"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 77f, actualTemperature = 82f, isActual = true, label = "1p"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 76f, label = "2p"),
+            HourData(dateTime = start.plusHours(2), temperature = 77f, actualTemperature = 82f, isActual = true, label = "12p"),
+            HourData(dateTime = start.plusHours(3), temperature = 77f, actualTemperature = 82f, isActual = true, label = "1p"),
+            HourData(dateTime = start.plusHours(4), temperature = 76f, label = "2p"),
         )
 
         TemperatureGraphRenderer.renderGraph(
@@ -367,7 +367,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             "No label should show extrapolated future temperature (~82°). placements=$placements",
             placements.none { it.temperature > 79f },
         )
-        val highLabel = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
+        val highLabel = placements.find { it.role == TemperatureRole.HIGH }
         assertNotNull("Expected a HIGH label from actual observations. placements=$placements", highLabel)
         assertTrue(
             "HIGH label temperature should reflect actual observation peak (78°), not extrapolated future value. placement=$highLabel",
@@ -377,14 +377,14 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `label Y positions are consistent with their temperature values`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 10, 0)
         val hours = listOf(
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 70f, actualTemperature = 73f, isActual = true, label = "10a"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 74f, actualTemperature = 77f, isActual = true, label = "11a"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 76f, actualTemperature = 79f, isActual = true, label = "12p"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(3), temperature = 74f, label = "1p"),
-            TemperatureGraphRenderer.HourData(dateTime = start.plusHours(4), temperature = 71f, label = "2p"),
+            HourData(dateTime = start.plusHours(0), temperature = 70f, actualTemperature = 73f, isActual = true, label = "10a"),
+            HourData(dateTime = start.plusHours(1), temperature = 74f, actualTemperature = 77f, isActual = true, label = "11a"),
+            HourData(dateTime = start.plusHours(2), temperature = 76f, actualTemperature = 79f, isActual = true, label = "12p"),
+            HourData(dateTime = start.plusHours(3), temperature = 74f, label = "1p"),
+            HourData(dateTime = start.plusHours(4), temperature = 71f, label = "2p"),
         )
 
         TemperatureGraphRenderer.renderGraph(
@@ -414,7 +414,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     @Test
     fun `essential labels are forced into fallback position if preferred is off-screen and fallback collides`() {
         // This test simulates the Samsung failure where LOW was rejected from both above and below.
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 3, 19, 10, 0)
         
         // Use a real drawable ID from the project
@@ -423,9 +423,9 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         // We'll place a LOW at the very bottom edge to force it off-screen for 'drawBelow'
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 90.0f, label = "10a"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 10.0f, label = "11a", showLabel = true, iconRes = iconRes), // LOW
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 90.0f, label = "12p"),
+                HourData(dateTime = start.plusHours(0), temperature = 90.0f, label = "10a"),
+                HourData(dateTime = start.plusHours(1), temperature = 10.0f, label = "11a", showLabel = true, iconRes = iconRes), // LOW
+                HourData(dateTime = start.plusHours(2), temperature = 90.0f, label = "12p"),
             )
 
         TemperatureGraphRenderer.renderGraph(
@@ -437,7 +437,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { placements.add(it) },
         )
 
-        val lowLabel = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
+        val lowLabel = placements.find { it.role == TemperatureRole.LOW }
         assertNotNull("LOW label should be present even if it collides, as long as it's on-screen. Placements=$placements", lowLabel)
 
         // preferred (below) is off-screen.
@@ -448,14 +448,14 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `lowest plotted point stays above footer icon band`() {
-        var points: TemperatureGraphRenderer.PointsDebug? = null
+        var points: PointsDebug? = null
         val start = LocalDateTime.of(2026, 3, 19, 10, 0)
         val iconRes = com.weatherwidget.R.drawable.ic_weather_clear
         val hours =
             listOf(
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(0), temperature = 90.0f, label = "10a"),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(1), temperature = 10.0f, label = "11a", showLabel = true, iconRes = iconRes),
-                TemperatureGraphRenderer.HourData(dateTime = start.plusHours(2), temperature = 90.0f, label = "12p"),
+                HourData(dateTime = start.plusHours(0), temperature = 90.0f, label = "10a"),
+                HourData(dateTime = start.plusHours(1), temperature = 10.0f, label = "11a", showLabel = true, iconRes = iconRes),
+                HourData(dateTime = start.plusHours(2), temperature = 90.0f, label = "12p"),
             )
 
         val heightPx = 120
@@ -486,7 +486,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `testForecastLabelsInHistoryAreColoredBlue`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 4, 6, 15, 0)
         
         // Setup hours: Past (idx 0-11), Future (idx 12-20)
@@ -508,7 +508,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 8 -> 65.0f  // ACTUAL_HIGH (Observed)
                 else -> temp
             }
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = temp,
                 actualTemperature = actualTemp,
@@ -531,28 +531,28 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         // 1. HIGH (idx 15, Future) -> forecast
-        val high = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH }
+        val high = placements.find { it.role == TemperatureRole.HIGH }
         assertNotNull("HIGH label missing", high)
         assertEquals("forecast", high!!.series)
 
         // 2. LOW (idx 5, Past) -> forecast
-        val low = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW }
+        val low = placements.find { it.role == TemperatureRole.LOW }
         assertNotNull("LOW label missing", low)
         assertEquals("LOW at idx 5 (past) should be marked as forecast", "forecast", low!!.series)
 
         // 3. LOCAL (idx 13, Future) -> forecast
-        val local = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOCAL && it.index == 13 }
+        val local = placements.find { it.role == TemperatureRole.LOCAL && it.index == 13 }
         assertNotNull("LOCAL label at idx 13 missing", local)
         assertEquals("LOCAL peak at idx 13 (future) should be marked as forecast", "forecast", local!!.series)
 
         // 4. ACTUAL_LOW (idx 4, Past) -> actual
-        val actualLow = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW && it.index == 4 }
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW && it.index == 4 }
         assertNotNull("ACTUAL_LOW label missing", actualLow)
         assertEquals("actual", actualLow!!.series)
         assertEquals(48.0f, actualLow.temperature, 0.1f)
 
         // 5. ACTUAL_HIGH (idx 8, Past) -> actual
-        val actualHigh = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH && it.index == 8 }
+        val actualHigh = placements.find { it.role == TemperatureRole.ACTUAL_HIGH && it.index == 8 }
         assertNotNull("ACTUAL_HIGH label missing", actualHigh)
         assertEquals("actual", actualHigh!!.series)
 
@@ -562,20 +562,20 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         assertEquals("Label at start (past) should be forecast series (blue)", "forecast", startLabel!!.series)
 
         // 7. END (idx 20, Future) -> forecast
-        val endLabel = placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.END }
+        val endLabel = placements.find { it.role == TemperatureRole.END }
         assertNotNull("END label missing", endLabel)
         assertEquals("forecast", endLabel!!.series)
     }
 
     @Test
     fun `testStartLabelInHistoryUsesCorrectSeries`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 4, 6, 10, 0)
         
         // Setup: Monotonic rise so idx 0 is LOW.
         val hours = (0..10).map { i ->
             val time = start.plusHours(i.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = 70.0f + i,
                 actualTemperature = 72.0f + i,
@@ -604,7 +604,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
     @Test
     fun `forecast low is suppressed when actual low is nearby with similar value`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 4, 8, 0, 0)
         val observedAtMs = start.plusHours(10).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
@@ -618,7 +618,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val hours = forecastTemps.mapIndexed { i, temp ->
             val time = start.plusHours(i.toLong())
             val actualTemp = if (i <= 10) temp - 0.2f else null
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = temp,
                 actualTemperature = actualTemp,
@@ -640,17 +640,17 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
         assertNull(
             "FORECAST_LOW should be suppressed when ACTUAL_LOW is nearby with similar value. placements=$placements",
-            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW },
+            placements.find { it.role == TemperatureRole.FORECAST_LOW },
         )
         assertNotNull(
             "Actual low label should still be placed. placements=$placements",
-            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW || it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW },
+            placements.find { it.role == TemperatureRole.LOW || it.role == TemperatureRole.ACTUAL_LOW },
         )
     }
 
     @Test
     fun `forecast high is suppressed when actual high is nearby with similar value`() {
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
         val start = LocalDateTime.of(2026, 4, 8, 0, 0)
         val observedAtMs = start.plusHours(10).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
@@ -664,7 +664,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val hours = forecastTemps.mapIndexed { i, temp ->
             val time = start.plusHours(i.toLong())
             val actualTemp = if (i <= 10) temp - 0.2f else null
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = temp,
                 actualTemperature = actualTemp,
@@ -686,11 +686,11 @@ class TemperatureGraphLabelPlacementRobolectricTest {
 
         assertNull(
             "FORECAST_HIGH should be suppressed when ACTUAL_HIGH is nearby with similar value. placements=$placements",
-            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH },
+            placements.find { it.role == TemperatureRole.FORECAST_HIGH },
         )
         assertNotNull(
             "Actual high label should still be placed. placements=$placements",
-            placements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH },
+            placements.find { it.role == TemperatureRole.HIGH || it.role == TemperatureRole.ACTUAL_HIGH },
         )
     }
 
@@ -701,7 +701,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val hours = (0..5).map { i ->
             val time = start.plusHours(i.toLong())
             val temp = if (i == 2) 40.0f else 50.0f
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = temp,
                 actualTemperature = if (i <= 2) temp else null,
@@ -713,7 +713,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         // We observe at hour 2
         val observedAtMs = start.plusHours(2).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         
-        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        var fetchDotDebug: FetchDotDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -757,7 +757,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 2 -> 48f // ACTUAL_LOW
                 else -> null
             }
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(i.toLong()),
                 temperature = temp,
                 actualTemperature = actualTemp,
@@ -766,7 +766,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             )
         }
 
-        val valleyPlacements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val valleyPlacements = mutableListOf<LabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = valleyHours,
@@ -776,8 +776,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { valleyPlacements.add(it) }
         )
 
-        val actualLow = valleyPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_LOW }
-        val forecastLow = valleyPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.LOW || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_LOW }
+        val actualLow = valleyPlacements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        val forecastLow = valleyPlacements.find { it.role == TemperatureRole.LOW || it.role == TemperatureRole.FORECAST_LOW }
 
         assertNotNull("Expected ACTUAL_LOW label", actualLow)
         assertNotNull("Expected FORECAST_LOW label", forecastLow)
@@ -806,7 +806,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 2 -> 64f // ACTUAL_HIGH
                 else -> null
             }
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(i.toLong()),
                 temperature = temp,
                 actualTemperature = actualTemp,
@@ -815,7 +815,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             )
         }
 
-        val peakPlacements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val peakPlacements = mutableListOf<LabelPlacementDebug>()
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = peakHours,
@@ -825,8 +825,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onLabelPlaced = { peakPlacements.add(it) }
         )
 
-        val actualHigh = peakPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.ACTUAL_HIGH }
-        val forecastHigh = peakPlacements.find { it.role == TemperatureGraphRenderer.TemperatureRole.HIGH || it.role == TemperatureGraphRenderer.TemperatureRole.FORECAST_HIGH }
+        val actualHigh = peakPlacements.find { it.role == TemperatureRole.ACTUAL_HIGH }
+        val forecastHigh = peakPlacements.find { it.role == TemperatureRole.HIGH || it.role == TemperatureRole.FORECAST_HIGH }
 
         assertNotNull("Expected ACTUAL_HIGH label", actualHigh)
         assertNotNull("Expected FORECAST_HIGH label", forecastHigh)

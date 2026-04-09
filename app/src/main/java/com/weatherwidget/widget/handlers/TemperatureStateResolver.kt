@@ -19,6 +19,8 @@ import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
+import com.weatherwidget.widget.HourData
+import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
@@ -67,7 +69,7 @@ internal object TemperatureStateResolver {
         repository: WeatherRepository?,
         deferCurrentTempResolution: Boolean,
         startupToken: String? = null,
-        onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
+        onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
     ): ResolutionResult {
         val now = LocalDateTime.now()
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
@@ -113,7 +115,7 @@ internal object TemperatureStateResolver {
             smoothedForecasts = smoothedForecasts,
         )
 
-        val graphHours: List<TemperatureGraphRenderer.HourData>
+        val graphHours: List<HourData>
         val obsQueryMs: Long
         val buildHourDataMs: Long
         when (graphLoadResult) {
@@ -272,7 +274,7 @@ internal object TemperatureStateResolver {
     private sealed class GraphLoadOutcome {
         data class Empty(val reason: String) : GraphLoadOutcome()
         data class Loaded(
-            val hours: List<TemperatureGraphRenderer.HourData>,
+            val hours: List<HourData>,
             val obsQueryMs: Long,
             val buildHourDataMs: Long,
         ) : GraphLoadOutcome()

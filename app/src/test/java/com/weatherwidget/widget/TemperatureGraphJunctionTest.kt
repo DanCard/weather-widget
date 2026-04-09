@@ -56,7 +56,7 @@ class TemperatureGraphJunctionTest {
         // Setup hours with a sharp change to highlight interpolation differences.
         // 10:00 -> 60, 11:00 -> 70, 12:00 -> 60
         val hours = (0..7).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = if (offset == 1) 70f else 60f,
                 label = "${(10 + offset) % 24}h",

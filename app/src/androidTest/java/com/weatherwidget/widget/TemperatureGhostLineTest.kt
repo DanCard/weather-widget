@@ -20,11 +20,11 @@ import java.time.LocalDateTime
 class TemperatureGhostLineTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-    private fun buildHours(temps: List<Float>): List<TemperatureGraphRenderer.HourData> {
+    private fun buildHours(temps: List<Float>): List<HourData> {
         val startTime = LocalDateTime.of(2026, 2, 26, 10, 0)
         return temps.mapIndexed { index, temp ->
             val dt = startTime.plusHours(index.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = temp,
                 label = "${dt.hour}",
@@ -41,7 +41,7 @@ class TemperatureGhostLineTest {
         // Labels should now show the API (70) and ignore the delta.
         val temps = listOf(70f, 75f, 80f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -66,7 +66,7 @@ class TemperatureGhostLineTest {
     @Test
     fun hottestPoint_rendersHighEnoughToOverlapHeaderRegion() {
         val hours = buildHours(listOf(52f, 58f, 67f, 91f, 72f, 64f, 59f, 55f))
-        var points: TemperatureGraphRenderer.PointsDebug? = null
+        var points: PointsDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -95,7 +95,7 @@ class TemperatureGhostLineTest {
     @Test
     fun coldestPoint_rendersLowEnoughToUseFooterSpace() {
         val hours = buildHours(listOf(52f, 58f, 67f, 91f, 72f, 64f, 59f, 55f))
-        var points: TemperatureGraphRenderer.PointsDebug? = null
+        var points: PointsDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,

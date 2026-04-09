@@ -27,10 +27,10 @@ class TemperatureGraphClutterTest {
     private fun buildHours(
         temps: List<Float>,
         startTime: LocalDateTime = LocalDateTime.of(2026, 2, 17, 19, 0),
-    ): List<TemperatureGraphRenderer.HourData> {
+    ): List<HourData> {
         return temps.mapIndexed { index, temp ->
             val dt = startTime.plusHours(index.toLong())
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = temp,
                 label = "${dt.hour}",
@@ -46,7 +46,7 @@ class TemperatureGraphClutterTest {
         // but it's only 1 degree and likely not worth labeling.
         val temps = listOf(55f, 56f, 58f, 60f, 60f, 61f, 60f, 60f, 58f, 56f, 54f)
         val hours = buildHours(temps)
-        val placements = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val placements = mutableListOf<LabelPlacementDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -58,6 +58,6 @@ class TemperatureGraphClutterTest {
         )
 
         // We expect it to NOT be drawn as "LOCAL" (which is the role for local extrema)
-        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == TemperatureGraphRenderer.TemperatureRole.LOCAL && it.index == 5 })
+        assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == TemperatureRole.LOCAL && it.index == 5 })
     }
 }

@@ -33,7 +33,7 @@ class TemperatureGraphLabelGeneralTest {
             createHour(now.plusHours(8), 47.0f)
         )
 
-        val drawnLabels = mutableListOf<TemperatureGraphRenderer.LabelPlacementDebug>()
+        val drawnLabels = mutableListOf<LabelPlacementDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -55,8 +55,8 @@ class TemperatureGraphLabelGeneralTest {
         assertTrue("Local minimum (44) should be drawn. Actual: $drawnLabels", drawn44)
     }
 
-    private fun createHour(time: LocalDateTime, temp: Float): TemperatureGraphRenderer.HourData {
-        return TemperatureGraphRenderer.HourData(
+    private fun createHour(time: LocalDateTime, temp: Float): HourData {
+        return HourData(
             dateTime = time,
             temperature = temp,
             label = "${time.hour}h"

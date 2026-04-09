@@ -286,8 +286,8 @@ class TemperatureGraphRendererActualsTest {
             }
         val anchorAtMs = start.plusHours(3).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        var actualLineDebug: TemperatureGraphRenderer.ActualLineDebug? = null
-        var fetchDotDebug: TemperatureGraphRenderer.FetchDotDebug? = null
+        var actualLineDebug: ActualLineDebug? = null
+        var fetchDotDebug: FetchDotDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -354,11 +354,11 @@ class TemperatureGraphRendererActualsTest {
         markCurrentHour: Boolean,
         currentHourIndex: Int = 0,
         total: Int = 8,
-    ): List<TemperatureGraphRenderer.HourData> {
+    ): List<HourData> {
         return (0 until total).map { offset ->
             val dt = start.plusHours(offset.toLong())
             val isActual = offset < actualsCount
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = 52f + offset,
                 label = "${dt.hour}h",

@@ -12,6 +12,7 @@ import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.GraphRenderUtils
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.TemperatureGraphRenderer
+import com.weatherwidget.widget.HourData
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant
@@ -91,7 +92,7 @@ internal class BlendDebugCollector(
 }
 
 internal data class BuildHourDataResult(
-    val hours: List<TemperatureGraphRenderer.HourData>,
+    val hours: List<HourData>,
     val blendStats: BlendObservationStats?,
 )
 
@@ -105,7 +106,7 @@ internal fun buildHourDataList(
     actuals: List<ObservationEntity> = emptyList(),
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
-): List<TemperatureGraphRenderer.HourData> =
+): List<HourData> =
     buildHourDataResult(
         hourlyForecasts = hourlyForecasts,
         centerTime = centerTime,
@@ -127,7 +128,7 @@ internal fun buildHourDataResult(
     onBlendDebug: ((() -> String) -> Unit)? = null,
     smoothedForecasts: Map<Long, Float>? = null,
 ): BuildHourDataResult {
-    val hours = mutableListOf<TemperatureGraphRenderer.HourData>()
+    val hours = mutableListOf<HourData>()
     val now = LocalDateTime.now()
 
     val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
@@ -232,7 +233,7 @@ internal fun buildHourDataResult(
             val isMixed = WeatherIconMapper.isMixed(iconRes)
 
             hours.add(
-                TemperatureGraphRenderer.HourData(
+                HourData(
                     dateTime = currentHour,
                     temperature = smoothedForecasts?.get(hourMs) ?: forecast.temperature,
                     label = formatHourLabel(currentHour),
@@ -254,7 +255,7 @@ internal fun buildHourDataResult(
     }
 
     // 2. Inject sub-hourly actuals
-    val finalHours = mutableListOf<TemperatureGraphRenderer.HourData>()
+    val finalHours = mutableListOf<HourData>()
     val allTimes = hours.map { it.dateTime }.toMutableSet()
     val actualMap = mutableMapOf<LocalDateTime, ObservationEntity>()
 
@@ -308,7 +309,7 @@ internal fun buildHourDataResult(
             }
 
             finalHours.add(
-                TemperatureGraphRenderer.HourData(
+                HourData(
                     dateTime = time,
                     temperature = forecastTemp,
                     label = formatHourLabel(time),

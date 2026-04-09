@@ -21,7 +21,7 @@ class TemperatureFetchDotIntegrationTest {
         val hours =
             (0..7).map { index ->
                 val dt = startTime.plusHours(index.toLong())
-                TemperatureGraphRenderer.HourData(
+                HourData(
                     dateTime = dt,
                     temperature = 60f + index,
                     label = dt.hour.toString(),
@@ -32,7 +32,7 @@ class TemperatureFetchDotIntegrationTest {
 
         val firstObservedAt = currentTime.minusMinutes(25).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val secondObservedAt = currentTime.minusMinutes(5).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val events = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
+        val events = mutableListOf<FetchDotDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -74,7 +74,7 @@ class TemperatureFetchDotIntegrationTest {
         // 4 hour duration (narrow) but with many points (every 5 mins) -> 48 points
         val hours = (0..48).map { index ->
             val dt = startTime.plusMinutes(index.toLong() * 5)
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = dt,
                 temperature = 65f,
                 label = dt.hour.toString(),
@@ -84,7 +84,7 @@ class TemperatureFetchDotIntegrationTest {
         }
 
         val observedAtMs = startTime.plusHours(2).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val events = mutableListOf<TemperatureGraphRenderer.FetchDotDebug>()
+        val events = mutableListOf<FetchDotDebug>()
 
         TemperatureGraphRenderer.renderGraph(
             context = context,

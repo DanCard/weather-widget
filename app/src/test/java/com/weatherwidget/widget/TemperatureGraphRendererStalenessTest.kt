@@ -36,7 +36,7 @@ class TemperatureGraphRendererStalenessTest {
         val start = LocalDateTime.of(2026, 3, 21, 10, 0)
         // 5 points, 4 hour duration
         val hours = (0..4).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 60f,
                 label = "${(10 + offset) % 24}h",
@@ -68,7 +68,7 @@ class TemperatureGraphRendererStalenessTest {
         // 49 points (every 5 mins), 4 hour duration
         val hours = (0..48).map { offset ->
             val time = start.plusMinutes(offset.toLong() * 5)
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = time,
                 temperature = 60f,
                 label = "${time.hour}h",
@@ -99,7 +99,7 @@ class TemperatureGraphRendererStalenessTest {
         val start = LocalDateTime.of(2026, 3, 21, 10, 0)
         // 25 points, 24 hour duration
         val hours = (0..24).map { offset ->
-            TemperatureGraphRenderer.HourData(
+            HourData(
                 dateTime = start.plusHours(offset.toLong()),
                 temperature = 60f,
                 label = "${(10 + offset) % 24}h",

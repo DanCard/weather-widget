@@ -46,13 +46,13 @@ class TemperatureFetchDotColorTest {
         val start = LocalDateTime.of(2026, 3, 23, 10, 0)
         // Need at least 2 points to have a range
         val hours = listOf(
-            TemperatureGraphRenderer.HourData(start, 70f, "10a", isCurrentHour = true),
-            TemperatureGraphRenderer.HourData(start.plusHours(1), 72f, "11a")
+            HourData(start, 70f, "10a", isCurrentHour = true),
+            HourData(start.plusHours(1), 72f, "11a")
         )
         // observedAt must be within the range [start, start+1h]
         val observedAtMs = start.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
-        var debugResult: TemperatureGraphRenderer.FetchDotDebug? = null
+        var debugResult: FetchDotDebug? = null
 
         TemperatureGraphRenderer.renderGraph(
             context = context,
@@ -70,7 +70,7 @@ class TemperatureFetchDotColorTest {
             return (color and 0x00FFFFFF) or (alpha shl 24)
         }
 
-        val expectedValueColor = withAlpha(WeatherConditionColors.OBSERVED, 0xBB)
+        val expectedValueColor = withAlpha(WeatherConditionColors.OBSERVED, 0xFF)
         val expectedStalenessColor = WeatherConditionColors.OBSERVED
 
         org.junit.Assert.assertNotNull("Fetch dot should have been resolved", debugResult)

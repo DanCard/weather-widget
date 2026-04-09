@@ -14,7 +14,7 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.CurrentTemperatureDeltaState
 import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
-import com.weatherwidget.widget.TemperatureGraphRenderer
+import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
@@ -46,7 +46,7 @@ object TemperatureViewHandler {
         precipProbability: Int? = null,
         lastObservedTemp: Float? = null,
         observedAt: Long? = null,
-        onFetchDotResolved: ((TemperatureGraphRenderer.FetchDotDebug) -> Unit)? = null,
+        onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         repository: WeatherRepository? = null,
         startupToken: String? = null,
         deferCurrentTempResolution: Boolean = false,
