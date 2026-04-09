@@ -185,10 +185,10 @@ class PrecipTouchRoutingRoboTest {
         )
 
         val applied = applyViews(views)
-        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_hour_zones).visibility)
-        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_body_tap_zone).visibility)
-        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_zones).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_view).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_zones).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_container).visibility)
     }
 
     private suspend fun renderPrecipWidget(
