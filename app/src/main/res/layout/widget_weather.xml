@@ -10,32 +10,6 @@
     android:background="@drawable/widget_background"
     tools:ignore="UseAppTint">
 
-    <!-- Left navigation arrow - vertically centered, narrow to maximize content area -->
-    <ImageButton
-        android:id="@+id/nav_left"
-        android:layout_width="20dp"
-        android:layout_height="wrap_content"
-        android:minHeight="80dp"
-        android:layout_gravity="start|center_vertical"
-        android:src="@drawable/ic_chevron_left"
-        android:background="@android:color/transparent"
-        android:scaleType="centerInside"
-        android:contentDescription="@string/nav_previous"
-        android:visibility="visible" />
-
-    <!-- Right navigation arrow - vertically centered, narrow to maximize content area -->
-    <ImageButton
-        android:id="@+id/nav_right"
-        android:layout_width="20dp"
-        android:layout_height="wrap_content"
-        android:minHeight="80dp"
-        android:layout_gravity="end|center_vertical"
-        android:src="@drawable/ic_chevron_right"
-        android:background="@android:color/transparent"
-        android:scaleType="centerInside"
-        android:contentDescription="@string/nav_next"
-        android:visibility="visible" />
-
     <!-- Text-only view (for 1-row height) -->
     <LinearLayout
         android:id="@+id/text_container"
@@ -884,26 +858,6 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Left navigation touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/nav_left_zone"
-        android:layout_width="40dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="start|center_vertical"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <!-- Right navigation touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/nav_right_zone"
-        android:layout_width="40dp"
-        android:layout_height="match_parent"
-        android:layout_gravity="end|center_vertical"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
     <!-- Current temperature touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/current_temp_zone"
@@ -1336,5 +1290,53 @@
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true" />
+
+    <!-- Navigation touch zones - declared last for highest touch priority over all overlays -->
+    <FrameLayout
+        android:id="@+id/nav_left_zone"
+        android:layout_width="40dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="start|center_vertical"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <FrameLayout
+        android:id="@+id/nav_right_zone"
+        android:layout_width="40dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end|center_vertical"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Navigation arrows - declared last for highest touch priority, widened with padding for larger hit area -->
+    <ImageButton
+        android:id="@+id/nav_left"
+        android:layout_width="40dp"
+        android:layout_height="wrap_content"
+        android:minHeight="80dp"
+        android:layout_gravity="start|center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:src="@drawable/ic_chevron_left"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside"
+        android:contentDescription="@string/nav_previous"
+        android:visibility="visible" />
+
+    <ImageButton
+        android:id="@+id/nav_right"
+        android:layout_width="40dp"
+        android:layout_height="wrap_content"
+        android:minHeight="80dp"
+        android:layout_gravity="end|center_vertical"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:src="@drawable/ic_chevron_right"
+        android:background="@android:color/transparent"
+        android:scaleType="centerInside"
+        android:contentDescription="@string/nav_next"
+        android:visibility="visible" />
 
 </FrameLayout>
