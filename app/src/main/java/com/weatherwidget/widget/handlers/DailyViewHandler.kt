@@ -186,14 +186,23 @@ object DailyViewHandler : WidgetViewHandler {
                 "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
 
-        if (dailyActuals[today] == null) {
-            requestMissingActualsRefresh(
+        val earlyRefreshDecisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = displaySource,
+            dailyActuals = dailyActuals,
+        )
+        for (decision in earlyRefreshDecisions) {
+            requestMissingDataRefresh(
                 context = context,
                 stateManager = stateManager,
                 appWidgetId = appWidgetId,
                 displaySource = displaySource,
-                reasonSuffix = "today",
-                message = "widget=$appWidgetId source=${displaySource.id} missing today actuals, enqueueing worker",
+                refreshType = decision.refreshType,
+                cooldownMs = if (decision.forceRefresh) MISSING_ACTUALS_REFRESH_COOLDOWN_MS else MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS,
+                logTag = if (decision.forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH",
+                forceRefresh = decision.forceRefresh,
+                reason = decision.reason,
+                message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
             )
         }
 
@@ -425,44 +434,24 @@ object DailyViewHandler : WidgetViewHandler {
                 return
             }
 
-            val missingTodaySnapshot = displayDays.firstOrNull { day ->
-                day.isToday &&
-                    day.forecastHigh != null &&
-                    day.forecastLow != null &&
-                    day.snapshotHigh == null &&
-                    day.snapshotLow == null
-            }
-            if (missingTodaySnapshot != null) {
+            val graphRefreshDecisions = computeMissingDataRefreshes(
+                today = today,
+                displaySource = displaySource,
+                dailyActuals = dailyActuals,
+                displayDays = displayDays,
+            )
+            for (decision in graphRefreshDecisions) {
                 requestMissingDataRefresh(
                     context = context,
                     stateManager = stateManager,
                     appWidgetId = appWidgetId,
                     displaySource = displaySource,
-                    refreshType = "today_snapshot",
-                    cooldownMs = MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS,
-                    logTag = "MISSING_TODAY_SNAPSHOT_FETCH",
-                    forceRefresh = false,
-                    reason = "missing_today_snapshot_${displaySource.id}",
-                    message = "widget=$appWidgetId source=${displaySource.id} missing today snapshot for ${missingTodaySnapshot.date}, enqueueing worker",
-                )
-            }
-
-            val missingVisiblePastActuals = displayDays.firstOrNull { day ->
-                day.isPast &&
-                    dailyActuals[day.date] == null &&
-                    day.forecastHigh != null &&
-                    day.forecastLow != null
-            }
-            if (missingVisiblePastActuals != null) {
-                requestMissingActualsRefresh(
-                    context = context,
-                    stateManager = stateManager,
-                    appWidgetId = appWidgetId,
-                    displaySource = displaySource,
-                    reasonSuffix = "history",
-                    message =
-                        "widget=$appWidgetId source=${displaySource.id} missing past actuals for ${missingVisiblePastActuals.date}, " +
-                            "graphing forecast history and enqueueing worker",
+                    refreshType = decision.refreshType,
+                    cooldownMs = if (decision.forceRefresh) MISSING_ACTUALS_REFRESH_COOLDOWN_MS else MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS,
+                    logTag = if (decision.forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH",
+                    forceRefresh = decision.forceRefresh,
+                    reason = decision.reason,
+                    message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
                 )
             }
 
@@ -581,28 +570,6 @@ object DailyViewHandler : WidgetViewHandler {
                     "hasRainForecast=${day.hasRainForecast}",
             )
         }
-    }
-
-    private suspend fun requestMissingActualsRefresh(
-        context: Context,
-        stateManager: WidgetStateManager,
-        appWidgetId: Int,
-        displaySource: WeatherSource,
-        reasonSuffix: String,
-        message: String,
-    ) {
-        requestMissingDataRefresh(
-            context = context,
-            stateManager = stateManager,
-            appWidgetId = appWidgetId,
-            displaySource = displaySource,
-            refreshType = "actuals_$reasonSuffix",
-            cooldownMs = MISSING_ACTUALS_REFRESH_COOLDOWN_MS,
-            logTag = "MISSING_ACTUALS_FETCH",
-            forceRefresh = true,
-            reason = "missing_actuals_${displaySource.id}_$reasonSuffix",
-            message = message,
-        )
     }
 
     private suspend fun requestMissingDataRefresh(

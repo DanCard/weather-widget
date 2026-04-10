@@ -1,35 +1,25 @@
 package com.weatherwidget.widget.handlers
 
-import android.appwidget.AppWidgetManager
 import android.graphics.Color
-import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.RemoteViews
 import android.widget.TextView
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequest
-import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.mockAppWidgetManager
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.DailyForecastGraphRenderer
+import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.WidgetStateManager
-import io.mockk.every
-import io.mockk.just
-import io.mockk.mockk
-import io.mockk.runs
-import io.mockk.slot
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
-import io.mockk.verify
-import org.junit.After
+import io.mockk.CapturingSlot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -59,11 +49,6 @@ class DailyViewHandlerTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-    }
-
-    @After
-    fun teardown() {
-        unmockkStatic(WorkManager::class)
     }
 
     private fun epoch(dateTime: String): Long =
@@ -730,16 +715,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(42)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 140)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 140)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
-        }
-        every { appWidgetManager.getAppWidgetOptions(42) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(42, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 42, widthDp = 140, heightDp = 90)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -778,17 +754,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(43)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            // 3 columns: (width + 15) / 70 ≈ 3 => width ≈ 195
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
-        }
-        every { appWidgetManager.getAppWidgetOptions(43) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(43, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 43, widthDp = 200, heightDp = 90)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -831,16 +797,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(44)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.OPEN_METEO, WeatherSource.NWS, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
-        }
-        every { appWidgetManager.getAppWidgetOptions(44) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(44, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 44, widthDp = 200, heightDp = 90)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -876,16 +833,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(47)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
-        }
-        every { appWidgetManager.getAppWidgetOptions(47) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(47, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 47, widthDp = 200, heightDp = 150)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -934,16 +882,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(48)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
-        }
-        every { appWidgetManager.getAppWidgetOptions(48) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(48, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 48, widthDp = 200, heightDp = 150)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -987,70 +926,114 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget enqueues missing actuals fetch for visible past graph day`() = runBlocking {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val today = now.toLocalDate()
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val yesterdayStr = today.minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+    fun `computeMissingDataRefreshes requests actuals today when daily actuals missing`() {
+        val today = LocalDate.of(2030, 6, 15)
 
-        val stateManager = WidgetStateManager(context)
-        stateManager.clearWidgetState(49)
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS))
-
-        mockkStatic(WorkManager::class)
-        val workManager = mockk<WorkManager>(relaxed = true)
-        every { WorkManager.getInstance(any()) } returns workManager
-        val requests = mutableListOf<OneTimeWorkRequest>()
-        every {
-            workManager.enqueueUniqueWork(
-                any(),
-                any<ExistingWorkPolicy>(),
-                capture(requests),
-            )
-        } returns mockk(relaxed = true)
-
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
-        }
-        every { appWidgetManager.getAppWidgetOptions(49) } returns options
-        every { appWidgetManager.updateAppWidget(49, any<android.widget.RemoteViews>()) } just runs
-
-        DailyViewHandler.updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = 49,
-            weatherList = listOf(
-                createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f),
-                createWeather(tomorrowStr, precipProbability = 0, highTemp = 72f, lowTemp = 56f),
-            ),
-            forecastSnapshots = mapOf(
-                today.minusDays(1) to listOf(createWeather(yesterdayStr, precipProbability = 0, highTemp = 68f, lowTemp = 54f)),
-            ),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
-            now = now,
+        val decisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = emptyMap(),
         )
 
-        verify(atLeast = 1) {
-            workManager.enqueueUniqueWork(
-                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-                ExistingWorkPolicy.KEEP,
-                any<OneTimeWorkRequest>(),
-            )
-        }
-        assertTrue(
-            requests.any {
-                it.workSpec.input.getBoolean(com.weatherwidget.widget.WeatherWidgetWorker.KEY_FORCE_REFRESH, false) &&
-                    it.workSpec.input.getString(com.weatherwidget.widget.WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON) == "missing_actuals_NWS_history"
-            },
+        assertEquals(1, decisions.size)
+        assertEquals("actuals_today", decisions[0].refreshType)
+        assertTrue(decisions[0].forceRefresh)
+        assertEquals("missing_actuals_NWS_today", decisions[0].reason)
+    }
+
+    @Test
+    fun `computeMissingDataRefreshes requests actuals history when past graph day lacks actuals`() {
+        val today = LocalDate.of(2030, 6, 15)
+        val yesterday = today.minusDays(1)
+
+        val displayDays = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = yesterday,
+                label = "Sat",
+                high = 68f,
+                low = 54f,
+                forecastHigh = 68f,
+                forecastLow = 54f,
+                isPast = true,
+                isToday = false,
+                iconRes = 0,
+            ),
         )
+
+        val decisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = emptyMap(),
+            displayDays = displayDays,
+        )
+
+        val historyDecision = decisions.find { it.refreshType == "actuals_history" }
+        assertTrue(historyDecision != null)
+        assertTrue(historyDecision!!.forceRefresh)
+        assertEquals("missing_actuals_NWS_history", historyDecision.reason)
+    }
+
+    @Test
+    fun `computeMissingDataRefreshes requests today snapshot when forecast exists but no snapshot`() {
+        val today = LocalDate.of(2030, 6, 15)
+
+        val displayDays = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Sun",
+                high = 70f,
+                low = 55f,
+                forecastHigh = 70f,
+                forecastLow = 55f,
+                snapshotHigh = null,
+                snapshotLow = null,
+                isPast = false,
+                isToday = true,
+                iconRes = 0,
+            ),
+        )
+
+        val decisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
+            displayDays = displayDays,
+        )
+
+        val snapshotDecision = decisions.find { it.refreshType == "today_snapshot" }
+        assertTrue(snapshotDecision != null)
+        assertFalse(snapshotDecision!!.forceRefresh)
+        assertEquals("missing_today_snapshot_NWS", snapshotDecision.reason)
+    }
+
+    @Test
+    fun `computeMissingDataRefreshes returns empty when all data present`() {
+        val today = LocalDate.of(2030, 6, 15)
+
+        val displayDays = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Sun",
+                high = 70f,
+                low = 55f,
+                forecastHigh = 70f,
+                forecastLow = 55f,
+                snapshotHigh = 68f,
+                snapshotLow = 52f,
+                isPast = false,
+                isToday = true,
+                iconRes = 0,
+            ),
+        )
+
+        val decisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
+            displayDays = displayDays,
+        )
+
+        assertTrue(decisions.isEmpty())
     }
 
     @Test
@@ -1114,72 +1097,16 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `updateWidget enqueues non-forced refresh when today snapshot is missing`() = runBlocking {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
-        val today = now.toLocalDate()
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val tomorrowStr = today.plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+    fun `computeMissingDataRefreshes does not request actuals today when daily actuals present`() {
+        val today = LocalDate.of(2030, 6, 15)
 
-        val stateManager = WidgetStateManager(context)
-        stateManager.clearWidgetState(50)
-        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS))
-
-        mockkStatic(WorkManager::class)
-        val workManager = mockk<WorkManager>(relaxed = true)
-        every { WorkManager.getInstance(any()) } returns workManager
-        val requestSlot = slot<OneTimeWorkRequest>()
-        every {
-            workManager.enqueueUniqueWork(
-                any(),
-                any<ExistingWorkPolicy>(),
-                capture(requestSlot),
-            )
-        } returns mockk(relaxed = true)
-
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
-        }
-        every { appWidgetManager.getAppWidgetOptions(50) } returns options
-        every { appWidgetManager.updateAppWidget(50, any<android.widget.RemoteViews>()) } just runs
-
-        DailyViewHandler.updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = 50,
-            weatherList = listOf(
-                createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f),
-                createWeather(tomorrowStr, precipProbability = 0, highTemp = 72f, lowTemp = 56f),
-            ),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = mapOf(
-                WeatherSource.NWS.id to mapOf(
-                    today to com.weatherwidget.widget.ObservationResolver.DailyActual(
-                        date = today,
-                        highTemp = 71f,
-                        lowTemp = 54f,
-                        condition = "Clear",
-                    ),
-                ),
-            ),
-            repository = null,
-            now = now,
+        val decisions = computeMissingDataRefreshes(
+            today = today,
+            displaySource = WeatherSource.NWS,
+            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 71f, lowTemp = 54f, condition = "Clear")),
         )
 
-        verify(exactly = 1) {
-            workManager.enqueueUniqueWork(
-                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-                ExistingWorkPolicy.KEEP,
-                any<OneTimeWorkRequest>(),
-            )
-        }
-        assertFalse(requestSlot.captured.workSpec.input.getBoolean(com.weatherwidget.widget.WeatherWidgetWorker.KEY_FORCE_REFRESH, true))
-        assertEquals("missing_today_snapshot_NWS", requestSlot.captured.workSpec.input.getString(com.weatherwidget.widget.WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON))
+        assertTrue(decisions.none { it.refreshType == "actuals_today" })
     }
 
     @Test
@@ -1232,16 +1159,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(45)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 140)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 140)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
-        }
-        every { appWidgetManager.getAppWidgetOptions(45) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(45, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 45, widthDp = 140, heightDp = 90)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -1287,16 +1205,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(46)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
-        }
-        every { appWidgetManager.getAppWidgetOptions(46) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(46, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 46, widthDp = 200, heightDp = 90)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -1330,17 +1239,8 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(50)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
         // 200x200 gives 2+ rows → graph mode
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 200)
-        }
-        every { appWidgetManager.getAppWidgetOptions(50) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(50, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 50, widthDp = 200, heightDp = 200)
 
         DailyViewHandler.updateWidget(
             context = context,
@@ -1386,16 +1286,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(51)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
-        val appWidgetManager = mockk<AppWidgetManager>()
-        val options = Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
-        }
-        every { appWidgetManager.getAppWidgetOptions(51) } returns options
-        val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(51, capture(viewsSlot)) } just runs
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 51, widthDp = 200, heightDp = 90)
 
         DailyViewHandler.updateWidget(
             context = context,

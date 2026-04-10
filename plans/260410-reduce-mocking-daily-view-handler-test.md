@@ -1,78 +1,88 @@
 # Reduce Mocking in DailyViewHandlerTest.kt
 
-## Context
+## Problem
 
-`DailyViewHandlerTest.kt` has 35 tests. A blanket `mockkObject(RainAnalyzer)` in `@Before` affects all of them, even though only 6 tests actually stub `getRainSummary`. There's also a dead `WidgetStateManager` mock and a `CurrentTemperatureResolver` object mock that can be replaced with output verification. The project philosophy is "no mocking framework — prefer pure function extraction."
+`DailyViewHandlerTest.kt` (1450 lines) has two categories of over-mocking:
 
-## Change 1: Inject `rainSummaryProvider` lambda into DailyViewLogic
+1. **WorkManager static mocking** (2 tests, ~130 lines): `mockkStatic(WorkManager::class)` + `capture(requests)` + verifying `OneTimeWorkRequest` internals. Tests decision logic through integration wiring rather than directly. Fragile: tied to WorkManager API, requires teardown cleanup, asserts on internal `workSpec.input` details.
 
-**File**: `app/src/main/java/com/weatherwidget/widget/handlers/DailyViewLogic.kt`
+2. **AppWidgetManager mock boilerplate** (~9 tests, ~90 lines duplicated): Each test repeats mock creation, options Bundle construction, `getAppWidgetOptions` stub, and `Slot<RemoteViews>` capture. Identical 10-line block copy-pasted across tests.
 
-Add a defaulted lambda parameter to both `prepareTextDays` (line 46) and `prepareGraphDays` (line 201):
+## Strategy
+
+Follow the project's existing "pure function extraction" pattern (see `RefreshScheduleDecision` in `WidgetIntentRouter.kt`, `HourlyBackfillDecision` in `HourlyObservationBackfill.kt`):
+
+1. Extract the refresh decision logic into a pure function + data class.
+2. Replace mock-heavy WorkManager tests with pure function tests.
+3. Extract common AppWidgetManager mock setup into a test helper.
+
+## Change 1: Create `MissingDataRefreshHelper.kt`
+
+**File**: `app/src/main/java/com/weatherwidget/widget/handlers/MissingDataRefreshHelper.kt`
+
+New file containing:
+- `MissingDataRefreshDecision` data class (refreshType, forceRefresh, reason)
+- `computeMissingDataRefreshes()` pure function
+
+Logic extracted from `DailyViewHandler.updateWidget`:
+- If `dailyActuals[today] == null` → `actuals_today` with `forceRefresh=true`
+- If any display day is today with forecast but no snapshot → `today_snapshot` with `forceRefresh=false`
+- If any visible past day has forecast but no actuals → `actuals_history` with `forceRefresh=true`
+- Returns empty list when all data is present
+
+## Change 2: Modify `DailyViewHandler.kt`
+
+- Import and call `computeMissingDataRefreshes()` in `updateWidget`
+- Replace inline condition checks at lines 189-198, 428-448, 450-467 with iteration over decisions
+- Thin wrapper `requestMissingDataRefresh` unchanged (still handles cooldown + WorkManager)
+- Remove `requestMissingActualsRefresh` (inlined into the decision computation)
+
+## Change 3: Create `AppWidgetManagerTestHelper.kt`
+
+**File**: `app/src/test/java/com/weatherwidget/testutil/AppWidgetManagerTestHelper.kt`
 
 ```kotlin
-rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary
+data class CapturedWidgetViews(
+    val appWidgetManager: AppWidgetManager,
+    val viewsSlot: Slot<RemoteViews>,
+)
+
+fun mockAppWidgetManager(
+    widgetId: Int,
+    widthDp: Int = 200,
+    heightDp: Int = 90,
+): CapturedWidgetViews
 ```
 
-Replace direct `RainAnalyzer.getRainSummary(...)` calls at lines 100 and 338 with `rainSummaryProvider(...)`.
+## Change 4: Modify `DailyViewHandlerTest.kt`
 
-No changes needed in `DailyViewHandler.kt` or other callers — they use the default.
+- **Delete** the 2 WorkManager mock tests (lines 990-1054, 1117-1183). Replace with 4 pure function tests on `computeMissingDataRefreshes`.
+- **Replace** AppWidgetManager mock boilerplate in ~9 tests with `mockAppWidgetManager()` calls.
+- **Remove** `mockkStatic(WorkManager::class)` from `@After` teardown (no longer needed).
+- **Clean up** unused imports: `WorkManager`, `OneTimeWorkRequest`, `ExistingWorkPolicy`, `mockkStatic`, `unmockkStatic`.
 
-## Change 2: Remove RainAnalyzer mocking from tests
+## New pure function tests (replacing WorkManager tests)
 
-**File**: `app/src/test/java/com/weatherwidget/widget/handlers/DailyViewHandlerTest.kt`
+```kotlin
+@Test fun `computeMissingDataRefreshes requests actuals today when daily actuals missing`()
+@Test fun `computeMissingDataRefreshes requests actuals history when past graph day lacks actuals`()
+@Test fun `computeMissingDataRefreshes requests today snapshot when forecast exists but no snapshot`()
+@Test fun `computeMissingDataRefreshes returns empty when all data present`()
+```
 
-- Remove `mockkObject(RainAnalyzer)` from `@Before` (line 67)
-- Remove `unmockkObject(RainAnalyzer)` from `@After` (line 72)
-- Remove 5x `every { RainAnalyzer.getRainSummary(...) } returns null` stubs (lines 81, 105, 426, 462, 581) — the real function returns null for `emptyList()` inputs
-- Replace the `every { ... } answers { ... }` in the rain test (line 138) with a `rainSummaryProvider` lambda:
-  ```kotlin
-  rainSummaryProvider = { _, date, _, _ ->
-      when (date) {
-          today.plusDays(1) -> "9am"
-          today.plusDays(2) -> "10am"
-          else -> null
-      }
-  }
-  ```
-- Clean up unused imports (`mockkObject`, `unmockkObject`, `RainAnalyzer`)
-
-## Change 3: Remove dead WidgetStateManager mock
-
-**File**: `DailyViewHandlerTest.kt`
-
-Delete the `stateManager` mock and its 4 `every` stubs (lines 1389-1393) from the `DailyViewHandler uses provided lastObservedTemp` test. This mock is never injected — `updateWidget` creates its own `WidgetStateManager(context)` internally.
-
-## Change 4: Restructure `lastObservedTemp` test to verify output
-
-**File**: `DailyViewHandlerTest.kt`
-
-Instead of mocking `CurrentTemperatureResolver.resolve` and verifying it was called with the right parameter:
-- Set up `AppWidgetManager` with proper dimensions (copy pattern from other `updateWidget` tests)
-- Let the real `CurrentTemperatureResolver.resolve` run
-- Capture `RemoteViews`, inflate, and assert the displayed current temperature reflects the provided `lastObservedTemp`
-- Remove `mockkObject(CurrentTemperatureResolver)` and `unmockkObject(CurrentTemperatureResolver)`
-
-## What stays
-
-- `mockk<AppWidgetManager>()` in `updateWidget` tests — framework boundary, provides dimensions and captures RemoteViews
-- `mockkStatic(WorkManager::class)` in 2 tests — system boundary for verifying work enqueueing
+No Robolectric, no mocks, no WorkManager — just `DayData` construction + assertions on decision list.
 
 ## Net result
 
-- 3 mock objects eliminated (`RainAnalyzer`, `CurrentTemperatureResolver`, `WidgetStateManager`)
-- ~25 lines of mock setup/teardown removed
-- 6 `every { ... }` stubs removed
-- Remaining mocks are justified framework/system boundaries
+- 2 WorkManager mock tests (~130 lines) → 4 pure function tests (~60 lines)
+- ~90 lines of duplicated AppWidgetManager mock setup → 1 helper function
+- `mockkStatic(WorkManager::class)` + teardown eliminated
+- `OneTimeWorkRequest`, `ExistingWorkPolicy` imports eliminated
+- Remaining mocks (`AppWidgetManager`) are justified framework boundaries for RemoteViews testing
 
 ## Verification
 
-After each change, run:
 ```bash
 ./gradlew testDebugUnitTest --tests "com.weatherwidget.widget.handlers.DailyViewHandlerTest"
-```
-
-Also run related test files that call `prepareTextDays`/`prepareGraphDays` to confirm no regressions:
-```bash
 ./gradlew testDebugUnitTest --tests "com.weatherwidget.widget.handlers.DailyViewLogicTest"
 ```
