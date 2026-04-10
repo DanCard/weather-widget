@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -215,7 +216,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
         prefs.edit().putString(key, name).apply()
     }
 
-    private fun loadObservations() {
+    @VisibleForTesting
+    internal fun loadObservations() {
         lifecycleScope.launch(ioDispatcher) {
             try {
                 val observations = if (currentSource == WeatherSource.NWS) {
@@ -276,7 +278,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
         }
     }
 
-    private fun loadFetchLogs() {
+    @VisibleForTesting
+    internal fun loadFetchLogs() {
         lifecycleScope.launch(ioDispatcher) {
             try {
                 val filteredLogs = appLogDao.getRecentLogs(1000)

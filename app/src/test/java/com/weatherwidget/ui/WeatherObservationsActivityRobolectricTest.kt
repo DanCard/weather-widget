@@ -187,17 +187,10 @@ class WeatherObservationsActivityRobolectricTest {
         // Actually, onCreate already ran. Let's try to inject dispatcher via scenario.onActivity before it runs? 
         // ActivityScenario.launch runs onCreate immediately.
         // Let's use ActivityScenario.onActivity to re-trigger the loads.
-        scenario.onActivity { 
+        scenario.onActivity {
             it.ioDispatcher = testDispatcher
-            // Directly call private methods if needed, but easier to just click or re-init
-            // Let's just call the load methods again
-            val methodObs = it.javaClass.getDeclaredMethod("loadObservations")
-            methodObs.isAccessible = true
-            methodObs.invoke(it)
-            
-            val methodLogs = it.javaClass.getDeclaredMethod("loadFetchLogs")
-            methodLogs.isAccessible = true
-            methodLogs.invoke(it)
+            it.loadObservations()
+            it.loadFetchLogs()
         }
 
         scenario.onActivity { activity ->
@@ -216,16 +209,10 @@ class WeatherObservationsActivityRobolectricTest {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
             }
         val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
-        scenario.onActivity { 
+        scenario.onActivity {
             it.ioDispatcher = testDispatcher
-            // Re-trigger loads with the synchronous dispatcher
-            val methodObs = it.javaClass.getDeclaredMethod("loadObservations")
-            methodObs.isAccessible = true
-            methodObs.invoke(it)
-            
-            val methodLogs = it.javaClass.getDeclaredMethod("loadFetchLogs")
-            methodLogs.isAccessible = true
-            methodLogs.invoke(it)
+            it.loadObservations()
+            it.loadFetchLogs()
         }
         return scenario
     }

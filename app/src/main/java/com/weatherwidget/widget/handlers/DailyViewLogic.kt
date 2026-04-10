@@ -60,6 +60,7 @@ object DailyViewLogic {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
+        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
     ): List<TextDayData> {
 
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
@@ -97,7 +98,7 @@ object DailyViewLogic {
 
         val rawSummaries = daySlots.map { (_, date, isVisible) ->
             if (isVisible) {
-                RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, now)
+                rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
         }
 
@@ -217,6 +218,7 @@ object DailyViewLogic {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
+        rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
@@ -335,7 +337,7 @@ object DailyViewLogic {
                 }
 
             val rawRainSummary = if (!isPastDate) {
-                RainAnalyzer.getRainSummary(hourlyForecasts, date, displaySource.id, now)
+                rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
             
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability

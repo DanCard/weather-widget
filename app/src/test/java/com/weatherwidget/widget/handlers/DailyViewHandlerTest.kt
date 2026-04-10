@@ -9,7 +9,6 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import android.content.Context
-import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
@@ -20,16 +19,13 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.util.RainAnalyzer
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkObject
 import io.mockk.runs
 import io.mockk.slot
-import io.mockk.unmockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
@@ -47,7 +43,6 @@ import org.robolectric.annotation.Config
 import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
@@ -64,12 +59,10 @@ class DailyViewHandlerTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        mockkObject(RainAnalyzer)
     }
 
     @After
     fun teardown() {
-        unmockkObject(RainAnalyzer)
         unmockkStatic(WorkManager::class)
     }
 
@@ -78,7 +71,6 @@ class DailyViewHandlerTest {
 
     @Test
     fun `prepareTextDays numColumns=2 shows only 2 slots`() {
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
@@ -102,7 +94,6 @@ class DailyViewHandlerTest {
 
     @Test
     fun `prepareTextDays skipHistory shifts visible dates`() {
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
@@ -135,13 +126,6 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } answers {
-            val date = secondArg<LocalDate>()
-            if (date == today.plusDays(1)) "9am"
-            else if (date == today.plusDays(2)) "10am"
-            else null
-        }
-
         val weatherByDate = createWeatherMap(today)
         val result = DailyViewLogic.prepareTextDays(
             now = now,
@@ -150,7 +134,14 @@ class DailyViewHandlerTest {
             weatherByDate = weatherByDate,
             hourlyForecasts = emptyList(),
             numColumns = 5,
-            displaySource = WeatherSource.NWS
+            displaySource = WeatherSource.NWS,
+            rainSummaryProvider = { _, date, _, _ ->
+                when (date) {
+                    today.plusDays(1) -> "9am"
+                    today.plusDays(2) -> "10am"
+                    else -> null
+                }
+            }
         )
 
         val tomorrow = result.first { it.date == today.plusDays(1) }
@@ -423,7 +414,6 @@ class DailyViewHandlerTest {
 
     @Test
     fun `prepareTextDays past day shows source-specific actuals`() {
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
@@ -459,7 +449,6 @@ class DailyViewHandlerTest {
 
     @Test
     fun `prepareTextDays today falls back to forecast labels when source actuals are missing`() {
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
@@ -578,7 +567,6 @@ class DailyViewHandlerTest {
 
     @Test
     fun `prepareTextDays marks generic fallback days`() {
-        every { RainAnalyzer.getRainSummary(any(), any(), any(), any()) } returns null
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
@@ -1385,13 +1373,6 @@ class DailyViewHandlerTest {
 
     @Test
     fun `DailyViewHandler uses provided lastObservedTemp`() = runBlocking {
-        val appWidgetManager = mockk<AppWidgetManager>(relaxed = true)
-        val stateManager = mockk<WidgetStateManager>(relaxed = true)
-        every { stateManager.getViewMode(any()) } returns com.weatherwidget.widget.ViewMode.DAILY
-        every { stateManager.getCurrentDisplaySource(any()) } returns WeatherSource.NWS
-        every { stateManager.getHourlyOffset(any()) } returns 0
-        every { stateManager.getCurrentTempDeltaState(any(), any()) } returns null
-
         val now = LocalDateTime.of(2026, 3, 23, 12, 0)
         val today = now.toLocalDate()
         val weatherList = listOf(
@@ -1401,36 +1382,25 @@ class DailyViewHandlerTest {
             com.weatherwidget.testutil.TestData.hourly(dateTime = "2026-03-23T12:00", temperature = 70f, source = WeatherSource.NWS.id)
         )
 
-        // Mock CurrentTemperatureResolver to return our expected display temp
-        mockkObject(com.weatherwidget.widget.CurrentTemperatureResolver)
-        every {
-            com.weatherwidget.widget.CurrentTemperatureResolver.resolve(
-                now = any(),
-                displaySource = any(),
-                hourlyForecasts = any(),
-                lastObservedTemp = 72.5f, // Our provided value
-                observedAt = any(),
-                storedDeltaState = any(),
-                currentLat = any(),
-                currentLon = any()
-            )
-        } returns com.weatherwidget.widget.CurrentTemperatureResolution(
-            displayTemp = 72.5f,
-            estimatedTemp = 70f,
-            observedTemp = 72.5f,
-            isStaleEstimate = false,
-            appliedDelta = 2.5f,
-            updatedDeltaState = null,
-            shouldClearStoredDelta = false
-        )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(51)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
+        }
+        every { appWidgetManager.getAppWidgetOptions(51) } returns options
         val viewsSlot = slot<android.widget.RemoteViews>()
-        every { appWidgetManager.updateAppWidget(any<Int>(), capture(viewsSlot)) } just runs
+        every { appWidgetManager.updateAppWidget(51, capture(viewsSlot)) } just runs
 
         DailyViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,
-            appWidgetId = 1,
+            appWidgetId = 51,
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = hourlyForecasts,
@@ -1442,21 +1412,11 @@ class DailyViewHandlerTest {
             observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         )
 
-        // Verify that resolve was called with the correct temperature
-        verify {
-            com.weatherwidget.widget.CurrentTemperatureResolver.resolve(
-                now = any(),
-                displaySource = any(),
-                hourlyForecasts = any(),
-                lastObservedTemp = 72.5f,
-                observedAt = any(),
-                storedDeltaState = any(),
-                currentLat = any(),
-                currentLon = any()
-            )
-        }
-        
-        unmockkObject(com.weatherwidget.widget.CurrentTemperatureResolver)
+        // Real CurrentTemperatureResolver: estimated=70 + delta(72.5-70)=2.5 → display=72.5
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+        val currentTempText = applied.findViewById<TextView>(R.id.current_temp)?.text?.toString()
+        assertEquals("72.5°", currentTempText)
     }
 
     private fun createWeatherMap(today: LocalDate): Map<LocalDate, ForecastEntity> {
