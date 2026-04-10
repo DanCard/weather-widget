@@ -626,6 +626,7 @@ object PrecipViewHandler {
                         isMixed = isMixed,
                         isCurrentHour = isClosest,
                         showLabel = showLabel,
+                        precipAmountMm = forecast.precipAmountMm,
                     ),
                 )
                 hourIndex++

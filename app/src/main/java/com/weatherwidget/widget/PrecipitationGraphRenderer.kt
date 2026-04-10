@@ -9,6 +9,7 @@ import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
+import com.weatherwidget.widget.handlers.formatPrecipAmount
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -30,6 +31,7 @@ object PrecipitationGraphRenderer {
         val isMixed: Boolean = false,
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true,
+        val precipAmountMm: Float? = null,
     )
 
     data class LabelPlacementDebug(
@@ -538,6 +540,55 @@ object PrecipitationGraphRenderer {
             }
         }
 
+        // --- Rain amount annotations for 99%+ probability periods ---
+        val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#FFFFFF")
+            textSize = dpToPx(context, 10f)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+        }
+
+        val rainPeriods = findHighProbRainPeriods(hours)
+        for (period in rainPeriods) {
+            val amountText = formatPrecipAmount(period.totalAmountMm)
+            val label = if (period.startLabel == period.endLabel) {
+                amountText
+            } else {
+                "$amountText ${period.startLabel}-${period.endLabel}"
+            }
+            val textWidth = rainAmountPaint.measureText(label)
+            val centerX = ((points[period.startIndex].first + points[period.endIndex].first) / 2f)
+                .coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+
+            // Position in the fill area below the curve
+            val avgCurveY = (period.startIndex..period.endIndex)
+                .map { points[it].second }
+                .average().toFloat()
+            val baselineY = avgCurveY + (graphBottom - avgCurveY) * 0.5f
+
+            val fontMetrics = rainAmountPaint.fontMetrics
+            val bounds = RectF(
+                centerX - textWidth / 2f,
+                baselineY + fontMetrics.ascent,
+                centerX + textWidth / 2f,
+                baselineY + fontMetrics.descent,
+            )
+
+            val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
+            if (!overlaps && bounds.top >= graphTop && bounds.bottom <= graphBottom) {
+                canvas.drawText(label, centerX, baselineY, rainAmountPaint)
+                drawnLabelBounds.add(bounds)
+                val logMsg = "rainAmountPlaced: \"$label\" at x=$centerX y=$baselineY indices=${period.startIndex}-${period.endIndex}"
+                Log.d(TAG, logMsg)
+                onDebugLog?.invoke(logMsg)
+            } else {
+                val logMsg = "rainAmountSkipped: \"$label\" overlaps=$overlaps outOfBounds=${bounds.top < graphTop || bounds.bottom > graphBottom}"
+                Log.d(TAG, logMsg)
+                onDebugLog?.invoke(logMsg)
+            }
+        }
+
         // Day of week indicators
         val today = currentTime.toLocalDate()
         val leftDate  = hours.first().dateTime.toLocalDate()
@@ -736,6 +787,44 @@ object PrecipitationGraphRenderer {
 
     private fun shouldShowHourlyIcons(widthPx: Int): Boolean {
         return widthPx >= MIN_ICON_GRAPH_WIDTH_PX
+    }
+
+    private data class RainPeriod(
+        val startIndex: Int,
+        val endIndex: Int,
+        val totalAmountMm: Float,
+        val startLabel: String,
+        val endLabel: String,
+    )
+
+    private fun findHighProbRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
+        val periods = mutableListOf<RainPeriod>()
+        var i = 0
+        while (i < hours.size) {
+            if (hours[i].precipProbability >= 99) {
+                val start = i
+                var totalMm = 0f
+                while (i < hours.size && hours[i].precipProbability >= 99) {
+                    totalMm += hours[i].precipAmountMm ?: 0f
+                    i++
+                }
+                val end = i - 1
+                if (totalMm > 0f) {
+                    periods.add(
+                        RainPeriod(
+                            startIndex = start,
+                            endIndex = end,
+                            totalAmountMm = totalMm,
+                            startLabel = hours[start].label,
+                            endLabel = hours[end].label,
+                        ),
+                    )
+                }
+            } else {
+                i++
+            }
+        }
+        return periods
     }
 
     private fun dpToPx(context: Context, dp: Float): Float =
