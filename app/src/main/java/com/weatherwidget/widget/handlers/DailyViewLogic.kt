@@ -406,7 +406,7 @@ object DailyViewLogic {
     ): String? {
         if (date == today || isPastDate || !isRainIndicatorIcon(iconRes)) return null
         return when {
-            precipProbability == 100 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
+            precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
             precipProbability != null && precipProbability > 0 -> "$precipProbability%"
             else -> null
         }
