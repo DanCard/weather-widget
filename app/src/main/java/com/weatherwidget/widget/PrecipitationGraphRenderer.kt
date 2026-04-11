@@ -86,6 +86,7 @@ object PrecipitationGraphRenderer {
         hourLabelSpacingDp: Float = 28f,
         observedAt: Long? = null,
         highProbThreshold: Int = 99,
+        rainAmountWindowHours: Int = 0,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
@@ -549,7 +550,7 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        // --- Rain amount annotations for high probability periods (97%+ in NARROW, 99%+ in WIDE) ---
+        // --- Rain amount annotations for high probability periods (95%+) with fixed window (5h for zoomed, graph width for wide) ---
         val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
             textSize = dpToPx(context, 10f)
@@ -558,42 +559,53 @@ object PrecipitationGraphRenderer {
             setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
 
-        val rainPeriods = findHighProbRainPeriods(hours, highProbThreshold)
-        val rainAmountBounds = mutableListOf<RectF>()
+        val rainPeriods = if (rainAmountWindowHours > 0) {
+            findFixedWindowRainPeriods(hours, rainAmountWindowHours)
+        } else {
+            findHighProbRainPeriods(hours, highProbThreshold)
+        }
         for (period in rainPeriods) {
             val amountText = formatPrecipAmount(period.totalAmountMm)
-            val label = if (period.startLabel == period.endLabel) {
-                amountText
-            } else {
-                "$amountText ${period.startLabel}-${period.endLabel}"
-            }
-            val textWidth = rainAmountPaint.measureText(label)
+            val textWidth = rainAmountPaint.measureText(amountText)
             val centerX = ((points[period.startIndex].first + points[period.endIndex].first) / 2f)
                 .coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Position in the lower fill area below the curve, away from probability labels
+            // Position in the lower fill area below the curve, try multiple ratios to avoid label overlap
             val avgCurveY = (period.startIndex..period.endIndex)
                 .map { points[it].second }
                 .average().toFloat()
-            val baselineY = avgCurveY + (graphBottom - avgCurveY) * 0.75f
+            val positionRatios = listOf(0.75f, 0.5f, 0.85f, 0.35f, 0.95f)
+            var baselineY: Float? = null
+            var finalBounds: RectF? = null
 
             val fontMetrics = rainAmountPaint.fontMetrics
-            val bounds = RectF(
-                centerX - textWidth / 2f,
-                baselineY + fontMetrics.ascent,
-                centerX + textWidth / 2f,
-                baselineY + fontMetrics.descent,
-            )
 
-            val overlapsRainAmount = rainAmountBounds.any { RectF.intersects(it, bounds) }
-            if (!overlapsRainAmount && bounds.top >= graphTop && bounds.bottom <= graphBottom) {
-                canvas.drawText(label, centerX, baselineY, rainAmountPaint)
-                rainAmountBounds.add(bounds)
-                val logMsg = "rainAmountPlaced: \"$label\" at x=$centerX y=$baselineY indices=${period.startIndex}-${period.endIndex} widgetSize=${widthPx}x${heightPx} existingLabels=${drawnLabelBounds.size}"
+            for (ratio in positionRatios) {
+                val candidateY = avgCurveY + (graphBottom - avgCurveY) * ratio
+                val candidateBounds = RectF(
+                    centerX - textWidth / 2f,
+                    candidateY + fontMetrics.ascent,
+                    centerX + textWidth / 2f,
+                    candidateY + fontMetrics.descent,
+                )
+                val overlapsProbLabel = drawnLabelBounds.any { RectF.intersects(it, candidateBounds) }
+                if (!overlapsProbLabel && candidateBounds.top >= graphTop && candidateBounds.bottom <= graphBottom) {
+                    baselineY = candidateY
+                    finalBounds = candidateBounds
+                    break
+                }
+            }
+
+            if (baselineY != null && finalBounds != null) {
+                canvas.drawText(amountText, centerX, baselineY, rainAmountPaint)
+                val logMsg = "rainAmountPlaced: \"$amountText\" at x=$centerX y=$baselineY indices=${period.startIndex}-${period.endIndex} widgetSize=${widthPx}x${heightPx} existingLabels=${drawnLabelBounds.size}"
                 Log.d(TAG, logMsg)
                 onDebugLog?.invoke(logMsg)
             } else {
-                val logMsg = "rainAmountSkipped: \"$label\" overlapsRainAmountLabel=$overlapsRainAmount outOfBounds=${bounds.top < graphTop || bounds.bottom > graphBottom} widgetSize=${widthPx}x${heightPx} existingLabels=${drawnLabelBounds.size}"
+                // Fall back to default position
+                val fallbackY = avgCurveY + (graphBottom - avgCurveY) * 0.75f
+                canvas.drawText(amountText, centerX, fallbackY, rainAmountPaint)
+                val logMsg = "rainAmountPlaced: \"$amountText\" at x=$centerX y=$fallbackY (fallback) widgetSize=${widthPx}x${heightPx}"
                 Log.d(TAG, logMsg)
                 onDebugLog?.invoke(logMsg)
             }
@@ -804,6 +816,29 @@ object PrecipitationGraphRenderer {
             }
         }
         return periods
+    }
+
+    private fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
+        if (windowHours <= 0 || hours.size < windowHours) return emptyList()
+        var bestPeriod: RainPeriod? = null
+        var bestTotal = 0f
+        var i = 0
+        while (i <= hours.size - windowHours) {
+            val window = hours.subList(i, i + windowHours)
+            val totalMm = window.sumOf { (it.precipAmountMm ?: 0f).toDouble() }.toFloat()
+            if (totalMm > bestTotal) {
+                bestTotal = totalMm
+                bestPeriod = RainPeriod(
+                    startIndex = i,
+                    endIndex = i + windowHours - 1,
+                    totalAmountMm = totalMm,
+                    startLabel = hours[i].label,
+                    endLabel = hours[i + windowHours - 1].label,
+                )
+            }
+            i++
+        }
+        return if (bestPeriod != null) listOf(bestPeriod) else emptyList()
     }
 
     private fun dpToPx(context: Context, dp: Float): Float =

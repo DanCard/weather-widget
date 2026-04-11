@@ -249,7 +249,8 @@ object PrecipViewHandler {
 
             // Render precipitation graph
             val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
-            val highProbThreshold = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 97 else 99
+            val highProbThreshold = 95
+            val rainAmountWindowHours = hours.size
             val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = PrecipitationGraphRenderer.renderGraph(
                 context = context,
@@ -261,7 +262,8 @@ object PrecipViewHandler {
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 observedAt = observedAt,
-                highProbThreshold = highProbThreshold
+                highProbThreshold = highProbThreshold,
+                rainAmountWindowHours = rainAmountWindowHours,
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
