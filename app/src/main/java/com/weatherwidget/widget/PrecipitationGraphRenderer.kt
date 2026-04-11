@@ -78,6 +78,7 @@ object PrecipitationGraphRenderer {
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = 28f,
         observedAt: Long? = null,
+        highProbThreshold: Int = 99,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
@@ -540,7 +541,7 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        // --- Rain amount annotations for 99%+ probability periods ---
+        // --- Rain amount annotations for high probability periods (97%+ in NARROW, 99%+ in WIDE) ---
         val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
             textSize = dpToPx(context, 10f)
@@ -549,7 +550,7 @@ object PrecipitationGraphRenderer {
             setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
 
-        val rainPeriods = findHighProbRainPeriods(hours)
+        val rainPeriods = findHighProbRainPeriods(hours, highProbThreshold)
         for (period in rainPeriods) {
             val amountText = formatPrecipAmount(period.totalAmountMm)
             val label = if (period.startLabel == period.endLabel) {
@@ -797,14 +798,14 @@ object PrecipitationGraphRenderer {
         val endLabel: String,
     )
 
-    private fun findHighProbRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
+    private fun findHighProbRainPeriods(hours: List<PrecipHourData>, highProbThreshold: Int = 99): List<RainPeriod> {
         val periods = mutableListOf<RainPeriod>()
         var i = 0
         while (i < hours.size) {
-            if (hours[i].precipProbability >= 99) {
+            if (hours[i].precipProbability >= highProbThreshold) {
                 val start = i
                 var totalMm = 0f
-                while (i < hours.size && hours[i].precipProbability >= 99) {
+                while (i < hours.size && hours[i].precipProbability >= highProbThreshold) {
                     totalMm += hours[i].precipAmountMm ?: 0f
                     i++
                 }
