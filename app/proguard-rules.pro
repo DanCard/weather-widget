@@ -12,3 +12,6 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# Suppress R8 warnings for missing optional dependencies
+-dontwarn org.slf4j.impl.StaticLoggerBinder
