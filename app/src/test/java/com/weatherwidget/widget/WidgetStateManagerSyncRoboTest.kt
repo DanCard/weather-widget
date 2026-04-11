@@ -2,19 +2,24 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
-@RunWith(AndroidJUnit4::class)
-class WidgetStateManagerApiRotationTest {
+@Category(ShortDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class WidgetStateManagerSyncRoboTest {
     private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
-    private val testWidgetId = 777
+    private val testWidgetId = 555
 
     @Before
     fun setup() {
@@ -29,37 +34,30 @@ class WidgetStateManagerApiRotationTest {
     }
 
     @Test
-    fun toggleDisplaySource_cyclesThroughVisibleSources() {
+    fun setCurrentDisplaySource_updatesCorrectly() {
         val visibleSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API)
         stateManager.setVisibleSourcesOrder(visibleSources)
-        
-        // Initial state should be first in list
+
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
-        
-        // First toggle: NWS -> OPEN_METEO
-        assertEquals(WeatherSource.OPEN_METEO, stateManager.toggleDisplaySource(testWidgetId))
+
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
         assertEquals(WeatherSource.OPEN_METEO, stateManager.getCurrentDisplaySource(testWidgetId))
-        
-        // Second toggle: OPEN_METEO -> WEATHER_API
-        assertEquals(WeatherSource.WEATHER_API, stateManager.toggleDisplaySource(testWidgetId))
+
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.WEATHER_API)
         assertEquals(WeatherSource.WEATHER_API, stateManager.getCurrentDisplaySource(testWidgetId))
-        
-        // Third toggle: WEATHER_API -> NWS
-        assertEquals(WeatherSource.NWS, stateManager.toggleDisplaySource(testWidgetId))
+
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.NWS)
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
     }
 
     @Test
-    fun toggleDisplaySource_withTwoSources() {
-        val visibleSources = listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO)
+    fun setCurrentDisplaySource_ignoresUnknownSource() {
+        val visibleSources = listOf(WeatherSource.NWS)
         stateManager.setVisibleSourcesOrder(visibleSources)
-        
+
         assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
-        
-        // Toggle: NWS -> OPEN_METEO
-        assertEquals(WeatherSource.OPEN_METEO, stateManager.toggleDisplaySource(testWidgetId))
-        
-        // Toggle: OPEN_METEO -> NWS
-        assertEquals(WeatherSource.NWS, stateManager.toggleDisplaySource(testWidgetId))
+
+        stateManager.setCurrentDisplaySource(testWidgetId, WeatherSource.OPEN_METEO)
+        assertEquals(WeatherSource.NWS, stateManager.getCurrentDisplaySource(testWidgetId))
     }
 }

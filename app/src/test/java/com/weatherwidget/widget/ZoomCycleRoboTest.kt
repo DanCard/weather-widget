@@ -1,48 +1,42 @@
-package com.weatherwidget.widget.handlers
+package com.weatherwidget.widget
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.weatherwidget.testutil.AndroidTestWidgetState
-import com.weatherwidget.testutil.IsolatedIntegrationTest
-import com.weatherwidget.widget.ViewMode
-import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.WidgetStateManager
-import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
-/**
- * Instrumented tests for zoom level cycling behavior.
- * Verifies that tapping the graph toggles between WIDE and NARROW zoom,
- * that zoom state persists across widget updates, and resets appropriately.
- */
-@RunWith(AndroidJUnit4::class)
-class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
-
+@Category(MediumDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class ZoomCycleRoboTest {
+    private lateinit var context: Context
     private lateinit var stateManager: WidgetStateManager
     private val testWidgetId = 99992
 
     @Before
-    override fun setup() {
-        super.setup()
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
+        WidgetIntentRouter.setDisableRefreshForTesting(true)
     }
 
     @After
-    override fun cleanup() {
+    fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        super.cleanup()
+        WidgetIntentRouter.setDisableRefreshForTesting(false)
     }
 
     @Test
@@ -52,12 +46,10 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
 
     @Test
     fun cycleZoom_wideThenNarrowThenWide() {
-        // First tap: WIDE → NARROW
         val afterFirst = stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, afterFirst)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
-        // Second tap: NARROW → WIDE
         val afterSecond = stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.WIDE, afterSecond)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
@@ -68,18 +60,15 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
-        // Simulate a widget update by creating a new WidgetStateManager instance
         val freshStateManager = WidgetStateManager(context)
         assertEquals(ZoomLevel.NARROW, freshStateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun zoomResets_whenSwitchingToDailyFromHourly() {
-        // Set NARROW zoom in hourly mode
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
-        // Toggle back to DAILY
         stateManager.toggleViewMode(testWidgetId)
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
@@ -91,7 +80,6 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
-        // Toggle back to DAILY
         stateManager.togglePrecipitationMode(testWidgetId)
         assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
@@ -99,11 +87,9 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
 
     @Test
     fun zoomPreserved_whenSwitchingBetweenHourlyAndPrecip() {
-        // Zoom in while in HOURLY
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
-        // Switch to PRECIPITATION (not going through DAILY)
         runBlocking {
             try {
                 WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.PRECIPITATION)
@@ -118,7 +104,6 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
     fun handleCycleZoom_cyclesViaRouter() {
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
-        // Simulate graph tap via router
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
@@ -126,7 +111,6 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         }
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
 
-        // Tap again
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId)
@@ -137,19 +121,15 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
 
     @Test
     fun handleCycleZoom_withOffset_recentersOnZoomIn() {
-        // Start with an existing offset (e.g., scrolled forward by 4 hours)
         stateManager.setHourlyOffset(testWidgetId, 4)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
-        // Simulate tapping a zone that calculated an absolute center of 9
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 9)
             } catch (_: Exception) {}
         }
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
-        
-        // The absolute offset should be exactly what was passed in
         assertEquals(9, stateManager.getHourlyOffset(testWidgetId))
     }
 
@@ -158,43 +138,36 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         stateManager.setHourlyOffset(testWidgetId, 5)
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
-        // Zoom in without offset (e.g. from NARROW back out)
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = null)
             } catch (_: Exception) {}
         }
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
-        // Offset unchanged
         assertEquals(5, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test
     fun handleCycleZoom_zoomOut_usesOffset() {
-        // Start in NARROW zoom
         stateManager.cycleZoomLevel(testWidgetId)
         assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
         stateManager.setHourlyOffset(testWidgetId, 9)
 
-        // Zoom out — offset param should be USED to re-center
         runBlocking {
             try {
                 WidgetIntentRouter.handleCycleZoom(context, testWidgetId, zoomCenterOffset = 0)
             } catch (_: Exception) {}
         }
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
-        // Offset should be changed to 0
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test
     fun navJump_scalesWithZoom() {
-        // WIDE: 6h jumps
         assertEquals(6, stateManager.getNavJump(testWidgetId))
 
         stateManager.cycleZoomLevel(testWidgetId)
 
-        // NARROW: 2h jumps
         assertEquals(2, stateManager.getNavJump(testWidgetId))
     }
 
@@ -202,17 +175,14 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
     fun navigation_usesZoomAwareJump() {
         stateManager.setHourlyOffset(testWidgetId, 0)
 
-        // WIDE zoom: navigate right should jump 6
         stateManager.navigateHourlyRight(testWidgetId)
         assertEquals(6, stateManager.getHourlyOffset(testWidgetId))
 
-        // Switch to NARROW and navigate right: should jump 2
         stateManager.setHourlyOffset(testWidgetId, 0)
         stateManager.cycleZoomLevel(testWidgetId)
         stateManager.navigateHourlyRight(testWidgetId)
         assertEquals(2, stateManager.getHourlyOffset(testWidgetId))
 
-        // Navigate left from 2: should go back to 0
         stateManager.navigateHourlyLeft(testWidgetId)
         assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
     }
@@ -226,32 +196,19 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
-    // --- Integration tests: zone intent round-trip ---
-
-    /**
-     * Simulates the full zone tap flow:
-     * 1. Build intent the same way setupZoomTapZones does (using zoneIndexToOffset)
-     * 2. Extract the extra the same way handleCycleZoomAction does
-     * 3. Pass through handleCycleZoom
-     * 4. Verify final state
-     */
     @Test
     fun zoneIntentRoundTrip_allZones_producesCorrectOffsets() {
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // WIDE view spans -12..+12 from baseOffset.
-        // 13 zones. Formula: 2 * (zoneIndex - 6).
         val expectedOffsets = listOf(-12, -10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10, 12)
 
         for (zoneIndex in 0 until WeatherWidgetProvider.HOUR_ZONE_COUNT) {
-            // Reset to WIDE zoom for each zone test
             stateManager.clearWidgetState(testWidgetId)
             stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
             stateManager.setHourlyOffset(testWidgetId, baseOffset)
             assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
 
-            // Step 1: Build intent (same as setupZoomTapZones)
             val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, baseOffset, ZoomLevel.WIDE)
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
@@ -259,21 +216,18 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
                 putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
 
-            // Step 2: Extract extra (same as handleCycleZoomAction)
             val extractedOffset = if (intent.hasExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET)) {
                 intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
             } else {
                 null
             }
 
-            // Step 3: Pass through router
             runBlocking {
                 try {
                     WidgetIntentRouter.handleCycleZoom(context, testWidgetId, extractedOffset)
                 } catch (_: Exception) {}
             }
 
-            // Step 4: Verify
             assertEquals("Zone $zoneIndex should zoom to NARROW", ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
             assertEquals("Zone $zoneIndex offset", expectedOffsets[zoneIndex], stateManager.getHourlyOffset(testWidgetId))
         }
@@ -281,10 +235,9 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
 
     @Test
     fun zoneIntentRoundTrip_withNonZeroBaseOffset_addsCorrectly() {
-        val baseOffset = 6  // User has navigated 6h forward
+        val baseOffset = 6
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // Tap zone 0 (leftmost): with baseOffset=6 this should target absolute offset 6 - 12 = -6.
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
@@ -306,13 +259,10 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
 
     @Test
     fun zoneIntentRoundTrip_narrowZoomOut_usesOffsetExtra() {
-        // Start in NARROW
         stateManager.cycleZoomLevel(testWidgetId)
         val baseOffset = 0
         stateManager.setHourlyOffset(testWidgetId, baseOffset)
 
-        // Test clicking the left-most zone (zone 0) in NARROW mode.
-        // NARROW maps zone 0 to offset -2.
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.NARROW)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
@@ -329,6 +279,6 @@ class ZoomCycleTest : IsolatedIntegrationTest("zoom_cycle") {
         }
 
         assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
-        assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))  // Recentered to tap location
+        assertEquals(-2, stateManager.getHourlyOffset(testWidgetId))
     }
 }

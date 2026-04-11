@@ -2,21 +2,20 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
-/**
- * Instrumented tests for TemperatureGraphRenderer label clutter.
- *
- * Verifies that minor humps/peaks (e.g., 1 degree changes) don't trigger labels.
- */
-@RunWith(AndroidJUnit4::class)
-class TemperatureGraphClutterTest {
+@Category(MediumDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class TemperatureGraphClutterRoboTest {
     private lateinit var context: Context
 
     @Before
@@ -42,8 +41,6 @@ class TemperatureGraphClutterTest {
 
     @Test
     fun minorHump_oneDegree_isNotLabeled() {
-        // Hump: 60 -> 61 -> 60. This is a local maximum at idx 5, 
-        // but it's only 1 degree and likely not worth labeling.
         val temps = listOf(55f, 56f, 58f, 60f, 60f, 61f, 60f, 60f, 58f, 56f, 54f)
         val hours = buildHours(temps)
         val placements = mutableListOf<LabelPlacementDebug>()
@@ -51,13 +48,12 @@ class TemperatureGraphClutterTest {
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = hours,
-            widthPx = 1000, // Wide enough to avoid overlap skipping
+            widthPx = 1000,
             heightPx = 300,
             currentTime = LocalDateTime.of(2026, 2, 17, 22, 0),
             onLabelPlaced = { placements.add(it) }
         )
 
-        // We expect it to NOT be drawn as "LOCAL" (which is the role for local extrema)
         assertFalse("Expected minor 1° hump NOT to be drawn", placements.any { it.role == TemperatureRole.LOCAL && it.index == 5 })
     }
 }

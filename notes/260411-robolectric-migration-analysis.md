@@ -95,3 +95,50 @@ These need real Canvas/Bitmap, RemoteViews + performClick, real View.measure/lay
 7. **Dedup** — verify coverage parity for the 4 files that already have Robolectric counterparts, then remove
 
 Each migrated test should be verified by running both `./gradlew test` and comparing behavior with the original instrumented test before removing the androidTest version.
+
+## Migration Completed (2026-04-11)
+
+### Migrated to Robolectric (18 files removed from androidTest)
+
+| Original androidTest file | New Robolectric test file | Notes |
+|---|---|---|
+| `NwsHistoryIntegrationTest` | `NwsHistoryIntegrationTest` (test/) | Zero-effort move, pure DailyViewLogic |
+| `DailyViewHandlerTest` | `DailyViewHandlerUnitTest` (test/) | Pure NavigationUtils logic |
+| `WidgetSizeCalculatorTest` | `WidgetSizeCalculatorRoboTest` (test/) | Robolectric display metrics |
+| `WidgetIntentRouterTest` | `WidgetIntentRouterCrashSafetyRoboTest` (test/) | Constants + crash-safety |
+| `ZoomCycleTest` | `ZoomCycleRoboTest` (test/) | SharedPreferences round-trips |
+| `WidgetStateManagerApiRotationTest` | `WidgetStateManagerApiRotationRoboTest` (test/) | SharedPreferences |
+| `WidgetStateManagerSyncTest` | `WidgetStateManagerSyncRoboTest` (test/) | SharedPreferences |
+| `NavigationPersistenceTest` | `NavigationPersistenceRoboTest` (test/) | SharedPreferences + Intent |
+| `TemperatureGhostLabelIntegrationTest` | `TemperatureGhostLabelRoboTest` (test/) | onLabelPlaced callback |
+| `TemperatureGraphLabelGeneralTest` | `TemperatureGraphLabelGeneralRoboTest` (test/) | onLabelPlaced callback |
+| `TemperatureGraphClutterTest` | `TemperatureGraphClutterRoboTest` (test/) | onLabelPlaced callback |
+| `RainPeakLabelTest` | `RainPeakLabelRoboTest` (test/) | onLabelPlaced callback |
+| `SamsungDataFailTest` | `SamsungDataFailRoboTest` (test/) | onLabelPlaced callback |
+| `PrecipitationGraphRendererLogInstrumentedTest` | `PrecipitationGraphRendererLogRoboTest` (test/) | Callbacks + R.drawable |
+| `DailyViewApiToggleIntegrationTest` | `DailyViewApiToggleIntegrationRoboTest` (test/) | SP, try-catch for widget update |
+| `CloudCoverViewModeIntegrationTest` | `CloudCoverViewModeRoboTest` (test/) | SP, try-catch for widget update |
+| `ForecastHistoryButtonIntegrationTest` | `ForecastHistoryButtonRoboTest` (test/) | Room in-memory + decision logic |
+| `DailyForecastGraphRendererTest` | `DailyForecastGraphRendererRoboTest` (test/) | onBarDrawn/onRainLabelDrawn callbacks |
+
+### Deduplicated (3 files removed, kept Robolectric version)
+
+| Removed androidTest file | Kept test/ Counterpart |
+|---|---|
+| `TemperatureGraphLabelTest` | `TemperatureGraphLabelPlacementRobolectricTest` |
+| `TemperatureFetchDotIntegrationTest` | `TemperatureGraphRendererFetchDotTest` |
+| `PrecipitationGraphRendererPlacementInstrumentedTest` | `PrecipitationGraphRendererTest` |
+
+### Kept (1 file)
+
+| androidTest file | Reason |
+|---|---|
+| `HourlyGraphDayLabelTest` | Has 4 unique tests (X position, layout matching, midnight format) not in Robolectric version |
+
+### Key Migration Patterns
+
+- **SharedPreferences tests**: Use `WidgetStateManager(ApplicationProvider.getApplicationContext())` directly
+- **WidgetIntentRouter calls**: Wrap in `try { ... } catch (_: Exception) {}` since AppWidgetManager.updateAppWidget fails without a registered widget
+- **Room in-memory**: Use `TestDatabase.create()` with Robolectric context
+- **Callback-based graph renderers**: Use `onLabelPlaced`, `onBarDrawn`, `onDebugLog` callbacks — no pixel inspection needed
+- **Bitmap dimension assertions**: Robolectric shadow Bitmap has different density; use relaxed assertions for height-dependent tests

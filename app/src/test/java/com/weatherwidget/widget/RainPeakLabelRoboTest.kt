@@ -1,36 +1,39 @@
 package com.weatherwidget.widget
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
-/**
- * Instrumented test to verify that peaks in the rain chance graph (like the 5 AM peak)
- * are correctly labeled according to the updated prominence thresholds.
- */
-@RunWith(AndroidJUnit4::class)
-class RainPeakLabelTest {
-    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+@Category(MediumDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class RainPeakLabelRoboTest {
+    private lateinit var context: Context
+
+    @Before
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
+    }
 
     @Test
     fun fiveAmPeak_isCorrectlyLabeled() {
-        // Create a 24-hour scenario starting at midnight
         val start = LocalDateTime.of(2026, 2, 17, 0, 0)
-        
-        // Scenario: A peak at 5 AM (index 5)
-        // Values: 10, 15, 20, 30, 45, 60, 40, 30, 25, 20...
-        // The peak is 60%, with a prominence of (60-10) on left and (60-20) on right.
-        // Even with smoothing, this should stand out.
+
         val probs = listOf(
             10, 12, 15, 25, 40, 60, 45, 35, 30, 25,
             20, 15, 10, 5, 0, 0, 0, 10, 20, 40,
             60, 50, 40, 30, 20
         )
-        
+
         val hours = probs.mapIndexed { i, p ->
             val dt = start.plusHours(i.toLong())
             PrecipitationGraphRenderer.PrecipHourData(
@@ -38,7 +41,7 @@ class RainPeakLabelTest {
                 precipProbability = p,
                 label = formatHour(dt.hour),
                 isCurrentHour = false,
-                showLabel = i % 3 == 0 // Simulate normal interval labels
+                showLabel = i % 3 == 0
             )
         }
 
@@ -48,18 +51,17 @@ class RainPeakLabelTest {
             hours = hours,
             widthPx = 1080,
             heightPx = 400,
-            currentTime = start.plusHours(2), // Now is 2am
+            currentTime = start.plusHours(2),
             onLabelPlaced = { placements.add(it) }
         )
 
-        // Find the 5 AM label (index 5)
         val fiveAmLabel = placements.find { it.index == 5 || it.hourLabel == "5a" }
-        
+
         assertNotNull(
             "Expected a label at 5 AM for the precipitation peak. Placements=${placements.map { "${it.hourLabel}=${it.probability}%" }}",
             fiveAmLabel
         )
-        
+
         assertTrue(
             "The 5 AM label should be identified as a peak. Placement=$fiveAmLabel",
             fiveAmLabel!!.isPeak
@@ -68,12 +70,6 @@ class RainPeakLabelTest {
 
     @Test
     fun smallProminencePeak_isLabeled_underNewThresholds() {
-        // Create a scenario with a smaller peak that would have been missed by the old 14% threshold.
-        // Peak at 10 AM (index 10) with value 40%. 
-        // Neighbors: 9 AM=31%, 11 AM=31%. Prominence = 9%.
-        // Old threshold (14) would miss this. New threshold (10) should catch it if it's considered mandatory,
-        // or the candidate threshold (8) should catch it if it's not dropped by de-cluttering.
-        
         val start = LocalDateTime.of(2026, 2, 17, 0, 0)
         val probs = List(25) { i ->
             when (i) {
@@ -83,7 +79,7 @@ class RainPeakLabelTest {
                 else -> 10
             }
         }
-        
+
         val hours = probs.mapIndexed { i, p ->
             val dt = start.plusHours(i.toLong())
             PrecipitationGraphRenderer.PrecipHourData(
@@ -106,7 +102,7 @@ class RainPeakLabelTest {
         )
 
         val tenAmLabel = placements.find { it.index == 10 || it.hourLabel == "10a" }
-        
+
         assertNotNull(
             "Expected a label at 10 AM for the smaller precipitation peak. Placements=${placements.map { "${it.hourLabel}=${it.probability}%" }}",
             tenAmLabel

@@ -1,19 +1,32 @@
 package com.weatherwidget.widget
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
-@RunWith(AndroidJUnit4::class)
-class TemperatureGhostLabelIntegrationTest {
-    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+@Category(MediumDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class TemperatureGhostLabelRoboTest {
+
+    private lateinit var context: Context
+
+    @Before
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
+    }
 
     @Test
     fun endLabel_staysOnForecastLineAfterFetchTransition() {

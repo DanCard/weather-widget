@@ -1,25 +1,34 @@
 package com.weatherwidget.widget
 
-import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.time.LocalDateTime
+import com.weatherwidget.test.category.MediumDuration
+import org.junit.experimental.categories.Category
 
-@RunWith(AndroidJUnit4::class)
-class PrecipitationGraphRendererLogInstrumentedTest {
-    private val instrumentation = InstrumentationRegistry.getInstrumentation()
-    private val context = instrumentation.targetContext
+@Category(MediumDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class PrecipitationGraphRendererLogRoboTest {
+    private lateinit var context: Context
+
+    @Before
+    fun setup() {
+        context = ApplicationProvider.getApplicationContext()
+    }
 
     @Test
     fun renderGraph_logsEndLabelPlacement() {
-        // No need to clear logcat anymore
-
         val start = LocalDateTime.now().minusHours(24)
         val hours =
             (0..24).map { index ->
@@ -49,9 +58,8 @@ class PrecipitationGraphRendererLogInstrumentedTest {
             onDebugLog = { debugLogs.add(it) }
         )
 
-        // Check the callback logs instead of logcat
         val logFound = debugLogs.any { it.contains("PLACED end label: 0%") }
-        
+
         assertTrue(
             "Expected end label placement log in PrecipGraph, but did not find it.\nCaptured logs: $debugLogs",
             logFound,
@@ -67,8 +75,8 @@ class PrecipitationGraphRendererLogInstrumentedTest {
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(2), 0, "2a", showLabel = false),
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(3), 0, "3a", showLabel = false),
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(4), 0, "4a", showLabel = false),
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(5), 46, "5a", showLabel = true), // First positive
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(6), 60, "6a", showLabel = true), // Rising
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(5), 46, "5a", showLabel = true),
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(6), 60, "6a", showLabel = true),
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(7), 70, "7a", showLabel = true)
         )
 
@@ -82,12 +90,6 @@ class PrecipitationGraphRendererLogInstrumentedTest {
             currentTime = start,
             onLabelPlaced = { placements.add(it) }
         )
-
-        // Index 5 is our target. With preserved indices (0=start, 7=end, 6=global max=70):
-        // Raw: [0, 0, 0, 0, 46, 60, 70]
-        // After 2 iterations, index 5 (not preserved) gets smoothed from 46% to ~37%
-        // Pass 1: [0, 0, 0, 0, 11.5, 29, 48.5, 60.5] (approx)
-        // Pass 2: [0, 0, 0, 2.9, 12.8, 29.5, 46, 60] (approx, preserved indices restored)
 
         val labelAt5 = placements.find { it.index == 5 }
 
@@ -104,11 +106,11 @@ class PrecipitationGraphRendererLogInstrumentedTest {
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(0), 0, "12a", showLabel = false),
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(1), 0, "1a", showLabel = false),
             PrecipitationGraphRenderer.PrecipHourData(start.plusHours(2), 0, "2a", showLabel = false),
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(3), 20, "3a", showLabel = true), // First positive, rising
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(4), 85, "4a", showLabel = true), // Sharp Peak at 4 am
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(5), 10, "5a", showLabel = true), // Deep Valley
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(6), 60, "6a", showLabel = true), // Rising
-            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(7), 80, "7a", showLabel = true)  // Global Max
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(3), 20, "3a", showLabel = true),
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(4), 85, "4a", showLabel = true),
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(5), 10, "5a", showLabel = true),
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(6), 60, "6a", showLabel = true),
+            PrecipitationGraphRenderer.PrecipHourData(start.plusHours(7), 80, "7a", showLabel = true)
         )
 
         val placements = mutableListOf<PrecipitationGraphRenderer.LabelPlacementDebug>()
@@ -122,12 +124,10 @@ class PrecipitationGraphRendererLogInstrumentedTest {
             onLabelPlaced = { placements.add(it) }
         )
 
-        // Verify 3 am label (first positive)
         val label3a = placements.find { it.hourLabel == "3a" }
         assertNotNull("3 am label (first positive) should be present", label3a)
         assertFalse("3 am label should be BELOW", label3a!!.placedAbove)
 
-        // Verify 4 am peak label - NOW PRESENT because smoothing doesn't melt it into the anchor
         val label4a = placements.find { it.hourLabel == "4a" }
         assertNotNull("4 am label should be present without smoothing", label4a)
         assertEquals(85, label4a!!.probability)
@@ -156,7 +156,7 @@ class PrecipitationGraphRendererLogInstrumentedTest {
             widthPx = 800,
             heightPx = 320,
             currentTime = start,
-            hourLabelSpacingDp = 18f, // narrow/zoomed-in spacing
+            hourLabelSpacingDp = 18f,
             onHourIconDrawn = { iconDrawnIndices.add(it) },
         )
 
@@ -187,7 +187,7 @@ class PrecipitationGraphRendererLogInstrumentedTest {
         PrecipitationGraphRenderer.renderGraph(
             context = context,
             hours = hours,
-            widthPx = 360, // below icon threshold
+            widthPx = 360,
             heightPx = 320,
             currentTime = start,
             hourLabelSpacingDp = 18f,
