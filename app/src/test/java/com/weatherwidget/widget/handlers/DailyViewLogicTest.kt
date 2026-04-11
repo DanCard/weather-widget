@@ -7,6 +7,8 @@ import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -317,7 +319,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays today omits graph rain label`() {
+    fun `prepareGraphDays today with 100 percent rain shows amount`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val weatherByDate = mapOf(
@@ -343,7 +345,37 @@ class DailyViewLogicTest {
         )
 
         val todayDay = result.first { it.date == today }
-        assertEquals(null, todayDay.dailyRainLabelText)
+        assertNotNull(todayDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays today with low rain chance omits rain label`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 80,
+                precipAmountMm = 10f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertNull(todayDay.dailyRainLabelText)
     }
 
     @Test

@@ -379,6 +379,7 @@ object DailyViewLogic {
                         iconRes = iconRes,
                         precipProbability = precip,
                         precipAmountMm = weather?.precipAmountMm,
+                        dailyPrecipProbability = weather?.precipProbability,
                     ),
                     hasRainForecast = hasRainForecast,
                     columnIndex = days.size,
@@ -405,8 +406,16 @@ object DailyViewLogic {
         iconRes: Int,
         precipProbability: Int?,
         precipAmountMm: Float?,
+        dailyPrecipProbability: Int? = null,
     ): String? {
-        if (date == today || isPastDate || !isRainIndicatorIcon(iconRes)) return null
+        if (isPastDate) return null
+        if (date == today) {
+            if (dailyPrecipProbability != null && dailyPrecipProbability >= 95 && precipAmountMm != null) {
+                return formatPrecipAmount(precipAmountMm)
+            }
+            return null
+        }
+        if (!isRainIndicatorIcon(iconRes)) return null
         return when {
             precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
             precipProbability != null && precipProbability > 0 -> "$precipProbability%"
