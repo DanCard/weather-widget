@@ -550,7 +550,7 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        // --- Rain amount annotations for high probability periods (95%+) with fixed window (5h for zoomed, graph width for wide) ---
+        // --- Rain amount annotations — grid-scan top-to-bottom, left-to-right for clear spot ---
         val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
             textSize = dpToPx(context, 10f)
@@ -559,53 +559,90 @@ object PrecipitationGraphRenderer {
             setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
         }
 
+        val nowLabelBounds = if (nowX != null) {
+            GraphRenderUtils.computeNowLabelBounds(
+                nowX = nowX,
+                graphTop = graphTop,
+                graphHeight = graphHeight,
+                nowLabelTextPaint = nowLabelTextPaint,
+                drawnBounds = drawnLabelBounds,
+                dpToPx = { dpToPx(context, it) },
+            )?.bounds
+        } else null
+        val rainCollisionBounds = drawnLabelBounds.toMutableList()
+        if (nowLabelBounds != null) rainCollisionBounds.add(nowLabelBounds)
+
         val rainPeriods = if (rainAmountWindowHours > 0) {
             findFixedWindowRainPeriods(hours, rainAmountWindowHours)
         } else {
             findHighProbRainPeriods(hours, highProbThreshold)
         }
+
+        val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
+        val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
+        val fontMetrics = rainAmountPaint.fontMetrics
+        val rainPadPx = dpToPx(context, 4f)
+
         for (period in rainPeriods) {
             val amountText = formatPrecipAmount(period.totalAmountMm)
             val textWidth = rainAmountPaint.measureText(amountText)
-            val centerX = ((points[period.startIndex].first + points[period.endIndex].first) / 2f)
-                .coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Position in the lower fill area below the curve, try multiple ratios to avoid label overlap
-            val avgCurveY = (period.startIndex..period.endIndex)
-                .map { points[it].second }
-                .average().toFloat()
-            val positionRatios = listOf(0.75f, 0.5f, 0.85f, 0.35f, 0.95f)
-            var baselineY: Float? = null
-            var finalBounds: RectF? = null
+            var bestX: Float? = null
+            var bestY: Float? = null
+            var bestBounds: RectF? = null
+            var bestOverlapArea = Float.MAX_VALUE
 
-            val fontMetrics = rainAmountPaint.fontMetrics
+            for (yFrac in yFractions) {
+                for (xFrac in xFractions) {
+                    val cx = (widthPx * xFrac).coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                    val cy = graphTop + graphHeight * yFrac
+                    val candidateBounds = RectF(
+                        cx - textWidth / 2f,
+                        cy + fontMetrics.ascent,
+                        cx + textWidth / 2f,
+                        cy + fontMetrics.descent,
+                    )
+                    if (candidateBounds.top < graphTop || candidateBounds.bottom > graphBottom) continue
 
-            for (ratio in positionRatios) {
-                val candidateY = avgCurveY + (graphBottom - avgCurveY) * ratio
-                val candidateBounds = RectF(
-                    centerX - textWidth / 2f,
-                    candidateY + fontMetrics.ascent,
-                    centerX + textWidth / 2f,
-                    candidateY + fontMetrics.descent,
-                )
-                val overlapsProbLabel = drawnLabelBounds.any { RectF.intersects(it, candidateBounds) }
-                if (!overlapsProbLabel && candidateBounds.top >= graphTop && candidateBounds.bottom <= graphBottom) {
-                    baselineY = candidateY
-                    finalBounds = candidateBounds
-                    break
+                    val paddedBounds = RectF(
+                        candidateBounds.left - rainPadPx,
+                        candidateBounds.top - rainPadPx,
+                        candidateBounds.right + rainPadPx,
+                        candidateBounds.bottom + rainPadPx,
+                    )
+                    val overlapping = rainCollisionBounds.filter { RectF.intersects(it, paddedBounds) }
+                    if (overlapping.isEmpty()) {
+                        bestX = cx
+                        bestY = cy
+                        bestBounds = candidateBounds
+                        bestOverlapArea = 0f
+                        break
+                    }
+                    val overlapArea = overlapping.sumOf { existing ->
+                        val intersect = RectF()
+                        if (intersect.setIntersect(existing, paddedBounds)) (intersect.width() * intersect.height()).toDouble() else 0.0
+                    }
+                    if (overlapArea < bestOverlapArea) {
+                        bestOverlapArea = overlapArea.toFloat()
+                        bestX = cx
+                        bestY = cy
+                        bestBounds = candidateBounds
+                    }
                 }
+                if (bestOverlapArea == 0f) break
             }
 
-            if (baselineY != null && finalBounds != null) {
-                canvas.drawText(amountText, centerX, baselineY, rainAmountPaint)
-                val logMsg = "rainAmountPlaced: \"$amountText\" at x=$centerX y=$baselineY indices=${period.startIndex}-${period.endIndex} widgetSize=${widthPx}x${heightPx} existingLabels=${drawnLabelBounds.size}"
-                Log.d(TAG, logMsg)
-                onDebugLog?.invoke(logMsg)
-            } else {
-                // Fall back to default position
-                val fallbackY = avgCurveY + (graphBottom - avgCurveY) * 0.75f
-                canvas.drawText(amountText, centerX, fallbackY, rainAmountPaint)
-                val logMsg = "rainAmountPlaced: \"$amountText\" at x=$centerX y=$fallbackY (fallback) widgetSize=${widthPx}x${heightPx}"
+            if (bestX != null && bestY != null && bestBounds != null) {
+                canvas.drawText(amountText, bestX, bestY, rainAmountPaint)
+                val paddedTrackingBounds = RectF(
+                    bestBounds.left - rainPadPx,
+                    bestBounds.top - rainPadPx,
+                    bestBounds.right + rainPadPx,
+                    bestBounds.bottom + rainPadPx,
+                )
+                drawnLabelBounds.add(bestBounds)
+                rainCollisionBounds.add(paddedTrackingBounds)
+                val logMsg = "rainAmountPlaced: \"$amountText\" at x=$bestX y=$bestY widgetSize=${widthPx}x${heightPx} overlapArea=$bestOverlapArea"
                 Log.d(TAG, logMsg)
                 onDebugLog?.invoke(logMsg)
             }

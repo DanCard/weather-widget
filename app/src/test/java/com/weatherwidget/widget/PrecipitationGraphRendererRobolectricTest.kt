@@ -156,7 +156,7 @@ class PrecipitationGraphRendererRobolectricTest {
     }
 
     @Test
-    fun `rain amount positioned in lower fill area below curve`() {
+    fun `rain amount positioned via grid scan avoiding overlap`() {
         val start = LocalDateTime.of(2026, 4, 11, 17, 0)
         val probs = listOf(20, 30, 97, 30, 20)
         val hours = probs.mapIndexed { i, prob ->
@@ -184,12 +184,12 @@ class PrecipitationGraphRendererRobolectricTest {
         val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue("Rain amount should be placed. logs=$debugLogs", placed.isNotEmpty())
 
-        val yMatch = Regex("""y=(\d+\.?\d*)""").find(placed.first())
-        assertTrue("Should extract y coordinate from log: ${placed.first()}", yMatch != null)
-        val baselineY = yMatch!!.groupValues[1].toFloat()
+        val overlapMatch = Regex("""overlapArea=(\d+\.?\d*)""").find(placed.first())
+        assertTrue("Should extract overlapArea from log: ${placed.first()}", overlapMatch != null)
+        val overlapArea = overlapMatch!!.groupValues[1].toFloat()
         assertTrue(
-            "Rain amount baseline should be below vertical midpoint (300) at 0.75 factor for high probability. y=$baselineY",
-            baselineY > 200f,
+            "Rain amount should have zero or minimal overlap. overlapArea=$overlapArea",
+            overlapArea < 100f,
         )
     }
 

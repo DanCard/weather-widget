@@ -212,22 +212,19 @@ internal object GraphRenderUtils {
         }
     }
 
-    fun drawNowIndicator(
-        canvas: Canvas,
-        nowX: Float?,
+    data class NowLabelResult(val labelY: Float, val bounds: RectF)
+
+    fun computeNowLabelBounds(
+        nowX: Float,
         graphTop: Float,
         graphHeight: Float,
-        currentTimePaint: Paint,
         nowLabelTextPaint: Paint,
         drawnBounds: List<RectF> = emptyList(),
         dpToPx: (Float) -> Float,
-    ) {
-        if (nowX == null) return
-
+    ): NowLabelResult? {
         val lineHeight = graphHeight * 0.6f
         val lineTop = graphTop + (graphHeight - lineHeight) / 2f
         val lineBottom = lineTop + lineHeight
-        canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
 
         val text = "NOW"
         val textWidth = nowLabelTextPaint.measureText(text)
@@ -247,9 +244,32 @@ internal object GraphRenderUtils {
             )
             val hasCollision = drawnBounds.any { RectF.intersects(it, textBounds) }
             if (!hasCollision) {
-                canvas.drawText(text, nowX, labelY, nowLabelTextPaint)
-                break
+                return NowLabelResult(labelY, textBounds)
             }
+        }
+        return null
+    }
+
+    fun drawNowIndicator(
+        canvas: Canvas,
+        nowX: Float?,
+        graphTop: Float,
+        graphHeight: Float,
+        currentTimePaint: Paint,
+        nowLabelTextPaint: Paint,
+        drawnBounds: List<RectF> = emptyList(),
+        dpToPx: (Float) -> Float,
+    ) {
+        if (nowX == null) return
+
+        val lineHeight = graphHeight * 0.6f
+        val lineTop = graphTop + (graphHeight - lineHeight) / 2f
+        val lineBottom = lineTop + lineHeight
+        canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
+
+        val result = computeNowLabelBounds(nowX, graphTop, graphHeight, nowLabelTextPaint, drawnBounds, dpToPx)
+        if (result != null) {
+            canvas.drawText("NOW", nowX, result.labelY, nowLabelTextPaint)
         }
     }
 
