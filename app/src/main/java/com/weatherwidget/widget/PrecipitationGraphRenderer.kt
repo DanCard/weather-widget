@@ -551,6 +551,7 @@ object PrecipitationGraphRenderer {
         }
 
         val rainPeriods = findHighProbRainPeriods(hours, highProbThreshold)
+        val rainAmountBounds = mutableListOf<RectF>()
         for (period in rainPeriods) {
             val amountText = formatPrecipAmount(period.totalAmountMm)
             val label = if (period.startLabel == period.endLabel) {
@@ -562,11 +563,11 @@ object PrecipitationGraphRenderer {
             val centerX = ((points[period.startIndex].first + points[period.endIndex].first) / 2f)
                 .coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
 
-            // Position in the fill area below the curve
+            // Position in the lower fill area below the curve, away from probability labels
             val avgCurveY = (period.startIndex..period.endIndex)
                 .map { points[it].second }
                 .average().toFloat()
-            val baselineY = avgCurveY + (graphBottom - avgCurveY) * 0.5f
+            val baselineY = avgCurveY + (graphBottom - avgCurveY) * 0.75f
 
             val fontMetrics = rainAmountPaint.fontMetrics
             val bounds = RectF(
@@ -576,15 +577,15 @@ object PrecipitationGraphRenderer {
                 baselineY + fontMetrics.descent,
             )
 
-            val overlaps = drawnLabelBounds.any { RectF.intersects(it, bounds) }
-            if (!overlaps && bounds.top >= graphTop && bounds.bottom <= graphBottom) {
+            val overlapsRainAmount = rainAmountBounds.any { RectF.intersects(it, bounds) }
+            if (!overlapsRainAmount && bounds.top >= graphTop && bounds.bottom <= graphBottom) {
                 canvas.drawText(label, centerX, baselineY, rainAmountPaint)
-                drawnLabelBounds.add(bounds)
-                val logMsg = "rainAmountPlaced: \"$label\" at x=$centerX y=$baselineY indices=${period.startIndex}-${period.endIndex}"
+                rainAmountBounds.add(bounds)
+                val logMsg = "rainAmountPlaced: \"$label\" at x=$centerX y=$baselineY indices=${period.startIndex}-${period.endIndex} widgetSize=${widthPx}x${heightPx} existingLabels=${drawnLabelBounds.size}"
                 Log.d(TAG, logMsg)
                 onDebugLog?.invoke(logMsg)
             } else {
-                val logMsg = "rainAmountSkipped: \"$label\" overlaps=$overlaps outOfBounds=${bounds.top < graphTop || bounds.bottom > graphBottom}"
+                val logMsg = "rainAmountSkipped: \"$label\" overlapsRainAmountLabel=$overlapsRainAmount outOfBounds=${bounds.top < graphTop || bounds.bottom > graphBottom} widgetSize=${widthPx}x${heightPx} existingLabels=${drawnLabelBounds.size}"
                 Log.d(TAG, logMsg)
                 onDebugLog?.invoke(logMsg)
             }
