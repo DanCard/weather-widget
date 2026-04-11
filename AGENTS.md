@@ -158,6 +158,24 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 
 ## Testing Guidelines
 
+### Test Location and Framework Preference
+
+**Prefer Robolectric (JVM) tests over instrumented (androidTest/emulator) tests whenever possible.** Robolectric tests run in seconds on the JVM; instrumented tests require an emulator or device and take minutes.
+
+1. **Pure logic** (no Android dependencies): Write as plain unit tests in `test/` with no framework.
+2. **Needs Android Context, SharedPreferences, Room, or Resources**: Write as Robolectric tests in `test/` using `@RunWith(RobolectricTestRunner::class)` and `@Config(sdk = [34])`. Use `ApplicationProvider.getApplicationContext()` for Context.
+3. **Needs real Canvas/Bitmap rendering, RemoteViews + performClick, real View.measure/layout, or real SQLite migrations**: Only then write instrumented tests in `androidTest/`.
+
+When migrating from instrumented to Robolectric:
+- Replace `InstrumentationRegistry.getInstrumentation().targetContext` with `ApplicationProvider.getApplicationContext()`
+- Replace `@RunWith(AndroidJUnit4::class)` with `@RunWith(RobolectricTestRunner::class)` + `@Config(sdk = [34])`
+- Wrap `WidgetIntentRouter.handleX()` calls in `try { } catch (_: Exception) {}` since AppWidgetManager.updateAppWidget fails without a registered widget in Robolectric
+- Use `TestDatabase.create()` for Room in-memory databases
+- Add test duration category annotations:
+  - `@Category(ShortDuration::class)` — Pure JVM tests with no Android framework (no Robolectric, no Context). Just Kotlin logic.
+  - `@Category(MediumDuration::class)` — Robolectric tests that need Android Context, SharedPreferences, or Room.
+  - `@Category(LongDuration::class)` — Heavy Robolectric tests with complex rendering pipelines, many iterations, or benchmarks.
+
 ### Test Structure
 ```kotlin
 class TemperatureInterpolatorTest {
