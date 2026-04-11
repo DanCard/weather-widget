@@ -110,10 +110,10 @@ object PrecipitationGraphRenderer {
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
         val iconSize = dpToPx(context, 16f).toInt()
-        val iconTopPad = dpToPx(context, 2f)
-        val iconBottomPad = dpToPx(context, 1f)
+        val iconTopPad = dpToPx(context, 0f)
+        val iconBottomPad = dpToPx(context, 0f)
         val labelHeight = dpToPx(context, 10f)
-        val bottomPadding = dpToPx(context, 3f)
+        val bottomPadding = dpToPx(context, 0f)
 
         val graphTop = topPadding
         val graphBottom =
@@ -276,6 +276,7 @@ object PrecipitationGraphRenderer {
             val iconX = clampedX - iconSize / 2f
             val iconRect = RectF(iconX, iconY, iconX + iconSize, iconY + iconSize)
             drawnIconBounds.add(iconRect)
+            Log.d(TAG, "hourlyIcon: idx=$index x=${iconRect.left} y=${iconRect.top} size=$iconSize")
 
             drawable.setBounds(
                 iconRect.left.toInt(),

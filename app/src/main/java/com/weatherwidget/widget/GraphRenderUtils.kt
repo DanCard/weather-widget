@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
+import android.util.Log
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -501,9 +502,6 @@ internal object GraphRenderUtils {
     ) {
         val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
         val dayLabelTextHeight = fm.descent - fm.ascent
-        val dayYTop = graphTop + dayLabelTextHeight
-        val dayYMid = (graphTop + graphBottom) / 2f
-        val dayYBottom = heightPx - dpToPx(14f)
 
         fun dayBounds(x: Float, y: Float, textWidth: Float): RectF =
             RectF(x - textWidth / 2f, y + fm.ascent, x + textWidth / 2f, y + fm.descent)
@@ -522,32 +520,36 @@ internal object GraphRenderUtils {
             DayCandidate(rightDate, rightX, rightText),
         )
 
+        val yFractions = listOf(0.12f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f)
+        val graphHeight = graphBottom - graphTop
+
         for ((candidateIndex, candidate) in candidates.withIndex()) {
             val side = if (candidateIndex == 0) "LEFT" else "RIGHT"
             val isToday = candidate.date == today
             val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
             val tw = paint.measureText(candidate.text)
 
-            val topBounds = dayBounds(candidate.x, dayYTop, tw)
-            if (!collides(topBounds)) {
-                canvas.drawText(candidate.text, candidate.x, dayYTop, paint)
-                drawnDayLabelBounds.add(topBounds)
-                onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYTop, "TOP", isToday)
-                continue
+            var placed = false
+            for (yFrac in yFractions) {
+                val y = graphTop + graphHeight * yFrac
+                val bounds = dayBounds(candidate.x, y, tw)
+                if (!collides(bounds)) {
+                    canvas.drawText(candidate.text, candidate.x, y, paint)
+                    drawnDayLabelBounds.add(bounds)
+                    Log.d("DayLabel", "$side \"${candidate.text}\" at y=$y yFrac=$yFrac iconBounds=${drawnIconBounds.size} labelBounds=${drawnLabelBounds.size}")
+                    onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, y, "yFrac=$yFrac", isToday)
+                    placed = true
+                    break
+                }
             }
-
-            val midBounds = dayBounds(candidate.x, dayYMid, tw)
-            if (!collides(midBounds)) {
-                canvas.drawText(candidate.text, candidate.x, dayYMid, paint)
-                drawnDayLabelBounds.add(midBounds)
-                onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYMid, "MIDDLE", isToday)
-                continue
+            if (!placed) {
+                val y = heightPx - dpToPx(14f)
+                val bounds = dayBounds(candidate.x, y, tw)
+                canvas.drawText(candidate.text, candidate.x, y, paint)
+                drawnDayLabelBounds.add(bounds)
+                Log.d("DayLabel", "$side \"${candidate.text}\" at y=$y (fallback) iconBounds=${drawnIconBounds.size} labelBounds=${drawnLabelBounds.size}")
+                onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, y, "BOTTOM_FALLBACK", isToday)
             }
-
-            val botBounds = dayBounds(candidate.x, dayYBottom, tw)
-            canvas.drawText(candidate.text, candidate.x, dayYBottom, paint)
-            drawnDayLabelBounds.add(botBounds)
-            onDayLabelPlaced?.invoke(side, candidate.text, candidate.date, candidate.x, dayYBottom, "BOTTOM", isToday)
         }
     }
 
