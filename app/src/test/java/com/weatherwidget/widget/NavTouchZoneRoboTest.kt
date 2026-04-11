@@ -8,7 +8,7 @@ import android.widget.FrameLayout
 import android.widget.ImageButton
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(ShortDuration::class)
+@Category(MediumDuration::class)
 class NavTouchZoneRoboTest {
 
     private lateinit var context: Context
