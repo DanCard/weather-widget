@@ -68,6 +68,13 @@ object PrecipitationGraphRenderer {
         val ageText: String? = null,
     )
 
+    data class WatermarkPlacementDebug(
+        val x: Float,
+        val y: Float,
+        val xFrac: Float,
+        val yFrac: Float,
+    )
+
     fun renderGraph(
         context: Context,
         hours: List<PrecipHourData>,
@@ -84,6 +91,7 @@ object PrecipitationGraphRenderer {
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
+        onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -700,87 +708,56 @@ object PrecipitationGraphRenderer {
             }
         }
 
-        // Raindrop icon placed in the emptiest region of the graph
+        // Rain cloud icon watermark — scan top-to-bottom, left-to-right for first clear spot
         val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)
         if (rainDrawable != null && points.size >= 3) {
             val iconSizePx = dpToPx(context, 20f).toInt()
-            val windowSize = (points.size / 5).coerceIn(3, 6)
-            val iconGap = dpToPx(context, 2f)
-            var iconPlaced = false
+            val halfIcon = iconSizePx / 2f
+            val graphHeight = graphBottom - graphTop
 
-            // Strategy 1: Find lowest-precipitation window → place icon ABOVE curve
-            var lowStart = 0
-            var lowAvg = Float.MAX_VALUE
-            for (start in 0..points.size - windowSize) {
-                val avg = (start until start + windowSize).map { probs[it] }.average().toFloat()
-                if (avg < lowAvg) {
-                    lowAvg = avg
-                    lowStart = start
-                }
-            }
+            val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
+            val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
 
-            val lowCenter = lowStart + windowSize / 2
-            val lowX = points[lowCenter].first
-            val lowCurveY = points[lowCenter].second
-            val aboveCenterY = graphTop + (lowCurveY - graphTop) / 2f
-            val aboveBounds =
-                RectF(
-                    lowX - iconSizePx / 2f,
-                    aboveCenterY - iconSizePx / 2f,
-                    lowX + iconSizePx / 2f,
-                    aboveCenterY + iconSizePx / 2f,
-                )
-            if (aboveBounds.top >= 0f &&
-                aboveBounds.bottom < lowCurveY - iconGap &&
-                !drawnLabelBounds.any { RectF.intersects(it, aboveBounds) }
-            ) {
-                rainDrawable.alpha = 96
-                rainDrawable.setBounds(
-                    aboveBounds.left.toInt(),
-                    aboveBounds.top.toInt(),
-                    aboveBounds.right.toInt(),
-                    aboveBounds.bottom.toInt(),
-                )
-                rainDrawable.draw(canvas)
-                iconPlaced = true
-            }
-
-            // Strategy 2: Find highest-precipitation window → place icon BELOW curve
-            if (!iconPlaced) {
-                var highStart = 0
-                var highAvg = -1f
-                for (start in 0..points.size - windowSize) {
-                    val avg = (start until start + windowSize).map { probs[it] }.average().toFloat()
-                    if (avg > highAvg) {
-                        highAvg = avg
-                        highStart = start
-                    }
-                }
-
-                val highCenter = highStart + windowSize / 2
-                val highX = points[highCenter].first
-                val highCurveY = points[highCenter].second
-                val belowCenterY = highCurveY + (graphBottom - highCurveY) / 2f
-                val belowBounds =
-                    RectF(
-                        highX - iconSizePx / 2f,
-                        belowCenterY - iconSizePx / 2f,
-                        highX + iconSizePx / 2f,
-                        belowCenterY + iconSizePx / 2f,
+            var placed = false
+            for (yFrac in yFractions) {
+                for (xFrac in xFractions) {
+                    val cx = widthPx * xFrac
+                    val cy = graphTop + graphHeight * yFrac
+                    val bounds = RectF(
+                        cx - halfIcon, cy - halfIcon,
+                        cx + halfIcon, cy + halfIcon,
                     )
-                if (belowBounds.top > highCurveY + iconGap &&
-                    belowBounds.bottom <= graphBottom &&
-                    !drawnLabelBounds.any { RectF.intersects(it, belowBounds) }
-                ) {
+                    if (bounds.left < 0f || bounds.right > widthPx) continue
+                    if (bounds.top < graphTop || bounds.bottom > graphBottom) continue
+                    if (drawnLabelBounds.any { RectF.intersects(it, bounds) }) continue
+
                     rainDrawable.alpha = 96
                     rainDrawable.setBounds(
-                        belowBounds.left.toInt(),
-                        belowBounds.top.toInt(),
-                        belowBounds.right.toInt(),
-                        belowBounds.bottom.toInt(),
+                        bounds.left.toInt(),
+                        bounds.top.toInt(),
+                        bounds.right.toInt(),
+                        bounds.bottom.toInt(),
                     )
                     rainDrawable.draw(canvas)
+                    Log.d(TAG, "rainWatermark: placed at x=${bounds.left} y=${bounds.top} " +
+                        "xFrac=$xFrac yFrac=$yFrac iconSizePx=$iconSizePx points=${points.size}")
+                    onWatermarkPlaced?.invoke(
+                        WatermarkPlacementDebug(
+                            x = bounds.left,
+                            y = bounds.top,
+                            xFrac = xFrac,
+                            yFrac = yFrac,
+                        ),
+                    )
+                    placed = true
+                    break
                 }
+                if (placed) break
+            }
+
+            if (!placed) {
+                Log.d(TAG, "rainWatermark: no valid position found points=${points.size} " +
+                    "widthPx=$widthPx heightPx=$heightPx drawnLabelCount=${drawnLabelBounds.size}")
             }
         }
 
