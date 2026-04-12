@@ -520,7 +520,7 @@ internal object GraphRenderUtils {
             DayCandidate(rightDate, rightX, rightText),
         )
 
-        val yFractions = listOf(0.12f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f)
+        val yFractions = (5..92 step 2).map { it / 100f }
         val graphHeight = graphBottom - graphTop
 
         for ((candidateIndex, candidate) in candidates.withIndex()) {
