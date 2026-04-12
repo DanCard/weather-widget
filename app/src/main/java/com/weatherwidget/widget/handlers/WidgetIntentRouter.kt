@@ -182,10 +182,6 @@ object WidgetIntentRouter {
             navDebug = "RIGHT: newRightmost=$newRightmost, maxDate=$maxDate"
         }
 
-        Log.d(TAG, "handleDailyNavigation: widget=$appWidgetId, offset=$currentOffset, " +
-            "cols=$numColumns, evening=$isEveningMode, source=${displaySource.id}, " +
-            "dates=${availableDates.size}(${minDate}..${maxDate}), " +
-            "$navDebug, canNavigate=$canNavigate")
         appLogDao.log(
             "DAILY_NAV_ATTEMPT",
             "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns rows=${dimensions.rows} evening=$isEveningMode source=${displaySource.id} minDate=$minDate maxDate=$maxDate $navDebug canNavigate=$canNavigate"
@@ -205,7 +201,6 @@ object WidgetIntentRouter {
             } else {
                 stateManager.navigateRight(appWidgetId)
             }
-        Log.d(TAG, "handleDailyNavigation: Navigated to offset $newOffset for widget $appWidgetId")
         appLogDao.log(
             "DAILY_NAV_APPLY",
             "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset->$newOffset source=${displaySource.id}"
@@ -563,7 +558,6 @@ object WidgetIntentRouter {
             return
         }
         val ageMin = (nowMs - (latestFetchedAt ?: 0L)) / 1000 / 60
-        Log.d(TAG, "STALE_REFRESH: Data is ${ageMin}min old, enqueueing refresh on ${decision.reason}")
         prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
         enqueueForcedRefresh(context, reason = decision.reason, policy = decision.policy)
         appLogDao?.let {
@@ -672,7 +666,6 @@ object WidgetIntentRouter {
     ) {
         kotlinx.coroutines.delay(RESIZE_DEBOUNCE_MS) // Debounce rapid resize events
         val startMs = SystemClock.elapsedRealtime()
-        Log.d(TAG, "handleResize: Updating widget $appWidgetId after resize")
         val database = WeatherDatabase.getDatabase(context)
         database.appLogDao().log("WIDGET_LIFECYCLE", "phase=handleResize_entry widget=$appWidgetId thread=${Thread.currentThread().name}")
 
