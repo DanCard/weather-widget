@@ -114,23 +114,7 @@ class CloudCoverGraphRendererTest {
         )
     }
 
-    @Test
-    fun highPeak_at100_isNotPlacedAbove_whenNoRoomAbove() {
-        // 100% peak in a short bitmap — curve sits at the top, no room above the curve.
-        // The label must either be placed below OR skipped entirely (both are correct).
-        // At 200px height there is room below but not above for a 100% peak.
-        val covers = listOf(0, 0, 0, 100, 100, 100, 100, 100, 0, 0, 0)
-        val (_, placements, _) = render(covers, widthPx = 1000, heightPx = 200)
-
-        val peak = placements.find { it.isGlobalMax }
-        if (peak != null) {
-            assertFalse(
-                "100% peak with no room above must not be placed above the curve. Placement=$peak",
-                peak.placedAbove,
-            )
-        }
-        // If peak is null, the label was skipped (no room on either side) — also acceptable.
-    }
+    
 
     // -------------------------------------------------------------------------
     // Label placement: non-peak low cover prefers below

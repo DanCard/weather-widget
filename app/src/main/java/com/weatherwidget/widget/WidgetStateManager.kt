@@ -18,6 +18,10 @@ enum class ViewMode {
     TEMPERATURE, // Alternative: shows hourly temperature curve
     PRECIPITATION, // Hourly precipitation probability graph
     CLOUD_COVER, // Hourly cloud cover percentage graph
+    ;
+
+    val isGraphMode: Boolean
+        get() = this in listOf(TEMPERATURE, PRECIPITATION, CLOUD_COVER)
 }
 
 enum class ZoomLevel(

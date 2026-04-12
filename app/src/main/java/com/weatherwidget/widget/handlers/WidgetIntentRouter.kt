@@ -9,19 +9,27 @@ import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.ForecastDao
+import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.NavigationUtils
+import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.util.WeatherTimeUtils
 import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -38,7 +46,9 @@ object WidgetIntentRouter {
     private const val STALE_REFRESH_DEBOUNCE_MS = 30 * 1000L
     private const val DAILY_LOOKBACK_DAYS = 30L
     private const val DAILY_FORECAST_DAYS = 30L
+    private const val SOURCE_CHECK_FORECAST_DAYS = 14L
     private const val SLOW_THRESHOLD_MS = 200L
+    private const val RESIZE_DEBOUNCE_MS = 250L
     @Volatile
     private var disableRefreshForTesting = false
 
@@ -62,6 +72,21 @@ object WidgetIntentRouter {
         val skipReason: String? = null,
     )
 
+    @VisibleForTesting
+    internal data class LocationResult(
+        val lat: Double,
+        val lon: Double,
+        val fetchedAt: Long?,
+    )
+
+    private fun resolveLocation(latestWeather: ForecastEntity?): LocationResult =
+        LocationResult(
+            lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
+            lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
+            fetchedAt = latestWeather?.fetchedAt,
+        )
+
+    @VisibleForTesting
     fun setDisableRefreshForTesting(disabled: Boolean) {
         disableRefreshForTesting = disabled
     }
@@ -73,7 +98,7 @@ object WidgetIntentRouter {
         context: Context,
         appWidgetId: Int,
         isLeft: Boolean,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
@@ -81,10 +106,7 @@ object WidgetIntentRouter {
         val direction = if (isLeft) "LEFT" else "RIGHT"
         Log.d(TAG, "handleNavigation: widget=$appWidgetId, direction=$direction, viewMode=$viewMode")
 
-        if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
-            viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
-        ) {
+        if (viewMode.isGraphMode) {
             handleGraphNavigation(context, appWidgetId, isLeft, repository)
         } else {
             handleDailyNavigation(context, appWidgetId, isLeft, repository)
@@ -98,7 +120,7 @@ object WidgetIntentRouter {
         context: Context,
         appWidgetId: Int,
         isLeft: Boolean,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -110,9 +132,10 @@ object WidgetIntentRouter {
         val appLogDao = database.appLogDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, "daily_nav")
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, "daily_nav", appLogDao)
+        val lat = loc.lat
+        val lon = loc.lon
 
         val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val forecastEnd = LocalDate.now().plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
@@ -212,7 +235,7 @@ object WidgetIntentRouter {
         context: Context,
         appWidgetId: Int,
         isLeft: Boolean,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -229,9 +252,10 @@ object WidgetIntentRouter {
         val forecastDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, "graph_nav")
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, "graph_nav")
+        val lat = loc.lat
+        val lon = loc.lon
 
         refreshGraphView(
             context, appWidgetId, database, lat, lon, repository,
@@ -246,13 +270,13 @@ object WidgetIntentRouter {
         context: Context,
         appWidgetId: Int,
         zoomCenterOffset: Int? = null,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
         Log.d(TAG, "handleCycleZoom: viewMode=$viewMode widget=$appWidgetId")
-        if (viewMode == com.weatherwidget.widget.ViewMode.DAILY) {
+        if (viewMode == ViewMode.DAILY) {
             Log.w(TAG, "handleCycleZoom: ignoring — widget $appWidgetId is in DAILY mode (stale PendingIntent)")
             return
         }
@@ -271,9 +295,10 @@ object WidgetIntentRouter {
         val forecastDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, "cycle_zoom")
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, "cycle_zoom")
+        val lat = loc.lat
+        val lon = loc.lon
 
         refreshGraphView(
             context, appWidgetId, database, lat, lon, repository,
@@ -287,7 +312,7 @@ object WidgetIntentRouter {
     suspend fun handleToggleApi(
         context: Context,
         appWidgetId: Int,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -300,16 +325,14 @@ object WidgetIntentRouter {
         val hourlyDao = database.hourlyForecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, "toggle_api")
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, "toggle_api")
+        val lat = loc.lat
+        val lon = loc.lon
 
         val now = LocalDateTime.now()
         val currentGraphZoom =
-            if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-                viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
-                viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
-            ) {
+            if (viewMode.isGraphMode) {
                 stateManager.getZoomLevel(appWidgetId)
             } else {
                 null
@@ -333,10 +356,7 @@ object WidgetIntentRouter {
                 now = now,
             )
 
-        if (viewMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            viewMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
-            viewMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
-        ) {
+        if (viewMode.isGraphMode) {
             refreshGraphView(
                 context, appWidgetId, database, lat, lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_API", extraMetadata = "source=${newSource.id}"
@@ -360,7 +380,7 @@ object WidgetIntentRouter {
     suspend fun handleToggleView(
         context: Context,
         appWidgetId: Int,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -372,14 +392,11 @@ object WidgetIntentRouter {
         val forecastDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        val afterLatestMs = SystemClock.elapsedRealtime()
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        val lat = loc.lat
+        val lon = loc.lon
 
-        if (newMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            newMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
-            newMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
-        ) {
+        if (newMode.isGraphMode) {
             refreshGraphView(
                 context, appWidgetId, database, lat, lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_VIEW", extraMetadata = "mode=${newMode.name}"
@@ -403,7 +420,7 @@ object WidgetIntentRouter {
         val today = LocalDate.now()
 
         // Past days: read from DB cache
-        val startDate = today.minusDays(30).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val startDate = today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val endDate = today.minusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val pastExtremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes)
@@ -423,17 +440,17 @@ object WidgetIntentRouter {
     }
 
     private suspend fun sourceDataMissingForCurrentWindow(
-        forecastDao: com.weatherwidget.data.local.ForecastDao,
-        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        forecastDao: ForecastDao,
+        hourlyDao: HourlyForecastDao,
         lat: Double,
         lon: Double,
         source: WeatherSource,
         centerTime: LocalDateTime? = null,
-        zoom: com.weatherwidget.widget.ZoomLevel? = null,
+        zoom: ZoomLevel? = null,
         now: LocalDateTime = LocalDateTime.now(),
     ): Boolean {
-        val historyStart = LocalDate.now().minusDays(30).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val futureEnd = LocalDate.now().plusDays(14).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val futureEnd = LocalDate.now().plusDays(SOURCE_CHECK_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val sourceDaily = forecastDao.getForecastsInRangeBySource(historyStart, futureEnd, lat, lon, source.id)
         val maxDailyDate =
             sourceDaily.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.maxOrNull()
@@ -531,7 +548,7 @@ object WidgetIntentRouter {
         context: Context,
         latestFetchedAt: Long?,
         reason: String,
-        appLogDao: com.weatherwidget.data.local.AppLogDao? = null,
+        appLogDao: AppLogDao? = null,
     ) {
         if (disableRefreshForTesting) {
             return
@@ -573,7 +590,7 @@ object WidgetIntentRouter {
     suspend fun handleTogglePrecip(
         context: Context,
         appWidgetId: Int,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
@@ -584,11 +601,12 @@ object WidgetIntentRouter {
         val forecastDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, "toggle_precip")
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, "toggle_precip")
+        val lat = loc.lat
+        val lon = loc.lon
 
-        if (newMode == com.weatherwidget.widget.ViewMode.PRECIPITATION) {
+        if (newMode == ViewMode.PRECIPITATION) {
             refreshGraphView(
                 context, appWidgetId, database, lat, lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_PRECIP"
@@ -607,32 +625,28 @@ object WidgetIntentRouter {
     suspend fun handleSetView(
         context: Context,
         appWidgetId: Int,
-        targetMode: com.weatherwidget.widget.ViewMode,
+        targetMode: ViewMode,
         targetOffset: Int = Int.MIN_VALUE,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val startMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val previousMode = stateManager.getViewMode(appWidgetId)
         val previousZoom = stateManager.getZoomLevel(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
-        android.util.Log.d("ActualsDebug", "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom widget=$appWidgetId")
-        if (targetMode == com.weatherwidget.widget.ViewMode.DAILY) {
-            stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
-        }
-        if (targetMode == com.weatherwidget.widget.ViewMode.TEMPERATURE ||
-            targetMode == com.weatherwidget.widget.ViewMode.PRECIPITATION ||
-            targetMode == com.weatherwidget.widget.ViewMode.CLOUD_COVER
-        ) {
+        Log.d("ActualsDebug", "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom widget=$appWidgetId")
+        if (targetMode == ViewMode.DAILY) {
+            stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+        } else if (targetMode.isGraphMode) {
             // Reset to WIDE only when entering from daily — preserves zoom when navigating
             // between hourly view types (temperature ↔ precipitation ↔ cloud cover)
-            if (previousMode == com.weatherwidget.widget.ViewMode.DAILY) {
-                stateManager.setZoomLevel(appWidgetId, com.weatherwidget.widget.ZoomLevel.WIDE)
-                android.util.Log.d(TAG, "handleSetView: RESET zoom to WIDE (was $previousZoom, previousMode=$previousMode)")
+            if (previousMode == ViewMode.DAILY) {
+                stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+                Log.d(TAG, "handleSetView: RESET zoom to WIDE (was $previousZoom, previousMode=$previousMode)")
             }
             if (targetOffset != Int.MIN_VALUE) {
                 stateManager.setHourlyOffset(appWidgetId, targetOffset)
-                android.util.Log.d(TAG, "handleSetView: set hourlyOffset=$targetOffset")
+                Log.d(TAG, "handleSetView: set hourlyOffset=$targetOffset")
             }
         }
         Log.d(TAG, "handleSetView: start mode=$targetMode offset=$targetOffset widget=$appWidgetId")
@@ -641,22 +655,20 @@ object WidgetIntentRouter {
         val forecastDao = database.forecastDao()
 
         val latestWeather = forecastDao.getLatestWeather()
-        val afterLatestMs = SystemClock.elapsedRealtime()
-        refreshIfStale(context, latestWeather?.fetchedAt, "set_view")
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, "set_view")
+        val lat = loc.lat
+        val lon = loc.lon
 
         when (targetMode) {
-            com.weatherwidget.widget.ViewMode.TEMPERATURE,
-            com.weatherwidget.widget.ViewMode.PRECIPITATION,
-            com.weatherwidget.widget.ViewMode.CLOUD_COVER -> {
-                refreshGraphView(
+            ViewMode.DAILY -> {
+                refreshDailyView(
                     context, appWidgetId, database, lat, lon, repository,
                     startTimeMs = startMs, actionTag = "SET_VIEW", extraMetadata = "mode=${targetMode.name}"
                 )
             }
-            com.weatherwidget.widget.ViewMode.DAILY -> {
-                refreshDailyView(
+            else -> {
+                refreshGraphView(
                     context, appWidgetId, database, lat, lon, repository,
                     startTimeMs = startMs, actionTag = "SET_VIEW", extraMetadata = "mode=${targetMode.name}"
                 )
@@ -670,9 +682,9 @@ object WidgetIntentRouter {
     suspend fun handleResize(
         context: Context,
         appWidgetId: Int,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
-        kotlinx.coroutines.delay(250) // Debounce rapid resize events
+        kotlinx.coroutines.delay(RESIZE_DEBOUNCE_MS) // Debounce rapid resize events
         val startMs = SystemClock.elapsedRealtime()
         Log.d(TAG, "handleResize: Updating widget $appWidgetId after resize")
         val database = WeatherDatabase.getDatabase(context)
@@ -696,7 +708,7 @@ object WidgetIntentRouter {
         context: Context,
         appWidgetId: Int,
         reason: String,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
         startTimeMs: Long = SystemClock.elapsedRealtime(),
         actionTag: String = "REFRESH",
         extraMetadata: String = "",
@@ -704,13 +716,14 @@ object WidgetIntentRouter {
         val database = WeatherDatabase.getDatabase(context)
         val forecastDao = database.forecastDao()
         val latestWeather = forecastDao.getLatestWeather()
-        refreshIfStale(context, latestWeather?.fetchedAt, reason, database.appLogDao())
+        val loc = resolveLocation(latestWeather)
+        refreshIfStale(context, loc.fetchedAt, reason, database.appLogDao())
 
-        val lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val lat = loc.lat
+        val lon = loc.lon
 
         val viewMode = WidgetStateManager(context).getViewMode(appWidgetId)
-        if (viewMode == com.weatherwidget.widget.ViewMode.DAILY) {
+        if (!viewMode.isGraphMode) {
             refreshDailyView(
                 context = context,
                 appWidgetId = appWidgetId,
@@ -746,8 +759,8 @@ object WidgetIntentRouter {
         database: WeatherDatabase,
         lat: Double,
         lon: Double,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
-        weatherList: List<com.weatherwidget.data.local.ForecastEntity>? = null,
+        repository: WeatherRepository? = null,
+        weatherList: List<ForecastEntity>? = null,
         dailyActuals: DailyActualsBySource? = null,
         startTimeMs: Long = SystemClock.elapsedRealtime(),
         actionTag: String = "DAILY_REFRESH",
@@ -832,7 +845,7 @@ object WidgetIntentRouter {
         database: WeatherDatabase,
         lat: Double,
         lon: Double,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
         startTimeMs: Long = SystemClock.elapsedRealtime(),
         actionTag: String = "GRAPH_REFRESH",
         extraMetadata: String = "",
@@ -867,12 +880,12 @@ object WidgetIntentRouter {
     private suspend fun updateHourlyViewWithData(
         context: Context,
         appWidgetId: Int,
-        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
         displaySource: WeatherSource,
         lat: Double,
         lon: Double,
-        repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        repository: WeatherRepository? = null,
     ) {
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
@@ -904,7 +917,7 @@ object WidgetIntentRouter {
             now = LocalDateTime.now(),
         )
         
-        val observation = graphStyleObs ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
+        val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
         
         logCurrentTempStalenessDebug(
             database = database,
@@ -916,7 +929,7 @@ object WidgetIntentRouter {
         )
 
         when (viewMode) {
-            com.weatherwidget.widget.ViewMode.PRECIPITATION -> {
+            ViewMode.PRECIPITATION -> {
                 PrecipViewHandler.updateWidget(
                     context = context,
                     appWidgetManager = appWidgetManager,
@@ -929,7 +942,7 @@ object WidgetIntentRouter {
                     repository = repository
                 )
             }
-            com.weatherwidget.widget.ViewMode.CLOUD_COVER -> {
+            ViewMode.CLOUD_COVER -> {
                 CloudCoverViewHandler.updateWidget(
                     context = context,
                     appWidgetManager = appWidgetManager,
@@ -960,13 +973,13 @@ object WidgetIntentRouter {
         }
     }
     private suspend fun resolveGraphStyleCurrentTemp(
-        repository: com.weatherwidget.data.repository.WeatherRepository?,
+        repository: WeatherRepository?,
         lat: Double,
         lon: Double,
         displaySource: WeatherSource,
-        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         now: LocalDateTime,
-    ): com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature? {
+    ): ObservationResolver.ObservedCurrentTemperature? {
         if (repository == null) return null
 
         val queryWindow = buildCurrentTempResolutionWindow(now)
@@ -988,15 +1001,15 @@ object WidgetIntentRouter {
 
     @VisibleForTesting
     internal fun resolveGraphStyleCurrentTempFromInputs(
-        observations: List<com.weatherwidget.data.local.ObservationEntity>,
-        hourlyForecasts: List<com.weatherwidget.data.local.HourlyForecastEntity>,
+        observations: List<ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         displaySource: WeatherSource,
         lat: Double,
         lon: Double,
         now: LocalDateTime,
         queryWindow: CurrentTempResolutionWindow = buildCurrentTempResolutionWindow(now),
-    ): com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature? {
-        val resolved = com.weatherwidget.util.ObservationBlender.resolveCurrentObservation(
+    ): ObservationResolver.ObservedCurrentTemperature? {
+        val resolved = ObservationBlender.resolveCurrentObservation(
             observations = observations,
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
@@ -1015,7 +1028,7 @@ object WidgetIntentRouter {
         )
 
         return resolved?.let { (temp, time, anchorTime) ->
-            com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature(
+            ObservationResolver.ObservedCurrentTemperature(
                 temperature = temp,
                 observedAt = anchorTime,
                 source = displaySource.id,
@@ -1025,11 +1038,11 @@ object WidgetIntentRouter {
     }
 
     private suspend fun loadCurrentTempResolutionHourlyForecasts(
-        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        hourlyDao: HourlyForecastDao,
         lat: Double,
         lon: Double,
         now: LocalDateTime,
-    ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
+    ): List<HourlyForecastEntity> {
         val window = buildCurrentTempResolutionWindow(now)
         val zoneId = ZoneId.systemDefault()
         return hourlyDao.getHourlyForecasts(
@@ -1045,10 +1058,10 @@ object WidgetIntentRouter {
         appWidgetId: Int,
         viewMode: String,
         displaySource: WeatherSource,
-        observation: com.weatherwidget.widget.ObservationResolver.ObservedCurrentTemperature?,
+        observation: ObservationResolver.ObservedCurrentTemperature?,
         centerTime: LocalDateTime,
     ) {
-        if (viewMode != com.weatherwidget.widget.ViewMode.TEMPERATURE.name) return
+        if (viewMode != ViewMode.TEMPERATURE.name) return
 
         val appLogDao = database.appLogDao()
         val nowMs = System.currentTimeMillis()
@@ -1081,7 +1094,7 @@ object WidgetIntentRouter {
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
         viewMode: String,
-        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        appLogDao: AppLogDao,
     ) {
         val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
         val minWidth = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 40)
@@ -1109,13 +1122,13 @@ object WidgetIntentRouter {
     }
 
     private suspend fun loadGraphWindowHourlyForecasts(
-        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        hourlyDao: HourlyForecastDao,
         lat: Double,
         lon: Double,
         centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: ZoomLevel,
         now: LocalDateTime,
-    ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
+    ): List<HourlyForecastEntity> {
         val window = buildGraphQueryWindow(centerTime, zoom, now)
         val zoneId = ZoneId.systemDefault()
         val centerRows =
@@ -1144,14 +1157,14 @@ object WidgetIntentRouter {
     }
 
     private suspend fun loadGraphWindowHourlyForecastsBySource(
-        hourlyDao: com.weatherwidget.data.local.HourlyForecastDao,
+        hourlyDao: HourlyForecastDao,
         lat: Double,
         lon: Double,
         centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: ZoomLevel,
         now: LocalDateTime,
         source: WeatherSource,
-    ): List<com.weatherwidget.data.local.HourlyForecastEntity> {
+    ): List<HourlyForecastEntity> {
         val window = buildGraphQueryWindow(centerTime, zoom, now)
         val zoneId = ZoneId.systemDefault()
         val centerRows =
@@ -1183,7 +1196,7 @@ object WidgetIntentRouter {
 
     internal fun buildGraphQueryWindow(
         centerTime: LocalDateTime,
-        zoom: com.weatherwidget.widget.ZoomLevel,
+        zoom: ZoomLevel,
         now: LocalDateTime,
     ): GraphQueryWindow {
         val truncatedCenter = centerTime.truncatedTo(ChronoUnit.HOURS)
