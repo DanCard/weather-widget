@@ -31,13 +31,13 @@ class CloudCoverViewModeRoboTest {
         context = ApplicationProvider.getApplicationContext()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

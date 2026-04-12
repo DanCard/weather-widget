@@ -26,7 +26,7 @@ class NavigationPersistenceRoboTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
@@ -35,7 +35,7 @@ class NavigationPersistenceRoboTest {
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

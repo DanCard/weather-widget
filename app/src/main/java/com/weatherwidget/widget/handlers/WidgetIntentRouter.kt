@@ -50,7 +50,7 @@ object WidgetIntentRouter {
     private const val SLOW_THRESHOLD_MS = 200L
     private const val RESIZE_DEBOUNCE_MS = 250L
     @Volatile
-    private var disableRefreshForTesting = false
+    private var isRefreshDisabledForTesting = false
 
     // Intent actions
     const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -87,8 +87,8 @@ object WidgetIntentRouter {
         )
 
     @VisibleForTesting
-    fun setDisableRefreshForTesting(disabled: Boolean) {
-        disableRefreshForTesting = disabled
+    fun setIsRefreshDisabledForTesting(DisableRefreshFlag: Boolean) {
+        isRefreshDisabledForTesting = DisableRefreshFlag
     }
 
     /**
@@ -467,7 +467,7 @@ object WidgetIntentRouter {
         reason: String = "manual_refresh",
         policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE,
     ) {
-        if (disableRefreshForTesting) {
+        if (isRefreshDisabledForTesting) {
             Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
             return
         }
@@ -535,7 +535,7 @@ object WidgetIntentRouter {
         reason: String,
         appLogDao: AppLogDao? = null,
     ) {
-        if (disableRefreshForTesting) {
+        if (isRefreshDisabledForTesting) {
             return
         }
         val nowMs = System.currentTimeMillis()

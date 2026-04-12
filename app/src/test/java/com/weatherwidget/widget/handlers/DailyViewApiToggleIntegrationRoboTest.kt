@@ -31,13 +31,13 @@ class DailyViewApiToggleIntegrationRoboTest {
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

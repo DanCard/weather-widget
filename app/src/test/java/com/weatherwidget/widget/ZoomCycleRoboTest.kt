@@ -30,13 +30,13 @@ class ZoomCycleRoboTest {
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
     }
 
     @Test
