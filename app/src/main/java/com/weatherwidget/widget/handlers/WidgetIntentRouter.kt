@@ -134,13 +134,11 @@ object WidgetIntentRouter {
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, "daily_nav", appLogDao)
-        val lat = loc.lat
-        val lon = loc.lon
 
         val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val forecastEnd = LocalDate.now().plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
 
-        val weatherList = forecastDao.getForecastsInRange(historyStart, forecastEnd, lat, lon)
+        val weatherList = forecastDao.getForecastsInRange(historyStart, forecastEnd, loc.lat, loc.lon)
 
         val today = LocalDate.now()
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -150,7 +148,7 @@ object WidgetIntentRouter {
 
         val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.toSet()
 
-        val dailyActuals = getDailyActuals(database, lat, lon)
+        val dailyActuals = getDailyActuals(database, loc.lat, loc.lon)
         val availableObsDates = dailyActuals.values.flatMap { it.keys }.toSet()
 
         val availableDates = (availableForecastDates + availableObsDates)
@@ -217,8 +215,8 @@ object WidgetIntentRouter {
             context = context,
             appWidgetId = appWidgetId,
             database = database,
-            lat = lat,
-            lon = lon,
+            lat = loc.lat,
+            lon = loc.lon,
             repository = repository,
             weatherList = weatherList,
             dailyActuals = dailyActuals,
@@ -254,11 +252,9 @@ object WidgetIntentRouter {
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, "graph_nav")
-        val lat = loc.lat
-        val lon = loc.lon
 
         refreshGraphView(
-            context, appWidgetId, database, lat, lon, repository,
+            context, appWidgetId, database, loc.lat, loc.lon, repository,
             startTimeMs = startMs, actionTag = "GRAPH_NAV", extraMetadata = "dir=${if (isLeft) "LEFT" else "RIGHT"}"
         )
     }
@@ -297,11 +293,9 @@ object WidgetIntentRouter {
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, "cycle_zoom")
-        val lat = loc.lat
-        val lon = loc.lon
 
         refreshGraphView(
-            context, appWidgetId, database, lat, lon, repository,
+            context, appWidgetId, database, loc.lat, loc.lon, repository,
             startTimeMs = startMs, actionTag = "CYCLE_ZOOM", extraMetadata = "zoom=${newZoom.name}"
         )
     }
@@ -327,8 +321,6 @@ object WidgetIntentRouter {
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, "toggle_api")
-        val lat = loc.lat
-        val lon = loc.lon
 
         val now = LocalDateTime.now()
         val currentGraphZoom =
@@ -348,8 +340,8 @@ object WidgetIntentRouter {
             sourceDataMissingForCurrentWindow(
                 forecastDao = forecastDao,
                 hourlyDao = hourlyDao,
-                lat = lat,
-                lon = lon,
+                lat = loc.lat,
+                lon = loc.lon,
                 source = newSource,
                 centerTime = currentGraphCenterTime,
                 zoom = currentGraphZoom,
@@ -358,12 +350,12 @@ object WidgetIntentRouter {
 
         if (viewMode.isGraphMode) {
             refreshGraphView(
-                context, appWidgetId, database, lat, lon, repository,
+                context, appWidgetId, database, loc.lat, loc.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_API", extraMetadata = "source=${newSource.id}"
             )
         } else {
             refreshDailyView(
-                context, appWidgetId, database, lat, lon, repository,
+                context, appWidgetId, database, loc.lat, loc.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_API", extraMetadata = "source=${newSource.id}"
             )
         }
@@ -393,22 +385,20 @@ object WidgetIntentRouter {
 
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
-        val lat = loc.lat
-        val lon = loc.lon
 
         if (newMode.isGraphMode) {
             refreshGraphView(
-                context, appWidgetId, database, lat, lon, repository,
+                context, appWidgetId, database, loc.lat, loc.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_VIEW", extraMetadata = "mode=${newMode.name}"
             )
         } else {
             refreshDailyView(
-                context, appWidgetId, database, lat, lon, repository,
+                context, appWidgetId, database, loc.lat, loc.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_VIEW", extraMetadata = "mode=${newMode.name}"
             )
         }
 
-        refreshIfStale(context, latestWeather?.fetchedAt, "toggle_view", appLogDao)
+        refreshIfStale(context, loc.fetchedAt, "toggle_view", appLogDao)
     }
 
     private suspend fun getDailyActuals(
@@ -603,17 +593,15 @@ object WidgetIntentRouter {
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, "toggle_precip")
-        val lat = loc.lat
-        val lon = loc.lon
 
         if (newMode == ViewMode.PRECIPITATION) {
             refreshGraphView(
-                context, appWidgetId, database, lat, lon, repository,
+                context, appWidgetId, database, loc.lat, loc.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_PRECIP"
             )
         } else {
             refreshDailyView(
-                context, appWidgetId, database, lat, lon, repository,
+                context, appWidgetId, database, loc.lat, loc.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_PRECIP"
             )
         }
@@ -657,19 +645,17 @@ object WidgetIntentRouter {
         val latestWeather = forecastDao.getLatestWeather()
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, "set_view")
-        val lat = loc.lat
-        val lon = loc.lon
 
         when (targetMode) {
             ViewMode.DAILY -> {
                 refreshDailyView(
-                    context, appWidgetId, database, lat, lon, repository,
+                    context, appWidgetId, database, loc.lat, loc.lon, repository,
                     startTimeMs = startMs, actionTag = "SET_VIEW", extraMetadata = "mode=${targetMode.name}"
                 )
             }
             else -> {
                 refreshGraphView(
-                    context, appWidgetId, database, lat, lon, repository,
+                    context, appWidgetId, database, loc.lat, loc.lon, repository,
                     startTimeMs = startMs, actionTag = "SET_VIEW", extraMetadata = "mode=${targetMode.name}"
                 )
             }
@@ -719,17 +705,14 @@ object WidgetIntentRouter {
         val loc = resolveLocation(latestWeather)
         refreshIfStale(context, loc.fetchedAt, reason, database.appLogDao())
 
-        val lat = loc.lat
-        val lon = loc.lon
-
         val viewMode = WidgetStateManager(context).getViewMode(appWidgetId)
         if (!viewMode.isGraphMode) {
             refreshDailyView(
                 context = context,
                 appWidgetId = appWidgetId,
                 database = database,
-                lat = lat,
-                lon = lon,
+                lat = loc.lat,
+                lon = loc.lon,
                 repository = repository,
                 startTimeMs = startTimeMs,
                 actionTag = actionTag,
@@ -740,8 +723,8 @@ object WidgetIntentRouter {
                 context = context,
                 appWidgetId = appWidgetId,
                 database = database,
-                lat = lat,
-                lon = lon,
+                lat = loc.lat,
+                lon = loc.lon,
                 repository = repository,
                 startTimeMs = startTimeMs,
                 actionTag = actionTag,
