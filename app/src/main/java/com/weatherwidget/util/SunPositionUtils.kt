@@ -41,7 +41,7 @@ object SunPositionUtils {
         // Zenith for Official Sunrise/Sunset (90.833 degrees).
         // We use official sunrise/sunset instead of Civil Twilight because users
         // expect "Night" icons once the sun has actually set.
-        val zenith = 90.833
+        val zenith = 93.33
 
         // 1. Calculate the day of the year
         val n = dayOfYear.toDouble()
