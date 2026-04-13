@@ -225,8 +225,14 @@ start_single_invocation_summary_monitor() {
   local gradle_log=$1
   SINGLE_INVOCATION_REPORTED_DIR=$(mktemp -d)
 
+  # Live feedback only: announce when each bucket's task starts executing.
+  # Per-bucket PASS/FAIL summaries are intentionally NOT emitted here — Gradle
+  # re-prints "> Task :app:testXDebugUnitTestFresh" every time test output
+  # interleaves, so we can't distinguish task start from task completion on a
+  # successful run. Reading XMLs at the start marker races with the actual
+  # test execution and can report stale (previous-run) results. The post-loop
+  # below reads XMLs after Gradle exits, which is authoritative.
   (
-    declare -A reported
     declare -A announced_execution
     tail -n 0 -F "$gradle_log" 2>/dev/null | while IFS= read -r line; do
       for bucket in "${BUCKETS[@]}"; do
@@ -238,24 +244,6 @@ start_single_invocation_summary_monitor() {
           log_and_echo "${bucket} bucket build finished in $(format_seconds "$build_elapsed")."
           announced_execution["$bucket"]=1
         fi
-
-        if [ -n "${reported[$bucket]:-}" ]; then
-          continue
-        fi
-
-        if [[ "$line" != *"$task_marker"* ]]; then
-          continue
-        fi
-
-        local results_dir="$ROOT_DIR/app/build/test-results/test${bucket}DebugUnitTest${RUN_MODE}"
-        for _ in $(seq 1 20); do
-          if emit_bucket_summary "$bucket" "$results_dir"; then
-            reported["$bucket"]=1
-            touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
-            break
-          fi
-          sleep 0.5
-        done
       done
     done
   ) &
