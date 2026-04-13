@@ -45,6 +45,7 @@ class TemperatureDeltaVisibilityRoboTest {
             context = context,
             appWidgetId = appWidgetId,
             hourlyForecasts = hourly,
+            currentTempHourlyForecasts = hourly,
             centerTime = centerTime,
             displaySource = WeatherSource.NWS,
             precipProbability = 0,

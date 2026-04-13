@@ -60,27 +60,30 @@ class TemperatureViewHandlerCenterTimeTest {
         val nowHour = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val nextHour = nowHour.plusHours(1)
         val centerTime = now.plusDays(2).withHour(8).withMinute(20)
-        val hourly =
-            listOf(
-                // "Now" points: expected header temp should come from these.
-                hourly(nowHour.minusHours(1), 66f),
-                hourly(nowHour, 66f),
-                hourly(nextHour, 66f),
-                hourly(nextHour.plusHours(1), 66f),
-                hourly(nextHour.plusHours(2), 66f),
-                hourly(nextHour.plusHours(3), 66f),
-                hourly(nextHour.plusHours(4), 66f),
-                hourly(nextHour.plusHours(5), 66f),
-                // Future center points: if center-time semantics return, this test should fail.
-                hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS), 52f),
-                hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1), 58f),
-            )
+        // Graph-window hourly data: centered on the scrolled day (52°/58°).
+        // Must NOT influence the header temp display.
+        val graphWindowHourly = listOf(
+            hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS), 52f),
+            hourly(centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS).plusHours(1), 58f),
+        )
+        // NOW-centered hourly data: what the header temp resolver should use (66°).
+        val nowCenteredHourly = listOf(
+            hourly(nowHour.minusHours(1), 66f),
+            hourly(nowHour, 66f),
+            hourly(nextHour, 66f),
+            hourly(nextHour.plusHours(1), 66f),
+            hourly(nextHour.plusHours(2), 66f),
+            hourly(nextHour.plusHours(3), 66f),
+            hourly(nextHour.plusHours(4), 66f),
+            hourly(nextHour.plusHours(5), 66f),
+        )
 
         TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = widgetId,
-            hourlyForecasts = hourly,
+            hourlyForecasts = graphWindowHourly,
+            currentTempHourlyForecasts = nowCenteredHourly,
             centerTime = centerTime,
             displaySource = com.weatherwidget.data.model.WeatherSource.NWS,
             precipProbability = 0,

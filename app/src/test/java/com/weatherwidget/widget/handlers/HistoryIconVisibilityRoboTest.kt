@@ -65,6 +65,7 @@ class HistoryIconVisibilityRoboTest {
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
             hourlyForecasts = emptyList(),
+            currentTempHourlyForecasts = emptyList(),
             centerTime = LocalDateTime.now(),
             displaySource = WeatherSource.NWS,
             precipProbability = 0

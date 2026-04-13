@@ -250,6 +250,7 @@ class TemperatureTouchRoutingRoboTest {
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
             hourlyForecasts = sampleHourlyForecasts(now),
+            currentTempHourlyForecasts = sampleHourlyForecasts(now),
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = 20,

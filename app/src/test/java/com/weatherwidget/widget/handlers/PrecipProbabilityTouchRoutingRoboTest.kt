@@ -134,6 +134,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
             hourlyForecasts = sampleHourlyForecasts(now, precipProbability),
+            currentTempHourlyForecasts = sampleHourlyForecasts(now, precipProbability),
             centerTime = now,
             displaySource = WeatherSource.NWS,
             precipProbability = precipProbability,

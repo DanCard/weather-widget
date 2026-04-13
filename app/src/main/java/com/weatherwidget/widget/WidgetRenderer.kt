@@ -75,27 +75,30 @@ object WidgetRenderer {
                 ?: currentTemps.firstOrNull()?.locationLon
                 ?: WeatherWidgetWorker.DEFAULT_LON
 
+        // Filter hourly forecasts to the NOW-centered window for current temp resolution.
+        // This ensures the current temp display is always based on forecasts around NOW,
+        // not any scrolled graph window.
+        val nowResolutionWindow = WidgetIntentRouter.buildCurrentTempResolutionWindow(now)
+        val nowZoneId = ZoneId.systemDefault()
+        val nowMinEpoch = nowResolutionWindow.start.atZone(nowZoneId).toInstant().toEpochMilli()
+        val nowMaxEpoch = nowResolutionWindow.end.atZone(nowZoneId).toInstant().toEpochMilli()
+        val nowCenteredHourlyForecasts = hourlyForecasts.filter { row ->
+            row.locationLat == locationLat &&
+                row.locationLon == locationLon &&
+                row.dateTime in nowMinEpoch..nowMaxEpoch
+        }
+
         val graphStyleObs =
             if (repository != null) {
-                val resolutionWindow = WidgetIntentRouter.buildCurrentTempResolutionWindow(now)
-                val zoneId = ZoneId.systemDefault()
-                val minEpoch = resolutionWindow.start.atZone(zoneId).toInstant().toEpochMilli()
-                val maxEpoch = resolutionWindow.end.atZone(zoneId).toInstant().toEpochMilli()
-                val observations = repository.getObservationsInRange(minEpoch, maxEpoch, locationLat, locationLon)
-                val canonicalForecasts =
-                    hourlyForecasts.filter { row ->
-                        row.locationLat == locationLat &&
-                            row.locationLon == locationLon &&
-                            row.dateTime in minEpoch..maxEpoch
-                    }
+                val observations = repository.getObservationsInRange(nowMinEpoch, nowMaxEpoch, locationLat, locationLon)
                 WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
                     observations = observations,
-                    hourlyForecasts = canonicalForecasts,
+                    hourlyForecasts = nowCenteredHourlyForecasts,
                     displaySource = displaySource,
                     lat = locationLat,
                     lon = locationLon,
                     now = now,
-                    queryWindow = resolutionWindow,
+                    queryWindow = nowResolutionWindow,
                 )
             } else {
                 ObservationBlender.resolveCurrentObservation(
@@ -145,6 +148,7 @@ object WidgetRenderer {
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
                     hourlyForecasts = hourlyForecasts,
+                    currentTempHourlyForecasts = nowCenteredHourlyForecasts,
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = targetPrecip,

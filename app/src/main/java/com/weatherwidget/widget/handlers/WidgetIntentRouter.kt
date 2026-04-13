@@ -815,7 +815,8 @@ object WidgetIntentRouter {
     /**
      * Refreshes the graph view by loading hourly forecast data for the current window.
      */
-    private suspend fun refreshGraphView(
+    @androidx.annotation.VisibleForTesting
+    internal suspend fun refreshGraphView(
         context: Context,
         appWidgetId: Int,
         database: WeatherDatabase,
@@ -938,6 +939,7 @@ object WidgetIntentRouter {
                     appWidgetManager = appWidgetManager,
                     appWidgetId = appWidgetId,
                     hourlyForecasts = hourlyForecasts,
+                    currentTempHourlyForecasts = currentTempHourlyForecasts,
                     centerTime = centerTime,
                     displaySource = displaySource,
                     precipProbability = todayPrecip,

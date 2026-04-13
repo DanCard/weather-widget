@@ -59,6 +59,7 @@ internal object TemperatureStateResolver {
         context: Context,
         appWidgetId: Int,
         hourlyForecasts: List<HourlyForecastEntity>,
+        currentTempHourlyForecasts: List<HourlyForecastEntity>,
         centerTime: LocalDateTime,
         displaySource: WeatherSource,
         precipProbability: Int?,
@@ -92,6 +93,9 @@ internal object TemperatureStateResolver {
 
         // 2. Data Pre-processing
         val smoothedForecasts = computeSmoothedForecasts(hourlyForecasts, displaySource)
+        // Smoothed forecasts for current temp resolution use the NOW-centered window, not the
+        // scrolled graph window, so that interpolation finds the correct current-hour data.
+        val currentTempSmoothedForecasts = computeSmoothedForecasts(currentTempHourlyForecasts, displaySource)
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= GRAPH_MIN_ROWS
         val deferStartupGraphActuals = startupToken != null && useGraph
@@ -136,9 +140,9 @@ internal object TemperatureStateResolver {
             val quick = CurrentTemperatureResolver.resolveQuick(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = currentTempHourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
-                smoothedForecasts = smoothedForecasts,
+                smoothedForecasts = currentTempSmoothedForecasts,
             )
             CurrentTemperatureResolution(
                 displayTemp = quick.displayTemp,
@@ -153,13 +157,13 @@ internal object TemperatureStateResolver {
             CurrentTemperatureResolver.resolve(
                 now = now,
                 displaySource = displaySource,
-                hourlyForecasts = hourlyForecasts,
+                hourlyForecasts = currentTempHourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
                 storedDeltaState = storedDeltaState,
                 currentLat = lat,
                 currentLon = lon,
-                smoothedForecasts = smoothedForecasts,
+                smoothedForecasts = currentTempSmoothedForecasts,
             )
         }
         val resolveMs = System.currentTimeMillis() - resolveStartMs
@@ -177,7 +181,7 @@ internal object TemperatureStateResolver {
             "$dayName • ${displaySource.shortDisplayName}"
         }
 
-        val currentHourForecast = getCurrentHourForecast(hourlyForecasts, displaySource)
+        val currentHourForecast = getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
         val iconRes = WeatherIconMapper.getIconResource(
             condition = currentHourForecast?.condition,
             isNight = isNight,
