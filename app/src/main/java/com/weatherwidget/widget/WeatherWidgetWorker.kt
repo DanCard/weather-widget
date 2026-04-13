@@ -311,8 +311,8 @@ class WeatherWidgetWorker
                         )
 
                     refreshResult.fold(
-                        onSuccess = { updated ->
-                            appLogDao.log("CURR_FETCH_DONE", "reason=$reason updated=$updated")
+                        onSuccess = { _ ->
+                            // Done log is handled by repository now
                         },
                         onFailure = { e ->
                             appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.message}", "ERROR")

@@ -83,14 +83,14 @@ class WeatherObservationsActivityRobolectricTest {
                 AppLogEntity(
                     timestamp = now,
                     tag = "CURR_FETCH_START",
-                    message = "reason=opportunistic_job targets=NWS, SILURIAN, WEATHER_API",
+                    message = "reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API",
                 ),
             )
             database.appLogDao().insert(
                 AppLogEntity(
                     timestamp = now + 1_000L,
                     tag = "CURR_FETCH_DONE",
-                    message = "reason=opportunistic_job updated=3",
+                    message = "reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3",
                 ),
             )
             database.appLogDao().insert(
@@ -130,8 +130,8 @@ class WeatherObservationsActivityRobolectricTest {
             assertEquals("Real-time data from nearby stations", subtitle)
             assertEquals("PERSONAL", adapter.items[0].stationType)
             assertFalse(logs.contains("No recent fetch logs for NWS"))
-            assertTrue(logs.contains("start reason=opportunistic_job targets=NWS, SILURIAN, WEATHER_API"))
-            assertTrue(logs.contains("done reason=opportunistic_job updated=3"))
+            assertTrue(logs.contains("start reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API"))
+            assertTrue(logs.contains("done reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3"))
         }
     }
 

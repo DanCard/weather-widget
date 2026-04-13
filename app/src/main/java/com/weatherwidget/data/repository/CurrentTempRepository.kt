@@ -110,6 +110,8 @@ class CurrentTempRepository
                     }
                     
                     lastFetchTime = System.currentTimeMillis()
+                    val targetIds = targetSources.joinToString(",") { it.id }
+                    appLogDao.log("CURR_FETCH_DONE", "reason=$reason targets=$targetIds updated=${targetSources.size}")
                     Result.success(targetSources.size)
                 }
             } catch (exception: Exception) { 

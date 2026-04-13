@@ -299,7 +299,6 @@ class WeatherObservationsActivity : AppCompatActivity() {
     }
 
     internal object WeatherObservationsSupport {
-        private val runLevelTags = setOf("CURR_FETCH_DONE", "CURR_FETCH_EXCEPTION", "CURR_FETCH_SKIP")
         private val sourcePrefixes =
             mapOf(
                 WeatherSource.VISUAL_CROSSING to "VISUAL_CROSSING_",
@@ -317,16 +316,16 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         fun matchesFetchLog(log: AppLogEntity, source: WeatherSource): Boolean =
             when (log.tag) {
-                "CURR_FETCH_START" -> log.message.containsTargetSource(source)
+                "CURR_FETCH_START", "CURR_FETCH_DONE", "CURR_FETCH_SKIP" -> log.message.containsTargetSource(source)
                 "CURR_FETCH_ERROR" -> log.message.contains("source=${source.id}")
-                in runLevelTags -> true
+                "CURR_FETCH_EXCEPTION", "CURR_FETCH_FAIL" -> true
                 else -> false
             }
 
         fun formatFetchLog(log: AppLogEntity, source: WeatherSource): String {
             val message =
                 when (log.tag) {
-                    "CURR_FETCH_START" -> log.message
+                    "CURR_FETCH_START", "CURR_FETCH_DONE" -> log.message
                     "CURR_FETCH_ERROR" -> log.message.removePrefix("source=${source.id} ")
                     else -> log.message
                 }
@@ -337,6 +336,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 "CURR_FETCH_SKIP" -> "skip $message"
                 "CURR_FETCH_ERROR" -> "error $message"
                 "CURR_FETCH_EXCEPTION" -> "exception $message"
+                "CURR_FETCH_FAIL" -> "fail $message"
                 else -> message
             }
         }

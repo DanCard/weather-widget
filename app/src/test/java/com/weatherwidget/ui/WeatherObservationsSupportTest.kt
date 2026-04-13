@@ -57,8 +57,8 @@ class WeatherObservationsSupportTest {
 
     @Test
     fun `matchesFetchLog uses current log tags`() {
-        val startLog = AppLogEntity(tag = "CURR_FETCH_START", message = "reason=opportunistic_job targets=NWS, SILURIAN, WEATHER_API")
-        val doneLog = AppLogEntity(tag = "CURR_FETCH_DONE", message = "reason=opportunistic_job updated=3")
+        val startLog = AppLogEntity(tag = "CURR_FETCH_START", message = "reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API")
+        val doneLog = AppLogEntity(tag = "CURR_FETCH_DONE", message = "reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3")
         val errorLog = AppLogEntity(tag = "CURR_FETCH_ERROR", message = "source=SILURIAN error=timeout")
 
         assertTrue(
