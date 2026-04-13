@@ -532,7 +532,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rainy future day with 10 percent shows ten percent`() {
+    fun `rainy future day just above trace threshold shows percent`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(1)
@@ -540,7 +540,7 @@ class DailyViewLogicTest {
             future to createWeather(
                 date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 10,
+                precipProbability = 16,
             ),
         )
 
@@ -558,7 +558,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("10%", futureDay.dailyRainLabelText)
+        assertEquals("16%", futureDay.dailyRainLabelText)
     }
 
     @Test

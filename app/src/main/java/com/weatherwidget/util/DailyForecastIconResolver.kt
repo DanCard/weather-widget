@@ -18,12 +18,19 @@ object DailyForecastIconResolver {
         if (weather == null) return R.drawable.ic_weather_unknown
 
         val source = WeatherSource.fromId(weather.source)
+        val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
+
         val nativeToken = weather.nativeDailyIconToken?.trim().orEmpty()
         if (nativeToken.isNotEmpty()) {
-            resolveNativeTokenIcon(weather, source, nativeToken, targetDate, now, latitude, longitude)?.let { return it }
+            resolveNativeTokenIcon(weather, source, nativeToken, targetDate, now, latitude, longitude)?.let { icon ->
+                // Apply the same 15% threshold for rain icons resolved via native tokens
+                if (weather.precipProbability != null && weather.precipProbability!! <= 15 && WeatherIconMapper.isRainIndicator(icon)) {
+                    return WeatherIconMapper.getCloudCoverIcon(isNight, null)
+                }
+                return icon
+            }
         }
 
-        val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
         return WeatherIconMapper.getIconResource(
             condition = weather.condition,
             isNight = isNight,

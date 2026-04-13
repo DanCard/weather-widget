@@ -224,8 +224,14 @@ class WeatherIconMapperTest {
 
     @Test
     fun testGetIconResource_RainLowProbabilityTrace_ShowsCloudCoverOnly() {
-        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 10, precipProbability = 5)
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 10, precipProbability = 15)
         assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_RainLowProbabilityAboveTrace_ShowsOneDrop() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 10, precipProbability = 16)
+        assertEquals(R.drawable.ic_weather_clear_slight_chance_rain, res)
     }
 
     @Test
