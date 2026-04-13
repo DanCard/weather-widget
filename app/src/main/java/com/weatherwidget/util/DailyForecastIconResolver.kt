@@ -5,8 +5,12 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 
 object DailyForecastIconResolver {
+
+    const val DISTANT_RAIN_THRESHOLD_DAYS = 3L
+    const val DISTANT_LOW_PROB_THRESHOLD = 20
 
     fun resolveIcon(
         weather: ForecastEntity?,
@@ -19,23 +23,41 @@ object DailyForecastIconResolver {
 
         val source = WeatherSource.fromId(weather.source)
         val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
+        val daysFromToday = ChronoUnit.DAYS.between(now.toLocalDate(), targetDate)
 
         val nativeToken = weather.nativeDailyIconToken?.trim().orEmpty()
         if (nativeToken.isNotEmpty()) {
             resolveNativeTokenIcon(weather, source, nativeToken, targetDate, now, latitude, longitude)?.let { icon ->
-                // Apply the same 15% threshold for rain icons resolved via native tokens
-                if (weather.precipProbability != null && weather.precipProbability!! <= 15 && WeatherIconMapper.isRainIndicator(icon)) {
+                if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight)) {
                     return WeatherIconMapper.getCloudCoverIcon(isNight, null)
                 }
                 return icon
             }
         }
 
-        return WeatherIconMapper.getIconResource(
+        val icon = WeatherIconMapper.getIconResource(
             condition = weather.condition,
             isNight = isNight,
             precipProbability = weather.precipProbability,
         )
+
+        if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight)) {
+            return WeatherIconMapper.getCloudCoverIcon(isNight, null)
+        }
+
+        return icon
+    }
+
+    private fun shouldSuppressRainIcon(
+        icon: Int,
+        precipProbability: Int?,
+        daysFromToday: Long,
+        isNight: Boolean,
+    ): Boolean {
+        if (!WeatherIconMapper.isRainIndicator(icon)) return false
+        if (precipProbability != null && precipProbability <= 15) return true
+        if (daysFromToday > DISTANT_RAIN_THRESHOLD_DAYS && precipProbability != null && precipProbability <= DISTANT_LOW_PROB_THRESHOLD) return true
+        return false
     }
 
     private fun resolveNativeTokenIcon(

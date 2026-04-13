@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
+import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -26,6 +27,7 @@ object DailyForecastGraphRenderer {
     private const val COLOR_WHITE = "#FFFFFF"
     private const val COLOR_GAP_FALLBACK = "#34C759"
     private const val COLOR_SUNNY = "#FFD60A"
+    private const val NEAR_TERM_RAIN_FONT_SCALE = 0.65f
 
     private var cachedPaintSet: PaintSet? = null
     private var cachedScaleKey: String = ""
@@ -76,6 +78,7 @@ object DailyForecastGraphRenderer {
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
         val trueActualHigh: Float? = null,
+        val daysFromToday: Int = 0,
     )
 
     private data class LayoutInfo(
@@ -481,29 +484,40 @@ object DailyForecastGraphRenderer {
     ) {
         val label = day.dailyRainLabelText ?: return
         val rainText = label
-        val textWidth = paints.rainTextPaint.measureText(rainText)
-        val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
-        if (textWidth > maxTextWidth) return
-
-        val metrics = paints.rainTextPaint.fontMetrics
-        val topMargin = dpToPx(context, 2f * layout.scaleFactor)
-        val spacing = dpToPx(context, 10f * layout.scaleFactor)
-        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
-
-        resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
-            val aboveBaseline = highBaseline - spacing
-            if (aboveBaseline + metrics.ascent >= topMargin) {
-                canvas.drawText(rainText, centerX, aboveBaseline, paints.rainTextPaint)
-                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "ABOVE_HIGH", centerX, aboveBaseline))
-                return
-            }
+        val originalTextSize = paints.rainTextPaint.textSize
+        val isNearTerm = day.daysFromToday in 1..DailyForecastIconResolver.DISTANT_RAIN_THRESHOLD_DAYS.toInt()
+        if (isNearTerm) {
+            paints.rainTextPaint.textSize = originalTextSize * NEAR_TERM_RAIN_FONT_SCALE
         }
+        try {
+            val textWidth = paints.rainTextPaint.measureText(rainText)
+            val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
+            if (textWidth > maxTextWidth) return
 
-        resolveLowLabelBaseline(context, day, layout)?.let { lowBaseline ->
-            val belowBaseline = lowBaseline + spacing - metrics.ascent
-            if (belowBaseline + metrics.descent <= bottomLimit) {
-                canvas.drawText(rainText, centerX, belowBaseline, paints.rainTextPaint)
-                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
+            val metrics = paints.rainTextPaint.fontMetrics
+            val topMargin = dpToPx(context, 2f * layout.scaleFactor)
+            val spacing = dpToPx(context, 10f * layout.scaleFactor)
+            val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
+
+            resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
+                val aboveBaseline = highBaseline - spacing
+                if (aboveBaseline + metrics.ascent >= topMargin) {
+                    canvas.drawText(rainText, centerX, aboveBaseline, paints.rainTextPaint)
+                    onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "ABOVE_HIGH", centerX, aboveBaseline))
+                    return
+                }
+            }
+
+            resolveLowLabelBaseline(context, day, layout)?.let { lowBaseline ->
+                val belowBaseline = lowBaseline + spacing - metrics.ascent
+                if (belowBaseline + metrics.descent <= bottomLimit) {
+                    canvas.drawText(rainText, centerX, belowBaseline, paints.rainTextPaint)
+                    onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
+                }
+            }
+        } finally {
+            if (isNearTerm) {
+                paints.rainTextPaint.textSize = originalTextSize
             }
         }
     }

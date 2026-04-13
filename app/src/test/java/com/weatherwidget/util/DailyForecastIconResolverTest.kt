@@ -314,4 +314,98 @@ class DailyForecastIconResolverTest {
         precipProbability = precipProbability,
         fetchedAt = 1L,
     )
+
+    @Test
+    fun `distant day with 20 percent rain shows cloud icon instead of rain icon`() {
+        val distant = today.plusDays(4)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 20,
+            ),
+            targetDate = distant,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
+    }
+
+    @Test
+    fun `near term day with 20 percent rain shows slight chance rain icon`() {
+        val nearTerm = today.plusDays(2)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 20,
+            ),
+            targetDate = nearTerm,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
+
+    @Test
+    fun `distant day with 50 percent rain still shows rain icon`() {
+        val distant = today.plusDays(5)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 50,
+            ),
+            targetDate = distant,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_rain, icon)
+    }
+
+    @Test
+    fun `distant day with 15 percent rain shows cloud icon via trace threshold`() {
+        val distant = today.plusDays(7)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 15,
+            ),
+            targetDate = distant,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
+    }
+
+    @Test
+    fun `today with 20 percent rain shows slight chance rain icon`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 20,
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
 }

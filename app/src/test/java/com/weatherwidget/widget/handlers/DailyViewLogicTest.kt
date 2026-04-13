@@ -675,4 +675,154 @@ class DailyViewLogicTest {
             fetchedAt = 1L,
         )
     }
+
+    @Test
+    fun `rain label suppressed for distant day with 20 percent probability`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val distant = today.plusDays(5)
+        val weatherByDate = mapOf(
+            distant to createWeather(
+                date = distant.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 20,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val distantDay = result.first { it.date == distant }
+        assertNull(distantDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rain label shown for near term day with 20 percent probability`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val nearTerm = today.plusDays(2)
+        val weatherByDate = mapOf(
+            nearTerm to createWeather(
+                date = nearTerm.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 20,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val nearTermDay = result.first { it.date == nearTerm }
+        assertEquals("20%", nearTermDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rain label shown for distant day with 50 percent probability`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val distant = today.plusDays(5)
+        val weatherByDate = mapOf(
+            distant to createWeather(
+                date = distant.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 50,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val distantDay = result.first { it.date == distant }
+        assertEquals("50%", distantDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rain label suppressed for day exactly 4 away with 20 percent probability`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val day4 = today.plusDays(4)
+        val weatherByDate = mapOf(
+            day4 to createWeather(
+                date = day4.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 20,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val day4Data = result.first { it.date == day4 }
+        assertNull(day4Data.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rain label shown for day 3 away with 20 percent probability`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val day3 = today.plusDays(3)
+        val weatherByDate = mapOf(
+            day3 to createWeather(
+                date = day3.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 20,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val day3Data = result.first { it.date == day3 }
+        assertEquals("20%", day3Data.dailyRainLabelText)
+    }
 }

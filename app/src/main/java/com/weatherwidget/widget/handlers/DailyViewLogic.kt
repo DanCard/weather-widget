@@ -13,6 +13,7 @@ import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -396,6 +397,7 @@ object DailyViewLogic {
                     snapshotHigh = snapshotHigh,
                     snapshotLow = snapshotLow,
                     trueActualHigh = trueActualHigh,
+                    daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
                 )
             )
         }
@@ -424,6 +426,8 @@ object DailyViewLogic {
             }
             return null
         }
+        val daysFromToday = ChronoUnit.DAYS.between(today, date)
+        if (daysFromToday > DailyForecastIconResolver.DISTANT_RAIN_THRESHOLD_DAYS && precipProbability != null && precipProbability <= DailyForecastIconResolver.DISTANT_LOW_PROB_THRESHOLD) return null
         if (!WeatherIconMapper.isRainIndicator(iconRes)) return null
         return when {
             precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
