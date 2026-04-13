@@ -15,6 +15,21 @@ internal object TemperatureLabelResolver {
     private val DENSE_TEMP_DIFF_THRESHOLDS = listOf(3, 4, 5)
     private const val MIN_LOCAL_EXTREMA_PROMINENCE_DEGREES = 2.5f
 
+    internal val ESSENTIAL_LABEL_ROLES: Set<TemperatureRole> = setOf(
+        TemperatureRole.LOW,
+        TemperatureRole.HIGH,
+        TemperatureRole.FORECAST_LOW,
+        TemperatureRole.FORECAST_HIGH,
+        TemperatureRole.ACTUAL_LOW,
+        TemperatureRole.ACTUAL_HIGH,
+        TemperatureRole.PAST_FORECAST_LOW,
+        TemperatureRole.PAST_FORECAST_HIGH,
+        TemperatureRole.LOCAL,
+        TemperatureRole.START,
+        TemperatureRole.END,
+        TemperatureRole.ACTUAL_END,
+    )
+
     data class SuppressionResult(
         val suppressed: Boolean,
         val overriddenRole: TemperatureRole? = null,
@@ -289,7 +304,10 @@ internal object TemperatureLabelResolver {
         role: TemperatureRole,
         hours: List<HourData>,
     ): Boolean {
-        val extremaRoles = listOf(TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)
+        // HIGH and LOW (global daily extrema) are the most important labels on the graph and
+        // must never be dropped by edge-proximity decluttering — even if the daily high happens
+        // to fall within the edgeWindow (e.g. the curve peaks at the right edge of the graph).
+        val extremaRoles = listOf(TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.PAST_FORECAST_LOW)
         if (role !in extremaRoles) return false
         val edgeWindow = when {
             hours.lastIndex > 50 -> min(5, hours.lastIndex / 15)
@@ -308,17 +326,17 @@ internal object TemperatureLabelResolver {
     fun sortLabelCandidates(candidates: MutableList<TempLabelCandidate>) {
         candidates.sortWith(
             compareBy<TempLabelCandidate> {
-                val displayTemp = it.labelTemps[it.index]
-                val leftVal = findPrevDifferent(it.labelTemps, it.index)
-                val rightVal = findNextDifferent(it.labelTemps, it.index)
-                val isPeak = it.role in listOf(TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_HIGH) || (it.role == TemperatureRole.LOCAL && displayTemp > leftVal && displayTemp > rightVal)
-                if (isPeak) -displayTemp else displayTemp
-            }.thenBy {
                 when (it.role) {
                     TemperatureRole.HIGH, TemperatureRole.LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.ACTUAL_LOW -> 0
                     TemperatureRole.LOCAL, TemperatureRole.ACTUAL_END -> 1
                     else -> 2 // START, END
                 }
+            }.thenBy {
+                val displayTemp = it.labelTemps[it.index]
+                val leftVal = findPrevDifferent(it.labelTemps, it.index)
+                val rightVal = findNextDifferent(it.labelTemps, it.index)
+                val isPeak = it.role in listOf(TemperatureRole.HIGH, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_HIGH) || (it.role == TemperatureRole.LOCAL && displayTemp > leftVal && displayTemp > rightVal)
+                if (isPeak) -displayTemp else displayTemp
             }
         )
     }
@@ -376,7 +394,7 @@ internal object TemperatureLabelResolver {
         val leftVal = findPrevDifferent(temps, idx)
         val rightVal = findNextDifferent(temps, idx)
         val isValley = candidate.role in listOf(TemperatureRole.LOW, TemperatureRole.FORECAST_LOW, TemperatureRole.ACTUAL_LOW, TemperatureRole.PAST_FORECAST_LOW) || (candidate.role == TemperatureRole.LOCAL && temps[idx] < leftVal && temps[idx] < rightVal)
-        val isEssential = candidate.role in setOf(TemperatureRole.LOW, TemperatureRole.HIGH, TemperatureRole.FORECAST_LOW, TemperatureRole.FORECAST_HIGH, TemperatureRole.ACTUAL_LOW, TemperatureRole.ACTUAL_HIGH, TemperatureRole.PAST_FORECAST_LOW, TemperatureRole.PAST_FORECAST_HIGH, TemperatureRole.START, TemperatureRole.END, TemperatureRole.ACTUAL_END)
+        val isEssential = candidate.role in ESSENTIAL_LABEL_ROLES
 
         val leaderLinePaint = if (isFuture) {
             Paint(ctx.paints.forecastLeaderLinePaint).also { it.color = TemperatureGraphStyle.withAlpha(labelPaint.color, 80) }
