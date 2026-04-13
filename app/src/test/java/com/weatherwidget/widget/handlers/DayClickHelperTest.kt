@@ -123,17 +123,17 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `bottom row chance rain mixed icon navigates to cloud cover`() {
+    fun `bottom row chance rain mixed icon navigates to precipitation`() {
         assertEquals(
-            ViewMode.CLOUD_COVER,
+            ViewMode.PRECIPITATION,
             DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain),
         )
     }
 
     @Test
-    fun `daily chance rain mixed icon stays on temperature graph`() {
+    fun `daily chance rain mixed icon navigates to precipitation`() {
         assertEquals(
-            ViewMode.TEMPERATURE,
+            ViewMode.PRECIPITATION,
             DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain),
         )
     }

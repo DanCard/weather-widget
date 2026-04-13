@@ -127,4 +127,20 @@ class DayClickNavigationTest : IsolatedIntegrationTest("day_click_navigation") {
     fun clearIcon_navigatesToTemperature() {
         assertEquals(ViewMode.TEMPERATURE, DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_clear))
     }
+
+    @Test
+    fun mixedRainIcon_onDailyColumn_navigatesToPrecipitation() {
+        assertEquals(
+            ViewMode.PRECIPITATION,
+            DayClickHelper.resolveDailyTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain)
+        )
+    }
+
+    @Test
+    fun mixedRainIcon_onBottomRow_navigatesToPrecipitation() {
+        assertEquals(
+            ViewMode.PRECIPITATION,
+            DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_partly_cloudy_chance_rain)
+        )
+    }
 }

@@ -47,7 +47,7 @@ object DayClickHelper {
 
     fun resolveDailyTargetViewMode(iconRes: Int?): ViewMode {
         if (iconRes == null) return ViewMode.TEMPERATURE
-        return if (WeatherIconMapper.isRainy(iconRes)) {
+        return if (WeatherIconMapper.isRainIndicator(iconRes)) {
             ViewMode.PRECIPITATION
         } else {
             ViewMode.TEMPERATURE
@@ -58,7 +58,7 @@ object DayClickHelper {
 
     private fun resolveIconHome(iconRes: Int): ViewMode {
         return when {
-            WeatherIconMapper.isRainy(iconRes) -> ViewMode.PRECIPITATION
+            WeatherIconMapper.isRainIndicator(iconRes) -> ViewMode.PRECIPITATION
             WeatherIconMapper.isCloudForecastEligible(iconRes) -> ViewMode.CLOUD_COVER
             else -> ViewMode.TEMPERATURE
         }
