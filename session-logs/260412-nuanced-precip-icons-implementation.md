@@ -35,11 +35,18 @@
 - **Finding:** Discovered `android:tint="#AAFFFFFF"` in `widget_weather.xml` was flattening icons into white silhouettes, hiding the blue rain drops. Also found the drops were being clipped at the bottom of the 24dp viewport.
 - **Action:** Removed layout tint. Rebalanced icons by scaling Sun/Moon to 85% and Clouds to 125%. Redesigned raindrops to be larger, centered teardrops.
 
+### 4. Day/Night Threshold Alignment
+> **User:** How is day vs night determined? I ask because at 8 pm, it is night, but the icons suggest day.
+
+- **Finding:** The widget was using **Civil Twilight (96.0° zenith)**, which extended the "Day" period until approximately 8:10 PM in Mountain View on April 12.
+- **Action:** Adjusted `SunPositionUtils.kt` to use **Official Sunrise/Sunset (90.833° zenith)**. This moves the Night transition to approximately 7:40 PM, ensuring 8:00 PM is correctly categorized as Night.
+
 ## Technical Implementation Details
 
-### Logic Update (`WeatherIconMapper.kt`)
+### Logic Updates
 - **Enhanced `getIconResource`:** Now accepts `precipProbability: Int?`.
 - **Precipitation Dispatcher:** Introduced `getPrecipitationIcon(isNight, cloudCover, precipProbability, baseRainIcon)` to handle the threshold logic.
+- **Sun/Moon Calculation:** Shifted `SunPositionUtils` from Civil Twilight to Official Sunset zenith (90.833°).
 - **Probability Fallback:** If `precipProbability` is null, the logic falls back to legacy text-parsing. If text contains "slight chance", it defaults to 20% probability for the matrix calculation.
 - **New Helper `isRainIndicator`:** Identifies any icon that should trigger rain-specific UI behaviors (like showing probability percentages or navigation to precipitation graphs).
 
