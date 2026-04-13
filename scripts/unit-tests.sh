@@ -69,6 +69,7 @@ declare -A starts
 declare -A results_dirs
 declare -A monitor_pids
 SINGLE_INVOCATION_MONITOR_PID=""
+SINGLE_INVOCATION_REPORT_POLLER_PID=""
 
 cleanup() {
   for pid in "${pids[@]:-}"; do
@@ -83,6 +84,9 @@ cleanup() {
   done
   if [ -n "${SINGLE_INVOCATION_MONITOR_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
     kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
+  fi
+  if [ -n "${SINGLE_INVOCATION_REPORT_POLLER_PID:-}" ] && kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
+    kill "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null || true
   fi
   if [ -n "${SINGLE_INVOCATION_REPORTED_DIR:-}" ] && [ -d "$SINGLE_INVOCATION_REPORTED_DIR" ]; then
     rm -rf "$SINGLE_INVOCATION_REPORTED_DIR"
@@ -225,13 +229,17 @@ start_single_invocation_summary_monitor() {
   local gradle_log=$1
   SINGLE_INVOCATION_REPORTED_DIR=$(mktemp -d)
 
-  # Live feedback only: announce when each bucket's task starts executing.
-  # Per-bucket PASS/FAIL summaries are intentionally NOT emitted here — Gradle
-  # re-prints "> Task :app:testXDebugUnitTestFresh" every time test output
-  # interleaves, so we can't distinguish task start from task completion on a
-  # successful run. Reading XMLs at the start marker races with the actual
-  # test execution and can report stale (previous-run) results. The post-loop
-  # below reads XMLs after Gradle exits, which is authoritative.
+  # Live feedback strategy:
+  #   1. Tail the Gradle log to announce "<bucket> bucket build finished" as
+  #      soon as Gradle prints the task marker for each bucket. Because Gradle
+  #      re-prints that marker when parallel task output interleaves, we only
+  #      act on the FIRST sighting per bucket (for the "build finished" signal,
+  #      which is harmless to emit slightly early).
+  #   2. Poll for each bucket's test report index.html. Gradle writes that file
+  #      exactly once per task lifecycle, after the Test task fully completes
+  #      (test execution + report generation). This is an authoritative
+  #      completion signal, immune to log-line re-prints, and we filter out
+  #      stale reports from previous runs via an mtime-vs-OVERALL_START check.
   (
     declare -A announced_execution
     tail -n 0 -F "$gradle_log" 2>/dev/null | while IFS= read -r line; do
@@ -248,6 +256,38 @@ start_single_invocation_summary_monitor() {
     done
   ) &
   SINGLE_INVOCATION_MONITOR_PID=$!
+
+  (
+    local pending=("${BUCKETS[@]}")
+    while [ "${#pending[@]}" -gt 0 ]; do
+      local remaining=()
+      for bucket in "${pending[@]:-}"; do
+        [ -z "$bucket" ] && continue
+        local task_name="test${bucket}DebugUnitTest${RUN_MODE}"
+        local report_html="$ROOT_DIR/app/build/reports/tests/${task_name}/index.html"
+        local results_dir="$ROOT_DIR/app/build/test-results/${task_name}"
+        if [ -f "$report_html" ]; then
+          local mtime
+          mtime=$(stat -c %Y "$report_html" 2>/dev/null || echo 0)
+          if [ "$mtime" -ge "$OVERALL_START" ]; then
+            if emit_bucket_summary "$bucket" "$results_dir"; then
+              touch "$SINGLE_INVOCATION_REPORTED_DIR/$bucket"
+              continue
+            fi
+          fi
+        fi
+        remaining+=("$bucket")
+      done
+      pending=("${remaining[@]:-}")
+      if [ "${#pending[@]}" -eq 1 ] && [ -z "${pending[0]}" ]; then
+        pending=()
+      fi
+      if [ "${#pending[@]}" -gt 0 ]; then
+        sleep 1
+      fi
+    done
+  ) &
+  SINGLE_INVOCATION_REPORT_POLLER_PID=$!
 }
 
 for bucket in "${BUCKETS[@]}"; do
@@ -298,6 +338,20 @@ if [ "$SINGLE_INVOCATION" = true ]; then
   if [ -n "$SINGLE_INVOCATION_MONITOR_PID" ] && kill -0 "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null; then
     kill "$SINGLE_INVOCATION_MONITOR_PID" 2>/dev/null || true
     SINGLE_INVOCATION_MONITOR_PID=""
+  fi
+  if [ -n "$SINGLE_INVOCATION_REPORT_POLLER_PID" ] && kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
+    # Give the poller a brief moment to pick up the final bucket's report
+    # before we force-exit it, then kill if still running.
+    for _ in 1 2 3; do
+      if ! kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
+        break
+      fi
+      sleep 0.5
+    done
+    if kill -0 "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null; then
+      kill "$SINGLE_INVOCATION_REPORT_POLLER_PID" 2>/dev/null || true
+    fi
+    SINGLE_INVOCATION_REPORT_POLLER_PID=""
   fi
 
   # Report per-bucket results from JUnit XML
