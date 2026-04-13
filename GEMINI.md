@@ -44,15 +44,9 @@ The project requires Java 21. Ensure your environment is configured correctly be
 ## Evidence-First Debug Protocol
 When investigating bugs or data mismatches, follow this strict sequence:
 
-1.  **Database First (Source of Truth)**:
-    - Query the Room database via `sqlite3` or existing scripts:
-        - `scripts/query_forecasts_all.sh`
-        - `scripts/query_captured_today.sh`
-2.  **Logs Second**:
-    - Audit `app_logs` table for `SYNC_START`, `SYNC_SUCCESS`, `SYNC_FAILURE`.
-    - Use `adb logcat` for runtime events.
-3.  **Action Third**:
-    - Do not propose a fix until the evidence (DB state/Logs) confirms the root cause.
+1.  **Logs and or Database First (Source of Truth)**:
+2.  **Action Second**:
+    - Do not propose a fix until the evidence (Logs/DB state) confirms the root cause.
 
 ---
 

@@ -67,6 +67,9 @@
                 <action android:name="com.weatherwidget.ACTION_NAV_RIGHT" />
                 <action android:name="com.weatherwidget.ACTION_TOGGLE_API" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/weather_widget_info" />

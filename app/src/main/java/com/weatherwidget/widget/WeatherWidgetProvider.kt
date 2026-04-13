@@ -336,6 +336,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
             ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
+            Intent.ACTION_MY_PACKAGE_REPLACED -> triggerUiOnlyUpdate(context, reason = "package_replaced")
         }
     }
 
