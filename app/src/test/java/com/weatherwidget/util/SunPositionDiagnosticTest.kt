@@ -3,11 +3,14 @@ package com.weatherwidget.util
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.weatherwidget.test.category.ShortDuration
+import org.junit.experimental.categories.Category
 
 /**
  * Diagnostic test to find the exact day/night flip point for a given location.
  * Run with: ./gradlew testDebugUnitTest --tests "com.weatherwidget.util.SunPositionDiagnosticTest"
  */
+@Category(ShortDuration::class)
 class SunPositionDiagnosticTest {
     @Test
     fun calculateCurrentTimes() {
