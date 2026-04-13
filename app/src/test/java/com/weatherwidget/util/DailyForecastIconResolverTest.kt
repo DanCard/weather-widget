@@ -101,7 +101,7 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `nws chance light rain token maps to mixed chance rain icon`() {
+    fun `nws chance light rain token maps to mixed slight chance rain icon at 25 percent`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
@@ -115,11 +115,11 @@ class DailyForecastIconResolverTest {
             longitude = -122.08,
         )
 
-        assertEquals(R.drawable.ic_weather_partly_cloudy_chance_rain, icon)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 
     @Test
-    fun `nws slight chance light rain token maps to mixed chance rain icon`() {
+    fun `nws slight chance light rain token maps to mixed chance rain icon at 39 percent`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
@@ -173,13 +173,31 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `nws chance light rain token stays rainy at 40 percent daily pop`() {
+    fun `nws chance light rain token stays mixed at 49 percent daily pop`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 40,
+                precipProbability = 49,
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_chance_rain, icon)
+    }
+
+    @Test
+    fun `nws chance light rain token becomes rainy at 50 percent daily pop`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 50,
             ),
             targetDate = today,
             now = now,
@@ -209,7 +227,7 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `nws stronger rain token stays rainy`() {
+    fun `nws stronger rain token maps to slight chance icon at low pop`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
@@ -223,7 +241,7 @@ class DailyForecastIconResolverTest {
             longitude = -122.08,
         )
 
-        assertEquals(R.drawable.ic_weather_rain, icon)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 
     @Test

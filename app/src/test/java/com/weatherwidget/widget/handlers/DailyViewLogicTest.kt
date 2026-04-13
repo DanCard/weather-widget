@@ -502,7 +502,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rainy future day with 1 percent shows one percent`() {
+    fun `rainy future day with 1 percent returns null label`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(1)
@@ -528,7 +528,37 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("1%", futureDay.dailyRainLabelText)
+        assertEquals(null, futureDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rainy future day with 10 percent shows ten percent`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 10,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals("10%", futureDay.dailyRainLabelText)
     }
 
     @Test

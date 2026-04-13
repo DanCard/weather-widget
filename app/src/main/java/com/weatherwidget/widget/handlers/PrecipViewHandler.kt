@@ -132,6 +132,7 @@ object PrecipViewHandler {
             condition = currentHourForecast?.condition,
             isNight = isNight,
             cloudCover = currentHourForecast?.cloudCover,
+            precipProbability = currentHourForecast?.precipProbability,
         )
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
@@ -610,6 +611,7 @@ object PrecipViewHandler {
                     condition = forecast.condition,
                     isNight = isNight,
                     cloudCover = forecast.cloudCover,
+                    precipProbability = forecast.precipProbability,
                 )
                 val isSunny =
                     WeatherIconMapper.isSunny(iconRes)

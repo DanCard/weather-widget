@@ -1005,8 +1005,7 @@
             android:src="@drawable/ic_weather_unknown"
             android:contentDescription="@string/weather_icon_desc"
             android:visibility="gone"
-            android:layout_marginEnd="2dp"
-            android:tint="#AAFFFFFF" />
+            android:layout_marginEnd="2dp" />
 
         <TextView
             android:id="@+id/current_temp"

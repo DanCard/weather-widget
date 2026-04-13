@@ -182,6 +182,7 @@ internal object TemperatureStateResolver {
             condition = currentHourForecast?.condition,
             isNight = isNight,
             cloudCover = currentHourForecast?.cloudCover,
+            precipProbability = currentHourForecast?.precipProbability,
         )
 
         val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(

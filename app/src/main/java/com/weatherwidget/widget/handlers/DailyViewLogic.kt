@@ -171,7 +171,10 @@ object DailyViewLogic {
                         longitude = weather.locationLon,
                     )
                 } else {
-                    WeatherIconMapper.getIconResource(condition = null)
+                    WeatherIconMapper.getIconResource(
+                        condition = null,
+                        precipProbability = null,
+                    )
                 }
 
             TextDayData(
@@ -332,8 +335,14 @@ object DailyViewLogic {
                             latitude = weather.locationLat,
                             longitude = weather.locationLon,
                         )
-                    actual != null -> WeatherIconMapper.getIconResource(condition = actual.condition)
-                    else -> WeatherIconMapper.getIconResource(condition = null)
+                    actual != null -> WeatherIconMapper.getIconResource(
+                        condition = actual.condition,
+                        precipProbability = null,
+                    )
+                    else -> WeatherIconMapper.getIconResource(
+                        condition = null,
+                        precipProbability = null,
+                    )
                 }
 
             val rawRainSummary = if (!isPastDate) {
@@ -415,16 +424,12 @@ object DailyViewLogic {
             }
             return null
         }
-        if (!isRainIndicatorIcon(iconRes)) return null
+        if (!WeatherIconMapper.isRainIndicator(iconRes)) return null
         return when {
             precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
             precipProbability != null && precipProbability > 0 -> "$precipProbability%"
             else -> null
         }
-    }
-
-    private fun isRainIndicatorIcon(iconRes: Int): Boolean {
-        return iconRes == R.drawable.ic_weather_rain || iconRes == R.drawable.ic_weather_storm
     }
 
 }

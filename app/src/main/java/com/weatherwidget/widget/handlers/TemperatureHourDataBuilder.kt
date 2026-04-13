@@ -227,6 +227,7 @@ internal fun buildHourDataResult(
                 condition = forecast.condition,
                 isNight = isNight,
                 cloudCover = forecast.cloudCover,
+                precipProbability = forecast.precipProbability,
             )
             val isSunny = WeatherIconMapper.isSunny(iconRes)
             val isRainy = WeatherIconMapper.isRainy(iconRes)

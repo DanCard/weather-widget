@@ -7,12 +7,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 object DailyForecastIconResolver {
-    private const val NWS_CHANCE_RAIN_MIXED_MAX_DAILY_POP = 39
-    private val nwsChanceRainMixedConditions =
-        listOf(
-            "chance light rain",
-            "slight chance light rain",
-        )
 
     fun resolveIcon(
         weather: ForecastEntity?,
@@ -33,6 +27,7 @@ object DailyForecastIconResolver {
         return WeatherIconMapper.getIconResource(
             condition = weather.condition,
             isNight = isNight,
+            precipProbability = weather.precipProbability,
         )
     }
 
@@ -51,6 +46,7 @@ object DailyForecastIconResolver {
                 WeatherIconMapper.getIconResource(
                     condition = OpenMeteoConditionMapper.toCondition(code),
                     isNight = isNight,
+                    precipProbability = weather.precipProbability,
                 )
             }
             WeatherSource.VISUAL_CROSSING -> visualCrossingIcon(nativeToken)
@@ -58,28 +54,14 @@ object DailyForecastIconResolver {
             WeatherSource.WEATHER_API -> weatherApiIcon(nativeToken)
             WeatherSource.SILURIAN -> silurianIcon(nativeToken, targetDate, now, latitude, longitude)
             WeatherSource.NWS -> {
-                nwsChanceRainMixedIcon(weather = weather, nativeToken = nativeToken)?.let { return it }
                 val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
-                WeatherIconMapper.getIconResource(condition = nativeToken, isNight = isNight)
+                WeatherIconMapper.getIconResource(
+                    condition = nativeToken,
+                    isNight = isNight,
+                    precipProbability = weather.precipProbability,
+                )
             }
             WeatherSource.GENERIC_GAP -> null
-        }
-    }
-
-    private fun nwsChanceRainMixedIcon(
-        weather: ForecastEntity,
-        nativeToken: String,
-    ): Int? {
-        val normalized = nativeToken.lowercase()
-        val dailyPop = weather.precipProbability
-        return if (
-            nwsChanceRainMixedConditions.any { normalized.contains(it) } &&
-            dailyPop != null &&
-            dailyPop <= NWS_CHANCE_RAIN_MIXED_MAX_DAILY_POP
-        ) {
-            R.drawable.ic_weather_partly_cloudy_chance_rain
-        } else {
-            null
         }
     }
 
@@ -144,7 +126,11 @@ object DailyForecastIconResolver {
         longitude: Double,
     ): Int {
         val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
-        return WeatherIconMapper.getIconResource(condition = nativeToken, isNight = isNight)
+        return WeatherIconMapper.getIconResource(
+            condition = nativeToken,
+            isNight = isNight,
+            precipProbability = null,
+        )
     }
 
     private object OpenMeteoConditionMapper {

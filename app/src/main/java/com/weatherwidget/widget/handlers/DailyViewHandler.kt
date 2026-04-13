@@ -264,6 +264,7 @@ object DailyViewHandler : WidgetViewHandler {
                     condition = todayHeaderForecast.condition,
                     isNight = SunPositionUtils.isNight(now, lat, lon),
                     cloudCover = todayHeaderForecast.cloudCover,
+                    precipProbability = todayHeaderForecast.precipProbability,
                 )
             } else {
                 DailyForecastIconResolver.resolveIcon(

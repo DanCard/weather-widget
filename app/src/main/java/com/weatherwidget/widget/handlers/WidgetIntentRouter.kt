@@ -87,8 +87,8 @@ object WidgetIntentRouter {
         )
 
     @VisibleForTesting
-    fun setIsRefreshDisabledForTesting(DisableRefreshFlag: Boolean) {
-        isRefreshDisabledForTesting = DisableRefreshFlag
+    fun setIsRefreshDisabledForTesting(disableRefreshFlag: Boolean) {
+        isRefreshDisabledForTesting = disableRefreshFlag
     }
 
     /**

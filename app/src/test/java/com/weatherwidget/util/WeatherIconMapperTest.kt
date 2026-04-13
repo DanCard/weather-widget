@@ -115,31 +115,31 @@ class WeatherIconMapperTest {
     @Test
     fun testGetIconResource_SlightChanceRainWithLowCloudCoverUsesMostlyClear() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 10)
-        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+        assertEquals(R.drawable.ic_weather_clear_slight_chance_rain, res)
     }
 
     @Test
     fun testGetIconResource_SlightChanceRainWithMidCloudCoverUsesPartlyCloudy() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 50)
-        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, res)
     }
 
     @Test
     fun testGetIconResource_SlightChanceRainWithHighCloudCoverUsesMostlyCloudy() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 80)
-        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+        assertEquals(R.drawable.ic_weather_cloudy_slight_chance_rain, res)
     }
 
     @Test
     fun testGetIconResource_SlightChanceRainWithNearTotalCloudCoverUsesCloudy() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false, cloudCover = 95)
-        assertEquals(R.drawable.ic_weather_cloudy, res)
+        assertEquals(R.drawable.ic_weather_cloudy_slight_chance_rain, res)
     }
 
     @Test
     fun testGetIconResource_SlightChanceRainWithoutCloudCoverFallsBackToPartlyCloudy() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Light Rain", isNight = false)
-        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, res)
     }
 
     @Test
@@ -220,5 +220,59 @@ class WeatherIconMapperTest {
     fun testChanceRainMixedIconIsMixedAndCloudEligible() {
         assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_partly_cloudy_chance_rain))
         assertTrue(WeatherIconMapper.isCloudForecastEligible(R.drawable.ic_weather_partly_cloudy_chance_rain))
+    }
+
+    @Test
+    fun testGetIconResource_RainLowProbabilityTrace_ShowsCloudCoverOnly() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 10, precipProbability = 5)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testGetIconResource_RainSlightChance_ShowsOneDropPartlyCloudy() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 50, precipProbability = 20)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, res)
+    }
+
+    @Test
+    fun testGetIconResource_RainSlightChanceNight_ShowsOneDropPartlyCloudyNight() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = true, cloudCover = 50, precipProbability = 20)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night, res)
+    }
+
+    @Test
+    fun testGetIconResource_RainChance_ShowsTwoDropsCloudy() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 90, precipProbability = 40)
+        assertEquals(R.drawable.ic_weather_cloudy_chance_rain, res)
+    }
+
+    @Test
+    fun testGetIconResource_RainLikely_ShowsDefinitiveRain() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 90, precipProbability = 60)
+        assertEquals(R.drawable.ic_weather_rain, res)
+    }
+
+    @Test
+    fun testGetIconResource_SunShower_ShowsOneDropClear() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 5, precipProbability = 20)
+        assertEquals(R.drawable.ic_weather_clear_slight_chance_rain, res)
+    }
+
+    @Test
+    fun testGetIconResource_MoonShower_ShowsTwoDropsNight() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = true, cloudCover = 5, precipProbability = 40)
+        assertEquals(R.drawable.ic_weather_night_chance_rain, res)
+    }
+
+    @Test
+    fun testNewIconsAreMixed() {
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_partly_cloudy_slight_chance_rain))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_clear_slight_chance_rain))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_clear_chance_rain))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_night_slight_chance_rain))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_night_chance_rain))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_cloudy_slight_chance_rain))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_cloudy_chance_rain))
     }
 }
