@@ -389,13 +389,18 @@ class WeatherWidgetWorker
             updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
         }
 
-        private fun manageCurrentTempLoopAfterRun(
+        private suspend fun manageCurrentTempLoopAfterRun(
             isPlugged: Boolean,
             isScreenInteractive: Boolean,
         ) {
             if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isPlugged, isScreenInteractive)) {
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
             } else {
+                appLogDao.log(
+                    "CURR_FETCH_LOOP_STOP",
+                    "reason=policy_blocked plugged=$isPlugged interactive=$isScreenInteractive",
+                    "INFO",
+                )
                 CurrentTempUpdateScheduler.cancel(context)
             }
         }
