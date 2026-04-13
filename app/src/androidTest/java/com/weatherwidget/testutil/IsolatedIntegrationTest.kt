@@ -26,7 +26,7 @@ abstract class IsolatedIntegrationTest(private val nameSuffix: String) {
         db = AndroidTestDatabase.useIsolatedDatabase(nameSuffix)
         
         // 3. Disable background refreshes during tests to avoid race conditions/network hits
-        WidgetIntentRouter.setDisableRefreshForTesting(true)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
     }
 
     @After
@@ -38,6 +38,6 @@ abstract class IsolatedIntegrationTest(private val nameSuffix: String) {
         AndroidTestWidgetState.cleanup(nameSuffix, context)
         
         // 3. Re-enable refreshes
-        WidgetIntentRouter.setDisableRefreshForTesting(false)
+        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
     }
 }
