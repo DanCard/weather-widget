@@ -490,7 +490,9 @@ object DailyForecastGraphRenderer {
         val prob = (day.dailyPrecipProbability ?: 0) / 100f
         val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
         val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE)
-        Log.d(TAG, "rainFont: date=${day.date} daysFromToday=${day.daysFromToday} prob=${day.dailyPrecipProbability}% rawScale=$scale clampedScale=$clampedScale probFraction=$prob")
+        val scaledTextSize = originalTextSize * clampedScale
+        val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
+        Log.d(TAG, "rainFont: date=${day.date} daysFromToday=${day.daysFromToday} prob=${day.dailyPrecipProbability}% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${originalTextSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
         paints.rainTextPaint.textSize = originalTextSize * clampedScale
         try {
             val textWidth = paints.rainTextPaint.measureText(rainText)
