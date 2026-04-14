@@ -453,11 +453,16 @@ object DailyViewLogic {
         dayPrecipProbability: Int? = null,
         nightPrecipProbability: Int? = null,
     ): String? {
-        if (isPastDate) return null
+        if (isPastDate) {
+            Log.d(TAG, "buildDailyRainLabel skipping past date=$date")
+            return null
+        }
         if (date == today) {
             if (dailyPrecipProbability != null && dailyPrecipProbability >= 95 && precipAmountMm != null) {
+                Log.d(TAG, "buildDailyRainLabel today label: date=$date dailyPrecip=$dailyPrecipProbability% amount=${precipAmountMm}mm")
                 return formatPrecipAmount(precipAmountMm)
             }
+            Log.d(TAG, "buildDailyRainLabel skipping today: date=$date dailyPrecip=$dailyPrecipProbability precipAmount=$precipAmountMm")
             return null
         }
         val daysFromToday = ChronoUnit.DAYS.between(today, date)
@@ -473,13 +478,20 @@ object DailyViewLogic {
             return null
         }
         if (!WeatherIconMapper.isRainIndicator(iconRes)) {
+            Log.d(TAG, "buildDailyRainLabel skipping non-rain icon: date=$date iconRes=$iconRes dayPrecip=$dayPrecip nightPrecip=$nightPrecip")
             return null
         }
-        return when {
+        val result = when {
             precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
             precipProbability != null && precipProbability > 0 -> "$precipProbability%"
             else -> null
         }
+        if (result == null) {
+            Log.d(TAG, "buildDailyRainLabel no label produced: date=$date precipProbability=$precipProbability precipAmount=$precipAmountMm")
+        } else {
+            Log.d(TAG, "buildDailyRainLabel label for $date: $result (precipProbability=$precipProbability%)")
+        }
+        return result
     }
 
 }

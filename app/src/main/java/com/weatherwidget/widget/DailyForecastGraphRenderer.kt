@@ -367,9 +367,15 @@ object DailyForecastGraphRenderer {
             val lY = lowY ?: (highY?.let { it + minBarHeight } ?: 0f)
             val effectiveLowY = if (kotlin.math.abs(hY - lY) < minBarHeight) hY + minBarHeight else lY
 
-            if (day.isMixed && day.iconRes != null) {
+            val applyGradient = day.isMixed && day.iconRes != null
+            if (applyGradient) {
                 paint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, hY, effectiveLowY)
             }
+            val colorHex = String.format("#%08X", paint.color)
+            Log.d(TAG, "Bar color decision: date=${day.date}" +
+                " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
+                " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
+                " color=$colorHex gradient=$applyGradient")
             canvas.drawLine(centerX, hY, centerX, effectiveLowY, paint)
             paint.shader = null
             onBarDrawn?.invoke(BarDrawnDebug(day.date, if (day.isPast) "HISTORY" else "FUTURE", hY, effectiveLowY, centerX, paint.color))
@@ -389,9 +395,16 @@ object DailyForecastGraphRenderer {
             } else {
                 paints.forecastBarPaint.also { it.color = condColor }
             }
-            if (day.isMixed && day.iconRes != null) {
+            val overlayGradient = day.isMixed && day.iconRes != null
+            if (overlayGradient) {
                 overlayPaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY)
             }
+            val overlayColorHex = String.format("#%08X", condColor)
+            Log.d(TAG, "Overlay color decision: date=${day.date}" +
+                " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
+                " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
+                " color=$overlayColorHex gradient=$overlayGradient" +
+                " isClimateNormal=${day.isClimateNormal}")
             canvas.drawLine(forecastX, fHighY, forecastX, effectiveFLowY, overlayPaint)
             overlayPaint.shader = null
             onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
@@ -497,7 +510,10 @@ object DailyForecastGraphRenderer {
         try {
             val textWidth = paints.rainTextPaint.measureText(rainText)
             val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
-            if (textWidth > maxTextWidth) return
+            if (textWidth > maxTextWidth) {
+                Log.d(TAG, "rainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
+                return
+            }
 
             val metrics = paints.rainTextPaint.fontMetrics
             val topMargin = dpToPx(context, 2f * layout.scaleFactor)
@@ -518,7 +534,17 @@ object DailyForecastGraphRenderer {
                 if (belowBaseline + metrics.descent <= bottomLimit) {
                     canvas.drawText(rainText, centerX, belowBaseline, paints.rainTextPaint)
                     onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
+                    return
                 }
+                Log.d(TAG, "rainLabel skipped: below-low overflow: date=${day.date} belowBaseline=$belowBaseline bottomLimit=$bottomLimit descent=${metrics.descent} overflow=${belowBaseline + metrics.descent - bottomLimit}px")
+            }
+
+            val highBaseline = resolveHighLabelBaseline(context, day, layout)
+            if (highBaseline == null) {
+                Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} high=${day.high}")
+            } else {
+                val aboveBaseline = highBaseline - spacing
+                Log.d(TAG, "rainLabel skipped: above-high overflow: date=${day.date} aboveBaseline=$aboveBaseline topMargin=$topMargin ascent=${metrics.ascent} overflow=${topMargin - (aboveBaseline + metrics.ascent)}px")
             }
         } finally {
             paints.rainTextPaint.textSize = originalTextSize
