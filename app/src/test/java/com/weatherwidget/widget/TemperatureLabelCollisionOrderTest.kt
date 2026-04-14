@@ -2,8 +2,10 @@ package com.weatherwidget.widget
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -11,6 +13,7 @@ import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@Category(MediumDuration::class)
 class TemperatureLabelCollisionOrderTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()

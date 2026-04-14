@@ -161,7 +161,7 @@ val validateUnitTestDurations by tasks.registering {
     description = "Verifies that each unit test class declares exactly one duration category."
 
     val testFiles =
-        fileTree("app/src/test/java") {
+        fileTree("$projectDir/src/test/java") {
             include("**/*Test.kt")
             include("**/*Benchmark.kt")
         }

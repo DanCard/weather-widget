@@ -10,17 +10,18 @@ import java.time.temporal.ChronoUnit
 object DailyForecastIconResolver {
 
     fun getMinimumPrecipProbability(daysFromToday: Long): Int {
-        return when {
-            daysFromToday < 0L -> 0
-            daysFromToday == 0L -> 16
-            daysFromToday == 1L -> 21
-            daysFromToday == 2L -> 26
-            daysFromToday == 3L -> 31
-            daysFromToday == 4L -> 36
-            daysFromToday == 5L -> 41
-            daysFromToday == 6L -> 46
-            else -> 51 // 7+ days
-        }
+		/*
+			- day 0: 16.0 → 16
+			- day 1: 18.33 → 18
+			- day 2: 20.67 → 20
+			- day 3: 23.0 → 23
+			- day 4: 25.33 → 25
+			- day 5: 27.67 → 27
+			- day 6: 30.0 → 30
+			- day 7: 32.33 → 32
+			- day 8+: 33 (capped)
+		*/
+        return (7.0 / 3.0 * daysFromToday + 16).toInt().coerceIn(0, 33)
     }
 
     fun resolveIcon(

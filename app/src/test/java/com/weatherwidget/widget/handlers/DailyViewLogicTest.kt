@@ -570,7 +570,7 @@ class DailyViewLogicTest {
             future to createWeather(
                 date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 19,
+                precipProbability = 17,
             ),
         )
 
@@ -737,7 +737,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label suppressed for near term day with 20 percent probability`() {
+    fun `rain label suppressed for near term day with 19 percent probability`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val nearTerm = today.plusDays(2)
@@ -745,7 +745,7 @@ class DailyViewLogicTest {
             nearTerm to createWeather(
                 date = nearTerm.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 20,
+                precipProbability = 19,
             ),
         )
 

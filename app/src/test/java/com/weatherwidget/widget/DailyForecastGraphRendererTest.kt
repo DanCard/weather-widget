@@ -1,9 +1,12 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import java.time.LocalDate
 
+@Category(ShortDuration::class)
 class DailyForecastGraphRendererTest {
 
     @Test

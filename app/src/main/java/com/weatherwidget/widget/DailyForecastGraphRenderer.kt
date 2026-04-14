@@ -27,7 +27,9 @@ object DailyForecastGraphRenderer {
     private const val COLOR_WHITE = "#FFFFFF"
     private const val COLOR_GAP_FALLBACK = "#34C759"
     private const val COLOR_SUNNY = "#FFD60A"
-    private const val NEAR_TERM_RAIN_FONT_SCALE = 0.65f
+    private const val RAIN_FONT_SCALE_K = 0.6f
+    private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
+    private const val MIN_RAIN_FONT_SCALE = 0.4f
 
     private var cachedPaintSet: PaintSet? = null
     private var cachedScaleKey: String = ""
@@ -485,10 +487,11 @@ object DailyForecastGraphRenderer {
         val label = day.dailyRainLabelText ?: return
         val rainText = label
         val originalTextSize = paints.rainTextPaint.textSize
-        val isNearTerm = day.daysFromToday in 1..3
-        if (isNearTerm) {
-            paints.rainTextPaint.textSize = originalTextSize * NEAR_TERM_RAIN_FONT_SCALE
-        }
+        val prob = (day.dailyPrecipProbability ?: 0) / 100f
+        val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
+        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE)
+        Log.d(TAG, "rainFont: date=${day.date} daysFromToday=${day.daysFromToday} prob=${day.dailyPrecipProbability}% rawScale=$scale clampedScale=$clampedScale probFraction=$prob")
+        paints.rainTextPaint.textSize = originalTextSize * clampedScale
         try {
             val textWidth = paints.rainTextPaint.measureText(rainText)
             val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
@@ -516,9 +519,7 @@ object DailyForecastGraphRenderer {
                 }
             }
         } finally {
-            if (isNearTerm) {
-                paints.rainTextPaint.textSize = originalTextSize
-            }
+            paints.rainTextPaint.textSize = originalTextSize
         }
     }
 

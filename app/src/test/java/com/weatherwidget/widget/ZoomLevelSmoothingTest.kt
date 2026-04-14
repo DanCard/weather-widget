@@ -1,8 +1,11 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 
+@Category(ShortDuration::class)
 class ZoomLevelSmoothingTest {
 
     @Test

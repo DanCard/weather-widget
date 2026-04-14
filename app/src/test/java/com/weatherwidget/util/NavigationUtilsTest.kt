@@ -1,9 +1,12 @@
 package com.weatherwidget.util
 
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.experimental.categories.Category
 import java.time.LocalDate
 
+@Category(ShortDuration::class)
 class NavigationUtilsTest {
 
     @Test

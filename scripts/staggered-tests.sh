@@ -114,7 +114,7 @@ BUILD_START=$(date +%s)
 # Redirect stdout to /dev/null because summaries are teed to the log file and handled by our monitor.
 touch "$UNIT_LOG_FILE"
 start_unit_summary_monitor "$UNIT_LOG_FILE"
-"$UNIT_SCRIPT" --single-invocation --log-file "$UNIT_LOG_FILE" >/dev/null 2>&1 &
+"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" >/dev/null 2>&1 &
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase
