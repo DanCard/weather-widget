@@ -2,26 +2,96 @@ package com.weatherwidget.util
 
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 object DailyForecastIconResolver {
 
-    fun getMinimumPrecipProbability(daysFromToday: Long): Int {
-		/*
-			- day 0: 16.0 → 16
-			- day 1: 18.33 → 18
-			- day 2: 20.67 → 20
-			- day 3: 23.0 → 23
-			- day 4: 25.33 → 25
-			- day 5: 27.67 → 27
-			- day 6: 30.0 → 30
-			- day 7: 32.33 → 32
-			- day 8+: 33 (capped)
-		*/
+    data class DayNightPrecip(
+        val dayMax: Int?,
+        val nightMax: Int?,
+    )
+
+    fun getMinimumPrecipProbabilityDay(daysFromToday: Long): Int {
+        /*
+            - day 0: 16.0 → 16
+            - day 1: 18.33 → 18
+            - day 2: 20.67 → 20
+            - day 3: 23.0 → 23
+            - day 4: 25.33 → 25
+            - day 5: 27.67 → 27
+            - day 6: 30.0 → 30
+            - day 7: 32.33 → 32
+            - day 8+: 33 (capped)
+        */
         return (7.0 / 3.0 * daysFromToday + 16).toInt().coerceIn(0, 33)
+    }
+
+    fun getMinimumPrecipProbabilityNight(daysFromToday: Long): Int {
+        /*
+            - day 0: 29.0 → 29
+            - day 1: 32.5 → 32
+            - day 2: 36.0 → 36
+            - day 3: 39.5 → 39
+            - day 4: 43.0 → 43
+            - day 5: 46.5 → 46
+            - day 6: 50.0 → 50
+            - day 7+: 51 (capped)
+        */
+        return (3.5 * daysFromToday + 29).toInt().coerceIn(0, 51)
+    }
+
+    @Deprecated("Use getMinimumPrecipProbabilityDay() for clarity", replaceWith = ReplaceWith("getMinimumPrecipProbabilityDay(daysFromToday)"))
+    fun getMinimumPrecipProbability(daysFromToday: Long): Int = getMinimumPrecipProbabilityDay(daysFromToday)
+
+    fun calculateDayNightPrecipProbabilities(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        targetDate: LocalDate,
+        now: LocalDateTime,
+        latitude: Double,
+        longitude: Double,
+        displaySource: WeatherSource,
+    ): DayNightPrecip {
+        val zoneId = ZoneId.systemDefault()
+        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMs = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val sunTimes = SunPositionUtils.getSunTimes(
+            targetDate.atTime(12, 0),
+            latitude,
+            longitude,
+        )
+        val sunriseHour = sunTimes.sunriseHour
+        val sunsetHour = sunTimes.sunsetHour
+
+        val sourceForecasts = hourlyForecasts.filter { it.source == displaySource.id }
+        val candidateForecasts = if (sourceForecasts.isNotEmpty()) sourceForecasts
+            else hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }
+
+        val dayPrecips = mutableListOf<Int>()
+        val nightPrecips = mutableListOf<Int>()
+
+        for (hourly in candidateForecasts) {
+            if (hourly.dateTime < startMs || hourly.dateTime >= endMs) continue
+            if (hourly.precipProbability == null) continue
+
+            val offsetMs = hourly.dateTime - startMs
+            val hourOfDay = offsetMs / (3_600_000.0)
+            if (hourOfDay >= sunriseHour && hourOfDay < sunsetHour) {
+                dayPrecips.add(hourly.precipProbability)
+            } else {
+                nightPrecips.add(hourly.precipProbability)
+            }
+        }
+
+        return DayNightPrecip(
+            dayMax = dayPrecips.maxOrNull(),
+            nightMax = nightPrecips.maxOrNull(),
+        )
     }
 
     fun resolveIcon(
@@ -30,6 +100,8 @@ object DailyForecastIconResolver {
         now: LocalDateTime,
         latitude: Double,
         longitude: Double,
+        dayPrecipProbability: Int? = null,
+        nightPrecipProbability: Int? = null,
     ): Int {
         if (weather == null) return R.drawable.ic_weather_unknown
 
@@ -40,7 +112,7 @@ object DailyForecastIconResolver {
         val nativeToken = weather.nativeDailyIconToken?.trim().orEmpty()
         if (nativeToken.isNotEmpty()) {
             resolveNativeTokenIcon(weather, source, nativeToken, targetDate, now, latitude, longitude)?.let { icon ->
-                if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight)) {
+                if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight, dayPrecipProbability, nightPrecipProbability)) {
                     return WeatherIconMapper.getCloudCoverIcon(isNight, null)
                 }
                 return icon
@@ -53,22 +125,33 @@ object DailyForecastIconResolver {
             precipProbability = weather.precipProbability,
         )
 
-        if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight)) {
+        if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight, dayPrecipProbability, nightPrecipProbability)) {
             return WeatherIconMapper.getCloudCoverIcon(isNight, null)
         }
 
         return icon
     }
 
-    private fun shouldSuppressRainIcon(
+    internal fun shouldSuppressRainIcon(
         icon: Int,
-        precipProbability: Int?,
+        dailyPrecipProbability: Int?,
         daysFromToday: Long,
         isNight: Boolean,
+        dayPrecipProbability: Int? = null,
+        nightPrecipProbability: Int? = null,
     ): Boolean {
         if (!WeatherIconMapper.isRainIndicator(icon)) return false
-        val minProb = getMinimumPrecipProbability(daysFromToday)
-        return precipProbability != null && precipProbability < minProb
+
+        val dayMinProb = getMinimumPrecipProbabilityDay(daysFromToday)
+        val nightMinProb = getMinimumPrecipProbabilityNight(daysFromToday)
+
+        val dayPrecip = dayPrecipProbability ?: dailyPrecipProbability
+        val nightPrecip = nightPrecipProbability ?: dailyPrecipProbability
+
+        val daySuppresses = dayPrecip != null && dayPrecip < dayMinProb
+        val nightSuppresses = nightPrecip != null && nightPrecip < nightMinProb
+
+        return daySuppresses && nightSuppresses
     }
 
     private fun resolveNativeTokenIcon(

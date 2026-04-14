@@ -2,13 +2,17 @@ package com.weatherwidget.util
 
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 @Category(ShortDuration::class)
 class DailyForecastIconResolverTest {
@@ -407,5 +411,324 @@ class DailyForecastIconResolverTest {
         )
 
         assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
+
+    // --- Night threshold formula tests ---
+
+    @Test
+    fun `day threshold at day 0 is 16`() {
+        assertEquals(16, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
+    }
+
+    @Test
+    fun `day threshold at day 3 is 23`() {
+        assertEquals(23, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
+    }
+
+    @Test
+    fun `day threshold at day 6 is 30`() {
+        assertEquals(30, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
+    }
+
+    @Test
+    fun `day threshold at day 7 is 32`() {
+        assertEquals(32, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
+    }
+
+    @Test
+    fun `day threshold caps at 33 for day 8 plus`() {
+        assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(8))
+        assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(100))
+    }
+
+    @Test
+    fun `night threshold at day 0 is 29`() {
+        assertEquals(29, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(0))
+    }
+
+    @Test
+    fun `night threshold at day 1 is 32`() {
+        assertEquals(32, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(1))
+    }
+
+    @Test
+    fun `night threshold at day 3 is 39`() {
+        assertEquals(39, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(3))
+    }
+
+    @Test
+    fun `night threshold at day 6 is 50`() {
+        assertEquals(50, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(6))
+    }
+
+    @Test
+    fun `night threshold caps at 51 for day 7 plus`() {
+        assertEquals(51, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(7))
+        assertEquals(51, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(100))
+    }
+
+    // --- OR logic: suppression tests with shouldSuppressRainIcon ---
+
+    @Test
+    fun `shouldSuppressRainIcon both below threshold suppresses`() {
+        val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 20,
+            daysFromToday = 4,
+            isNight = false,
+            dayPrecipProbability = 20,
+            nightPrecipProbability = 15,
+        )
+        // day 4: day threshold=25, night threshold=43
+        // day 20 < 25 (suppress), night 15 < 43 (suppress) → both suppress → true
+        assertEquals(true, result)
+    }
+
+    @Test
+    fun `shouldSuppressRainIcon day above threshold night below does not suppress`() {
+        val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 30,
+            daysFromToday = 4,
+            isNight = false,
+            dayPrecipProbability = 30,
+            nightPrecipProbability = 10,
+        )
+        // day 4: day threshold=25, night threshold=43
+        // day 30 >= 25 (show), night 10 < 43 (suppress) → OR → false (not suppressed)
+        assertEquals(false, result)
+    }
+
+    @Test
+    fun `shouldSuppressRainIcon night above threshold day below does not suppress`() {
+        val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 20,
+            daysFromToday = 4,
+            isNight = false,
+            dayPrecipProbability = 20,
+            nightPrecipProbability = 48,
+        )
+        // day 4: day threshold=25, night threshold=43
+        // day 20 < 25 (suppress), night 48 >= 43 (show) → OR → false (not suppressed)
+        assertEquals(false, result)
+    }
+
+    @Test
+    fun `shouldSuppressRainIcon both above threshold does not suppress`() {
+        val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 30,
+            daysFromToday = 2,
+            isNight = false,
+            dayPrecipProbability = 30,
+            nightPrecipProbability = 35,
+        )
+        // day 2: day threshold=20, night threshold=27
+        // both pass → not suppressed
+        assertEquals(false, result)
+    }
+
+    @Test
+    fun `shouldSuppressRainIcon null day and night precip falls back to daily`() {
+        val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 30,
+            daysFromToday = 4,
+            isNight = false,
+            dayPrecipProbability = null,
+            nightPrecipProbability = null,
+        )
+        // day 4: day threshold=25, night threshold=39
+        // both fall back to daily=30 → day 30 >= 25, night 30 < 39 → OR → not suppressed
+        assertEquals(false, result)
+    }
+
+    @Test
+    fun `shouldSuppressRainIcon null daily with day and night both below suppresses`() {
+        val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 5,
+            daysFromToday = 6,
+            isNight = false,
+            dayPrecipProbability = 10,
+            nightPrecipProbability = 5,
+        )
+        // day 6: day threshold=30, night threshold=51
+        // day 10 < 30, night 5 < 51 → both suppress → true
+        assertEquals(true, result)
+    }
+
+    @Test
+    fun `shouldSuppressRainIcon non rain indicator returns false`() {
+        val icon = R.drawable.ic_weather_partly_cloudy
+        val result = DailyForecastIconResolver.shouldSuppressRainIcon(
+            icon = icon,
+            dailyPrecipProbability = 5,
+            daysFromToday = 6,
+            isNight = false,
+            dayPrecipProbability = 10,
+            nightPrecipProbability = 5,
+        )
+        assertEquals(false, result)
+    }
+
+    // --- OR logic: resolveIcon integration tests with day/night precip ---
+
+    @Test
+    fun `distant day rain icon suppressed when both day and night precip below thresholds`() {
+        val day4 = today.plusDays(4)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 20,
+            ),
+            targetDate = day4,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+            dayPrecipProbability = 20,
+            nightPrecipProbability = 15,
+        )
+        // day 4: day threshold=25, night threshold=43
+        // both below → suppressed → cloud icon
+        assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
+    }
+
+    @Test
+    fun `distant day rain icon shown when day precip above threshold`() {
+        val day4 = today.plusDays(4)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 30,
+            ),
+            targetDate = day4,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+            dayPrecipProbability = 30,
+            nightPrecipProbability = 10,
+        )
+        // day 4: day threshold=25, night threshold=43
+        // day 30 >= 25 → show (even though night 10 < 43)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
+
+    @Test
+    fun `distant day rain icon shown when night precip above threshold even though day below`() {
+        val day4 = today.plusDays(4)
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Chance Light Rain",
+                nativeDailyIconToken = "Chance Light Rain",
+                precipProbability = 20,
+            ),
+            targetDate = day4,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+            dayPrecipProbability = 20,
+            nightPrecipProbability = 48,
+        )
+        // day 4: day threshold=25, night threshold=43
+        // day 20 < 25 (suppress), night 48 >= 43 (show) → OR → show
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
+
+    // --- calculateDayNightPrecipProbabilities tests ---
+
+    @Test
+    fun `calculateDayNightPrecipProbabilities splits hours into day and night`() {
+        val zoneId = ZoneId.systemDefault()
+        val targetDate = LocalDate.of(2030, 6, 15)
+        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val hourlyForecasts = listOf(
+            hourlyForecast(dateTime = startMs + 10 * 3600_000L, precip = 20, source = WeatherSource.OPEN_METEO.id),
+            hourlyForecast(dateTime = startMs + 14 * 3600_000L, precip = 40, source = WeatherSource.OPEN_METEO.id),
+            hourlyForecast(dateTime = startMs + 22 * 3600_000L, precip = 60, source = WeatherSource.OPEN_METEO.id),
+            hourlyForecast(dateTime = startMs + 3 * 3600_000L, precip = 30, source = WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
+            hourlyForecasts = hourlyForecasts,
+            targetDate = targetDate,
+            now = LocalDateTime.of(2030, 6, 15, 12, 0),
+            latitude = 37.42,
+            longitude = -122.08,
+            displaySource = WeatherSource.OPEN_METEO,
+        )
+
+        // At lat=37.42 in June, sunrise ~5.8h, sunset ~19.5h
+        // Hour 3 (3am) → night, hour 10 (10am) → day, hour 14 (2pm) → day, hour 22 (10pm) → night
+        assertNotNull(result.dayMax)
+        assertNotNull(result.nightMax)
+        // day max = max(20, 40) = 40
+        assertEquals(40, result.dayMax!!)
+        // night max = max(30, 60) = 60
+        assertEquals(60, result.nightMax!!)
+    }
+
+    @Test
+    fun `calculateDayNightPrecipProbabilities returns nulls for empty hourly data`() {
+        val result = DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
+            hourlyForecasts = emptyList(),
+            targetDate = LocalDate.of(2030, 6, 15),
+            now = LocalDateTime.of(2030, 6, 15, 12, 0),
+            latitude = 37.42,
+            longitude = -122.08,
+            displaySource = WeatherSource.OPEN_METEO,
+        )
+
+        assertNull(result.dayMax)
+        assertNull(result.nightMax)
+    }
+
+    @Test
+    fun `calculateDayNightPrecipProbabilities filters by display source`() {
+        val zoneId = ZoneId.systemDefault()
+        val targetDate = LocalDate.of(2030, 6, 15)
+        val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val hourlyForecasts = listOf(
+            hourlyForecast(dateTime = startMs + 12 * 3600_000L, precip = 50, source = WeatherSource.OPEN_METEO.id),
+            hourlyForecast(dateTime = startMs + 12 * 3600_000L, precip = 10, source = WeatherSource.NWS.id),
+        )
+
+        val result = DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
+            hourlyForecasts = hourlyForecasts,
+            targetDate = targetDate,
+            now = LocalDateTime.of(2030, 6, 15, 12, 0),
+            latitude = 37.42,
+            longitude = -122.08,
+            displaySource = WeatherSource.OPEN_METEO,
+        )
+
+        // Should use OPEN_METEO source data (precip=50), not NWS (precip=10)
+        assertEquals(50, result.dayMax!!)
+    }
+
+    private fun hourlyForecast(dateTime: Long, precip: Int, source: String): HourlyForecastEntity {
+        return HourlyForecastEntity(
+            dateTime = dateTime,
+            locationLat = 37.42,
+            locationLon = -122.08,
+            temperature = 70f,
+            condition = "Rain",
+            source = source,
+            precipProbability = precip,
+            fetchedAt = 1L,
+        )
     }
 }

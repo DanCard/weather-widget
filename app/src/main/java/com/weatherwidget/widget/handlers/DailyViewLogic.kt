@@ -162,6 +162,19 @@ object DailyViewLogic {
                 }
             }
 
+            val dayNightPrecip = if (!isPast && !isToday && weather != null) {
+                DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
+                    hourlyForecasts = hourlyForecasts,
+                    targetDate = date,
+                    now = now,
+                    latitude = weather.locationLat,
+                    longitude = weather.locationLon,
+                    displaySource = displaySource,
+                )
+            } else {
+                null
+            }
+
             val iconRes =
                 if (weather != null) {
                     DailyForecastIconResolver.resolveIcon(
@@ -170,6 +183,8 @@ object DailyViewLogic {
                         now = now,
                         latitude = weather.locationLat,
                         longitude = weather.locationLon,
+                        dayPrecipProbability = dayNightPrecip?.dayMax,
+                        nightPrecipProbability = dayNightPrecip?.nightMax,
                     )
                 } else {
                     WeatherIconMapper.getIconResource(
@@ -326,6 +341,19 @@ object DailyViewLogic {
                 }
             }
 
+            val dayNightPrecip = if (!isPastDate && !isToday && weather != null) {
+                DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
+                    hourlyForecasts = hourlyForecasts,
+                    targetDate = date,
+                    now = now,
+                    latitude = weather.locationLat,
+                    longitude = weather.locationLon,
+                    displaySource = displaySource,
+                )
+            } else {
+                null
+            }
+
             val iconRes =
                 when {
                     weather != null ->
@@ -335,6 +363,8 @@ object DailyViewLogic {
                             now = now,
                             latitude = weather.locationLat,
                             longitude = weather.locationLon,
+                            dayPrecipProbability = dayNightPrecip?.dayMax,
+                            nightPrecipProbability = dayNightPrecip?.nightMax,
                         )
                     actual != null -> WeatherIconMapper.getIconResource(
                         condition = actual.condition,
@@ -390,6 +420,8 @@ object DailyViewLogic {
                         precipProbability = precip,
                         precipAmountMm = weather?.precipAmountMm,
                         dailyPrecipProbability = weather?.precipProbability,
+                        dayPrecipProbability = dayNightPrecip?.dayMax,
+                        nightPrecipProbability = dayNightPrecip?.nightMax,
                     ),
                     hasRainForecast = hasRainForecast,
                     columnIndex = days.size,
@@ -418,6 +450,8 @@ object DailyViewLogic {
         precipProbability: Int?,
         precipAmountMm: Float?,
         dailyPrecipProbability: Int? = null,
+        dayPrecipProbability: Int? = null,
+        nightPrecipProbability: Int? = null,
     ): String? {
         if (isPastDate) return null
         if (date == today) {
@@ -427,13 +461,18 @@ object DailyViewLogic {
             return null
         }
         val daysFromToday = ChronoUnit.DAYS.between(today, date)
-        val minProb = DailyForecastIconResolver.getMinimumPrecipProbability(daysFromToday)
-        if (precipProbability != null && precipProbability < minProb) {
-            println("DEBUG: buildDailyRainLabel suppressing label for $date: precip=$precipProbability minProb=$minProb")
+        val dayMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityDay(daysFromToday)
+        val nightMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)
+        val dayPrecip = dayPrecipProbability ?: precipProbability ?: dailyPrecipProbability
+        val nightPrecip = nightPrecipProbability ?: dayPrecip
+
+        val daySuppresses = dayPrecip != null && dayPrecip < dayMinProb
+        val nightSuppresses = nightPrecip != null && nightPrecip < nightMinProb
+        if (daySuppresses && nightSuppresses) {
+            Log.d(TAG, "buildDailyRainLabel suppressing label for $date: dayPrecip=$dayPrecip dayMin=$dayMinProb nightPrecip=$nightPrecip nightMin=$nightMinProb")
             return null
         }
         if (!WeatherIconMapper.isRainIndicator(iconRes)) {
-            println("DEBUG: buildDailyRainLabel suppressing label for $date: iconRes=$iconRes not a rain indicator")
             return null
         }
         return when {

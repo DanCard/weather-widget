@@ -27,10 +27,28 @@ object SunPositionUtils {
     }
 
     /**
+     * Returns sunrise and sunset hours for a given date and location.
+     * Each value is in the range 0.0–24.0 (hour of day).
+     * Useful for classifying hourly forecasts as day vs night.
+     */
+    data class SunTimes(val sunriseHour: Double, val sunsetHour: Double)
+
+    fun getSunTimes(
+        dateTime: LocalDateTime,
+        lat: Double,
+        lon: Double,
+    ): SunTimes {
+        return SunTimes(
+            sunriseHour = calculateSunriseSunset(dateTime, lat, lon, true),
+            sunsetHour = calculateSunriseSunset(dateTime, lat, lon, false),
+        )
+    }
+
+    /**
      * Simple approximation of the sunrise/sunset hour.
      * Returns the hour of the day (0.0 to 24.0).
      */
-    private fun calculateSunriseSunset(
+    fun calculateSunriseSunset(
         dateTime: LocalDateTime,
         lat: Double,
         lon: Double,
