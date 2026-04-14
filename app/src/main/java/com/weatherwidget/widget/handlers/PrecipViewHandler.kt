@@ -616,7 +616,7 @@ object PrecipViewHandler {
                 val isSunny =
                     WeatherIconMapper.isSunny(iconRes)
                 val isRainy =
-                    WeatherIconMapper.isRainy(iconRes)
+                    WeatherIconMapper.isPrecipitation(iconRes)
                 val isMixed =
                     WeatherIconMapper.isMixed(iconRes)
 

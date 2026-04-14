@@ -22,6 +22,7 @@ import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -59,6 +60,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
     private var currentSource: WeatherSource = WeatherSource.NWS
     private var appWidgetId: Int = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
     private var activeLocation: Pair<Double, Double>? = null
+    private var loadObservationsJob: Job? = null
+    private var loadFetchLogsJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -218,7 +221,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     @VisibleForTesting
     internal fun loadObservations() {
-        lifecycleScope.launch(ioDispatcher) {
+        loadObservationsJob?.cancel()
+        loadObservationsJob = lifecycleScope.launch(ioDispatcher) {
             try {
                 val observations = if (currentSource == WeatherSource.NWS) {
                     // Fetch detailed multi-station observations from the last 24 hours
@@ -280,7 +284,8 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     @VisibleForTesting
     internal fun loadFetchLogs() {
-        lifecycleScope.launch(ioDispatcher) {
+        loadFetchLogsJob?.cancel()
+        loadFetchLogsJob = lifecycleScope.launch(ioDispatcher) {
             try {
                 val filteredLogs = appLogDao.getRecentLogs(1000)
                     .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }

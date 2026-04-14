@@ -230,7 +230,7 @@ internal fun buildHourDataResult(
                 precipProbability = forecast.precipProbability,
             )
             val isSunny = WeatherIconMapper.isSunny(iconRes)
-            val isRainy = WeatherIconMapper.isRainy(iconRes)
+            val isRainy = WeatherIconMapper.isPrecipitation(iconRes)
             val isMixed = WeatherIconMapper.isMixed(iconRes)
 
             hours.add(

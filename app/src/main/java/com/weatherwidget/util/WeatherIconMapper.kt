@@ -6,6 +6,54 @@ object WeatherIconMapper {
     private const val FULLY_CLOUDY_THRESHOLD = 97
     private const val MOSTLY_CLOUDY_UPPER_THRESHOLD = 90
 
+    private val PRECIPITATION_ICONS = setOf(
+        R.drawable.ic_weather_rain,
+        R.drawable.ic_weather_storm,
+        R.drawable.ic_weather_snow
+    )
+
+    private val RAIN_INDICATOR_ICONS = PRECIPITATION_ICONS + setOf(
+        R.drawable.ic_weather_partly_cloudy_chance_rain,
+        R.drawable.ic_weather_partly_cloudy_chance_rain_night,
+        R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
+        R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night,
+        R.drawable.ic_weather_clear_chance_rain,
+        R.drawable.ic_weather_clear_slight_chance_rain,
+        R.drawable.ic_weather_night_chance_rain,
+        R.drawable.ic_weather_night_slight_chance_rain,
+        R.drawable.ic_weather_cloudy_chance_rain,
+        R.drawable.ic_weather_cloudy_slight_chance_rain
+    )
+
+    private val MIXED_ICONS = setOf(
+        R.drawable.ic_weather_mostly_cloudy,
+        R.drawable.ic_weather_mostly_cloudy_night,
+        R.drawable.ic_weather_partly_cloudy,
+        R.drawable.ic_weather_partly_cloudy_night,
+        R.drawable.ic_weather_partly_cloudy_chance_rain,
+        R.drawable.ic_weather_partly_cloudy_chance_rain_night,
+        R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
+        R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night,
+        R.drawable.ic_weather_clear_chance_rain,
+        R.drawable.ic_weather_clear_slight_chance_rain,
+        R.drawable.ic_weather_night_chance_rain,
+        R.drawable.ic_weather_night_slight_chance_rain,
+        R.drawable.ic_weather_cloudy_chance_rain,
+        R.drawable.ic_weather_cloudy_slight_chance_rain,
+        R.drawable.ic_weather_fog_cloudy,
+        R.drawable.ic_weather_fog_sunny,
+        R.drawable.ic_weather_fog_night,
+        R.drawable.ic_weather_fog_light,
+        R.drawable.ic_weather_fog_light_night
+    )
+
+    private val CLOUD_FORECAST_ELIGIBLE_ICONS = MIXED_ICONS + setOf(
+        R.drawable.ic_weather_fog,
+        R.drawable.ic_weather_fog_dense,
+        R.drawable.ic_weather_cloudy,
+        R.drawable.ic_weather_mostly_clear
+    )
+
     fun getIconResource(
         condition: String?,
         isNight: Boolean = false,
@@ -25,16 +73,8 @@ object WeatherIconMapper {
                 cloudCover < FULLY_CLOUDY_THRESHOLD
         
         return when {
-            normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") -> {
-                if (isSlightChance) {
-                    slightChanceCloudCoverIcon(isNight, cloudCover)
-                } else R.drawable.ic_weather_storm
-            }
-            normalizedCondition.contains("snow") || normalizedCondition.contains("flurries") || normalizedCondition.contains("blizzard") -> {
-                if (isSlightChance) {
-                    slightChanceCloudCoverIcon(isNight, cloudCover)
-                } else R.drawable.ic_weather_snow
-            }
+            normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") || normalizedCondition.contains("hail") -> R.drawable.ic_weather_storm
+            normalizedCondition.contains("snow") || normalizedCondition.contains("flurries") || normalizedCondition.contains("blizzard") || normalizedCondition.contains("sleet") || normalizedCondition.contains("ice pellet") -> R.drawable.ic_weather_snow
             normalizedCondition.contains("rain") || normalizedCondition.contains("drizzle") || normalizedCondition.contains("shower") -> {
                 val effectiveProb = precipProbability ?: if (isSlightChance) 20 else null
                 getPrecipitationIcon(isNight, cloudCover, effectiveProb, R.drawable.ic_weather_rain)
@@ -134,10 +174,6 @@ object WeatherIconMapper {
         }
     }
 
-    private fun slightChanceCloudCoverIcon(isNight: Boolean, cloudCover: Int?): Int {
-        return getCloudCoverIcon(isNight, cloudCover)
-    }
-
     private fun normalizePatchyFogTransitionCondition(condition: String): String {
         if (!condition.contains("patchy fog")) return condition
         val thenIndex = condition.indexOf(" then ")
@@ -145,59 +181,13 @@ object WeatherIconMapper {
         return condition.substring(thenIndex + " then ".length).trim()
     }
 
-    fun isSunny(iconRes: Int): Boolean {
-        return iconRes == R.drawable.ic_weather_clear ||
-               iconRes == R.drawable.ic_weather_mostly_clear
-    }
+    fun isSunny(iconRes: Int): Boolean = iconRes in setOf(R.drawable.ic_weather_clear, R.drawable.ic_weather_mostly_clear)
 
-    fun isRainy(iconRes: Int): Boolean {
-        return iconRes == R.drawable.ic_weather_rain ||
-               iconRes == R.drawable.ic_weather_storm ||
-               iconRes == R.drawable.ic_weather_snow
-    }
+    fun isPrecipitation(iconRes: Int): Boolean = iconRes in PRECIPITATION_ICONS
 
-    fun isRainIndicator(iconRes: Int): Boolean {
-        return isRainy(iconRes) ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain_night ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night ||
-               iconRes == R.drawable.ic_weather_clear_chance_rain ||
-               iconRes == R.drawable.ic_weather_clear_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_night_chance_rain ||
-               iconRes == R.drawable.ic_weather_night_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_cloudy_chance_rain ||
-               iconRes == R.drawable.ic_weather_cloudy_slight_chance_rain
-    }
+    fun isRainIndicator(iconRes: Int): Boolean = iconRes in RAIN_INDICATOR_ICONS
 
-    fun isMixed(iconRes: Int): Boolean {
-        return iconRes == R.drawable.ic_weather_mostly_cloudy ||
-               iconRes == R.drawable.ic_weather_mostly_cloudy_night ||
-               iconRes == R.drawable.ic_weather_partly_cloudy ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_night ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain_night ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night ||
-               iconRes == R.drawable.ic_weather_clear_chance_rain ||
-               iconRes == R.drawable.ic_weather_clear_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_night_chance_rain ||
-               iconRes == R.drawable.ic_weather_night_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_cloudy_chance_rain ||
-               iconRes == R.drawable.ic_weather_cloudy_slight_chance_rain ||
-               iconRes == R.drawable.ic_weather_fog_cloudy ||
-               iconRes == R.drawable.ic_weather_fog_sunny ||
-               iconRes == R.drawable.ic_weather_fog_night ||
-               iconRes == R.drawable.ic_weather_fog_light ||
-               iconRes == R.drawable.ic_weather_fog_light_night
-    }
+    fun isMixed(iconRes: Int): Boolean = iconRes in MIXED_ICONS
 
-    fun isCloudForecastEligible(iconRes: Int): Boolean {
-        return isMixed(iconRes) ||
-               iconRes == R.drawable.ic_weather_fog ||
-               iconRes == R.drawable.ic_weather_fog_light ||
-               iconRes == R.drawable.ic_weather_fog_dense ||
-               iconRes == R.drawable.ic_weather_cloudy ||
-               iconRes == R.drawable.ic_weather_mostly_clear
-    }
+    fun isCloudForecastEligible(iconRes: Int): Boolean = iconRes in CLOUD_FORECAST_ELIGIBLE_ICONS
 }

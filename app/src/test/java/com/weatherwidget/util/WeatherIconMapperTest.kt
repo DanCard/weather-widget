@@ -143,15 +143,32 @@ class WeatherIconMapperTest {
     }
 
     @Test
-    fun testGetIconResource_PatchySnowUsesCloudCoverMapping() {
+    fun testGetIconResource_PatchySnowShowsSnowIcon() {
         val res = WeatherIconMapper.getIconResource("Patchy Snow", isNight = false, cloudCover = 82)
-        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+        assertEquals(R.drawable.ic_weather_snow, res)
     }
 
     @Test
-    fun testGetIconResource_SlightChanceStormNightUsesCloudCoverMapping() {
+    fun testGetIconResource_SlightChanceStormShowsStormIcon() {
         val res = WeatherIconMapper.getIconResource("Slight Chance Thunderstorms", isNight = true, cloudCover = 80)
-        assertEquals(R.drawable.ic_weather_mostly_cloudy_night, res)
+        assertEquals(R.drawable.ic_weather_storm, res)
+    }
+
+    @Test
+    fun testGetIconResource_SleetShowsSnowIcon() {
+        assertEquals(R.drawable.ic_weather_snow, WeatherIconMapper.getIconResource("Sleet", isNight = false))
+        assertEquals(R.drawable.ic_weather_snow, WeatherIconMapper.getIconResource("Sleet", isNight = true))
+    }
+
+    @Test
+    fun testGetIconResource_IcePelletsShowsSnowIcon() {
+        assertEquals(R.drawable.ic_weather_snow, WeatherIconMapper.getIconResource("Ice Pellets", isNight = false))
+    }
+
+    @Test
+    fun testGetIconResource_HailShowsStormIcon() {
+        assertEquals(R.drawable.ic_weather_storm, WeatherIconMapper.getIconResource("Hail", isNight = false))
+        assertEquals(R.drawable.ic_weather_storm, WeatherIconMapper.getIconResource("Hail", isNight = true))
     }
 
     @Test
@@ -200,10 +217,10 @@ class WeatherIconMapperTest {
     }
 
     @Test
-    fun testMoonIsNotMixedOrRainy() {
+    fun testMoonIsNotMixedOrPrecipitation() {
         // Moon should fall through to grey tinting, not skip tinting entirely
         assertFalse(WeatherIconMapper.isMixed(R.drawable.ic_weather_night))
-        assertFalse(WeatherIconMapper.isRainy(R.drawable.ic_weather_night))
+        assertFalse(WeatherIconMapper.isPrecipitation(R.drawable.ic_weather_night))
     }
 
     @Test
@@ -212,8 +229,8 @@ class WeatherIconMapperTest {
     }
 
     @Test
-    fun testChanceRainMixedIconIsNotRainy() {
-        assertFalse(WeatherIconMapper.isRainy(R.drawable.ic_weather_partly_cloudy_chance_rain))
+    fun testChanceRainMixedIconIsNotPrecipitation() {
+        assertFalse(WeatherIconMapper.isPrecipitation(R.drawable.ic_weather_partly_cloudy_chance_rain))
     }
 
     @Test

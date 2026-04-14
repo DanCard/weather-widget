@@ -401,7 +401,7 @@ object DailyViewLogic {
                     bottomStackLow = bottomStackLow ?: finalLow,
                     iconRes = iconRes,
                     isSunny = WeatherIconMapper.isSunny(iconRes),
-                    isRainy = WeatherIconMapper.isRainy(iconRes),
+                    isRainy = WeatherIconMapper.isPrecipitation(iconRes),
                     isMixed = WeatherIconMapper.isMixed(iconRes),
                     isToday = isToday,
                     isPast = isPastDate,

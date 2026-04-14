@@ -566,7 +566,7 @@ object DailyViewHandler : WidgetViewHandler {
                 TAG,
                 "graphDay widget=$appWidgetId col=${colIndex + 1} date=${day.date} " +
                     "isToday=${day.isToday} iconRes=$iconRes iconName=$iconName " +
-                    "isRainy=${iconRes?.let(WeatherIconMapper::isRainy) ?: false} " +
+                    "isRainy=${iconRes?.let(WeatherIconMapper::isPrecipitation) ?: false} " +
                     "isCloudEligible=${iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false} " +
                     "hasRainForecast=${day.hasRainForecast}",
             )
@@ -810,7 +810,7 @@ object DailyViewHandler : WidgetViewHandler {
         val iconRes = data.iconRes
         views.setImageViewResource(ids.icon, iconRes)
 
-        if (!WeatherIconMapper.isRainy(iconRes) && !WeatherIconMapper.isMixed(iconRes)) {
+        if (!WeatherIconMapper.isPrecipitation(iconRes) && !WeatherIconMapper.isMixed(iconRes)) {
             val tintColor = if (WeatherIconMapper.isSunny(iconRes)) {
                 context.getColor(R.color.sunny_yellow)
             } else {
