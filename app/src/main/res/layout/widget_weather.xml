@@ -1265,31 +1265,6 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- Settings icon (top-right corner) -->
-    <ImageView
-        android:id="@+id/settings_icon"
-        android:layout_width="18dp"
-        android:layout_height="18dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="6dp"
-        android:layout_marginEnd="6dp"
-        android:src="@drawable/ic_settings_gear"
-        android:contentDescription="@string/settings"
-        android:tint="#AAFFFFFF"
-        android:visibility="visible" />
-
-    <!-- Larger settings touch target -->
-    <FrameLayout
-        android:id="@+id/settings_touch_zone"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-2dp"
-        android:layout_marginEnd="-2dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
     <!-- Navigation touch zones - declared last for highest touch priority over all overlays -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
@@ -1337,5 +1312,30 @@
         android:scaleType="centerInside"
         android:contentDescription="@string/nav_next"
         android:visibility="visible" />
+
+    <!-- Settings icon (top-right corner) -->
+    <ImageView
+        android:id="@+id/settings_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="6dp"
+        android:layout_marginEnd="6dp"
+        android:src="@drawable/ic_settings_gear"
+        android:contentDescription="@string/settings"
+        android:tint="#AAFFFFFF"
+        android:visibility="visible" />
+
+    <!-- Larger settings touch target -->
+    <FrameLayout
+        android:id="@+id/settings_touch_zone"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-2dp"
+        android:layout_marginEnd="-2dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
 
 </FrameLayout>
