@@ -176,6 +176,14 @@ object DailyForecastIconResolver {
             WeatherSource.OPEN_WEATHER_MAP -> openWeatherMapIcon(nativeToken)
             WeatherSource.WEATHER_API -> weatherApiIcon(nativeToken)
             WeatherSource.SILURIAN -> silurianIcon(nativeToken, targetDate, now, latitude, longitude)
+            WeatherSource.TOMORROW_IO -> nativeToken.toIntOrNull()?.let { code ->
+                val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
+                WeatherIconMapper.getIconResource(
+                    condition = TomorrowIoConditionMapper.toCondition(code),
+                    isNight = isNight,
+                    precipProbability = weather.precipProbability,
+                )
+            }
             WeatherSource.NWS -> {
                 val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
                 WeatherIconMapper.getIconResource(
@@ -269,6 +277,26 @@ object DailyForecastIconResolver {
                 61, 63, 65, 66, 67, 80, 81, 82 -> "Rain"
                 71, 73, 75, 77, 85, 86 -> "Snow"
                 95, 96, 99 -> "Thunderstorms"
+                else -> "Unknown"
+            }
+    }
+
+    private object TomorrowIoConditionMapper {
+        fun toCondition(code: Int): String =
+            when (code) {
+                1000 -> "Clear"
+                1100 -> "Mostly Clear"
+                1101 -> "Partly Cloudy"
+                1102 -> "Mostly Cloudy"
+                1001 -> "Cloudy"
+                2000, 2100 -> "Fog"
+                4000 -> "Drizzle"
+                4001, 4200 -> "Rain"
+                4201 -> "Heavy Rain"
+                5000, 5001, 5100, 5101 -> "Snow"
+                6000, 6001, 6200, 6201 -> "Freezing Rain"
+                7000, 7101, 7102 -> "Ice Pellets"
+                8000 -> "Thunderstorm"
                 else -> "Unknown"
             }
     }

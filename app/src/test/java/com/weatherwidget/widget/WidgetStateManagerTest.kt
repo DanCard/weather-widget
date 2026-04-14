@@ -239,7 +239,7 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder uses visual crossing default order on fresh install`() {
+    fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install`() {
         every { prefs.getBoolean("api_pref_migrated", false) } returns true
         every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
         every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
@@ -251,7 +251,7 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING,
+                com.weatherwidget.data.model.WeatherSource.TOMORROW_IO,
                 com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
                 com.weatherwidget.data.model.WeatherSource.SILURIAN,
             ),

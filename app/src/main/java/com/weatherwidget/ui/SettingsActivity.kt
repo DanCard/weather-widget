@@ -64,15 +64,17 @@ class SettingsActivity : AppCompatActivity() {
     private val allSources =
         listOf(
             WeatherSource.NWS,
-            WeatherSource.VISUAL_CROSSING,
+            WeatherSource.TOMORROW_IO,
             WeatherSource.OPEN_METEO,
             WeatherSource.SILURIAN,
             WeatherSource.WEATHER_API,
+            WeatherSource.VISUAL_CROSSING,
         )
 
     private fun sourceDescription(source: WeatherSource): String = when (source) {
         WeatherSource.SILURIAN -> getString(R.string.api_source_silurian_desc)
         WeatherSource.NWS -> getString(R.string.api_source_nws_desc)
+        WeatherSource.TOMORROW_IO -> getString(R.string.api_source_tomorrowio_desc)
         WeatherSource.VISUAL_CROSSING -> getString(R.string.api_source_visualcrossing_desc)
         WeatherSource.OPEN_METEO -> getString(R.string.api_source_openmeteo_desc)
         WeatherSource.WEATHER_API -> getString(R.string.api_source_weatherapi_desc)

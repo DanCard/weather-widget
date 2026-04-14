@@ -169,7 +169,8 @@ object ApiSourceWarningHelper {
         this == WeatherSource.VISUAL_CROSSING ||
             this == WeatherSource.OPEN_WEATHER_MAP ||
             this == WeatherSource.WEATHER_API ||
-            this == WeatherSource.SILURIAN
+            this == WeatherSource.SILURIAN ||
+            this == WeatherSource.TOMORROW_IO
 
     private fun extractDetail(message: String): String {
         val prefixes = listOf("detail=", "error=")

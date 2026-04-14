@@ -62,7 +62,7 @@ class WidgetStateManager
             private const val KEY_MIGRATION_DONE = "api_pref_migrated"
             private const val KEY_HIDE_OPEN_WEATHER_MAP_MIGRATION_DONE = "hide_open_weather_map_migration_done_v4"
             private const val KEY_VISUAL_CROSSING_MIGRATION_DONE = "visual_crossing_migration_done_v5"
-            private const val DEFAULT_VISIBLE_SOURCES = "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN"
+            private const val DEFAULT_VISIBLE_SOURCES = "NWS,TOMORROW_IO,OPEN_METEO,SILURIAN"
             private const val KEY_DISPLAY_SOURCE_PREFIX = "widget_display_source_"
             private const val KEY_VIEW_MODE_PREFIX = "widget_view_mode_"
             private const val KEY_HOURLY_OFFSET_PREFIX = "widget_hourly_offset_"

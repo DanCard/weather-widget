@@ -42,6 +42,12 @@ val visualCrossingApiKey =
             ?: System.getenv("VISUAL_CROSSING_API_KEY")
             ?: ""
     )
+val tomorrowIoApiKey =
+    (
+        localProperties.getProperty("TOMORROW_IO_API_KEY")
+            ?: System.getenv("TOMORROW_IO_API_KEY")
+            ?: ""
+    )
 
 ktlint {
     version.set("1.2.1")
@@ -76,6 +82,7 @@ android {
         buildConfigField("String", "SILURIAN_API_KEY", "\"$silurianApiKey\"")
         buildConfigField("String", "OPEN_WEATHER_MAP_API_KEY", "\"$openWeatherMapApiKey\"")
         buildConfigField("String", "VISUAL_CROSSING_API_KEY", "\"$visualCrossingApiKey\"")
+        buildConfigField("String", "TOMORROW_IO_API_KEY", "\"$tomorrowIoApiKey\"")
     }
 
     buildFeatures {

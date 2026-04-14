@@ -17,6 +17,7 @@ import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.ObservationResolver
@@ -58,6 +59,7 @@ class CurrentTempRepository
         private val temperatureInterpolator: TemperatureInterpolator,
         private val dailyExtremeDao: DailyExtremeDao,
         private val observationRepository: ObservationRepository,
+        private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
     ) {
         private val syncMutex = Mutex()
@@ -127,6 +129,7 @@ class CurrentTempRepository
                 WeatherSource.WEATHER_API -> fetchWeatherApiCurrent(latitude, longitude)
                 WeatherSource.NWS -> observationRepository.fetchNwsCurrent(latitude, longitude)
                 WeatherSource.SILURIAN -> fetchSilurianCurrent(latitude, longitude)
+                WeatherSource.TOMORROW_IO -> fetchTomorrowIoCurrent(latitude, longitude)
                 else -> null
             }
 
@@ -324,6 +327,54 @@ class CurrentTempRepository
 
             deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
                 CurrentReadingPayload(WeatherSource.WEATHER_API, reading.temperature, reading.condition, reading.observedAt) 
+            }
+        }
+
+        private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
+            val api = tomorrowIoApi ?: return@coroutineScope null
+            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
+            val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
+                async {
+                    val result = try {
+                        api.getForecast(point.first, point.second)
+                    } catch (e: ClientRequestException) {
+                        rethrowIfAuthFailure(WeatherSource.TOMORROW_IO, e)
+                        null
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        null
+                    }
+                    if (result?.currentTemp != null) {
+                        val stationId = if (point.third == "Current") "TOMORROW_IO_MAIN" else "TOMORROW_IO_$index"
+                        val condition = result.currentWeatherCode?.let { api.weatherCodeToCondition(it) } ?: "Unknown"
+                        val obsEntity = ObservationEntity(
+                            stationId,
+                            "Tmrw: ${point.third}",
+                            result.currentObservedAt ?: System.currentTimeMillis(),
+                            result.currentTemp,
+                            condition,
+                            latitude,
+                            longitude,
+                            calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
+                            "OFFICIAL",
+                            api = WeatherSource.TOMORROW_IO.id,
+                        )
+                        observationDao.insertAll(listOf(obsEntity))
+                    }
+                    result
+                }
+            }.map { it.await() }
+
+            deferredReadings.firstNotNullOfOrNull { it }?.let { result ->
+                if (result.currentTemp != null) {
+                    CurrentReadingPayload(
+                        WeatherSource.TOMORROW_IO, 
+                        result.currentTemp, 
+                        result.currentWeatherCode?.let { api.weatherCodeToCondition(it) }, 
+                        result.currentObservedAt
+                    )
+                } else null
             }
         }
 

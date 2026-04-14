@@ -18,6 +18,7 @@ import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.WidgetConstants
@@ -74,6 +75,7 @@ object AppModule {
                 val host = request.url.host
                 val source = when {
                     host.contains("silurian.ai") -> "SILURIAN"
+                    host.contains("tomorrow.io") -> "TOMORROW_IO"
                     host.contains("weather.gov") -> "NWS"
                     host.contains("visualcrossing.com") -> "VISUAL_CROSSING"
                     host.contains("open-meteo.com") -> "OPEN_METEO"
@@ -161,10 +163,11 @@ object AppModule {
         observationDao: ObservationDao,
         dailyExtremeDao: DailyExtremeDao,
         observationRepository: ObservationRepository,
+        tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository, openWeatherMapApi
+        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository, tomorrowIoApi, openWeatherMapApi
     )
 
     @Provides
@@ -183,10 +186,11 @@ object AppModule {
         temperatureInterpolator: TemperatureInterpolator,
         dailyExtremeDao: DailyExtremeDao,
         observationRepository: ObservationRepository,
+        tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
     ): CurrentTempRepository = CurrentTempRepository(
         context, observationDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, temperatureInterpolator, dailyExtremeDao, observationRepository, openWeatherMapApi
+        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, temperatureInterpolator, dailyExtremeDao, observationRepository, tomorrowIoApi, openWeatherMapApi
     )
 
     @Provides
@@ -237,4 +241,11 @@ object AppModule {
         httpClient: HttpClient,
         json: Json,
     ): SilurianApi = SilurianApi(httpClient, json)
+
+    @Provides
+    @Singleton
+    fun provideTomorrowIoApi(
+        httpClient: HttpClient,
+        json: Json,
+    ): TomorrowIoApi = TomorrowIoApi(httpClient, json)
 }

@@ -47,6 +47,11 @@ enum class WeatherSource(
         displayName = "Silurian",
         shortDisplayName = "Silur",
     ),
+    TOMORROW_IO(
+        id = "TOMORROW_IO",
+        displayName = "Tomorrow.io",
+        shortDisplayName = "Tmrw",
+    ),
     ;
 
     companion object {

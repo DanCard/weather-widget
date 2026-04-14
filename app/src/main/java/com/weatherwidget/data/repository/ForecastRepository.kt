@@ -21,6 +21,7 @@ import com.weatherwidget.data.remote.OpenWeatherMapApi
 import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
+import com.weatherwidget.data.remote.TomorrowIoApi
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
@@ -62,6 +63,7 @@ class ForecastRepository
         private val observationDao: ObservationDao,
         private val dailyExtremeDao: DailyExtremeDao,
         private val observationRepository: ObservationRepository,
+        private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
     ) {
         
@@ -147,7 +149,7 @@ class ForecastRepository
                     }
 
                     // Perform parallel fetches from all APIs
-                    val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts) = fetchFromAllApis(
+                    val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts) = fetchFromAllApis(
                         latitude, longitude, locationName,
                         WeatherSource.NWS in enabledSources && (shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts)),
                         openWeatherMapApi != null &&
@@ -158,6 +160,7 @@ class ForecastRepository
                         WeatherSource.OPEN_METEO in enabledSources && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
                         WeatherSource.WEATHER_API in enabledSources && (shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts)),
                         WeatherSource.SILURIAN in enabledSources && (shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts)),
+                        WeatherSource.TOMORROW_IO in enabledSources && (shouldForceSource(WeatherSource.TOMORROW_IO) || isStale(WeatherSource.TOMORROW_IO, cachedForecasts)),
                     )
 
                     // Determine the end of our real forecast coverage to fill in the rest with climate normals
@@ -168,6 +171,7 @@ class ForecastRepository
                     meteoForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
                     wapiForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
                     silurianForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
+                    tomorrowIoForecasts?.maxOfOrNull { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }?.let { maxCoverageDates.add(it) }
 
                     // If any expected source is missing from both the fresh fetch AND the cache,
                     // we need to fill from today onwards
@@ -211,6 +215,7 @@ class ForecastRepository
                 WeatherSource.SILURIAN,
                 WeatherSource.WEATHER_API,
                 WeatherSource.OPEN_METEO,
+                WeatherSource.TOMORROW_IO,
             )
             return sourcesToCheck.any { source ->
                 val isNeeded = widgetStateManager.isSourceVisible(source)
@@ -234,7 +239,8 @@ class ForecastRepository
             val visualCrossing: List<ForecastEntity>?,
             val meteo: List<ForecastEntity>?,
             val wapi: List<ForecastEntity>?,
-            val silurian: List<ForecastEntity>?
+            val silurian: List<ForecastEntity>?,
+            val tomorrowIo: List<ForecastEntity>?,
         )
 
         private suspend fun fetchFromAllApis(
@@ -247,6 +253,7 @@ class ForecastRepository
             shouldFetchMeteo: Boolean,
             shouldFetchWapi: Boolean,
             shouldFetchSilurian: Boolean,
+            shouldFetchTomorrowIo: Boolean,
         ): FetchResult = coroutineScope {
             val nwsDeferred = if (shouldFetchNws) async {
                 try {
@@ -425,12 +432,46 @@ class ForecastRepository
                     null
                 }
             } else null
+
+            val tomorrowIoDeferred = if (shouldFetchTomorrowIo) async {
+                try {
+                    val api = tomorrowIoApi ?: return@async null
+                    val result = api.getForecast(latitude, longitude)
+                    if (result.hourly.isNotEmpty()) {
+                        saveTomorrowIoHourlyForecasts(result.hourly, latitude, longitude)
+                    }
+                    result.daily.map { day ->
+                        ForecastEntity(
+                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                            locationLat = latitude,
+                            locationLon = longitude,
+                            locationName = locationName,
+                            highTemp = day.highTemp,
+                            lowTemp = day.lowTemp,
+                            condition = api.weatherCodeToCondition(day.weatherCode),
+                            nativeDailyIconToken = day.weatherCode.toString(),
+                            isClimateNormal = false,
+                            source = WeatherSource.TOMORROW_IO.id,
+                            precipProbability = day.precipProbability,
+                            precipAmountMm = day.precipAmountMm,
+                        )
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (exception: Exception) {
+                    logFetchFailure("FETCH_TMRW_FAIL", WeatherSource.TOMORROW_IO, exception)
+                    null
+                }
+            } else null
+
             val nwsForecasts = nwsDeferred?.await()
             val owmForecasts = openWeatherMapDeferred?.await()
             val visualCrossingForecasts = visualCrossingDeferred?.await()
             val meteoForecasts = meteoDeferred?.await()
             val wapiForecasts = wapiDeferred?.await()
             val silurianForecasts = silurianDeferred?.await()
+            val tomorrowIoForecasts = tomorrowIoDeferred?.await()
 
             // Save each provider fetch as a coherent batch with a shared batchFetchedAt.
             nwsForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.NWS.id, System.currentTimeMillis()) }
@@ -439,8 +480,9 @@ class ForecastRepository
             meteoForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.OPEN_METEO.id, System.currentTimeMillis()) }
             wapiForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.WEATHER_API.id, System.currentTimeMillis()) }
             silurianForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.SILURIAN.id, System.currentTimeMillis()) }
+            tomorrowIoForecasts?.let { saveForecastSnapshot(it, latitude, longitude, WeatherSource.TOMORROW_IO.id, System.currentTimeMillis()) }
 
-            FetchResult(nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts)
+            FetchResult(nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts)
         }
 
         internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String): List<ForecastEntity> = coroutineScope {
@@ -968,6 +1010,17 @@ class ForecastRepository
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
                     WeatherSource.SILURIAN.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
+                )
+            })
+        }
+
+        private suspend fun saveTomorrowIoHourlyForecasts(hourlyData: List<TomorrowIoApi.HourlyForecast>, latitude: Double, longitude: Double) {
+            val api = tomorrowIoApi ?: return
+            val fetchedAt = System.currentTimeMillis()
+            saveHourlyEntities(hourlyData.map {
+                HourlyForecastEntity(
+                    it.dateTime, latitude, longitude, it.temperature, api.weatherCodeToCondition(it.weatherCode),
+                    WeatherSource.TOMORROW_IO.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
         }
