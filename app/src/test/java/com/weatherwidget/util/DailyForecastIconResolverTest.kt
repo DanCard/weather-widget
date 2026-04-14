@@ -316,14 +316,14 @@ class DailyForecastIconResolverTest {
     )
 
     @Test
-    fun `distant day with 20 percent rain shows cloud icon instead of rain icon`() {
+    fun `distant day with 21 percent rain shows cloud icon instead of rain icon`() {
         val distant = today.plusDays(4)
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 20,
+                precipProbability = 21,
             ),
             targetDate = distant,
             now = now,
@@ -335,14 +335,14 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `near term day with 20 percent rain shows slight chance rain icon`() {
-        val nearTerm = today.plusDays(2)
+    fun `near term day with 21 percent rain shows slight chance rain icon`() {
+        val nearTerm = today.plusDays(1)
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 20,
+                precipProbability = 21,
             ),
             targetDate = nearTerm,
             now = now,
@@ -354,14 +354,14 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `distant day with 50 percent rain still shows rain icon`() {
+    fun `distant day with 51 percent rain still shows rain icon`() {
         val distant = today.plusDays(5)
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 50,
+                precipProbability = 51,
             ),
             targetDate = distant,
             now = now,
@@ -392,13 +392,13 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `today with 20 percent rain shows slight chance rain icon`() {
+    fun `today with 21 percent rain shows slight chance rain icon`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 20,
+                precipProbability = 21,
             ),
             targetDate = today,
             now = now,

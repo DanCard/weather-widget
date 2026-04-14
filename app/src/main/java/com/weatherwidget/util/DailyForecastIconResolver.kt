@@ -9,8 +9,19 @@ import java.time.temporal.ChronoUnit
 
 object DailyForecastIconResolver {
 
-    const val DISTANT_RAIN_THRESHOLD_DAYS = 3L
-    const val DISTANT_LOW_PROB_THRESHOLD = 20
+    fun getMinimumPrecipProbability(daysFromToday: Long): Int {
+        return when {
+            daysFromToday < 0L -> 0
+            daysFromToday == 0L -> 16
+            daysFromToday == 1L -> 21
+            daysFromToday == 2L -> 26
+            daysFromToday == 3L -> 31
+            daysFromToday == 4L -> 36
+            daysFromToday == 5L -> 41
+            daysFromToday == 6L -> 46
+            else -> 51 // 7+ days
+        }
+    }
 
     fun resolveIcon(
         weather: ForecastEntity?,
@@ -55,9 +66,8 @@ object DailyForecastIconResolver {
         isNight: Boolean,
     ): Boolean {
         if (!WeatherIconMapper.isRainIndicator(icon)) return false
-        if (precipProbability != null && precipProbability <= 15) return true
-        if (daysFromToday > DISTANT_RAIN_THRESHOLD_DAYS && precipProbability != null && precipProbability <= DISTANT_LOW_PROB_THRESHOLD) return true
-        return false
+        val minProb = getMinimumPrecipProbability(daysFromToday)
+        return precipProbability != null && precipProbability < minProb
     }
 
     private fun resolveNativeTokenIcon(

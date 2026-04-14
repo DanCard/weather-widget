@@ -485,7 +485,7 @@ object DailyForecastGraphRenderer {
         val label = day.dailyRainLabelText ?: return
         val rainText = label
         val originalTextSize = paints.rainTextPaint.textSize
-        val isNearTerm = day.daysFromToday in 1..DailyForecastIconResolver.DISTANT_RAIN_THRESHOLD_DAYS.toInt()
+        val isNearTerm = day.daysFromToday in 1..3
         if (isNearTerm) {
             paints.rainTextPaint.textSize = originalTextSize * NEAR_TERM_RAIN_FONT_SCALE
         }

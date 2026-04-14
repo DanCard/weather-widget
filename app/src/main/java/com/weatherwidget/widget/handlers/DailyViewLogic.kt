@@ -427,8 +427,15 @@ object DailyViewLogic {
             return null
         }
         val daysFromToday = ChronoUnit.DAYS.between(today, date)
-        if (daysFromToday > DailyForecastIconResolver.DISTANT_RAIN_THRESHOLD_DAYS && precipProbability != null && precipProbability <= DailyForecastIconResolver.DISTANT_LOW_PROB_THRESHOLD) return null
-        if (!WeatherIconMapper.isRainIndicator(iconRes)) return null
+        val minProb = DailyForecastIconResolver.getMinimumPrecipProbability(daysFromToday)
+        if (precipProbability != null && precipProbability < minProb) {
+            println("DEBUG: buildDailyRainLabel suppressing label for $date: precip=$precipProbability minProb=$minProb")
+            return null
+        }
+        if (!WeatherIconMapper.isRainIndicator(iconRes)) {
+            println("DEBUG: buildDailyRainLabel suppressing label for $date: iconRes=$iconRes not a rain indicator")
+            return null
+        }
         return when {
             precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
             precipProbability != null && precipProbability > 0 -> "$precipProbability%"

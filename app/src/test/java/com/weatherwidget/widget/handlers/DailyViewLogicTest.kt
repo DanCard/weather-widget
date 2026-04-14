@@ -532,7 +532,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rainy future day just above trace threshold shows percent`() {
+    fun `rainy future day just above threshold shows percent`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(1)
@@ -540,7 +540,7 @@ class DailyViewLogicTest {
             future to createWeather(
                 date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 16,
+                precipProbability = 21,
             ),
         )
 
@@ -558,7 +558,37 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("16%", futureDay.dailyRainLabelText)
+        assertEquals("21%", futureDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rainy future day just below threshold returns null label`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 19,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals(null, futureDay.dailyRainLabelText)
     }
 
     @Test
@@ -707,7 +737,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label shown for near term day with 20 percent probability`() {
+    fun `rain label suppressed for near term day with 20 percent probability`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val nearTerm = today.plusDays(2)
@@ -733,7 +763,7 @@ class DailyViewLogicTest {
         )
 
         val nearTermDay = result.first { it.date == nearTerm }
-        assertEquals("20%", nearTermDay.dailyRainLabelText)
+        assertNull(nearTermDay.dailyRainLabelText)
     }
 
     @Test
@@ -797,7 +827,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label shown for day 3 away with 20 percent probability`() {
+    fun `rain label suppressed for day 3 away with 20 percent probability`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val day3 = today.plusDays(3)
@@ -823,6 +853,6 @@ class DailyViewLogicTest {
         )
 
         val day3Data = result.first { it.date == day3 }
-        assertEquals("20%", day3Data.dailyRainLabelText)
+        assertNull(day3Data.dailyRainLabelText)
     }
 }
