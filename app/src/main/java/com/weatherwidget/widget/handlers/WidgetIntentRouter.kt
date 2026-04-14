@@ -757,7 +757,7 @@ object WidgetIntentRouter {
         val now = LocalDateTime.now()
         val zoneId = ZoneId.systemDefault()
         val hourlyStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zoneId).toInstant().toEpochMilli()
-        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
+        val hourlyEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zoneId).toInstant().toEpochMilli()
         val hourlyForecasts = hourlyDao.getHourlyForecasts(hourlyStart, hourlyEnd, lat, lon)
 
         val todayStartMs = LocalDate.now().atStartOfDay(zoneId).toInstant().toEpochMilli()
