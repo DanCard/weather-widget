@@ -5,6 +5,9 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.widget.handlers.CurrentTempResolver
+import com.weatherwidget.widget.handlers.GraphDataLoader
+import com.weatherwidget.widget.handlers.RefreshScheduler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -82,7 +85,7 @@ class WidgetIntentRouterRobolectricTest {
     fun `buildRefreshScheduleDecision uses replace for manual refresh`() {
         val now = System.currentTimeMillis()
 
-        val decision = WidgetIntentRouter.buildRefreshScheduleDecision(
+        val decision = RefreshScheduler.buildRefreshScheduleDecision(
             latestFetchedAt = now - 5 * 60 * 60 * 1000L,
             nowMs = now,
             reason = "manual_refresh",
@@ -99,7 +102,7 @@ class WidgetIntentRouterRobolectricTest {
     fun `buildRefreshScheduleDecision uses keep for stale toggle refresh`() {
         val now = System.currentTimeMillis()
 
-        val decision = WidgetIntentRouter.buildRefreshScheduleDecision(
+        val decision = RefreshScheduler.buildRefreshScheduleDecision(
             latestFetchedAt = now - 5 * 60 * 60 * 1000L,
             nowMs = now,
             reason = "stale_on_toggle_view",
@@ -116,7 +119,7 @@ class WidgetIntentRouterRobolectricTest {
     fun `buildRefreshScheduleDecision debounces repeated stale refreshes`() {
         val now = System.currentTimeMillis()
 
-        val decision = WidgetIntentRouter.buildRefreshScheduleDecision(
+        val decision = RefreshScheduler.buildRefreshScheduleDecision(
             latestFetchedAt = now - 5 * 60 * 60 * 1000L,
             nowMs = now,
             reason = "stale_on_toggle_view",
@@ -133,7 +136,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 12)
         val centerTime = now.plusDays(7).withHour(8).withMinute(20)
 
-        val window = WidgetIntentRouter.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
+        val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
 
         // centerTime is 08:20 (March 4). WIDE is -12h, +12h.
         // 08:20 - 12h = 20:20 (March 3). Truncated = 20:00.
@@ -149,7 +152,7 @@ class WidgetIntentRouterRobolectricTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 12)
         val centerTime = now.plusHours(1).withMinute(10)
 
-        val window = WidgetIntentRouter.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
+        val window = GraphDataLoader.buildGraphQueryWindow(centerTime, ZoomLevel.WIDE, now)
 
         // centerTime is 11:12. WIDE is -12h, +12h.
         // 11:12 - 12h = 23:12 (prev day). Truncated = 23:00.
@@ -164,7 +167,7 @@ class WidgetIntentRouterRobolectricTest {
     fun `buildCurrentTempResolutionWindow is independent of graph zoom and center`() {
         val now = LocalDateTime.of(2026, 4, 4, 10, 37)
 
-        val window = WidgetIntentRouter.buildCurrentTempResolutionWindow(now)
+        val window = GraphDataLoader.buildCurrentTempResolutionWindow(now)
 
         assertEquals(LocalDateTime.of(2026, 4, 3, 23, 0), window.start)
         assertEquals(LocalDateTime.of(2026, 4, 4, 13, 0), window.end)
@@ -186,7 +189,7 @@ class WidgetIntentRouterRobolectricTest {
             hourly(now.plusHours(2), 70f),
         )
 
-        val wideResult = WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
+        val wideResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
             observations = observations,
             hourlyForecasts = fullForecasts,
             displaySource = WeatherSource.NWS,
@@ -194,7 +197,7 @@ class WidgetIntentRouterRobolectricTest {
             lon = lon,
             now = now,
         )
-        val narrowResult = WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
+        val narrowResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
             observations = observations,
             hourlyForecasts = fullForecasts,
             displaySource = WeatherSource.NWS,
@@ -225,7 +228,7 @@ class WidgetIntentRouterRobolectricTest {
             hourly(now.minusHours(2), 60f),
         )
 
-        val fullResult = WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
+        val fullResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
             observations = observations,
             hourlyForecasts = fullForecasts,
             displaySource = WeatherSource.NWS,
@@ -233,7 +236,7 @@ class WidgetIntentRouterRobolectricTest {
             lon = lon,
             now = now,
         )
-        val truncatedResult = WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
+        val truncatedResult = CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
             observations = observations,
             hourlyForecasts = truncatedForecasts,
             displaySource = WeatherSource.NWS,

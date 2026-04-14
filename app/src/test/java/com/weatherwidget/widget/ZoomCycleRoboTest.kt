@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
+import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -30,13 +31,13 @@ class ZoomCycleRoboTest {
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
+        RefreshScheduler.setIsRefreshDisabledForTesting(true)
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
+        RefreshScheduler.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

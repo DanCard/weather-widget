@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertNotNull
@@ -28,13 +29,13 @@ class WidgetIntentRouterCrashSafetyRoboTest {
         context = ApplicationProvider.getApplicationContext()
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
+        RefreshScheduler.setIsRefreshDisabledForTesting(true)
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
+        RefreshScheduler.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

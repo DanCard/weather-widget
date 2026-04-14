@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.GraphDataLoader
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -106,7 +107,7 @@ class WidgetIntentRouterHeaderTempRoboTest {
             val centerTime = now.plusHours(hourlyOffset.toLong())
 
             // Simulate loadCurrentTempResolutionHourlyForecasts(now): NOW ± ~12h window
-            val nowWindow = WidgetIntentRouter.buildCurrentTempResolutionWindow(now)
+            val nowWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now)
             val nowMinEpoch = nowWindow.start.atZone(zoneId).toInstant().toEpochMilli()
             val nowMaxEpoch = nowWindow.end.atZone(zoneId).toInstant().toEpochMilli()
             val currentTempHourly = db.hourlyForecastDao().getHourlyForecasts(nowMinEpoch, nowMaxEpoch, lat, lon)

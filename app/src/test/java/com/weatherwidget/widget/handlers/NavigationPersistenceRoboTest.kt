@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -26,7 +27,7 @@ class NavigationPersistenceRoboTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
+        RefreshScheduler.setIsRefreshDisabledForTesting(true)
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
@@ -35,7 +36,7 @@ class NavigationPersistenceRoboTest {
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
+        RefreshScheduler.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

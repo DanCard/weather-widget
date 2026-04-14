@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,13 +32,13 @@ class DailyViewApiToggleIntegrationRoboTest {
         stateManager.clearWidgetState(testWidgetId)
         stateManager.setViewMode(testWidgetId, ViewMode.DAILY)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(true)
+        RefreshScheduler.setIsRefreshDisabledForTesting(true)
     }
 
     @After
     fun cleanup() {
         stateManager.clearWidgetState(testWidgetId)
-        WidgetIntentRouter.setIsRefreshDisabledForTesting(false)
+        RefreshScheduler.setIsRefreshDisabledForTesting(false)
     }
 
     @Test

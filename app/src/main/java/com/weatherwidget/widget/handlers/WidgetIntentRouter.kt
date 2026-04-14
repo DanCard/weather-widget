@@ -5,24 +5,17 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.VisibleForTesting
-import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
-import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.NavigationUtils
-import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.util.WeatherTimeUtils
-import com.weatherwidget.widget.BatteryFetchStrategy
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
@@ -35,7 +28,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 /**
  * Router for handling widget intent actions.
@@ -43,14 +35,11 @@ import java.time.temporal.ChronoUnit
  */
 object WidgetIntentRouter {
     private const val TAG = "WidgetIntentRouter"
-    private const val STALE_REFRESH_DEBOUNCE_MS = 30 * 1000L
     private const val DAILY_LOOKBACK_DAYS = 30L
     private const val DAILY_FORECAST_DAYS = 30L
     private const val SOURCE_CHECK_FORECAST_DAYS = 14L
     private const val SLOW_THRESHOLD_MS = 200L
     private const val RESIZE_DEBOUNCE_MS = 250L
-    @Volatile
-    private var isRefreshDisabledForTesting = false
 
     // Intent actions
     const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
@@ -65,36 +54,64 @@ object WidgetIntentRouter {
     const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
 
     @VisibleForTesting
-    internal data class RefreshScheduleDecision(
-        val shouldEnqueue: Boolean,
-        val policy: ExistingWorkPolicy,
-        val reason: String,
-        val skipReason: String? = null,
-    )
-
-    @VisibleForTesting
     internal data class LocationResult(
         val lat: Double,
         val lon: Double,
         val fetchedAt: Long?,
     )
 
-    private fun resolveLocation(latestWeather: ForecastEntity?): LocationResult =
-        LocationResult(
+    internal data class RefreshContext(
+        val database: WeatherDatabase,
+        val forecastDao: ForecastDao,
+        val location: LocationResult,
+    )
+
+    private fun resolveLocation(latestWeather: ForecastEntity?): LocationResult {
+        if (latestWeather == null) {
+            Log.w(TAG, "resolveLocation: no weather data, falling back to default coordinates")
+        }
+        return LocationResult(
             lat = latestWeather?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT,
             lon = latestWeather?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON,
             fetchedAt = latestWeather?.fetchedAt,
         )
+    }
+
+    private suspend fun resolveRefreshContext(
+        context: Context,
+        staleReason: String,
+        appLogDao: AppLogDao? = null,
+    ): RefreshContext {
+        val database = WeatherDatabase.getDatabase(context)
+        val forecastDao = database.forecastDao()
+        val latestWeather = forecastDao.getLatestWeather()
+        val loc = resolveLocation(latestWeather)
+        RefreshScheduler.refreshIfStale(context, loc.fetchedAt, staleReason, appLogDao)
+        return RefreshContext(database, forecastDao, loc)
+    }
 
     @VisibleForTesting
     fun setIsRefreshDisabledForTesting(disableRefreshFlag: Boolean) {
-        isRefreshDisabledForTesting = disableRefreshFlag
+        RefreshScheduler.setIsRefreshDisabledForTesting(disableRefreshFlag)
     }
 
     /**
      * Handle navigation (left/right) action.
      */
-    suspend fun handleNavigation(
+suspend fun handleNavigation(
+        context: Context,
+        appWidgetId: Int,
+        isLeft: Boolean,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleNavigationInternal(context, appWidgetId, isLeft, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleNavigation failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleNavigationInternal(
         context: Context,
         appWidgetId: Int,
         isLeft: Boolean,
@@ -127,18 +144,13 @@ object WidgetIntentRouter {
         val currentOffset = stateManager.getDateOffset(appWidgetId)
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
 
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-        val appLogDao = database.appLogDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, "daily_nav", appLogDao)
+        val ctx = resolveRefreshContext(context, "daily_nav")
+        val appLogDao = ctx.database.appLogDao()
 
         val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val forecastEnd = LocalDate.now().plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
 
-        val weatherList = forecastDao.getForecastsInRange(historyStart, forecastEnd, loc.lat, loc.lon)
+        val weatherList = ctx.forecastDao.getForecastsInRange(historyStart, forecastEnd, ctx.location.lat, ctx.location.lon)
 
         val today = LocalDate.now()
         val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -148,7 +160,7 @@ object WidgetIntentRouter {
 
         val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.toSet()
 
-        val dailyActuals = getDailyActuals(database, loc.lat, loc.lon)
+        val dailyActuals = getDailyActuals(ctx.database, ctx.location.lat, ctx.location.lon)
         val availableObsDates = dailyActuals.values.flatMap { it.keys }.toSet()
 
         val availableDates = (availableForecastDates + availableObsDates)
@@ -209,9 +221,9 @@ object WidgetIntentRouter {
         refreshDailyView(
             context = context,
             appWidgetId = appWidgetId,
-            database = database,
-            lat = loc.lat,
-            lon = loc.lon,
+            database = ctx.database,
+            lat = ctx.location.lat,
+            lon = ctx.location.lon,
             repository = repository,
             weatherList = weatherList,
             dailyActuals = dailyActuals,
@@ -241,15 +253,10 @@ object WidgetIntentRouter {
             }
         Log.d(TAG, "handleGraphNavigation: Navigated to offset $newOffset for widget $appWidgetId")
 
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, "graph_nav")
+        val ctx = resolveRefreshContext(context, "graph_nav")
 
         refreshGraphView(
-            context, appWidgetId, database, loc.lat, loc.lon, repository,
+            context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
             startTimeMs = startMs, actionTag = "GRAPH_NAV", extraMetadata = "dir=${if (isLeft) "LEFT" else "RIGHT"}"
         )
     }
@@ -257,7 +264,20 @@ object WidgetIntentRouter {
     /**
      * Handle zoom level cycle action.
      */
-    suspend fun handleCycleZoom(
+suspend fun handleCycleZoom(
+        context: Context,
+        appWidgetId: Int,
+        zoomCenterOffset: Int? = null,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleCycleZoomInternal(context, appWidgetId, zoomCenterOffset, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleCycleZoom failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleCycleZoomInternal(
         context: Context,
         appWidgetId: Int,
         zoomCenterOffset: Int? = null,
@@ -282,15 +302,10 @@ object WidgetIntentRouter {
         }
         Log.d(TAG, "handleCycleZoom: $oldZoom -> $newZoom, zoomCenterOffset=$zoomCenterOffset widget=$appWidgetId")
 
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, "cycle_zoom")
+        val ctx = resolveRefreshContext(context, "cycle_zoom")
 
         refreshGraphView(
-            context, appWidgetId, database, loc.lat, loc.lon, repository,
+            context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
             startTimeMs = startMs, actionTag = "CYCLE_ZOOM", extraMetadata = "zoom=${newZoom.name}"
         )
     }
@@ -298,7 +313,19 @@ object WidgetIntentRouter {
     /**
      * Handle API source toggle action.
      */
-    suspend fun handleToggleApi(
+suspend fun handleToggleApi(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleToggleApiInternal(context, appWidgetId, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleToggleApi failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleToggleApiInternal(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
@@ -309,13 +336,8 @@ object WidgetIntentRouter {
         val viewMode = stateManager.getViewMode(appWidgetId)
         Log.d(TAG, "handleToggleApi: Toggled to $newSource for widget $appWidgetId, viewMode=$viewMode")
 
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-        val hourlyDao = database.hourlyForecastDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, "toggle_api")
+        val ctx = resolveRefreshContext(context, "toggle_api")
+        val hourlyDao = ctx.database.hourlyForecastDao()
 
         val now = LocalDateTime.now()
         val currentGraphZoom =
@@ -333,10 +355,10 @@ object WidgetIntentRouter {
             }
         val missingDataForSelectedSource =
             sourceDataMissingForCurrentWindow(
-                forecastDao = forecastDao,
+                forecastDao = ctx.forecastDao,
                 hourlyDao = hourlyDao,
-                lat = loc.lat,
-                lon = loc.lon,
+                lat = ctx.location.lat,
+                lon = ctx.location.lon,
                 source = newSource,
                 centerTime = currentGraphCenterTime,
                 zoom = currentGraphZoom,
@@ -345,26 +367,38 @@ object WidgetIntentRouter {
 
         if (viewMode.isGraphMode) {
             refreshGraphView(
-                context, appWidgetId, database, loc.lat, loc.lon, repository,
+                context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_API", extraMetadata = "source=${newSource.id}"
             )
         } else {
             refreshDailyView(
-                context, appWidgetId, database, loc.lat, loc.lon, repository,
+                context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_API", extraMetadata = "source=${newSource.id}"
             )
         }
 
         if (missingDataForSelectedSource) {
             Log.d(TAG, "handleToggleApi: Missing cached data for $newSource, enqueueing forced refresh")
-            enqueueForcedRefresh(context)
+            RefreshScheduler.enqueueForcedRefresh(context)
         }
     }
 
     /**
      * Handle view mode toggle action.
      */
-    suspend fun handleToggleView(
+suspend fun handleToggleView(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleToggleViewInternal(context, appWidgetId, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleToggleView failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleToggleViewInternal(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
@@ -374,26 +408,19 @@ object WidgetIntentRouter {
         val newMode = stateManager.toggleViewMode(appWidgetId)
         Log.d(TAG, "handleToggleView: Toggled to $newMode for widget $appWidgetId")
 
-        val database = WeatherDatabase.getDatabase(context)
-        val appLogDao = database.appLogDao()
-        val forecastDao = database.forecastDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
+        val ctx = resolveRefreshContext(context, "toggle_view")
 
         if (newMode.isGraphMode) {
             refreshGraphView(
-                context, appWidgetId, database, loc.lat, loc.lon, repository,
+                context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_VIEW", extraMetadata = "mode=${newMode.name}"
             )
         } else {
             refreshDailyView(
-                context, appWidgetId, database, loc.lat, loc.lon, repository,
+                context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_VIEW", extraMetadata = "mode=${newMode.name}"
             )
         }
-
-        refreshIfStale(context, loc.fetchedAt, "toggle_view", appLogDao)
     }
 
     private suspend fun getDailyActuals(
@@ -443,7 +470,7 @@ object WidgetIntentRouter {
 
         val sourceHourly =
             if (centerTime != null && zoom != null) {
-                loadGraphWindowHourlyForecastsBySource(
+                GraphDataLoader.loadGraphWindowHourlyForecasts(
                     hourlyDao = hourlyDao,
                     lat = lat,
                     lon = lon,
@@ -462,116 +489,22 @@ object WidgetIntentRouter {
         return sourceDaily.isEmpty() || sourceHourly.isEmpty() || !hasRequiredFutureCoverage
     }
 
-    private fun enqueueForcedRefresh(
-        context: Context,
-        reason: String = "manual_refresh",
-        policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE,
-    ) {
-        if (isRefreshDisabledForTesting) {
-            Log.d(TAG, "Skipping forced refresh in test mode (reason=$reason)")
-            return
-        }
-
-        val workRequest =
-            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                .setInputData(
-                    Data.Builder()
-                        .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
-                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
-                        .build(),
-                )
-                .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WeatherWidgetProvider.WORK_NAME_ONE_TIME,
-            policy,
-            workRequest,
-        )
-    }
-
-    @VisibleForTesting
-    internal fun buildRefreshScheduleDecision(
-        latestFetchedAt: Long?,
-        nowMs: Long,
-        reason: String,
-        lastEnqueueForReasonMs: Long?,
-    ): RefreshScheduleDecision {
-        if (!BatteryFetchStrategy.shouldRefreshStaleData(latestFetchedAt, nowMs)) {
-            return RefreshScheduleDecision(
-                shouldEnqueue = false,
-                policy = ExistingWorkPolicy.KEEP,
-                reason = reason,
-                skipReason = "fresh_data",
-            )
-        }
-
-        if (reason == "manual_refresh") {
-            return RefreshScheduleDecision(
-                shouldEnqueue = true,
-                policy = ExistingWorkPolicy.REPLACE,
-                reason = reason,
-            )
-        }
-
-        if (lastEnqueueForReasonMs != null && nowMs - lastEnqueueForReasonMs < STALE_REFRESH_DEBOUNCE_MS) {
-            return RefreshScheduleDecision(
-                shouldEnqueue = false,
-                policy = ExistingWorkPolicy.KEEP,
-                reason = reason,
-                skipReason = "debounced",
-            )
-        }
-
-        return RefreshScheduleDecision(
-            shouldEnqueue = true,
-            policy = ExistingWorkPolicy.KEEP,
-            reason = reason,
-        )
-    }
-
-    private suspend fun refreshIfStale(
-        context: Context,
-        latestFetchedAt: Long?,
-        reason: String,
-        appLogDao: AppLogDao? = null,
-    ) {
-        if (isRefreshDisabledForTesting) {
-            return
-        }
-        val nowMs = System.currentTimeMillis()
-        val staleReason = "stale_on_$reason"
-        val prefs = context.getSharedPreferences("widget_refresh", Context.MODE_PRIVATE)
-        val lastEnqueueMs = prefs.getLong("last_enqueue_$staleReason", -1L).takeIf { it >= 0L }
-        val decision = buildRefreshScheduleDecision(
-            latestFetchedAt = latestFetchedAt,
-            nowMs = nowMs,
-            reason = staleReason,
-            lastEnqueueForReasonMs = lastEnqueueMs,
-        )
-        if (!decision.shouldEnqueue) {
-            appLogDao?.let {
-                it.log(
-                    "STALE_REFRESH_SKIP",
-                    "reason=${decision.reason} skip=${decision.skipReason}",
-                )
-            }
-            return
-        }
-        val ageMin = (nowMs - (latestFetchedAt ?: 0L)) / 1000 / 60
-        prefs.edit().putLong("last_enqueue_${decision.reason}", nowMs).apply()
-        enqueueForcedRefresh(context, reason = decision.reason, policy = decision.policy)
-        appLogDao?.let {
-            it.log(
-                "STALE_REFRESH_ENQUEUE",
-                "reason=${decision.reason} policy=${decision.policy.name} ageMin=$ageMin",
-            )
-        }
-    }
-
     /**
      * Handle precipitation mode toggle action.
      */
-    suspend fun handleTogglePrecip(
+suspend fun handleTogglePrecip(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleTogglePrecipInternal(context, appWidgetId, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleTogglePrecip failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleTogglePrecipInternal(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
@@ -581,21 +514,16 @@ object WidgetIntentRouter {
         val newMode = stateManager.togglePrecipitationMode(appWidgetId)
         Log.d(TAG, "handleTogglePrecip: Toggled to $newMode for widget $appWidgetId")
 
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, "toggle_precip")
+        val ctx = resolveRefreshContext(context, "toggle_precip")
 
         if (newMode == ViewMode.PRECIPITATION) {
             refreshGraphView(
-                context, appWidgetId, database, loc.lat, loc.lon, repository,
+                context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_PRECIP"
             )
         } else {
             refreshDailyView(
-                context, appWidgetId, database, loc.lat, loc.lon, repository,
+                context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                 startTimeMs = startMs, actionTag = "TOGGLE_PRECIP"
             )
         }
@@ -604,7 +532,21 @@ object WidgetIntentRouter {
     /**
      * Handle set view mode action.
      */
-    suspend fun handleSetView(
+suspend fun handleSetView(
+        context: Context,
+        appWidgetId: Int,
+        targetMode: ViewMode,
+        targetOffset: Int = Int.MIN_VALUE,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleSetViewInternal(context, appWidgetId, targetMode, targetOffset, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleSetView failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleSetViewInternal(
         context: Context,
         appWidgetId: Int,
         targetMode: ViewMode,
@@ -616,7 +558,7 @@ object WidgetIntentRouter {
         val previousMode = stateManager.getViewMode(appWidgetId)
         val previousZoom = stateManager.getZoomLevel(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
-        Log.d("ActualsDebug", "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom widget=$appWidgetId")
+        Log.d(TAG, "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom widget=$appWidgetId")
         if (targetMode == ViewMode.DAILY) {
             stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
         } else if (targetMode.isGraphMode) {
@@ -633,23 +575,18 @@ object WidgetIntentRouter {
         }
         Log.d(TAG, "handleSetView: start mode=$targetMode offset=$targetOffset widget=$appWidgetId")
 
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, "set_view")
+        val ctx = resolveRefreshContext(context, "set_view")
 
         when (targetMode) {
             ViewMode.DAILY -> {
                 refreshDailyView(
-                    context, appWidgetId, database, loc.lat, loc.lon, repository,
+                    context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                     startTimeMs = startMs, actionTag = "SET_VIEW", extraMetadata = "mode=${targetMode.name}"
                 )
             }
             else -> {
                 refreshGraphView(
-                    context, appWidgetId, database, loc.lat, loc.lon, repository,
+                    context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
                     startTimeMs = startMs, actionTag = "SET_VIEW", extraMetadata = "mode=${targetMode.name}"
                 )
             }
@@ -659,7 +596,19 @@ object WidgetIntentRouter {
     /**
      * Handle widget resize.
      */
-    suspend fun handleResize(
+suspend fun handleResize(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleResizeInternal(context, appWidgetId, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleResize failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleResizeInternal(
         context: Context,
         appWidgetId: Int,
         repository: WeatherRepository? = null,
@@ -692,20 +641,16 @@ object WidgetIntentRouter {
         actionTag: String = "REFRESH",
         extraMetadata: String = "",
     ) {
-        val database = WeatherDatabase.getDatabase(context)
-        val forecastDao = database.forecastDao()
-        val latestWeather = forecastDao.getLatestWeather()
-        val loc = resolveLocation(latestWeather)
-        refreshIfStale(context, loc.fetchedAt, reason, database.appLogDao())
+        val ctx = resolveRefreshContext(context, reason)
 
         val viewMode = WidgetStateManager(context).getViewMode(appWidgetId)
         if (!viewMode.isGraphMode) {
             refreshDailyView(
                 context = context,
                 appWidgetId = appWidgetId,
-                database = database,
-                lat = loc.lat,
-                lon = loc.lon,
+                database = ctx.database,
+                lat = ctx.location.lat,
+                lon = ctx.location.lon,
                 repository = repository,
                 startTimeMs = startTimeMs,
                 actionTag = actionTag,
@@ -715,9 +660,9 @@ object WidgetIntentRouter {
             refreshGraphView(
                 context = context,
                 appWidgetId = appWidgetId,
-                database = database,
-                lat = loc.lat,
-                lon = loc.lon,
+                database = ctx.database,
+                lat = ctx.location.lat,
+                lon = ctx.location.lon,
                 repository = repository,
                 startTimeMs = startTimeMs,
                 actionTag = actionTag,
@@ -765,7 +710,7 @@ object WidgetIntentRouter {
             ?: database.observationDao().getLatestMainObservations(lat, lon, todayStartMs)
         val finalDailyActuals = dailyActuals ?: getDailyActuals(database, lat, lon)
         val currentTempHourlyForecasts =
-            loadCurrentTempResolutionHourlyForecasts(
+            GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
                 hourlyDao = hourlyDao,
                 lat = lat,
                 lon = lon,
@@ -776,7 +721,7 @@ object WidgetIntentRouter {
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val zoom = stateManager.getZoomLevel(appWidgetId)
         
-        val graphStyleObs = resolveGraphStyleCurrentTemp(
+        val graphStyleObs = CurrentTempResolver.resolveGraphStyleCurrentTemp(
             repository = repository,
             lat = lat,
             lon = lon,
@@ -835,7 +780,7 @@ object WidgetIntentRouter {
         val centerTime = now.plusHours(hourlyOffset.toLong())
 
         val hourlyForecasts =
-            loadGraphWindowHourlyForecasts(
+            GraphDataLoader.loadGraphWindowHourlyForecasts(
                 hourlyDao = database.hourlyForecastDao(),
                 lat = lat,
                 lon = lon,
@@ -844,7 +789,7 @@ object WidgetIntentRouter {
                 now = now,
             )
 
-        updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository)
+        updateHourlyViewWithData(context, appWidgetId, hourlyForecasts, centerTime, displaySource, lat, lon, repository, now)
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs
         val metadataString = if (extraMetadata.isNotEmpty()) " $extraMetadata" else ""
@@ -863,6 +808,7 @@ object WidgetIntentRouter {
         lat: Double,
         lon: Double,
         repository: WeatherRepository? = null,
+        now: LocalDateTime,
     ) {
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
@@ -874,24 +820,24 @@ object WidgetIntentRouter {
         val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val currentTemps = repository?.getMainObservationsWithComputedNwsBlend(lat, lon, todayStartMs) ?: emptyList()
         val currentTempHourlyForecasts =
-            loadCurrentTempResolutionHourlyForecasts(
+            GraphDataLoader.loadCurrentTempResolutionHourlyForecasts(
                 hourlyDao = database.hourlyForecastDao(),
                 lat = lat,
                 lon = lon,
-                now = LocalDateTime.now(),
+                now = now,
             )
 
         val todayPrecip = weatherList.find { it.source == displaySource.id }?.precipProbability
         val zoom = stateManager.getZoomLevel(appWidgetId)
         
         // Resolve current temperature using the graph's IDW + forward extrapolation logic for consistency.
-        val graphStyleObs = resolveGraphStyleCurrentTemp(
+        val graphStyleObs = CurrentTempResolver.resolveGraphStyleCurrentTemp(
             repository = repository,
             lat = lat,
             lon = lon,
             displaySource = displaySource,
             hourlyForecasts = currentTempHourlyForecasts,
-            now = LocalDateTime.now(),
+            now = now,
         )
         
         val observation = graphStyleObs ?: ObservationResolver.resolveObservedCurrentTemp(currentTemps, displaySource)
@@ -949,86 +895,6 @@ object WidgetIntentRouter {
                 )
             }
         }
-    }
-    private suspend fun resolveGraphStyleCurrentTemp(
-        repository: WeatherRepository?,
-        lat: Double,
-        lon: Double,
-        displaySource: WeatherSource,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        now: LocalDateTime,
-    ): ObservationResolver.ObservedCurrentTemperature? {
-        if (repository == null) return null
-
-        val queryWindow = buildCurrentTempResolutionWindow(now)
-        val zoneId = ZoneId.systemDefault()
-        val minEpoch = queryWindow.start.atZone(zoneId).toInstant().toEpochMilli()
-        val maxEpoch = queryWindow.end.atZone(zoneId).toInstant().toEpochMilli()
-        val observations = repository.getObservationsInRange(minEpoch, maxEpoch, lat, lon)
-
-        return resolveGraphStyleCurrentTempFromInputs(
-            observations = observations,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-            lat = lat,
-            lon = lon,
-            now = now,
-            queryWindow = queryWindow,
-        )
-    }
-
-    @VisibleForTesting
-    internal fun resolveGraphStyleCurrentTempFromInputs(
-        observations: List<ObservationEntity>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-        lat: Double,
-        lon: Double,
-        now: LocalDateTime,
-        queryWindow: CurrentTempResolutionWindow = buildCurrentTempResolutionWindow(now),
-    ): ObservationResolver.ObservedCurrentTemperature? {
-        val resolved = ObservationBlender.resolveCurrentObservation(
-            observations = observations,
-            hourlyForecasts = hourlyForecasts,
-            displaySource = displaySource,
-            userLat = lat,
-            userLon = lon,
-            now = now,
-            lookbackHours = 12L,
-            lookaheadHours = 2L,
-        )
-
-        Log.d(
-            TAG,
-            "resolveGraphStyleCurrentTemp: source=${displaySource.id} now=$now " +
-                "window=${queryWindow.start}..${queryWindow.end} obs=${observations.size} fcst=${hourlyForecasts.size} " +
-                "resolvedTemp=${resolved?.first} resolvedAt=${resolved?.second} anchorAt=${resolved?.third}",
-        )
-
-        return resolved?.let { (temp, time, anchorTime) ->
-            ObservationResolver.ObservedCurrentTemperature(
-                temperature = temp,
-                observedAt = anchorTime,
-                source = displaySource.id,
-                rowFetchedAt = System.currentTimeMillis() // Synthetic
-            )
-        }
-    }
-
-    private suspend fun loadCurrentTempResolutionHourlyForecasts(
-        hourlyDao: HourlyForecastDao,
-        lat: Double,
-        lon: Double,
-        now: LocalDateTime,
-    ): List<HourlyForecastEntity> {
-        val window = buildCurrentTempResolutionWindow(now)
-        val zoneId = ZoneId.systemDefault()
-        return hourlyDao.getHourlyForecasts(
-            window.start.atZone(zoneId).toInstant().toEpochMilli(),
-            window.end.atZone(zoneId).toInstant().toEpochMilli(),
-            lat,
-            lon,
-        )
     }
 
     private suspend fun logCurrentTempStalenessDebug(
@@ -1098,123 +964,4 @@ object WidgetIntentRouter {
                 "scaledPx=${scaledWidthPx}x$scaledHeightPx downscaled=$downscaled"
         appLogDao.log("WIDGET_RESIZE", message, "VERBOSE")
     }
-
-    private suspend fun loadGraphWindowHourlyForecasts(
-        hourlyDao: HourlyForecastDao,
-        lat: Double,
-        lon: Double,
-        centerTime: LocalDateTime,
-        zoom: ZoomLevel,
-        now: LocalDateTime,
-    ): List<HourlyForecastEntity> {
-        val window = buildGraphQueryWindow(centerTime, zoom, now)
-        val zoneId = ZoneId.systemDefault()
-        val centerRows =
-            hourlyDao.getHourlyForecasts(
-                window.centerStart.atZone(zoneId).toInstant().toEpochMilli(),
-                window.centerEnd.atZone(zoneId).toInstant().toEpochMilli(),
-                lat,
-                lon,
-            )
-
-        if (window.nowStart == null || window.nowEnd == null) {
-            return centerRows
-        }
-
-        val nowRows =
-            hourlyDao.getHourlyForecasts(
-                window.nowStart.atZone(zoneId).toInstant().toEpochMilli(),
-                window.nowEnd.atZone(zoneId).toInstant().toEpochMilli(),
-                lat,
-                lon,
-            )
-
-        return (centerRows + nowRows)
-            .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
-            .sortedBy { it.dateTime }
-    }
-
-    private suspend fun loadGraphWindowHourlyForecastsBySource(
-        hourlyDao: HourlyForecastDao,
-        lat: Double,
-        lon: Double,
-        centerTime: LocalDateTime,
-        zoom: ZoomLevel,
-        now: LocalDateTime,
-        source: WeatherSource,
-    ): List<HourlyForecastEntity> {
-        val window = buildGraphQueryWindow(centerTime, zoom, now)
-        val zoneId = ZoneId.systemDefault()
-        val centerRows =
-            hourlyDao.getHourlyForecastsBySource(
-                window.centerStart.atZone(zoneId).toInstant().toEpochMilli(),
-                window.centerEnd.atZone(zoneId).toInstant().toEpochMilli(),
-                lat,
-                lon,
-                source.id,
-            )
-
-        if (window.nowStart == null || window.nowEnd == null) {
-            return centerRows
-        }
-
-        val nowRows =
-            hourlyDao.getHourlyForecastsBySource(
-                window.nowStart.atZone(zoneId).toInstant().toEpochMilli(),
-                window.nowEnd.atZone(zoneId).toInstant().toEpochMilli(),
-                lat,
-                lon,
-                source.id,
-            )
-
-        return (centerRows + nowRows)
-            .distinctBy { "${it.dateTime}|${it.source}|${it.locationLat}|${it.locationLon}" }
-            .sortedBy { it.dateTime }
-    }
-
-    internal fun buildGraphQueryWindow(
-        centerTime: LocalDateTime,
-        zoom: ZoomLevel,
-        now: LocalDateTime,
-    ): GraphQueryWindow {
-        val truncatedCenter = centerTime.truncatedTo(ChronoUnit.HOURS)
-        val roundedCenter = if (centerTime.minute >= 30) truncatedCenter.plusHours(1) else truncatedCenter
-        val centerStart = roundedCenter.minusHours(zoom.backHours)
-        val centerEnd = roundedCenter.plusHours(zoom.forwardHours)
-
-        val nowStart = now.truncatedTo(ChronoUnit.HOURS)
-        val nowEnd = nowStart.plusHours(1)
-        val overlaps = !nowEnd.isBefore(centerStart) && !nowStart.isAfter(centerEnd)
-
-        return if (overlaps) {
-            GraphQueryWindow(centerStart = centerStart, centerEnd = centerEnd, nowStart = null, nowEnd = null)
-        } else {
-            GraphQueryWindow(centerStart = centerStart, centerEnd = centerEnd, nowStart = nowStart, nowEnd = nowEnd)
-        }
-    }
-
-    internal data class GraphQueryWindow(
-        val centerStart: LocalDateTime,
-        val centerEnd: LocalDateTime,
-        val nowStart: LocalDateTime?,
-        val nowEnd: LocalDateTime?,
-    )
-
-    @VisibleForTesting
-    internal fun buildCurrentTempResolutionWindow(
-        now: LocalDateTime,
-    ): CurrentTempResolutionWindow {
-        val truncatedNow = now.truncatedTo(ChronoUnit.HOURS)
-        val roundedNow = if (now.minute >= 30) truncatedNow.plusHours(1) else truncatedNow
-        return CurrentTempResolutionWindow(
-            start = roundedNow.minusHours(12L),
-            end = roundedNow.plusHours(2L),
-        )
-    }
-
-    @VisibleForTesting
-    internal data class CurrentTempResolutionWindow(
-        val start: LocalDateTime,
-        val end: LocalDateTime,
-    )
 }

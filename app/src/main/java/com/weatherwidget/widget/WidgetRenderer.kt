@@ -13,7 +13,8 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.util.ObservationBlender
-import com.weatherwidget.widget.handlers.WidgetIntentRouter
+import com.weatherwidget.widget.handlers.CurrentTempResolver
+import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.CloudCoverViewHandler
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
@@ -78,7 +79,7 @@ object WidgetRenderer {
         // Filter hourly forecasts to the NOW-centered window for current temp resolution.
         // This ensures the current temp display is always based on forecasts around NOW,
         // not any scrolled graph window.
-        val nowResolutionWindow = WidgetIntentRouter.buildCurrentTempResolutionWindow(now)
+        val nowResolutionWindow = GraphDataLoader.buildCurrentTempResolutionWindow(now)
         val nowZoneId = ZoneId.systemDefault()
         val nowMinEpoch = nowResolutionWindow.start.atZone(nowZoneId).toInstant().toEpochMilli()
         val nowMaxEpoch = nowResolutionWindow.end.atZone(nowZoneId).toInstant().toEpochMilli()
@@ -91,7 +92,7 @@ object WidgetRenderer {
         val graphStyleObs =
             if (repository != null) {
                 val observations = repository.getObservationsInRange(nowMinEpoch, nowMaxEpoch, locationLat, locationLon)
-                WidgetIntentRouter.resolveGraphStyleCurrentTempFromInputs(
+                CurrentTempResolver.resolveGraphStyleCurrentTempFromInputs(
                     observations = observations,
                     hourlyForecasts = nowCenteredHourlyForecasts,
                     displaySource = displaySource,
