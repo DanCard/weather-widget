@@ -3,16 +3,16 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Horizon line -->
+    <!-- Horizon line (matches cloud/grey style) -->
     <path
         android:fillColor="#90A4AE"
         android:pathData="M2,17h20v1H2z"/>
-    <!-- Sun disc (upper half visible above horizon at y=17) -->
+    <!-- Sun disc (Upper half of the radius-5 sun from ic_weather_clear, shifted to y=17) -->
     <path
-        android:fillColor="#FFD600"
-        android:pathData="M12,9.5c-2.2,0 -4,1.8 -4,4h8c0,-2.2 -1.8,-4 -4,-4z"/>
-    <!-- Rays above the sun -->
+        android:fillColor="#FFA726"
+        android:pathData="M7,17a5,5 0,0 1,10 0z"/>
+    <!-- Rays (Shifted from ic_weather_clear by +5Y to match the horizon placement) -->
     <path
-        android:fillColor="#FFD600"
-        android:pathData="M12,7c0.55,0 1,-0.45 1,-1V4c0,-0.55 -0.45,-1 -1,-1s-1,0.45 -1,1v2c0,0.55 0.45,1 1,1zM7.76,9.34c0.39,-0.39 0.39,-1.02 0,-1.41L6.34,6.51c-0.39,-0.39 -1.02,-0.39 -1.41,0s-0.39,1.02 0,1.41l1.42,1.42c0.39,0.39 1.02,0.39 1.41,0zM16.24,9.34c0.39,0.39 1.02,0.39 1.41,0l1.42,-1.42c0.39,-0.39 0.39,-1.02 0,-1.41s-1.02,-0.39 -1.41,0l-1.42,1.42c-0.39,0.39 -0.39,1.02 0,1.41zM5,13.5H3c-0.55,0 -1,0.45 -1,1s0.45,1 1,1h2c0.55,0 1,-0.45 1,-1s-0.45,-1 -1,-1zM21,13.5h-2c-0.55,0 -1,0.45 -1,1s0.45,1 1,1h2c0.55,0 1,-0.45 1,-1s-0.45,-1 -1,-1z"/>
+        android:fillColor="#FFA726"
+        android:pathData="M12,7c0.55,0 1,0.45 1,1v2c0,0.55 -0.45,1 -1,1s-1,-0.45 -1,-1L11,8c0,-0.55 0.45,-1 1,-1zM5.64,10.64c0.39,-0.39 0.39,-1.02 0,-1.41s-1.02,-0.39 -1.41,0L3.52,9.93c-0.39,0.39 -0.39,1.02 0,1.41s1.02,0.39 1.41,0l0.71,-0.7zM19.07,10.64l0.71,-0.71c0.39,-0.39 0.39,-1.02 0,-1.41s-1.02,-0.39 -1.41,0l-0.71,0.71c-0.39,0.39 -0.39,1.02 0,1.41s1.02,0.39 1.41,0z"/>
 </vector>

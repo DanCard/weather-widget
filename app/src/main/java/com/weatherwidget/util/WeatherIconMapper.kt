@@ -30,6 +30,7 @@ object WeatherIconMapper {
         R.drawable.ic_weather_mostly_cloudy_night,
         R.drawable.ic_weather_partly_cloudy,
         R.drawable.ic_weather_partly_cloudy_night,
+        R.drawable.ic_weather_horizon_sun,
         R.drawable.ic_weather_partly_cloudy_chance_rain,
         R.drawable.ic_weather_partly_cloudy_chance_rain_night,
         R.drawable.ic_weather_partly_cloudy_slight_chance_rain,

@@ -17,26 +17,24 @@ object SunPositionUtils {
         lat: Double,
         lon: Double,
     ): SunPhase {
-        // Use civil twilight zenith (96°) for phase detection so that the
-        // twilight transition icon covers the hour when light is visually
-        // fading/appearing rather than the moment the sun's upper limb crosses
-        // the horizon.  This pushes the DAY→NIGHT boundary ~30 min later and
-        // the NIGHT→DAY boundary ~30 min earlier, matching what users see.
-        val civilSunTimes = calculateSunTimesWithZenith(dateTime, lat, lon, 96.0)
+        // Civil twilight zenith (96°) means the DAY→NIGHT boundary is ~30 min
+        // after the official sunset and the NIGHT→DAY boundary is ~30 min
+        // before official sunrise, matching what users see.
+        val sunTimes = getSunTimes(dateTime, lat, lon)
 
-        if (civilSunTimes.sunsetHour >= 24.0) return SunPhase.DAY
-        if (civilSunTimes.sunriseHour <= 0.0 && civilSunTimes.sunsetHour <= 0.0) return SunPhase.NIGHT
+        if (sunTimes.sunsetHour >= 24.0) return SunPhase.DAY
+        if (sunTimes.sunriseHour <= 0.0 && sunTimes.sunsetHour <= 0.0) return SunPhase.NIGHT
 
         val hourStart = dateTime.hour + dateTime.minute / 60.0
         val hourEnd = hourStart + 1.0
 
         // Fully night: hour is entirely before sunrise or entirely after sunset
-        if (hourEnd <= civilSunTimes.sunriseHour || hourStart >= civilSunTimes.sunsetHour) return SunPhase.NIGHT
+        if (hourEnd <= sunTimes.sunriseHour || hourStart >= sunTimes.sunsetHour) return SunPhase.NIGHT
 
         // Fully within daylight hours — check golden hour proximity
-        if (hourStart >= civilSunTimes.sunriseHour && hourEnd <= civilSunTimes.sunsetHour) {
-            val nearSunset = hourEnd > civilSunTimes.sunsetHour - 1.0
-            val nearSunrise = hourStart < civilSunTimes.sunriseHour + 1.0
+        if (hourStart >= sunTimes.sunriseHour && hourEnd <= sunTimes.sunsetHour) {
+            val nearSunset = hourEnd > sunTimes.sunsetHour - 1.0
+            val nearSunrise = hourStart < sunTimes.sunriseHour + 1.0
             return if (nearSunset || nearSunrise) SunPhase.TWILIGHT else SunPhase.DAY
         }
 
@@ -46,24 +44,23 @@ object SunPositionUtils {
 
     /**
      * Returns true if this hour contains the civil twilight sunrise or sunset boundary
-     * (the hour when the sun crosses the civil twilight line). Uses the same zenith as
-     * getSunPhase so the horizon-sun icon appears on the hour that matches the visual sunset.
+     * (the hour when the sun crosses the civil twilight line).
      */
     fun isSunBoundary(
         dateTime: LocalDateTime,
         lat: Double,
         lon: Double,
     ): Boolean {
-        val civilSunTimes = calculateSunTimesWithZenith(dateTime, lat, lon, 96.0)
+        val sunTimes = getSunTimes(dateTime, lat, lon)
 
-        if (civilSunTimes.sunsetHour >= 24.0) return false
-        if (civilSunTimes.sunriseHour <= 0.0 && civilSunTimes.sunsetHour <= 0.0) return false
+        if (sunTimes.sunsetHour >= 24.0) return false
+        if (sunTimes.sunriseHour <= 0.0 && sunTimes.sunsetHour <= 0.0) return false
 
         val hourStart = dateTime.hour + dateTime.minute / 60.0
         val hourEnd = hourStart + 1.0
 
-        return (hourStart < civilSunTimes.sunriseHour && hourEnd > civilSunTimes.sunriseHour) ||
-               (hourStart < civilSunTimes.sunsetHour && hourEnd > civilSunTimes.sunsetHour)
+        return (hourStart < sunTimes.sunriseHour && hourEnd > sunTimes.sunriseHour) ||
+               (hourStart < sunTimes.sunsetHour && hourEnd > sunTimes.sunsetHour)
     }
 
     /**
@@ -95,35 +92,22 @@ object SunPositionUtils {
         )
     }
 
-    private fun calculateSunTimesWithZenith(
-        dateTime: LocalDateTime,
-        lat: Double,
-        lon: Double,
-        zenith: Double,
-    ): SunTimes {
-        return SunTimes(
-            sunriseHour = calculateSunriseSunset(dateTime, lat, lon, true, zenith),
-            sunsetHour = calculateSunriseSunset(dateTime, lat, lon, false, zenith),
-        )
-    }
-
     /**
-     * Simple approximation of the sunrise/sunset hour.
+     * Simple approximation of the sunrise/sunset hour using civil twilight zenith (96°).
      * Returns the hour of the day (0.0 to 24.0).
      */
-    fun calculateSunriseSunset(
+    private fun calculateSunriseSunset(
         dateTime: LocalDateTime,
         lat: Double,
         lon: Double,
         isSunrise: Boolean,
-        zenith: Double = 93.33,
     ): Double {
         val dayOfYear = dateTime.dayOfYear
 
-        // Zenith angle: 93.33° = official sunrise/sunset,
-        // 96° = civil twilight (sun 6° below horizon — visible light persists).
-        // Callers can override via the zenith parameter.
-        val zenithValue = zenith
+        // Zenith 96° = civil twilight (sun 6° below horizon — visible light persists).
+        // This makes sunrise/sunset boundaries match what users see, and aligns with
+        // getSunPhase which also uses 96°.
+        val zenith = 96.0
 
         // 1. Calculate the day of the year
         val n = dayOfYear.toDouble()
@@ -163,7 +147,7 @@ object SunPositionUtils {
         val cosDec = cos(asin(sinDec))
 
         // 7. Calculate the Sun's local hour angle
-        val cosH = (cos(Math.toRadians(zenithValue)) - (sinDec * sin(Math.toRadians(lat)))) / (cosDec * cos(Math.toRadians(lat)))
+        val cosH = (cos(Math.toRadians(zenith)) - (sinDec * sin(Math.toRadians(lat)))) / (cosDec * cos(Math.toRadians(lat)))
 
         if (cosH > 1) return 0.0 // Sun never rises
         if (cosH < -1) return 24.0 // Sun never sets

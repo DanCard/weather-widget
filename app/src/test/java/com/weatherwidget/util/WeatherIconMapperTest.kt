@@ -359,6 +359,12 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testHorizonSunIsMixed() {
+        // Horizon sun is in MIXED_ICONS so it skips flat tinting and uses its internal gradient
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_horizon_sun))
+    }
+
+    @Test
     fun testTwility_fogUnaffected() {
         val res = WeatherIconMapper.getIconResource("Fog", isNight = false, isTwilight = true)
         assertEquals(R.drawable.ic_weather_fog, res)
