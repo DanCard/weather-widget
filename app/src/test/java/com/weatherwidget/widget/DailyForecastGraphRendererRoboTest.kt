@@ -321,4 +321,57 @@ class DailyForecastGraphRendererRoboTest {
             labels.size <= 1,
         )
     }
+
+    @Test
+    fun renderGraph_rainLabelScaling_doesNotMutateSharedPaint() {
+        val feb03 = LocalDate.of(2026, 2, 3)
+        // Day 5 days from "today" (if we don't specify now, it uses current date, but let's just use enough days)
+        val today = LocalDate.now()
+        val targetDay = today.plusDays(5)
+        
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                high = 68f,
+                low = 48f,
+                isToday = true,
+            ),
+            DailyForecastGraphRenderer.DayData(
+                date = targetDay,
+                label = "Mon",
+                high = 70f,
+                low = 50f,
+                dailyRainLabelText = "39%",
+                dailyPrecipProbability = 39,
+                daysFromToday = 5
+            ),
+        )
+
+        // First render to initialize and (currently) mutate the shared paint
+        renderRainLabels(days)
+        
+        // Use reflection to check the private cachedPaintSet in DailyForecastGraphRenderer
+        val rendererClass = DailyForecastGraphRenderer::class.java
+        val cachedPaintSetField = rendererClass.getDeclaredField("cachedPaintSet")
+        cachedPaintSetField.isAccessible = true
+        val paintSet = cachedPaintSetField.get(null)
+        assertNotNull("cachedPaintSet should be initialized after render", paintSet)
+        
+        val rainTextPaintField = paintSet!!.javaClass.getDeclaredField("rainTextPaint")
+        rainTextPaintField.isAccessible = true
+        val rainPaint = rainTextPaintField.get(paintSet) as android.graphics.Paint
+        
+        val initialSize = rainPaint.textSize
+        
+        // Second render - if the bug exists, this will mutate it FURTHER or we can check if it already mutated
+        renderRainLabels(days)
+        
+        assertEquals(
+            "Rain text size should remain constant across renders (no shared state mutation)",
+            initialSize,
+            rainPaint.textSize,
+            0.001f
+        )
+    }
 }
