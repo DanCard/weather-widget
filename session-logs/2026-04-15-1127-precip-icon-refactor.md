@@ -34,7 +34,10 @@ We updated the thresholds in `WeatherIconMapper.kt` to the following:
 - **`app/src/test/java/com/weatherwidget/util/WeatherIconMapperTest.kt`**: Updated tests to match new 60% and 80% boundaries.
 - **`app/src/test/java/com/weatherwidget/util/DailyForecastIconResolverTest.kt`**: Updated integration tests that previously expected 2 drops at 50-55% probability.
 
+## Code Refactor
+- **Simplification of `getPrecipitationIcon`**: Refactored the nested `cloudTier` -> `isTwoDrops` -> `isNight` logic into a flattened `when` structure grouped by cloud cover tiers (Overcast, Partly Cloudy, and Clear). This reduced cognitive load and improved readability without changing the underlying decision matrix.
+
 ## Verification
 - **Unit Tests:** Ran all unit tests for the `app` module.
 - **Result:** `BUILD SUCCESSFUL` - All 38 actionable tasks (including all relevant icon/resolver tests) passed.
-- **Status:** The widget will now appear less "rainy" for moderate probabilities, requiring 60% for a 2-drop icon and 80% for the full rain icon.
+- **Status:** The widget will now appear less "rainy" for moderate probabilities, requiring 60% for a 2-drop icon and 80% for the full rain icon. The implementation is now also more maintainable.

@@ -140,37 +140,32 @@ object WeatherIconMapper {
         precipProbability: Int?,
         baseRainIcon: Int
     ): Int {
-        // 1. Threshold: If probability is null or high (>= 80%), use the base rain icon (heavy)
         if (precipProbability == null || precipProbability >= 80) return baseRainIcon
-
-        // 2. Threshold: If probability is trace (<= 15%), show cloud cover icon only
         if (precipProbability <= 15) return getCloudCoverIcon(isNight, cloudCover)
 
-        // 3. Nuanced Matrix (16% - 79%): Select between 1-drop and 2-drop variants based on probability and cloud cover
-        val isTwoDrops = precipProbability >= 60
-        val cloudTier = when (cloudCover ?: 50) {
-            in 0..30 -> 0 // Mostly Clear
-            in 31..70 -> 1 // Partly Cloudy
-            else -> 2 // Mostly Cloudy/Overcast
-        }
+        val isChance = precipProbability >= 60
+        val cloudPct = cloudCover ?: 50
 
-        return when (cloudTier) {
-            0 -> { // Mostly Clear
-                if (isTwoDrops) {
-                    if (isNight) R.drawable.ic_weather_night_chance_rain else R.drawable.ic_weather_clear_chance_rain
-                } else {
-                    if (isNight) R.drawable.ic_weather_night_slight_chance_rain else R.drawable.ic_weather_clear_slight_chance_rain
-                }
+        return when {
+            // 1. Overcast Tier (71%+ cloud)
+            cloudPct > 70 ->
+                if (isChance) R.drawable.ic_weather_cloudy_chance_rain
+                else R.drawable.ic_weather_cloudy_slight_chance_rain
+
+            // 2. Partly Cloudy Tier (31-70% cloud)
+            cloudPct > 30 -> when {
+                isNight && isChance -> R.drawable.ic_weather_partly_cloudy_chance_rain_night
+                isNight -> R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night
+                isChance -> R.drawable.ic_weather_partly_cloudy_chance_rain
+                else -> R.drawable.ic_weather_partly_cloudy_slight_chance_rain
             }
-            1 -> { // Partly Cloudy
-                if (isTwoDrops) {
-                    if (isNight) R.drawable.ic_weather_partly_cloudy_chance_rain_night else R.drawable.ic_weather_partly_cloudy_chance_rain
-                } else {
-                    if (isNight) R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night else R.drawable.ic_weather_partly_cloudy_slight_chance_rain
-                }
-            }
-            else -> { // Mostly Cloudy/Overcast
-                if (isTwoDrops) R.drawable.ic_weather_cloudy_chance_rain else R.drawable.ic_weather_cloudy_slight_chance_rain
+
+            // 3. Clear Tier (0-30% cloud)
+            else -> when {
+                isNight && isChance -> R.drawable.ic_weather_night_chance_rain
+                isNight -> R.drawable.ic_weather_night_slight_chance_rain
+                isChance -> R.drawable.ic_weather_clear_chance_rain
+                else -> R.drawable.ic_weather_clear_slight_chance_rain
             }
         }
     }
