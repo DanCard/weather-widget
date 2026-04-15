@@ -29,13 +29,34 @@ object WeatherConditionColors {
         }
     }
 
+    private val CHANCE_RAIN_ICONS = setOf(
+        R.drawable.ic_weather_partly_cloudy_chance_rain,
+        R.drawable.ic_weather_partly_cloudy_chance_rain_night,
+        R.drawable.ic_weather_clear_chance_rain,
+        R.drawable.ic_weather_night_chance_rain,
+        R.drawable.ic_weather_cloudy_chance_rain,
+    )
+
     /** Returns the cloud ratio (0.0 = clear, 1.0 = overcast) for mixed-condition icons, or null for non-mixed. */
     fun cloudRatio(iconRes: Int): Float? {
         return when (iconRes) {
+            R.drawable.ic_weather_horizon_sun -> 0.12f
             R.drawable.ic_weather_fog_sunny -> 0.15f
+            R.drawable.ic_weather_clear_slight_chance_rain -> 0.22f
+            R.drawable.ic_weather_night_slight_chance_rain -> 0.22f
+            R.drawable.ic_weather_clear_chance_rain -> 0.25f
+            R.drawable.ic_weather_night_chance_rain -> 0.25f
+            R.drawable.ic_weather_fog_light,
+            R.drawable.ic_weather_fog_light_night -> 0.30f
             R.drawable.ic_weather_partly_cloudy,
             R.drawable.ic_weather_partly_cloudy_night -> 0.35f
-            R.drawable.ic_weather_partly_cloudy_chance_rain -> 0.40f
+            R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
+            R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night -> 0.38f
+            R.drawable.ic_weather_partly_cloudy_chance_rain,
+            R.drawable.ic_weather_partly_cloudy_chance_rain_night -> 0.40f
+            R.drawable.ic_weather_fog_night -> 0.50f
+            R.drawable.ic_weather_cloudy_slight_chance_rain -> 0.60f
+            R.drawable.ic_weather_cloudy_chance_rain -> 0.65f
             R.drawable.ic_weather_mostly_cloudy,
             R.drawable.ic_weather_mostly_cloudy_night,
             R.drawable.ic_weather_fog_cloudy -> 0.70f
@@ -47,7 +68,7 @@ object WeatherConditionColors {
     fun forecastBarGradient(iconRes: Int, topY: Float, bottomY: Float): LinearGradient? {
         val ratio = cloudRatio(iconRes) ?: return null
         val topColor = FORECAST_SUNNY
-        val bottomColor = if (iconRes == R.drawable.ic_weather_partly_cloudy_chance_rain) FORECAST_RAINY else FORECAST_CLOUDY
+        val bottomColor = if (iconRes in CHANCE_RAIN_ICONS) FORECAST_RAINY else FORECAST_CLOUDY
         return LinearGradient(
             0f, topY, 0f, bottomY,
             intArrayOf(topColor, topColor, bottomColor),

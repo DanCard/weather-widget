@@ -1,5 +1,6 @@
 package com.weatherwidget.util
 
+import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
 
 object WeatherIconMapper {
@@ -25,7 +26,8 @@ object WeatherIconMapper {
         R.drawable.ic_weather_cloudy_slight_chance_rain
     )
 
-    private val MIXED_ICONS = setOf(
+    @VisibleForTesting
+    internal val MIXED_ICONS = setOf(
         R.drawable.ic_weather_mostly_cloudy,
         R.drawable.ic_weather_mostly_cloudy_night,
         R.drawable.ic_weather_partly_cloudy,
