@@ -324,8 +324,7 @@ class DailyForecastGraphRendererRoboTest {
 
     @Test
     fun renderGraph_rainLabelScaling_doesNotMutateSharedPaint() {
-        val feb03 = LocalDate.of(2026, 2, 3)
-        // Day 5 days from "today" (if we don't specify now, it uses current date, but let's just use enough days)
+        // Day 5 days from "today"
         val today = LocalDate.now()
         val targetDay = today.plusDays(5)
         
@@ -348,30 +347,63 @@ class DailyForecastGraphRendererRoboTest {
             ),
         )
 
-        // First render to initialize and (currently) mutate the shared paint
-        renderRainLabels(days)
-        
-        // Use reflection to check the private cachedPaintSet in DailyForecastGraphRenderer
+        // Use reflection to access the shared PaintSet BEFORE any rendering
         val rendererClass = DailyForecastGraphRenderer::class.java
         val cachedPaintSetField = rendererClass.getDeclaredField("cachedPaintSet")
         cachedPaintSetField.isAccessible = true
+        
+        // Initialize the paints with the SAME dimensions we will use for the test
+        val width = 1000
+        val height = 1000
+        DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 0f, low = 0f)), width, height)
         val paintSet = cachedPaintSetField.get(null)
-        assertNotNull("cachedPaintSet should be initialized after render", paintSet)
+        assertNotNull(paintSet)
         
         val rainTextPaintField = paintSet!!.javaClass.getDeclaredField("rainTextPaint")
         rainTextPaintField.isAccessible = true
         val rainPaint = rainTextPaintField.get(paintSet) as android.graphics.Paint
         
-        val initialSize = rainPaint.textSize
+        val baseSize = rainPaint.textSize
         
-        // Second render - if the bug exists, this will mutate it FURTHER or we can check if it already mutated
-        renderRainLabels(days)
-        
-        assertEquals(
-            "Rain text size should remain constant across renders (no shared state mutation)",
-            initialSize,
-            rainPaint.textSize,
-            0.001f
+        var sizeDuringFirstRender: Float = 0f
+        var sizeDuringSecondRender: Float = 0f
+        var firstRenderCallbackFired = false
+        var secondRenderCallbackFired = false
+
+        // First call: mutate, then while mutated, call AGAIN
+        DailyForecastGraphRenderer.renderGraph(
+            context = context,
+            days = days,
+            widthPx = width,
+            heightPx = height,
+            onRainLabelDrawn = {
+                firstRenderCallbackFired = true
+                // Inside the first render, the paint size SHOULD be mutated
+                sizeDuringFirstRender = rainPaint.textSize
+                
+                // CRITICAL: Call render AGAIN while the first one is still in its scaled state
+                DailyForecastGraphRenderer.renderGraph(
+                    context = context,
+                    days = days,
+                    widthPx = width,
+                    heightPx = height,
+                    onRainLabelDrawn = {
+                        secondRenderCallbackFired = true
+                        // If the bug exists, this second call will read the ALREADY SHRUNKEN size as its base
+                        sizeDuringSecondRender = rainPaint.textSize
+                    }
+                )
+            }
         )
+
+        assertTrue("First render callback should have fired", firstRenderCallbackFired)
+        assertTrue("Second render callback should have fired", secondRenderCallbackFired)
+
+        // After all calls, the sequential restoration should have worked (textSize == baseSize)
+        assertEquals("Sequential restoration should work", baseSize, rainPaint.textSize, 0.001f)
+        
+        // With the fix, the shared paint should remain at its base size even DURING the render
+        assertEquals("Shared paint size should NOT be mutated during first render", baseSize, sizeDuringFirstRender, 0.001f)
+        assertEquals("Shared paint size should NOT be mutated during second render", baseSize, sizeDuringSecondRender, 0.001f)
     }
 }

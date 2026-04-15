@@ -499,55 +499,55 @@ object DailyForecastGraphRenderer {
     ) {
         val label = day.dailyRainLabelText ?: return
         val rainText = label
-        val originalTextSize = paints.rainTextPaint.textSize
         val prob = (day.dailyPrecipProbability ?: 0) / 100f
         val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
         val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE)
-        val scaledTextSize = originalTextSize * clampedScale
+        val scaledTextSize = paints.rainTextPaint.textSize * clampedScale
         val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
-        Log.d(TAG, "rainFont: date=${day.date} daysFromToday=${day.daysFromToday} prob=${day.dailyPrecipProbability}% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${originalTextSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
-        paints.rainTextPaint.textSize = originalTextSize * clampedScale
-        try {
-            val textWidth = paints.rainTextPaint.measureText(rainText)
-            val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
-            if (textWidth > maxTextWidth) {
-                Log.d(TAG, "rainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
+        Log.d(TAG, "rainFont: date=${day.date} daysFromToday=${day.daysFromToday} prob=${day.dailyPrecipProbability}% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${paints.rainTextPaint.textSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
+
+        // Fix: Use a local Paint copy to avoid thread-safety issues with the shared PaintSet
+        val localRainPaint = Paint(paints.rainTextPaint).apply {
+            textSize = scaledTextSize
+        }
+
+        val textWidth = localRainPaint.measureText(rainText)
+        val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
+        if (textWidth > maxTextWidth) {
+            Log.d(TAG, "rainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
+            return
+        }
+
+        val metrics = localRainPaint.fontMetrics
+        val topMargin = dpToPx(context, 2f * layout.scaleFactor)
+        val spacing = dpToPx(context, 10f * layout.scaleFactor)
+        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
+
+        resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
+            val aboveBaseline = highBaseline - spacing
+            if (aboveBaseline + metrics.ascent >= topMargin) {
+                canvas.drawText(rainText, centerX, aboveBaseline, localRainPaint)
+                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "ABOVE_HIGH", centerX, aboveBaseline))
                 return
             }
+        }
 
-            val metrics = paints.rainTextPaint.fontMetrics
-            val topMargin = dpToPx(context, 2f * layout.scaleFactor)
-            val spacing = dpToPx(context, 10f * layout.scaleFactor)
-            val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
-
-            resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
-                val aboveBaseline = highBaseline - spacing
-                if (aboveBaseline + metrics.ascent >= topMargin) {
-                    canvas.drawText(rainText, centerX, aboveBaseline, paints.rainTextPaint)
-                    onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "ABOVE_HIGH", centerX, aboveBaseline))
-                    return
-                }
+        resolveLowLabelBaseline(context, day, layout)?.let { lowBaseline ->
+            val belowBaseline = lowBaseline + spacing - metrics.ascent
+            if (belowBaseline + metrics.descent <= bottomLimit) {
+                canvas.drawText(rainText, centerX, belowBaseline, localRainPaint)
+                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
+                return
             }
+            Log.d(TAG, "rainLabel skipped: below-low overflow: date=${day.date} belowBaseline=$belowBaseline bottomLimit=$bottomLimit descent=${metrics.descent} overflow=${belowBaseline + metrics.descent - bottomLimit}px")
+        }
 
-            resolveLowLabelBaseline(context, day, layout)?.let { lowBaseline ->
-                val belowBaseline = lowBaseline + spacing - metrics.ascent
-                if (belowBaseline + metrics.descent <= bottomLimit) {
-                    canvas.drawText(rainText, centerX, belowBaseline, paints.rainTextPaint)
-                    onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
-                    return
-                }
-                Log.d(TAG, "rainLabel skipped: below-low overflow: date=${day.date} belowBaseline=$belowBaseline bottomLimit=$bottomLimit descent=${metrics.descent} overflow=${belowBaseline + metrics.descent - bottomLimit}px")
-            }
-
-            val highBaseline = resolveHighLabelBaseline(context, day, layout)
-            if (highBaseline == null) {
-                Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} high=${day.high}")
-            } else {
-                val aboveBaseline = highBaseline - spacing
-                Log.d(TAG, "rainLabel skipped: above-high overflow: date=${day.date} aboveBaseline=$aboveBaseline topMargin=$topMargin ascent=${metrics.ascent} overflow=${topMargin - (aboveBaseline + metrics.ascent)}px")
-            }
-        } finally {
-            paints.rainTextPaint.textSize = originalTextSize
+        val highBaseline = resolveHighLabelBaseline(context, day, layout)
+        if (highBaseline == null) {
+            Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} high=${day.high}")
+        } else {
+            val aboveBaseline = highBaseline - spacing
+            Log.d(TAG, "rainLabel skipped: above-high overflow: date=${day.date} aboveBaseline=$aboveBaseline topMargin=$topMargin ascent=${metrics.ascent} overflow=${topMargin - (aboveBaseline + metrics.ascent)}px")
         }
     }
 
