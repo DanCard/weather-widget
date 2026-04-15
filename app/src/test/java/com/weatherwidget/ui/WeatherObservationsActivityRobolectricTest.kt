@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.AppLogEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.util.SharedPreferencesUtil
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
@@ -43,7 +44,6 @@ class WeatherObservationsActivityRobolectricTest {
     private val lat = 37.416885
     private val lon = -122.088776
     private var now = 0L
-    private val dbName = "weather_observations_activity_test_db"
     
     // Test dispatcher for synchronous execution
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -52,7 +52,10 @@ class WeatherObservationsActivityRobolectricTest {
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
         WeatherDatabase.setIsTesting(true)
-        WeatherDatabase.setDatabaseNameOverrideForTesting(dbName)
+        // Use synchronous in-memory database with direct executors to avoid background racing
+        database = TestDatabase.create()
+        WeatherDatabase.setDatabaseForTesting(database)
+        
         WidgetStateManager.setPrefsNameOverrideForTesting(null)
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
@@ -60,7 +63,6 @@ class WeatherObservationsActivityRobolectricTest {
 
         now = System.currentTimeMillis()
 
-        database = WeatherDatabase.getDatabase(context)
         stateManager = WidgetStateManager(context, database.appLogDao())
 
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
@@ -107,13 +109,11 @@ class WeatherObservationsActivityRobolectricTest {
     @After
     fun tearDown() {
         WeatherDatabase.resetInstanceForTesting()
-        WeatherDatabase.setDatabaseNameOverrideForTesting(null)
         WeatherDatabase.setIsTesting(false)
         WidgetStateManager.setPrefsNameOverrideForTesting(null)
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
-        context.deleteDatabase(dbName)
     }
 
     @Test
@@ -144,6 +144,8 @@ class WeatherObservationsActivityRobolectricTest {
         scenario.onActivity { activity ->
             activity.findViewById<TextView>(R.id.api_source_button).performClick()
             // After click, the activity triggers loadObservations() and loadFetchLogs() on ioDispatcher
+            // Ensure all pending work on main looper (like coroutine resumptions) finishes
+            shadowOf(Looper.getMainLooper()).idle()
         }
 
         scenario.onActivity { activity ->
@@ -184,7 +186,11 @@ class WeatherObservationsActivityRobolectricTest {
         val scenario = ActivityScenario.launch<WeatherObservationsActivity>(intent)
         scenario.onActivity { it.ioDispatcher = testDispatcher }
         // Force a re-load now that we have the synchronous dispatcher
-        scenario.onActivity { it.findViewById<TextView>(R.id.api_source_button).performClick(); it.findViewById<TextView>(R.id.api_source_button).performClick() } 
+        scenario.onActivity { 
+            it.findViewById<TextView>(R.id.api_source_button).performClick()
+            it.findViewById<TextView>(R.id.api_source_button).performClick() 
+            shadowOf(Looper.getMainLooper()).idle()
+        } 
         // Actually, onCreate already ran. Let's try to inject dispatcher via scenario.onActivity before it runs? 
         // ActivityScenario.launch runs onCreate immediately.
         // Let's use ActivityScenario.onActivity to re-trigger the loads.
