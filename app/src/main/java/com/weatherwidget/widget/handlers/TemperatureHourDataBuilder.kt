@@ -165,6 +165,17 @@ internal fun buildHourDataResult(
             sourceActuals
         }
     val stationCount = blendInputActuals.map { it.stationId }.toSet().size
+    val sourceSpanSummary =
+        if (sourceActuals.isEmpty()) {
+            "none"
+        } else {
+            val formatter = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+            val firstTs = sourceActuals.minOf { it.timestamp }
+            val lastTs = sourceActuals.maxOf { it.timestamp }
+            val firstLocal = Instant.ofEpochMilli(firstTs).atZone(zoneId).toLocalDateTime().format(formatter)
+            val lastLocal = Instant.ofEpochMilli(lastTs).atZone(zoneId).toLocalDateTime().format(formatter)
+            "$firstLocal..$lastLocal"
+        }
     if (blendInputActuals.isNotEmpty()) {
         onBlendDebug?.invoke {
             val stationBreakdown = blendInputActuals
@@ -200,7 +211,9 @@ internal fun buildHourDataResult(
     val blendedActuals = blendedActualsResult.observations
     Log.d(
         TAG,
-        "buildHourDataList: source=${displaySource.id}, IDW blend from $stationCount stations, " +
+        "buildHourDataList: source=${displaySource.id}, sourceRows=${sourceActuals.size}, " +
+            "sourceSpan=$sourceSpanSummary, selectedStation=${selectedStationId ?: "ALL"}, " +
+            "blendInputRows=${blendInputActuals.size}, stations=$stationCount, " +
             "blendedPoints=${blendedActuals.size}, visualWindow=${startHour.format(DateTimeFormatter.ISO_LOCAL_TIME)} to ${endHour.format(DateTimeFormatter.ISO_LOCAL_TIME)}"
     )
 

@@ -240,6 +240,41 @@ class ObservationResolverTest {
         assertEquals(68f, meteoEntity.highTemp)
     }
 
+    @Test
+    fun `mergeDailyActualsBySource preserves widest known today bounds`() {
+        val today = java.time.LocalDate.of(2026, 4, 14)
+        val persisted = mapOf(
+            WeatherSource.NWS.id to mapOf(
+                today to ObservationResolver.DailyActual(
+                    date = today,
+                    highTemp = 63.82f,
+                    lowTemp = 46.30f,
+                    condition = "Clear",
+                )
+            )
+        )
+        val live = mapOf(
+            WeatherSource.NWS.id to mapOf(
+                today to ObservationResolver.DailyActual(
+                    date = today,
+                    highTemp = 63.82f,
+                    lowTemp = 60.53f,
+                    condition = "Clear",
+                )
+            )
+        )
+
+        val merged = ObservationResolver.mergeDailyActualsBySource(
+            primary = persisted,
+            secondary = live,
+        )
+
+        val actual = merged[WeatherSource.NWS.id]?.get(today)
+        assertNotNull(actual)
+        assertEquals(63.82f, actual!!.highTemp, 0.01f)
+        assertEquals(46.30f, actual.lowTemp, 0.01f)
+    }
+
     private fun observation(
         timestamp: Long,
         temperature: Float,

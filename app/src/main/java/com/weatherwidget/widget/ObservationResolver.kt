@@ -289,4 +289,44 @@ object ObservationResolver {
                     )
                 }
             }
+
+    /**
+     * Merges per-source daily actuals while preserving the widest known high/low bounds for
+     * overlapping dates. Later values win only for metadata like condition text.
+     */
+    fun mergeDailyActualsBySource(
+        primary: DailyActualsBySource,
+        secondary: DailyActualsBySource,
+    ): DailyActualsBySource =
+        (primary.keys + secondary.keys).associateWith { source ->
+            mergeDailyActualMap(
+                primary[source].orEmpty(),
+                secondary[source].orEmpty(),
+            )
+        }
+
+    private fun mergeDailyActualMap(
+        primary: DailyActualMap,
+        secondary: DailyActualMap,
+    ): DailyActualMap =
+        (primary.keys + secondary.keys).associateWith { date ->
+            mergeDailyActual(primary[date], secondary[date])
+        }.filterValues { it != null }
+            .mapValues { (_, actual) -> checkNotNull(actual) }
+
+    private fun mergeDailyActual(
+        primary: DailyActual?,
+        secondary: DailyActual?,
+    ): DailyActual? =
+        when {
+            primary == null -> secondary
+            secondary == null -> primary
+            else ->
+                DailyActual(
+                    date = primary.date,
+                    highTemp = maxOf(primary.highTemp, secondary.highTemp),
+                    lowTemp = minOf(primary.lowTemp, secondary.lowTemp),
+                    condition = secondary.condition.ifBlank { primary.condition },
+                )
+        }
 }

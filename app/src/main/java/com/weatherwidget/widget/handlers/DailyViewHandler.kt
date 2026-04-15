@@ -407,6 +407,30 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
 
             val prepareStartMs = SystemClock.elapsedRealtime()
+            val todayActual = dailyActuals[today]
+            val sourceCurrentTemps = currentTemps.filter {
+                ObservationResolver.inferSource(it.stationId) == displaySource.id ||
+                    ObservationResolver.inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
+            }
+            val currentTempSpan =
+                if (sourceCurrentTemps.isEmpty()) {
+                    "none"
+                } else {
+                    val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+                    val firstTs = sourceCurrentTemps.minOf { it.timestamp }
+                    val lastTs = sourceCurrentTemps.maxOf { it.timestamp }
+                    val firstLocal = Instant.ofEpochMilli(firstTs).atZone(ZoneId.systemDefault()).toLocalDateTime().format(formatter)
+                    val lastLocal = Instant.ofEpochMilli(lastTs).atZone(ZoneId.systemDefault()).toLocalDateTime().format(formatter)
+                    "$firstLocal..$lastLocal"
+                }
+            Log.d(
+                TAG,
+                "dailyTodayInputs: widget=$appWidgetId source=${displaySource.id} date=$today " +
+                    "dailyActual.high=${todayActual?.highTemp} dailyActual.low=${todayActual?.lowTemp} " +
+                    "currentTempResolution=$currentTemp observedAt=$observedAt " +
+                    "sourceCurrentRows=${sourceCurrentTemps.size} sourceCurrentSpan=$currentTempSpan " +
+                    "hourlyRows=${hourlyForecasts.count { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }}",
+            )
             val days = DailyViewLogic.prepareGraphDays(
                 now, centerDate, today, weatherByDate, forecastSnapshots,
                 numColumns, displaySource, isEveningMode, skipHistory,

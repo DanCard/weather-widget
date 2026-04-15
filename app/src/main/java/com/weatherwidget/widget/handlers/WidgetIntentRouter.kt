@@ -440,15 +440,26 @@ suspend fun handleToggleView(
         // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val todayDateMillis = today.toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val todayObs = database.observationDao().getObservationsInRange(todayStartMs, tomorrowMs, lat, lon)
             .filter { it.stationId != "NWS_BLEND" }
         val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs)
+        val persistedTodayExtremes = database.dailyExtremeDao().getExtremesInRange(
+            todayDateMillis,
+            todayDateMillis,
+            lat,
+            lon,
+        )
+        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes)
+        val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
+            primary = persistedTodayActuals,
+            secondary = todayActuals,
+        )
 
-        return (pastActuals.keys + todayActuals.keys).associateWith { source ->
-            val past: Map<java.time.LocalDate, ObservationResolver.DailyActual> = pastActuals[source] ?: emptyMap()
-            val live: Map<java.time.LocalDate, ObservationResolver.DailyActual> = todayActuals[source] ?: emptyMap()
-            past + live
-        }
+        return ObservationResolver.mergeDailyActualsBySource(
+            primary = pastActuals,
+            secondary = mergedTodayActuals,
+        )
     }
 
     private suspend fun sourceDataMissingForCurrentWindow(

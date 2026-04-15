@@ -192,17 +192,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                     val dailyActualsBySource =
                         if (needsDailyData) {
-                            val historyStartDate = LocalDate.now().minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                            val tomorrowDate = LocalDate.now().plusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                             val extremesQueryStartMs = SystemClock.elapsedRealtime()
-                            val extremes = database.dailyExtremeDao().getExtremesInRange(
-                                historyStartDate,
-                                tomorrowDate,
+                            val actuals = repository.getDailyActualsWithLiveToday(
                                 latestWeather.locationLat,
                                 latestWeather.locationLon,
                             )
                             extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
-                            ObservationResolver.extremesToDailyActualsBySource(extremes)
+                            actuals
                         } else {
                             emptyMap()
                         }

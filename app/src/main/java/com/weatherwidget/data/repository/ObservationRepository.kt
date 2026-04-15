@@ -336,13 +336,69 @@ class ObservationRepository @Inject constructor(
         // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val todayDateMillis = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayObs = observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude)
             .filter { it.stationId != "NWS_BLEND" }
         val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs)
+        val persistedTodayExtremes = dailyExtremeDao.getExtremesInRange(
+            todayDateMillis,
+            todayDateMillis,
+            latitude,
+            longitude,
+        )
 
-        return (pastActuals.keys + todayActuals.keys).associateWith { source ->
-            (pastActuals[source] ?: emptyMap()) + (todayActuals[source] ?: emptyMap())
-        }
+        val obsSpanSummary =
+            if (todayObs.isEmpty()) {
+                "none"
+            } else {
+                val firstTs = todayObs.minOf { it.timestamp }
+                val lastTs = todayObs.maxOf { it.timestamp }
+                val formatter = DateTimeFormatter.ofPattern("HH:mm:ss")
+                val firstLocal = java.time.Instant.ofEpochMilli(firstTs).atZone(zone).toLocalDateTime().format(formatter)
+                val lastLocal = java.time.Instant.ofEpochMilli(lastTs).atZone(zone).toLocalDateTime().format(formatter)
+                "$firstLocal..$lastLocal"
+            }
+        val persistedSummary =
+            persistedTodayExtremes
+                .sortedBy { it.source }
+                .joinToString("; ")
+                { extreme -> "${extreme.source}[high=${extreme.highTemp},low=${extreme.lowTemp},updatedAt=${extreme.updatedAt}]" }
+                .ifEmpty { "none" }
+        val liveSummary =
+            todayActuals
+                .toSortedMap()
+                .entries
+                .joinToString("; ") { (source, actualsByDate) ->
+                    val actual = actualsByDate[today]
+                    val stationCount = todayObs.count { ObservationResolver.inferSource(it.stationId) == source }
+                    "$source[liveHigh=${actual?.highTemp},liveLow=${actual?.lowTemp},rows=$stationCount]"
+                }
+                .ifEmpty { "none" }
+        Log.d(
+            TAG,
+            "getDailyActualsWithLiveToday: date=$today lat=$latitude lon=$longitude " +
+                "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary] persistedToday=[$persistedSummary]",
+        )
+        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes)
+        val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
+            primary = persistedTodayActuals,
+            secondary = todayActuals,
+        )
+        val mergedTodaySummary =
+            mergedTodayActuals
+                .toSortedMap()
+                .entries
+                .joinToString("; ") { (source, actualsByDate) ->
+                    val actual = actualsByDate[today]
+                    "$source[mergedHigh=${actual?.highTemp},mergedLow=${actual?.lowTemp}]"
+                }
+                .ifEmpty { "none" }
+        Log.d(TAG, "getDailyActualsWithLiveToday: mergedToday=[$mergedTodaySummary]")
+
+        return ObservationResolver.mergeDailyActualsBySource(
+            primary = pastActuals,
+            secondary = mergedTodayActuals,
+        )
     }
 
     internal suspend fun recomputeDailyExtremesFromStoredObservations(

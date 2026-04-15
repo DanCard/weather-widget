@@ -66,6 +66,20 @@ object DailyActualsEstimator {
         val observedHigh = currentTemp ?: actual?.highTemp
         // observedLow should be the minimum of the stored daily low and the current reading.
         val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
+        val observedHighSource =
+            when {
+                currentTemp != null -> "current_temp"
+                actual?.highTemp != null -> "daily_actual_high"
+                else -> "none"
+            }
+        val observedLowSource =
+            when {
+                actual?.lowTemp != null && currentTemp != null ->
+                    if (actual.lowTemp <= currentTemp) "daily_actual_low" else "current_temp"
+                actual?.lowTemp != null -> "daily_actual_low"
+                currentTemp != null -> "current_temp"
+                else -> "none"
+            }
 
         // 2. Full-day prediction (including both past and future hours)
         val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
@@ -79,7 +93,9 @@ object DailyActualsEstimator {
         ).minOrNull()
 
         Log.d("DailyEstimator", "today: actual.high=${actual?.highTemp} actual.low=${actual?.lowTemp} currentTemp=$currentTemp " +
-            "observedHigh=$observedHigh observedLow=$observedLow fallbackWeather.high=${fallbackWeather?.highTemp} fallbackWeather.low=${fallbackWeather?.lowTemp} " +
+            "observedHigh=$observedHigh observedHighSource=$observedHighSource " +
+            "observedLow=$observedLow observedLowSource=$observedLowSource " +
+            "fallbackWeather.high=${fallbackWeather?.highTemp} fallbackWeather.low=${fallbackWeather?.lowTemp} " +
             "hourlyMax=$hourlyMax hourlyMin=$hourlyMin forecastHigh=$forecastHigh forecastLow=$forecastLow " +
             "todayHourlyCount=${todayHourly.size} source=${displaySource.id}")
 
