@@ -134,6 +134,7 @@ object ObservationResolver {
         stationId.startsWith("OPEN_METEO") -> WeatherSource.OPEN_METEO.id
         stationId.startsWith("WEATHER_API") -> WeatherSource.WEATHER_API.id
         stationId.startsWith("SILURIAN") -> WeatherSource.SILURIAN.id
+        stationId.startsWith("TOMORROW_IO") -> WeatherSource.TOMORROW_IO.id
         else -> WeatherSource.NWS.id
     }
 

@@ -67,6 +67,7 @@ enum class WeatherSource(
                 "OpenWeatherMap", "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
                 "WeatherAPI", "WEATHER_API" -> WEATHER_API
                 "Silurian", "SILURIAN" -> SILURIAN
+                "Tomorrow.io", "TOMORROW_IO" -> TOMORROW_IO
                 else -> null
             }
 
@@ -88,6 +89,7 @@ enum class WeatherSource(
                 "OPEN_WEATHER_MAP" -> OPEN_WEATHER_MAP
                 "WEATHER_API" -> WEATHER_API
                 "SILURIAN" -> SILURIAN
+                "TOMORROW_IO" -> TOMORROW_IO
                 "Generic" -> GENERIC_GAP
                 else -> NWS
             }

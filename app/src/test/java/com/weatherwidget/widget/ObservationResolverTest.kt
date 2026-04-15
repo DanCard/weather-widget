@@ -140,6 +140,21 @@ class ObservationResolverTest {
         assertEquals("NWS_BLEND must not bleed into Open-Meteo source", 74.0f, resolved!!.temperature)
     }
 
+    @Test
+    fun `resolveObservedCurrentTemp correctly resolves Tomorrow-io observations`() {
+        val nowMs = 1_000_000L
+        val observations = listOf(
+            currentTempObservation(stationId = "TOMORROW_IO_MAIN", temperature = 72.5f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "NWS_BLEND",        temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs),
+        )
+
+        val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.TOMORROW_IO)
+
+        assertNotNull(resolved)
+        assertEquals(WeatherSource.TOMORROW_IO.id, resolved!!.source)
+        assertEquals(72.5f, resolved.temperature)
+    }
+
     // --- aggregateObservationsToDaily tests ---
 
     @Test
