@@ -265,13 +265,22 @@ class WeatherIconMapperTest {
 
     @Test
     fun testGetIconResource_RainChance_ShowsTwoDropsCloudy() {
+        // Now 55% is ONE drop (< 60%)
         val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 90, precipProbability = 55)
-        assertEquals(R.drawable.ic_weather_cloudy_chance_rain, res)
+        assertEquals(R.drawable.ic_weather_cloudy_slight_chance_rain, res)
     }
 
     @Test
     fun testGetIconResource_RainLikely_ShowsDefinitiveRain() {
+        // Now 75% is TWO drops (< 80%)
         val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 90, precipProbability = 75)
+        assertEquals(R.drawable.ic_weather_cloudy_chance_rain, res)
+    }
+
+    @Test
+    fun testGetIconResource_RainHeavy_ShowsDefinitiveRain() {
+        // Now 80% is heavy rain (base icon)
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 90, precipProbability = 80)
         assertEquals(R.drawable.ic_weather_rain, res)
     }
 
@@ -283,8 +292,9 @@ class WeatherIconMapperTest {
 
     @Test
     fun testGetIconResource_MoonShower_ShowsTwoDropsNight() {
+        // Now 55% is ONE drop (< 60%)
         val res = WeatherIconMapper.getIconResource("Rain", isNight = true, cloudCover = 5, precipProbability = 55)
-        assertEquals(R.drawable.ic_weather_night_chance_rain, res)
+        assertEquals(R.drawable.ic_weather_night_slight_chance_rain, res)
     }
 
     @Test

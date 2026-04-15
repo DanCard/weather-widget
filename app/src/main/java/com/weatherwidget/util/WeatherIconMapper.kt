@@ -140,14 +140,14 @@ object WeatherIconMapper {
         precipProbability: Int?,
         baseRainIcon: Int
     ): Int {
-        // 1. Threshold: If probability is null or high (> 70%), use the base rain icon (heavy)
-        if (precipProbability == null || precipProbability > 70) return baseRainIcon
+        // 1. Threshold: If probability is null or high (>= 80%), use the base rain icon (heavy)
+        if (precipProbability == null || precipProbability >= 80) return baseRainIcon
 
         // 2. Threshold: If probability is trace (<= 15%), show cloud cover icon only
         if (precipProbability <= 15) return getCloudCoverIcon(isNight, cloudCover)
 
-        // 3. Nuanced Matrix (16% - 70%): Select between 1-drop and 2-drop variants based on probability and cloud cover
-        val isTwoDrops = precipProbability >= 50
+        // 3. Nuanced Matrix (16% - 79%): Select between 1-drop and 2-drop variants based on probability and cloud cover
+        val isTwoDrops = precipProbability >= 60
         val cloudTier = when (cloudCover ?: 50) {
             in 0..30 -> 0 // Mostly Clear
             in 31..70 -> 1 // Partly Cloudy
