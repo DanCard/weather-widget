@@ -262,7 +262,7 @@ object DailyViewHandler : WidgetViewHandler {
             if (todayHeaderForecast != null) {
                 WeatherIconMapper.getIconResource(
                     condition = todayHeaderForecast.condition,
-                    isNight = SunPositionUtils.isNight(now, lat, lon),
+                    isNight = SunPositionUtils.getSunInfo(now, lat, lon).isNight,
                     cloudCover = todayHeaderForecast.cloudCover,
                     precipProbability = todayHeaderForecast.precipProbability,
                 )

@@ -77,9 +77,7 @@ internal object TemperatureStateResolver {
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val isNight = SunPositionUtils.isNight(now, lat, lon)
-        val isTwilight = SunPositionUtils.getSunPhase(now, lat, lon) == SunPhase.TWILIGHT
-        val isSunBoundary = SunPositionUtils.isSunBoundary(now, lat, lon)
+        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
         
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
@@ -187,11 +185,11 @@ internal object TemperatureStateResolver {
         val currentHourForecast = getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
         val iconRes = WeatherIconMapper.getIconResource(
             condition = currentHourForecast?.condition,
-            isNight = isNight,
+            isNight = sunInfo.isNight,
             cloudCover = currentHourForecast?.cloudCover,
             precipProbability = currentHourForecast?.precipProbability,
-            isTwilight = isTwilight,
-            isSunBoundary = isSunBoundary,
+            isTwilight = sunInfo.phase == SunPhase.TWILIGHT,
+            isSunBoundary = sunInfo.isSunBoundary,
         )
 
         val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(

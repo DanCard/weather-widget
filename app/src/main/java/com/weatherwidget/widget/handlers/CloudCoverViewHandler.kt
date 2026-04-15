@@ -179,17 +179,15 @@ object CloudCoverViewHandler {
         val now = LocalDateTime.now()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val isNight = SunPositionUtils.isNight(now, lat, lon)
-        val isTwilight = SunPositionUtils.getSunPhase(now, lat, lon) == SunPhase.TWILIGHT
-        val isSunBoundary = SunPositionUtils.isSunBoundary(now, lat, lon)
+        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
         val currentHourForecast = getCurrentHourForecast(hourlyForecasts, effectiveDisplaySource)
         val iconRes = WeatherIconMapper.getIconResource(
             condition = currentHourForecast?.condition,
-            isNight = isNight,
+            isNight = sunInfo.isNight,
             cloudCover = currentHourForecast?.cloudCover,
             precipProbability = currentHourForecast?.precipProbability,
-            isTwilight = isTwilight,
-            isSunBoundary = isSunBoundary,
+            isTwilight = sunInfo.phase == SunPhase.TWILIGHT,
+            isSunBoundary = sunInfo.isSunBoundary,
         )
         views.setImageViewResource(R.id.weather_icon, iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
@@ -610,10 +608,10 @@ object CloudCoverViewHandler {
                 val absDiff = kotlin.math.abs(diffMinutes)
                 val isClosest = absDiff <= 30
                 val showLabel = isClosest || (hourIndex % labelInterval == 0)
-                val sunPhase = SunPositionUtils.getSunPhase(currentHour, lat, lon)
-                val isNight = sunPhase == SunPhase.NIGHT
-                val isTwilight = sunPhase == SunPhase.TWILIGHT
-                val isSunBoundary = SunPositionUtils.isSunBoundary(currentHour, lat, lon)
+                val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
+                val isNight = sunInfo.isNight
+                val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
+                val isSunBoundary = sunInfo.isSunBoundary
                 val iconRes = WeatherIconMapper.getIconResource(
                     condition = forecast.condition,
                     isNight = isNight,

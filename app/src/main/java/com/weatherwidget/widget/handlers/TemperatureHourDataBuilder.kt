@@ -236,12 +236,12 @@ internal fun buildHourDataResult(
                     ZoomLevel.NARROW -> true
                 }
 
-            val sunPhase = SunPositionUtils.getSunPhase(currentHour, lat, lon)
-            val isNight = sunPhase == SunPhase.NIGHT
-            val isTwilight = sunPhase == SunPhase.TWILIGHT
-            val isSunBoundary = SunPositionUtils.isSunBoundary(currentHour, lat, lon)
+            val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
+            val isNight = sunInfo.isNight
+            val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
+            val isSunBoundary = sunInfo.isSunBoundary
             if (isTwilight || isSunBoundary) {
-                Log.d(TAG, "phase=$sunPhase boundary=$isSunBoundary hour=$currentHour condition=${forecast.condition} lat=$lat lon=$lon")
+                Log.d(TAG, "phase=${sunInfo.phase} boundary=$isSunBoundary hour=$currentHour condition=${forecast.condition} lat=$lat lon=$lon")
             }
             val iconRes = WeatherIconMapper.getIconResource(
                 condition = forecast.condition,
@@ -333,17 +333,16 @@ internal fun buildHourDataResult(
                 prevTopHour?.temperature ?: nextTopHour?.temperature ?: 0f
             }
 
-            val subPhase = SunPositionUtils.getSunPhase(time, lat, lon)
+            val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
             finalHours.add(
                 HourData(
                     dateTime = time,
                     temperature = forecastTemp,
                     label = formatHourLabel(time),
                     iconRes = null,
-                    isNight = subPhase == SunPhase.NIGHT,
-                    isTwilight = subPhase == SunPhase.TWILIGHT,
-                    isSunBoundary = SunPositionUtils.isSunBoundary(time, lat, lon),
-                    isSunny = false,
+                    isNight = subSunInfo.isNight,
+                    isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,
+                    isSunBoundary = subSunInfo.isSunBoundary,
                     isRainy = false,
                     isMixed = false,
                     isCurrentHour = false,
