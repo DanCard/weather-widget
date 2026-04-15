@@ -1,5 +1,6 @@
 package com.weatherwidget.util
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -13,13 +14,9 @@ import org.junit.experimental.categories.Category
 class SunPositionUtilsTest {
     @Test
     fun testIsNight_SanFrancisco_Noon() {
-        // SF Coordinates
         val lat = 37.7749
         val lon = -122.4194
-
-        // Noon in Summer
         val dateTime = LocalDateTime.of(2024, 6, 21, 12, 0)
-
         assertFalse("It should be day at noon in SF", SunPositionUtils.isNight(dateTime, lat, lon))
     }
 
@@ -27,10 +24,7 @@ class SunPositionUtilsTest {
     fun testIsNight_SanFrancisco_Midnight() {
         val lat = 37.7749
         val lon = -122.4194
-
-        // Midnight
         val dateTime = LocalDateTime.of(2024, 6, 21, 0, 0)
-
         assertTrue("It should be night at midnight in SF", SunPositionUtils.isNight(dateTime, lat, lon))
     }
 
@@ -38,12 +32,90 @@ class SunPositionUtilsTest {
     fun testIsNight_SanFrancisco_Sunset() {
         val lat = 37.7749
         val lon = -122.4194
-
-        // June 21 sunset in SF is around 8:30 PM (20.5)
-        val eveningDay = LocalDateTime.of(2024, 6, 21, 18, 0) // 6 PM
-        val nightTime = LocalDateTime.of(2024, 6, 21, 22, 0) // 10 PM
-
+        val eveningDay = LocalDateTime.of(2024, 6, 21, 18, 0)
+        val nightTime = LocalDateTime.of(2024, 6, 21, 22, 0)
         assertFalse("It should be day at 6 PM in SF in June", SunPositionUtils.isNight(eveningDay, lat, lon))
         assertTrue("It should be night at 10 PM in SF in June", SunPositionUtils.isNight(nightTime, lat, lon))
+    }
+
+    @Test
+    fun testGetSunPhase_noonIsDay() {
+        val lat = 37.7749
+        val lon = -122.4194
+        val noon = LocalDateTime.of(2024, 6, 21, 12, 0)
+        assertEquals(SunPhase.DAY, SunPositionUtils.getSunPhase(noon, lat, lon))
+    }
+
+    @Test
+    fun testGetSunPhase_midnightIsNight() {
+        val lat = 37.7749
+        val lon = -122.4194
+        val midnight = LocalDateTime.of(2024, 6, 21, 0, 0)
+        assertEquals(SunPhase.NIGHT, SunPositionUtils.getSunPhase(midnight, lat, lon))
+    }
+
+    @Test
+    fun testGetSunPhase_goldenHourBeforeSunset() {
+        val lat = 37.422
+        val lon = -122.0841
+        // April 14 Mountain View: 7 PM = TWILIGHT (pre-sunset golden hour),
+        // 8 PM = TWILIGHT (contains sunset), 9 PM = NIGHT, 6 PM = DAY
+        val sixPm = LocalDateTime.of(2026, 4, 14, 18, 0)
+        val sevenPm = LocalDateTime.of(2026, 4, 14, 19, 0)
+        val eightPm = LocalDateTime.of(2026, 4, 14, 20, 0)
+        val ninePm = LocalDateTime.of(2026, 4, 14, 21, 0)
+        assertEquals("6 PM should be DAY", SunPhase.DAY, SunPositionUtils.getSunPhase(sixPm, lat, lon))
+        assertEquals("7 PM should be TWILIGHT (pre-sunset golden hour)", SunPhase.TWILIGHT, SunPositionUtils.getSunPhase(sevenPm, lat, lon))
+        assertEquals("8 PM should be TWILIGHT (contains sunset)", SunPhase.TWILIGHT, SunPositionUtils.getSunPhase(eightPm, lat, lon))
+        assertEquals("9 PM should be NIGHT", SunPhase.NIGHT, SunPositionUtils.getSunPhase(ninePm, lat, lon))
+    }
+
+    @Test
+    fun testGetSunPhase_goldenHourAfterSunrise() {
+        val lat = 37.422
+        val lon = -122.0841
+        // Morning: hour containing sunrise AND the hour after should both be TWILIGHT
+        val fiveAm = LocalDateTime.of(2026, 4, 14, 5, 0)
+        val sixAm = LocalDateTime.of(2026, 4, 14, 6, 0)
+        val sevenAm = LocalDateTime.of(2026, 4, 14, 7, 0)
+        val eightAm = LocalDateTime.of(2026, 4, 14, 8, 0)
+        // 6 AM contains sunrise → TWILIGHT, 7 AM is post-sunrise golden hour → TWILIGHT
+        assertEquals("6 AM should be TWILIGHT (contains sunrise)", SunPhase.TWILIGHT, SunPositionUtils.getSunPhase(sixAm, lat, lon))
+        assertEquals("7 AM should be TWILIGHT (post-sunrise golden hour)", SunPhase.TWILIGHT, SunPositionUtils.getSunPhase(sevenAm, lat, lon))
+        assertEquals("8 AM should be DAY", SunPhase.DAY, SunPositionUtils.getSunPhase(eightAm, lat, lon))
+    }
+
+    @Test
+    fun testGetSunPhase_middayIsDay() {
+        val lat = 37.422
+        val lon = -122.0841
+        val tenAm = LocalDateTime.of(2026, 4, 14, 10, 0)
+        val fourPm = LocalDateTime.of(2026, 4, 14, 16, 0)
+        assertEquals(SunPhase.DAY, SunPositionUtils.getSunPhase(tenAm, lat, lon))
+        assertEquals(SunPhase.DAY, SunPositionUtils.getSunPhase(fourPm, lat, lon))
+    }
+
+    @Test
+    fun testGetSunPhase_consistentWithIsNight() {
+        val lat = 37.7749
+        val lon = -122.4194
+        for (hour in 0..23) {
+            val time = LocalDateTime.of(2024, 6, 21, hour, 0)
+            val phase = SunPositionUtils.getSunPhase(time, lat, lon)
+            val isNight = SunPositionUtils.isNight(time, lat, lon)
+            if (phase == SunPhase.NIGHT) {
+                assertTrue("NIGHT phase should have isNight=true at hour $hour", isNight)
+            } else {
+                assertFalse("DAY or TWILIGHT phase should have isNight=false at hour $hour", isNight)
+            }
+        }
+    }
+
+    @Test
+    fun testGetSunPhase_wellAfterSunsetIsNight() {
+        val lat = 37.7749
+        val lon = -122.4194
+        val elevenPm = LocalDateTime.of(2024, 6, 21, 23, 0)
+        assertEquals(SunPhase.NIGHT, SunPositionUtils.getSunPhase(elevenPm, lat, lon))
     }
 }

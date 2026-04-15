@@ -298,4 +298,87 @@ class WeatherIconMapperTest {
         assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_cloudy_slight_chance_rain))
         assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_cloudy_chance_rain))
     }
+
+    @Test
+    fun testSunBoundary_clearReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = false, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testSunBoundary_sunnyReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Sunny", isNight = false, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testSunBoundary_fairReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Fair", isNight = false, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testTwilight_rainUnaffected() {
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 50, precipProbability = 80, isTwilight = true)
+        assertEquals(R.drawable.ic_weather_rain, res)
+    }
+
+    @Test
+    fun testTwilight_partlyCloudyUnaffected() {
+        val res = WeatherIconMapper.getIconResource("Partly Cloudy", isNight = false, isTwilight = true)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
+    fun testTwilight_clearKeepDayIcon() {
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = false, isTwilight = true)
+        assertEquals(R.drawable.ic_weather_clear, res)
+    }
+
+    @Test
+    fun testSunBoundary_nightClearOverridesToHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = true, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testSunBoundary_unknownConditionReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Something Weird", isNight = false, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testSunBoundary_unknownConditionNightReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Something Weird", isNight = true, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testHorizonSunIsSunny() {
+        assertTrue(WeatherIconMapper.isSunny(R.drawable.ic_weather_horizon_sun))
+    }
+
+    @Test
+    fun testTwility_fogUnaffected() {
+        val res = WeatherIconMapper.getIconResource("Fog", isNight = false, isTwilight = true)
+        assertEquals(R.drawable.ic_weather_fog, res)
+    }
+
+    @Test
+    fun testSunBoundary_mostlyClearReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Mostly Clear", isNight = false, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
+
+    @Test
+    fun testTwilight_mostlyClearKeepDayIcon() {
+        val res = WeatherIconMapper.getIconResource("Mostly Clear", isNight = false, isTwilight = true)
+        assertEquals(R.drawable.ic_weather_mostly_clear, res)
+    }
+
+    @Test
+    fun testSunBoundary_overcastReturnsHorizonSun() {
+        val res = WeatherIconMapper.getIconResource("Overcast", isNight = false, isSunBoundary = true)
+        assertEquals(R.drawable.ic_weather_horizon_sun, res)
+    }
 }

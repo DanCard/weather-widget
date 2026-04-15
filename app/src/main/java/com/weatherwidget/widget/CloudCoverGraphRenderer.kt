@@ -29,6 +29,8 @@ object CloudCoverGraphRenderer {
         val label: String,
         val iconRes: Int? = null,
         val isNight: Boolean = false,
+        val isTwilight: Boolean = false,
+        val isSunBoundary: Boolean = false,
         val isSunny: Boolean = false,
         val isRainy: Boolean = false,
         val isMixed: Boolean = false,
@@ -264,6 +266,7 @@ object CloudCoverGraphRenderer {
             if (!hour.isRainy && !hour.isMixed) {
                 val iconTint = when {
                     hour.isNight -> Color.parseColor("#BBBBBB")
+                    hour.isTwilight -> Color.parseColor("#FFA726")
                     hour.isSunny -> Color.parseColor("#FFD60A")
                     else -> Color.parseColor("#BBBBBB")
                 }

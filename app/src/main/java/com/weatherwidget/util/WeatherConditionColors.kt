@@ -14,13 +14,15 @@ object WeatherConditionColors {
     val FORECAST_CLOUDY = Color.parseColor("#8E99A4")   // Slate gray
     val FORECAST_RAINY = Color.parseColor("#5A8FBF")    // Steel blue
     val FORECAST_NIGHT = Color.parseColor("#BBBBBB")    // Muted silver
+    val FORECAST_TWILIGHT = Color.parseColor("#FFA726") // Warm amber for sunrise/sunset hours
     val OBSERVED = Color.parseColor("#FF3366")           // Hot pink
 
-    /** Maps weather condition flags to a forecast color. Priority: rainy > cloudy/mixed > night > sunny. */
-    fun forecastColor(isSunny: Boolean, isRainy: Boolean, isMixed: Boolean, isNight: Boolean): Int {
+    /** Maps weather condition flags to a forecast color. Priority: rainy > night > twilight+sunny > mixed > sunny > cloudy. */
+    fun forecastColor(isSunny: Boolean, isRainy: Boolean, isMixed: Boolean, isNight: Boolean, isTwilight: Boolean = false): Int {
         return when {
             isRainy -> FORECAST_RAINY
             isNight -> FORECAST_NIGHT
+            isTwilight && isSunny -> FORECAST_TWILIGHT
             isMixed -> FORECAST_SUNNY
             isSunny -> FORECAST_SUNNY
             else -> FORECAST_CLOUDY  // Default for cloudy/foggy/windy

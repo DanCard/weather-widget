@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.util.ObservationBlender.BlendObservationStats
+import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.GraphRenderUtils
@@ -235,12 +236,20 @@ internal fun buildHourDataResult(
                     ZoomLevel.NARROW -> true
                 }
 
-            val isNight = SunPositionUtils.isNight(currentHour, lat, lon)
+            val sunPhase = SunPositionUtils.getSunPhase(currentHour, lat, lon)
+            val isNight = sunPhase == SunPhase.NIGHT
+            val isTwilight = sunPhase == SunPhase.TWILIGHT
+            val isSunBoundary = SunPositionUtils.isSunBoundary(currentHour, lat, lon)
+            if (isTwilight || isSunBoundary) {
+                Log.d(TAG, "phase=$sunPhase boundary=$isSunBoundary hour=$currentHour condition=${forecast.condition} lat=$lat lon=$lon")
+            }
             val iconRes = WeatherIconMapper.getIconResource(
                 condition = forecast.condition,
                 isNight = isNight,
                 cloudCover = forecast.cloudCover,
                 precipProbability = forecast.precipProbability,
+                isTwilight = isTwilight,
+                isSunBoundary = isSunBoundary,
             )
             val isSunny = WeatherIconMapper.isSunny(iconRes)
             val isRainy = WeatherIconMapper.isPrecipitation(iconRes)
@@ -253,6 +262,8 @@ internal fun buildHourDataResult(
                     label = formatHourLabel(currentHour),
                     iconRes = iconRes,
                     isNight = isNight,
+                    isTwilight = isTwilight,
+                    isSunBoundary = isSunBoundary,
                     isSunny = isSunny,
                     isRainy = isRainy,
                     isMixed = isMixed,
@@ -322,13 +333,16 @@ internal fun buildHourDataResult(
                 prevTopHour?.temperature ?: nextTopHour?.temperature ?: 0f
             }
 
+            val subPhase = SunPositionUtils.getSunPhase(time, lat, lon)
             finalHours.add(
                 HourData(
                     dateTime = time,
                     temperature = forecastTemp,
                     label = formatHourLabel(time),
                     iconRes = null,
-                    isNight = SunPositionUtils.isNight(time, lat, lon),
+                    isNight = subPhase == SunPhase.NIGHT,
+                    isTwilight = subPhase == SunPhase.TWILIGHT,
+                    isSunBoundary = SunPositionUtils.isSunBoundary(time, lat, lon),
                     isSunny = false,
                     isRainy = false,
                     isMixed = false,

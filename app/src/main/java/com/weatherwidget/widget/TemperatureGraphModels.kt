@@ -17,6 +17,8 @@ data class HourData(
     val label: String, // "12a", "1p", "2p"
     val iconRes: Int? = null,
     val isNight: Boolean = false,
+    val isTwilight: Boolean = false,
+    val isSunBoundary: Boolean = false,
     val isSunny: Boolean = false,
     val isRainy: Boolean = false,
     val isMixed: Boolean = false,

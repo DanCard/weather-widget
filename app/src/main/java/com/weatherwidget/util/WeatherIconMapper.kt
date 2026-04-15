@@ -59,6 +59,8 @@ object WeatherIconMapper {
         isNight: Boolean = false,
         cloudCover: Int? = null,
         precipProbability: Int? = null,
+        isTwilight: Boolean = false,
+        isSunBoundary: Boolean = false,
     ): Int {
         if (condition == null) return R.drawable.ic_weather_unknown
 
@@ -99,13 +101,15 @@ object WeatherIconMapper {
                 if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_mostly_cloudy
             }
             normalizedCondition.contains("(25%)") || normalizedCondition.contains("mostly clear") || normalizedCondition.contains("mostly sunny") || normalizedCondition.contains("partly sunny") -> {
-                if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
+                if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
             }
             normalizedCondition.contains("partly") -> {
                 if (isNight) R.drawable.ic_weather_partly_cloudy_night else R.drawable.ic_weather_partly_cloudy
             }
             normalizedCondition.contains("overcast") -> {
-                if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
+                if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
             }
             isSubOvercastCloudy -> {
                 if (isNight) R.drawable.ic_weather_mostly_cloudy_night else R.drawable.ic_weather_mostly_cloudy
@@ -117,9 +121,15 @@ object WeatherIconMapper {
             normalizedCondition.contains(
                 "clear",
             ) || normalizedCondition.contains("sunny") || normalizedCondition.contains("fair") || normalizedCondition.contains("observed") -> {
-                if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_clear
+                if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight) R.drawable.ic_weather_night
+                else R.drawable.ic_weather_clear
             }
-            else -> R.drawable.ic_weather_clear // Optimistic fallback: default to CLEAR instead of CLOUDY
+            else -> {
+                if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight) R.drawable.ic_weather_night
+                else R.drawable.ic_weather_clear
+            }
         }
     }
 
@@ -181,7 +191,7 @@ object WeatherIconMapper {
         return condition.substring(thenIndex + " then ".length).trim()
     }
 
-    fun isSunny(iconRes: Int): Boolean = iconRes in setOf(R.drawable.ic_weather_clear, R.drawable.ic_weather_mostly_clear)
+    fun isSunny(iconRes: Int): Boolean = iconRes in setOf(R.drawable.ic_weather_clear, R.drawable.ic_weather_mostly_clear, R.drawable.ic_weather_horizon_sun)
 
     fun isPrecipitation(iconRes: Int): Boolean = iconRes in PRECIPITATION_ICONS
 

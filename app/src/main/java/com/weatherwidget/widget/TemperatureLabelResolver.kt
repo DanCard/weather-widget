@@ -388,7 +388,7 @@ internal object TemperatureLabelResolver {
         val labelPaint = if (isFuture) {
             val hour = hours[idx.coerceAtMost(hours.lastIndex)]
             Paint(ctx.paints.forecastTempLabelTextPaint).also {
-                it.color = com.weatherwidget.util.WeatherConditionColors.forecastColor(hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight)
+                it.color = com.weatherwidget.util.WeatherConditionColors.forecastColor(hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight, hour.isTwilight)
             }
         } else ctx.paints.actualTempLabelTextPaint
         val textWidth = labelPaint.measureText(label)

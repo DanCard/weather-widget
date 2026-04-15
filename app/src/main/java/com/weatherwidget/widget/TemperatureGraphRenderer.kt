@@ -216,7 +216,7 @@ object TemperatureGraphRenderer {
         for (i in ctx.forecastSegmentPaths.indices) {
             val hour = hours[i + 1]
             segmentPaint.color = WeatherConditionColors.forecastColor(
-                hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight
+                hour.isSunny, hour.isRainy, hour.isMixed, hour.isNight, hour.isTwilight
             )
             segmentPaint.pathEffect = DashPathEffect(dashPattern, cumulativeLength)
             ctx.canvas.drawPath(ctx.forecastSegmentPaths[i], segmentPaint)
@@ -262,6 +262,7 @@ object TemperatureGraphRenderer {
                     if (!hour.isRainy && !hour.isMixed) {
                         drawable.setTint(when {
                             hour.isNight -> Color.parseColor("#BBBBBB")
+                            hour.isTwilight -> Color.parseColor("#FFA726")
                             hour.isSunny -> Color.parseColor("#FFD60A")
                             else -> Color.parseColor("#BBBBBB")
                         })
