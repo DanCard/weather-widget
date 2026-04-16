@@ -235,10 +235,10 @@ class WeatherRepositoryTest {
         }
 
     @Test
-    fun `cleanOldData uses 4-day retention for observations and 30-day for others`() = runTest {
+    fun `cleanOldData uses 6-day retention for observations and 30-day for others`() = runTest {
         val now = System.currentTimeMillis()
-        val expected30DayCutoff = now - 2592000000L
-        val expected4DayCutoff = now - 345600000L
+        val expected30DayCutoff = now - 1000L * 60 * 60 * 24 * 30
+        val expected6DayCutoff = now - 1000L * 60 * 60 * 24 * 6
         val tolerance = 5000L // 5 seconds tolerance
 
         forecastRepository.cleanOldData()
@@ -246,7 +246,7 @@ class WeatherRepositoryTest {
         coVerify {
             forecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
             hourlyForecastDao.deleteOldForecasts(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
-            observationDao.deleteOldObservations(match { it in (expected4DayCutoff - tolerance)..(expected4DayCutoff + tolerance) })
+            observationDao.deleteOldObservations(match { it in (expected6DayCutoff - tolerance)..(expected6DayCutoff + tolerance) })
             dailyExtremeDao.deleteOldExtremes(match { it in (expected30DayCutoff - tolerance)..(expected30DayCutoff + tolerance) })
         }
     }
