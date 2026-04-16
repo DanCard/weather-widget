@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+     import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -151,19 +152,14 @@ class ForecastRepository
                         return source.id == targetSourceId
                     }
 
-                    // Perform parallel fetches from all APIs
+                   // Perform parallel fetches from all APIs
+                    val sourcesToFetch = enabledSources.filter { source ->
+                        shouldForceSource(source) || isStale(source, cachedForecasts)
+                    }.toSet() - WeatherSource.GENERIC_GAP
+
                     val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts) = fetchFromAllApis(
-                        latitude, longitude, locationName,
-                        WeatherSource.NWS in enabledSources && (shouldForceSource(WeatherSource.NWS) || isStale(WeatherSource.NWS, cachedForecasts)),
-                        openWeatherMapApi != null &&
-                            WeatherSource.OPEN_WEATHER_MAP in enabledSources &&
-                            (shouldForceSource(WeatherSource.OPEN_WEATHER_MAP) || isStale(WeatherSource.OPEN_WEATHER_MAP, cachedForecasts)),
-                        WeatherSource.VISUAL_CROSSING in enabledSources &&
-                            (shouldForceSource(WeatherSource.VISUAL_CROSSING) || isStale(WeatherSource.VISUAL_CROSSING, cachedForecasts)),
-                        WeatherSource.OPEN_METEO in enabledSources && (shouldForceSource(WeatherSource.OPEN_METEO) || isStale(WeatherSource.OPEN_METEO, cachedForecasts)),
-                        WeatherSource.WEATHER_API in enabledSources && (shouldForceSource(WeatherSource.WEATHER_API) || isStale(WeatherSource.WEATHER_API, cachedForecasts)),
-                        WeatherSource.SILURIAN in enabledSources && (shouldForceSource(WeatherSource.SILURIAN) || isStale(WeatherSource.SILURIAN, cachedForecasts)),
-                        WeatherSource.TOMORROW_IO in enabledSources && (shouldForceSource(WeatherSource.TOMORROW_IO) || isStale(WeatherSource.TOMORROW_IO, cachedForecasts)),
+                        latitude, longitude, locationName, sourcesToFetch,
+                        openWeatherMapApi != null,
                     )
 
                     // Determine the end of our real forecast coverage to fill in the rest with climate normals
@@ -246,225 +242,109 @@ class ForecastRepository
             val tomorrowIo: List<ForecastEntity>?,
         )
 
-        private suspend fun fetchFromAllApis(
+       private suspend fun fetchFromAllApis(
             latitude: Double,
             longitude: Double,
             locationName: String,
-            shouldFetchNws: Boolean,
-            shouldFetchOpenWeatherMap: Boolean,
-            shouldFetchVisualCrossing: Boolean,
-            shouldFetchMeteo: Boolean,
-            shouldFetchWapi: Boolean,
-            shouldFetchSilurian: Boolean,
-            shouldFetchTomorrowIo: Boolean,
+            sourcesToFetch: Set<WeatherSource>,
+            hasOpenWeatherMapApi: Boolean,
         ): FetchResult = coroutineScope {
-            val nwsDeferred = if (shouldFetchNws) async {
-                try {
+            val nwsDeferred = if (WeatherSource.NWS in sourcesToFetch) async {
+                safeFetch("FETCH_NWS_FAIL", WeatherSource.NWS) {
                     fetchFromNws(latitude, longitude, locationName)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: Exception) {
-                    appLogDao.log("FETCH_NWS_FAIL", "${exception.message}", "WARN")
-                    null
                 }
             } else null
 
-            val openWeatherMapDeferred = if (shouldFetchOpenWeatherMap) async {
-                try {
-                    val api = openWeatherMapApi ?: return@async null
+            val openWeatherMapDeferred = if (hasOpenWeatherMapApi && WeatherSource.OPEN_WEATHER_MAP in sourcesToFetch) async {
+                safeFetch("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP) {
+                    val api = openWeatherMapApi ?: return@safeFetch null
                     val result = api.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id)
                     }
                     result.daily.map { day ->
-                        ForecastEntity(
-                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            locationName = locationName,
-                            highTemp = day.highTemp,
-                            lowTemp = day.lowTemp,
-                            condition = day.condition,
-                            nativeDailyIconToken = day.iconToken,
-                            isClimateNormal = false,
-                            source = WeatherSource.OPEN_WEATHER_MAP.id,
-                            precipProbability = day.precipProbability,
-                            precipAmountMm = day.precipAmountMm,
-                        )
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_WEATHER_MAP.id)
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: ApiAccessException) {
-                    logFetchFailure("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP, exception)
-                    null
-                } catch (exception: Exception) {
-                    logFetchFailure("FETCH_OWM_FAIL", WeatherSource.OPEN_WEATHER_MAP, exception)
-                    null
                 }
             } else null
 
-            val visualCrossingDeferred = if (shouldFetchVisualCrossing) async {
-                try {
+            val visualCrossingDeferred = if (WeatherSource.VISUAL_CROSSING in sourcesToFetch) async {
+                safeFetch("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING) {
                     val result = visualCrossingApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.VISUAL_CROSSING.id)
                     }
                     result.daily.map { day ->
-                        ForecastEntity(
-                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            locationName = locationName,
-                            highTemp = day.highTemp,
-                            lowTemp = day.lowTemp,
-                            condition = day.condition,
-                            nativeDailyIconToken = day.iconToken,
-                            isClimateNormal = false,
-                            source = WeatherSource.VISUAL_CROSSING.id,
-                            precipProbability = day.precipProbability,
-                            precipAmountMm = day.precipAmountMm,
-                        )
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.VISUAL_CROSSING.id)
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: ApiAccessException) {
-                    logFetchFailure("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING, exception)
-                    null
-                } catch (exception: Exception) {
-                    logFetchFailure("FETCH_VISUAL_CROSSING_FAIL", WeatherSource.VISUAL_CROSSING, exception)
-                    null
                 }
             } else null
             
-            val meteoDeferred = if (shouldFetchMeteo) async {
-                try {
+            val meteoDeferred = if (WeatherSource.OPEN_METEO in sourcesToFetch) async {
+                safeFetch("FETCH_METEO_FAIL", WeatherSource.OPEN_METEO) {
                     val result = openMeteoApi.getForecast(
-                        latitude, 
-                        longitude, 
-                        7, 
+                        latitude,
+                        longitude,
+                        7,
                         historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS
                     )
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_METEO.id)
                     }
                     result.daily.map { day ->
-                        ForecastEntity(
-                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            locationName = locationName,
-                            highTemp = day.highTemp,
-                            lowTemp = day.lowTemp,
-                            condition = day.condition,
-                            nativeDailyIconToken = day.iconToken,
-                            isClimateNormal = false,
-                            source = WeatherSource.OPEN_METEO.id,
-                            precipProbability = day.precipProbability,
-                            precipAmountMm = day.precipAmountMm,
-                        )
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_METEO.id)
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: Exception) {
-                    appLogDao.log("FETCH_METEO_FAIL", "${exception.message}", "WARN")
-                    null
                 }
             } else null
             
-            val wapiDeferred = if (shouldFetchWapi) async {
-                try {
+            val wapiDeferred = if (WeatherSource.WEATHER_API in sourcesToFetch) async {
+                safeFetch("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API) {
                     val result = weatherApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.WEATHER_API.id)
                     }
                     result.daily.map { day ->
-                        ForecastEntity(
-                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            locationName = locationName,
-                            highTemp = day.highTemp,
-                            lowTemp = day.lowTemp,
-                            condition = day.condition,
-                            nativeDailyIconToken = day.iconToken,
-                            isClimateNormal = false,
-                            source = WeatherSource.WEATHER_API.id,
-                            precipProbability = day.precipProbability,
-                            precipAmountMm = day.precipAmountMm,
-                        )
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.WEATHER_API.id)
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: Exception) {
-                    logFetchFailure("FETCH_WAPI_FAIL", WeatherSource.WEATHER_API, exception)
-                    null
                 }
             } else null
 
-            val silurianDeferred = if (shouldFetchSilurian) async {
-                try {
+            val silurianDeferred = if (WeatherSource.SILURIAN in sourcesToFetch) async {
+                safeFetch("FETCH_SILURIAN_FAIL", WeatherSource.SILURIAN) {
                     val result = silurianApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
                     }
                     result.daily.map { day ->
-                        ForecastEntity(
-                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            locationName = locationName,
-                            highTemp = day.highTemp.toFloat(),
-                            lowTemp = day.lowTemp.toFloat(),
-                            condition = day.condition,
-                            nativeDailyIconToken = day.condition,
-                            isClimateNormal = false,
-                            source = WeatherSource.SILURIAN.id,
-                            precipProbability = day.precipProbability,
-                            precipAmountMm = day.precipAmountMm,
+                        mapDailyForecast(
+                            DailyForecast(
+                                day.date,
+                                day.highTemp.toFloat(),
+                                day.lowTemp.toFloat(),
+                                day.condition,
+                                day.condition,
+                                day.precipProbability,
+                                day.precipAmountMm,
+                            ),
+                            latitude,
+                            longitude,
+                            locationName,
+                            WeatherSource.SILURIAN.id,
                         )
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: Exception) {
-                    logFetchFailure("FETCH_SILURIAN_FAIL", WeatherSource.SILURIAN, exception)
-                    null
                 }
             } else null
 
-            val tomorrowIoDeferred = if (shouldFetchTomorrowIo) async {
-                try {
-                    val api = tomorrowIoApi ?: return@async null
+            val tomorrowIoDeferred = if (WeatherSource.TOMORROW_IO in sourcesToFetch) async {
+                safeFetch("FETCH_TMRW_FAIL", WeatherSource.TOMORROW_IO) {
+                    val api = tomorrowIoApi ?: return@safeFetch null
                     val result = api.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.TOMORROW_IO.id)
                     }
                     result.daily.map { day ->
-                        ForecastEntity(
-                            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                            locationLat = latitude,
-                            locationLon = longitude,
-                            locationName = locationName,
-                            highTemp = day.highTemp,
-                            lowTemp = day.lowTemp,
-                            condition = day.condition,
-                            nativeDailyIconToken = day.iconToken,
-                            isClimateNormal = false,
-                            source = WeatherSource.TOMORROW_IO.id,
-                            precipProbability = day.precipProbability,
-                            precipAmountMm = day.precipAmountMm,
-                        )
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.TOMORROW_IO.id)
                     }
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (exception: Exception) {
-                    logFetchFailure("FETCH_TMRW_FAIL", WeatherSource.TOMORROW_IO, exception)
-                    null
                 }
             } else null
 
@@ -557,33 +437,22 @@ class ForecastRepository
                 })
             }
 
-            val temperatureMap = mutableMapOf<String, Pair<Float?, Float?>>()
-            val conditionMap = mutableMapOf<String, String>()
-            val conditionSourceMap = mutableMapOf<String, String>()
-            val precipProbabilityMap = mutableMapOf<String, Int>()
-            val precipAmountMap = mutableMapOf<String, Float>()
-            val highTempSourceMap = mutableMapOf<String, String>()
-            val lowTempSourceMap = mutableMapOf<String, String>()
-            val periodTimeMap = mutableMapOf<String, Pair<String?, String?>>()
+           val acc = NwsDayAccumulator()
 
-            initPrecipFromHourly(hourlyPeriods, precipProbabilityMap, precipAmountMap)
-            initConditionsFromHourly(hourlyPeriods, conditionMap, conditionSourceMap)
+            initPrecipFromHourly(hourlyPeriods, acc.precipProbabilityMap, acc.precipAmountMap)
+            initConditionsFromHourly(hourlyPeriods, acc.conditionMap, acc.conditionSourceMap)
 
             val todayForecastPeriods = applyForecastPeriods(
-                forecastPeriods, todayDateString, temperatureMap, conditionMap,
-                conditionSourceMap, highTempSourceMap, lowTempSourceMap, precipProbabilityMap,
-                precipAmountMap,
-                periodTimeMap
+                forecastPeriods, todayDateString, acc
             )
             logTodayDiagnostics(
-                todayDateString, temperatureMap, highTempSourceMap, lowTempSourceMap,
-                conditionMap, conditionSourceMap, todayForecastPeriods, latitude, longitude
+                todayDateString, todayForecastPeriods, acc
             )
 
-            removePhantomFutureDays(temperatureMap, todayDate)
+            removePhantomFutureDays(acc.temperatureMap, todayDate)
 
-            temperatureMap.map { (dateString, temperatures) ->
-                val (pStart, pEnd) = periodTimeMap[dateString] ?: (null to null)
+            acc.temperatureMap.map { (dateString, temperatures) ->
+                val (pStart, pEnd) = acc.periodTimeMap[dateString] ?: (null to null)
                 ForecastEntity(
                     targetDate = LocalDate.parse(dateString).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                     forecastDate = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
@@ -592,12 +461,12 @@ class ForecastRepository
                     locationName = locationName,
                     highTemp = temperatures.first,
                     lowTemp = temperatures.second,
-                    condition = conditionMap[dateString] ?: "Unknown",
-                    nativeDailyIconToken = conditionMap[dateString],
+                    condition = acc.conditionMap[dateString] ?: "Unknown",
+                    nativeDailyIconToken = acc.conditionMap[dateString],
                     isClimateNormal = false,
                     source = WeatherSource.NWS.id,
-                    precipProbability = precipProbabilityMap[dateString],
-                    precipAmountMm = precipAmountMap[dateString],
+                    precipProbability = acc.precipProbabilityMap[dateString],
+                    precipAmountMm = acc.precipAmountMap[dateString],
                     periodStartTime = pStart?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
                     periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
                 )
@@ -691,17 +560,21 @@ class ForecastRepository
                 }
         }
 
+       private class NwsDayAccumulator {
+            val temperatureMap = mutableMapOf<String, Pair<Float?, Float?>>()
+            val conditionMap = mutableMapOf<String, String>()
+            val conditionSourceMap = mutableMapOf<String, String>()
+            val highTempSourceMap = mutableMapOf<String, String>()
+            val lowTempSourceMap = mutableMapOf<String, String>()
+            val precipProbabilityMap = mutableMapOf<String, Int>()
+            val precipAmountMap = mutableMapOf<String, Float>()
+            val periodTimeMap = mutableMapOf<String, Pair<String?, String?>>()
+        }
+
         private fun applyForecastPeriods(
             forecastPeriods: List<NwsApi.ForecastPeriod>,
             todayDateString: String,
-            temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
-            conditionMap: MutableMap<String, String>,
-            conditionSourceMap: MutableMap<String, String>,
-            highTempSourceMap: MutableMap<String, String>,
-            lowTempSourceMap: MutableMap<String, String>,
-            precipProbabilityMap: MutableMap<String, Int>,
-            precipAmountMap: MutableMap<String, Float>,
-            periodTimeMap: MutableMap<String, Pair<String?, String?>>
+            acc: NwsDayAccumulator,
         ): List<NwsApi.ForecastPeriod> {
             val todayPeriods = mutableListOf<NwsApi.ForecastPeriod>()
             forecastPeriods.forEach { period ->
@@ -709,31 +582,29 @@ class ForecastRepository
                 if (dateString == todayDateString) todayPeriods.add(period)
 
                 val probability = period.precipProbability
-                if (probability != null && !precipProbabilityMap.containsKey(dateString)) {
-                    precipProbabilityMap[dateString] = probability
+                if (probability != null && !acc.precipProbabilityMap.containsKey(dateString)) {
+                    acc.precipProbabilityMap[dateString] = probability
                 }
                 val periodAmount = period.precipAmountMm
-                if (periodAmount != null && !precipAmountMap.containsKey(dateString)) {
-                    precipAmountMap[dateString] = periodAmount
+                if (periodAmount != null && !acc.precipAmountMap.containsKey(dateString)) {
+                    acc.precipAmountMap[dateString] = periodAmount
                 }
 
                 if (period.isDaytime) {
-                    val currentTemps = temperatureMap[dateString] ?: (null to null)
-                    temperatureMap[dateString] = period.temperature.toFloat() to currentTemps.second
-                    highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
-                    periodTimeMap[dateString] = period.startTime to period.endTime
+                    val currentTemps = acc.temperatureMap[dateString] ?: (null to null)
+                    acc.temperatureMap[dateString] = period.temperature.toFloat() to currentTemps.second
+                    acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                    acc.periodTimeMap[dateString] = period.startTime to period.endTime
                 } else {
-                    // The overnight low physically occurs in the early morning of the following day.
-                    // Use the endTime's date (not startTime's) so the low is attributed correctly.
                     val lowDateString = extractNwsForecastDate(period.endTime) ?: dateString
-                    val currentLowTemps = temperatureMap[lowDateString] ?: (null to null)
-                    temperatureMap[lowDateString] = currentLowTemps.first to period.temperature.toFloat()
-                    lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
+                    val currentLowTemps = acc.temperatureMap[lowDateString] ?: (null to null)
+                    acc.temperatureMap[lowDateString] = currentLowTemps.first to period.temperature.toFloat()
+                    acc.lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
                 }
 
-                if (conditionMap[dateString] == null) {
-                    conditionMap[dateString] = period.shortForecast
-                    conditionSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                if (acc.conditionMap[dateString] == null) {
+                    acc.conditionMap[dateString] = period.shortForecast
+                    acc.conditionSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
                 }
             }
             return todayPeriods
@@ -741,27 +612,20 @@ class ForecastRepository
 
         private suspend fun logTodayDiagnostics(
             todayDateString: String,
-            temperatureMap: Map<String, Pair<Float?, Float?>>,
-            highTempSourceMap: Map<String, String>,
-            lowTempSourceMap: Map<String, String>,
-            conditionMap: MutableMap<String, String>,
-            conditionSourceMap: MutableMap<String, String>,
             todayPeriods: List<NwsApi.ForecastPeriod>,
-            latitude: Double,
-            longitude: Double
+            acc: NwsDayAccumulator,
         ) {
-            // Keep today's daily icon aligned to the daytime forecast period.
             todayPeriods.firstOrNull { it.isDaytime }?.let { period ->
-                conditionMap[todayDateString] = period.shortForecast
-                conditionSourceMap[todayDateString] = "FCST_DAY:${period.name}@${period.startTime}"
+                acc.conditionMap[todayDateString] = period.shortForecast
+                acc.conditionSourceMap[todayDateString] = "FCST_DAY:${period.name}@${period.startTime}"
             }
 
-            val todayTemps = temperatureMap[todayDateString] ?: return
+            val todayTemps = acc.temperatureMap[todayDateString] ?: return
             appLogDao.log(
-                "NWS_TODAY_SOURCE", 
-                "high=${todayTemps.first} (${highTempSourceMap[todayDateString]}) " +
-                "low=${todayTemps.second} (${lowTempSourceMap[todayDateString]}) " +
-                "cond=${conditionMap[todayDateString]} (${conditionSourceMap[todayDateString]})"
+                "NWS_TODAY_SOURCE",
+                "high=${todayTemps.first} (${acc.highTempSourceMap[todayDateString]}) " +
+                "low=${todayTemps.second} (${acc.lowTempSourceMap[todayDateString]}) " +
+                "cond=${acc.conditionMap[todayDateString]} (${acc.conditionSourceMap[todayDateString]})"
             )
         }
 
@@ -793,6 +657,43 @@ class ForecastRepository
             val errorMatch = Regex("\"error\"\\s*:\\s*\\{[^}]*\"message\"\\s*:\\s*\"([^\"]+)\"").find(bodyText)?.groupValues?.getOrNull(1)
             return messageMatch ?: errorMatch ?: fallbackMessage ?: "Request failed"
         }
+
+        private suspend fun <T> safeFetch(
+            tag: String,
+            source: WeatherSource,
+            block: suspend () -> T,
+        ): T? {
+            return try {
+                block()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (exception: Exception) {
+                logFetchFailure(tag, source, exception)
+                null
+            }
+        }
+
+        private fun mapDailyForecast(
+            day: DailyForecast,
+            latitude: Double,
+            longitude: Double,
+            locationName: String,
+            sourceId: String,
+        ): ForecastEntity = ForecastEntity(
+            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+            locationLat = latitude,
+            locationLon = longitude,
+            locationName = locationName,
+            highTemp = day.highTemp,
+            lowTemp = day.lowTemp,
+            condition = day.condition,
+            nativeDailyIconToken = day.iconToken,
+            isClimateNormal = false,
+            source = sourceId,
+            precipProbability = day.precipProbability,
+            precipAmountMm = day.precipAmountMm,
+        )
 
         @androidx.annotation.VisibleForTesting
         internal suspend fun saveForecastSnapshot(
