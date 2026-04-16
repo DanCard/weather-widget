@@ -2,14 +2,14 @@ package com.weatherwidget.data.remote
 
 import android.util.Log
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import kotlinx.serialization.json.*
-import java.time.LocalDateTime
 import java.time.OffsetDateTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -28,16 +28,12 @@ class TomorrowIoApi
         suspend fun getForecast(
             lat: Double,
             lon: Double,
-        ): WeatherForecast {
+        ): ForecastResult {
             val apiKey = BuildConfig.TOMORROW_IO_API_KEY
             if (apiKey.isBlank()) {
                 throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
             }
 
-            // Fetch hourly (1h) and daily (1d) in one or two calls. 
-            // Tomorrow.io allows multiple timesteps in some plans, but let's stick to two separate requests for clarity if needed, 
-            // or one request if we can get both. v4 timelines usually takes one timestep per request.
-            
             val hourlyResponse: String = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")
                 parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationIntensity,cloudCover")
@@ -64,20 +60,19 @@ class TomorrowIoApi
                 val obj = element.jsonObject
                 val startTime = obj["startTime"]?.jsonPrimitive?.content ?: return@mapIndexedNotNull null
                 val values = obj["values"]?.jsonObject ?: return@mapIndexedNotNull null
-                
+
                 val epochMs = OffsetDateTime.parse(startTime).toInstant().toEpochMilli()
                 val temp = values["temperature"]?.jsonPrimitive?.floatOrNull ?: 0f
                 val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
                 val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
-                val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull // Tomorrow.io returns mm/hr by default but we requested imperial? 
-                // Wait, Tomorrow.io units=imperial returns temperature in F, but precip intensity in inches/hr.
-                
+                val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull
+
                 HourlyForecast(
                     dateTime = epochMs,
                     temperature = temp,
-                    weatherCode = code,
+                    condition = weatherCodeToCondition(code),
                     precipProbability = precipProb,
-                    precipAmountMm = precipIntensity?.let { it * 25.4f }, // Convert inches to mm
+                    precipAmountMm = precipIntensity?.let { it * 25.4f },
                     cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull?.roundToInt()
                 )
             }
@@ -86,36 +81,37 @@ class TomorrowIoApi
                 val obj = element.jsonObject
                 val startTime = obj["startTime"]?.jsonPrimitive?.content ?: return@mapIndexedNotNull null
                 val values = obj["values"]?.jsonObject ?: return@mapIndexedNotNull null
-                
-                val date = startTime.substring(0, 10) // YYYY-MM-DD
+
+                val date = startTime.substring(0, 10)
                 val high = values["temperatureMax"]?.jsonPrimitive?.floatOrNull ?: 0f
                 val low = values["temperatureMin"]?.jsonPrimitive?.floatOrNull ?: 0f
                 val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
                 val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
                 val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull
-                
+
                 DailyForecast(
                     date = date,
                     highTemp = high,
                     lowTemp = low,
-                    weatherCode = code,
+                    condition = weatherCodeToCondition(code),
+                    iconToken = code.toString(),
                     precipProbability = precipProb,
                     precipAmountMm = precipIntensity?.let { it * 25.4f }
                 )
             }
 
-            // For current temp, we can use the first hourly interval
             val currentInterval = hourlyIntervals.firstOrNull()?.jsonObject
             val currentValues = currentInterval?.get("values")?.jsonObject
             val currentTemp = currentValues?.get("temperature")?.jsonPrimitive?.floatOrNull
             val currentWeatherCode = currentValues?.get("weatherCode")?.jsonPrimitive?.intOrNull
+            val currentCondition = currentWeatherCode?.let { weatherCodeToCondition(it) }
             val currentObservedAt = currentInterval?.get("startTime")?.jsonPrimitive?.content?.let {
                 OffsetDateTime.parse(it).toInstant().toEpochMilli()
             }
 
-            return WeatherForecast(
+            return ForecastResult(
                 currentTemp = currentTemp,
-                currentWeatherCode = currentWeatherCode,
+                currentCondition = currentCondition,
                 currentObservedAt = currentObservedAt,
                 daily = dailyForecasts,
                 hourly = hourlyForecasts
@@ -139,36 +135,4 @@ class TomorrowIoApi
                 8000 -> "Thunderstorm"
                 else -> "Unknown"
             }
-
-        data class WeatherForecast(
-            val currentTemp: Float?,
-            val currentWeatherCode: Int?,
-            val currentObservedAt: Long? = null,
-            val daily: List<DailyForecast>,
-            val hourly: List<HourlyForecast> = emptyList(),
-        )
-
-        data class DailyForecast(
-            val date: String,
-            val highTemp: Float,
-            val lowTemp: Float,
-            val weatherCode: Int,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-        )
-
-        data class HourlyForecast(
-            val dateTime: Long, // Epoch ms
-            val temperature: Float,
-            val weatherCode: Int,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-            val cloudCover: Int? = null,
-        )
-
-        data class CurrentReading(
-            val temperature: Float,
-            val weatherCode: Int?,
-            val observedAt: Long? = null,
-        )
     }

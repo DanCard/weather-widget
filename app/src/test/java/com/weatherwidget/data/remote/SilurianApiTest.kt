@@ -96,8 +96,8 @@ class SilurianApiTest {
 
         assertEquals(1, result.daily.size)
         assertEquals("2026-03-02", result.daily[0].date)
-        assertEquals(75, result.daily[0].highTemp)
-        assertEquals(50, result.daily[0].lowTemp)
+        assertEquals(75.0f, result.daily[0].highTemp)
+        assertEquals(50.0f, result.daily[0].lowTemp)
         assertEquals("rain", result.daily[0].condition)
         assertEquals(45, result.daily[0].precipProbability)
 

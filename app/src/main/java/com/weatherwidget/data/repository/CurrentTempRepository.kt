@@ -347,7 +347,7 @@ class CurrentTempRepository
                     }
                     if (result?.currentTemp != null) {
                         val stationId = if (point.third == "Current") "TOMORROW_IO_MAIN" else "TOMORROW_IO_$index"
-                        val condition = result.currentWeatherCode?.let { api.weatherCodeToCondition(it) } ?: "Unknown"
+                        val condition = result.currentCondition ?: "Unknown"
                         val obsEntity = ObservationEntity(
                             stationId,
                             "Tmrw: ${point.third}",
@@ -371,7 +371,7 @@ class CurrentTempRepository
                     CurrentReadingPayload(
                         WeatherSource.TOMORROW_IO, 
                         result.currentTemp, 
-                        result.currentWeatherCode?.let { api.weatherCodeToCondition(it) }, 
+                        result.currentCondition, 
                         result.currentObservedAt
                     )
                 } else null

@@ -15,6 +15,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
 import javax.inject.Inject
 
 class VisualCrossingApi
@@ -39,7 +42,7 @@ class VisualCrossingApi
             lat: Double,
             lon: Double,
             days: Int = 14,
-        ): WeatherForecast {
+        ): ForecastResult {
             requireApiKey()
 
             val response: String =
@@ -65,7 +68,7 @@ class VisualCrossingApi
                         day.jsonObject["hours"]?.jsonArray?.mapNotNull { parseHourly(it.jsonObject) } ?: emptyList()
                     } ?: emptyList()
 
-            return WeatherForecast(
+            return ForecastResult(
                 currentTemp = current?.get("temp")?.jsonPrimitive?.floatOrNull,
                 currentCondition = current?.let { it.primaryCondition() },
                 currentObservedAt = current?.toObservedAtMs(),
@@ -190,33 +193,6 @@ class VisualCrossingApi
             val epochSeconds = this["datetimeEpoch"]?.jsonPrimitive?.longOrNull
             return epochSeconds?.times(1000)
         }
-
-        data class WeatherForecast(
-            val currentTemp: Float?,
-            val currentCondition: String?,
-            val currentObservedAt: Long?,
-            val daily: List<DailyForecast>,
-            val hourly: List<HourlyForecast>,
-        )
-
-        data class DailyForecast(
-            val date: String,
-            val highTemp: Float,
-            val lowTemp: Float,
-            val condition: String,
-            val iconToken: String? = null,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-        )
-
-        data class HourlyForecast(
-            val dateTime: Long,
-            val temperature: Float,
-            val condition: String,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-            val cloudCover: Int? = null,
-        )
 
         data class CurrentReading(
             val temperature: Float,

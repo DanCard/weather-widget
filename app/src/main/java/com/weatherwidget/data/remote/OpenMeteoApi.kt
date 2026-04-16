@@ -1,6 +1,10 @@
 package com.weatherwidget.data.remote
 
 import android.util.Log
+import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -31,7 +35,7 @@ class OpenMeteoApi
             lon: Double,
             days: Int = 7,
             historyDays: Int = 0,
-        ): WeatherForecast {
+        ): ForecastResult {
             val response: String =
                 httpClient.get("$BASE_URL/forecast") {
                     parameter("latitude", lat)
@@ -76,17 +80,19 @@ class OpenMeteoApi
                     it.jsonPrimitive.content.toFloatOrNull()
                 } ?: emptyList()
 
-            val dailyForecasts =
-                dates.mapIndexed { index, date ->
-                    DailyForecast(
-                        date = date,
-                        highTemp = maxTemps.getOrNull(index) ?: 0f,
-                        lowTemp = minTemps.getOrNull(index) ?: 0f,
-                        weatherCode = weatherCodes.getOrNull(index) ?: 0,
-                        precipProbability = precipProbs.getOrNull(index),
-                        precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
-                    )
-                }
+val dailyForecasts =
+dates.mapIndexed { index, date ->
+val code = weatherCodes.getOrNull(index) ?: 0
+DailyForecast(
+date = date,
+highTemp = maxTemps.getOrNull(index) ?: 0f,
+lowTemp = minTemps.getOrNull(index) ?: 0f,
+condition = weatherCodeToCondition(code),
+iconToken = code.toString(),
+precipProbability = precipProbs.getOrNull(index),
+precipAmountMm = dailyPrecipAmountsMm.getOrNull(index),
+)
+}
 
             // Parse hourly data
             val hourly = jsonObj["hourly"]?.jsonObject
@@ -123,33 +129,34 @@ class OpenMeteoApi
                         null
                     } ?: return@mapIndexedNotNull null
 
-                    if (temp != null) {
-                        HourlyForecast(
-                            dateTime = ts,
-                            temperature = temp,
-                            weatherCode = code,
-                            precipProbability = hourlyPrecipProbs.getOrNull(index),
-                            precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
-                            cloudCover = hourlyCloudCover.getOrNull(index),
-                        )
-                    } else {
+if (temp != null) {
+HourlyForecast(
+dateTime = ts,
+temperature = temp,
+condition = weatherCodeToCondition(code),
+precipProbability = hourlyPrecipProbs.getOrNull(index),
+precipAmountMm = hourlyPrecipAmountsMm.getOrNull(index),
+cloudCover = hourlyCloudCover.getOrNull(index),
+)
+} else {
                         null
                     }
                 }
 
             Log.d(TAG, "getForecast: parsed ${hourlyForecasts.size} hourly forecasts")
 
-            return WeatherForecast(
-                currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
-                currentWeatherCode = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull(),
-                currentObservedAt = parseCurrentObservedAt(
-                    timeRaw = current?.get("time")?.jsonPrimitive?.content,
-                    timezone = timezone,
-                ),
-                daily = dailyForecasts,
-                hourly = hourlyForecasts,
-            )
-        }
+val currentCondition = current?.get("weather_code")?.jsonPrimitive?.content?.toIntOrNull()?.let { weatherCodeToCondition(it) }
+return ForecastResult(
+currentTemp = current?.get("temperature_2m")?.jsonPrimitive?.content?.toFloatOrNull(),
+currentCondition = currentCondition,
+currentObservedAt = parseCurrentObservedAt(
+timeRaw = current?.get("time")?.jsonPrimitive?.content,
+timezone = timezone,
+),
+daily = dailyForecasts,
+hourly = hourlyForecasts,
+)
+}
 
         suspend fun getCurrent(
             lat: Double,
@@ -226,14 +233,14 @@ class OpenMeteoApi
                     it.jsonPrimitive.content.toFloatOrNull() ?: 0f
                 } ?: emptyList()
 
-            return dates.mapIndexed { index, date ->
-                DailyForecast(
-                    date = date,
-                    highTemp = maxTemps.getOrNull(index) ?: 0f,
-                    lowTemp = minTemps.getOrNull(index) ?: 0f,
-                    weatherCode = 0, // Climate API doesn't usually return weather code, default to Clear
-                )
-            }
+return dates.mapIndexed { index, date ->
+DailyForecast(
+date = date,
+highTemp = maxTemps.getOrNull(index) ?: 0f,
+lowTemp = minTemps.getOrNull(index) ?: 0f,
+condition = weatherCodeToCondition(0),
+)
+}
         }
 
         fun weatherCodeToCondition(code: Int): String =
@@ -255,35 +262,9 @@ class OpenMeteoApi
                 else -> "Unknown"
             }
 
-        data class WeatherForecast(
-            val currentTemp: Float?,
-            val currentWeatherCode: Int?,
-            val currentObservedAt: Long? = null,
-            val daily: List<DailyForecast>,
-            val hourly: List<HourlyForecast> = emptyList(),
-        )
-
-        data class DailyForecast(
-            val date: String,
-            val highTemp: Float,
-            val lowTemp: Float,
-            val weatherCode: Int,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-        )
-
-        data class HourlyForecast(
-            val dateTime: Long, // Epoch ms
-            val temperature: Float,
-            val weatherCode: Int,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-            val cloudCover: Int? = null,
-        )
-
-        data class CurrentReading(
-            val temperature: Float,
-            val weatherCode: Int?,
-            val observedAt: Long? = null,
-        )
-    }
+data class CurrentReading(
+    val temperature: Float,
+    val weatherCode: Int?,
+    val observedAt: Long? = null,
+  )
+}

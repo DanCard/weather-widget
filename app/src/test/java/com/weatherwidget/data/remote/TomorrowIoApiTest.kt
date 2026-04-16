@@ -94,7 +94,7 @@ class TomorrowIoApiTest {
 
         assertNotNull(result)
         assertEquals(65.5f, result.currentTemp!!, 0.1f)
-        assertEquals(1001, result.currentWeatherCode)
+        assertEquals("Cloudy", result.currentCondition)
         
         assertEquals(1, result.hourly.size)
         assertEquals(65.5f, result.hourly[0].temperature, 0.1f)

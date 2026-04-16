@@ -2,6 +2,9 @@ package com.weatherwidget.data.remote
 
 import android.util.Log
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -48,7 +51,7 @@ class OpenWeatherMapApi
             lat: Double,
             lon: Double,
             days: Int = 8,
-        ): WeatherForecast {
+        ): ForecastResult {
             requireApiKey()
 
             val response: String =
@@ -78,13 +81,13 @@ class OpenWeatherMapApi
 
             Log.d(TAG, "getForecast: Parsed ${daily.size} daily and ${hourly.size} hourly entries")
 
-            return WeatherForecast(
-                currentTemp = current?.get("temp")?.jsonPrimitive?.content?.toFloatOrNull(),
-                currentCondition = current?.primaryWeatherDescription(),
-                currentObservedAt = current?.get("dt")?.jsonPrimitive?.content?.toLongOrNull()?.times(1000),
-                daily = daily,
-                hourly = hourly,
-            )
+return ForecastResult(
+      currentTemp = current?.get("temp")?.jsonPrimitive?.content?.toFloatOrNull(),
+      currentCondition = current?.primaryWeatherDescription(),
+      currentObservedAt = current?.get("dt")?.jsonPrimitive?.content?.toLongOrNull()?.times(1000),
+      daily = daily,
+      hourly = hourly,
+    )
         }
 
         suspend fun getCurrent(
@@ -187,16 +190,15 @@ class OpenWeatherMapApi
             val precipitationProbability =
                 dayObj["pop"]?.jsonPrimitive?.content?.toFloatOrNull()?.times(100)?.toInt()
 
-            return DailyForecast(
-                date = Instant.ofEpochSecond(epochSeconds).atOffset(zoneOffset).toLocalDate().toString(),
-                highTemp = highTemp,
-                lowTemp = lowTemp,
-                condition = dayObj.primaryWeatherDescription() ?: "Unknown",
-                iconToken = dayObj.primaryWeatherIconToken(),
-                precipProbability = precipitationProbability,
-                precipAmountMm = dayObj.totalPrecipitationMm(),
-                cloudCover = dayObj["clouds"]?.jsonPrimitive?.content?.toIntOrNull(),
-            )
+return DailyForecast(
+      date = Instant.ofEpochSecond(epochSeconds).atOffset(zoneOffset).toLocalDate().toString(),
+      highTemp = highTemp,
+      lowTemp = lowTemp,
+      condition = dayObj.primaryWeatherDescription() ?: "Unknown",
+      iconToken = dayObj.primaryWeatherIconToken(),
+      precipProbability = precipitationProbability,
+      precipAmountMm = dayObj.totalPrecipitationMm(),
+    )
         }
 
         private fun parseHourlyForecast(hourObj: JsonObject): HourlyForecast? {
@@ -243,37 +245,9 @@ class OpenWeatherMapApi
             return listOfNotNull(rain, snow).takeIf { it.isNotEmpty() }?.sum()
         }
 
-        data class WeatherForecast(
-            val currentTemp: Float?,
-            val currentCondition: String?,
-            val currentObservedAt: Long? = null,
-            val daily: List<DailyForecast>,
-            val hourly: List<HourlyForecast>,
-        )
-
-        data class DailyForecast(
-            val date: String,
-            val highTemp: Float,
-            val lowTemp: Float,
-            val condition: String,
-            val iconToken: String? = null,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-            val cloudCover: Int? = null,
-        )
-
-        data class HourlyForecast(
-            val dateTime: Long,
-            val temperature: Float,
-            val condition: String,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-            val cloudCover: Int? = null,
-        )
-
-        data class CurrentReading(
-            val temperature: Float,
-            val condition: String?,
-            val observedAt: Long? = null,
-        )
-    }
+data class CurrentReading(
+    val temperature: Float,
+    val condition: String?,
+    val observedAt: Long? = null,
+  )
+}

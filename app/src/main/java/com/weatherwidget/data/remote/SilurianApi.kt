@@ -2,21 +2,24 @@ package com.weatherwidget.data.remote
 
 import android.util.Log
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 
 private const val TAG = "SilurianApi"
 
@@ -35,37 +38,11 @@ class SilurianApi @Inject constructor(
         private const val BASE_URL = "https://earth.weather.silurian.ai/api/v1"
     }
 
-    data class SilurianForecast(
-        val currentTemp: Float?,
-        val currentCondition: String?,
-        val currentObservedAt: Long?,
-        val daily: List<DailyForecast>,
-        val hourly: List<HourlyForecast>
-    )
-
-    data class DailyForecast(
-        val date: String,
-        val highTemp: Int,
-        val lowTemp: Int,
-        val condition: String,
-        val precipProbability: Int,
-        val precipAmountMm: Float? = null,
-    )
-
-    data class HourlyForecast(
-        val dateTime: Long, // Epoch ms
-        val temperature: Float,
-        val condition: String,
-        val precipProbability: Int,
-        val precipAmountMm: Float? = null,
-        val cloudCover: Int? = null,
-    )
-
-    suspend fun getForecast(
+suspend fun getForecast(
         lat: Double,
         lon: Double,
         days: Int = 14,
-    ): SilurianForecast = coroutineScope {
+    ): ForecastResult = coroutineScope {
         val apiKey = apiKeyOverride ?: BuildConfig.SILURIAN_API_KEY
         if (apiKey.isBlank()) {
             throw IllegalStateException("SILURIAN_API_KEY is missing. Add it to local.properties or SILURIAN_API_KEY env var.")
@@ -110,14 +87,14 @@ class SilurianApi @Inject constructor(
                 val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
                 val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
 
-                DailyForecast(
-                    date = time.take(10),
-                    highTemp = high,
-                    lowTemp = low,
-                    condition = condition,
-                    precipProbability = precip,
-                    precipAmountMm = parsePrecipAmountMm(entry),
-                )
+DailyForecast(
+      date = time.take(10),
+      highTemp = high.toFloat(),
+      lowTemp = low.toFloat(),
+      condition = condition,
+      precipProbability = precip,
+      precipAmountMm = parsePrecipAmountMm(entry),
+    )
             }
         } else emptyList()
 
@@ -148,13 +125,13 @@ class SilurianApi @Inject constructor(
 
         val firstHour = hourly.firstOrNull()
         
-        SilurianForecast(
-            currentTemp = firstHour?.temperature,
-            currentCondition = firstHour?.condition,
-            currentObservedAt = null,
-            daily = daily,
-            hourly = hourly
-        )
+ForecastResult(
+    currentTemp = firstHour?.temperature,
+    currentCondition = firstHour?.condition,
+    currentObservedAt = null,
+    daily = daily,
+    hourly = hourly
+  )
     }
 
     private fun parseTimeseries(response: String, key: String): List<kotlinx.serialization.json.JsonObject> {

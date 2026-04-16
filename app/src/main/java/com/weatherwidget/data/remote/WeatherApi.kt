@@ -2,6 +2,9 @@ package com.weatherwidget.data.remote
 
 import android.util.Log
 import com.weatherwidget.BuildConfig
+import com.weatherwidget.data.model.DailyForecast
+import com.weatherwidget.data.model.ForecastResult
+import com.weatherwidget.data.model.HourlyForecast
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -28,7 +31,7 @@ class WeatherApi
             lat: Double,
             lon: Double,
             days: Int = 14,
-        ): WeatherForecast {
+        ): ForecastResult {
             val apiKey = BuildConfig.WEATHER_API_KEY
             if (apiKey.isBlank()) {
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
@@ -93,7 +96,7 @@ class WeatherApi
 
             Log.d(TAG, "getForecast: Parsed ${dailyForecasts.size} daily and ${hourlyForecasts.size} hourly entries")
 
-            return WeatherForecast(
+            return ForecastResult(
                 currentTemp = current?.get("temp_f")?.jsonPrimitive?.content?.toFloatOrNull(),
                 currentObservedAt = current?.get("last_updated_epoch")?.jsonPrimitive?.content?.toLongOrNull()?.times(1000),
                 daily = dailyForecasts,
@@ -101,10 +104,6 @@ class WeatherApi
             )
         }
 
-        /**
-         * Fetches historical hourly data for a specific date.
-         * @param date ISO date string e.g. "2026-03-15"
-         */
         suspend fun getHistory(
             lat: Double,
             lon: Double,
@@ -177,32 +176,6 @@ class WeatherApi
                 observedAt = current["last_updated_epoch"]?.jsonPrimitive?.content?.toLongOrNull()?.times(1000),
             )
         }
-
-        data class WeatherForecast(
-            val currentTemp: Float?,
-            val currentObservedAt: Long? = null,
-            val daily: List<DailyForecast>,
-            val hourly: List<HourlyForecast>,
-        )
-
-        data class DailyForecast(
-            val date: String,
-            val highTemp: Float,
-            val lowTemp: Float,
-            val condition: String,
-            val iconToken: String? = null,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-        )
-
-        data class HourlyForecast(
-            val dateTime: Long, // Epoch ms
-            val temperature: Float,
-            val condition: String,
-            val precipProbability: Int? = null,
-            val precipAmountMm: Float? = null,
-            val cloudCover: Int? = null,
-        )
 
         data class CurrentReading(
             val temperature: Float,

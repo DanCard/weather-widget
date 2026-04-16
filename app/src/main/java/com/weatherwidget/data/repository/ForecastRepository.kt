@@ -13,6 +13,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
+import com.weatherwidget.data.model.HourlyForecast
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -273,7 +274,7 @@ class ForecastRepository
                     val api = openWeatherMapApi ?: return@async null
                     val result = api.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
-                        saveOpenWeatherMapHourlyForecasts(result.hourly, latitude, longitude)
+                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id)
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -307,7 +308,7 @@ class ForecastRepository
                 try {
                     val result = visualCrossingApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
-                        saveVisualCrossingHourlyForecasts(result.hourly, latitude, longitude)
+                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.VISUAL_CROSSING.id)
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -346,7 +347,7 @@ class ForecastRepository
                         historyDays = WeatherConfig.ACTUALS_HISTORY_DAYS
                     )
                     if (result.hourly.isNotEmpty()) {
-                        saveHourlyForecasts(result.hourly, latitude, longitude)
+                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_METEO.id)
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -357,8 +358,8 @@ class ForecastRepository
                             locationName = locationName,
                             highTemp = day.highTemp,
                             lowTemp = day.lowTemp,
-                            condition = openMeteoApi.weatherCodeToCondition(day.weatherCode),
-                            nativeDailyIconToken = day.weatherCode.toString(),
+                            condition = day.condition,
+                            nativeDailyIconToken = day.iconToken,
                             isClimateNormal = false,
                             source = WeatherSource.OPEN_METEO.id,
                             precipProbability = day.precipProbability,
@@ -377,7 +378,7 @@ class ForecastRepository
                 try {
                     val result = weatherApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
-                        saveWeatherApiHourlyForecasts(result.hourly, latitude, longitude)
+                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.WEATHER_API.id)
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -408,7 +409,7 @@ class ForecastRepository
                 try {
                     val result = silurianApi.getForecast(latitude, longitude, 14)
                     if (result.hourly.isNotEmpty()) {
-                        saveSilurianHourlyForecasts(result.hourly, latitude, longitude)
+                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -440,7 +441,7 @@ class ForecastRepository
                     val api = tomorrowIoApi ?: return@async null
                     val result = api.getForecast(latitude, longitude)
                     if (result.hourly.isNotEmpty()) {
-                        saveTomorrowIoHourlyForecasts(result.hourly, latitude, longitude)
+                        saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.TOMORROW_IO.id)
                     }
                     result.daily.map { day ->
                         ForecastEntity(
@@ -451,8 +452,8 @@ class ForecastRepository
                             locationName = locationName,
                             highTemp = day.highTemp,
                             lowTemp = day.lowTemp,
-                            condition = api.weatherCodeToCondition(day.weatherCode),
-                            nativeDailyIconToken = day.weatherCode.toString(),
+                            condition = day.condition,
+                            nativeDailyIconToken = day.iconToken,
                             isClimateNormal = false,
                             source = WeatherSource.TOMORROW_IO.id,
                             precipProbability = day.precipProbability,
@@ -548,7 +549,12 @@ class ForecastRepository
 
             persistNwsPeriodSummary(grid.forecastUrl, forecastPeriods)
             if (hourlyPeriods.isNotEmpty()) {
-                saveNwsHourlyForecasts(hourlyPeriods, latitude, longitude)
+                saveHourlyEntities(hourlyPeriods.map { period ->
+                    HourlyForecastEntity(
+                        period.startTime, latitude, longitude, period.temperature,
+                        period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, System.currentTimeMillis()
+                    )
+                })
             }
 
             val temperatureMap = mutableMapOf<String, Pair<Float?, Float?>>()
@@ -966,64 +972,12 @@ class ForecastRepository
             }
         }
 
-        private suspend fun saveHourlyForecasts(hourlyData: List<OpenMeteoApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val fetchedAt = System.currentTimeMillis()
-            saveHourlyEntities(hourlyData.map {
-                HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature,
-                    openMeteoApi.weatherCodeToCondition(it.weatherCode),
-                    WeatherSource.OPEN_METEO.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
-                )
-            })
-        }
-
-        private suspend fun saveOpenWeatherMapHourlyForecasts(hourlyData: List<OpenWeatherMapApi.HourlyForecast>, latitude: Double, longitude: Double) {
+        private suspend fun saveHourlyEntitiesFromShared(hourlyData: List<HourlyForecast>, latitude: Double, longitude: Double, sourceId: String) {
             val fetchedAt = System.currentTimeMillis()
             saveHourlyEntities(hourlyData.map {
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.OPEN_WEATHER_MAP.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
-                )
-            })
-        }
-
-        private suspend fun saveVisualCrossingHourlyForecasts(hourlyData: List<VisualCrossingApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val fetchedAt = System.currentTimeMillis()
-            saveHourlyEntities(hourlyData.map {
-                HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.VISUAL_CROSSING.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
-                )
-            })
-        }
-
-        private suspend fun saveWeatherApiHourlyForecasts(hourlyData: List<WeatherApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val fetchedAt = System.currentTimeMillis()
-            saveHourlyEntities(hourlyData.map {
-                HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.WEATHER_API.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
-                )
-            })
-        }
-
-        private suspend fun saveSilurianHourlyForecasts(hourlyData: List<SilurianApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val fetchedAt = System.currentTimeMillis()
-            saveHourlyEntities(hourlyData.map {
-                HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature, it.condition,
-                    WeatherSource.SILURIAN.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
-                )
-            })
-        }
-
-        private suspend fun saveTomorrowIoHourlyForecasts(hourlyData: List<TomorrowIoApi.HourlyForecast>, latitude: Double, longitude: Double) {
-            val api = tomorrowIoApi ?: return
-            val fetchedAt = System.currentTimeMillis()
-            saveHourlyEntities(hourlyData.map {
-                HourlyForecastEntity(
-                    it.dateTime, latitude, longitude, it.temperature, api.weatherCodeToCondition(it.weatherCode),
-                    WeatherSource.TOMORROW_IO.id, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
+                    sourceId, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
         }
