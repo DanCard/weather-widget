@@ -79,6 +79,7 @@ class WeatherObservationsActivityRobolectricTest {
                     observation("AW020", "AE6EO MOUNTAIN VIEW", now - 10_000L, 73.0f, 2.9f, stationType = "PERSONAL"),
                     observation("KNUQ", "Mountain View, Moffett Field", now - 20_000L, 68.0f, 3.7f, stationType = "OFFICIAL"),
                     observation("WEATHER_API_MAIN", "WAPI: Current", now - 30_000L, 68.5f, 0f),
+                    observation("TOMORROW_IO_MAIN", "Tmrw: Current", now - 40_000L, 69.1f, 0f),
                 ),
             )
             database.appLogDao().insert(
@@ -132,6 +133,19 @@ class WeatherObservationsActivityRobolectricTest {
             assertFalse(logs.contains("No recent fetch logs for NWS"))
             assertTrue(logs.contains("start reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API"))
             assertTrue(logs.contains("done reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3"))
+        }
+    }
+
+    @Test
+    fun `nws mode excludes tomorrow io rows`() {
+        val scenario = launchActivity()
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val stationIds = adapter.items.map { it.stationId }
+
+            assertFalse("Tomorrow.io observations should be excluded from NWS view", stationIds.contains("TOMORROW_IO_MAIN"))
+            assertEquals(listOf("AW020", "KNUQ"), stationIds)
         }
     }
 

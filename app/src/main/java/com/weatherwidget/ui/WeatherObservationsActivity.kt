@@ -311,6 +311,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 WeatherSource.OPEN_METEO to "OPEN_METEO_",
                 WeatherSource.WEATHER_API to "WEATHER_API_",
                 WeatherSource.SILURIAN to "SILURIAN_",
+                WeatherSource.TOMORROW_IO to "TOMORROW_IO_",
             )
 
         fun matchesObservationSource(stationId: String, source: WeatherSource): Boolean =

@@ -21,6 +21,12 @@ class WeatherObservationsSupportTest {
                 source = WeatherSource.NWS,
             ),
         )
+        assertFalse(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
+                stationId = "TOMORROW_IO_MAIN",
+                source = WeatherSource.NWS,
+            ),
+        )
         assertTrue(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesObservationSource(
                 stationId = "AW020",
