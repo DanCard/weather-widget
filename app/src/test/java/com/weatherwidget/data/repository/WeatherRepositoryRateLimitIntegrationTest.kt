@@ -52,6 +52,9 @@ class WeatherRepositoryRateLimitIntegrationTest {
             db.climateNormalDao(),
             db.observationDao(),
             mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
         val currentRepo = CurrentTempRepository(

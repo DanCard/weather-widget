@@ -86,6 +86,9 @@ class WeatherRepositoryTest {
             climateNormalDao,
             observationDao,
             dailyExtremeDao,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
         currentTempRepository = CurrentTempRepository(

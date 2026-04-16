@@ -50,6 +50,9 @@ class ForecastRoundingTest {
             db.climateNormalDao(),
             db.observationDao(),
             mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
             mockk(relaxed = true)
         )
     }

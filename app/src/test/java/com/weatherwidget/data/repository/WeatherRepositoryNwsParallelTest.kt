@@ -71,7 +71,10 @@ class WeatherRepositoryNwsParallelTest {
             climateNormalDao,
             observationDao,
             mockk(relaxed = true),
-            observationRepo
+            observationRepo,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true)
         )
         val currentRepo = CurrentTempRepository(
             context,

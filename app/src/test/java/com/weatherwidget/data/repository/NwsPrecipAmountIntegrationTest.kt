@@ -56,6 +56,9 @@ class NwsPrecipAmountIntegrationTest {
             observationDao = db.observationDao(),
             dailyExtremeDao = mockk(relaxed = true),
             observationRepository = mockk(relaxed = true),
+            tomorrowIoApi = mockk(relaxed = true),
+            openWeatherMapApi = mockk(relaxed = true),
+            nwsForecastMapper = NwsForecastMapper(nwsApi, db.appLogDao()),
         )
     }
 

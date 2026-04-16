@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.CurrentTempRepository
 import com.weatherwidget.data.repository.ForecastRepository
+import com.weatherwidget.data.repository.NwsForecastMapper
 import com.weatherwidget.data.repository.ObservationRepository
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
@@ -165,9 +166,10 @@ object AppModule {
         observationRepository: ObservationRepository,
         tomorrowIoApi: TomorrowIoApi,
         openWeatherMapApi: OpenWeatherMapApi,
+        nwsForecastMapper: NwsForecastMapper,
     ): ForecastRepository = ForecastRepository(
         context, forecastDao, hourlyForecastDao, appLogDao,
-        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository, tomorrowIoApi, openWeatherMapApi
+        nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper
     )
 
     @Provides

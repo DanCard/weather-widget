@@ -67,6 +67,7 @@ class ForecastRepository
         private val observationRepository: ObservationRepository,
         private val tomorrowIoApi: TomorrowIoApi? = null,
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
+        private val nwsForecastMapper: NwsForecastMapper,
     ) {
         
 
@@ -75,7 +76,6 @@ class ForecastRepository
 
         companion object {
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes
-            private const val NWS_PERIOD_SUMMARY_COUNT = 8
             private const val MAX_RETRIES = 5
             private const val CACHE_LOOKBACK_DAYS = 7L
             private const val CACHE_FORECAST_DAYS = 30L
@@ -94,15 +94,6 @@ class ForecastRepository
                     newlyFetched.fetchedAt - existing.fetchedAt > 60 * 60 * 1000L
             }
 
-            @androidx.annotation.VisibleForTesting
-            internal fun removePhantomFutureDays(
-                temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
-                today: java.time.LocalDate,
-            ) {
-                temperatureMap.entries.removeAll { (dateStr, temps) ->
-                    java.time.LocalDate.parse(dateStr).isAfter(today) && temps.first == null
-                }
-            }
         }
 
         private var lastFetchTime: Long
@@ -368,265 +359,12 @@ class ForecastRepository
             FetchResult(nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts)
         }
 
-        internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String): List<ForecastEntity> = coroutineScope {
-            val grid = nwsApi.getGridPoint(latitude, longitude)
-            val forecastDeferred = async { nwsApi.getForecast(grid) }
-            val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
-            val skyCoverDeferred = async {
-                try {
-                    nwsApi.getSkyCover(grid)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.w(TAG, "getSkyCover failed: ${e.message}")
-                    emptyMap()
-                }
+        internal suspend fun fetchFromNws(latitude: Double, longitude: Double, locationName: String): List<ForecastEntity> {
+            val (forecastEntities, hourlyEntities) = nwsForecastMapper.fetchFromNws(latitude, longitude, locationName)
+            if (hourlyEntities.isNotEmpty()) {
+                saveHourlyEntities(hourlyEntities)
             }
-            val qpfDeferred = async {
-                try {
-                    nwsApi.getQuantitativePrecipitation(grid)
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.w(TAG, "getQuantitativePrecipitation failed: ${e.message}")
-                    emptyList()
-                }
-            }
-
-            val forecastPeriods = forecastDeferred.await()
-            val rawHourlyPeriods = hourlyDeferred.await()
-            val skyCoverMap = skyCoverDeferred.await()
-            val gridQpfIntervals = qpfDeferred.await()
-
-            // Merge sky cover into hourly periods
-            val hourlyPeriodsWithSkyCover = if (skyCoverMap.isNotEmpty()) {
-                rawHourlyPeriods.map { period ->
-                    val hourKey = runCatching {
-                        Instant.ofEpochMilli(period.startTime)
-                            .atZone(ZoneId.systemDefault())
-                            .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00"))
-                    }.getOrNull()
-                    val cover = hourKey?.let { skyCoverMap[it] }
-                    if (cover != null) period.copy(cloudCover = cover) else period
-                }
-            } else {
-                rawHourlyPeriods
-            }
-            val hourlyPeriods = if (gridQpfIntervals.isNotEmpty()) {
-                hourlyPeriodsWithSkyCover.map { period ->
-                    val gridAmount = resolveGridQpfForHourlyPeriod(period, gridQpfIntervals)
-                    if (gridAmount != null) {
-                        period.copy(precipAmountMm = gridAmount)
-                    } else {
-                        period
-                    }
-                }
-            } else {
-                hourlyPeriodsWithSkyCover
-            }
-            val todayDate = LocalDate.now()
-            val todayDateString = todayDate.toString()
-
-            persistNwsPeriodSummary(grid.forecastUrl, forecastPeriods)
-            if (hourlyPeriods.isNotEmpty()) {
-                saveHourlyEntities(hourlyPeriods.map { period ->
-                    HourlyForecastEntity(
-                        period.startTime, latitude, longitude, period.temperature,
-                        period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, System.currentTimeMillis()
-                    )
-                })
-            }
-
-           val acc = NwsDayAccumulator()
-
-            initPrecipFromHourly(hourlyPeriods, acc.precipProbabilityMap, acc.precipAmountMap)
-            initConditionsFromHourly(hourlyPeriods, acc.conditionMap, acc.conditionSourceMap)
-
-            val todayForecastPeriods = applyForecastPeriods(
-                forecastPeriods, todayDateString, acc
-            )
-            logTodayDiagnostics(
-                todayDateString, todayForecastPeriods, acc
-            )
-
-            removePhantomFutureDays(acc.temperatureMap, todayDate)
-
-            acc.temperatureMap.map { (dateString, temperatures) ->
-                val (pStart, pEnd) = acc.periodTimeMap[dateString] ?: (null to null)
-                ForecastEntity(
-                    targetDate = LocalDate.parse(dateString).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                    forecastDate = todayDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-                    locationLat = latitude,
-                    locationLon = longitude,
-                    locationName = locationName,
-                    highTemp = temperatures.first,
-                    lowTemp = temperatures.second,
-                    condition = acc.conditionMap[dateString] ?: "Unknown",
-                    nativeDailyIconToken = acc.conditionMap[dateString],
-                    isClimateNormal = false,
-                    source = WeatherSource.NWS.id,
-                    precipProbability = acc.precipProbabilityMap[dateString],
-                    precipAmountMm = acc.precipAmountMap[dateString],
-                    periodStartTime = pStart?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
-                    periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
-                )
-            }
-        }
-
-        private fun initPrecipFromHourly(
-            hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
-            precipProbabilityMap: MutableMap<String, Int>,
-            precipAmountMap: MutableMap<String, Float>,
-        ) {
-            hourlyPeriods.forEach { hour ->
-                val dateString = hour.localDate
-                val probability = hour.precipProbability ?: 0
-                if (probability > (precipProbabilityMap[dateString] ?: 0)) {
-                    precipProbabilityMap[dateString] = probability
-                }
-                hour.precipAmountMm?.let { amount ->
-                    precipAmountMap[dateString] = (precipAmountMap[dateString] ?: 0f) + amount
-                }
-            }
-        }
-
-        private fun resolveGridQpfForHourlyPeriod(
-            period: NwsApi.HourlyForecastPeriod,
-            intervals: List<NwsApi.QuantitativePrecipitationInterval>,
-        ): Float? {
-            if (intervals.isEmpty()) return null
-            val periodEnd = period.startTime + 60 * 60 * 1000L
-            val overlapping = intervals.filter { interval ->
-                interval.startTime < periodEnd && interval.endTime > period.startTime
-            }
-            if (overlapping.isEmpty()) return null
-
-            return overlapping.sumOf { interval ->
-                val overlapStart = maxOf(period.startTime, interval.startTime)
-                val overlapEnd = minOf(periodEnd, interval.endTime)
-                val overlapMs = (overlapEnd - overlapStart).coerceAtLeast(0L)
-                if (overlapMs == 0L) {
-                    0.0
-                } else {
-                    val intervalMs = (interval.endTime - interval.startTime).coerceAtLeast(1L)
-                    interval.amountMm.toDouble() * overlapMs.toDouble() / intervalMs.toDouble()
-                }
-            }.toFloat()
-        }
-
-        private fun initConditionsFromHourly(
-            hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
-            conditionMap: MutableMap<String, String>,
-            sourceMap: MutableMap<String, String>,
-        ) {
-            val todayDate = LocalDate.now()
-            hourlyPeriods.groupBy { it.localDate }
-                .forEach { (dateString, periods) ->
-                    if (LocalDate.parse(dateString).isAfter(todayDate)) {
-                        // Try to pick a midday condition for the daily summary
-                        val targetHours = listOf(13, 14, 12, 15)
-                        var bestPeriod: NwsApi.HourlyForecastPeriod? = null
-                        for (hour in targetHours) {
-                            bestPeriod = periods.find { it.localHour == hour }
-                            if (bestPeriod != null) break
-                        }
-
-                        if (bestPeriod != null) {
-                            val midText = bestPeriod.shortForecast
-                            // Priority check for fog
-                            val hasFog = periods.any {
-                                it.localHour in 5..10 && it.shortForecast.lowercase().contains("fog")
-                            }
-                            val isSunny = midText.lowercase().contains("sunny") || midText.lowercase().contains("clear")
-                            
-                            if (hasFog && isSunny) {
-                                conditionMap[dateString] = "Fog then $midText"
-                                sourceMap[dateString] = "HOURLY_MIDDAY_TRANSITION:${bestPeriod.startTime}"
-                                return@forEach
-                            }
-                            
-                            if (midText.lowercase().contains("fog")) {
-                                periods.find { it.shortForecast.lowercase().contains("sunny") || it.shortForecast.lowercase().contains("clear") }?.let {
-                                    conditionMap[dateString] = it.shortForecast
-                                    sourceMap[dateString] = "HOURLY_MIDDAY_SUN_PRIORITY:${it.startTime}"
-                                    return@forEach
-                                }
-                            }
-                            
-                            conditionMap[dateString] = midText
-                            sourceMap[dateString] = "HOURLY_MIDDAY:${bestPeriod.startTime}"
-                        }
-                    }
-                }
-        }
-
-       private class NwsDayAccumulator {
-            val temperatureMap = mutableMapOf<String, Pair<Float?, Float?>>()
-            val conditionMap = mutableMapOf<String, String>()
-            val conditionSourceMap = mutableMapOf<String, String>()
-            val highTempSourceMap = mutableMapOf<String, String>()
-            val lowTempSourceMap = mutableMapOf<String, String>()
-            val precipProbabilityMap = mutableMapOf<String, Int>()
-            val precipAmountMap = mutableMapOf<String, Float>()
-            val periodTimeMap = mutableMapOf<String, Pair<String?, String?>>()
-        }
-
-        private fun applyForecastPeriods(
-            forecastPeriods: List<NwsApi.ForecastPeriod>,
-            todayDateString: String,
-            acc: NwsDayAccumulator,
-        ): List<NwsApi.ForecastPeriod> {
-            val todayPeriods = mutableListOf<NwsApi.ForecastPeriod>()
-            forecastPeriods.forEach { period ->
-                val dateString = extractNwsForecastDate(period.startTime) ?: return@forEach
-                if (dateString == todayDateString) todayPeriods.add(period)
-
-                val probability = period.precipProbability
-                if (probability != null && !acc.precipProbabilityMap.containsKey(dateString)) {
-                    acc.precipProbabilityMap[dateString] = probability
-                }
-                val periodAmount = period.precipAmountMm
-                if (periodAmount != null && !acc.precipAmountMap.containsKey(dateString)) {
-                    acc.precipAmountMap[dateString] = periodAmount
-                }
-
-                if (period.isDaytime) {
-                    val currentTemps = acc.temperatureMap[dateString] ?: (null to null)
-                    acc.temperatureMap[dateString] = period.temperature.toFloat() to currentTemps.second
-                    acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
-                    acc.periodTimeMap[dateString] = period.startTime to period.endTime
-                } else {
-                    val lowDateString = extractNwsForecastDate(period.endTime) ?: dateString
-                    val currentLowTemps = acc.temperatureMap[lowDateString] ?: (null to null)
-                    acc.temperatureMap[lowDateString] = currentLowTemps.first to period.temperature.toFloat()
-                    acc.lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
-                }
-
-                if (acc.conditionMap[dateString] == null) {
-                    acc.conditionMap[dateString] = period.shortForecast
-                    acc.conditionSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
-                }
-            }
-            return todayPeriods
-        }
-
-        private suspend fun logTodayDiagnostics(
-            todayDateString: String,
-            todayPeriods: List<NwsApi.ForecastPeriod>,
-            acc: NwsDayAccumulator,
-        ) {
-            todayPeriods.firstOrNull { it.isDaytime }?.let { period ->
-                acc.conditionMap[todayDateString] = period.shortForecast
-                acc.conditionSourceMap[todayDateString] = "FCST_DAY:${period.name}@${period.startTime}"
-            }
-
-            val todayTemps = acc.temperatureMap[todayDateString] ?: return
-            appLogDao.log(
-                "NWS_TODAY_SOURCE",
-                "high=${todayTemps.first} (${acc.highTempSourceMap[todayDateString]}) " +
-                "low=${todayTemps.second} (${acc.lowTempSourceMap[todayDateString]}) " +
-                "cond=${acc.conditionMap[todayDateString]} (${acc.conditionSourceMap[todayDateString]})"
-            )
+            return forecastEntities
         }
 
         private suspend fun logFetchFailure(
@@ -849,10 +587,6 @@ class ForecastRepository
             return normalsMap
         }
 
-        private fun extractNwsForecastDate(isoString: String): String? = 
-            runCatching { ZonedDateTime.parse(isoString).toLocalDate().toString() }.getOrNull() 
-            ?: runCatching { LocalDate.parse(isoString.take(10)).toString() }.getOrNull()
-
         private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>) {
             if (entities.isEmpty()) return
             
@@ -889,22 +623,6 @@ class ForecastRepository
                     period.shortForecast, WeatherSource.NWS.id, period.precipProbability, period.cloudCover, period.precipAmountMm, System.currentTimeMillis()
                 )
             })
-
-        private suspend fun persistNwsPeriodSummary(url: String, forecastPeriods: List<NwsApi.ForecastPeriod>) {
-            if (forecastPeriods.isEmpty()) return
-            val now = ZonedDateTime.now()
-            val compactSummary = forecastPeriods.take(NWS_PERIOD_SUMMARY_COUNT).mapIndexed { index, period ->
-                val start = runCatching { ZonedDateTime.parse(period.startTime) }.getOrNull()
-                val end = runCatching { ZonedDateTime.parse(period.endTime) }.getOrNull()
-                val marker = when {
-                    end != null && end.isBefore(now) -> "PAST"
-                    start != null && start.isBefore(now) -> "ACTIVE"
-                    else -> "FUTURE"
-                }
-                "$index[$marker]:${period.name}@${period.startTime}..${period.endTime}=${period.temperature}"
-            }.joinToString("; ")
-            appLogDao.log("NWS_PERIOD_SUMMARY", "url=$url first8=$compactSummary")
-        }
 
         suspend fun getObservationsInRange(
             startTimestamp: Long,
