@@ -75,6 +75,8 @@ class ForecastRepository
             private const val MIN_NETWORK_INTERVAL_MS = 600_000L // 10 minutes
             private const val NWS_PERIOD_SUMMARY_COUNT = 8
             private const val MAX_RETRIES = 5
+            private const val CACHE_LOOKBACK_DAYS = 7L
+            private const val CACHE_FORECAST_DAYS = 30L
 
             @androidx.annotation.VisibleForTesting
             internal fun hasMeaningfulHourlyChange(
@@ -137,7 +139,7 @@ class ForecastRepository
 
                     appLogDao.log("NET_FETCH_START", "force=$forceRefresh target=$targetSourceId")
                     val enabledSources = widgetStateManager.getVisibleSourcesOrder().toSet()
-                    if (forceRefresh && targetSourceId != null && targetSourceId !in enabledSources.map { it.id }) {
+                    if (forceRefresh && targetSourceId != null && enabledSources.none { it.id == targetSourceId }) {
                         appLogDao.log("NET_FETCH_SKIP_DISABLED", "target=$targetSourceId")
                         return Result.success(cachedForecasts)
                     }
@@ -823,7 +825,7 @@ class ForecastRepository
                     forecastDate = todayEpoch,
                     locationLat = latitude,
                     locationLon = longitude,
-                    locationName = "",
+                    locationName = forecast.locationName,
                     highTemp = highTempSaved,
                     lowTemp = lowTempSaved,
                     condition = forecast.condition,
@@ -895,7 +897,7 @@ class ForecastRepository
                             forecastDate = dateEpoch,
                             locationLat = latitude,
                             locationLon = longitude,
-                            locationName = "",
+                            locationName = locationName,
                             highTemp = highTemp.toFloat(),
                             lowTemp = lowTemp.toFloat(),
                             condition = "Historical Avg",
@@ -949,8 +951,9 @@ class ForecastRepository
             
             val minDateTime = entities.minOf { it.dateTime }
             val maxDateTime = entities.maxOf { it.dateTime }
+            val sample = entities.first()
             val existingByDateTime = hourlyForecastDao.getHourlyForecastsBySource(
-                minDateTime, maxDateTime, entities.first().locationLat, entities.first().locationLon, entities.first().source
+                minDateTime, maxDateTime, sample.locationLat, sample.locationLon, sample.source
             ).associateBy { it.dateTime }
             
             val changedEntities = entities.filter { newlyFetched ->
@@ -1048,12 +1051,6 @@ class ForecastRepository
             appLogDao.log("NWS_PERIOD_SUMMARY", "url=$url first8=$compactSummary")
         }
 
-        private fun isPlugged(): Boolean {
-            val batteryStatusIntent = context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-            val status = batteryStatusIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-            return status == android.os.BatteryManager.BATTERY_STATUS_CHARGING
-        }
-
         suspend fun getObservationsInRange(
             startTimestamp: Long,
             endTimestamp: Long,
@@ -1062,11 +1059,11 @@ class ForecastRepository
         ): List<ObservationEntity> = observationDao.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
 
         suspend fun getCachedData(latitude: Double, longitude: Double) =
-            forecastDao.getLatestForecastsInRange(LocalDate.now().minusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY, LocalDate.now().plusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY, latitude, longitude)
+            forecastDao.getLatestForecastsInRange(LocalDate.now().minusDays(CACHE_LOOKBACK_DAYS).toEpochDay() * WidgetConstants.MS_IN_A_DAY, LocalDate.now().plusDays(CACHE_FORECAST_DAYS).toEpochDay() * WidgetConstants.MS_IN_A_DAY, latitude, longitude)
 
         suspend fun getCachedDataBySource(latitude: Double, longitude: Double, source: WeatherSource): List<ForecastEntity> {
-            val startDate = LocalDate.now().minusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-            val endDate = LocalDate.now().plusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val startDate = LocalDate.now().minusDays(CACHE_LOOKBACK_DAYS).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+            val endDate = LocalDate.now().plusDays(CACHE_FORECAST_DAYS).toEpochDay() * WidgetConstants.MS_IN_A_DAY
             val gapData = forecastDao.getForecastsInRangeBySource(startDate, endDate, latitude, longitude, WeatherSource.GENERIC_GAP.id)
             val sourceData = forecastDao.getForecastsInRangeBySource(startDate, endDate, latitude, longitude, source.id)
             
@@ -1096,9 +1093,6 @@ class ForecastRepository
 
         suspend fun getAllForecastsInRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastDao.getAllForecastsInRange(startDate, endDate, latitude, longitude)
-
-        suspend fun getWeatherRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
-            forecastDao.getForecastsInRange(startDate, endDate, latitude, longitude)
 
         suspend fun cleanOldData() {
             val oneMonthAgoTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 24 * 30 // 30 days
