@@ -18,11 +18,16 @@
 - Update tests ✓
 - 968 tests passing ✓
 
-### Phase 3: fetchFromAllApis Cleanup (next commit)
+### Phase 3: fetchFromAllApis Cleanup (9ab9431)
 - #4: Replace 7 boolean params with `Set<WeatherSource>` ✓
 - #7: Extract `mapDailyForecast` helper for shared types ✓
 - #8: Add `safeFetch` helper for catch block dedup ✓
 - #9/#10: `NwsDayAccumulator` for applyForecastPeriods/logTodayDiagnostics ✓
 
-## Remaining
-- #1: Extract NWS logic to separate `NwsForecastMapper` class (deferred — requires updating 11 test constructors)
+### Phase 4: NwsForecastMapper Extraction (7a36cd3)
+- #1: Extract NWS logic to separate `NwsForecastMapper` class ✓
+- Updated 11 test files to provide NwsForecastMapper instance ✓
+- ForecastRepository: 962 → 680 lines (-282 lines) ✓
+
+## Summary
+All code review items completed. ForecastRepository reduced from 1113 to 680 lines (-433 lines, -38%).
