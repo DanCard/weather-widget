@@ -17,7 +17,6 @@ import org.junit.experimental.categories.Category
 @Config(sdk = [34])
 @Category(MediumDuration::class)
 class DailyForecastGraphRendererColumnCountTest {
-
     @Test
     fun `renderGraph spaces bars using visible widget columns when some days are missing`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

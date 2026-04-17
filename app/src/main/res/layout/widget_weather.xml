@@ -1098,6 +1098,29 @@
 
     </LinearLayout>
 
+    <TextView
+        android:id="@+id/header_date_center"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="-4dp"
+        android:text=""
+        android:textSize="26sp"
+        android:textColor="#AAFFFFFF"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/header_date_right"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="112dp"
+        android:text=""
+        android:textSize="26sp"
+        android:textColor="#AAFFFFFF"
+        android:visibility="gone" />
+
     <!-- API Source indicator - rendered last for touch priority, positioned in top-right corner -->
     <FrameLayout
         android:id="@+id/api_source_container"

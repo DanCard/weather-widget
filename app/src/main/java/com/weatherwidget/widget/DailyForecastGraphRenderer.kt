@@ -7,6 +7,8 @@ import android.util.TypedValue
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherConditionColors
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 
 object DailyForecastGraphRenderer {
@@ -30,9 +32,14 @@ object DailyForecastGraphRenderer {
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
     private const val MIN_RAIN_FONT_SCALE = 0.4f
+    private const val MIN_COLUMNS_FOR_TOP_DATE = 6
+    private const val TOP_DATE_TEXT_SIZE_NARROW_SP = 16f
+    private const val TOP_DATE_TEXT_SIZE_WIDE_SP = 18f
+    private const val NARROW_WIDGET_WIDTH_DP = 420f
 
     private var cachedPaintSet: PaintSet? = null
     private var cachedScaleKey: String = ""
+    private val topDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
     /**
      * Fired once for each bar drawn, for testing and debugging.
@@ -52,6 +59,14 @@ object DailyForecastGraphRenderer {
         val placement: String,
         val centerX: Float,
         val baselineY: Float,
+    )
+
+    data class DateLabelDrawnDebug(
+        val date: LocalDate,
+        val text: String,
+        val centerX: Float,
+        val baselineY: Float,
+        val columnIndex: Int,
     )
 
     data class DayData(
@@ -121,6 +136,7 @@ object DailyForecastGraphRenderer {
         val tempTextPaint: Paint,
         val todayTempTextPaint: Paint,
         val rainTextPaint: Paint,
+        val topDateTextPaint: Paint,
         val iconPaint: Paint,
         val todayIconPaint: Paint
     )
@@ -134,6 +150,7 @@ object DailyForecastGraphRenderer {
         numColumns: Int = 0,
         onBarDrawn: ((BarDrawnDebug) -> Unit)? = null,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
+        onDateLabelDrawn: ((DateLabelDrawnDebug) -> Unit)? = null,
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -264,6 +281,10 @@ object DailyForecastGraphRenderer {
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
             rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 8f * scaleFactor)),
+            topDateTextPaint = createTextPaint(
+                Color.parseColor(COLOR_LABEL_GRAY),
+                resolveTopDateTextSizePx(context, layout)
+            ),
             iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 colorFilter = PorterDuffColorFilter(Color.parseColor(COLOR_LABEL_GRAY), PorterDuff.Mode.SRC_IN)
             },
@@ -275,6 +296,109 @@ object DailyForecastGraphRenderer {
         cachedPaintSet = set
         cachedScaleKey = key
         return set
+    }
+
+    private fun drawTopDateLabel(
+        canvas: Canvas,
+        context: Context,
+        days: List<DayData>,
+        layout: LayoutInfo,
+        paints: PaintSet,
+        onDateLabelDrawn: ((DateLabelDrawnDebug) -> Unit)?,
+    ) {
+        if (layout.columns < MIN_COLUMNS_FOR_TOP_DATE || days.isEmpty()) return
+
+        val middleDay = days.minByOrNull { kotlin.math.abs((it.columnIndex ?: days.indexOf(it)) - (layout.columns / 2)) }
+            ?: return
+        val text = middleDay.date.format(topDateFormatter)
+        val baselineY = resolveTopDateBaseline(context, paints.topDateTextPaint)
+        val textWidth = paints.topDateTextPaint.measureText(text)
+        val preferredColumn = (layout.columns / 2).coerceIn(0, layout.columns - 1)
+
+        for (candidateColumn in preferredColumn until layout.columns) {
+            val centerX = layout.horizontalPadding + layout.dayWidth * candidateColumn + layout.dayWidth / 2f
+            if (!fitsWithinCanvas(centerX, textWidth, layout.widthPx.toFloat())) {
+                Log.d(TAG, "topDate skipped candidate: date=$text column=$candidateColumn reason=overflow centerX=$centerX textWidth=$textWidth widthPx=${layout.widthPx}")
+                continue
+            }
+            if (collidesWithHighLabels(days, candidateColumn, centerX, textWidth, baselineY, layout, paints, context)) {
+                Log.d(TAG, "topDate skipped candidate: date=$text column=$candidateColumn reason=high_label_collision centerX=$centerX")
+                continue
+            }
+
+            canvas.drawText(text, centerX, baselineY, paints.topDateTextPaint)
+            Log.d(TAG, "topDate drawn: date=$text column=$candidateColumn centerX=$centerX baselineY=$baselineY textSize=${paints.topDateTextPaint.textSize}")
+            onDateLabelDrawn?.invoke(
+                DateLabelDrawnDebug(
+                    date = middleDay.date,
+                    text = text,
+                    centerX = centerX,
+                    baselineY = baselineY,
+                    columnIndex = candidateColumn,
+                ),
+            )
+            return
+        }
+
+        Log.d(TAG, "topDate skipped: date=$text reason=no_safe_slot columns=${layout.columns} widthPx=${layout.widthPx}")
+    }
+
+    private fun resolveTopDateBaseline(context: Context, paint: Paint): Float {
+        return -paint.fontMetrics.ascent
+    }
+
+    private fun fitsWithinCanvas(centerX: Float, textWidth: Float, widthPx: Float): Boolean {
+        val halfWidth = textWidth / 2f
+        return centerX - halfWidth >= 0f && centerX + halfWidth <= widthPx
+    }
+
+    private fun collidesWithHighLabels(
+        days: List<DayData>,
+        candidateColumn: Int,
+        centerX: Float,
+        textWidth: Float,
+        baselineY: Float,
+        layout: LayoutInfo,
+        paints: PaintSet,
+        context: Context,
+    ): Boolean {
+        val dateBounds = boundsForText(centerX, baselineY, textWidth, paints.topDateTextPaint.fontMetrics)
+        return days.anyIndexed { index, day ->
+            val dayColumn = day.columnIndex ?: index
+            if (dayColumn != candidateColumn) {
+                return@anyIndexed false
+            }
+
+            val displayHigh = if (day.isToday) {
+                listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull()
+            } else {
+                day.high
+            } ?: return@anyIndexed false
+
+            val highBaseline = resolveHighLabelBaseline(context, day, layout) ?: return@anyIndexed false
+            val highText = formatTempLabel(displayHigh, day.isToday || day.isPast)
+            val highCenterX = layout.horizontalPadding + layout.dayWidth * dayColumn + layout.dayWidth / 2f
+            val highWidth = paints.tempTextPaint.measureText(highText)
+            val highBounds = boundsForText(highCenterX, highBaseline, highWidth, paints.tempTextPaint.fontMetrics)
+            RectF.intersects(dateBounds, highBounds)
+        }
+    }
+
+    private fun boundsForText(centerX: Float, baselineY: Float, textWidth: Float, metrics: Paint.FontMetrics): RectF {
+        val halfWidth = textWidth / 2f
+        return RectF(
+            centerX - halfWidth,
+            baselineY + metrics.ascent,
+            centerX + halfWidth,
+            baselineY + metrics.descent,
+        )
+    }
+
+    private inline fun <T> List<T>.anyIndexed(predicate: (index: Int, item: T) -> Boolean): Boolean {
+        forEachIndexed { index, item ->
+            if (predicate(index, item)) return true
+        }
+        return false
     }
 
     private fun createBarPaint(colorInt: Int, width: Float): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -584,6 +708,16 @@ object DailyForecastGraphRenderer {
 
     private fun dpToPx(context: Context, dp: Float): Float {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
+    }
+
+    private fun spToPx(context: Context, sp: Float): Float {
+        return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, sp, context.resources.displayMetrics)
+    }
+
+    private fun resolveTopDateTextSizePx(context: Context, layout: LayoutInfo): Float {
+        val widthDp = layout.widthPx / context.resources.displayMetrics.density
+        val sizeSp = if (widthDp < NARROW_WIDGET_WIDTH_DP) TOP_DATE_TEXT_SIZE_NARROW_SP else TOP_DATE_TEXT_SIZE_WIDE_SP
+        return spToPx(context, sizeSp)
     }
 
     internal fun computeDayLabelWidthScale(dayWidthDp: Float): Float {

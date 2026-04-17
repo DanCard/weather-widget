@@ -8,6 +8,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Paint
 import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
@@ -44,6 +45,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.min
 
 object DailyViewHandler : WidgetViewHandler {
@@ -52,6 +54,22 @@ object DailyViewHandler : WidgetViewHandler {
     private const val MISSING_ACTUALS_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
+    private const val HEADER_DATE_MIN_COLUMNS = 6
+    private const val HEADER_DATE_TEXT_SIZE_SP = 26f
+    private const val HEADER_DATE_RIGHT_MARGIN_DP = 112f
+    private const val CURRENT_TEMP_TEXT_SIZE_SP = 26f
+    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_SP = 14f
+    private const val WEATHER_ICON_WIDTH_DP = 24f
+    private const val WEATHER_ICON_END_MARGIN_DP = 2f
+    private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
+    private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
+
+    @VisibleForTesting
+    internal enum class HeaderDatePlacement {
+        CENTER,
+        RIGHT,
+    }
+
     private data class DayIds(
         val container: Int,
         val label: Int,
@@ -299,19 +317,24 @@ object DailyViewHandler : WidgetViewHandler {
         val currentTemp = currentTempResolution.displayTemp
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
 
-        if (currentTemp != null) {
-            val formattedTemp =
+        val formattedTemp =
+            currentTemp?.let {
                 CurrentTemperatureResolver.formatDisplayTemperature(
-                    temp = currentTemp,
+                    temp = it,
                     numColumns = numColumns,
                     isStaleEstimate = currentTempResolution.isStaleEstimate,
                 )
+            }
+
+        if (formattedTemp != null) {
             views.setTextViewText(R.id.current_temp, formattedTemp)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
             views.setViewVisibility(R.id.current_temp_delta, View.GONE)
         }
+        views.setViewVisibility(R.id.header_date_center, View.GONE)
+        views.setViewVisibility(R.id.header_date_right, View.GONE)
 
         // Show precipitation probability next to current temp when rain is expected
         val todayWeather = weatherByDate[today]
@@ -511,12 +534,27 @@ object DailyViewHandler : WidgetViewHandler {
             val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size)
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
+            bindHeaderDate(
+                context = context,
+                views = views,
+                widthDp = dimensions.widthDp,
+                numColumns = displayDays.size,
+                currentTempText = formattedTemp,
+                deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+                precipText = if (isPrecipVisible) "$precipProb%" else null,
+                precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(checkNotNull(precipProb)) else null,
+                apiSourceText = displaySource.shortDisplayName,
+                apiTextSizeSp = apiTextSizeSp(numRows),
+                dateText = today.format(headerDateFormatter),
+            )
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
             setupGraphBottomDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
         } else {
             views.setViewVisibility(R.id.text_container, View.VISIBLE)
             views.setViewVisibility(R.id.graph_view, View.GONE)
+            views.setViewVisibility(R.id.header_date_center, View.GONE)
+            views.setViewVisibility(R.id.header_date_right, View.GONE)
             views.setViewVisibility(R.id.graph_day_zones, View.GONE)
             views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
@@ -669,13 +707,143 @@ object DailyViewHandler : WidgetViewHandler {
         views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
 
-        val textSizeSp = when {
+        val textSizeSp = apiTextSizeSp(numRows)
+        views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+    }
+
+    private fun apiTextSizeSp(numRows: Int): Float =
+        when {
             numRows >= 3 -> 18f
             numRows >= 2 -> 16f
             else -> 14f
         }
-        views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+
+    private fun bindHeaderDate(
+        context: Context,
+        views: RemoteViews,
+        widthDp: Int,
+        numColumns: Int,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeSp: Float?,
+        apiSourceText: String,
+        apiTextSizeSp: Float,
+        dateText: String,
+    ) {
+        views.setViewVisibility(R.id.header_date_center, View.GONE)
+        views.setViewVisibility(R.id.header_date_right, View.GONE)
+        if (dateText.isBlank()) return
+
+        val placement =
+            resolveHeaderDatePlacement(
+                context = context,
+                widthDp = widthDp,
+                numColumns = numColumns,
+                currentTempText = currentTempText,
+                deltaText = deltaText,
+                precipText = precipText,
+                precipTextSizeSp = precipTextSizeSp,
+                apiSourceText = apiSourceText,
+                apiTextSizeSp = apiTextSizeSp,
+                dateText = dateText,
+            ) ?: return
+
+        val targetId =
+            when (placement) {
+                HeaderDatePlacement.CENTER -> R.id.header_date_center
+                HeaderDatePlacement.RIGHT -> R.id.header_date_right
+            }
+        views.setTextViewText(targetId, dateText)
+        views.setTextViewTextSize(targetId, TypedValue.COMPLEX_UNIT_SP, HEADER_DATE_TEXT_SIZE_SP)
+        views.setViewVisibility(targetId, View.VISIBLE)
     }
+
+    @VisibleForTesting
+    internal fun resolveHeaderDatePlacement(
+        context: Context,
+        widthDp: Int,
+        numColumns: Int,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeSp: Float?,
+        apiSourceText: String,
+        apiTextSizeSp: Float,
+        dateText: String,
+    ): HeaderDatePlacement? {
+        if (numColumns < HEADER_DATE_MIN_COLUMNS) return null
+
+        val widthPx = WidgetSizeCalculator.dpToPx(context, widthDp).toFloat()
+        val leftClusterRight =
+            resolveLeftHeaderClusterRightPx(
+                context = context,
+                currentTempText = currentTempText,
+                deltaText = deltaText,
+                precipText = precipText,
+                precipTextSizeSp = precipTextSizeSp,
+            )
+        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeSp)
+        val dateWidth = textWidthPx(context, dateText, HEADER_DATE_TEXT_SIZE_SP)
+        val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
+
+        val centerLeft = (widthPx - dateWidth) / 2f
+        val centerRight = centerLeft + dateWidth
+        if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
+            return HeaderDatePlacement.CENTER
+        }
+
+        val rightRight = widthPx - dpToPx(context, HEADER_DATE_RIGHT_MARGIN_DP)
+        val rightLeft = rightRight - dateWidth
+        if (rightLeft >= leftClusterRight + gapPx && rightRight <= apiLeft - gapPx) {
+            return HeaderDatePlacement.RIGHT
+        }
+
+        return null
+    }
+
+    private fun resolveLeftHeaderClusterRightPx(
+        context: Context,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeSp: Float?,
+    ): Float {
+        var width = dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP)
+        if (!currentTempText.isNullOrBlank()) {
+            width += textWidthPx(context, currentTempText, CURRENT_TEMP_TEXT_SIZE_SP)
+        }
+        if (!deltaText.isNullOrBlank()) {
+            width += dpToPx(context, 4f) + textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_SP)
+        }
+        if (!precipText.isNullOrBlank() && precipTextSizeSp != null) {
+            width += dpToPx(context, 8f) + textWidthPx(context, precipText, precipTextSizeSp)
+        }
+        return width
+    }
+
+    private fun resolveApiLeftPx(
+        context: Context,
+        widthPx: Float,
+        apiSourceText: String,
+        apiTextSizeSp: Float,
+    ): Float {
+        val apiContainerWidth = dpToPx(context, 14f) + textWidthPx(context, apiSourceText, apiTextSizeSp)
+        return widthPx - dpToPx(context, 32f) - apiContainerWidth
+    }
+
+    private fun textWidthPx(context: Context, text: String, textSizeSp: Float): Float =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize =
+                TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_SP,
+                    textSizeSp,
+                    context.resources.displayMetrics,
+                )
+        }.measureText(text)
+
+    private fun dpToPx(context: Context, dp: Float): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
 
     @VisibleForTesting
     internal fun resolveTodayHeaderForecast(
