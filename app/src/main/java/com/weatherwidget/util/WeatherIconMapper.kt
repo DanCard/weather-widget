@@ -147,7 +147,7 @@ object WeatherIconMapper {
         val isChance = precipProbability >= 60
         val cloudPct = cloudCover ?: 50
 
-        return when {
+        val result = when {
             // 1. Overcast Tier (71%+ cloud)
             cloudPct > 70 ->
                 if (isChance) R.drawable.ic_weather_cloudy_chance_rain
@@ -169,6 +169,8 @@ object WeatherIconMapper {
                 else -> R.drawable.ic_weather_partly_cloudy_slight_chance_rain
             }
         }
+        android.util.Log.d("WeatherIconMapper", "getPrecipitationIcon: prob=$precipProbability% (isChance=$isChance) cloud=$cloudPct% -> icon=${result}")
+        return result
     }
 
     fun getCloudCoverIcon(isNight: Boolean, cloudCover: Int?): Int {

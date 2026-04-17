@@ -65,7 +65,11 @@ object WeatherConditionColors {
     fun forecastBarGradient(iconRes: Int, topY: Float, bottomY: Float, cloudRatioOverride: Float? = null): LinearGradient? {
         val ratio = (cloudRatioOverride ?: cloudRatio(iconRes))?.coerceIn(0f, 1f) ?: return null
         val topColor = FORECAST_SUNNY
-        val bottomColor = if (iconRes in CHANCE_RAIN_ICONS) FORECAST_RAINY else FORECAST_CLOUDY
+        val isRainyIcon = iconRes in CHANCE_RAIN_ICONS
+        val bottomColor = if (isRainyIcon) FORECAST_RAINY else FORECAST_CLOUDY
+        
+        android.util.Log.d("WeatherConditionColors", "forecastBarGradient: icon=$iconRes isRainyIcon=$isRainyIcon ratio=$ratio -> color=${if (isRainyIcon) "BLUE" else "GREY"}")
+        
         val stops = gradientStopPositions(ratio)
         return LinearGradient(
             0f, topY, 0f, bottomY,
