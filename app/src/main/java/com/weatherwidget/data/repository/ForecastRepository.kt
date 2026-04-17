@@ -514,11 +514,48 @@ class ForecastRepository
                         true
                     }
                 }
+
+                if (sourceId == WeatherSource.NWS.id) {
+                    appLogDao.log(
+                        "NWS_BATCH_SAVE_SUMMARY",
+                        buildNwsBatchSaveSummary(
+                            batchFetchedAt = batchFetchedAt,
+                            rawForecasts = weatherForecasts,
+                            forecastsToSave = forecastsToSave,
+                            changedForecasts = changedForecasts,
+                        ),
+                    )
+                }
                 
                 if (changedForecasts.isNotEmpty()) {
                     forecastDao.insertAll(changedForecasts)
                 }
             }
+        }
+
+        private fun buildNwsBatchSaveSummary(
+            batchFetchedAt: Long,
+            rawForecasts: List<ForecastEntity>,
+            forecastsToSave: List<ForecastEntity>,
+            changedForecasts: List<ForecastEntity>,
+        ): String {
+            val rawMaxDate = rawForecasts.maxOfOrNull { it.targetDate }
+            val filteredMaxDate = forecastsToSave.maxOfOrNull { it.targetDate }
+            val savedMaxDate = changedForecasts.maxOfOrNull { it.targetDate }
+            val terminalRow = forecastsToSave.maxByOrNull { it.targetDate }
+            return "batch=$batchFetchedAt " +
+                "rawCount=${rawForecasts.size} rawMaxDate=${formatEpochDate(rawMaxDate)} " +
+                "filteredCount=${forecastsToSave.size} filteredMaxDate=${formatEpochDate(filteredMaxDate)} " +
+                "savedCount=${changedForecasts.size} savedMaxDate=${formatEpochDate(savedMaxDate)} " +
+                "terminal=${formatTerminalRow(terminalRow)}"
+        }
+
+        private fun formatEpochDate(epochMs: Long?): String =
+            epochMs?.let { LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY).toString() } ?: "null"
+
+        private fun formatTerminalRow(row: ForecastEntity?): String {
+            if (row == null) return "null"
+            return "${formatEpochDate(row.targetDate)} high=${row.highTemp} low=${row.lowTemp}"
         }
 
         private suspend fun fetchClimateNormalsGap(
@@ -691,6 +728,15 @@ class ForecastRepository
                 sourceData.filter { it.batchFetchedAt == latestBatchFetchedAt }
             } else {
                 emptyList()
+            }
+
+            if (source == WeatherSource.NWS) {
+                appLogDao.log(
+                    "NWS_BATCH_RENDER_SUMMARY",
+                    "batch=$latestBatchFetchedAt liveCount=${liveSourceData.size} " +
+                        "liveMinDate=${formatEpochDate(liveSourceData.minOfOrNull { it.targetDate })} " +
+                        "liveMaxDate=${formatEpochDate(liveSourceData.maxOfOrNull { it.targetDate })}",
+                )
             }
 
             val latestSourceByDate = liveSourceData.groupBy { it.targetDate }.mapValues { (_, rows) -> rows.first() }

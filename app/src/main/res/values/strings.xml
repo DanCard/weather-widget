@@ -83,10 +83,13 @@
     <string name="icon_preview_title">Icon Preview</string>
     <string name="icon_preview_description">The rain comparison below is the only experimental redraw. The gallery shows the existing production icons, including snow.</string>
     <string name="rain_shape_preview_title">Rain Shape Experiment</string>
+    <string name="snow_shape_preview_title">Snow Shape Experiment</string>
     <string name="rain_icon_preview_current">Current</string>
     <string name="rain_icon_preview_proposed">Proposed</string>
     <string name="rain_icon_preview_rain_current_desc">Current rain icon preview</string>
     <string name="rain_icon_preview_rain_proposed_desc">Proposed rain icon preview</string>
+    <string name="snow_icon_preview_current_desc">Current snow icon preview</string>
+    <string name="snow_icon_preview_proposed_desc">Proposed snow icon preview</string>
     <string name="weather_icon_gallery_title">Production Icon Samples</string>
     <string name="gallery_icon_rain">Rain</string>
     <string name="gallery_icon_chance_rain">Chance Rain</string>

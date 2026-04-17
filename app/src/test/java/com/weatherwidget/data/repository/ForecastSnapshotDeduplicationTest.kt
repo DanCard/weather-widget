@@ -1,9 +1,11 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestData.LAT
 import com.weatherwidget.testutil.TestData.LON
+import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.util.TemperatureInterpolator
 import com.weatherwidget.widget.WidgetStateManager
@@ -103,5 +105,41 @@ class ForecastSnapshotDeduplicationTest {
         val yesterday = LocalDate.now().minusDays(1).toString()
         repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = yesterday, source = "NWS")), LAT, LON, "NWS")
         assertEquals(0, db.forecastDao().getCount())
+    }
+
+    @Test
+    fun `terminal low only nws row is persisted and returned in latest batch`() = runTest {
+        val dayAfterTomorrow = LocalDate.now().plusDays(2).format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val batchFetchedAt = 1_234_567L
+        repository.saveForecastSnapshot(
+            listOf(
+                TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f),
+                TestData.forecast(targetDate = dayAfterTomorrow, source = "NWS", highTemp = null, lowTemp = 48f),
+            ),
+            LAT,
+            LON,
+            "NWS",
+            batchFetchedAt = batchFetchedAt,
+        )
+
+        val storedRows = db.forecastDao().getForecastsInRangeBySource(
+            startDate = dateEpoch(tomorrow),
+            endDate = dateEpoch(dayAfterTomorrow),
+            lat = LAT,
+            lon = LON,
+            source = "NWS",
+        )
+        val terminalRow = storedRows.first { it.targetDate == dateEpoch(dayAfterTomorrow) }
+        assertNull(terminalRow.highTemp)
+        assertEquals(48f, terminalRow.lowTemp)
+        assertEquals(batchFetchedAt, terminalRow.batchFetchedAt)
+
+        val latestBatch = repository.getCachedDataBySource(LAT, LON, WeatherSource.NWS)
+        val latestTerminalRow = latestBatch.first { it.targetDate == dateEpoch(dayAfterTomorrow) }
+        assertNull(latestTerminalRow.highTemp)
+        assertEquals(48f, latestTerminalRow.lowTemp)
+
+        val batchLogs = db.appLogDao().getLogsByTag("NWS_BATCH_SAVE_SUMMARY", 5)
+        assertTrue(batchLogs.any { it.message.contains("savedMaxDate=$dayAfterTomorrow") })
     }
 }

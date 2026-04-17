@@ -28,6 +28,20 @@ class NwsForecastMapper @Inject constructor(
     private val TAG = "NwsForecastMapper"
     private val NWS_PERIOD_SUMMARY_COUNT = 8
 
+    data class NwsBatchSummary(
+        val periodCount: Int,
+        val lastPeriodName: String?,
+        val lastPeriodStart: String?,
+        val lastPeriodEnd: String?,
+        val lastPeriodTemp: Int?,
+        val lastPeriodIsDaytime: Boolean?,
+        val mappedCount: Int,
+        val mappedMaxTargetDate: String?,
+        val terminalLowOnlyPreserved: Boolean,
+        val preservedDate: String?,
+        val preservedLowTemp: Float?,
+    )
+
     suspend fun fetchFromNws(
         latitude: Double,
         longitude: Double,
@@ -138,6 +152,8 @@ class NwsForecastMapper @Inject constructor(
                 periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
             )
         }
+        val batchSummary = buildBatchSummary(forecastPeriods, forecastEntities, preservedTerminalLowOnlyDay)
+        persistNwsBatchSummary(grid.forecastUrl, batchSummary)
 
         val hourlyEntities = hourlyPeriods.map { period ->
             HourlyForecastEntity(
@@ -310,6 +326,45 @@ class NwsForecastMapper @Inject constructor(
             "$index[$marker]:${period.name}@${period.startTime}..${period.endTime}=${period.temperature}"
         }.joinToString("; ")
         appLogDao.log("NWS_PERIOD_SUMMARY", "url=$url first8=$compactSummary")
+    }
+
+    suspend fun persistNwsBatchSummary(url: String, summary: NwsBatchSummary) {
+        appLogDao.log(
+            "NWS_BATCH_SUMMARY",
+            "url=$url rawCount=${summary.periodCount} " +
+                "rawLast=${summary.lastPeriodName}@${summary.lastPeriodStart}..${summary.lastPeriodEnd}" +
+                " temp=${summary.lastPeriodTemp} isDay=${summary.lastPeriodIsDaytime} " +
+                "mappedCount=${summary.mappedCount} mappedMaxDate=${summary.mappedMaxTargetDate} " +
+                "terminalLowOnlyPreserved=${summary.terminalLowOnlyPreserved} " +
+                "preservedDate=${summary.preservedDate} preservedLow=${summary.preservedLowTemp}",
+        )
+    }
+
+    fun buildBatchSummary(
+        forecastPeriods: List<NwsApi.ForecastPeriod>,
+        forecastEntities: List<ForecastEntity>,
+        preservedTerminalLowOnlyDay: Pair<String, Float>?,
+    ): NwsBatchSummary {
+        val lastPeriod = forecastPeriods.lastOrNull()
+        val mappedMaxTargetDate =
+            forecastEntities
+                .maxByOrNull { it.targetDate }
+                ?.targetDate
+                ?.let { LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY).toString() }
+
+        return NwsBatchSummary(
+            periodCount = forecastPeriods.size,
+            lastPeriodName = lastPeriod?.name,
+            lastPeriodStart = lastPeriod?.startTime,
+            lastPeriodEnd = lastPeriod?.endTime,
+            lastPeriodTemp = lastPeriod?.temperature,
+            lastPeriodIsDaytime = lastPeriod?.isDaytime,
+            mappedCount = forecastEntities.size,
+            mappedMaxTargetDate = mappedMaxTargetDate,
+            terminalLowOnlyPreserved = preservedTerminalLowOnlyDay != null,
+            preservedDate = preservedTerminalLowOnlyDay?.first,
+            preservedLowTemp = preservedTerminalLowOnlyDay?.second,
+        )
     }
 
     data class NwsDayAccumulator(
