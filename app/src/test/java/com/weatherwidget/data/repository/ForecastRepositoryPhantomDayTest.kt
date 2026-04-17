@@ -11,13 +11,14 @@ import java.time.LocalDate
 class ForecastRepositoryPhantomDayTest {
 
     @Test
-    fun `removes future date with null high and valid low`() {
+    fun `keeps last future date with null high and valid low`() {
         val today = LocalDate.parse("2026-03-28")
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-04-04" to (null to 65f),
         )
         NwsForecastMapper.removePhantomFutureDays(map, today)
-        assertTrue(map.isEmpty())
+        assertEquals(1, map.size)
+        assertEquals(65f, map["2026-04-04"]!!.second)
     }
 
     @Test
@@ -52,7 +53,7 @@ class ForecastRepositoryPhantomDayTest {
     }
 
     @Test
-    fun `removes multiple phantom days`() {
+    fun `removes earlier phantom day but keeps final low only future day`() {
         val today = LocalDate.parse("2026-03-28")
         val map = mutableMapOf<String, Pair<Float?, Float?>>(
             "2026-04-04" to (null to 65f),
@@ -60,8 +61,10 @@ class ForecastRepositoryPhantomDayTest {
             "2026-03-30" to (75f to 55f),
         )
         NwsForecastMapper.removePhantomFutureDays(map, today)
-        assertEquals(1, map.size)
+        assertEquals(2, map.size)
+        assertTrue(map.containsKey("2026-04-05"))
         assertTrue(map.containsKey("2026-03-30"))
+        assertTrue(!map.containsKey("2026-04-04"))
     }
 
     @Test

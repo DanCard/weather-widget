@@ -37,11 +37,6 @@
             android:label="@string/statistics" />
 
         <activity
-            android:name=".ui.FeatureTourActivity"
-            android:exported="false"
-            android:label="@string/feature_tour" />
-
-        <activity
             android:name=".ui.AppLogsActivity"
             android:exported="false"
             android:label="@string/app_logs"

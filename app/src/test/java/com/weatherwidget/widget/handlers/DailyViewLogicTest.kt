@@ -259,6 +259,118 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `prepareTextDays keeps terminal NWS low only future day without climate fallback`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(5)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                highTemp = null,
+                lowTemp = 41f,
+                source = WeatherSource.NWS.id,
+            ),
+        )
+        val climateNormals = mapOf(
+            java.time.MonthDay.from(future) to Pair(80, 65),
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            climateNormals = climateNormals,
+        )
+
+        val partialDay = result.find { it.date == future }
+        assertNotNull("Terminal NWS low-only future day should be present", partialDay)
+        assertTrue("Terminal NWS low-only future day should count as data", partialDay!!.hasData)
+        assertNull("Missing high should remain null", partialDay.highLabel)
+        assertEquals("Low label should come from NWS data", "41°", partialDay.lowLabel)
+    }
+
+    @Test
+    fun `prepareTextDays still uses climate fallback for non terminal future low only day`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val earlierFuture = today.plusDays(4)
+        val lastFuture = today.plusDays(5)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            earlierFuture to createWeather(
+                date = earlierFuture.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                highTemp = null,
+                lowTemp = 44f,
+                source = WeatherSource.NWS.id,
+            ),
+            lastFuture to createWeather(lastFuture.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+        )
+        val climateNormals = mapOf(
+            java.time.MonthDay.from(earlierFuture) to Pair(78, 60),
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            climateNormals = climateNormals,
+        )
+
+        val fallbackDay = result.find { it.date == earlierFuture }
+        assertNotNull("Earlier future day should be present", fallbackDay)
+        assertEquals("Non-terminal low-only day should still use climate high", "78°", fallbackDay!!.highLabel)
+        assertEquals("Non-terminal low-only day should still use climate low", "60°", fallbackDay.lowLabel)
+    }
+
+    @Test
+    fun `prepareGraphDays keeps terminal NWS low only future day without climate fallback`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(7)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                highTemp = null,
+                lowTemp = 39f,
+                source = WeatherSource.NWS.id,
+            ),
+        )
+        val climateNormals = mapOf(
+            java.time.MonthDay.from(future) to Pair(77, 58),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            climateNormals = climateNormals,
+        )
+
+        val partialDay = result.find { it.date == future }
+        assertNotNull("Terminal NWS low-only future graph day should be present", partialDay)
+        assertNull("Missing high should remain null", partialDay!!.high)
+        assertEquals("Low should come from NWS data", 39f, partialDay.low)
+        assertFalse("Terminal low-only day should not become climate overlay", partialDay.isClimateNormal)
+    }
+
+    @Test
     fun `prepareGraphDays rainy future day shows percent label`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()

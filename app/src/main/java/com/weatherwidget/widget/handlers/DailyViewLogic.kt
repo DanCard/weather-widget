@@ -28,6 +28,28 @@ import kotlin.math.roundToInt
 object DailyViewLogic {
     private const val TAG = "DailyViewLogic"
 
+    private fun isTerminalLowOnlyNwsFutureDay(
+        weather: ForecastEntity?,
+        date: LocalDate,
+        today: LocalDate,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
+    ): Boolean {
+        if (weather?.source != WeatherSource.NWS.id) return false
+        if (!date.isAfter(today)) return false
+        if (weather.highTemp != null || weather.lowTemp == null) return false
+
+        val lastNwsFutureDate =
+            weatherByDate.entries
+                .asSequence()
+                .filter { (candidateDate, candidateWeather) ->
+                    candidateDate.isAfter(today) && candidateWeather.source == WeatherSource.NWS.id
+                }
+                .map { it.key }
+                .maxOrNull()
+
+        return date == lastNwsFutureDate
+    }
+
     data class TextDayData(
         val dayIndex: Int,
         val date: LocalDate,
@@ -75,11 +97,14 @@ object DailyViewLogic {
             val weather = weatherByDate[date]
             val isToday = date == today
             val isPast = date.isBefore(today)
+            val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
             
             // For future days, we need both high and low.
             // For today and past days, we can show partial data (High-only or Low-only).
             val hasData = if (!isToday && !isPast) {
-                (weather != null && weather.highTemp != null && weather.lowTemp != null) || dailyActuals.containsKey(date)
+                (weather != null && weather.highTemp != null && weather.lowTemp != null) ||
+                    isTerminalLowOnlyNwsFuture ||
+                    dailyActuals.containsKey(date)
             } else {
                 (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
             }
@@ -119,6 +144,7 @@ object DailyViewLogic {
             val weather = weatherByDate[date]
             val isToday = date == today
             val isPast = date.isBefore(today)
+            val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             
             // Round future days to integers to maintain UI consistency.
@@ -156,7 +182,7 @@ object DailyViewLogic {
                         (visibleHigh != null || visibleLow != null)
             } else {
                 // Future day fallback to climate normals if missing
-                if (highLabel == null || lowLabel == null) {
+                if (!isTerminalLowOnlyNwsFuture && (highLabel == null || lowLabel == null)) {
                     val normal = climateNormals[java.time.MonthDay.from(date)]
                     if (normal != null) {
                         highLabel = formatTemp(normal.first.toFloat())
@@ -202,7 +228,8 @@ object DailyViewLogic {
                 dateStr = dateStr,
                 isVisible = isVisible,
                 hasData = if (!isToday && !isPast) {
-                    weather != null && weather.highTemp != null && weather.lowTemp != null
+                    (weather != null && weather.highTemp != null && weather.lowTemp != null) ||
+                        isTerminalLowOnlyNwsFuture
                 } else {
                     (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
                 },
@@ -262,6 +289,7 @@ object DailyViewLogic {
 
             val isToday = date == today
             val isPastDate = date.isBefore(today)
+            val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
 
             val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             val showComparison = (isPastDate || (isToday && isEveningMode))
@@ -329,7 +357,7 @@ object DailyViewLogic {
                         (finalHigh != null || finalLow != null)
             } else {
                 // Future day
-                if (finalHigh == null || finalLow == null) {
+                if (!isTerminalLowOnlyNwsFuture && (finalHigh == null || finalLow == null)) {
                     val normal = climateNormals[java.time.MonthDay.from(date)]
                     if (normal != null) {
                         finalHigh = normal.first.toFloat()

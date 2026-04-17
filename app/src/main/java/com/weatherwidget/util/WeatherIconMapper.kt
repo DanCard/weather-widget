@@ -79,8 +79,14 @@ object WeatherIconMapper {
                 cloudCover < FULLY_CLOUDY_THRESHOLD
         
         return when {
-            normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") || normalizedCondition.contains("hail") -> R.drawable.ic_weather_storm
-            normalizedCondition.contains("snow") || normalizedCondition.contains("flurries") || normalizedCondition.contains("blizzard") || normalizedCondition.contains("sleet") || normalizedCondition.contains("ice pellet") -> R.drawable.ic_weather_snow
+            normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") || normalizedCondition.contains("hail") -> {
+                val effectiveProb = precipProbability ?: if (isSlightChance) 20 else null
+                getPrecipitationIcon(isNight, cloudCover, effectiveProb, R.drawable.ic_weather_storm)
+            }
+            normalizedCondition.contains("snow") || normalizedCondition.contains("flurries") || normalizedCondition.contains("blizzard") || normalizedCondition.contains("sleet") || normalizedCondition.contains("ice pellet") -> {
+                val effectiveProb = precipProbability ?: if (isSlightChance) 20 else null
+                getPrecipitationIcon(isNight, cloudCover, effectiveProb, R.drawable.ic_weather_snow)
+            }
             normalizedCondition.contains("rain") || normalizedCondition.contains("drizzle") || normalizedCondition.contains("shower") -> {
                 val effectiveProb = precipProbability ?: if (isSlightChance) 20 else null
                 getPrecipitationIcon(isNight, cloudCover, effectiveProb, R.drawable.ic_weather_rain)

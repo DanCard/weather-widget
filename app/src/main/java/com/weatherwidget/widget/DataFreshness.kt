@@ -13,40 +13,52 @@ import java.time.temporal.ChronoUnit
  */
 object DataFreshness {
     private const val TAG = "DataFreshness"
-    private const val STALENESS_THRESHOLD_MINUTES = 30L
 
     /**
      * Check if the weather data is stale and needs refreshing.
      *
      * @param context Application context
-     * @return true if data is older than STALENESS_THRESHOLD_MINUTES, false otherwise
+     * @return true if any visible source is older than its ForecastStalenessPolicy threshold
      */
     suspend fun isDataStale(context: Context): Boolean {
         return try {
             val database = WeatherDatabase.getDatabase(context)
             val forecastDao = database.forecastDao()
+            val stateManager = WidgetStateManager(context)
 
-            val latestWeather = forecastDao.getLatestWeather()
-            if (latestWeather == null) {
-                Log.d(TAG, "No weather data available, considering stale")
-                return true
+            // Get the list of sources currently displayed on active widgets
+            val visibleSources = stateManager.getVisibleSourcesOrder()
+            if (visibleSources.isEmpty()) {
+                Log.d(TAG, "No visible sources found, skipping stale check")
+                return false
             }
 
-            val fetchedAt =
-                java.time.Instant.ofEpochMilli(latestWeather.fetchedAt)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDateTime()
-            val now = LocalDateTime.now()
-            val minutesSinceFetch = ChronoUnit.MINUTES.between(fetchedAt, now)
+            val nowMs = System.currentTimeMillis()
 
-            val isStale = minutesSinceFetch > STALENESS_THRESHOLD_MINUTES
-            Log.d(
-                TAG,
-                "Data fetched $minutesSinceFetch minutes ago, stale=$isStale " +
-                    "(threshold=$STALENESS_THRESHOLD_MINUTES min)",
-            )
+            for (source in visibleSources) {
+                val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
+                if (latestForSource == null) {
+                    Log.d(TAG, "Source ${source.id} has no data, considering stale")
+                    return true
+                }
 
-            isStale
+                // Use batchFetchedAt to represent the age of the forecast set
+                val ageMs = nowMs - latestForSource.batchFetchedAt
+                val position = visibleSources.indexOf(source)
+                val thresholdMs = ForecastStalenessPolicy.getStalenessThresholdMs(position)
+
+                val isSourceStale = ageMs > thresholdMs
+                if (isSourceStale) {
+                    Log.d(
+                        TAG,
+                        "Source ${source.id} is stale (age=${ageMs / 60000}m, threshold=${thresholdMs / 60000}m)",
+                    )
+                    return true
+                }
+            }
+
+            Log.d(TAG, "All visible sources are fresh")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Error checking data staleness", e)
             // On error, assume data is stale to be safe
@@ -55,27 +67,32 @@ object DataFreshness {
     }
 
     /**
-     * Get the age of the most recent weather data in minutes.
+     * Get the age of the most stale visible weather data in minutes.
      *
      * @param context Application context
-     * @return Age in minutes, or null if no data available
+     * @return Age in minutes of the oldest visible source, or null if no data available
      */
     suspend fun getDataAgeMinutes(context: Context): Long? {
         return try {
             val database = WeatherDatabase.getDatabase(context)
-            val weatherDao = database.forecastDao()
+            val forecastDao = database.forecastDao()
+            val stateManager = WidgetStateManager(context)
 
-            val latestWeather = weatherDao.getLatestWeather()
-            if (latestWeather == null) {
-                return null
+            val visibleSources = stateManager.getVisibleSourcesOrder()
+            if (visibleSources.isEmpty()) return null
+
+            var maxAgeMs: Long? = null
+            val nowMs = System.currentTimeMillis()
+
+            for (source in visibleSources) {
+                val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
+                if (latestForSource != null) {
+                    val ageMs = nowMs - latestForSource.batchFetchedAt
+                    maxAgeMs = if (maxAgeMs == null) ageMs else Math.max(maxAgeMs, ageMs)
+                }
             }
 
-            val fetchedAt =
-                java.time.Instant.ofEpochMilli(latestWeather.fetchedAt)
-                    .atZone(java.time.ZoneId.systemDefault())
-                    .toLocalDateTime()
-            val now = LocalDateTime.now()
-            ChronoUnit.MINUTES.between(fetchedAt, now)
+            maxAgeMs?.div(60000L)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting data age", e)
             null

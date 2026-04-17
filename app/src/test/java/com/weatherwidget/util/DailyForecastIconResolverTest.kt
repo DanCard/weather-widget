@@ -468,6 +468,42 @@ class DailyForecastIconResolverTest {
         assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 
+    @Test
+    fun `nws thunderstorms token no longer bypasses moderate probability icon downgrade`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Thunderstorms",
+                nativeDailyIconToken = "Thunderstorms",
+                precipProbability = 58,
+            ),
+            targetDate = today.plusDays(4),
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
+
+    @Test
+    fun `nws snow token no longer bypasses moderate probability icon downgrade`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.NWS.id,
+                condition = "Snow",
+                nativeDailyIconToken = "Snow",
+                precipProbability = 58,
+            ),
+            targetDate = today.plusDays(4),
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
+    }
+
     // --- Night threshold formula tests ---
 
     @Test

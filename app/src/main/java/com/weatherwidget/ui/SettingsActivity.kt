@@ -37,13 +37,6 @@ class SettingsActivity : AppCompatActivity() {
         // API Sources ordered checkable list
         setupApiSourcesList()
 
-        // Feature Tour button
-        val featureTourButton = findViewById<Button>(R.id.view_feature_tour_button)
-        featureTourButton.setOnClickListener {
-            val intent = Intent(this, FeatureTourActivity::class.java)
-            startActivity(intent)
-        }
-
         val viewAppLogsButton = findViewById<Button>(R.id.view_app_logs_button)
         viewAppLogsButton.setOnClickListener {
             val intent = Intent(this, AppLogsActivity::class.java)

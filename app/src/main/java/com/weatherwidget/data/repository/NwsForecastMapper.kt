@@ -105,7 +105,18 @@ class NwsForecastMapper @Inject constructor(
             todayDateString, todayForecastPeriods, acc
         )
 
-        removePhantomFutureDays(acc.temperatureMap, todayDate)
+        val preservedTerminalLowOnlyDay = removePhantomFutureDays(acc.temperatureMap, todayDate)
+        preservedTerminalLowOnlyDay?.let { (date, lowTemp) ->
+            val source = acc.lowTempSourceMap[date]
+            Log.i(
+                TAG,
+                "Preserving terminal low-only NWS day: date=$date low=$lowTemp lowSource=$source",
+            )
+            appLogDao.log(
+                "NWS_PARTIAL_DAY_KEEP",
+                "date=$date low=$lowTemp lowSource=$source",
+            )
+        }
 
         val forecastEntities = acc.temperatureMap.map { (dateString, temperatures) ->
             val (pStart, pEnd) = acc.periodTimeMap[dateString] ?: (null to null)
@@ -316,10 +327,32 @@ class NwsForecastMapper @Inject constructor(
         fun removePhantomFutureDays(
             temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
             today: LocalDate,
-        ) {
+        ): Pair<String, Float>? {
+            val lastFutureDate =
+                temperatureMap.keys
+                    .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+                    .filter { it.isAfter(today) }
+                    .maxOrNull()
+
+            val preserved =
+                lastFutureDate?.toString()?.let { dateStr ->
+                    temperatureMap[dateStr]?.let { temps ->
+                        if (temps.first == null && temps.second != null) {
+                            dateStr to temps.second!!
+                        } else {
+                            null
+                        }
+                    }
+                }
+
             temperatureMap.entries.removeAll { (dateStr, temps) ->
-                LocalDate.parse(dateStr).isAfter(today) && temps.first == null
+                val date = LocalDate.parse(dateStr)
+                date.isAfter(today) &&
+                    temps.first == null &&
+                    !(date == lastFutureDate && temps.second != null)
             }
+
+            return preserved
         }
     }
 }
