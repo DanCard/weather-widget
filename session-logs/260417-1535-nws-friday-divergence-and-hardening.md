@@ -26,11 +26,6 @@
 ### Prompt 7
 > "Implement the plan."
 
-### Prompt 8
-> "Write a super fine detailed session log to session-logs/ dir, include prompts."
-
-### Prompt 9
-> "seems you are mixing two different session together.  Is it possible to just include this session in the session log?"
 
 ---
 
@@ -430,4 +425,3 @@ This session ended with:
 3. compact persisted NWS batch-summary logging added across mapping, saving, and rendering,
 4. regression tests protecting terminal low-only NWS day handling,
 5. a passing focused test run after clearing corrupted KSP caches,
-6. and this session log limited strictly to this session's prompts and work.
