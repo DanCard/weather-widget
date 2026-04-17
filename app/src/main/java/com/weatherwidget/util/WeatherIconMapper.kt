@@ -18,10 +18,6 @@ object WeatherIconMapper {
         R.drawable.ic_weather_partly_cloudy_chance_rain_night,
         R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
         R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night,
-        R.drawable.ic_weather_clear_chance_rain,
-        R.drawable.ic_weather_clear_slight_chance_rain,
-        R.drawable.ic_weather_night_chance_rain,
-        R.drawable.ic_weather_night_slight_chance_rain,
         R.drawable.ic_weather_cloudy_chance_rain,
         R.drawable.ic_weather_cloudy_slight_chance_rain
     )
@@ -38,10 +34,6 @@ object WeatherIconMapper {
         R.drawable.ic_weather_partly_cloudy_chance_rain_night,
         R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
         R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night,
-        R.drawable.ic_weather_clear_chance_rain,
-        R.drawable.ic_weather_clear_slight_chance_rain,
-        R.drawable.ic_weather_night_chance_rain,
-        R.drawable.ic_weather_night_slight_chance_rain,
         R.drawable.ic_weather_cloudy_chance_rain,
         R.drawable.ic_weather_cloudy_slight_chance_rain,
         R.drawable.ic_weather_fog_cloudy,
@@ -169,12 +161,12 @@ object WeatherIconMapper {
                 else -> R.drawable.ic_weather_partly_cloudy_slight_chance_rain
             }
 
-            // 3. Clear Tier (0-30% cloud)
+            // 3. Clear Tier (0-30% cloud) - Redirect to Partly Cloudy as requested
             else -> when {
-                isNight && isChance -> R.drawable.ic_weather_night_chance_rain
-                isNight -> R.drawable.ic_weather_night_slight_chance_rain
-                isChance -> R.drawable.ic_weather_clear_chance_rain
-                else -> R.drawable.ic_weather_clear_slight_chance_rain
+                isNight && isChance -> R.drawable.ic_weather_partly_cloudy_chance_rain_night
+                isNight -> R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night
+                isChance -> R.drawable.ic_weather_partly_cloudy_chance_rain
+                else -> R.drawable.ic_weather_partly_cloudy_slight_chance_rain
             }
         }
     }

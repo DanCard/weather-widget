@@ -34,8 +34,6 @@ object WeatherConditionColors {
     private val CHANCE_RAIN_ICONS = setOf(
         R.drawable.ic_weather_partly_cloudy_chance_rain,
         R.drawable.ic_weather_partly_cloudy_chance_rain_night,
-        R.drawable.ic_weather_clear_chance_rain,
-        R.drawable.ic_weather_night_chance_rain,
         R.drawable.ic_weather_cloudy_chance_rain,
     )
 
@@ -45,10 +43,6 @@ object WeatherConditionColors {
             R.drawable.ic_weather_horizon_sun -> 0.12f
             R.drawable.ic_weather_mostly_clear -> 0.18f
             R.drawable.ic_weather_fog_sunny -> 0.15f
-            R.drawable.ic_weather_clear_slight_chance_rain -> 0.22f
-            R.drawable.ic_weather_night_slight_chance_rain -> 0.22f
-            R.drawable.ic_weather_clear_chance_rain -> 0.25f
-            R.drawable.ic_weather_night_chance_rain -> 0.25f
             R.drawable.ic_weather_fog_light,
             R.drawable.ic_weather_fog_light_night -> 0.30f
             R.drawable.ic_weather_partly_cloudy,

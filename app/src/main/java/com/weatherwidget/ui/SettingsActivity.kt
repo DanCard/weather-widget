@@ -62,14 +62,7 @@ class SettingsActivity : AppCompatActivity() {
 
     private data class GalleryIcon(val drawableRes: Int, val stringRes: Int)
 
-    private val experimentIcons = listOf(
-        // Partly Cloudy Night comparison
-        GalleryIcon(R.drawable.ic_weather_partly_cloudy_night_before, R.string.gallery_icon_pc_night_before),
-        GalleryIcon(R.drawable.ic_weather_partly_cloudy_night, R.string.gallery_icon_partly_cloudy_night),
-        // Night Chance Rain comparison
-        GalleryIcon(R.drawable.ic_weather_night_chance_rain_before, R.string.gallery_icon_night_rain_before),
-        GalleryIcon(R.drawable.ic_weather_night_chance_rain, R.string.gallery_icon_night_chance_rain),
-    )
+    private val experimentIcons = emptyList<GalleryIcon>()
 
     private val allGalleryIcons = listOf(
         // Clear / Sunny
@@ -93,12 +86,8 @@ class SettingsActivity : AppCompatActivity() {
         GalleryIcon(R.drawable.ic_weather_cloudy_slight_chance_rain, R.string.gallery_icon_slight_rain),
         GalleryIcon(R.drawable.ic_weather_partly_cloudy_chance_rain, R.string.gallery_icon_partly_cloudy_chance_rain),
         GalleryIcon(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, R.string.gallery_icon_partly_cloudy_slight_rain),
-        GalleryIcon(R.drawable.ic_weather_clear_chance_rain, R.string.gallery_icon_clear_chance_rain),
-        GalleryIcon(R.drawable.ic_weather_clear_slight_chance_rain, R.string.gallery_icon_clear_slight_rain),
 
         // Rain (Night)
-        GalleryIcon(R.drawable.ic_weather_night_chance_rain, R.string.gallery_icon_night_chance_rain),
-        GalleryIcon(R.drawable.ic_weather_night_slight_chance_rain, R.string.gallery_icon_night_slight_rain),
         GalleryIcon(R.drawable.ic_weather_partly_cloudy_chance_rain_night, R.string.gallery_icon_partly_cloudy_chance_rain_night),
         GalleryIcon(R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night, R.string.gallery_icon_partly_cloudy_slight_rain_night),
 
@@ -121,21 +110,13 @@ class SettingsActivity : AppCompatActivity() {
         val container = findViewById<FlexboxLayout>(R.id.experiment_gallery_container)
         container.removeAllViews()
 
-        for ((index, icon) in experimentIcons.withIndex()) {
+        for (icon in experimentIcons) {
             val itemView = LayoutInflater.from(this).inflate(R.layout.item_gallery_icon, container, false)
             val imageView = itemView.findViewById<ImageView>(R.id.gallery_icon_image)
             val textView = itemView.findViewById<TextView>(R.id.gallery_icon_name)
 
             imageView.setImageResource(icon.drawableRes)
-
-            // Side-by-side explicit labeling
-            val prefix = if (index % 2 == 0) {
-                getString(R.string.experiment_before)
-            } else {
-                getString(R.string.experiment_after)
-            }
-
-            textView.text = prefix + getString(icon.stringRes)
+            textView.setText(icon.stringRes)
 
             container.addView(itemView)
         }

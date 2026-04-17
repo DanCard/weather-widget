@@ -84,10 +84,7 @@
     <string name="icon_preview_description">Comprehensive gallery of all weather icons used in the widget.</string>
     <string name="experiment_title">Icon Experiment</string>
     <string name="experiment_description">Comparison between old and new icon designs.</string>
-    <string name="experiment_before">Before: </string>
-    <string name="experiment_after">After (Refined): </string>
-    <string name="gallery_icon_pc_night_before">Partly Cloudy Night (Old)</string>
-    <string name="gallery_icon_night_rain_before">Night Chance Rain (Old)</string>
+    <string name="gallery_icon_pc_slight_rain_new">Partly Cloudy Slight Rain (New)</string>
     <string name="gallery_icon_rain">Rain</string>
     <string name="gallery_icon_chance_rain">Chance Rain</string>
     <string name="gallery_icon_slight_rain">Slight Chance Rain</string>
@@ -104,10 +101,6 @@
     <string name="gallery_icon_partly_cloudy_night">Partly Cloudy (Night)</string>
     <string name="gallery_icon_partly_cloudy_chance_rain">Partly Cloudy Chance Rain</string>
     <string name="gallery_icon_partly_cloudy_slight_rain">Partly Cloudy Slight Rain</string>
-    <string name="gallery_icon_clear_chance_rain">Clear Chance Rain</string>
-    <string name="gallery_icon_clear_slight_rain">Clear Slight Rain</string>
-    <string name="gallery_icon_night_chance_rain">Night Chance Rain</string>
-    <string name="gallery_icon_night_slight_rain">Night Slight Rain</string>
     <string name="gallery_icon_partly_cloudy_chance_rain_night">Partly Cloudy Chance Rain (Night)</string>
     <string name="gallery_icon_partly_cloudy_slight_rain_night">Partly Cloudy Slight Rain (Night)</string>
     <string name="gallery_icon_fog">Fog</string>
