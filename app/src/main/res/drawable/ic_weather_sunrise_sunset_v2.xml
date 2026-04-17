@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Horizon Line -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M2,18h20v2h-20z"/>
+    <!-- Sun -->
+    <path
+        android:fillColor="#FFD600"
+        android:pathData="M12,8c-3.31,0 -6,2.69 -6,6h12c0,-3.31 -2.69,-6 -6,-6z"/>
+    <!-- Up Arrow (Sunrise) -->
+    <path
+        android:fillColor="#4CAF50"
+        android:pathData="M5,12l2,-2l2,2h-1.5v3h-1v-3z"/>
+    <!-- Down Arrow (Sunset) -->
+    <path
+        android:fillColor="#F44336"
+        android:pathData="M19,12l-2,2l-2,-2h1.5v-3h1v3z"/>
+</vector>

@@ -92,6 +92,42 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="8dp"
+                android:text="@string/experiment_title"
+                android:textColor="@color/widget_text_primary"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                android:text="@string/experiment_description"
+                android:textColor="@color/widget_text_secondary"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="24dp"
+                android:background="@drawable/bg_surface_card"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <com.google.android.flexbox.FlexboxLayout
+                    android:id="@+id/experiment_gallery_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:alignItems="flex_start"
+                    app:flexWrap="wrap"
+                    app:justifyContent="flex_start">
+                </com.google.android.flexbox.FlexboxLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:layout_marginBottom="8dp"
                 android:text="@string/icon_preview_title"
                 android:textColor="@color/widget_text_primary"
                 android:textSize="16sp"
@@ -113,301 +149,13 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="@string/rain_shape_preview_title"
-                    android:textColor="@color/widget_text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_horizontal"
-                    android:orientation="horizontal"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center_horizontal"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="8dp"
-                            android:text="@string/rain_icon_preview_current"
-                            android:textColor="@color/widget_text_secondary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <ImageView
-                            android:layout_width="160dp"
-                            android:layout_height="160dp"
-                            android:contentDescription="@string/rain_icon_preview_rain_current_desc"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_rain" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center_horizontal"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="8dp"
-                            android:text="@string/rain_icon_preview_proposed"
-                            android:textColor="@color/widget_text_secondary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <ImageView
-                            android:layout_width="160dp"
-                            android:layout_height="160dp"
-                            android:contentDescription="@string/rain_icon_preview_rain_proposed_desc"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_rain_preview_oval" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="8dp"
-                    android:background="@color/surface_card_stroke" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="@string/snow_shape_preview_title"
-                    android:textColor="@color/widget_text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_horizontal"
-                    android:orientation="horizontal"
-                    android:paddingTop="8dp"
-                    android:paddingBottom="8dp">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center_horizontal"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="8dp"
-                            android:text="@string/rain_icon_preview_current"
-                            android:textColor="@color/widget_text_secondary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <ImageView
-                            android:layout_width="160dp"
-                            android:layout_height="160dp"
-                            android:contentDescription="@string/snow_icon_preview_current_desc"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_snow" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="center_horizontal"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="8dp"
-                            android:text="@string/rain_icon_preview_proposed"
-                            android:textColor="@color/widget_text_secondary"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
-
-                        <ImageView
-                            android:layout_width="160dp"
-                            android:layout_height="160dp"
-                            android:contentDescription="@string/snow_icon_preview_proposed_desc"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_snow_preview_flakes" />
-                    </LinearLayout>
-                </LinearLayout>
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:background="@drawable/bg_surface_card"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    android:text="@string/weather_icon_gallery_title"
-                    android:textColor="@color/widget_text_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
                 <com.google.android.flexbox.FlexboxLayout
+                    android:id="@+id/icon_gallery_container"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:alignItems="flex_start"
                     app:flexWrap="wrap"
-                    app:justifyContent="space_between">
-
-                    <LinearLayout
-                        android:layout_width="160dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="vertical">
-
-                        <ImageView
-                            android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:contentDescription="@string/gallery_icon_rain"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_rain" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/gallery_icon_rain"
-                            android:textColor="@color/widget_text_primary"
-                            android:textSize="14sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="160dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="vertical">
-
-                        <ImageView
-                            android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:contentDescription="@string/gallery_icon_chance_rain"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_cloudy_chance_rain" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/gallery_icon_chance_rain"
-                            android:textColor="@color/widget_text_primary"
-                            android:textSize="14sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="160dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="vertical">
-
-                        <ImageView
-                            android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:contentDescription="@string/gallery_icon_slight_rain"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_cloudy_slight_chance_rain" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/gallery_icon_slight_rain"
-                            android:textColor="@color/widget_text_primary"
-                            android:textSize="14sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="160dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="vertical">
-
-                        <ImageView
-                            android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:contentDescription="@string/gallery_icon_snow"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_snow" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/gallery_icon_snow"
-                            android:textColor="@color/widget_text_primary"
-                            android:textSize="14sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="160dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="vertical">
-
-                        <ImageView
-                            android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:contentDescription="@string/gallery_icon_storm"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_storm" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/gallery_icon_storm"
-                            android:textColor="@color/widget_text_primary"
-                            android:textSize="14sp" />
-                    </LinearLayout>
-
-                    <LinearLayout
-                        android:layout_width="160dp"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_horizontal"
-                        android:layout_marginBottom="16dp"
-                        android:orientation="vertical">
-
-                        <ImageView
-                            android:layout_width="128dp"
-                            android:layout_height="128dp"
-                            android:contentDescription="@string/gallery_icon_cloudy"
-                            android:scaleType="fitCenter"
-                            android:src="@drawable/ic_weather_cloudy" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/gallery_icon_cloudy"
-                            android:textColor="@color/widget_text_primary"
-                            android:textSize="14sp" />
-                    </LinearLayout>
+                    app:justifyContent="flex_start">
                 </com.google.android.flexbox.FlexboxLayout>
             </LinearLayout>
 
