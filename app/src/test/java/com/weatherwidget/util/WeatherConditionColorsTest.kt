@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import android.graphics.LinearGradient
 import com.weatherwidget.R
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -77,6 +78,24 @@ class WeatherConditionColorsTest {
         val ratio = WeatherConditionColors.cloudRatio(R.drawable.ic_weather_mostly_clear)
         assertNotNull("mostly clear should have a cloud ratio after mixed reclassification", ratio)
         assertTrue("mostly clear should stay subtler than partly cloudy", ratio!! < 0.35f)
+    }
+
+    @Test
+    fun largeCloudRatioUsesShortTransitionAndLongGreySection() {
+        val stops = WeatherConditionColors.gradientStopPositions(0.68f)
+        assertEquals(0f, stops[0], 0.0001f)
+        assertEquals(0.32f, stops[1], 0.0001f)
+        assertEquals(0.44f, stops[2], 0.0001f)
+        assertEquals(1f, stops[3], 0.0001f)
+    }
+
+    @Test
+    fun subtleCloudRatioKeepsTransitionShorterThanCloudAmount() {
+        val stops = WeatherConditionColors.gradientStopPositions(0.18f)
+        assertEquals(0f, stops[0], 0.0001f)
+        assertEquals(0.82f, stops[1], 0.0001f)
+        assertEquals(0.91f, stops[2], 0.0001f)
+        assertEquals(1f, stops[3], 0.0001f)
     }
 
     @Test

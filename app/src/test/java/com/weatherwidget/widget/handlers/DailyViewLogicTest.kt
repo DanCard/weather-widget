@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.test.category.MediumDuration
@@ -677,6 +678,74 @@ class DailyViewLogicTest {
         assertEquals(R.drawable.ic_weather_clear, result.first { it.date == today }.iconRes)
     }
 
+    @Test
+    fun `prepareGraphDays uses noon cloud cover ratio for mixed day bar gradient`() {
+        val now = LocalDateTime.of(2030, 6, 15, 9, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Partly Sunny",
+            ),
+        )
+        val hourlyForecasts = listOf(
+            createHourlyForecast(future.atTime(11, 0), cloudCover = 20),
+            createHourlyForecast(future.atTime(12, 0), cloudCover = 70),
+            createHourlyForecast(future.atTime(13, 0), cloudCover = 40),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = hourlyForecasts,
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals(0.7f, futureDay.cloudCoverRatioOverride)
+    }
+
+    @Test
+    fun `prepareGraphDays uses closest source scoped cloud cover when noon is absent`() {
+        val now = LocalDateTime.of(2030, 6, 15, 9, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Partly Sunny",
+            ),
+        )
+        val hourlyForecasts = listOf(
+            createHourlyForecast(future.atTime(11, 0), cloudCover = 65, source = WeatherSource.NWS.id),
+            createHourlyForecast(future.atTime(13, 0), cloudCover = 25, source = WeatherSource.NWS.id),
+            createHourlyForecast(future.atTime(12, 0), cloudCover = 90, source = WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = hourlyForecasts,
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals(0.65f, futureDay.cloudCoverRatioOverride)
+    }
+
     private fun createWeather(
         date: String,
         source: String = WeatherSource.NWS.id,
@@ -702,6 +771,23 @@ class DailyViewLogicTest {
             isClimateNormal = isClimateNormal,
             precipProbability = precipProbability,
             precipAmountMm = precipAmountMm,
+            fetchedAt = 1L,
+        )
+    }
+
+    private fun createHourlyForecast(
+        dateTime: LocalDateTime,
+        cloudCover: Int?,
+        source: String = WeatherSource.NWS.id,
+    ): HourlyForecastEntity {
+        return HourlyForecastEntity(
+            dateTime = dateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            locationLat = 37.7749,
+            locationLon = -122.4194,
+            temperature = 60f,
+            condition = "Partly Sunny",
+            source = source,
+            cloudCover = cloudCover,
             fetchedAt = 1L,
         )
     }

@@ -95,6 +95,7 @@ object DailyForecastGraphRenderer {
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
         val trueActualHigh: Float? = null,
+        val cloudCoverRatioOverride: Float? = null,
         val daysFromToday: Int = 0,
     )
 
@@ -493,13 +494,13 @@ object DailyForecastGraphRenderer {
 
             val applyGradient = day.isMixed && day.iconRes != null
             if (applyGradient) {
-                paint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, hY, effectiveLowY)
+                paint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, hY, effectiveLowY, day.cloudCoverRatioOverride)
             }
             val colorHex = String.format("#%08X", paint.color)
             Log.d(TAG, "Bar color decision: date=${day.date}" +
                 " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                 " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                " color=$colorHex gradient=$applyGradient")
+                " color=$colorHex gradient=$applyGradient cloudRatioOverride=${day.cloudCoverRatioOverride}")
             canvas.drawLine(centerX, hY, centerX, effectiveLowY, paint)
             paint.shader = null
             onBarDrawn?.invoke(BarDrawnDebug(day.date, if (day.isPast) "HISTORY" else "FUTURE", hY, effectiveLowY, centerX, paint.color))
@@ -521,13 +522,13 @@ object DailyForecastGraphRenderer {
             }
             val overlayGradient = day.isMixed && day.iconRes != null
             if (overlayGradient) {
-                overlayPaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY)
+                overlayPaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY, day.cloudCoverRatioOverride)
             }
             val overlayColorHex = String.format("#%08X", condColor)
             Log.d(TAG, "Overlay color decision: date=${day.date}" +
                 " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                 " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                " color=$overlayColorHex gradient=$overlayGradient" +
+                " color=$overlayColorHex gradient=$overlayGradient cloudRatioOverride=${day.cloudCoverRatioOverride}" +
                 " isClimateNormal=${day.isClimateNormal}")
             canvas.drawLine(forecastX, fHighY, forecastX, effectiveFLowY, overlayPaint)
             overlayPaint.shader = null
@@ -589,7 +590,7 @@ object DailyForecastGraphRenderer {
         
         paints.todayForecastBluePaint.color = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
         if (day.isMixed && day.iconRes != null) {
-            paints.todayForecastBluePaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY)
+            paints.todayForecastBluePaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY, day.cloudCoverRatioOverride)
         }
         canvas.drawLine(centerX + layout.tripleBarOffset, fHighY, centerX + layout.tripleBarOffset, effectiveFLowY, paints.todayForecastBluePaint)
         paints.todayForecastBluePaint.shader = null

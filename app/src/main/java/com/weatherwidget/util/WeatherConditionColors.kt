@@ -10,6 +10,8 @@ import com.weatherwidget.R
  * Forecast colors vary by weather condition; actual/observed uses a fixed hot pink.
  */
 object WeatherConditionColors {
+    private const val MAX_TRANSITION_FRACTION = 0.12f
+
     val FORECAST_SUNNY = Color.parseColor("#F4C542")    // Amber/gold
     val FORECAST_CLOUDY = Color.parseColor("#8E99A4")   // Slate gray
     val FORECAST_RAINY = Color.parseColor("#5A8FBF")    // Steel blue
@@ -66,15 +68,24 @@ object WeatherConditionColors {
     }
 
     /** Returns a vertical LinearGradient for a mixed-condition bar (gold top → gray/blue bottom), or null for solid-color bars. */
-    fun forecastBarGradient(iconRes: Int, topY: Float, bottomY: Float): LinearGradient? {
-        val ratio = cloudRatio(iconRes) ?: return null
+    fun forecastBarGradient(iconRes: Int, topY: Float, bottomY: Float, cloudRatioOverride: Float? = null): LinearGradient? {
+        val ratio = (cloudRatioOverride ?: cloudRatio(iconRes))?.coerceIn(0f, 1f) ?: return null
         val topColor = FORECAST_SUNNY
         val bottomColor = if (iconRes in CHANCE_RAIN_ICONS) FORECAST_RAINY else FORECAST_CLOUDY
+        val stops = gradientStopPositions(ratio)
         return LinearGradient(
             0f, topY, 0f, bottomY,
-            intArrayOf(topColor, topColor, bottomColor),
-            floatArrayOf(0f, (1f - ratio).coerceIn(0.01f, 0.99f), 1f),
+            intArrayOf(topColor, topColor, bottomColor, bottomColor),
+            stops,
             Shader.TileMode.CLAMP,
         )
+    }
+
+    internal fun gradientStopPositions(ratio: Float): FloatArray {
+        val normalizedRatio = ratio.coerceIn(0f, 1f)
+        val goldEnd = (1f - normalizedRatio).coerceIn(0f, 1f)
+        val transitionLength = minOf(MAX_TRANSITION_FRACTION, normalizedRatio * 0.5f)
+        val greyStart = (goldEnd + transitionLength).coerceIn(goldEnd, 1f)
+        return floatArrayOf(0f, goldEnd, greyStart, 1f)
     }
 }

@@ -11,12 +11,15 @@ import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -379,6 +382,13 @@ object DailyViewLogic {
             val rawRainSummary = if (!isPastDate) {
                 rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
+            val cloudCoverRatioOverride =
+                resolveNoonCloudCoverRatio(
+                    date = date,
+                    hourlyForecasts = hourlyForecasts,
+                    displaySource = displaySource,
+                    weatherSourceId = weather?.source,
+                )
             
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             val hasRainForecast = DayClickHelper.hasRainForecast(rawRainSummary, precip)
@@ -429,11 +439,40 @@ object DailyViewLogic {
                     snapshotHigh = snapshotHigh,
                     snapshotLow = snapshotLow,
                     trueActualHigh = trueActualHigh,
+                    cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
                 )
             )
         }
         return days
+    }
+
+    private fun resolveNoonCloudCoverRatio(
+        date: LocalDate,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        weatherSourceId: String?,
+    ): Float? {
+        val targetSourceId = if (weatherSourceId == WeatherSource.GENERIC_GAP.id) {
+            WeatherSource.GENERIC_GAP.id
+        } else {
+            displaySource.id
+        }
+        val noon = date.atTime(12, 0)
+
+        val closestCloudCover = hourlyForecasts
+            .asSequence()
+            .filter { it.source == targetSourceId }
+            .mapNotNull { forecast ->
+                val localDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(forecast.dateTime), ZoneId.systemDefault())
+                val cloudCover = forecast.cloudCover ?: return@mapNotNull null
+                if (localDateTime.toLocalDate() != date) return@mapNotNull null
+                Triple(abs(ChronoUnit.MINUTES.between(noon, localDateTime)), localDateTime, cloudCover)
+            }
+            .minWithOrNull(compareBy<Triple<Long, LocalDateTime, Int>> { it.first }.thenBy { it.second })
+            ?.third
+
+        return closestCloudCover?.coerceIn(0, 100)?.div(100f)
     }
 
     private fun formatTempLabel(v: Float?): String? {
