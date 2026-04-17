@@ -2,7 +2,6 @@ package com.weatherwidget.util
 
 import android.graphics.LinearGradient
 import com.weatherwidget.R
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -74,6 +73,13 @@ class WeatherConditionColorsTest {
     }
 
     @Test
+    fun mostlyClearHasSubtleCloudRatio() {
+        val ratio = WeatherConditionColors.cloudRatio(R.drawable.ic_weather_mostly_clear)
+        assertNotNull("mostly clear should have a cloud ratio after mixed reclassification", ratio)
+        assertTrue("mostly clear should stay subtler than partly cloudy", ratio!! < 0.35f)
+    }
+
+    @Test
     fun nonMixedIconsReturnNullCloudRatio() {
         val nonMixedIcons = listOf(
             R.drawable.ic_weather_clear,
@@ -85,7 +91,6 @@ class WeatherConditionColorsTest {
             R.drawable.ic_weather_cloudy,
             R.drawable.ic_weather_fog,
             R.drawable.ic_weather_fog_dense,
-            R.drawable.ic_weather_mostly_clear,
             R.drawable.ic_weather_unknown,
         )
         for (icon in nonMixedIcons) {

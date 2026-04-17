@@ -229,6 +229,12 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testMostlyClearIsSunnyAndMixed() {
+        assertTrue(WeatherIconMapper.isSunny(R.drawable.ic_weather_mostly_clear))
+        assertTrue(WeatherIconMapper.isMixed(R.drawable.ic_weather_mostly_clear))
+    }
+
+    @Test
     fun testChanceRainMixedIconIsNotPrecipitation() {
         assertFalse(WeatherIconMapper.isPrecipitation(R.drawable.ic_weather_partly_cloudy_chance_rain))
     }

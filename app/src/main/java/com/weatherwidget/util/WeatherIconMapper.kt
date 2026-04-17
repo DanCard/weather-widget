@@ -30,6 +30,7 @@ object WeatherIconMapper {
     internal val MIXED_ICONS = setOf(
         R.drawable.ic_weather_mostly_cloudy,
         R.drawable.ic_weather_mostly_cloudy_night,
+        R.drawable.ic_weather_mostly_clear,
         R.drawable.ic_weather_partly_cloudy,
         R.drawable.ic_weather_partly_cloudy_night,
         R.drawable.ic_weather_horizon_sun,

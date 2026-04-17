@@ -41,6 +41,7 @@ object WeatherConditionColors {
     fun cloudRatio(iconRes: Int): Float? {
         return when (iconRes) {
             R.drawable.ic_weather_horizon_sun -> 0.12f
+            R.drawable.ic_weather_mostly_clear -> 0.18f
             R.drawable.ic_weather_fog_sunny -> 0.15f
             R.drawable.ic_weather_clear_slight_chance_rain -> 0.22f
             R.drawable.ic_weather_night_slight_chance_rain -> 0.22f
