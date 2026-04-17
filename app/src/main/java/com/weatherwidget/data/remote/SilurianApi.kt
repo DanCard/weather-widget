@@ -64,20 +64,40 @@ suspend fun getForecast(
 
         val hourlyDeferred = async {
             try {
-                httpClient.get("$BASE_URL/forecast/hourly") {
+                // Fetch yesterday's history
+                val yesterday = java.time.LocalDate.now().minusDays(1).toString()
+                val historyResponse = try {
+                    httpClient.get("$BASE_URL/history/hourly") {
+                        header("X-API-Key", apiKey)
+                        parameter("latitude", lat)
+                        parameter("longitude", lon)
+                        parameter("start_date", yesterday)
+                        parameter("end_date", yesterday)
+                        parameter("units", "imperial")
+                    }.body<String>()
+                } catch (e: Exception) {
+                    null
+                }
+
+                val forecastResponse = httpClient.get("$BASE_URL/forecast/hourly") {
                     header("X-API-Key", apiKey)
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("units", "imperial")
                 }.body<String>()
+
+                val historyData = historyResponse?.let { parseTimeseries(it, "hourly") } ?: emptyList()
+                val forecastData = parseTimeseries(forecastResponse, "hourly")
+                
+                (historyData + forecastData)
             } catch (e: Exception) {
-                Log.e(TAG, "Hourly forecast fetch failed: ${e.message}")
+                Log.e(TAG, "Hourly data fetch failed: ${e.message}")
                 null
             }
         }
 
         val dailyResponse = dailyDeferred.await()
-        val hourlyResponse = hourlyDeferred.await()
+        val hourlyDataList = hourlyDeferred.await()
 
         val daily = if (dailyResponse != null) {
             parseTimeseries(dailyResponse, "daily").mapNotNull { entry ->
@@ -98,8 +118,8 @@ DailyForecast(
             }
         } else emptyList()
 
-        val hourly = if (hourlyResponse != null) {
-            parseTimeseries(hourlyResponse, "hourly").mapNotNull { entry ->
+        val hourly = if (hourlyDataList != null) {
+            hourlyDataList.mapNotNull { entry ->
                 val time = entry["timestamp"]?.jsonPrimitive?.content ?: return@mapNotNull null
                 val temp = entry["temperature"]?.jsonPrimitive?.floatOrNull ?: 0f
                 val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
@@ -120,7 +140,7 @@ DailyForecast(
                     precipAmountMm = parsePrecipAmountMm(entry),
                     cloudCover = cloudCover,
                 )
-            }
+            }.distinctBy { it.dateTime }.sortedBy { it.dateTime }
         } else emptyList()
 
         val firstHour = hourly.firstOrNull()

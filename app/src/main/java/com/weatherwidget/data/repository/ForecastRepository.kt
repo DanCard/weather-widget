@@ -589,32 +589,78 @@ class ForecastRepository
 
         private suspend fun saveHourlyEntities(entities: List<HourlyForecastEntity>) {
             if (entities.isEmpty()) return
-            
+
             val minDateTime = entities.minOf { it.dateTime }
             val maxDateTime = entities.maxOf { it.dateTime }
             val sample = entities.first()
             val existingByDateTime = hourlyForecastDao.getHourlyForecastsBySource(
                 minDateTime, maxDateTime, sample.locationLat, sample.locationLon, sample.source
             ).associateBy { it.dateTime }
-            
+
             val changedEntities = entities.filter { newlyFetched ->
                 val existing = existingByDateTime[newlyFetched.dateTime]
                 hasMeaningfulHourlyChange(existing, newlyFetched)
             }
-            
+
             if (changedEntities.isNotEmpty()) {
                 hourlyForecastDao.insertAll(changedEntities)
             }
         }
+        private suspend fun saveHourlyEntitiesFromShared(
+            hourlyData: List<HourlyForecast>,
+            latitude: Double,
+            longitude: Double,
+            sourceId: String
+        ) {
+            val now = System.currentTimeMillis()
+            val fetchedAt = now
 
-        private suspend fun saveHourlyEntitiesFromShared(hourlyData: List<HourlyForecast>, latitude: Double, longitude: Double, sourceId: String) {
-            val fetchedAt = System.currentTimeMillis()
-            saveHourlyEntities(hourlyData.map {
+            // 1. Save future data as forecasts (predictions). We filter out the past so we don't 
+            // retroactively overwrite older predictions with newly fetched re-analysis history,
+            // preserving the difference between what was forecast vs actuals.
+            val futureData = hourlyData.filter { it.dateTime >= now - 3600_000L }
+            saveHourlyEntities(futureData.map {
                 HourlyForecastEntity(
                     it.dateTime, latitude, longitude, it.temperature, it.condition,
                     sourceId, it.precipProbability, it.cloudCover, it.precipAmountMm, fetchedAt
                 )
             })
+
+            // 2. Backfill past data as observations (ground truth).
+            // Enables the "actuals" line for non-NWS APIs on fresh installs or emulators.
+            saveHistoricalActuals(hourlyData, latitude, longitude, sourceId)
+        }
+
+        private suspend fun saveHistoricalActuals(
+            hourlyData: List<HourlyForecast>,
+            latitude: Double,
+            longitude: Double,
+            sourceId: String
+        ) {
+            val now = System.currentTimeMillis()
+            val fetchedAt = System.currentTimeMillis()
+
+            val historicalObs = hourlyData
+                .filter { it.dateTime <= now }
+                .map { hour ->
+                    ObservationEntity(
+                        stationId = "${sourceId}_MAIN",
+                        stationName = "$sourceId: History Backfill",
+                        timestamp = hour.dateTime,
+                        temperature = hour.temperature,
+                        condition = hour.condition,
+                        locationLat = latitude,
+                        locationLon = longitude,
+                        distanceKm = 0.0f,
+                        stationType = "OFFICIAL",
+                        fetchedAt = fetchedAt,
+                        api = sourceId
+                    )
+                }
+
+            if (historicalObs.isNotEmpty()) {
+                observationDao.insertAll(historicalObs)
+            }
         }
         private suspend fun saveNwsHourlyForecasts(hourlyPeriods: List<NwsApi.HourlyForecastPeriod>, latitude: Double, longitude: Double) =
             saveHourlyEntities(hourlyPeriods.map { period ->

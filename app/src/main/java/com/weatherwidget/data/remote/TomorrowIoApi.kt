@@ -10,6 +10,7 @@ import io.ktor.client.call.*
 import io.ktor.client.request.*
 import kotlinx.serialization.json.*
 import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import kotlin.math.roundToInt
 
@@ -34,12 +35,15 @@ class TomorrowIoApi
                 throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
             }
 
+            val startTime = OffsetDateTime.now().minusHours(24).truncatedTo(ChronoUnit.HOURS).toString()
+
             val hourlyResponse: String = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")
                 parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationIntensity,cloudCover")
                 parameter("timesteps", "1h")
                 parameter("units", "imperial")
                 parameter("apikey", apiKey)
+                parameter("startTime", startTime)
             }.body()
 
             val dailyResponse: String = httpClient.get(BASE_URL) {

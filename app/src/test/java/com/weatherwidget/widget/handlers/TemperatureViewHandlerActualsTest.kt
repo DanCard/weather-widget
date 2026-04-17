@@ -656,7 +656,7 @@ class TemperatureViewHandlerActualsTest {
         )
 
         assertFalse(decision.shouldRequest)
-        assertEquals("non_nws_source", decision.reason)
+        assertEquals("organic_backfill_active", decision.reason)
     }
 
     @Test

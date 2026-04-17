@@ -35,7 +35,7 @@ internal fun evaluateHourlyBackfillNeed(
     now: LocalDateTime = LocalDateTime.now(),
 ): HourlyBackfillDecision {
     if (displaySource != WeatherSource.NWS) {
-        return HourlyBackfillDecision(false, "non_nws_source")
+        return HourlyBackfillDecision(false, "organic_backfill_active")
     }
 
     val sourceObservations = observations.filter { matchesObservationSource(it, displaySource) }

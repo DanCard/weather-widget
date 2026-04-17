@@ -18,6 +18,8 @@ import kotlinx.serialization.json.longOrNull
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 class VisualCrossingApi
@@ -45,8 +47,11 @@ class VisualCrossingApi
         ): ForecastResult {
             requireApiKey()
 
+            val startDate = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val endDate = LocalDate.now().plusDays(days.toLong() - 1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
             val response: String =
-                httpClient.get("$BASE_URL/$lat,$lon/next${days - 1}days") {
+                httpClient.get("$BASE_URL/$lat,$lon/$startDate/$endDate") {
                     parameter("unitGroup", "us")
                     parameter("include", "current,days,hours")
                     parameter("key", apiKey)

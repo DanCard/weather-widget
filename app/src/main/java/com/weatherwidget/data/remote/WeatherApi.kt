@@ -37,6 +37,15 @@ class WeatherApi
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
             }
 
+            // Fetch history for the previous day to backfill actuals
+            val yesterday = java.time.LocalDate.now().minusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+            val historyHourly = try {
+                getHistory(lat, lon, yesterday)
+            } catch (e: Exception) {
+                Log.e(TAG, "History fetch failed for $yesterday: ${e.message}")
+                emptyList()
+            }
+
             val response: String =
                 httpClient.get("$BASE_URL/forecast.json") {
                     parameter("key", apiKey)
@@ -69,7 +78,7 @@ class WeatherApi
                     )
                 }
 
-            val hourlyForecasts =
+            val forecastHourly =
                 forecastDays.flatMap { dayElement ->
                     val hours = dayElement.jsonObject["hour"]?.jsonArray ?: emptyList()
                     hours.mapNotNull { hourElement ->
@@ -94,7 +103,9 @@ class WeatherApi
                     }
                 }
 
-            Log.d(TAG, "getForecast: Parsed ${dailyForecasts.size} daily and ${hourlyForecasts.size} hourly entries")
+            val hourlyForecasts = (historyHourly + forecastHourly).distinctBy { it.dateTime }.sortedBy { it.dateTime }
+
+            Log.d(TAG, "getForecast: Parsed ${dailyForecasts.size} daily and ${hourlyForecasts.size} hourly entries (including ${historyHourly.size} history)")
 
             return ForecastResult(
                 currentTemp = current?.get("temp_f")?.jsonPrimitive?.content?.toFloatOrNull(),
