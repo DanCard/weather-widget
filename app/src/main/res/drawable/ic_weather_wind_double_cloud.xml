@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Large Cloud (Front, tilted) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M16,18c-2,0 -3.5,-1.5 -3.5,-3.5c0,-0.2 0,-0.4 0.1,-0.6C11,13.5 10,12.5 8.5,12.5c-1.5,0 -2.5,1.5 -2.5,3.5s1,3.5 2.5,3.5h7.5c1.5,0 2.5,-1.5 2.5,-3.5S17.5,12.5 16,12.5c-0.2,0 -0.4,0 -0.6,0.1C14.8,11.1 13.5,10.5 12,10.5c-0.1,0 -0.2,0 -0.3,0C12,8.4 13.5,7.5 15,7.5c2.1,0 4,1.9 4,4.5c0,0.3 -0.1,0.6 -0.1,0.9C20.5,12.8 21,13.4 21,14C21,16.2 19,18 16,18z"/>
+    <!-- Small Cloud (Back, tilted) -->
+    <path
+        android:fillColor="#CCFFFFFF"
+        android:pathData="M8,10c-1,0 -2,-1 -2,-2c0,-0.1 0,-0.2 0.1,-0.3C5,7.5 4,7 3.5,7c-1,0 -1.5,1 -1.5,2s0.5,2 1.5,2h4.5c1,0 2,-1 2,-2S9.5,7 8,7c-0.1,0 -0.2,0 -0.3,0.1C7.2,6.1 6.5,5.5 5.5,5.5c-0.1,0 -0.2,0 -0.2,0C5.5,4.4 6.5,4 7.5,4c1.1,0 2,1 2,2.5c0,0.2 -0.1,0.4 -0.1,0.5C10.5,7.3 11,7.8 11,8.5C11,10 9.5,11 8,10z"/>
+    <!-- Wind Swooshes between clouds -->
+    <path
+        android:pathData="M4,11 C8,9 14,9 18,11"
+        android:strokeWidth="1.5"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round"/>
+    <path
+        android:pathData="M6,14 L20,14"
+        android:strokeWidth="1"
+        android:strokeColor="#4A90E2"
+        android:strokeLineCap="round"/>
+</vector>

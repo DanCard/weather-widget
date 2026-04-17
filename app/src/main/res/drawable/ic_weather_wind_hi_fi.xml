@@ -1,0 +1,35 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Background Cloud (Optional, can be removed if too busy) -->
+    <path
+        android:fillColor="#1AFFFFFF"
+        android:pathData="M17.5,19c-3,0 -5.5,-2.5 -5.5,-5.5c0,-0.3 0,-0.6 0.1,-0.9C10.6,12.2 8.5,10.5 6,10.5c-3,0 -5.5,2.5 -5.5,5.5S3,21.5 6,21.5h11.5c2.5,0 4.5,-2 4.5,-4.5S20,12.5 17.5,12.5c-0.3,0 -0.6,0 -0.9,0.1C15.8,10.1 13.5,8.5 11,8.5c-0.2,0 -0.4,0 -0.6,0C11.6,6.4 14.1,4.5 17,4.5c3.6,0 6.5,2.9 6.5,6.5c0,0.5 -0.1,1 -0.2,1.5C23.6,12.8 24,13.4 24,14C24,16.8 21.1,19 17.5,19z"/>
+    <!-- Main Swirl (Sky Blue) -->
+    <path
+        android:pathData="M12,5 C15,5 18,8 18,12 C18,15 15,18 12,18 C10,18 8,17 7,15"
+        android:strokeWidth="2"
+        android:strokeColor="#4A90E2"
+        android:strokeLineCap="round"/>
+    <!-- Supporting Swoosh (Cyan) -->
+    <path
+        android:pathData="M4,10 C8,8 14,8 18,10 C20,11 22,10 23,8"
+        android:strokeWidth="1.5"
+        android:strokeColor="#00E5FF"
+        android:strokeLineCap="round"/>
+    <!-- Another Swoosh (Light Blue) -->
+    <path
+        android:pathData="M6,14 C10,12 16,12 21,14"
+        android:strokeWidth="1"
+        android:strokeColor="#B2EBF2"
+        android:strokeLineCap="round"/>
+    <!-- Green Leaves -->
+    <path
+        android:fillColor="#66BB6A"
+        android:pathData="M8,7 C7,6 6,6 5,7 C4,8 4,9 5,10 C6,11 7,11 8,10 C9,9 9,8 8,7 Z"/>
+    <path
+        android:fillColor="#66BB6A"
+        android:pathData="M16,19 C15,18 14,18 13,19 C12,20 12,21 13,22 C14,23 15,23 16,22 C17,21 17,20 16,19 Z"/>
+</vector>
