@@ -38,9 +38,6 @@ class SettingsActivity : AppCompatActivity() {
         // API Sources ordered checkable list
         setupApiSourcesList()
 
-        // Experiment Section
-        setupExperimentGallery()
-
         // Icon Gallery
         setupIconGallery()
 
@@ -61,36 +58,6 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private data class GalleryIcon(val drawableRes: Int, val stringRes: Int)
-
-    private val experimentIcons = listOf(
-        // Leaf-based Brainstorming (Inspired by wind.png)
-        GalleryIcon(R.drawable.ic_weather_wind_leaf_breeze, R.string.gallery_icon_wind_leaf_breeze),
-        GalleryIcon(R.drawable.ic_weather_wind_leaf_gale, R.string.gallery_icon_wind_leaf_gale),
-        GalleryIcon(R.drawable.ic_weather_wind_leaf_swirl, R.string.gallery_icon_wind_leaf_swirl),
-        GalleryIcon(R.drawable.ic_weather_wind_leaf_trail, R.string.gallery_icon_wind_leaf_trail),
-        GalleryIcon(R.drawable.ic_weather_wind_leaf_dance, R.string.gallery_icon_wind_leaf_dance),
-        GalleryIcon(R.drawable.ic_weather_wind_leaf_blast, R.string.gallery_icon_wind_leaf_blast),
-
-        // High-Fidelity / Multi-Color Set
-        GalleryIcon(R.drawable.ic_weather_wind_hi_fi, R.string.gallery_icon_wind_hi_fi),
-        GalleryIcon(R.drawable.ic_weather_wind_swoosh_wrap, R.string.gallery_icon_wind_swoosh_wrap),
-        GalleryIcon(R.drawable.ic_weather_wind_glass_blue, R.string.gallery_icon_wind_glass_blue),
-        GalleryIcon(R.drawable.ic_weather_wind_stormy_vortex, R.string.gallery_icon_wind_stormy_vortex),
-        GalleryIcon(R.drawable.ic_weather_wind_sunset_horizon, R.string.gallery_icon_wind_sunset_horizon),
-        GalleryIcon(R.drawable.ic_weather_wind_pulse_trails, R.string.gallery_icon_wind_pulse_trails),
-        GalleryIcon(R.drawable.ic_weather_wind_double_cloud, R.string.gallery_icon_wind_double_cloud),
-
-        // Original Brainstormed Set (Monochrome)
-        GalleryIcon(R.drawable.ic_weather_wind_classic_gusts, R.string.gallery_icon_wind_classic_gusts),
-        GalleryIcon(R.drawable.ic_weather_wind_dynamic_swirls, R.string.gallery_icon_wind_dynamic_swirls),
-        GalleryIcon(R.drawable.ic_weather_wind_sock, R.string.gallery_icon_wind_sock),
-        GalleryIcon(R.drawable.ic_weather_wind_bent_tree, R.string.gallery_icon_wind_bent_tree),
-        GalleryIcon(R.drawable.ic_weather_wind_motion_swooshes, R.string.gallery_icon_wind_motion_swooshes),
-        GalleryIcon(R.drawable.ic_weather_wind_boreas, R.string.gallery_icon_wind_boreas),
-        GalleryIcon(R.drawable.ic_weather_wind_flying_leaves, R.string.gallery_icon_wind_flying_leaves),
-        GalleryIcon(R.drawable.ic_weather_wind_anemometer, R.string.gallery_icon_wind_anemometer),
-        GalleryIcon(R.drawable.ic_weather_wind_vane, R.string.gallery_icon_wind_vane)
-    )
 
     private val allGalleryIcons = listOf(
         // Clear / Sunny
@@ -133,22 +100,6 @@ class SettingsActivity : AppCompatActivity() {
         GalleryIcon(R.drawable.ic_weather_storm, R.string.gallery_icon_storm),
         GalleryIcon(R.drawable.ic_weather_wind, R.string.gallery_icon_wind),
     )
-
-    private fun setupExperimentGallery() {
-        val container = findViewById<FlexboxLayout>(R.id.experiment_gallery_container)
-        container.removeAllViews()
-
-        for (icon in experimentIcons) {
-            val itemView = LayoutInflater.from(this).inflate(R.layout.item_gallery_icon, container, false)
-            val imageView = itemView.findViewById<ImageView>(R.id.gallery_icon_image)
-            val textView = itemView.findViewById<TextView>(R.id.gallery_icon_name)
-
-            imageView.setImageResource(icon.drawableRes)
-            textView.setText(icon.stringRes)
-
-            container.addView(itemView)
-        }
-    }
 
     private fun setupIconGallery() {
         val container = findViewById<FlexboxLayout>(R.id.icon_gallery_container)

@@ -92,42 +92,6 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="24dp"
                 android:layout_marginBottom="8dp"
-                android:text="@string/experiment_title"
-                android:textColor="@color/widget_text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:text="@string/experiment_description"
-                android:textColor="@color/widget_text_secondary"
-                android:textSize="14sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:background="@drawable/bg_surface_card"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <com.google.android.flexbox.FlexboxLayout
-                    android:id="@+id/experiment_gallery_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:alignItems="flex_start"
-                    app:flexWrap="wrap"
-                    app:justifyContent="flex_start">
-                </com.google.android.flexbox.FlexboxLayout>
-            </LinearLayout>
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:layout_marginBottom="8dp"
                 android:text="@string/icon_preview_title"
                 android:textColor="@color/widget_text_primary"
                 android:textSize="16sp"

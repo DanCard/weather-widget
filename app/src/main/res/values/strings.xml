@@ -82,8 +82,6 @@
     <string name="app_logs_filter_hint">Filter logs (tag/message/level)</string>
     <string name="icon_preview_title">Icon gallery</string>
     <string name="icon_preview_description">Comprehensive gallery of all weather icons used in the widget.</string>
-    <string name="experiment_title">Icon Experiment</string>
-    <string name="experiment_description">Comparison between old and new icon designs.</string>
     <string name="gallery_icon_pc_slight_rain_new">Partly Cloudy Slight Rain (New)</string>
     <string name="gallery_icon_rain">Rain</string>
     <string name="gallery_icon_chance_rain">Chance Rain</string>
@@ -111,27 +109,6 @@
     <string name="gallery_icon_fog_night">Fog (Night)</string>
     <string name="gallery_icon_fog_light_night">Light Fog (Night)</string>
     <string name="gallery_icon_wind">Wind</string>
-    <string name="gallery_icon_wind_classic_gusts">Wind (Classic Gusts)</string>
-    <string name="gallery_icon_wind_dynamic_swirls">Wind (Dynamic Swirls)</string>
-    <string name="gallery_icon_wind_sock">Wind (Wind Sock)</string>
-    <string name="gallery_icon_wind_bent_tree">Wind (Bent Tree)</string>
-    <string name="gallery_icon_wind_motion_swooshes">Wind (Motion Swooshes)</string>
-    <string name="gallery_icon_wind_boreas">Wind (Boreas)</string>
-    <string name="gallery_icon_wind_flying_leaves">Wind (Flying Leaves)</string>
-    <string name="gallery_icon_wind_anemometer">Wind (Anemometer)</string>
-    <string name="gallery_icon_wind_vane">Wind (Weather Vane)</string>
-    <string name="gallery_icon_wind_swoosh_wrap">Wind (Swoosh Wrap)</string>
-    <string name="gallery_icon_wind_glass_blue">Wind (Glass Blue)</string>
-    <string name="gallery_icon_wind_stormy_vortex">Wind (Stormy Vortex)</string>
-    <string name="gallery_icon_wind_sunset_horizon">Wind (Sunset Horizon)</string>
-    <string name="gallery_icon_wind_pulse_trails">Wind (Pulse Trails)</string>
-    <string name="gallery_icon_wind_double_cloud">Wind (Double Cloud)</string>
-    <string name="gallery_icon_wind_hi_fi">Wind (Hi-Fi XCF)</string>
-    <string name="gallery_icon_wind_leaf_breeze">Wind (Leaf Breeze)</string>
-    <string name="gallery_icon_wind_leaf_gale">Wind (Leaf Gale)</string>
-    <string name="gallery_icon_wind_leaf_swirl">Wind (Leaf Swirl)</string>
-    <string name="gallery_icon_wind_leaf_trail">Wind (Leaf Trail)</string>
-    <string name="gallery_icon_wind_leaf_dance">Wind (Leaf Dance)</string>
-    <string name="gallery_icon_wind_leaf_blast">Wind (Leaf Blast)</string>
+
     <string name="gallery_icon_unknown">Unknown</string>
 </resources>
