@@ -8,6 +8,14 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.local.log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 
 /**
@@ -15,6 +23,8 @@ import java.util.concurrent.TimeUnit
  */
 object CurrentTempUpdateScheduler {
     private const val TAG = "CurrentTempScheduler"
+    private val timestampFormatter: DateTimeFormatter =
+        DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneId.systemDefault())
 
     fun enqueueImmediateUpdate(
         context: Context,
@@ -45,6 +55,14 @@ object CurrentTempUpdateScheduler {
                 WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
                 ExistingWorkPolicy.REPLACE,
                 workRequest,
+            )
+            logSchedulerEvent(
+                context = context,
+                tag = "CURR_FETCH_WORK_ENQUEUED",
+                message =
+                    "type=immediate reason=$reason opportunistic=$opportunistic force=$force " +
+                        "policyDelayMinutes=0 dueAt=${formatTime(System.currentTimeMillis())} " +
+                        "workId=${workRequest.id}",
             )
             Log.d(TAG, "enqueueImmediateUpdate: reason=$reason opportunistic=$opportunistic force=$force id=${workRequest.id}")
         }.onFailure { e ->
@@ -77,6 +95,16 @@ object CurrentTempUpdateScheduler {
                 ExistingWorkPolicy.REPLACE,
                 workRequest,
             )
+            val dueAtMs =
+                System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES)
+            logSchedulerEvent(
+                context = context,
+                tag = "CURR_FETCH_WORK_ENQUEUED",
+                message =
+                    "type=charging_loop reason=charging_loop opportunistic=false force=false " +
+                        "policyDelayMinutes=${CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES} " +
+                        "dueAt=${formatTime(dueAtMs)} workId=${workRequest.id}",
+            )
             Log.d(
                 TAG,
                 "scheduleNextChargingUpdate: delay=${CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES}m id=${workRequest.id}",
@@ -89,9 +117,26 @@ object CurrentTempUpdateScheduler {
     fun cancel(context: Context) {
         runCatching {
             WorkManager.getInstance(context).cancelUniqueWork(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP)
+            logSchedulerEvent(
+                context = context,
+                tag = "CURR_FETCH_WORK_CANCELLED",
+                message = "name=${WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP}",
+            )
             Log.d(TAG, "cancel: canceled ${WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP}")
         }.onFailure { e ->
             Log.e(TAG, "cancel failed: ${e.message}", e)
         }
     }
+
+    private fun logSchedulerEvent(
+        context: Context,
+        tag: String,
+        message: String,
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            WeatherDatabase.getDatabase(context).appLogDao().log(tag, message, "INFO")
+        }
+    }
+
+    private fun formatTime(timestampMs: Long): String = timestampFormatter.format(Instant.ofEpochMilli(timestampMs))
 }

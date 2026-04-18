@@ -67,6 +67,41 @@ object DataFreshness {
     }
 
     /**
+     * Build a compact summary of visible-source ages and thresholds for persisted diagnostics.
+     */
+    suspend fun getVisibleSourceFreshnessSummary(context: Context): String {
+        return try {
+            val database = WeatherDatabase.getDatabase(context)
+            val forecastDao = database.forecastDao()
+            val stateManager = WidgetStateManager(context)
+            val visibleSources = stateManager.getVisibleSourcesOrder()
+            if (visibleSources.isEmpty()) {
+                return "visibleSources=none"
+            }
+
+            val nowMs = System.currentTimeMillis()
+            visibleSources.mapIndexed { index, source ->
+                val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
+                if (latestForSource == null) {
+                    "${source.id}:missing"
+                } else {
+                    val ageMinutes = (nowMs - latestForSource.batchFetchedAt) / 60000L
+                    val thresholdMinutes =
+                        ForecastStalenessPolicy.getStalenessThresholdMs(index) / 60000L
+                    val state = if (ageMinutes > thresholdMinutes) "stale" else "fresh"
+                    "${source.id}:${ageMinutes}m/${thresholdMinutes}m:$state"
+                }
+            }.joinToString(
+                prefix = "visibleSources=",
+                separator = ",",
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error building freshness summary", e)
+            "visibleSources=error:${e.javaClass.simpleName}"
+        }
+    }
+
+    /**
      * Get the age of the most stale visible weather data in minutes.
      *
      * @param context Application context

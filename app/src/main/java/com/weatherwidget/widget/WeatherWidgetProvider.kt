@@ -473,6 +473,13 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
 
             val isDataStale = DataFreshness.isDataStale(context)
+            val freshnessSummary = DataFreshness.getVisibleSourceFreshnessSummary(context)
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "REFRESH_DECISION",
+                "uiOnlyRequested=$uiOnly charging=$isCharging interactive=${powerManager.isInteractive} " +
+                    "isDataStale=$isDataStale $freshnessSummary",
+                "INFO",
+            )
             if (uiOnly || !WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
                 triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
                 Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
@@ -666,6 +673,14 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest,
         )
+        launchAsync {
+            val nextWindowStartMs = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "PERIODIC_REFRESH_SCHEDULE",
+                "name=$WORK_NAME intervalMinutes=60 policy=keep nextWindowStartMs=$nextWindowStartMs",
+                "INFO",
+            )
+        }
     }
 
     private fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
