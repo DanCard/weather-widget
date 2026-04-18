@@ -6,6 +6,7 @@ import android.util.Log
 import android.util.TypedValue
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherConditionColors
+import kotlin.math.abs
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -415,6 +416,55 @@ object DailyForecastGraphRenderer {
         if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
     }
 
+    private fun drawWeatherAdaptiveBar(
+        canvas: Canvas,
+        centerX: Float,
+        topY: Float,
+        bottomY: Float,
+        paint: Paint,
+        day: DayData,
+        logPrefix: String,
+    ) {
+        if (!day.isMixed || day.iconRes == null) {
+            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
+            return
+        }
+
+        val split = WeatherConditionColors.resolveMixedBarSplit(day.iconRes, day.cloudCoverRatioOverride)
+        if (split == null) {
+            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
+            return
+        }
+
+        val barHeight = bottomY - topY
+        if (barHeight <= 1f) {
+            canvas.drawLine(centerX, topY, centerX, bottomY, paint)
+            return
+        }
+
+        val topSegmentEndY = (topY + barHeight * split.topFraction).coerceIn(topY, bottomY)
+        val bottomPaint = Paint(paint).apply {
+            color = split.bottomColor
+            shader = null
+        }
+        val topPaint = Paint(paint).apply {
+            color = split.topColor
+            shader = null
+        }
+
+        canvas.drawLine(centerX, topY, centerX, bottomY, bottomPaint)
+        if (abs(topSegmentEndY - topY) > 0.5f) {
+            canvas.drawLine(centerX, topY, centerX, topSegmentEndY, topPaint)
+        }
+
+        Log.d(
+            TAG,
+            "$logPrefix mixed bar geometry: date=${day.date} centerX=$centerX topY=$topY bottomY=$bottomY height=${barHeight}" +
+                " splitRatio=${split.ratio} topFraction=${split.topFraction} topEndY=$topSegmentEndY" +
+                " topColor=${String.format("#%08X", split.topColor)} bottomColor=${String.format("#%08X", split.bottomColor)}",
+        )
+    }
+
     private fun drawDayColumn(
         canvas: Canvas,
         context: Context,
@@ -490,19 +540,22 @@ object DailyForecastGraphRenderer {
             val minBarHeight = dpToPx(context, MIN_BAR_HEIGHT_DP)
             val hY = highY ?: (lowY?.let { it - minBarHeight } ?: 0f)
             val lY = lowY ?: (highY?.let { it + minBarHeight } ?: 0f)
-            val effectiveLowY = if (kotlin.math.abs(hY - lY) < minBarHeight) hY + minBarHeight else lY
+            val effectiveLowY = if (abs(hY - lY) < minBarHeight) hY + minBarHeight else lY
 
-            val applyGradient = day.isMixed && day.iconRes != null
-            if (applyGradient) {
-                paint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, hY, effectiveLowY, day.cloudCoverRatioOverride)
-            }
             val colorHex = String.format("#%08X", paint.color)
             Log.d(TAG, "Bar color decision: date=${day.date}" +
                 " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                 " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                " color=$colorHex gradient=$applyGradient cloudRatioOverride=${day.cloudCoverRatioOverride}")
-            canvas.drawLine(centerX, hY, centerX, effectiveLowY, paint)
-            paint.shader = null
+                " color=$colorHex gradient=${day.isMixed && day.iconRes != null} cloudRatioOverride=${day.cloudCoverRatioOverride}")
+            drawWeatherAdaptiveBar(
+                canvas = canvas,
+                centerX = centerX,
+                topY = hY,
+                bottomY = effectiveLowY,
+                paint = paint,
+                day = day,
+                logPrefix = "primary",
+            )
             onBarDrawn?.invoke(BarDrawnDebug(day.date, if (day.isPast) "HISTORY" else "FUTURE", hY, effectiveLowY, centerX, paint.color))
         }
 
@@ -511,7 +564,7 @@ object DailyForecastGraphRenderer {
             val fHighY = layout.graphTop + layout.graphHeight * (1 - (day.forecastHigh - layout.minTemp) / layout.tempRange)
             val fLowY = layout.graphTop + layout.graphHeight * (1 - (day.forecastLow - layout.minTemp) / layout.tempRange)
             val minBarHeight = dpToPx(context, MIN_BAR_HEIGHT_DP)
-            val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
+            val effectiveFLowY = if (abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
             
             val forecastX = centerX + layout.forecastBarOffset
             val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
@@ -521,17 +574,21 @@ object DailyForecastGraphRenderer {
                 paints.forecastBarPaint.also { it.color = condColor }
             }
             val overlayGradient = day.isMixed && day.iconRes != null
-            if (overlayGradient) {
-                overlayPaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY, day.cloudCoverRatioOverride)
-            }
             val overlayColorHex = String.format("#%08X", condColor)
             Log.d(TAG, "Overlay color decision: date=${day.date}" +
                 " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                 " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
                 " color=$overlayColorHex gradient=$overlayGradient cloudRatioOverride=${day.cloudCoverRatioOverride}" +
                 " isClimateNormal=${day.isClimateNormal}")
-            canvas.drawLine(forecastX, fHighY, forecastX, effectiveFLowY, overlayPaint)
-            overlayPaint.shader = null
+            drawWeatherAdaptiveBar(
+                canvas = canvas,
+                centerX = forecastX,
+                topY = fHighY,
+                bottomY = effectiveFLowY,
+                paint = overlayPaint,
+                day = day,
+                logPrefix = "overlay",
+            )
             onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
         }
 
@@ -569,14 +626,14 @@ object DailyForecastGraphRenderer {
         // Observed (Center)
         val obsHighY = highY ?: (lowY?.let { it - minBarHeight } ?: 0f)
         val obsLowY = lowY ?: (highY?.let { it + minBarHeight } ?: 0f)
-        val effectiveObsLowY = if (kotlin.math.abs(obsHighY - obsLowY) < minBarHeight) obsHighY + minBarHeight else obsLowY
+        val effectiveObsLowY = if (abs(obsHighY - obsLowY) < minBarHeight) obsHighY + minBarHeight else obsLowY
         
         // Snapshot (Left)
         day.snapshotHigh?.let { sHigh ->
             day.snapshotLow?.let { sLow ->
                 val sHighY = layout.graphTop + layout.graphHeight * (1 - (sHigh - layout.minTemp) / layout.tempRange)
                 val sLowY = layout.graphTop + layout.graphHeight * (1 - (sLow - layout.minTemp) / layout.tempRange)
-                val effectiveSLowY = if (kotlin.math.abs(sHighY - sLowY) < minBarHeight) sHighY + minBarHeight else sLowY
+                val effectiveSLowY = if (abs(sHighY - sLowY) < minBarHeight) sHighY + minBarHeight else sLowY
                 canvas.drawLine(centerX - layout.tripleBarOffset, sHighY, centerX - layout.tripleBarOffset, effectiveSLowY, paints.todaySnapshotYellowPaint)
             }
         }
@@ -586,14 +643,19 @@ object DailyForecastGraphRenderer {
         val fLow = day.forecastLow ?: day.low ?: 0f
         val fHighY = layout.graphTop + layout.graphHeight * (1 - (fHigh - layout.minTemp) / layout.tempRange)
         val fLowY = layout.graphTop + layout.graphHeight * (1 - (fLow - layout.minTemp) / layout.tempRange)
-        val effectiveFLowY = if (kotlin.math.abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
+        val effectiveFLowY = if (abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
         
         paints.todayForecastBluePaint.color = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-        if (day.isMixed && day.iconRes != null) {
-            paints.todayForecastBluePaint.shader = WeatherConditionColors.forecastBarGradient(day.iconRes, fHighY, effectiveFLowY, day.cloudCoverRatioOverride)
-        }
-        canvas.drawLine(centerX + layout.tripleBarOffset, fHighY, centerX + layout.tripleBarOffset, effectiveFLowY, paints.todayForecastBluePaint)
-        paints.todayForecastBluePaint.shader = null
+        val todayForecastX = centerX + layout.tripleBarOffset
+        drawWeatherAdaptiveBar(
+            canvas = canvas,
+            centerX = todayForecastX,
+            topY = fHighY,
+            bottomY = effectiveFLowY,
+            paint = paints.todayForecastBluePaint,
+            day = day,
+            logPrefix = "today_forecast",
+        )
 
         // Draw Observed Bar and Bulb
         canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)

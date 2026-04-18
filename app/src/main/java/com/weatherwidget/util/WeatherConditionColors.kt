@@ -12,6 +12,13 @@ import com.weatherwidget.R
 object WeatherConditionColors {
     private const val MAX_TRANSITION_FRACTION = 0.12f
 
+    internal data class MixedBarSplit(
+        val ratio: Float,
+        val topColor: Int,
+        val bottomColor: Int,
+        val topFraction: Float,
+    )
+
     val FORECAST_SUNNY = Color.parseColor("#F4C542")    // Amber/gold
     val FORECAST_CLOUDY = Color.parseColor("#8E99A4")   // Slate gray
     val FORECAST_RAINY = Color.parseColor("#5A8FBF")    // Steel blue
@@ -62,20 +69,32 @@ object WeatherConditionColors {
     }
 
     /** Returns a vertical LinearGradient for a mixed-condition bar (gold top → gray/blue bottom), or null for solid-color bars. */
-    fun forecastBarGradient(iconRes: Int, topY: Float, bottomY: Float, cloudRatioOverride: Float? = null): LinearGradient? {
-        val ratio = (cloudRatioOverride ?: cloudRatio(iconRes))?.coerceIn(0f, 1f) ?: return null
-        val topColor = FORECAST_SUNNY
-        val isRainyIcon = iconRes in CHANCE_RAIN_ICONS
-        val bottomColor = if (isRainyIcon) FORECAST_RAINY else FORECAST_CLOUDY
+    fun forecastBarGradient(iconRes: Int, x: Float, topY: Float, bottomY: Float, cloudRatioOverride: Float? = null): LinearGradient? {
+        val split = resolveMixedBarSplit(iconRes, cloudRatioOverride) ?: return null
         
-        android.util.Log.d("WeatherConditionColors", "forecastBarGradient: icon=$iconRes isRainyIcon=$isRainyIcon ratio=$ratio -> color=${if (isRainyIcon) "BLUE" else "GREY"}")
+        android.util.Log.d(
+            "WeatherConditionColors",
+            "forecastBarGradient: icon=$iconRes ratio=${split.ratio} topFraction=${split.topFraction} -> color=${if (split.bottomColor == FORECAST_RAINY) "BLUE" else "GREY"}",
+        )
         
-        val stops = gradientStopPositions(ratio)
+        val stops = gradientStopPositions(split.ratio)
         return LinearGradient(
-            0f, topY, 0f, bottomY,
-            intArrayOf(topColor, topColor, bottomColor, bottomColor),
+            x, topY, x, bottomY,
+            intArrayOf(split.topColor, split.topColor, split.bottomColor, split.bottomColor),
             stops,
             Shader.TileMode.CLAMP,
+        )
+    }
+
+    internal fun resolveMixedBarSplit(iconRes: Int, cloudRatioOverride: Float? = null): MixedBarSplit? {
+        val ratio = (cloudRatioOverride ?: cloudRatio(iconRes))?.coerceIn(0f, 1f) ?: return null
+        val isRainyIcon = iconRes in CHANCE_RAIN_ICONS
+        val bottomColor = if (isRainyIcon) FORECAST_RAINY else FORECAST_CLOUDY
+        return MixedBarSplit(
+            ratio = ratio,
+            topColor = FORECAST_SUNNY,
+            bottomColor = bottomColor,
+            topFraction = (1f - ratio).coerceIn(0f, 1f),
         )
     }
 

@@ -50,7 +50,7 @@ class WeatherConditionColorsTest {
     fun forecastBarGradientReturnsNonNullForAllCloudRatioIcons() {
         val icons = WeatherIconMapper.MIXED_ICONS
         for (icon in icons) {
-            val gradient = WeatherConditionColors.forecastBarGradient(icon, 0f, 100f)
+            val gradient = WeatherConditionColors.forecastBarGradient(icon, 50f, 0f, 100f)
             assertNotNull(
                 "forecastBarGradient should return non-null for mixed icon ${iconName(icon)}",
                 gradient
@@ -63,8 +63,6 @@ class WeatherConditionColorsTest {
         val chanceRainIcons = setOf(
             R.drawable.ic_weather_partly_cloudy_chance_rain,
             R.drawable.ic_weather_partly_cloudy_chance_rain_night,
-            R.drawable.ic_weather_clear_chance_rain,
-            R.drawable.ic_weather_night_chance_rain,
             R.drawable.ic_weather_cloudy_chance_rain,
         )
         for (icon in chanceRainIcons) {
@@ -96,6 +94,24 @@ class WeatherConditionColorsTest {
         assertEquals(0.82f, stops[1], 0.0001f)
         assertEquals(0.91f, stops[2], 0.0001f)
         assertEquals(1f, stops[3], 0.0001f)
+    }
+
+    @Test
+    fun mixedMostlyClearResolvesGreyBottomSplit() {
+        val split = WeatherConditionColors.resolveMixedBarSplit(R.drawable.ic_weather_mostly_clear, 0.45f)
+        assertNotNull(split)
+        assertEquals(0.45f, split!!.ratio, 0.0001f)
+        assertEquals(0.55f, split.topFraction, 0.0001f)
+        assertEquals(WeatherConditionColors.FORECAST_SUNNY, split.topColor)
+        assertEquals(WeatherConditionColors.FORECAST_CLOUDY, split.bottomColor)
+    }
+
+    @Test
+    fun mixedChanceRainResolvesBlueBottomSplit() {
+        val split = WeatherConditionColors.resolveMixedBarSplit(R.drawable.ic_weather_partly_cloudy_chance_rain, 0.66f)
+        assertNotNull(split)
+        assertEquals(WeatherConditionColors.FORECAST_SUNNY, split!!.topColor)
+        assertEquals(WeatherConditionColors.FORECAST_RAINY, split.bottomColor)
     }
 
     @Test
