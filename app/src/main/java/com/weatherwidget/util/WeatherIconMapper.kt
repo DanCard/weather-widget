@@ -190,7 +190,7 @@ object WeatherIconMapper {
         return condition.substring(thenIndex + " then ".length).trim()
     }
 
-    fun isSunny(iconRes: Int): Boolean = iconRes in setOf(R.drawable.ic_weather_clear, R.drawable.ic_weather_mostly_clear, R.drawable.ic_weather_horizon_sun)
+    fun isSunny(iconRes: Int): Boolean = iconRes in setOf(R.drawable.ic_weather_clear, R.drawable.ic_weather_night, R.drawable.ic_weather_mostly_clear, R.drawable.ic_weather_horizon_sun)
 
     fun isPrecipitation(iconRes: Int): Boolean = iconRes in PRECIPITATION_ICONS
 

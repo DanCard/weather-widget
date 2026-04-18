@@ -214,9 +214,8 @@ class WeatherIconMapperTest {
     }
 
     @Test
-    fun testMoonIsNotSunny() {
-        // Clear night uses the moon icon — should NOT be classified as sunny (would tint it gold)
-        assertFalse(WeatherIconMapper.isSunny(R.drawable.ic_weather_night))
+    fun testMoonIsSunny() {
+        assertTrue(WeatherIconMapper.isSunny(R.drawable.ic_weather_night))
     }
 
     @Test
