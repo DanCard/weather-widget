@@ -79,7 +79,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
         )
         Log.d(TAG, "Screen unlocked - charging=${battery.isCharging}, battery=${battery.level}%, uiOnly=$uiOnly")
 
-        // Trigger update via provider
         val providerIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_REFRESH
@@ -99,7 +98,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
             CurrentTempUpdateScheduler.cancel(context)
         }
 
-        // Resume background UI updates now that screen is on
         val pendingResult = goAsync()
         CoroutineScope(ioDispatcher).launch {
             try {
@@ -108,6 +106,32 @@ class ScreenOnReceiver : BroadcastReceiver() {
                     "charging=${battery.isCharging} battery=${battery.level}% uiOnly=$uiOnly",
                 )
                 UIUpdateScheduler(context).scheduleNextUpdate()
+
+                if (battery.isCharging && NwsTerminalDayCatchUpPolicy.isInCatchUpWindow(java.time.LocalTime.now())) {
+                    try {
+                        val db = WeatherDatabase.getDatabase(context)
+                        val latestForecast = db.forecastDao().getLatestWeather()
+                        val lat = latestForecast?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+                        val lon = latestForecast?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+                        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+                        val widgetIds = appWidgetManager.getAppWidgetIds(
+                            android.content.ComponentName(context, WeatherWidgetProvider::class.java)
+                        )
+                        val stateManager = WidgetStateManager(context)
+                        for (wid in widgetIds) {
+                            NwsTerminalDayCatchUpScheduler.maybeEnqueueCatchUp(
+                                context = context,
+                                database = db,
+                                stateManager = stateManager,
+                                appWidgetId = wid,
+                                lat = lat,
+                                lon = lon,
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to check NWS terminal catch-up on screen unlock", e)
+                    }
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to schedule next update on screen on", e)
             } finally {
@@ -119,6 +143,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
     private fun handleScreenOff(context: Context) {
         Log.d(TAG, "Screen turned off - canceling charging current-temp loop")
         CurrentTempUpdateScheduler.cancel(context)
+        NwsTerminalDayCatchUpScheduler.cancel(context)
     }
 
     private fun logPowerConnectedEvent(
