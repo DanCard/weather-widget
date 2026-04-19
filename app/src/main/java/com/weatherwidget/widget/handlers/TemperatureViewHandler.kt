@@ -72,7 +72,8 @@ object TemperatureViewHandler {
             repository = repository,
             deferCurrentTempResolution = deferCurrentTempResolution,
             startupToken = startupToken,
-            onFetchDotResolved = onFetchDotResolved
+            onFetchDotResolved = onFetchDotResolved,
+            appLogDao = appLogDao,
         )
 
         val views = RemoteViews(context.packageName, com.weatherwidget.R.layout.widget_weather)

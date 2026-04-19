@@ -72,19 +72,20 @@ internal object TemperatureStateResolver {
         deferCurrentTempResolution: Boolean,
         startupToken: String? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
+        appLogDao: AppLogDao? = null,
     ): ResolutionResult {
         val now = LocalDateTime.now()
-        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
+        val effectiveAppLogDao = appLogDao ?: WeatherDatabase.getDatabase(context).appLogDao()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
-        
+
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
 
         // 1. Source Warning
         val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
-            appLogDao = appLogDao,
+            appLogDao = effectiveAppLogDao,
             displaySource = displaySource,
             hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
         )

@@ -8,6 +8,7 @@ import com.weatherwidget.data.model.WeatherSource
 import io.mockk.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,6 +42,11 @@ class DataFreshnessRoboTest {
         // Since DataFreshness.isDataStale creates its own stateManager, we need to mock the constructor
         mockkConstructor(WidgetStateManager::class)
         every { anyConstructed<WidgetStateManager>().getVisibleSourcesOrder() } returns listOf(WeatherSource.NWS)
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     private fun createForecast(source: String, batchFetchedAt: Long): ForecastEntity {

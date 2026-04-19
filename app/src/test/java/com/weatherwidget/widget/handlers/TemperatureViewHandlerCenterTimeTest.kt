@@ -47,8 +47,8 @@ class TemperatureViewHandlerCenterTimeTest {
         val appWidgetManager = mockk<AppWidgetManager>()
         val options =
             Bundle().apply {
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 260)
-                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 260)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 400)
+                putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 400)
                 putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 90)
                 putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 90)
             }
