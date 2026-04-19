@@ -9,8 +9,8 @@ import java.util.Locale
  * based on the available widget width to prevent overlap with navigation icons.
  */
 object HeaderFormatter {
-    private const val WIDTH_THRESHOLD_FULL_DAY = 330
-    private const val WIDTH_THRESHOLD_SHORT_DAY = 260
+    private const val WIDTH_THRESHOLD_FULL_DAY = 380
+    private const val WIDTH_THRESHOLD_SHORT_DAY = 300
 
     fun formatSourceIndicator(
         centerTime: LocalDateTime,
