@@ -272,7 +272,6 @@ object PrecipViewHandler {
                 bitmapScale = bitmapScale,
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
-                observedAt = observedAt,
                 highProbThreshold = highProbThreshold,
                 rainAmountWindowHours = rainAmountWindowHours,
                 job = coroutineContext[Job],

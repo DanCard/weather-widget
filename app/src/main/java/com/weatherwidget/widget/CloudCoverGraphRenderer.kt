@@ -22,7 +22,7 @@ object CloudCoverGraphRenderer {
     private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = 5
     private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(5, 10, 15)
     private const val NEARBY_LABEL_WINDOW = 3
-    private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 20
+    private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
     private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
 
     data class CloudHourData(
@@ -108,14 +108,14 @@ object CloudCoverGraphRenderer {
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 18.0f * labelScale)
+            textSize = dpToPx(context, 23.0f * labelScale)
             textAlign = Paint.Align.CENTER
             setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#44000000"))
         }
 
         val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 16.0f * labelScale)
+            textSize = dpToPx(context, 23.0f * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#88000000"))
@@ -123,7 +123,7 @@ object CloudCoverGraphRenderer {
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#BBFF9F0A")
-            textSize = dpToPx(context, 12.0f * labelScale)
+            textSize = dpToPx(context, 15.5f * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor("#44000000"))
@@ -131,7 +131,7 @@ object CloudCoverGraphRenderer {
 
         val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#88FFFFFF")
-            textSize = dpToPx(context, 18.0f * labelScale)
+            textSize = dpToPx(context, 23.0f * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
@@ -188,10 +188,10 @@ object CloudCoverGraphRenderer {
         val topPadding = dpToPx(context, 24f * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-        val iconSize = dpToPx(context, 24f * labelScale).toInt()
+        val iconSize = dpToPx(context, 22.4f).toInt()
         val iconTopPad = dpToPx(context, 0f)
         val iconBottomPad = dpToPx(context, 0f)
-        val labelHeight = dpToPx(context, 14f * labelScale)
+        val labelHeight = dpToPx(context, 20f * labelScale)
         val bottomPadding = dpToPx(context, 3f * labelScale)
 
         val graphTop = topPadding
@@ -435,20 +435,20 @@ object CloudCoverGraphRenderer {
                         isFallbackAttempt = isFallbackAttempt,
                     )
                 val exceedsTop = bounds.top < 0f
-                val exceedsBottom =
+                val actualExceedsBottom =
                     if (allowBottomOverflow) {
-                        bounds.bottom > safeBottom + lowCloudBelowOverflowPx
+                        bounds.bottom > heightPx
                     } else {
                         bounds.bottom > safeBottom
                     }
-                if (exceedsTop || exceedsBottom) {
+                if (exceedsTop || actualExceedsBottom) {
                     Log.d(
                         TAG,
                         "labelRejected: idx=$index hour=$hourLabel value=$cloudPct% side=${if (placeAbove) "above" else "below"} " +
                             "attempt=${if (isFallbackAttempt) "fallback" else "preferred"} reason=out_of_bounds " +
-                            "exceedsTop=$exceedsTop exceedsBottom=$exceedsBottom " +
+                            "exceedsTop=$exceedsTop exceedsBottom=$actualExceedsBottom " +
                             "allowBottomOverflow=$allowBottomOverflow safeBottom=$safeBottom " +
-                            "overflowAllowancePx=${if (allowBottomOverflow) lowCloudBelowOverflowPx else 0f} bounds=$bounds",
+                            "bounds=$bounds",
                     )
                     continue
                 }
@@ -538,7 +538,7 @@ object CloudCoverGraphRenderer {
         // --- Cloud icon in emptiest region ---
         val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
         if (cloudDrawable != null && points.size >= 3) {
-            val iconSizePx = dpToPx(context, 20f).toInt()
+            val iconSizePx = dpToPx(context, 24f).toInt()
             val windowSize = (points.size / 5).coerceIn(3, 6)
             val iconGap = dpToPx(context, 2f)
             val candidateCenters =

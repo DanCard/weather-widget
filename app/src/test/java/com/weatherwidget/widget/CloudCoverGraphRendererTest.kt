@@ -181,7 +181,7 @@ class CloudCoverGraphRendererTest {
         )
         assertTrue(
             !CloudCoverGraphRenderer.shouldAllowBottomOverflow(
-                cloudPct = 29,
+                cloudPct = 60,
                 placeAbove = false,
                 isFallbackAttempt = false,
             ),
@@ -217,7 +217,7 @@ class CloudCoverGraphRendererTest {
         )
         assertTrue(
             !CloudCoverGraphRenderer.shouldAllowIconOverlap(
-                cloudPct = 29,
+                cloudPct = 60,
                 placeAbove = false,
                 isFallbackAttempt = false,
             ),
