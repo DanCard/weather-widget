@@ -38,6 +38,27 @@ object DailyForecastGraphRenderer {
     private const val FORECAST_BAR_WIDTH_DP = 9f
     private const val TODAY_TRIPLE_BAR_WIDTH_DP = 5.25f
 
+    private const val HIGH_LABEL_OFFSET_DP = 6f
+    private const val ICON_BELOW_BAR_SPACING_DP = 3f
+    private const val TEMP_LABEL_SPACING_DP = 1f
+    private const val RAIN_LABEL_SPACING_DP = 11f
+    private const val RAIN_TEXT_MARGIN_DP = 4f
+    private const val RAIN_LABEL_EDGE_MARGIN_DP = 2f
+    private const val ICON_STACK_SPACING_DP = 4f
+    private const val DAY_LABEL_BASE_SIZE_DP = 15f
+    private const val ICON_BASE_SIZE_DP = 36f
+    private const val RAIN_TEXT_SIZE_DP = 14.4f
+    private const val DAY_LABEL_BOTTOM_MARGIN_PX = 3f
+    private const val GHOST_BAR_ALPHA = 75
+    private const val CLIMATE_OVERLAY_ALPHA = 80
+    private const val BULB_RADIUS_SCALE = 1.2f
+    private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
+    private const val HISTORY_BAR_WIDTH_SCALE = 0.7f
+    private const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
+    private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
+    private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
+    private const val PAST_TEMP_SCALE = 0.9f
+
     @Volatile
     private var cachedPaintSet: PaintSet? = null
     @Volatile
@@ -86,7 +107,9 @@ object DailyForecastGraphRenderer {
         val forecastHigh: Float? = null,
         val forecastLow: Float? = null,
         val rainSummary: String? = null,
+        /** Daytime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
         val dailyPrecipProbability: Int? = null,
+        /** Nighttime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
         val nighttimePrecipProbability: Int? = null,
         val dailyPrecipAmountMm: Float? = null,
         val dailyRainLabelText: String? = null,
@@ -120,7 +143,8 @@ object DailyForecastGraphRenderer {
         val dayLabelHeight: Float,
         val tempLabelHeight: Float,
         val bulbRadius: Float,
-        val bitmapScale: Float
+        val bitmapScale: Float,
+        val minBarHeightPx: Float,
     ) {
         fun tempToY(temp: Float): Float =
             graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
@@ -210,7 +234,7 @@ object DailyForecastGraphRenderer {
         val dayLabelWidthScale = computeDayLabelWidthScale(dayWidthDp)
 
         val heightScaleFactor = when {
-            heightDp < 150f -> 1.0f
+            heightDp < 150f -> 0.92f
             heightDp < 250f -> 1.0f
             else -> 1.05f
         }
@@ -221,11 +245,11 @@ object DailyForecastGraphRenderer {
         val topPadding = dpToPx(context, TOP_PADDING_DP * scaleFactor * labelScale)
 
         val dayLabelScale = labelScale * dayLabelWidthScale
-        val dayLabelHeight = dpToPx(context, 15f * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_SCALE)
+        val dayLabelHeight = dpToPx(context, DAY_LABEL_BASE_SIZE_DP * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_SCALE)
         val tempLabelHeight = dailyForecastTempLabelSizePx(context, heightScaleFactor, bitmapScale)
 
-        val iconSize = dpToPx(context, 36f * labelScale).toInt()
-        val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, 4f * labelScale)
+        val iconSize = dpToPx(context, ICON_BASE_SIZE_DP * labelScale).toInt()
+        val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, ICON_STACK_SPACING_DP * labelScale)
 
         val graphTop = topPadding
         val graphBottom = heightPx - dayLabelHeight - attachedStackHeight
@@ -249,12 +273,13 @@ object DailyForecastGraphRenderer {
             dayWidth = dayWidth,
             horizontalPadding = horizontalPadding,
             tripleBarOffset = dpToPx(context, 6f * scaleFactor * labelScale),
-            forecastBarOffset = barWidth * 1.2f,
+            forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
             tempLabelHeight = tempLabelHeight,
-            bulbRadius = tripleBarWidth * 1.2f, // Updated multiplier
-            bitmapScale = bitmapScale
+            bulbRadius = tripleBarWidth * BULB_RADIUS_SCALE,
+            bitmapScale = bitmapScale,
+            minBarHeightPx = dpToPx(context, MIN_BAR_HEIGHT_DP),
         )
     }
 
@@ -272,16 +297,16 @@ object DailyForecastGraphRenderer {
             barPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth),
             todayBarPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), barWidth),
             todayObservedRedPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth),
-            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = 75 },
+            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = GHOST_BAR_ALPHA },
             todayObservedRedBulbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor(COLOR_OBSERVED_RED)
                 style = Paint.Style.FILL
             },
             todaySnapshotYellowPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), tripleBarWidth),
             todayForecastBluePaint = createBarPaint(Color.parseColor(COLOR_FORECAST), tripleBarWidth),
-            historyBarPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), barWidth * 0.7f),
-            forecastBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.7f),
-            climateOverlayBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.8f).apply { alpha = 80 },
+            historyBarPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), barWidth * HISTORY_BAR_WIDTH_SCALE),
+            forecastBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * FORECAST_OVERLAY_WIDTH_SCALE),
+            climateOverlayBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * CLIMATE_OVERLAY_WIDTH_SCALE).apply { alpha = CLIMATE_OVERLAY_ALPHA },
             gapFallbackBarPaint = createBarPaint(Color.parseColor(COLOR_GAP_FALLBACK), barWidth),
             textPaint = createTextPaint(
                 Color.parseColor(COLOR_LABEL_GRAY),
@@ -293,9 +318,9 @@ object DailyForecastGraphRenderer {
                 true
             ),
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
-            pastTempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight * 0.9f),
+            pastTempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight * PAST_TEMP_SCALE),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
-            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 14.4f * scaleFactor * labelScale)),
+            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, RAIN_TEXT_SIZE_DP * scaleFactor * labelScale)),
             iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 colorFilter = PorterDuffColorFilter(Color.parseColor(COLOR_LABEL_GRAY), PorterDuff.Mode.SRC_IN)
             },
@@ -382,16 +407,16 @@ object DailyForecastGraphRenderer {
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?
     ) {
         val labelPaint = if (day.isToday) paints.todayTextPaint else paints.textPaint
-        canvas.drawText(day.label, centerX, layout.heightPx - 3f, labelPaint)
+        canvas.drawText(day.label, centerX, layout.heightPx - DAY_LABEL_BOTTOM_MARGIN_PX, labelPaint)
 
         val lowTemp = resolveBottomStackLow(day)
         val lowY = lowTemp?.let { layout.tempToY(it) }
 
         if (lowY != null) {
-            val iconY = lowY + dpToPx(context, 3f)
+            val iconY = lowY + dpToPx(context, ICON_BELOW_BAR_SPACING_DP)
             drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
 
-            val lowTempY = iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, 1f)
+            val lowTempY = iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, TEMP_LABEL_SPACING_DP)
             val lowLabelText = formatTempLabel(lowTemp, day.isToday || day.isPast)
             val tempPaint = when {
                 day.isToday -> paints.todayTempTextPaint
@@ -435,24 +460,19 @@ object DailyForecastGraphRenderer {
         if (day.isToday) {
             drawTodayTripleBar(canvas, context, day, centerX, highY, lowY, layout, paints, onBarDrawn)
         } else if (highY != null || lowY != null) {
+            val (hY, effectiveLowY) = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx)!!
             val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
             val paint = when {
-                day.isPast -> Paint(paints.historyBarPaint)
-                day.isSourceGapFallback -> Paint(paints.gapFallbackBarPaint)
-                else -> Paint(paints.barPaint).apply { color = condColor }
+                day.isPast -> paints.historyBarPaint
+                day.isSourceGapFallback -> paints.gapFallbackBarPaint
+                else -> paints.barPaint.also { it.color = condColor }
             }
             
-            val minBarHeight = dpToPx(context, MIN_BAR_HEIGHT_DP)
-            val hY = highY ?: (lowY!! - minBarHeight)
-            val lY = lowY ?: (highY!! + minBarHeight)
-            val effectiveLowY = if (abs(hY - lY) < minBarHeight) hY + minBarHeight else lY
-
-            val colorHex = String.format("#%08X", paint.color)
             val usesAdaptiveSegments = !day.isPast && day.isMixed && day.iconRes != null
             Log.d(TAG, "Bar color decision: date=${day.date}" +
                 " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                 " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                " color=$colorHex gradient=$usesAdaptiveSegments cloudRatioOverride=${day.cloudCoverRatioOverride}")
+                " color=${String.format("#%08X", paint.color)} gradient=$usesAdaptiveSegments cloudRatioOverride=${day.cloudCoverRatioOverride}")
             drawWeatherAdaptiveBar(
                 canvas = canvas,
                 centerX = centerX,
@@ -469,22 +489,20 @@ object DailyForecastGraphRenderer {
         if (!day.isToday && day.forecastHigh != null && day.forecastLow != null) {
             val fHighY = layout.tempToY(day.forecastHigh)
             val fLowY = layout.tempToY(day.forecastLow)
-            val minBarHeight = dpToPx(context, MIN_BAR_HEIGHT_DP)
-            val effectiveFLowY = if (abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
+            val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
             
             val forecastX = centerX + layout.forecastBarOffset
             val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
             val overlayPaint = if (day.isClimateNormal) {
-                Paint(paints.climateOverlayBarPaint).apply { color = condColor; alpha = 80 }
+                paints.climateOverlayBarPaint.also { it.color = condColor; it.alpha = CLIMATE_OVERLAY_ALPHA }
             } else {
-                Paint(paints.forecastBarPaint).apply { color = condColor }
+                paints.forecastBarPaint.also { it.color = condColor }
             }
             val overlayGradient = day.isMixed && day.iconRes != null
-            val overlayColorHex = String.format("#%08X", condColor)
             Log.d(TAG, "Overlay color decision: date=${day.date}" +
                 " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
                 " isMixed=${day.isMixed} iconRes=${day.iconRes}" +
-                " color=$overlayColorHex gradient=$overlayGradient cloudRatioOverride=${day.cloudCoverRatioOverride}" +
+                " color=${String.format("#%08X", condColor)} gradient=$overlayGradient cloudRatioOverride=${day.cloudCoverRatioOverride}" +
                 " isClimateNormal=${day.isClimateNormal}")
             drawWeatherAdaptiveBar(
                 canvas = canvas,
@@ -501,7 +519,7 @@ object DailyForecastGraphRenderer {
         if (day.high != null) {
             val displayHigh = day.effectiveHigh() ?: day.high
             val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
-            val y = highY ?: (lowY?.let { it - dpToPx(context, MIN_BAR_HEIGHT_DP) } ?: 0f)
+            val y = highY ?: (lowY?.let { it - layout.minBarHeightPx } ?: 0f)
             val labelY = if (day.isToday) {
                 val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: 0f
                 layout.tempToY(absoluteHigh)
@@ -511,7 +529,7 @@ object DailyForecastGraphRenderer {
                 day.isPast -> paints.pastTempTextPaint
                 else -> paints.tempTextPaint
             }
-            canvas.drawText(highLabel, centerX, labelY - dpToPx(context, 6f * layout.scaleFactor), tempPaint)
+            canvas.drawText(highLabel, centerX, labelY - dpToPx(context, HIGH_LABEL_OFFSET_DP * layout.scaleFactor), tempPaint)
         }
     }
 
@@ -526,17 +544,13 @@ object DailyForecastGraphRenderer {
         paints: PaintSet,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?
     ) {
-        val minBarHeight = dpToPx(context, MIN_BAR_HEIGHT_DP)
-        
-        val obsHighY = highY ?: (lowY?.let { it - minBarHeight } ?: return)
-        val obsLowY = lowY ?: (highY!! + minBarHeight)
-        val effectiveObsLowY = if (abs(obsHighY - obsLowY) < minBarHeight) obsHighY + minBarHeight else obsLowY
-        
+        val (obsHighY, effectiveObsLowY) = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx) ?: return
+
         day.snapshotHigh?.let { sHigh ->
             day.snapshotLow?.let { sLow ->
                 val sHighY = layout.tempToY(sHigh)
                 val sLowY = layout.tempToY(sLow)
-                val effectiveSLowY = if (abs(sHighY - sLowY) < minBarHeight) sHighY + minBarHeight else sLowY
+                val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
                 canvas.drawLine(centerX - layout.tripleBarOffset, sHighY, centerX - layout.tripleBarOffset, effectiveSLowY, paints.todaySnapshotYellowPaint)
             }
         }
@@ -545,10 +559,10 @@ object DailyForecastGraphRenderer {
         val fLow = day.forecastLow ?: day.low ?: return
         val fHighY = layout.tempToY(fHigh)
         val fLowY = layout.tempToY(fLow)
-        val effectiveFLowY = if (abs(fHighY - fLowY) < minBarHeight) fHighY + minBarHeight else fLowY
+        val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
         
         val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-        val forecastPaint = Paint(paints.todayForecastBluePaint).apply { color = condColor }
+        val forecastPaint = paints.todayForecastBluePaint.also { it.color = condColor }
         val todayForecastX = centerX + layout.tripleBarOffset
         drawWeatherAdaptiveBar(
             canvas = canvas,
@@ -561,7 +575,7 @@ object DailyForecastGraphRenderer {
         )
 
         canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)
-        canvas.drawCircle(centerX, effectiveObsLowY + (layout.bulbRadius * 0.5f), layout.bulbRadius, paints.todayObservedRedBulbPaint)
+        canvas.drawCircle(centerX, effectiveObsLowY + (layout.bulbRadius * BULB_VERTICAL_CENTER_FRACTION), layout.bulbRadius, paints.todayObservedRedBulbPaint)
         
         day.trueActualHigh?.let { trueHigh ->
             val obsHighTemp = day.high ?: 0f
@@ -574,6 +588,8 @@ object DailyForecastGraphRenderer {
         
         onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY", obsHighY, effectiveObsLowY, centerX, paints.todayObservedRedPaint.color))
     }
+
+    // ── Rain labels ────────────────────────────────────────────────────────
 
     private fun drawDailyRainLabel(
         canvas: Canvas,
@@ -589,16 +605,16 @@ object DailyForecastGraphRenderer {
         val localRainPaint = createScaledRainPaint(context, paints, day, day.dailyPrecipProbability, "day")
 
         val textWidth = localRainPaint.measureText(rainText)
-        val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
+        val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
         if (textWidth > maxTextWidth) {
             Log.d(TAG, "rainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
             return
         }
 
         val metrics = localRainPaint.fontMetrics
-        val topMargin = dpToPx(context, 2f * layout.scaleFactor)
-        val spacing = dpToPx(context, 11f * layout.scaleFactor)
-        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
+        val topMargin = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.scaleFactor)
+        val spacing = dpToPx(context, RAIN_LABEL_SPACING_DP * layout.scaleFactor)
+        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.scaleFactor)
 
         resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
             val aboveBaseline = highBaseline - spacing
@@ -642,7 +658,7 @@ object DailyForecastGraphRenderer {
         val localRainPaint = createScaledRainPaint(context, paints, day, day.nighttimePrecipProbability, "night")
 
         val textWidth = localRainPaint.measureText(rainText)
-        val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
+        val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
         if (textWidth > maxTextWidth) {
             Log.d(TAG, "nightRainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
             return
@@ -657,10 +673,10 @@ object DailyForecastGraphRenderer {
         val metrics = localRainPaint.fontMetrics
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
-        val spacing = dpToPx(context, 2f * layout.scaleFactor)
+        val spacing = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.scaleFactor)
         val topY = lowBaseline + tempMetrics.descent + spacing
         val baseline = topY - metrics.ascent
-        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
+        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.scaleFactor)
 
         if (baseline + metrics.descent <= bottomLimit) {
             canvas.drawText(rainText, centerX, baseline, localRainPaint)
@@ -690,6 +706,8 @@ object DailyForecastGraphRenderer {
         }
     }
 
+    // ── Baseline resolvers (shared by bars and rain labels) ────────────────
+
     private fun resolveHighLabelBaseline(
         context: Context,
         day: DayData,
@@ -698,7 +716,7 @@ object DailyForecastGraphRenderer {
         day.high ?: return null
         val absoluteHigh = day.effectiveHigh() ?: return null
         val labelY = layout.tempToY(absoluteHigh)
-        return labelY - dpToPx(context, 6f * layout.scaleFactor)
+        return labelY - dpToPx(context, HIGH_LABEL_OFFSET_DP * layout.scaleFactor)
     }
 
     private fun resolveLowLabelBaseline(
@@ -708,9 +726,11 @@ object DailyForecastGraphRenderer {
     ): Float? {
         val lowTemp = resolveBottomStackLow(day) ?: return null
         val lowY = layout.tempToY(lowTemp)
-        val iconY = lowY + dpToPx(context, 3f)
-        return iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, 1f)
+        val iconY = lowY + dpToPx(context, ICON_BELOW_BAR_SPACING_DP)
+        return iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, TEMP_LABEL_SPACING_DP)
     }
+
+    // ── Utility ───────────────────────────────────────────────────────────
 
     internal fun resolveBottomStackLow(day: DayData): Float? = day.bottomStackLow ?: day.low
 
@@ -752,8 +772,17 @@ object DailyForecastGraphRenderer {
         return dpToPx(context, TODAY_TRIPLE_BAR_WIDTH_DP * scaleFactor * labelScale)
     }
 
-    private fun formatTempLabel(actual: Float, allowDecimals: Boolean): String {
-        if (!allowDecimals) return "${actual.roundToInt()}°"
+    private fun clampMinBarHeight(highY: Float, lowY: Float, minBarHeight: Float): Float =
+        if (abs(highY - lowY) < minBarHeight) highY + minBarHeight else lowY
+
+    private fun resolveBarEndpoints(highY: Float?, lowY: Float?, minBarHeight: Float): Pair<Float, Float>? {
+        val hY = highY ?: (lowY?.let { it - minBarHeight }) ?: return null
+        val lY = lowY ?: (hY + minBarHeight)
+        return hY to clampMinBarHeight(hY, lY, minBarHeight)
+    }
+
+    private fun formatTempLabel(actual: Float, isActualData: Boolean): String {
+        if (!isActualData) return "${actual.roundToInt()}°"
         val rounded = actual.roundToInt()
         return if (kotlin.math.abs(actual - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", actual)
     }

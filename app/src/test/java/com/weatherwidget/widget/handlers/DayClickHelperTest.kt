@@ -115,6 +115,14 @@ class DayClickHelperTest {
     }
 
     @Test
+    fun `bottom row mostly clear day without rain navigates to cloud cover`() {
+        assertEquals(
+            ViewMode.CLOUD_COVER,
+            DayClickHelper.resolveBottomRowTargetViewMode(R.drawable.ic_weather_mostly_clear),
+        )
+    }
+
+    @Test
     fun `bottom row clear day without rain navigates to temperature`() {
         assertEquals(
             com.weatherwidget.widget.ViewMode.TEMPERATURE,

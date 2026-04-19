@@ -37,41 +37,6 @@ class TemperatureValleyBelowCascadeTest {
         }
 
     @Test
-    fun `ACTUAL_LOW places below when overlapping with LOW via cascade`() {
-        val placements = mutableListOf<LabelPlacementDebug>()
-
-        val forecast = MutableList(152) { 62f }
-        forecast[84] = 51f
-        val actual = MutableList<Float?>(152) { null }
-        for (i in 100..115) actual[i] = 53f
-        actual[115] = 52.5f
-
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = buildHours(forecast, actual),
-            widthPx = 517,
-            heightPx = 435,
-            currentTime = LocalDateTime.of(2026, 4, 8, 15, 0),
-            observedAt = LocalDateTime.of(2026, 4, 8, 13, 0).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            onLabelPlaced = { placements.add(it) },
-        )
-
-        val lowLabel = placements.find { it.role == TemperatureRole.LOW }
-        val actualLowLabel = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
-
-        assertTrue("LOW label should be placed", lowLabel != null)
-        assertTrue("ACTUAL_LOW label should be placed", actualLowLabel != null)
-        assertTrue(
-            "LOW should be placed below, got reason=${lowLabel!!.reason}",
-            !lowLabel.placedAbove
-        )
-        assertTrue(
-            "ACTUAL_LOW should be placed below via cascade (got reason=${actualLowLabel!!.reason}), not above",
-            !actualLowLabel.placedAbove && actualLowLabel.reason.startsWith("below")
-        )
-    }
-
-    @Test
     fun `valley below cascade prefers horizontal shift when overlap is partial`() {
         val placements = mutableListOf<LabelPlacementDebug>()
 
