@@ -335,8 +335,11 @@ object TemperatureGraphRenderer {
                     val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
                     val labelOverlap = if (overlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnLabelBounds) else 0f
                     val iconOverlap = if (overlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnIconBounds) else 0f
+                    
+                    val currentIconRatio = if (!placeAbove && placement.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
+                    
                     val allowMinorLabelOverlap = overlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
-                    val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, iconOverlap, labelHeight)
+                    val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
                     val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap)
                     
                     if (placement.isEssential && forceBounds == null) { 
@@ -356,7 +359,11 @@ object TemperatureGraphRenderer {
                         val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                         val reasonBase = if (!placeAbove) "below" else "above"
                         val reason = if (step > 0) "$reasonBase+$step" else reasonBase
-                        ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step))
+                        val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step)
+                        if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+                            Log.d(TAG, "LabelPlacementDebug: $debug")
+                        }
+                        ctx.onLabelPlaced?.invoke(debug)
                         placed = true
                         break@outer
                     }
@@ -370,7 +377,11 @@ object TemperatureGraphRenderer {
                 ctx.canvas.drawText(placement.label, placement.clampedX, forceBaselineY, placement.labelPaint)
                 drawnLabelBounds.add(forceBounds)
                 val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-                ctx.onLabelPlaced?.invoke(LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep))
+                val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
+                if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+                    Log.d(TAG, "LabelPlacementDebug: $debugForced")
+                }
+                ctx.onLabelPlaced?.invoke(debugForced)
             }
         }
         ctx.drawnLabelBounds.addAll(drawnLabelBounds)

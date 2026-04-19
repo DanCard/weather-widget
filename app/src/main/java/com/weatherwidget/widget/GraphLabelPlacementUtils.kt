@@ -259,6 +259,7 @@ object GraphLabelPlacementUtils {
     }
 
     const val MINOR_OVERLAP_HEIGHT_RATIO = 0.45f
+    const val MINOR_OVERLAP_ICON_RATIO = 0.85f
 
     fun isMinorOverlapEligible(role: TemperatureRole): Boolean =
         role in setOf(

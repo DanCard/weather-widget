@@ -457,15 +457,15 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         )
 
         val lowLabel = placements.find { it.role == TemperatureRole.LOW }
-        if (lowLabel == null || !lowLabel.placedAbove) {
+        if (lowLabel == null || lowLabel.placedAbove) {
             println("Placements: $placements")
         }
-        assertNotNull("LOW label should be present even if it collides, as long as it's on-screen. Placements=$placements", lowLabel)
+        assertNotNull("LOW label should be present. Placements=$placements", lowLabel)
 
         // preferred (below) is off-screen.
         // With footer separation in place, fallback (above) should now fit without needing a forced collision placement.
-        assertTrue("Expected label above line", lowLabel!!.placedAbove)
-        assertEquals("above", lowLabel.reason)
+        assertFalse("Expected label below line due to relaxed icon collision", lowLabel!!.placedAbove)
+        assertTrue("Expected reason to be below", lowLabel.reason.startsWith("below"))
     }
 
     @Test
@@ -857,6 +857,50 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             "Expected higher temperature (64) to have a smaller Y (higher on screen) than lower temperature (62). " +
             "actualHigh.y=${actualHigh!!.y} (temp=${actualHigh.temperature}) vs forecastHigh.y=${forecastHigh!!.y} (temp=${forecastHigh.temperature})",
             actualHigh.y < forecastHigh.y
+        )
+    }
+
+    @Test
+    fun `actual low label stays below dip even with significant icon overlap`() {
+        val start = LocalDateTime.of(2026, 4, 19, 10, 0)
+        
+        // 20-hour span. Sharp dip at idx 10 (40 degrees).
+        // Rest of the graph is at 80 degrees to force a large range and push the 40-degree point 
+        // to the very bottom of the graph.
+        val hours = (0 until 20).map { i ->
+            val actualTemp = if (i == 10) 40f else 80f
+            HourData(
+                dateTime = start.plusHours(i.toLong()),
+                temperature = 80f,
+                actualTemperature = actualTemp,
+                isActual = true,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                iconRes = com.weatherwidget.R.drawable.ic_weather_clear // Add icon to trigger collision
+            )
+        }
+
+        val placements = mutableListOf<LabelPlacementDebug>()
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 400, // Standard height
+            currentTime = start.plusHours(12),
+            onLabelPlaced = { placements.add(it) }
+        )
+
+        val actualLow = placements.find { it.role == TemperatureRole.ACTUAL_LOW }
+        assertNotNull("Expected ACTUAL_LOW label to be placed", actualLow)
+        
+        // Before the fix, this label might have been pushed above due to >45% icon overlap.
+        // After the fix, it should stay below.
+        assertFalse(
+            "ACTUAL_LOW label should be placed BELOW the dip. placement=$actualLow",
+            actualLow!!.placedAbove
+        )
+        assertTrue(
+            "ACTUAL_LOW label should have some displacement steps if it's hitting icons but stay below",
+            actualLow.reason.startsWith("below")
         )
     }
 }
