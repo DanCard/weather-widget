@@ -1,7 +1,9 @@
 package com.weatherwidget.widget
 
 import android.content.Context
+import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import com.weatherwidget.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -199,6 +201,39 @@ class DailyForecastGraphRendererRoboTest {
         assertTrue(
             "Expected HISTORY bar type for past day",
             bars.any { it.date == feb01 && it.barType == "HISTORY" },
+        )
+    }
+
+    @Test
+    fun renderGraph_historyMixedIcon_drawsActualRangeSolidRed() {
+        val feb01 = LocalDate.of(2026, 2, 1)
+        val bars = render(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = feb01,
+                    label = "Sat",
+                    high = 65f,
+                    low = 45f,
+                    iconRes = R.drawable.ic_weather_mostly_clear,
+                    isSunny = true,
+                    isMixed = true,
+                    isPast = true,
+                ),
+            ),
+            widthPx = 300,
+            heightPx = 240,
+        )
+
+        val historyBar = bars.first { it.date == feb01 && it.barType == "HISTORY" }
+
+        assertEquals(
+            "Past actual range should use observed red",
+            Color.parseColor("#FF3366"),
+            historyBar.color,
+        )
+        assertFalse(
+            "Past actual range should not use mixed-weather adaptive segments",
+            historyBar.adaptiveSegments,
         )
     }
 

@@ -858,17 +858,6 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- Current temperature touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/current_temp_zone"
-        android:layout_width="96dp"
-        android:layout_height="72dp"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
     <!-- Shared graph bottom tap zone for hourly views -->
     <FrameLayout
         android:id="@+id/graph_bottom_zone"
@@ -974,19 +963,6 @@
             android:background="@android:color/transparent"
             android:visibility="gone" />
     </LinearLayout>
-
-    <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/precip_touch_zone"
-        android:layout_width="52dp"
-        android:layout_height="40dp"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="92dp"
-        android:layout_marginTop="4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
 
     <!-- Current temperature and weather icon - positioned in top-left corner -->
     <LinearLayout
@@ -1148,18 +1124,6 @@
 
     </FrameLayout>
 
-    <!-- Enlarged API touch zone to catch near-miss taps below the header label -->
-    <FrameLayout
-        android:id="@+id/api_touch_zone"
-        android:layout_width="112dp"
-        android:layout_height="96dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-4dp"
-        android:layout_marginEnd="20dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
     <LinearLayout
         android:id="@+id/widget_warning_container"
         android:layout_width="match_parent"
@@ -1250,45 +1214,7 @@
         android:contentDescription="Current Stations"
         android:visibility="gone" />
 
-    <!-- Larger home touch target -->
-    <FrameLayout
-        android:id="@+id/home_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
-
-    <!-- Larger history touch target -->
-    <FrameLayout
-        android:id="@+id/history_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginStart="44dp"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
-
-    <!-- Larger current stations touch target -->
-    <FrameLayout
-        android:id="@+id/current_stations_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginEnd="44dp"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
-
-    <!-- Navigation touch zones - declared last for highest touch priority over all overlays -->
+    <!-- Navigation touch zones - declared before header zones so header zones win taps in the top area -->
     <FrameLayout
         android:id="@+id/nav_left_zone"
         android:layout_width="40dp"
@@ -1307,7 +1233,7 @@
         android:clickable="true"
         android:focusable="true" />
 
-    <!-- Navigation arrows - declared last for highest touch priority, widened with padding for larger hit area -->
+    <!-- Navigation arrows - widened with padding for larger hit area -->
     <ImageButton
         android:id="@+id/nav_left"
         android:layout_width="40dp"
@@ -1349,11 +1275,87 @@
         android:tint="#AAFFFFFF"
         android:visibility="visible" />
 
+    <!-- Header Touch Targets - Declared last for highest touch priority -->
+
+    <!-- Current temperature touch zone - invisible overlay for larger touch target -->
+    <FrameLayout
+        android:id="@+id/current_temp_zone"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
+    <FrameLayout
+        android:id="@+id/precip_touch_zone"
+        android:layout_width="52dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="92dp"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Home icon touch zone -->
+    <FrameLayout
+        android:id="@+id/home_touch_zone"
+        android:layout_width="48dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- History icon touch zone -->
+    <FrameLayout
+        android:id="@+id/history_touch_zone"
+        android:layout_width="48dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginStart="44dp"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Current stations icon touch zone -->
+    <FrameLayout
+        android:id="@+id/current_stations_touch_zone"
+        android:layout_width="48dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginEnd="44dp"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Enlarged API touch zone to catch near-miss taps below the header label -->
+    <FrameLayout
+        android:id="@+id/api_touch_zone"
+        android:layout_width="112dp"
+        android:layout_height="96dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="20dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
+
     <!-- Larger settings touch target -->
     <FrameLayout
         android:id="@+id/settings_touch_zone"
         android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_height="96dp"
         android:layout_gravity="top|end"
         android:layout_marginTop="-2dp"
         android:layout_marginEnd="-2dp"
