@@ -342,6 +342,20 @@ for bucket in "${BUCKETS[@]}"; do
   fi
 done
 
+if [ "$INSTALL_MODE" = true ]; then
+  if grep -q "> Task :app:installDebug FAILED" "$gradle_log" 2>/dev/null; then
+    log_and_echo "${RED}Install debug APK: FAILED${NC}"
+  elif grep -q "Installing APK" "$gradle_log" 2>/dev/null; then
+    grep "Installing APK" "$gradle_log" | while IFS= read -r line; do
+      log_and_echo "$line"
+    done
+    device_count=$(grep -c "Installing APK" "$gradle_log" 2>/dev/null || echo "?")
+    log_and_echo "Installed debug APK to ${device_count} device(s)."
+  else
+    log_and_echo "${YELLOW}Install debug APK: no install output found${NC}"
+  fi
+fi
+
 overall_elapsed=$(( $(date +%s) - OVERALL_START ))
 if [ "$overall_status" -eq 0 ] && [ "$total_failures" -eq 0 ]; then
   log_and_echo "${total_tests} tests passed in $(format_seconds "$overall_elapsed")."
