@@ -39,7 +39,7 @@ object GraphLayout {
 
     fun computeLayout(context: Context, heightPx: Int, labelScale: Float): Layout {
         val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP)
-        val iconSize = dpToPx(context, 16f).toInt()
+        val iconSize = dpToPx(context, 22.4f).toInt()
         val labelHeight = dpToPx(context, 10f)
         val iconTopPad = dpToPx(context, 2f)
         val iconBottomPad = dpToPx(context, 1f)

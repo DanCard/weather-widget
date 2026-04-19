@@ -2,6 +2,7 @@ package com.weatherwidget.widget
 
 import androidx.test.core.app.ApplicationProvider
 import android.content.Context
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -67,14 +68,16 @@ class HourlyGraphDayLabelRobolectricTest {
         heightPx: Int = 300,
     ): List<DayLabelPlacementDebug> {
         val results = mutableListOf<DayLabelPlacementDebug>()
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            currentTime = currentTime,
-            onDayLabelPlaced = { results.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                currentTime = currentTime,
+                onDayLabelPlaced = { results.add(it) },
+            )
+        }
         return results
     }
 
@@ -85,14 +88,16 @@ class HourlyGraphDayLabelRobolectricTest {
         heightPx: Int = 300,
     ): List<PrecipitationGraphRenderer.DayLabelPlacementDebug> {
         val results = mutableListOf<PrecipitationGraphRenderer.DayLabelPlacementDebug>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            currentTime = currentTime,
-            onDayLabelPlaced = { results.add(it) },
-        )
+        runBlocking {
+            PrecipitationGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                currentTime = currentTime,
+                onDayLabelPlaced = { results.add(it) },
+            )
+        }
         return results
     }
 

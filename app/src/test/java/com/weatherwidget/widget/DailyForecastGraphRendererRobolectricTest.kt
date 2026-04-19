@@ -15,6 +15,7 @@ import io.mockk.mockkConstructor
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -67,23 +68,25 @@ class DailyForecastGraphRendererRobolectricTest {
             Unit
         }
 
-        DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = listOf(
-                DailyForecastGraphRenderer.DayData(
-                    date = LocalDate.of(2026, 4, 19),
-                    label = "Sat",
-                    high = 76f,
-                    low = 46f,
-                    iconRes = iconRes,
-                    isSunny = true,
-                    isMixed = true,
-                    cloudCoverRatioOverride = cloudCoverRatioOverride,
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = listOf(
+                    DailyForecastGraphRenderer.DayData(
+                        date = LocalDate.of(2026, 4, 19),
+                        label = "Sat",
+                        high = 76f,
+                        low = 46f,
+                        iconRes = iconRes,
+                        isSunny = true,
+                        isMixed = true,
+                        cloudCoverRatioOverride = cloudCoverRatioOverride,
+                    ),
                 ),
-            ),
-            widthPx = 240,
-            heightPx = 360,
-        )
+                widthPx = 240,
+                heightPx = 360,
+            )
+        }
 
         return paintColors
     }

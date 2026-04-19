@@ -161,7 +161,8 @@ class WeatherWidgetWorker
                         val afterActualsMs = SystemClock.elapsedRealtime()
 
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
+                        val jobType = if (uiOnlyRefresh) WidgetUpdateTracker.JobType.UI_PAINT else WidgetUpdateTracker.JobType.BACKGROUND_SYNC
+                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, jobType)
                         val afterUpdateMs = SystemClock.elapsedRealtime()
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_done uiOnly=$uiOnlyRefresh elapsedMs=${afterUpdateMs - afterActualsMs}")
 
@@ -283,6 +284,7 @@ class WeatherWidgetWorker
             hourlyForecasts: List<HourlyForecastEntity>,
             currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
             dailyActuals: DailyActualsBySource = emptyMap(),
+            jobType: WidgetUpdateTracker.JobType = WidgetUpdateTracker.JobType.BACKGROUND_SYNC,
         ) = coroutineScope {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
@@ -302,7 +304,7 @@ class WeatherWidgetWorker
                         repository = weatherRepository
                     )
                 }
-                WidgetUpdateTracker.trackJob(appWidgetId, job)
+                WidgetUpdateTracker.trackJob(appWidgetId, job, jobType)
             }
         }
 
@@ -461,7 +463,7 @@ class WeatherWidgetWorker
                         val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
                             latitude, longitude, todayStartMs,
                         )
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
+                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC)
                         Result.success()
                     },
                     onFailure = { e ->
@@ -496,7 +498,7 @@ class WeatherWidgetWorker
                 location.second,
                 todayStartMs2,
             )
-            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals)
+            updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC)
         }
 
         private suspend fun manageCurrentTempLoopAfterRun(

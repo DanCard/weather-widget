@@ -12,10 +12,10 @@ import kotlin.math.round
 object TemperatureGraphStyle {
     private const val TAG = "TempGraphStyle"
 
-    const val TEMP_LABEL_SIZE_DP = 19.5f
+    const val TEMP_LABEL_SIZE_DP = 23f
     const val NOW_LABEL_SIZE_DP = 15.5f
-    const val DAY_LABEL_SIZE_DP = 19.5f
-    const val VALUE_LABEL_SIZE_DP = 19.5f
+    const val DAY_LABEL_SIZE_DP = 23f
+    const val VALUE_LABEL_SIZE_DP = 23f
     const val STALENESS_LABEL_SIZE_DP = 12f
     const val DOT_RADIUS_DP = 3.2f
     const val RING_STROKE_DP = 1.5f

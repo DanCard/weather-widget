@@ -8,6 +8,7 @@ import com.weatherwidget.test.category.MediumDuration
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
@@ -48,13 +49,15 @@ class CloudCoverGraphWatermarkTest {
         )
 
         // Run renderer
-        CloudCoverGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 500,
-            heightPx = 200,
-            currentTime = start
-        )
+        runBlocking {
+            CloudCoverGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 500,
+                heightPx = 200,
+                currentTime = start
+            )
+        }
 
         // Verify that ic_weather_mostly_cloudy was requested at least once
         verify {

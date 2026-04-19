@@ -35,7 +35,7 @@ class DailyForecastGraphRendererSizingTest {
 
         val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context)
 
-        assertEquals(20f * context.resources.displayMetrics.density, sizePx, 0.01f)
+        assertEquals(24f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
 
     @Test
@@ -44,7 +44,7 @@ class DailyForecastGraphRendererSizingTest {
 
         val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context, bitmapScale = 0.34f)
 
-        assertEquals(10f * context.resources.displayMetrics.density, sizePx, 0.01f)
+        assertEquals(12f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
 
     @Test
@@ -54,8 +54,8 @@ class DailyForecastGraphRendererSizingTest {
         val fullScale = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context)
         val downscaled = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context, bitmapScale = 0.34f)
 
-        assertEquals(6.5f * context.resources.displayMetrics.density, fullScale, 0.01f)
-        assertEquals(3.25f * context.resources.displayMetrics.density, downscaled, 0.01f)
+        assertEquals(9f * context.resources.displayMetrics.density, fullScale, 0.01f)
+        assertEquals(4.5f * context.resources.displayMetrics.density, downscaled, 0.01f)
     }
 
     @Test

@@ -89,7 +89,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
-        Log.d(TAG, "onUpdate: Updating ${appWidgetIds.size} widgets")
+        val now = SystemClock.elapsedRealtime()
+        val filteredIds = appWidgetIds.filter { id ->
+            val last = lastUpdateByWidgetId[id] ?: 0L
+            if (now - last < STARTUP_DEBOUNCE_MS) {
+                Log.d(TAG, "onUpdate: Debouncing duplicate update for widget $id")
+                false
+            } else {
+                lastUpdateByWidgetId[id] = now
+                true
+            }
+        }.toIntArray()
+
+        if (filteredIds.isEmpty()) return
+
+        Log.d(TAG, "onUpdate: Updating ${filteredIds.size} widgets")
 
         val startupToken = WidgetPerfLogger.newToken("startup")
         val onUpdateStartMs = SystemClock.elapsedRealtime()
@@ -130,15 +144,15 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 var staleCheckMs = 0L
                 val stateManager = WidgetStateManager(context)
                 val widgetViewModes =
-                    appWidgetIds
+                    filteredIds
                         .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                         .associateWith { stateManager.getViewMode(it) }
                 val needsDailyData = needsDailyStartupData(widgetViewModes.values)
-                appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${appWidgetIds.size} thread=${Thread.currentThread().name}")
+                appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${filteredIds.size} thread=${Thread.currentThread().name}")
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
-                    for (appWidgetId in appWidgetIds) {
+                    for (appWidgetId in filteredIds) {
                         WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
                     }
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
@@ -169,10 +183,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         }
 
                     // Get hourly forecasts for interpolation and rain analysis
-                    val now = LocalDateTime.now()
+                    val nowLocal = LocalDateTime.now()
                     val zoneId = ZoneId.systemDefault()
-                    val hourlyStart = now.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                    val hourlyEnd = now.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyStart = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyEnd = nowLocal.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
                     val hourlyQueryStartMs = SystemClock.elapsedRealtime()
                     val hourlyForecasts =
                         hourlyDao.getHourlyForecasts(
@@ -184,7 +198,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
 
                     val currentTempQueryStartMs = SystemClock.elapsedRealtime()
-                    val querySinceMs = now.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                    val querySinceMs = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     val currentTemps = repository.getMainObservationsWithComputedNwsBlend(
                         latestWeather.locationLat,
                         latestWeather.locationLon,
@@ -205,7 +219,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                             emptyMap()
                         }
 
-                    for (appWidgetId in appWidgetIds) {
+                    for (appWidgetId in filteredIds) {
                         val job = launch {
                             WidgetRenderer.updateWidgetWithData(
                                 context = context,
@@ -220,7 +234,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                                 startupToken = startupToken,
                             )
                         }
-                        WidgetUpdateTracker.trackJob(appWidgetId, job)
+                        WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.UI_PAINT)
                     }
 
                     // 2. Check if data is stale and needs background fetch
@@ -247,7 +261,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     appLogTag = WidgetPerfLogger.TAG_WIDGET_STARTUP_PERF,
                     message = WidgetPerfLogger.kv(
                         "token" to startupToken,
-                        "widgets" to appWidgetIds.size,
+                        "widgets" to filteredIds.size,
                         "dbOpenMs" to dbOpenMs,
                         "latestWeatherMs" to latestWeatherMs,
                         "forecastMs" to forecastQueryMs,
@@ -282,7 +296,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val job = launchAsync {
             WidgetIntentRouter.handleResize(context, appWidgetId, repository)
         }
-        WidgetUpdateTracker.trackJob(appWidgetId, job)
+        WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.INTERACTION)
     }
 
     override fun onEnabled(context: Context) {
@@ -728,6 +742,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
         const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
         const val WORK_NAME_NWS_TERMINAL_CATCHUP = "weather_widget_nws_terminal_catch_up"
+
+        private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+        private const val STARTUP_DEBOUNCE_MS = 500L
+
         const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
         const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
         const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"

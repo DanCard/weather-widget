@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.handlers.DailyViewLogic
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -63,15 +64,17 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
-        DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 800,
-            heightPx = 300,
-            bitmapScale = 1f,
-            numColumns = days.size,
-            onBarDrawn = drawnBars::add,
-        )
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 800,
+                heightPx = 300,
+                bitmapScale = 1f,
+                numColumns = days.size,
+                onBarDrawn = drawnBars::add,
+            )
+        }
 
         val providerBar = drawnBars.single { it.date == tomorrow && it.barType == "FUTURE" }
         val fallbackBar = drawnBars.single { it.date == dayAfterTomorrow && it.barType == "FUTURE" }
@@ -129,15 +132,17 @@ class DailyGapFallbackGraphIntegrationTest {
         assertEquals(54f, yesterdayDay.forecastLow)
 
         val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
-        DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = 600,
-            heightPx = 300,
-            bitmapScale = 1f,
-            numColumns = days.size,
-            onBarDrawn = drawnBars::add,
-        )
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 600,
+                heightPx = 300,
+                bitmapScale = 1f,
+                numColumns = days.size,
+                onBarDrawn = drawnBars::add,
+            )
+        }
 
         assertTrue(
             "Expected forecast-history bar to render for yesterday when extremes are missing",
@@ -167,15 +172,17 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
-        DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = listOf(day),
-            widthPx = 400,
-            heightPx = 300,
-            bitmapScale = 1f,
-            numColumns = 1,
-            onBarDrawn = drawnBars::add,
-        )
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = listOf(day),
+                widthPx = 400,
+                heightPx = 300,
+                bitmapScale = 1f,
+                numColumns = 1,
+                onBarDrawn = drawnBars::add,
+            )
+        }
 
         val todayBar = drawnBars.single { it.date == today && it.barType == "TODAY" }
         assertEquals(-52378, todayBar.color)
@@ -218,15 +225,17 @@ class DailyGapFallbackGraphIntegrationTest {
             )
 
             val rainLabels = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
-            DailyForecastGraphRenderer.renderGraph(
-                context = context,
-                days = days,
-                widthPx = 400,
-                heightPx = 300,
-                bitmapScale = 1f,
-                numColumns = days.size,
-                onRainLabelDrawn = rainLabels::add,
-            )
+            runBlocking {
+                DailyForecastGraphRenderer.renderGraph(
+                    context = context,
+                    days = days,
+                    widthPx = 400,
+                    heightPx = 300,
+                    bitmapScale = 1f,
+                    numColumns = days.size,
+                    onRainLabelDrawn = rainLabels::add,
+                )
+            }
 
             val tomorrow = today.plusDays(1)
             val amountLabel = rainLabels.single { it.date == tomorrow }

@@ -3,6 +3,8 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.graphics.*
 import android.util.Log
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.time.LocalDateTime
 import java.time.Instant
 import java.time.Duration
@@ -43,7 +45,7 @@ object TemperatureGraphRenderer {
         alphaBottom: Int = 255,
     ): LinearGradient = TemperatureGraphStyle.buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange, alphaTop, alphaBottom)
 
-    private fun computePoints(
+    private suspend fun computePoints(
         hours: List<HourData>,
         minTemp: Float,
         tempRange: Float,
@@ -59,6 +61,7 @@ object TemperatureGraphRenderer {
         widthPx: Int,
         onPointsResolved: ((PointsDebug) -> Unit)?,
     ): RenderContextUpdate {
+        currentCoroutineContext().ensureActive()
         val effectiveDelta = appliedDelta ?: 0f
         val smoothedForecastTemps = hours.map { it.temperature }
         val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
@@ -76,6 +79,7 @@ object TemperatureGraphRenderer {
         val expectedPoints = mutableListOf<Pair<Float, Float>>()
 
         hours.indices.forEach { index ->
+            currentCoroutineContext().ensureActive()
             val pointEpoch = hours[index].dateTime.toEpochSecond(ZoneOffset.UTC)
             val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
             val yTruth = TemperatureGraphStyle.tempToY(actualTemps[index], graphTop, graphHeight, minTemp, tempRange)
@@ -141,7 +145,7 @@ object TemperatureGraphRenderer {
         )
     }
 
-    private fun buildAnchoredActualPoints(
+    private suspend fun buildAnchoredActualPoints(
         originalPoints: List<Pair<Float, Float>>,
         transitionX: Float?,
         fetchDotX: Float?,
@@ -151,6 +155,7 @@ object TemperatureGraphRenderer {
         graphTop: Float,
         graphHeight: Float,
     ): List<Pair<Float, Float>> {
+        currentCoroutineContext().ensureActive()
         if (transitionX == null || originalPoints.isEmpty()) return emptyList()
 
         val anchoredToFetchDot = fetchDotX != null && abs(fetchDotX - transitionX) <= 0.5f && lastObservedTemp != null
@@ -592,7 +597,7 @@ object TemperatureGraphRenderer {
         return drawnBounds
     }
 
-    fun renderGraph(
+    suspend fun renderGraph(
         context: Context,
         hours: List<HourData>,
         widthPx: Int,
@@ -609,6 +614,7 @@ object TemperatureGraphRenderer {
         onPointsResolved: ((PointsDebug) -> Unit)? = null,
         onActualLineResolved: ((ActualLineDebug) -> Unit)? = null,
     ): Bitmap {
+        currentCoroutineContext().ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         if (hours.isEmpty()) {
@@ -639,6 +645,7 @@ object TemperatureGraphRenderer {
         )
         timings.mark("points")
 
+        currentCoroutineContext().ensureActive()
         val ctx = RenderContext.create(
             context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
             layout, hourWidth, minTimeEpoch, update, lastObservedTemp, appliedDelta, observedAt,

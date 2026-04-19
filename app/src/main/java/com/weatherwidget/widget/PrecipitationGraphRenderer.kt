@@ -5,6 +5,8 @@ import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
 import com.weatherwidget.R
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -77,7 +79,7 @@ object PrecipitationGraphRenderer {
         val yFrac: Float,
     )
 
-    fun renderGraph(
+    suspend fun renderGraph(
         context: Context,
         hours: List<PrecipHourData>,
         widthPx: Int,
@@ -96,6 +98,7 @@ object PrecipitationGraphRenderer {
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
     ): Bitmap {
+        currentCoroutineContext().ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 

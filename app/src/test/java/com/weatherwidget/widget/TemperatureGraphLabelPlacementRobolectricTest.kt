@@ -6,6 +6,7 @@ import android.graphics.Typeface
 import android.util.DisplayMetrics
 import android.util.TypedValue
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -46,14 +47,16 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     fun `peak falls back below when above placement would leave the screen`() {
         val placements = mutableListOf<LabelPlacementDebug>()
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = buildHours(listOf(0f, 50f, 98f, 50f, 0f)),
-            widthPx = 700,
-            heightPx = 24, // Keep small to force Above off-screen
-            currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = buildHours(listOf(0f, 50f, 98f, 50f, 0f)),
+                widthPx = 700,
+                heightPx = 24, // Keep small to force Above off-screen
+                currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         val highPlacement = placements.find { it.role == TemperatureRole.HIGH }
         if (highPlacement != null) {
@@ -69,15 +72,17 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val placements = mutableListOf<LabelPlacementDebug>()
         var points: PointsDebug? = null
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = buildHours(listOf(40f, 55f, 70f, 89f, 70f, 55f, 40f)),
-            widthPx = 700,
-            heightPx = 420,
-            currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
-            onLabelPlaced = { placements.add(it) },
-            onPointsResolved = { points = it },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = buildHours(listOf(40f, 55f, 70f, 89f, 70f, 55f, 40f)),
+                widthPx = 700,
+                heightPx = 420,
+                currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
+                onLabelPlaced = { placements.add(it) },
+                onPointsResolved = { points = it },
+            )
+        }
 
         val highPlacement = placements.find { it.role == TemperatureRole.HIGH }
         assertNotNull("Expected HIGH label to be drawn. placements=$placements", highPlacement)
@@ -86,7 +91,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val highPoint = requireNotNull(points).forecast[3]
         
         // Calculate font metrics exactly how the renderer's fallback does
-        val textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 19.5f, context.resources.displayMetrics)
+        val textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 23f, context.resources.displayMetrics)
         val fallbackDescent = textSize * 0.2f
         
         // In the renderer: baselineY = sy - aboveGap - labelDescent
@@ -122,14 +127,16 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             )
         }
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 700,
-            heightPx = 450,
-            currentTime = start.plusHours(14),
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 700,
+                heightPx = 450,
+                currentTime = start.plusHours(14),
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         val actualHigh = placements.find { it.role == TemperatureRole.ACTUAL_HIGH }
         val forecastHigh = placements.find { it.role == TemperatureRole.HIGH || it.role == TemperatureRole.FORECAST_HIGH || it.role == TemperatureRole.PAST_FORECAST_HIGH }
@@ -154,16 +161,18 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
             )
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 500,
-            heightPx = 450,
-            currentTime = start.plusHours(4),
-            observedAt = observedAtMs,
-            lastObservedTemp = 88.0f,
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 500,
+                heightPx = 450,
+                currentTime = start.plusHours(4),
+                observedAt = observedAtMs,
+                lastObservedTemp = 88.0f,
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         val endPlacement = placements.find { it.role == TemperatureRole.END }
         assertNotNull("Expected END label even when observedAt is on the final point. placements=$placements", endPlacement)
@@ -183,17 +192,19 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 HourData(dateTime = start.plusHours(3), temperature = 73.0f, label = "6p"),
             )
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 500,
-            heightPx = 450,
-            currentTime = start.plusHours(1),
-            observedAt = observedAtMs,
-            lastObservedTemp = 75.0f,
-            appliedDelta = 5.0f,
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 500,
+                heightPx = 450,
+                currentTime = start.plusHours(1),
+                observedAt = observedAtMs,
+                lastObservedTemp = 75.0f,
+                appliedDelta = 5.0f,
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         val endPlacement = placements.find { it.role == TemperatureRole.END }
         assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
@@ -206,14 +217,16 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     fun `end label is suppressed when same-index high already labels final point`() {
         val placements = mutableListOf<LabelPlacementDebug>()
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = buildHours(listOf(70f, 75f, 81f)),
-            widthPx = 500,
-            heightPx = 450,
-            currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = buildHours(listOf(70f, 75f, 81f)),
+                widthPx = 500,
+                heightPx = 450,
+                currentTime = LocalDateTime.of(2026, 3, 19, 12, 0),
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         assertNotNull("HIGH or END should label the final point. placements=$placements", placements.find { it.role == TemperatureRole.HIGH || it.role == TemperatureRole.END })
         assertNotNull("HIGH should remain when it already labels the final point. placements=$placements", placements.find { it.role == TemperatureRole.HIGH })
@@ -226,14 +239,16 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         // Monotonic rise from 50 to 70 over 20 hours
         val signal = (50..70).map { it.toFloat() }
         
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = buildHours(signal, start),
-            widthPx = 500,
-            heightPx = 400,
-            currentTime = start,
-            onLabelPlaced = { placements.add(it) }
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = buildHours(signal, start),
+                widthPx = 500,
+                heightPx = 400,
+                currentTime = start,
+                onLabelPlaced = { placements.add(it) }
+            )
+        }
 
         assertTrue("Should have at most 6 labels. Placed: ${placements.size}", placements.size <= 6)
         assertTrue("Should have START or LOW label at the beginning", placements.any { (it.role == TemperatureRole.START || it.role == TemperatureRole.LOW) && it.index == 0 })
@@ -258,16 +273,18 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 HourData(dateTime = start.plusHours(5), temperature = 57.0f, label = "8p"),
             )
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 584,
-            heightPx = 385,
-            currentTime = start.plusHours(1),
-            observedAt = observedAtMs,
-            lastObservedTemp = 82.0f,
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 584,
+                heightPx = 385,
+                currentTime = start.plusHours(1),
+                observedAt = observedAtMs,
+                lastObservedTemp = 82.0f,
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         val endPlacement = placements.find { it.role == TemperatureRole.END }
         assertNotNull("END should always be shown as an essential boundary marker. placements=$placements", endPlacement)
@@ -287,14 +304,16 @@ class TemperatureGraphLabelPlacementRobolectricTest {
                 HourData(dateTime = start.plusHours(4), temperature = 88.0f, label = "7p"),
             )
 
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 500,
-            heightPx = 450,
-            currentTime = start.plusHours(2),
-            onLabelPlaced = { placements.add(it) },
-        )
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 500,
+                heightPx = 450,
+                currentTime = start.plusHours(2),
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
 
         val actualEnd = placements.find { it.role == TemperatureRole.ACTUAL_END }
         assertNull("ACTUAL_END label should not be placed (fetch dot covers this)", actualEnd)
@@ -471,7 +490,7 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         val density = context.resources.displayMetrics.density
         fun dp(dp: Float): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, DisplayMetrics().apply { this.density = density })
 
-        val iconSize = dp(16f)
+        val iconSize = dp(22.4f)
         val labelHeight = dp(10f)
         val iconTopPad = dp(2f)
         val iconBottomPad = dp(1f)

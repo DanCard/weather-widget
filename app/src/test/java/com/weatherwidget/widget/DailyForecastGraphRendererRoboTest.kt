@@ -7,6 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -32,13 +33,15 @@ class DailyForecastGraphRendererRoboTest {
         heightPx: Int = 200,
     ): List<DailyForecastGraphRenderer.BarDrawnDebug> {
         val results = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            onBarDrawn = { results.add(it) },
-        )
+        val bitmap = runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                onBarDrawn = { results.add(it) },
+            )
+        }
         assertNotNull(bitmap)
         return results
     }
@@ -49,13 +52,15 @@ class DailyForecastGraphRendererRoboTest {
         heightPx: Int = 200,
     ): List<DailyForecastGraphRenderer.RainLabelDrawnDebug> {
         val results = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
-        val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            onRainLabelDrawn = { results.add(it) },
-        )
+        val bitmap = runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                onRainLabelDrawn = { results.add(it) },
+            )
+        }
         assertNotNull(bitmap)
         return results
     }
@@ -426,7 +431,9 @@ class DailyForecastGraphRendererRoboTest {
         // Initialize the paints with the SAME dimensions we will use for the test
         val width = 1000
         val height = 1000
-        DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 0f, low = 0f)), width, height)
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 0f, low = 0f)), width, height)
+        }
         val paintSet = cachedPaintSetField.get(null)
         assertNotNull(paintSet)
         
@@ -442,30 +449,34 @@ class DailyForecastGraphRendererRoboTest {
         var secondRenderCallbackFired = false
 
         // First call: mutate, then while mutated, call AGAIN
-        DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = days,
-            widthPx = width,
-            heightPx = height,
-            onRainLabelDrawn = {
-                firstRenderCallbackFired = true
-                // Inside the first render, the paint size SHOULD be mutated
-                sizeDuringFirstRender = rainPaint.textSize
-                
-                // CRITICAL: Call render AGAIN while the first one is still in its scaled state
-                DailyForecastGraphRenderer.renderGraph(
-                    context = context,
-                    days = days,
-                    widthPx = width,
-                    heightPx = height,
-                    onRainLabelDrawn = {
-                        secondRenderCallbackFired = true
-                        // If the bug exists, this second call will read the ALREADY SHRUNKEN size as its base
-                        sizeDuringSecondRender = rainPaint.textSize
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = width,
+                heightPx = height,
+                onRainLabelDrawn = {
+                    firstRenderCallbackFired = true
+                    // Inside the first render, the paint size SHOULD be mutated
+                    sizeDuringFirstRender = rainPaint.textSize
+                    
+                    // CRITICAL: Call render AGAIN while the first one is still in its scaled state
+                    runBlocking {
+                        DailyForecastGraphRenderer.renderGraph(
+                            context = context,
+                            days = days,
+                            widthPx = width,
+                            heightPx = height,
+                            onRainLabelDrawn = {
+                                secondRenderCallbackFired = true
+                                // If the bug exists, this second call will read the ALREADY SHRUNKEN size as its base
+                                sizeDuringSecondRender = rainPaint.textSize
+                            }
+                        )
                     }
-                )
-            }
-        )
+                }
+            )
+        }
 
         assertTrue("First render callback should have fired", firstRenderCallbackFired)
         assertTrue("Second render callback should have fired", secondRenderCallbackFired)

@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import android.content.Context
 import android.graphics.*
 import android.util.Log
@@ -38,9 +40,9 @@ object DailyForecastGraphRenderer {
     private const val TOP_DATE_TEXT_SIZE_NARROW_SP = 16f
     private const val TOP_DATE_TEXT_SIZE_WIDE_SP = 18f
     private const val NARROW_WIDGET_WIDTH_DP = 420f
-    private const val TEMP_LABEL_TEXT_SIZE_DP = 20f
+    private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
     private const val TOP_PADDING_DP = 44f
-    private const val FORECAST_BAR_WIDTH_DP = 6.5f
+    private const val FORECAST_BAR_WIDTH_DP = 9f
     private const val TODAY_TRIPLE_BAR_WIDTH_DP = 5.25f
 
     private var cachedPaintSet: PaintSet? = null
@@ -151,7 +153,7 @@ object DailyForecastGraphRenderer {
         val todayIconPaint: Paint
     )
 
-    fun renderGraph(
+    suspend fun renderGraph(
         context: Context,
         days: List<DayData>,
         widthPx: Int,
@@ -162,6 +164,7 @@ object DailyForecastGraphRenderer {
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
         onDateLabelDrawn: ((DateLabelDrawnDebug) -> Unit)? = null,
     ): Bitmap {
+        currentCoroutineContext().ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -177,6 +180,7 @@ object DailyForecastGraphRenderer {
         android.util.Log.d(TAG, "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx")
 
         days.forEachIndexed { index, day ->
+            currentCoroutineContext().ensureActive()
             val columnIndex = day.columnIndex ?: index
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
             
@@ -187,7 +191,7 @@ object DailyForecastGraphRenderer {
         return bitmap
     }
 
-    private fun computeLayout(
+    private suspend fun computeLayout(
         context: Context,
         days: List<DayData>,
         widthPx: Int,
@@ -195,6 +199,7 @@ object DailyForecastGraphRenderer {
         columns: Int,
         bitmapScale: Float
     ): LayoutInfo {
+        currentCoroutineContext().ensureActive()
         val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow, it.trueActualHigh) }
         val minTemp = allTemps.minOrNull() ?: 0f
         val maxTemp = allTemps.maxOrNull() ?: 100f
@@ -220,10 +225,10 @@ object DailyForecastGraphRenderer {
         val topPadding = dpToPx(context, TOP_PADDING_DP * scaleFactor * labelScale)
 
         val dayLabelScale = labelScale * dayLabelWidthScale
-        val dayLabelHeight = dpToPx(context, 12.5f * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_SCALE)
+        val dayLabelHeight = dpToPx(context, 15f * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_SCALE)
         val tempLabelHeight = dailyForecastTempLabelSizePx(context, heightScaleFactor, bitmapScale)
 
-        val iconSize = dpToPx(context, 24f * labelScale).toInt()
+        val iconSize = dpToPx(context, 36f * labelScale).toInt()
         val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, 4f * labelScale)
 
         val graphTop = topPadding
@@ -247,7 +252,7 @@ object DailyForecastGraphRenderer {
             graphHeight = graphHeight,
             dayWidth = dayWidth,
             horizontalPadding = horizontalPadding,
-            tripleBarOffset = dpToPx(context, 3f * scaleFactor * labelScale),
+            tripleBarOffset = dpToPx(context, 5f * scaleFactor * labelScale),
             forecastBarOffset = barWidth * 1.2f,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
@@ -278,8 +283,8 @@ object DailyForecastGraphRenderer {
             },
             todaySnapshotYellowPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), tripleBarWidth),
             todayForecastBluePaint = createBarPaint(Color.parseColor(COLOR_FORECAST), tripleBarWidth),
-            historyBarPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), barWidth * 1.1f),
-            forecastBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.8f),
+            historyBarPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), barWidth * 0.7f),
+            forecastBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.7f),
             climateOverlayBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * 0.8f).apply { alpha = 80 },
             gapFallbackBarPaint = createBarPaint(Color.parseColor(COLOR_GAP_FALLBACK), barWidth),
             textPaint = createTextPaint(
@@ -293,7 +298,7 @@ object DailyForecastGraphRenderer {
             ),
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
-            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 12f * scaleFactor * labelScale)),
+            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 14.4f * scaleFactor * labelScale)),
             topDateTextPaint = createTextPaint(
                 Color.parseColor(COLOR_LABEL_GRAY),
                 resolveTopDateTextSizePx(context, layout)
