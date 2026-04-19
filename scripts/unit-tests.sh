@@ -7,6 +7,7 @@ GRADLEW="$ROOT_DIR/gradlew"
 RUN_MODE="Fresh"
 STREAM_OUTPUT=false
 LOG_FILE=""
+INSTALL_MODE=false
 BUCKETS=()
 OVERALL_START=$(date +%s)
 SINGLE_INVOCATION_REPORTED_DIR=""
@@ -46,6 +47,10 @@ while [ $# -gt 0 ]; do
       fi
       LOG_FILE="$2"
       shift 2
+      ;;
+    --install)
+      INSTALL_MODE=true
+      shift
       ;;
     *)
       BUCKETS+=("$1")
@@ -262,11 +267,14 @@ done
 if [ ${#BUCKETS[@]} -eq 3 ] && [ "$RUN_MODE" = "Fresh" ]; then
   task_name="testByDurationDebugUnitTestFresh"
 else
-  # Build individual task names for the requested buckets
   task_name=""
   for bucket in "${BUCKETS[@]}"; do
     task_name="$task_name :app:test${bucket}DebugUnitTest${RUN_MODE}"
   done
+fi
+
+if [ "$INSTALL_MODE" = true ]; then
+  task_name="$task_name installDebug"
 fi
 
 gradle_log="${LOG_FILE}"

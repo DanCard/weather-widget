@@ -59,7 +59,6 @@ object DailyViewHandler : WidgetViewHandler {
     private const val HEADER_DATE_MIN_COLUMNS = 6
     private const val HEADER_DATE_TEXT_SIZE_SP = 20f
     private const val HEADER_DATE_RIGHT_MARGIN_DP = 112f
-    private const val CURRENT_TEMP_TEXT_SIZE_DP = 22f
     private const val CURRENT_TEMP_DELTA_TEXT_SIZE_SP = 14f
     private const val WEATHER_ICON_WIDTH_DP = 24f
     private const val WEATHER_ICON_END_MARGIN_DP = 2f
@@ -330,7 +329,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         if (formattedTemp != null) {
             views.setTextViewText(R.id.current_temp, formattedTemp)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, CURRENT_TEMP_TEXT_SIZE_DP)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -854,7 +853,7 @@ object DailyViewHandler : WidgetViewHandler {
     internal fun currentTempTextSizePx(context: Context): Float =
         TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            CURRENT_TEMP_TEXT_SIZE_DP,
+            HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             context.resources.displayMetrics,
         )
 

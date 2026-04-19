@@ -207,7 +207,7 @@ internal object TemperatureStateResolver {
             sourceIndicator = sourceIndicator,
             iconRes = iconRes,
             currentTemp = if (currentTemp != null) CurrentTemperatureResolver.formatDisplayTemperature(currentTemp, dimensions.cols, currentTempResolution.isStaleEstimate) else null,
-            currentTempSizeSp = if (dimensions.widthDp < 420) 22f else 26f,
+            currentTempSizeSp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
             deltaColor = Color.parseColor(DELTA_COLOR_HEX),
             precipProbability = if (isPrecipVisible) "$headerPrecipProbability%" else null,

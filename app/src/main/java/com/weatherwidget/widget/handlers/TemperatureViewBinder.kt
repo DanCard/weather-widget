@@ -46,7 +46,7 @@ internal object TemperatureViewBinder {
         
         if (header.currentTemp != null) {
             views.setTextViewText(R.id.current_temp, header.currentTemp)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_SP, header.currentTempSizeSp)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, header.currentTempSizeSp)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)

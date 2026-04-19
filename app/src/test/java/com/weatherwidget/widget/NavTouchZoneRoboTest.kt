@@ -60,16 +60,16 @@ class NavTouchZoneRoboTest {
     }
 
     @Test
-    fun `nav buttons are declared after current_temp_zone for z-order priority`() {
+    fun `current_temp_zone is declared after nav buttons for z-order priority`() {
         val root = rootView as ViewGroup
         val navLeftIndex = indexOfChild(root, R.id.nav_left)
         val navRightIndex = indexOfChild(root, R.id.nav_right)
         val tempZoneIndex = indexOfChild(root, R.id.current_temp_zone)
 
-        assertTrue("nav_left must be after current_temp_zone in z-order",
-            navLeftIndex > tempZoneIndex)
-        assertTrue("nav_right must be after current_temp_zone in z-order",
-            navRightIndex > tempZoneIndex)
+        assertTrue("current_temp_zone must be after nav_left in z-order",
+            tempZoneIndex > navLeftIndex)
+        assertTrue("current_temp_zone must be after nav_right in z-order",
+            tempZoneIndex > navRightIndex)
     }
 
     private fun indexOfChild(parent: ViewGroup, childId: Int): Int {

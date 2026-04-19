@@ -247,7 +247,7 @@ object DailyForecastGraphRenderer {
             graphHeight = graphHeight,
             dayWidth = dayWidth,
             horizontalPadding = horizontalPadding,
-            tripleBarOffset = dpToPx(context, 5f * scaleFactor * labelScale),
+            tripleBarOffset = dpToPx(context, 6f * scaleFactor * labelScale),
             forecastBarOffset = barWidth * 1.2f,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,

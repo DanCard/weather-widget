@@ -241,6 +241,7 @@ object CloudCoverViewHandler {
                 isStaleEstimate = currentTempResolution.isStaleEstimate,
             )
             views.setTextViewText(R.id.current_temp, formattedTemp)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)

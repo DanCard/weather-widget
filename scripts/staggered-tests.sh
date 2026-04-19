@@ -27,6 +27,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 EMULATOR_ARGS=()
+INSTALL_MODE=false
 UNIT_SUMMARY_MONITOR_PID=""
 
 cleanup() {
@@ -45,6 +46,7 @@ Usage: $(basename "$0") [OPTIONS]
 Run unit tests and emulator tests in parallel, staggered to avoid build contention.
 
 Options:
+  --install                 Also install debug APK to all connected devices
   --emulator-args "ARGS"   Extra arguments forwarded to scripts/emulator-tests.sh
   -h, --help               Show this help
 EOF
@@ -61,6 +63,10 @@ while [ $# -gt 0 ]; do
             EXTRA_EMULATOR_ARGS=($2)
             EMULATOR_ARGS+=("${EXTRA_EMULATOR_ARGS[@]}")
             shift 2
+            ;;
+        --install)
+            INSTALL_MODE=true
+            shift
             ;;
         -h|--help)
             show_help
@@ -114,7 +120,11 @@ BUILD_START=$(date +%s)
 # Redirect stdout to /dev/null because summaries are teed to the log file and handled by our monitor.
 touch "$UNIT_LOG_FILE"
 start_unit_summary_monitor "$UNIT_LOG_FILE"
-"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" >/dev/null 2>&1 &
+UNIT_INSTALL_FLAG=""
+if [ "$INSTALL_MODE" = true ]; then
+    UNIT_INSTALL_FLAG="--install"
+fi
+"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" $UNIT_INSTALL_FLAG >/dev/null 2>&1 &
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase

@@ -988,7 +988,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="72°"
-            android:textSize="26sp"
+            android:textSize="22dp"
             android:textColor="#AAFFFFFF"
             android:visibility="visible" />
 
