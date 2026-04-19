@@ -451,12 +451,15 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             context = context,
             hours = hours,
             widthPx = 400,
-            heightPx = 60, // Squeezed even more to force it off-screen with smaller 1dp gap
+            heightPx = 80, // Increased from 60 to fit 23dp fonts
             currentTime = start,
             onLabelPlaced = { placements.add(it) },
         )
 
         val lowLabel = placements.find { it.role == TemperatureRole.LOW }
+        if (lowLabel == null || !lowLabel.placedAbove) {
+            println("Placements: $placements")
+        }
         assertNotNull("LOW label should be present even if it collides, as long as it's on-screen. Placements=$placements", lowLabel)
 
         // preferred (below) is off-screen.

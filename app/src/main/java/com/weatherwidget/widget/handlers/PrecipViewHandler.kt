@@ -30,6 +30,8 @@ import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.coroutines.Job
+import kotlin.coroutines.coroutineContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -272,6 +274,7 @@ object PrecipViewHandler {
                 observedAt = observedAt,
                 highProbThreshold = highProbThreshold,
                 rainAmountWindowHours = rainAmountWindowHours,
+                job = coroutineContext[Job],
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)

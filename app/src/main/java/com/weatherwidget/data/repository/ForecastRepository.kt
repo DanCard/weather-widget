@@ -764,6 +764,9 @@ class ForecastRepository
         suspend fun getAllForecastsInRange(startDate: Long, endDate: Long, latitude: Double, longitude: Double) =
             forecastDao.getAllForecastsInRange(startDate, endDate, latitude, longitude)
 
+        suspend fun getAllForecastsInRangeForSources(startDate: Long, endDate: Long, latitude: Double, longitude: Double, sources: List<String>) =
+            forecastDao.getAllForecastsInRangeForSources(startDate, endDate, latitude, longitude, sources)
+
         suspend fun cleanOldData() {
             val oneMonthAgoTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 24 * 30 // 30 days
             val sixDaysAgoTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 24 * 6 // 6 days

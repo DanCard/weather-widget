@@ -27,6 +27,8 @@ import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import kotlinx.coroutines.Job
+import kotlin.coroutines.coroutineContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -300,10 +302,12 @@ object CloudCoverViewHandler {
                 heightPx = heightPx,
                 currentTime = now,
                 bitmapScale = bitmapScale,
-                smoothIterations = smoothingIterationsFor(zoom),
+                smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
+                job = coroutineContext[Job],
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
+
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
             // Cloud-cover body taps always zoom; bottom zones still route by icon.

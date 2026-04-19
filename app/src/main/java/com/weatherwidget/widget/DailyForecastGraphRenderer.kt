@@ -1,6 +1,6 @@
 package com.weatherwidget.widget
 
-import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import android.content.Context
 import android.graphics.*
@@ -153,18 +153,19 @@ object DailyForecastGraphRenderer {
         val todayIconPaint: Paint
     )
 
-    suspend fun renderGraph(
+    fun renderGraph(
         context: Context,
         days: List<DayData>,
         widthPx: Int,
         heightPx: Int,
         bitmapScale: Float = 1f,
         numColumns: Int = 0,
+        job: Job? = null,
         onBarDrawn: ((BarDrawnDebug) -> Unit)? = null,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
         onDateLabelDrawn: ((DateLabelDrawnDebug) -> Unit)? = null,
     ): Bitmap {
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
@@ -174,13 +175,13 @@ object DailyForecastGraphRenderer {
         }
 
         val columns = if (numColumns > 0) numColumns else days.size
-        val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale)
+        val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale, job)
         val paints = getPaintSet(context, layout.scaleFactor, layout)
 
         android.util.Log.d(TAG, "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx")
 
         days.forEachIndexed { index, day ->
-            currentCoroutineContext().ensureActive()
+            job?.ensureActive()
             val columnIndex = day.columnIndex ?: index
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
             
@@ -191,15 +192,16 @@ object DailyForecastGraphRenderer {
         return bitmap
     }
 
-    private suspend fun computeLayout(
+    private fun computeLayout(
         context: Context,
         days: List<DayData>,
         widthPx: Int,
         heightPx: Int,
         columns: Int,
-        bitmapScale: Float
+        bitmapScale: Float,
+        job: Job? = null,
     ): LayoutInfo {
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow, it.trueActualHigh) }
         val minTemp = allTemps.minOrNull() ?: 0f
         val maxTemp = allTemps.maxOrNull() ?: 100f

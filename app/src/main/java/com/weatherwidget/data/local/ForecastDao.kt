@@ -114,6 +114,32 @@ interface ForecastDao {
     @Query(
         """
         SELECT * FROM forecasts f1
+        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND targetDate >= :startDate
+        AND targetDate <= :endDate
+        AND source IN (:sources)
+        AND batchFetchedAt = (
+            SELECT MAX(batchFetchedAt) FROM forecasts f2
+            WHERE f2.targetDate = f1.targetDate
+            AND f2.source = f1.source
+            AND f2.locationLat = f1.locationLat
+            AND f2.locationLon = f1.locationLon
+        )
+        ORDER BY targetDate ASC
+    """,
+    )
+    suspend fun getForecastsInRangeForSources(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        sources: List<String>
+    ): List<ForecastEntity>
+
+    @Query(
+        """
+        SELECT * FROM forecasts f1
         WHERE source = :source
         AND locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
@@ -176,6 +202,25 @@ interface ForecastDao {
         endDate: Long,
         lat: Double,
         lon: Double,
+    ): List<ForecastEntity>
+
+    @Query(
+        """
+        SELECT * FROM forecasts f1
+        WHERE locationLat BETWEEN :lat - 0.1 AND :lat + 0.1
+        AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
+        AND targetDate >= :startDate
+        AND targetDate <= :endDate
+        AND source IN (:sources)
+        ORDER BY targetDate ASC, batchFetchedAt DESC, fetchedAt DESC
+    """,
+    )
+    suspend fun getAllForecastsInRangeForSources(
+        startDate: Long,
+        endDate: Long,
+        lat: Double,
+        lon: Double,
+        sources: List<String>
     ): List<ForecastEntity>
 
     @Query(

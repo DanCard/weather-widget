@@ -1,10 +1,10 @@
 package com.weatherwidget.widget
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import android.content.Context
 import android.graphics.*
 import android.util.Log
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import java.time.LocalDateTime
 import java.time.Instant
 import java.time.Duration
@@ -45,7 +45,7 @@ object TemperatureGraphRenderer {
         alphaBottom: Int = 255,
     ): LinearGradient = TemperatureGraphStyle.buildTempGradient(graphTop, graphBottom, minTemp, maxTemp, tempRange, alphaTop, alphaBottom)
 
-    private suspend fun computePoints(
+    private fun computePoints(
         hours: List<HourData>,
         minTemp: Float,
         tempRange: Float,
@@ -59,9 +59,10 @@ object TemperatureGraphRenderer {
         observedAt: Long?,
         lastObservedTemp: Float?,
         widthPx: Int,
+        job: Job? = null,
         onPointsResolved: ((PointsDebug) -> Unit)?,
     ): RenderContextUpdate {
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         val effectiveDelta = appliedDelta ?: 0f
         val smoothedForecastTemps = hours.map { it.temperature }
         val actualTemps = hours.map { it.actualTemperature ?: (it.temperature + effectiveDelta) }
@@ -79,7 +80,7 @@ object TemperatureGraphRenderer {
         val expectedPoints = mutableListOf<Pair<Float, Float>>()
 
         hours.indices.forEach { index ->
-            currentCoroutineContext().ensureActive()
+            job?.ensureActive()
             val pointEpoch = hours[index].dateTime.toEpochSecond(ZoneOffset.UTC)
             val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
             val yTruth = TemperatureGraphStyle.tempToY(actualTemps[index], graphTop, graphHeight, minTemp, tempRange)
@@ -134,6 +135,7 @@ object TemperatureGraphRenderer {
                 tempRange = tempRange,
                 graphTop = graphTop,
                 graphHeight = graphHeight,
+                job = job,
             )
         val (actualPath, _) = GraphRenderUtils.buildSmoothCurveAndFillPaths(anchoredActualPoints, graphBottom)
 
@@ -145,7 +147,7 @@ object TemperatureGraphRenderer {
         )
     }
 
-    private suspend fun buildAnchoredActualPoints(
+    private fun buildAnchoredActualPoints(
         originalPoints: List<Pair<Float, Float>>,
         transitionX: Float?,
         fetchDotX: Float?,
@@ -154,8 +156,9 @@ object TemperatureGraphRenderer {
         tempRange: Float,
         graphTop: Float,
         graphHeight: Float,
+        job: Job? = null,
     ): List<Pair<Float, Float>> {
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         if (transitionX == null || originalPoints.isEmpty()) return emptyList()
 
         val anchoredToFetchDot = fetchDotX != null && abs(fetchDotX - transitionX) <= 0.5f && lastObservedTemp != null
@@ -597,7 +600,7 @@ object TemperatureGraphRenderer {
         return drawnBounds
     }
 
-    suspend fun renderGraph(
+    fun renderGraph(
         context: Context,
         hours: List<HourData>,
         widthPx: Int,
@@ -607,6 +610,7 @@ object TemperatureGraphRenderer {
         appliedDelta: Float? = null,
         observedAt: Long? = null,
         lastObservedTemp: Float? = null,
+        job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
@@ -614,7 +618,7 @@ object TemperatureGraphRenderer {
         onPointsResolved: ((PointsDebug) -> Unit)? = null,
         onActualLineResolved: ((ActualLineDebug) -> Unit)? = null,
     ): Bitmap {
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         if (hours.isEmpty()) {
@@ -641,11 +645,11 @@ object TemperatureGraphRenderer {
 
         val update = computePoints(
             hours, minTemp, tempRange, layout.graphTop, layout.graphHeight, layout.graphBottom,
-            hourWidth, minTimeEpoch, currentTime, appliedDelta, observedAt, lastObservedTemp, widthPx, onPointsResolved
+            hourWidth, minTimeEpoch, currentTime, appliedDelta, observedAt, lastObservedTemp, widthPx, job, onPointsResolved
         )
         timings.mark("points")
 
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         val ctx = RenderContext.create(
             context, canvas, widthPx, heightPx, density, labelScale, minTemp, maxTemp, tempRange,
             layout, hourWidth, minTimeEpoch, update, lastObservedTemp, appliedDelta, observedAt,

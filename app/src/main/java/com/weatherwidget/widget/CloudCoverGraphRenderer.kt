@@ -1,12 +1,12 @@
 package com.weatherwidget.widget
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import android.content.Context
 import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
 import com.weatherwidget.R
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -157,7 +157,7 @@ object CloudCoverGraphRenderer {
         return paints
     }
 
-    suspend fun renderGraph(
+    fun renderGraph(
         context: Context,
         hours: List<CloudHourData>,
         widthPx: Int,
@@ -166,11 +166,12 @@ object CloudCoverGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 1,
         hourLabelSpacingDp: Float = 28f,
+        job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
     ): Bitmap {
-        currentCoroutineContext().ensureActive()
+        job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 

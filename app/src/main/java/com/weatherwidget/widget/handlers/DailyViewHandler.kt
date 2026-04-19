@@ -40,6 +40,8 @@ import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
+import kotlinx.coroutines.Job
+import kotlin.coroutines.coroutineContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -532,7 +534,7 @@ object DailyViewHandler : WidgetViewHandler {
             val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
 
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size)
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size, job = coroutineContext[Job])
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
             bindHeaderDate(

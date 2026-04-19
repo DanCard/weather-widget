@@ -55,6 +55,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.time.LocalDate
@@ -143,12 +147,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 var extremesQueryMs = 0L
                 var staleCheckMs = 0L
                 val stateManager = WidgetStateManager(context)
+                val activeSources = filteredIds
+                    .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                    .map { stateManager.getCurrentDisplaySource(it).id }
+                    .toSet() + WeatherSource.GENERIC_GAP.id
+                val activeSourceList = activeSources.toList()
+
                 val widgetViewModes =
                     filteredIds
                         .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                         .associateWith { stateManager.getViewMode(it) }
                 val needsDailyData = needsDailyStartupData(widgetViewModes.values)
-                appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${filteredIds.size} thread=${Thread.currentThread().name}")
+                appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${filteredIds.size} thread=${Thread.currentThread().name} sources=$activeSources")
 
                 if (latestWeather == null) {
                     // No data at all, show loading for all widgets
@@ -158,83 +168,109 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
                     // We have some data, refresh all widgets from cache immediately
-                    val historyStart = LocalDate.now().minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    val thirtyDays = LocalDate.now().plusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    // Use a tighter window for startup snapshots to improve latency (13 columns displayed)
+                    val historyStart = LocalDate.now().minusDays(10).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val thirtyDays = LocalDate.now().plusDays(15).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
-                    val forecastQueryStartMs = SystemClock.elapsedRealtime()
-                    val weatherList =
-                        forecastDao.getForecastsInRange(
-                            historyStart,
-                            thirtyDays,
-                            latestWeather.locationLat,
-                            latestWeather.locationLon,
-                        )
-                    forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
-                    val forecastSnapshots =
-                        if (needsDailyData) {
-                            val snapshotQueryStartMs = SystemClock.elapsedRealtime()
-                            forecastDao.getAllForecastsInRange(historyStart, thirtyDays, latestWeather.locationLat, latestWeather.locationLon)
-                                .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                                .also {
-                                    snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
-                                }
-                        } else {
-                            emptyMap()
+                    coroutineScope {
+                        // Run queries in parallel to minimize startup latency
+                        val weatherListDeferred = async {
+                            forecastDao.getForecastsInRangeForSources(
+                                historyStart,
+                                thirtyDays,
+                                latestWeather.locationLat,
+                                latestWeather.locationLon,
+                                activeSourceList
+                            )
                         }
 
-                    // Get hourly forecasts for interpolation and rain analysis
-                    val nowLocal = LocalDateTime.now()
-                    val zoneId = ZoneId.systemDefault()
-                    val hourlyStart = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                    val hourlyEnd = nowLocal.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                    val hourlyQueryStartMs = SystemClock.elapsedRealtime()
-                    val hourlyForecasts =
-                        hourlyDao.getHourlyForecasts(
-                            hourlyStart,
-                            hourlyEnd,
-                            latestWeather.locationLat,
-                            latestWeather.locationLon,
-                        )
-                    hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
+                        val forecastSnapshotsDeferred = async {
+                            if (needsDailyData) {
+                                forecastDao.getAllForecastsInRangeForSources(
+                                    historyStart, 
+                                    thirtyDays, 
+                                    latestWeather.locationLat, 
+                                    latestWeather.locationLon,
+                                    activeSourceList
+                                )
+                                    .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+                            } else {
+                                emptyMap()
+                            }
+                        }
 
-                    val currentTempQueryStartMs = SystemClock.elapsedRealtime()
-                    val querySinceMs = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                    val currentTemps = repository.getMainObservationsWithComputedNwsBlend(
-                        latestWeather.locationLat,
-                        latestWeather.locationLon,
-                        querySinceMs,
-                    )
-                    currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
+                        val nowLocal = LocalDateTime.now()
+                        val zoneId = ZoneId.systemDefault()
+                        val hourlyStart = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                        val hourlyEnd = nowLocal.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
 
-                    val dailyActualsBySource =
-                        if (needsDailyData) {
-                            val extremesQueryStartMs = SystemClock.elapsedRealtime()
-                            val actuals = repository.getDailyActualsWithLiveToday(
+                        val hourlyForecastsDeferred = async {
+                            hourlyDao.getHourlyForecasts(
+                                hourlyStart,
+                                hourlyEnd,
                                 latestWeather.locationLat,
                                 latestWeather.locationLon,
                             )
-                            extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
-                            actuals
-                        } else {
-                            emptyMap()
                         }
 
-                    for (appWidgetId in filteredIds) {
-                        val job = launch {
-                            WidgetRenderer.updateWidgetWithData(
-                                context = context,
-                                appWidgetManager = appWidgetManager,
-                                appWidgetId = appWidgetId,
-                                weatherList = weatherList,
-                                forecastSnapshots = forecastSnapshots,
-                                hourlyForecasts = hourlyForecasts,
-                                currentTemps = currentTemps,
-                                dailyActualsBySource = dailyActualsBySource,
-                                repository = repository,
-                                startupToken = startupToken,
+                        val currentTempsDeferred = async {
+                            val querySinceMs = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            repository.getMainObservationsWithComputedNwsBlend(
+                                latestWeather.locationLat,
+                                latestWeather.locationLon,
+                                querySinceMs,
                             )
                         }
-                        WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.UI_PAINT)
+
+                        val dailyActualsDeferred = async {
+                            if (needsDailyData) {
+                                repository.getDailyActualsWithLiveToday(
+                                    latestWeather.locationLat,
+                                    latestWeather.locationLon,
+                                )
+                            } else {
+                                emptyMap()
+                            }
+                        }
+
+                        // Await all queries
+                        val forecastQueryStartMs = SystemClock.elapsedRealtime()
+                        val weatherList = weatherListDeferred.await()
+                        forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
+
+                        val snapshotQueryStartMs = SystemClock.elapsedRealtime()
+                        val forecastSnapshots = forecastSnapshotsDeferred.await()
+                        snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
+
+                        val hourlyQueryStartMs = SystemClock.elapsedRealtime()
+                        val hourlyForecasts = hourlyForecastsDeferred.await()
+                        hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
+
+                        val currentTempQueryStartMs = SystemClock.elapsedRealtime()
+                        val currentTemps = currentTempsDeferred.await()
+                        currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
+
+                        val extremesQueryStartMs = SystemClock.elapsedRealtime()
+                        val dailyActualsBySource = dailyActualsDeferred.await()
+                        extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
+
+                        for (appWidgetId in filteredIds) {
+                            val job = launch {
+                                WidgetRenderer.updateWidgetWithData(
+                                    context = context,
+                                    appWidgetManager = appWidgetManager,
+                                    appWidgetId = appWidgetId,
+                                    weatherList = weatherList,
+                                    forecastSnapshots = forecastSnapshots,
+                                    hourlyForecasts = hourlyForecasts,
+                                    currentTemps = currentTemps,
+                                    dailyActualsBySource = dailyActualsBySource,
+                                    repository = repository,
+                                    startupToken = startupToken,
+                                )
+                            }
+                            WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.UI_PAINT)
+                        }
                     }
 
                     // 2. Check if data is stale and needs background fetch

@@ -28,6 +28,8 @@ import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
+import kotlinx.coroutines.Job
+import kotlin.coroutines.coroutineContext
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
@@ -239,6 +241,7 @@ internal object TemperatureStateResolver {
                     appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
                     observedAt = observedAt,
                     lastObservedTemp = lastObservedTemp,
+                    job = coroutineContext[Job],
                     onFetchDotResolved = onFetchDotResolved,
                 )
             } catch (e: Exception) {
