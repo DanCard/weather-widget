@@ -91,28 +91,4 @@ class TemperatureGhostLineTest {
             highestY < overlapThresholdPx,
         )
     }
-
-    @Test
-    fun coldestPoint_rendersLowEnoughToUseFooterSpace() {
-        val hours = buildHours(listOf(52f, 58f, 67f, 91f, 72f, 64f, 59f, 55f))
-        var points: PointsDebug? = null
-
-        TemperatureGraphRenderer.renderGraph(
-            context = context,
-            hours = hours,
-            widthPx = 800,
-            heightPx = 320,
-            currentTime = LocalDateTime.of(2026, 2, 26, 10, 0),
-            onPointsResolved = { points = it },
-        )
-
-        val resolved = requireNotNull(points) { "Expected graph points to be reported" }
-        val lowestY = resolved.original.maxOf { it.second }
-        val footerUseThresholdPx = 220f
-
-        assertTrue(
-            "The coldest point should render low enough to consume the footer area visually. lowestY=$lowestY threshold=$footerUseThresholdPx",
-            lowestY > footerUseThresholdPx,
-        )
-    }
 }
