@@ -28,6 +28,9 @@ internal object TemperatureViewBinder {
             .map { it.iconRes }
             .ifEmpty { state.graph.hourData.map { it.iconRes } }
 
+        views.setViewVisibility(R.id.header_date_center, View.GONE)
+        views.setViewVisibility(R.id.header_date_right, View.GONE)
+
         // 1. Warning
         if (state.warning != null) {
             ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, state.warning.warning)

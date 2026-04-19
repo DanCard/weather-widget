@@ -111,6 +111,27 @@ class CurrentTempTouchRoutingRoboTest {
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
+    @Test
+    fun `temperature graph hides daily date header`() = runBlocking {
+        val views = renderTemperatureWidget()
+
+        assertDailyDateHeaderClearedByReapply(views)
+    }
+
+    @Test
+    fun `precipitation graph hides daily date header`() = runBlocking {
+        val views = renderPrecipitationWidget()
+
+        assertDailyDateHeaderClearedByReapply(views)
+    }
+
+    @Test
+    fun `cloud cover graph hides daily date header`() = runBlocking {
+        val views = renderCloudCoverWidget()
+
+        assertDailyDateHeaderClearedByReapply(views)
+    }
+
     private suspend fun renderDailyWidget(
         lastObservedTemp: Float? = null,
         precipProbability: Int = 20,
@@ -136,6 +157,36 @@ class CurrentTempTouchRoutingRoboTest {
             observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
         )
         return appWidgetManager.second.captured
+    }
+
+    private suspend fun renderDailyGraphWidgetWithDate(): View {
+        val stateManager = WidgetStateManager(context)
+        stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
+        stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
+
+        val appWidgetManager = mockWidgetManager(wideGraphOptions())
+        val now = LocalDateTime.of(2026, 3, 27, 12, 0)
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager.first,
+            appWidgetId = appWidgetId,
+            weatherList = sampleWideDailyForecasts(now.toLocalDate()),
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = sampleHourlyForecasts(now),
+            currentTemps = emptyList(),
+            dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
+            repository = null,
+            now = now,
+        )
+
+        val applied = applyViews(appWidgetManager.second.captured)
+        val centerDate = applied.findViewById<View>(R.id.header_date_center)
+        val rightDate = applied.findViewById<View>(R.id.header_date_right)
+        assertTrue(
+            "Expected daily graph render to make one date header visible before reapply",
+            centerDate.visibility == View.VISIBLE || rightDate.visibility == View.VISIBLE,
+        )
+        return applied
     }
 
     private suspend fun renderTemperatureWidget(
@@ -204,6 +255,13 @@ class CurrentTempTouchRoutingRoboTest {
         return clickView(views, R.id.current_temp_zone)
     }
 
+    private suspend fun assertDailyDateHeaderClearedByReapply(views: RemoteViews) {
+        val applied = renderDailyGraphWidgetWithDate()
+        views.reapply(context, applied)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.header_date_center).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.header_date_right).visibility)
+    }
+
     private fun clickView(views: RemoteViews, viewId: Int): android.content.Intent? {
         val applied = applyViews(views)
         val target = applied.findViewById<View>(viewId)
@@ -252,6 +310,14 @@ class CurrentTempTouchRoutingRoboTest {
             putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 200)
         }
 
+    private fun wideGraphOptions(): Bundle =
+        Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 300)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300)
+        }
+
     private fun sampleHourlyForecasts(
         now: LocalDateTime,
         precipProbability: Int = 20,
@@ -280,6 +346,19 @@ class CurrentTempTouchRoutingRoboTest {
             forecast(today, 68f, 52f, "Clear", fetchedAt),
             forecast(today.plusDays(1), 70f, 54f, "Cloudy", fetchedAt),
         )
+    }
+
+    private fun sampleWideDailyForecasts(today: LocalDate): List<ForecastEntity> {
+        val fetchedAt = System.currentTimeMillis()
+        return (0..6).map { index ->
+            forecast(
+                date = today.plusDays(index.toLong()),
+                highTemp = 68f + index,
+                lowTemp = 52f + index,
+                condition = if (index % 2 == 0) "Clear" else "Cloudy",
+                fetchedAt = fetchedAt,
+            )
+        }
     }
 
     private fun sampleDailyActuals(today: LocalDate): DailyActualsBySource =

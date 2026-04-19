@@ -128,6 +128,9 @@ object CloudCoverViewHandler {
                 "source=$displaySource sourceRows=$sourceRows sourceRowsWithCloudCover=$sourceRowsWithCloudCover",
         )
 
+        views.setViewVisibility(R.id.header_date_center, View.GONE)
+        views.setViewVisibility(R.id.header_date_right, View.GONE)
+
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
 
         val zoom = stateManager.getZoomLevel(appWidgetId)
