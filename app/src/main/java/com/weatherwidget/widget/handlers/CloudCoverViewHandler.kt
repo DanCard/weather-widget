@@ -13,6 +13,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.SettingsActivity
+import com.weatherwidget.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
@@ -165,12 +166,12 @@ object CloudCoverViewHandler {
         }
         ApiSourceWarningHelper.hideSourceWarning(views)
 
-        val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-        val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
-            effectiveDisplaySource.shortDisplayName
-        } else {
-            "$dayName • ${effectiveDisplaySource.shortDisplayName}"
-        }
+        val sourceIndicator = HeaderFormatter.formatSourceIndicator(
+            centerTime = centerTime,
+            now = LocalDateTime.now(),
+            sourceName = effectiveDisplaySource.shortDisplayName,
+            widthDp = dimensions.widthDp
+        )
         views.setTextViewText(R.id.api_source, sourceIndicator)
         if (effectiveDisplaySource != displaySource) {
             Log.i(

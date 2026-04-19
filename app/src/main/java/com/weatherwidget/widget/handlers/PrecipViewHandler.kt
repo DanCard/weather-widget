@@ -14,6 +14,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.ui.WeatherObservationsActivity
+import com.weatherwidget.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
@@ -118,12 +119,12 @@ object PrecipViewHandler {
             return
         }
         ApiSourceWarningHelper.hideSourceWarning(views)
-        val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-        val sourceIndicator = if (centerTime.toLocalDate() == LocalDateTime.now().toLocalDate()) {
-            displaySource.shortDisplayName
-        } else {
-            "$dayName • ${displaySource.shortDisplayName}"
-        }
+        val sourceIndicator = HeaderFormatter.formatSourceIndicator(
+            centerTime = centerTime,
+            now = LocalDateTime.now(),
+            sourceName = displaySource.shortDisplayName,
+            widthDp = dimensions.widthDp
+        )
         views.setTextViewText(R.id.api_source, sourceIndicator)
 
         // Set weather icon

@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
+import com.weatherwidget.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
 import com.weatherwidget.util.SunPositionUtils
@@ -29,7 +30,6 @@ import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
@@ -175,12 +175,12 @@ internal object TemperatureStateResolver {
         val delta = currentTempResolution.appliedDelta
         val deltaVisible = currentTemp != null && isNowLineVisible && delta != null && abs(delta) >= DELTA_VISIBILITY_THRESHOLD
 
-        val dayName = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
-        val sourceIndicator = if (centerTime.toLocalDate() == now.toLocalDate()) {
-            displaySource.shortDisplayName
-        } else {
-            "$dayName • ${displaySource.shortDisplayName}"
-        }
+        val sourceIndicator = HeaderFormatter.formatSourceIndicator(
+            centerTime = centerTime,
+            now = now,
+            sourceName = displaySource.shortDisplayName,
+            widthDp = dimensions.widthDp
+        )
 
         val currentHourForecast = getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
         val iconRes = WeatherIconMapper.getIconResource(
