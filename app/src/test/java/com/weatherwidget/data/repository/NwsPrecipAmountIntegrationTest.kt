@@ -247,4 +247,66 @@ class NwsPrecipAmountIntegrationTest {
         assertNotNull(latestTomorrow)
         assertEquals(7f, latestTomorrow!!.precipAmountMm!!, 0.001f)
     }
+
+    @Test
+    fun `getWeatherData stores future NWS day and night precip directly from forecast periods`() = runTest {
+        val today = LocalDate.now()
+        val tomorrow = today.plusDays(1)
+        val dayAfterTomorrow = today.plusDays(2)
+        val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
+        val zoneId = ZoneId.systemDefault()
+
+        coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
+        coEvery { nwsApi.getSkyCover(gridPoint) } returns emptyMap()
+        coEvery { nwsApi.getQuantitativePrecipitation(gridPoint) } returns emptyList()
+        coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
+            NwsApi.ForecastPeriod(
+                name = "Tomorrow",
+                startTime = "${tomorrow}T06:00:00-07:00",
+                endTime = "${tomorrow}T18:00:00-07:00",
+                temperature = 64,
+                temperatureUnit = "F",
+                shortForecast = "Rain",
+                isDaytime = true,
+                precipProbability = 30,
+            ),
+            NwsApi.ForecastPeriod(
+                name = "Tomorrow Night",
+                startTime = "${tomorrow}T18:00:00-07:00",
+                endTime = "${dayAfterTomorrow}T06:00:00-07:00",
+                temperature = 52,
+                temperatureUnit = "F",
+                shortForecast = "Rain",
+                isDaytime = false,
+                precipProbability = 70,
+            ),
+        )
+        coEvery { nwsApi.getHourlyForecast(gridPoint) } returns listOf(
+            NwsApi.HourlyForecastPeriod(
+                startTime = tomorrow.atTime(14, 0).atZone(zoneId).toInstant().toEpochMilli(),
+                localDate = tomorrow.toString(),
+                localHour = 14,
+                temperature = 61f,
+                shortForecast = "Rain",
+                precipProbability = 95,
+            ),
+        )
+
+        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+
+        val latestTomorrow = db.forecastDao()
+            .getForecastsInRangeBySource(
+                startDate = tomorrow.toEpochDay() * com.weatherwidget.widget.WidgetConstants.MS_IN_A_DAY,
+                endDate = tomorrow.toEpochDay() * com.weatherwidget.widget.WidgetConstants.MS_IN_A_DAY,
+                lat = testLat,
+                lon = testLon,
+                source = WeatherSource.NWS.id,
+            )
+            .maxByOrNull { it.fetchedAt }
+
+        assertNotNull(latestTomorrow)
+        assertEquals(30, latestTomorrow!!.precipProbability)
+        assertEquals(30, latestTomorrow.daytimePrecipProbability)
+        assertEquals(70, latestTomorrow.nighttimePrecipProbability)
+    }
 }

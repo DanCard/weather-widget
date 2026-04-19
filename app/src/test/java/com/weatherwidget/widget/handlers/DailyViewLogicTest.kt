@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.widget.DailyForecastGraphRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -398,6 +399,111 @@ class DailyViewLogicTest {
 
         val futureDay = result.first { it.date == future }
         assertEquals("65%", futureDay.dailyRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays future NWS rain label uses direct daytime chance instead of legacy daily chance`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(2)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 30,
+                daytimePrecipProbability = 30,
+                nighttimePrecipProbability = 80,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = listOf(
+                createHourlyForecast(future.atTime(14, 0), cloudCover = 50).copy(precipProbability = 95),
+            ),
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertEquals("30%", futureDay.dailyRainLabelText)
+        assertNull(futureDay.nightRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays tonight rain label requires greater than 50 percent`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+
+        fun renderTonight(probability: Int): DailyForecastGraphRenderer.DayData {
+            val result = DailyViewLogic.prepareGraphDays(
+                now = now,
+                centerDate = today,
+                today = today,
+                weatherByDate = mapOf(
+                    today to createWeather(
+                        date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                        condition = "Clear",
+                        precipProbability = 0,
+                        nighttimePrecipProbability = probability,
+                    ),
+                ),
+                forecastSnapshots = emptyMap(),
+                numColumns = 3,
+                displaySource = WeatherSource.NWS,
+                isEveningMode = false,
+                skipHistory = true,
+                hourlyForecasts = emptyList(),
+            )
+            return result.first { it.date == today }
+        }
+
+        assertNull(renderTonight(50).nightRainLabelText)
+        assertEquals("51%", renderTonight(51).nightRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays future night rain thresholds increase by five percent per day`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val tomorrow = today.plusDays(1)
+        val day2 = today.plusDays(2)
+        val weatherByDate = mapOf(
+            tomorrow to createWeather(
+                date = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Clear",
+                precipProbability = 0,
+                nighttimePrecipProbability = 54,
+            ),
+            day2 to createWeather(
+                date = day2.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Clear",
+                precipProbability = 0,
+                nighttimePrecipProbability = 60,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        assertNull(result.first { it.date == tomorrow }.nightRainLabelText)
+        assertEquals("60%", result.first { it.date == day2 }.nightRainLabelText)
     }
 
     @Test
@@ -867,6 +973,8 @@ class DailyViewLogicTest {
         condition: String = "Clear",
         nativeDailyIconToken: String? = null,
         precipProbability: Int? = 0,
+        daytimePrecipProbability: Int? = null,
+        nighttimePrecipProbability: Int? = null,
         precipAmountMm: Float? = null,
     ): ForecastEntity {
         return ForecastEntity(
@@ -882,6 +990,8 @@ class DailyViewLogicTest {
             source = source,
             isClimateNormal = isClimateNormal,
             precipProbability = precipProbability,
+            daytimePrecipProbability = daytimePrecipProbability,
+            nighttimePrecipProbability = nighttimePrecipProbability,
             precipAmountMm = precipAmountMm,
             fetchedAt = 1L,
         )

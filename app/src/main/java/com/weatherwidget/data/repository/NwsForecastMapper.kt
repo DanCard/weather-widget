@@ -109,7 +109,7 @@ class NwsForecastMapper @Inject constructor(
 
         val acc = NwsDayAccumulator()
 
-        initPrecipFromHourly(hourlyPeriods, acc.precipProbabilityMap, acc.precipAmountMap)
+        initPrecipFromHourly(hourlyPeriods, todayDate, acc.precipProbabilityMap, acc.precipAmountMap)
         initConditionsFromHourly(hourlyPeriods, acc.conditionMap, acc.conditionSourceMap)
 
         val todayForecastPeriods = applyForecastPeriods(
@@ -147,6 +147,8 @@ class NwsForecastMapper @Inject constructor(
                 isClimateNormal = false,
                 source = WeatherSource.NWS.id,
                 precipProbability = acc.precipProbabilityMap[dateString],
+                daytimePrecipProbability = acc.daytimePrecipProbabilityMap[dateString],
+                nighttimePrecipProbability = acc.nighttimePrecipProbabilityMap[dateString],
                 precipAmountMm = acc.precipAmountMap[dateString],
                 periodStartTime = pStart?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
                 periodEndTime = pEnd?.let { runCatching { ZonedDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() },
@@ -167,14 +169,17 @@ class NwsForecastMapper @Inject constructor(
 
     fun initPrecipFromHourly(
         hourlyPeriods: List<NwsApi.HourlyForecastPeriod>,
+        todayDate: LocalDate,
         precipProbabilityMap: MutableMap<String, Int>,
         precipAmountMap: MutableMap<String, Float>,
     ) {
         hourlyPeriods.forEach { hour ->
             val dateString = hour.localDate
-            val probability = hour.precipProbability ?: 0
-            if (probability > (precipProbabilityMap[dateString] ?: 0)) {
-                precipProbabilityMap[dateString] = probability
+            if (dateString == todayDate.toString()) {
+                val probability = hour.precipProbability ?: 0
+                if (probability > (precipProbabilityMap[dateString] ?: 0)) {
+                    precipProbabilityMap[dateString] = probability
+                }
             }
             hour.precipAmountMm?.let { amount ->
                 precipAmountMap[dateString] = (precipAmountMap[dateString] ?: 0f) + amount
@@ -260,21 +265,26 @@ class NwsForecastMapper @Inject constructor(
             val dateString = extractNwsForecastDate(period.startTime) ?: return@forEach
             if (dateString == todayDateString) todayPeriods.add(period)
 
-            val probability = period.precipProbability
-            if (probability != null && !acc.precipProbabilityMap.containsKey(dateString)) {
-                acc.precipProbabilityMap[dateString] = probability
-            }
             val periodAmount = period.precipAmountMm
             if (periodAmount != null && !acc.precipAmountMap.containsKey(dateString)) {
                 acc.precipAmountMap[dateString] = periodAmount
             }
 
             if (period.isDaytime) {
+                period.precipProbability?.let { probability ->
+                    acc.daytimePrecipProbabilityMap[dateString] = probability
+                    if (dateString != todayDateString) {
+                        acc.precipProbabilityMap[dateString] = probability
+                    }
+                }
                 val currentTemps = acc.temperatureMap[dateString] ?: (null to null)
                 acc.temperatureMap[dateString] = period.temperature.toFloat() to currentTemps.second
                 acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
                 acc.periodTimeMap[dateString] = period.startTime to period.endTime
             } else {
+                period.precipProbability?.let { probability ->
+                    acc.nighttimePrecipProbabilityMap[dateString] = probability
+                }
                 val lowDateString = extractNwsForecastDate(period.endTime) ?: dateString
                 val currentLowTemps = acc.temperatureMap[lowDateString] ?: (null to null)
                 acc.temperatureMap[lowDateString] = currentLowTemps.first to period.temperature.toFloat()
@@ -374,6 +384,8 @@ class NwsForecastMapper @Inject constructor(
         val highTempSourceMap: MutableMap<String, String> = mutableMapOf(),
         val lowTempSourceMap: MutableMap<String, String> = mutableMapOf(),
         val precipProbabilityMap: MutableMap<String, Int> = mutableMapOf(),
+        val daytimePrecipProbabilityMap: MutableMap<String, Int> = mutableMapOf(),
+        val nighttimePrecipProbabilityMap: MutableMap<String, Int> = mutableMapOf(),
         val precipAmountMap: MutableMap<String, Float> = mutableMapOf(),
         val periodTimeMap: MutableMap<String, Pair<String?, String?>> = mutableMapOf(),
     )

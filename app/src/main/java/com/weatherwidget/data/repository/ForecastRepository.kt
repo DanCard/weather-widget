@@ -430,6 +430,7 @@ class ForecastRepository
             isClimateNormal = false,
             source = sourceId,
             precipProbability = day.precipProbability,
+            daytimePrecipProbability = if (sourceId == WeatherSource.NWS.id) day.precipProbability else null,
             precipAmountMm = day.precipAmountMm,
         )
 
@@ -478,6 +479,8 @@ class ForecastRepository
                     isClimateNormal = forecast.isClimateNormal,
                     source = sourceId,
                     precipProbability = forecast.precipProbability,
+                    daytimePrecipProbability = forecast.daytimePrecipProbability,
+                    nighttimePrecipProbability = forecast.nighttimePrecipProbability,
                     precipAmountMm = forecast.precipAmountMm,
                     batchFetchedAt = batchFetchedAt,
                     fetchedAt = System.currentTimeMillis()
@@ -506,6 +509,8 @@ class ForecastRepository
                         existing.condition == newlyFetched.condition &&
                         existing.nativeDailyIconToken == newlyFetched.nativeDailyIconToken &&
                         existing.precipProbability == newlyFetched.precipProbability &&
+                        existing.daytimePrecipProbability == newlyFetched.daytimePrecipProbability &&
+                        existing.nighttimePrecipProbability == newlyFetched.nighttimePrecipProbability &&
                         existing.precipAmountMm == newlyFetched.precipAmountMm) {
                         appLogDao.log("SNAPSHOT_SKIP", "date=${newlyFetched.targetDate} source=$sourceId")
                         false

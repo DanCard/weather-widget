@@ -88,8 +88,10 @@ object DailyForecastGraphRenderer {
         val forecastLow: Float? = null,
         val rainSummary: String? = null,
         val dailyPrecipProbability: Int? = null,
+        val nighttimePrecipProbability: Int? = null,
         val dailyPrecipAmountMm: Float? = null,
         val dailyRainLabelText: String? = null,
+        val nightRainLabelText: String? = null,
         val hasRainForecast: Boolean = false,
         val columnIndex: Int? = null,
         val isTodayForecastFallback: Boolean = false,
@@ -494,6 +496,7 @@ object DailyForecastGraphRenderer {
         }
 
         drawDailyRainLabel(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
+        drawNightRainLabel(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
     }
 
     private fun drawWeatherIcon(canvas: Canvas, context: Context, day: DayData, centerX: Float, iconY: Float, iconSize: Int) {
@@ -686,17 +689,7 @@ object DailyForecastGraphRenderer {
     ) {
         val label = day.dailyRainLabelText ?: return
         val rainText = label
-        val prob = (day.dailyPrecipProbability ?: 0) / 100f
-        val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
-        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE)
-        val scaledTextSize = paints.rainTextPaint.textSize * clampedScale
-        val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
-        Log.d(TAG, "rainFont: date=${day.date} daysFromToday=${day.daysFromToday} prob=${day.dailyPrecipProbability}% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${paints.rainTextPaint.textSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
-
-        // Fix: Use a local Paint copy to avoid thread-safety issues with the shared PaintSet
-        val localRainPaint = Paint(paints.rainTextPaint).apply {
-            textSize = scaledTextSize
-        }
+        val localRainPaint = createScaledRainPaint(context, paints, day, day.dailyPrecipProbability, "day")
 
         val textWidth = localRainPaint.measureText(rainText)
         val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
@@ -735,6 +728,68 @@ object DailyForecastGraphRenderer {
         } else {
             val aboveBaseline = highBaseline - spacing
             Log.d(TAG, "rainLabel skipped: above-high overflow: date=${day.date} aboveBaseline=$aboveBaseline topMargin=$topMargin ascent=${metrics.ascent} overflow=${topMargin - (aboveBaseline + metrics.ascent)}px")
+        }
+    }
+
+    private fun drawNightRainLabel(
+        canvas: Canvas,
+        context: Context,
+        day: DayData,
+        centerX: Float,
+        layout: LayoutInfo,
+        paints: PaintSet,
+        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
+    ) {
+        if (day.dailyRainLabelText != null) return
+        val rainText = day.nightRainLabelText ?: return
+        val localRainPaint = createScaledRainPaint(context, paints, day, day.nighttimePrecipProbability, "night")
+
+        val textWidth = localRainPaint.measureText(rainText)
+        val maxTextWidth = layout.dayWidth - dpToPx(context, 4f * layout.scaleFactor)
+        if (textWidth > maxTextWidth) {
+            Log.d(TAG, "nightRainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
+            return
+        }
+
+        val lowBaseline = resolveLowLabelBaseline(context, day, layout)
+        if (lowBaseline == null) {
+            Log.d(TAG, "nightRainLabel skipped: no low baseline: date=${day.date} low=${day.low}")
+            return
+        }
+
+        val metrics = localRainPaint.fontMetrics
+        val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
+        val tempMetrics = tempPaint.fontMetrics
+        val spacing = dpToPx(context, 2f * layout.scaleFactor)
+        val topY = lowBaseline + tempMetrics.descent + spacing
+        val baseline = topY - metrics.ascent
+        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
+
+        if (baseline + metrics.descent <= bottomLimit) {
+            canvas.drawText(rainText, centerX, baseline, localRainPaint)
+            onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "NIGHT_BELOW_LOW", centerX, baseline))
+            return
+        }
+
+        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$baseline bottomLimit=$bottomLimit descent=${metrics.descent} overflow=${baseline + metrics.descent - bottomLimit}px")
+    }
+
+    private fun createScaledRainPaint(
+        context: Context,
+        paints: PaintSet,
+        day: DayData,
+        probability: Int?,
+        labelType: String,
+    ): Paint {
+        val prob = (probability ?: 0) / 100f
+        val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
+        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE)
+        val scaledTextSize = paints.rainTextPaint.textSize * clampedScale
+        val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
+        Log.d(TAG, "rainFont: type=$labelType date=${day.date} daysFromToday=${day.daysFromToday} prob=$probability% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${paints.rainTextPaint.textSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
+
+        return Paint(paints.rainTextPaint).apply {
+            textSize = scaledTextSize
         }
     }
 

@@ -323,6 +323,77 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_nightRainLabelDrawsBelowLowTemperature() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                    nighttimePrecipProbability = 65,
+                    nightRainLabelText = "65%",
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 4),
+                    label = "Tue",
+                    high = 65f,
+                    low = 20f,
+                ),
+            ),
+            widthPx = 800,
+            heightPx = 500,
+        )
+
+        assertEquals(1, labels.size)
+        assertEquals("NIGHT_BELOW_LOW", labels.first().placement)
+        assertEquals("65%", labels.first().text)
+    }
+
+    @Test
+    fun renderGraph_nightRainLabelIsSkippedWhenDayRainLabelExists() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                    dailyRainLabelText = "30%",
+                    nighttimePrecipProbability = 65,
+                    nightRainLabelText = "65%",
+                ),
+            ),
+            widthPx = 500,
+            heightPx = 500,
+        )
+
+        assertEquals(1, labels.size)
+        assertEquals("ABOVE_HIGH", labels.first().placement)
+        assertEquals("30%", labels.first().text)
+    }
+
+    @Test
+    fun renderGraph_nightRainLabelIsSkippedWhenTooWide() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                    nighttimePrecipProbability = 100,
+                    nightRainLabelText = "100000%",
+                ),
+            ),
+            widthPx = 40,
+            heightPx = 500,
+        )
+
+        assertTrue(labels.isEmpty())
+    }
+
+    @Test
     fun renderGraph_rainLabelScaling_doesNotMutateSharedPaint() {
         // Day 5 days from "today"
         val today = LocalDate.now()

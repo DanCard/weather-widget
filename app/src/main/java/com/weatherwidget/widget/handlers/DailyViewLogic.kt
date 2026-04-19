@@ -191,7 +191,8 @@ object DailyViewLogic {
                 }
             }
 
-            val dayNightPrecip = if (!isPast && !isToday && weather != null) {
+            val useDirectNwsPeriodPrecip = weather?.source == WeatherSource.NWS.id && displaySource == WeatherSource.NWS
+            val dayNightPrecip = if (!isPast && !isToday && weather != null && !useDirectNwsPeriodPrecip) {
                 DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
                     hourlyForecasts = hourlyForecasts,
                     targetDate = date,
@@ -203,6 +204,16 @@ object DailyViewLogic {
             } else {
                 null
             }
+            val dayPrecipForIcon = if (useDirectNwsPeriodPrecip) {
+                weather.daytimePrecipProbability ?: weather.precipProbability
+            } else {
+                dayNightPrecip?.dayMax
+            }
+            val nightPrecipForIcon = if (useDirectNwsPeriodPrecip) {
+                weather.nighttimePrecipProbability
+            } else {
+                dayNightPrecip?.nightMax
+            }
 
             val iconRes =
                 if (weather != null) {
@@ -212,8 +223,8 @@ object DailyViewLogic {
                         now = now,
                         latitude = weather.locationLat,
                         longitude = weather.locationLon,
-                        dayPrecipProbability = dayNightPrecip?.dayMax,
-                        nightPrecipProbability = dayNightPrecip?.nightMax,
+                        dayPrecipProbability = dayPrecipForIcon,
+                        nightPrecipProbability = nightPrecipForIcon,
                     )
                 } else {
                     WeatherIconMapper.getIconResource(
@@ -372,7 +383,8 @@ object DailyViewLogic {
                 }
             }
 
-            val dayNightPrecip = if (!isPastDate && !isToday && weather != null) {
+            val useDirectNwsPeriodPrecip = weather?.source == WeatherSource.NWS.id && displaySource == WeatherSource.NWS
+            val dayNightPrecip = if (!isPastDate && !isToday && weather != null && !useDirectNwsPeriodPrecip) {
                 DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
                     hourlyForecasts = hourlyForecasts,
                     targetDate = date,
@@ -384,6 +396,16 @@ object DailyViewLogic {
             } else {
                 null
             }
+            val dayPrecipForIcon = if (useDirectNwsPeriodPrecip) {
+                weather.daytimePrecipProbability ?: weather.precipProbability
+            } else {
+                dayNightPrecip?.dayMax
+            }
+            val nightPrecipForIcon = if (useDirectNwsPeriodPrecip) {
+                weather.nighttimePrecipProbability
+            } else {
+                dayNightPrecip?.nightMax
+            }
 
             val iconRes =
                 when {
@@ -394,8 +416,8 @@ object DailyViewLogic {
                             now = now,
                             latitude = weather.locationLat,
                             longitude = weather.locationLon,
-                            dayPrecipProbability = dayNightPrecip?.dayMax,
-                            nightPrecipProbability = dayNightPrecip?.nightMax,
+                            dayPrecipProbability = dayPrecipForIcon,
+                            nightPrecipProbability = nightPrecipForIcon,
                         )
                     actual != null -> WeatherIconMapper.getIconResource(
                         condition = actual.condition,
@@ -430,6 +452,18 @@ object DailyViewLogic {
                 }
             } else null
 
+            val dailyRainLabelText = buildDailyRainLabel(
+                date = date,
+                today = today,
+                isPastDate = isPastDate,
+                iconRes = iconRes,
+                precipProbability = precip,
+                precipAmountMm = weather?.precipAmountMm,
+                dailyPrecipProbability = weather?.precipProbability,
+                dayPrecipProbability = dayPrecipForIcon,
+                nightPrecipProbability = nightPrecipForIcon,
+            )
+
             days.add(
                 DailyForecastGraphRenderer.DayData(
                     date = date,
@@ -449,17 +483,15 @@ object DailyViewLogic {
                     forecastLow = fLow,
                     rainSummary = rainSummary,
                     dailyPrecipProbability = precip,
+                    nighttimePrecipProbability = weather?.nighttimePrecipProbability,
                     dailyPrecipAmountMm = weather?.precipAmountMm,
-                    dailyRainLabelText = buildDailyRainLabel(
+                    dailyRainLabelText = dailyRainLabelText,
+                    nightRainLabelText = buildNightRainLabel(
                         date = date,
                         today = today,
                         isPastDate = isPastDate,
-                        iconRes = iconRes,
-                        precipProbability = precip,
-                        precipAmountMm = weather?.precipAmountMm,
-                        dailyPrecipProbability = weather?.precipProbability,
-                        dayPrecipProbability = dayNightPrecip?.dayMax,
-                        nightPrecipProbability = dayNightPrecip?.nightMax,
+                        dailyRainLabelText = dailyRainLabelText,
+                        nightPrecipProbability = weather?.nighttimePrecipProbability,
                     ),
                     hasRainForecast = hasRainForecast,
                     columnIndex = days.size,
@@ -558,6 +590,45 @@ object DailyViewLogic {
         } else {
             Log.d(TAG, "buildDailyRainLabel label for $date: $result (precipProbability=$precipProbability%)")
         }
+        return result
+    }
+
+    private fun buildNightRainLabel(
+        date: LocalDate,
+        today: LocalDate,
+        isPastDate: Boolean,
+        dailyRainLabelText: String?,
+        nightPrecipProbability: Int?,
+    ): String? {
+        if (isPastDate) {
+            Log.d(TAG, "buildNightRainLabel skipping past date=$date")
+            return null
+        }
+        if (dailyRainLabelText != null) {
+            Log.d(TAG, "buildNightRainLabel skipping because day label exists: date=$date dayLabel=$dailyRainLabelText")
+            return null
+        }
+        val probability = nightPrecipProbability ?: run {
+            Log.d(TAG, "buildNightRainLabel skipping null night precip: date=$date")
+            return null
+        }
+        val daysFromToday = ChronoUnit.DAYS.between(today, date)
+        if (daysFromToday < 0) return null
+
+        val threshold = 50 + (daysFromToday * 5).toInt()
+        val shouldShow = if (daysFromToday == 0L) {
+            probability > threshold
+        } else {
+            threshold <= 100 && probability >= threshold
+        }
+
+        if (!shouldShow) {
+            Log.d(TAG, "buildNightRainLabel suppressing label for $date: nightPrecip=$probability threshold=$threshold daysFromToday=$daysFromToday")
+            return null
+        }
+
+        val result = "$probability%"
+        Log.d(TAG, "buildNightRainLabel label for $date: $result (threshold=$threshold daysFromToday=$daysFromToday)")
         return result
     }
 

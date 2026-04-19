@@ -460,4 +460,50 @@ class DatabaseMigrationTest {
         }
         cursor.close()
     }
+
+    @Test
+    fun migrate43to44_addsDayNightPrecipProbabilityColumns() {
+        helper.createDatabase(testDb, 43).apply {
+            execSQL(
+                """
+                INSERT INTO forecasts (
+                    targetDate, forecastDate, locationLat, locationLon, locationName,
+                    highTemp, lowTemp, `condition`, nativeDailyIconToken, isClimateNormal, source,
+                    precipProbability, periodStartTime, periodEndTime, precipAmountMm,
+                    batchFetchedAt, fetchedAt
+                ) VALUES (
+                    ${WidgetConstants.MS_IN_A_DAY},
+                    ${WidgetConstants.MS_IN_A_DAY},
+                    37.42,
+                    -122.08,
+                    'Test',
+                    70.0,
+                    50.0,
+                    'Partly Cloudy',
+                    'partly-cloudy',
+                    0,
+                    'NWS',
+                    20,
+                    NULL,
+                    NULL,
+                    1.5,
+                    1234,
+                    5678
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 44, true, WeatherDatabase.MIGRATION_43_44)
+        val cursor = db.query("SELECT daytimePrecipProbability, nighttimePrecipProbability FROM forecasts WHERE fetchedAt = 5678")
+        cursor.moveToFirst()
+        assert(cursor.isNull(cursor.getColumnIndex("daytimePrecipProbability"))) {
+            "daytimePrecipProbability should default to NULL after migration"
+        }
+        assert(cursor.isNull(cursor.getColumnIndex("nighttimePrecipProbability"))) {
+            "nighttimePrecipProbability should default to NULL after migration"
+        }
+        cursor.close()
+    }
 }
