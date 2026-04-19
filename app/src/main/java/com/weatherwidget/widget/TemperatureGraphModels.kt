@@ -70,6 +70,12 @@ data class LabelPlacementDebug(
     val displacementSteps: Int = 0,
 )
 
+data class PlacedLabelMeta(
+    val bounds: RectF,
+    val isValleyBelow: Boolean,
+    val role: TemperatureRole,
+)
+
 data class FetchDotDebug(
     val observedAt: Long,
     val fetchDotX: Float?,
