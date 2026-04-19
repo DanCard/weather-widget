@@ -25,6 +25,7 @@ package com.weatherwidget.widget
 
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -35,6 +36,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.VisibleForTesting
 import androidx.work.*
 import com.weatherwidget.R
 import com.weatherwidget.data.local.log
@@ -264,7 +266,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             } catch (e: Exception) {
                 database.appLogDao().log("WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
             } finally {
-                pendingResult.finish()
+                finishPendingResultSafely(pendingResult, "onUpdate")
             }
         }
     }
@@ -644,8 +646,12 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         return CoroutineScope(Dispatchers.IO).launch {
             try {
                 block()
+            } catch (e: CancellationException) {
+                Log.d(TAG, "launchAsync cancelled: ${e.message}")
+            } catch (e: Exception) {
+                Log.e(TAG, "launchAsync failed", e)
             } finally {
-                pendingResult.finish()
+                finishPendingResultSafely(pendingResult, "launchAsync")
             }
         }
     }
@@ -674,7 +680,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest,
         )
-        launchAsync {
+        CoroutineScope(Dispatchers.IO).launch {
             val nextWindowStartMs = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
             WeatherDatabase.getDatabase(context).appLogDao().log(
                 "PERIODIC_REFRESH_SCHEDULE",
@@ -800,5 +806,22 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
         private const val TAG = "WeatherWidgetProvider"
         const val EXTRA_INTERACTION_SOURCE = "com.weatherwidget.EXTRA_INTERACTION_SOURCE"
+
+        @VisibleForTesting
+        internal fun finishPendingResultSafely(
+            pendingResult: BroadcastReceiver.PendingResult?,
+            caller: String,
+        ) {
+            if (pendingResult == null) {
+                Log.w(TAG, "$caller: goAsync returned null; no pending result to finish")
+                return
+            }
+
+            try {
+                pendingResult.finish()
+            } catch (e: Exception) {
+                Log.e(TAG, "$caller: failed to finish pending result", e)
+            }
+        }
     }
 }
