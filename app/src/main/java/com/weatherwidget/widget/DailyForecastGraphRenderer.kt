@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
+import androidx.annotation.VisibleForTesting
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherConditionColors
 import kotlin.math.abs
@@ -37,6 +38,10 @@ object DailyForecastGraphRenderer {
     private const val TOP_DATE_TEXT_SIZE_NARROW_SP = 16f
     private const val TOP_DATE_TEXT_SIZE_WIDE_SP = 18f
     private const val NARROW_WIDGET_WIDTH_DP = 420f
+    private const val TEMP_LABEL_TEXT_SIZE_DP = 20f
+    private const val TOP_PADDING_DP = 44f
+    private const val FORECAST_BAR_WIDTH_DP = 6.5f
+    private const val TODAY_TRIPLE_BAR_WIDTH_DP = 5.25f
 
     private var cachedPaintSet: PaintSet? = null
     private var cachedScaleKey: String = ""
@@ -120,7 +125,8 @@ object DailyForecastGraphRenderer {
         val iconSize: Int,
         val dayLabelHeight: Float,
         val tempLabelHeight: Float,
-        val bulbRadius: Float
+        val bulbRadius: Float,
+        val bitmapScale: Float
     )
 
     private class PaintSet(
@@ -209,23 +215,24 @@ object DailyForecastGraphRenderer {
         }
 
         val scaleFactor = widthScaleFactor
+        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
         val horizontalPadding = 0f
-        val topPadding = dpToPx(context, 24f * scaleFactor)
+        val topPadding = dpToPx(context, TOP_PADDING_DP * scaleFactor * labelScale)
 
-        val dayLabelScale = bitmapScale.coerceIn(0.5f, 1f) * dayLabelWidthScale
+        val dayLabelScale = labelScale * dayLabelWidthScale
         val dayLabelHeight = dpToPx(context, 12.5f * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_SCALE)
-        val tempLabelHeight = dpToPx(context, 10.5f * heightScaleFactor)
+        val tempLabelHeight = dailyForecastTempLabelSizePx(context, heightScaleFactor, bitmapScale)
 
-        val iconSize = dpToPx(context, 16f).toInt()
-        val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, 4f)
+        val iconSize = dpToPx(context, 24f * labelScale).toInt()
+        val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, 4f * labelScale)
 
         val graphTop = topPadding
         val graphBottom = heightPx - dayLabelHeight - attachedStackHeight
         val graphHeight = graphBottom - graphTop
 
         val dayWidth = (widthPx - 2 * horizontalPadding) / columns
-        val barWidth = dpToPx(context, 2.2f * scaleFactor)
-        val tripleBarWidth = dpToPx(context, 1.4f * scaleFactor)
+        val barWidth = dailyBarStrokeWidthPx(context, scaleFactor, bitmapScale)
+        val tripleBarWidth = todayTripleBarStrokeWidthPx(context, scaleFactor, bitmapScale)
 
         return LayoutInfo(
             widthPx = widthPx,
@@ -240,12 +247,13 @@ object DailyForecastGraphRenderer {
             graphHeight = graphHeight,
             dayWidth = dayWidth,
             horizontalPadding = horizontalPadding,
-            tripleBarOffset = dpToPx(context, 1.8f * scaleFactor),
+            tripleBarOffset = dpToPx(context, 3f * scaleFactor * labelScale),
             forecastBarOffset = barWidth * 1.2f,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
             tempLabelHeight = tempLabelHeight,
-            bulbRadius = tripleBarWidth * 1.2f // Updated multiplier
+            bulbRadius = tripleBarWidth * 1.2f, // Updated multiplier
+            bitmapScale = bitmapScale
         )
     }
 
@@ -255,8 +263,9 @@ object DailyForecastGraphRenderer {
             return cachedPaintSet!!
         }
 
-        val barWidth = dpToPx(context, 2.2f * scaleFactor)
-        val tripleBarWidth = dpToPx(context, 1.4f * scaleFactor)
+        val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
+        val barWidth = dailyBarStrokeWidthPx(context, scaleFactor, layout.bitmapScale)
+        val tripleBarWidth = todayTripleBarStrokeWidthPx(context, scaleFactor, layout.bitmapScale)
 
         val set = PaintSet(
             barPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth),
@@ -284,7 +293,7 @@ object DailyForecastGraphRenderer {
             ),
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
-            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 8f * scaleFactor)),
+            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 12f * scaleFactor * labelScale)),
             topDateTextPaint = createTextPaint(
                 Color.parseColor(COLOR_LABEL_GRAY),
                 resolveTopDateTextSizePx(context, layout)
@@ -833,13 +842,45 @@ object DailyForecastGraphRenderer {
     }
 
     private fun resolveTopDateTextSizePx(context: Context, layout: LayoutInfo): Float {
-        val widthDp = layout.widthPx / context.resources.displayMetrics.density
-        val sizeSp = if (widthDp < NARROW_WIDGET_WIDTH_DP) TOP_DATE_TEXT_SIZE_NARROW_SP else TOP_DATE_TEXT_SIZE_WIDE_SP
-        return spToPx(context, sizeSp)
+        val density = context.resources.displayMetrics.density
+        val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
+        val trueWidthDp = layout.widthPx / (density * layout.bitmapScale)
+        val sizeSp = if (trueWidthDp < NARROW_WIDGET_WIDTH_DP) TOP_DATE_TEXT_SIZE_NARROW_SP else TOP_DATE_TEXT_SIZE_WIDE_SP
+        return spToPx(context, sizeSp * labelScale)
     }
 
     internal fun computeDayLabelWidthScale(dayWidthDp: Float): Float {
         return (dayWidthDp / BASE_DAY_WIDTH_DP).coerceIn(MIN_DAY_LABEL_WIDTH_SCALE, MAX_DAY_LABEL_WIDTH_SCALE)
+    }
+
+    @VisibleForTesting
+    internal fun dailyForecastTempLabelSizePx(
+        context: Context,
+        heightScaleFactor: Float = 1f,
+        bitmapScale: Float = 1f,
+    ): Float {
+        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+        return dpToPx(context, TEMP_LABEL_TEXT_SIZE_DP * heightScaleFactor * labelScale)
+    }
+
+    @VisibleForTesting
+    internal fun dailyBarStrokeWidthPx(
+        context: Context,
+        scaleFactor: Float = 1f,
+        bitmapScale: Float = 1f,
+    ): Float {
+        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+        return dpToPx(context, FORECAST_BAR_WIDTH_DP * scaleFactor * labelScale)
+    }
+
+    @VisibleForTesting
+    internal fun todayTripleBarStrokeWidthPx(
+        context: Context,
+        scaleFactor: Float = 1f,
+        bitmapScale: Float = 1f,
+    ): Float {
+        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+        return dpToPx(context, TODAY_TRIPLE_BAR_WIDTH_DP * scaleFactor * labelScale)
     }
 
     private fun formatTempLabel(actual: Float, allowDecimals: Boolean): String {

@@ -106,15 +106,16 @@ object PrecipitationGraphRenderer {
 
         val density = context.resources.displayMetrics.density
         val heightDp = heightPx / density
+        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
 
         // Layout zones (mirrors TemperatureGraphRenderer style)
-        val topPadding = dpToPx(context, 18f)
+        val topPadding = dpToPx(context, 24f * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-        val iconSize = dpToPx(context, 16f).toInt()
+        val iconSize = dpToPx(context, 24f * labelScale).toInt()
         val iconTopPad = dpToPx(context, 0f)
         val iconBottomPad = dpToPx(context, 0f)
-        val labelHeight = dpToPx(context, 10f)
+        val labelHeight = dpToPx(context, 14f * labelScale)
         val bottomPadding = dpToPx(context, 0f)
 
         val graphTop = topPadding
@@ -130,11 +131,11 @@ object PrecipitationGraphRenderer {
 
         // --- Paints ---
 
-        val curveStrokeDp = if (heightDp >= 160) 1.5f else 2f
+        val curveStrokeDp = if (heightDp >= 160) 2.5f else 3f
         val curvePaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#5AC8FA")
-                strokeWidth = dpToPx(context, curveStrokeDp)
+                strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
                 style = Paint.Style.STROKE
                 strokeCap = Paint.Cap.ROUND
                 strokeJoin = Paint.Join.ROUND
@@ -159,41 +160,41 @@ object PrecipitationGraphRenderer {
         val currentTimePaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#FF9F0A")
-                strokeWidth = dpToPx(context, 0.5f)
+                strokeWidth = dpToPx(context, 1.0f * labelScale)
                 style = Paint.Style.STROKE
-                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f), dpToPx(context, 3f)), 0f)
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f * labelScale), dpToPx(context, 3f * labelScale)), 0f)
             }
 
         val hourLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#99FFFFFF")
-                textSize = dpToPx(context, 13.0f)
+                textSize = dpToPx(context, 18.0f * labelScale)
                 textAlign = Paint.Align.CENTER
-                setShadowLayer(dpToPx(context, 1f), 0f, dpToPx(context, 0.5f), Color.parseColor("#44000000"))
+                setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#44000000"))
             }
 
         val percentLabelPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#FFFFFF")
-                textSize = dpToPx(context, 11.0f)
+                textSize = dpToPx(context, 16.0f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-                setShadowLayer(dpToPx(context, 2f), 0f, dpToPx(context, 0.5f), Color.parseColor("#88000000"))
+                setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#88000000"))
             }
 
         val nowLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#BBFF9F0A")
-                textSize = dpToPx(context, 8.5f)
+                textSize = dpToPx(context, 12.0f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-                setShadowLayer(dpToPx(context, 1f), 0f, 0f, Color.parseColor("#44000000"))
+                setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor("#44000000"))
             }
 
         val dayLabelTextPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.parseColor("#88FFFFFF")
-                textSize = dpToPx(context, 13.0f)
+                textSize = dpToPx(context, 18.0f * labelScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             }

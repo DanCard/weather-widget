@@ -77,4 +77,26 @@ class DailyViewHeaderDatePlacementTest {
 
         assertEquals(DailyViewHandler.HeaderDatePlacement.CENTER, placement)
     }
+
+    @Test
+    @Suppress("DEPRECATION")
+    fun `current temp text size ignores font scale`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val metrics = context.resources.displayMetrics
+        val originalScaledDensity = metrics.scaledDensity
+        val expectedPx = 22f * metrics.density
+
+        try {
+            metrics.scaledDensity = metrics.density * 0.8f
+            val samsungScaleSize = DailyViewHandler.currentTempTextSizePx(context)
+
+            metrics.scaledDensity = metrics.density * 1.15f
+            val pixelScaleSize = DailyViewHandler.currentTempTextSizePx(context)
+
+            assertEquals(expectedPx, samsungScaleSize, 0.01f)
+            assertEquals(expectedPx, pixelScaleSize, 0.01f)
+        } finally {
+            metrics.scaledDensity = originalScaledDensity
+        }
+    }
 }

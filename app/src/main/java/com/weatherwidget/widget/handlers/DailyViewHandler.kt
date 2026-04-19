@@ -55,9 +55,9 @@ object DailyViewHandler : WidgetViewHandler {
     private const val MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private const val HEADER_DATE_MIN_COLUMNS = 6
-    private const val HEADER_DATE_TEXT_SIZE_SP = 26f
+    private const val HEADER_DATE_TEXT_SIZE_SP = 20f
     private const val HEADER_DATE_RIGHT_MARGIN_DP = 112f
-    private const val CURRENT_TEMP_TEXT_SIZE_SP = 26f
+    private const val CURRENT_TEMP_TEXT_SIZE_DP = 22f
     private const val CURRENT_TEMP_DELTA_TEXT_SIZE_SP = 14f
     private const val WEATHER_ICON_WIDTH_DP = 24f
     private const val WEATHER_ICON_END_MARGIN_DP = 2f
@@ -328,6 +328,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         if (formattedTemp != null) {
             views.setTextViewText(R.id.current_temp, formattedTemp)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, CURRENT_TEMP_TEXT_SIZE_DP)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -811,7 +812,7 @@ object DailyViewHandler : WidgetViewHandler {
     ): Float {
         var width = dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP)
         if (!currentTempText.isNullOrBlank()) {
-            width += textWidthPx(context, currentTempText, CURRENT_TEMP_TEXT_SIZE_SP)
+            width += currentTempTextWidthPx(context, currentTempText)
         }
         if (!deltaText.isNullOrBlank()) {
             width += dpToPx(context, 4f) + textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_SP)
@@ -841,6 +842,19 @@ object DailyViewHandler : WidgetViewHandler {
                     context.resources.displayMetrics,
                 )
         }.measureText(text)
+
+    private fun currentTempTextWidthPx(context: Context, text: String): Float =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = currentTempTextSizePx(context)
+        }.measureText(text)
+
+    @VisibleForTesting
+    internal fun currentTempTextSizePx(context: Context): Float =
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            CURRENT_TEMP_TEXT_SIZE_DP,
+            context.resources.displayMetrics,
+        )
 
     private fun dpToPx(context: Context, dp: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
