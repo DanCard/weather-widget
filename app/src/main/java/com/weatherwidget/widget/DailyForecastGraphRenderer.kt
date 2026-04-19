@@ -141,6 +141,7 @@ object DailyForecastGraphRenderer {
         val textPaint: Paint,
         val todayTextPaint: Paint,
         val tempTextPaint: Paint,
+        val pastTempTextPaint: Paint,
         val todayTempTextPaint: Paint,
         val rainTextPaint: Paint,
         val iconPaint: Paint,
@@ -292,6 +293,7 @@ object DailyForecastGraphRenderer {
                 true
             ),
             tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
+            pastTempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight * 0.9f),
             todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
             rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, 14.4f * scaleFactor * labelScale)),
             iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -391,7 +393,11 @@ object DailyForecastGraphRenderer {
 
             val lowTempY = iconY + layout.iconSize + layout.tempLabelHeight + dpToPx(context, 1f)
             val lowLabelText = formatTempLabel(lowTemp, day.isToday || day.isPast)
-            val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
+            val tempPaint = when {
+                day.isToday -> paints.todayTempTextPaint
+                day.isPast -> paints.pastTempTextPaint
+                else -> paints.tempTextPaint
+            }
             canvas.drawText(lowLabelText, centerX, lowTempY, tempPaint)
 
         }
@@ -500,7 +506,11 @@ object DailyForecastGraphRenderer {
                 val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: 0f
                 layout.tempToY(absoluteHigh)
             } else y
-            val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
+            val tempPaint = when {
+                day.isToday -> paints.todayTempTextPaint
+                day.isPast -> paints.pastTempTextPaint
+                else -> paints.tempTextPaint
+            }
             canvas.drawText(highLabel, centerX, labelY - dpToPx(context, 6f * layout.scaleFactor), tempPaint)
         }
     }
@@ -587,7 +597,7 @@ object DailyForecastGraphRenderer {
 
         val metrics = localRainPaint.fontMetrics
         val topMargin = dpToPx(context, 2f * layout.scaleFactor)
-        val spacing = dpToPx(context, 10f * layout.scaleFactor)
+        val spacing = dpToPx(context, 11f * layout.scaleFactor)
         val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, 2f * layout.scaleFactor)
 
         resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->

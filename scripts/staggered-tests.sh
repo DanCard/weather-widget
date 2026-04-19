@@ -28,16 +28,6 @@ NC='\033[0m'
 
 EMULATOR_ARGS=()
 INSTALL_MODE=false
-UNIT_SUMMARY_MONITOR_PID=""
-
-cleanup() {
-    if [ -n "$UNIT_SUMMARY_MONITOR_PID" ] && kill -0 "$UNIT_SUMMARY_MONITOR_PID" 2>/dev/null; then
-        kill "$UNIT_SUMMARY_MONITOR_PID" 2>/dev/null || true
-    fi
-    :  # logs kept under $LOG_DIR for post-mortem debugging
-}
-
-trap cleanup EXIT
 
 show_help() {
     cat <<EOF
@@ -96,35 +86,17 @@ clear_asm_cache() {
     done
 }
 
-start_unit_summary_monitor() {
-    local log_file=$1
-    # Match summaries like "172 medium tests: 1 failed." or "665 tests passed"
-    # Also match failure details like "  ✗ Class > Method"
-    local summary_pattern='^[0-9]+ (short|medium|long) tests (passed|: [0-9]+ failed\.)|^[0-9]+ tests (passed|, [0-9]+ failed)|^[[:space:]]*✗'
-    
-    tail -n 0 -F "$log_file" 2>/dev/null | grep --line-buffered -E "$summary_pattern" | while read -r line; do
-        if [[ "$line" == *"failed"* ]] || [[ "$line" == *"✗"* ]]; then
-            echo -e "${RED}${line}${NC}"
-        else
-            echo -e "${GREEN}${line}${NC}"
-        fi
-    done &
-    UNIT_SUMMARY_MONITOR_PID=$!
-}
-
 TOTAL_START=$(date +%s)
 BUILD_START=$(date +%s)
 
 # Start unit tests (this will start the first Gradle build)
-# We use --log-file to keep output clean while allowing us to monitor progress.
-# Redirect stdout to /dev/null because summaries are teed to the log file and handled by our monitor.
+# --log-file captures full output for diagnostics; concise summary goes to stdout.
 touch "$UNIT_LOG_FILE"
-start_unit_summary_monitor "$UNIT_LOG_FILE"
 UNIT_INSTALL_FLAG=""
 if [ "$INSTALL_MODE" = true ]; then
     UNIT_INSTALL_FLAG="--install"
 fi
-"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" $UNIT_INSTALL_FLAG >/dev/null 2>&1 &
+"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" $UNIT_INSTALL_FLAG &
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase
@@ -165,9 +137,6 @@ EMULATOR_PID=$!
 
 wait "$UNIT_PID"
 UNIT_STATUS=$?
-if [ -n "$UNIT_SUMMARY_MONITOR_PID" ] && kill -0 "$UNIT_SUMMARY_MONITOR_PID" 2>/dev/null; then
-    kill "$UNIT_SUMMARY_MONITOR_PID" 2>/dev/null || true
-fi
 
 wait "$EMULATOR_PID"
 EMULATOR_STATUS=$?
