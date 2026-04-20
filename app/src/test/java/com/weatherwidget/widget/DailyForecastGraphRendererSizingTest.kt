@@ -57,12 +57,12 @@ class DailyForecastGraphRendererSizingTest {
     }
 
     @Test
-    fun `forecast temperature label size uses larger scale for tall widgets`() {
+    fun `forecast temperature label size stays at baseline for tall widgets`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context, heightScaleFactor = 1.05f)
+        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context, heightScaleFactor = 1.0f)
 
-        assertEquals(25.2f * context.resources.displayMetrics.density, sizePx, 0.01f)
+        assertEquals(24f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
 
     @Test

@@ -77,15 +77,31 @@ object DailyForecastGraphRenderer {
         val adaptiveSegments: Boolean = false,
     )
 
-    data class RainLabelDrawnDebug(
-        val date: LocalDate,
-        val text: String,
-        val placement: String,
-        val centerX: Float,
-        val baselineY: Float,
-    )
+data class RainLabelDrawnDebug(
+    val date: LocalDate,
+    val text: String,
+    val placement: String,
+    val centerX: Float,
+    val baselineY: Float,
+)
 
-    private fun DayData.effectiveHigh(): Float? {
+/**
+ * Groups all precipitation-related data for a day.
+ * Used for rain labels, probability, and amount data.
+ */
+data class RainData(
+    val rainSummary: String? = null,
+    /** Daytime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
+    val dailyPrecipProbability: Int? = null,
+    /** Nighttime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
+    val nighttimePrecipProbability: Int? = null,
+    val dailyPrecipAmountMm: Float? = null,
+    val dailyRainLabelText: String? = null,
+    val nightRainLabelText: String? = null,
+    val hasRainForecast: Boolean = false,
+)
+
+private fun DayData.effectiveHigh(): Float? {
         if (!isToday) return high
         return listOfNotNull(high, forecastHigh, trueActualHigh).maxOrNull()
     }
@@ -104,18 +120,10 @@ object DailyForecastGraphRenderer {
         val isPast: Boolean = false,
         val isClimateNormal: Boolean = false,
         val isSourceGapFallback: Boolean = false,
-        val forecastHigh: Float? = null,
-        val forecastLow: Float? = null,
-        val rainSummary: String? = null,
-        /** Daytime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
-        val dailyPrecipProbability: Int? = null,
-        /** Nighttime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
-        val nighttimePrecipProbability: Int? = null,
-        val dailyPrecipAmountMm: Float? = null,
-        val dailyRainLabelText: String? = null,
-        val nightRainLabelText: String? = null,
-        val hasRainForecast: Boolean = false,
-        val columnIndex: Int? = null,
+val forecastHigh: Float? = null,
+    val forecastLow: Float? = null,
+    val rainData: RainData = RainData(),
+    val columnIndex: Int? = null,
         val isTodayForecastFallback: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
@@ -235,8 +243,7 @@ object DailyForecastGraphRenderer {
 
         val heightScaleFactor = when {
             heightDp < 150f -> 0.92f
-            heightDp < 250f -> 1.0f
-            else -> 1.05f
+            else -> 1.0f
         }
 
         val scaleFactor = widthScaleFactor
@@ -600,9 +607,9 @@ object DailyForecastGraphRenderer {
         paints: PaintSet,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
     ) {
-        val label = day.dailyRainLabelText ?: return
-        val rainText = label
-        val localRainPaint = createScaledRainPaint(context, paints, day, day.dailyPrecipProbability, "day")
+val label = day.rainData.dailyRainLabelText ?: return
+    val rainText = label
+    val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.dailyPrecipProbability, "day")
 
         val textWidth = localRainPaint.measureText(rainText)
         val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
@@ -652,10 +659,10 @@ object DailyForecastGraphRenderer {
         layout: LayoutInfo,
         paints: PaintSet,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
-    ) {
-        if (day.dailyRainLabelText != null) return
-        val rainText = day.nightRainLabelText ?: return
-        val localRainPaint = createScaledRainPaint(context, paints, day, day.nighttimePrecipProbability, "night")
+) {
+    if (day.rainData.dailyRainLabelText != null) return
+    val rainText = day.rainData.nightRainLabelText ?: return
+    val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night")
 
         val textWidth = localRainPaint.measureText(rainText)
         val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)

@@ -506,7 +506,7 @@ object DailyViewHandler : WidgetViewHandler {
             }
 
             // Mark rain as shown if today's rain is in the list
-            if (displayDays.any { it.isToday && it.rainSummary != null }) {
+            if (displayDays.any { it.isToday && it.rainData.rainSummary != null }) {
                 stateManager.markRainShown(appWidgetId, todayStr)
             }
 
@@ -648,7 +648,7 @@ object DailyViewHandler : WidgetViewHandler {
                     "isToday=${day.isToday} iconRes=$iconRes iconName=$iconName " +
                     "isRainy=${iconRes?.let(WeatherIconMapper::isPrecipitation) ?: false} " +
                     "isCloudEligible=${iconRes?.let(WeatherIconMapper::isCloudForecastEligible) ?: false} " +
-                    "hasRainForecast=${day.hasRainForecast}",
+                    "hasRainForecast=${day.rainData.hasRainForecast}",
             )
         }
     }

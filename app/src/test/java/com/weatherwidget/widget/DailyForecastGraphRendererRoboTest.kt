@@ -317,13 +317,13 @@ class DailyForecastGraphRendererRoboTest {
                     high = 88f,
                     low = 32f,
                 ),
-                DailyForecastGraphRenderer.DayData(
-                    date = LocalDate.of(2026, 2, 3),
-                    label = "Mon",
-                    high = 70f,
-                    low = 50f,
-                    dailyRainLabelText = "65%",
-                ),
+DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            high = 70f,
+            low = 50f,
+            rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+        ),
             ),
             widthPx = 500,
             heightPx = 500,
@@ -338,13 +338,13 @@ class DailyForecastGraphRendererRoboTest {
     fun renderGraph_rainLabelMayBeOmittedWhenSpaceIsTight() {
         val labels = renderRainLabels(
             days = listOf(
-                DailyForecastGraphRenderer.DayData(
-                    date = LocalDate.of(2026, 2, 3),
-                    label = "Mon",
-                    high = 100f,
-                    low = 72f,
-                    dailyRainLabelText = "65%",
-                ),
+DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            high = 100f,
+            low = 72f,
+            rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+        ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
@@ -366,14 +366,13 @@ class DailyForecastGraphRendererRoboTest {
     fun renderGraph_nightRainLabelDrawsBelowLowTemperature() {
         val labels = renderRainLabels(
             days = listOf(
-                DailyForecastGraphRenderer.DayData(
-                    date = LocalDate.of(2026, 2, 3),
-                    label = "Mon",
-                    high = 70f,
-                    low = 50f,
-                    nighttimePrecipProbability = 65,
-                    nightRainLabelText = "65%",
-                ),
+DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            high = 70f,
+            low = 50f,
+            rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+        ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
@@ -394,15 +393,13 @@ class DailyForecastGraphRendererRoboTest {
     fun renderGraph_nightRainLabelIsSkippedWhenDayRainLabelExists() {
         val labels = renderRainLabels(
             days = listOf(
-                DailyForecastGraphRenderer.DayData(
-                    date = LocalDate.of(2026, 2, 3),
-                    label = "Mon",
-                    high = 70f,
-                    low = 50f,
-                    dailyRainLabelText = "30%",
-                    nighttimePrecipProbability = 65,
-                    nightRainLabelText = "65%",
-                ),
+DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            high = 70f,
+            low = 50f,
+            rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "30%", nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+        ),
             ),
             widthPx = 500,
             heightPx = 500,
@@ -417,14 +414,13 @@ class DailyForecastGraphRendererRoboTest {
     fun renderGraph_nightRainLabelIsSkippedWhenTooWide() {
         val labels = renderRainLabels(
             days = listOf(
-                DailyForecastGraphRenderer.DayData(
-                    date = LocalDate.of(2026, 2, 3),
-                    label = "Mon",
-                    high = 70f,
-                    low = 50f,
-                    nighttimePrecipProbability = 100,
-                    nightRainLabelText = "100000%",
-                ),
+DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            high = 70f,
+            low = 50f,
+            rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 100, nightRainLabelText = "100000%"),
+        ),
             ),
             widthPx = 40,
             heightPx = 500,
@@ -447,15 +443,14 @@ class DailyForecastGraphRendererRoboTest {
                 low = 48f,
                 isToday = true,
             ),
-            DailyForecastGraphRenderer.DayData(
-                date = targetDay,
-                label = "Mon",
-                high = 70f,
-                low = 50f,
-                dailyRainLabelText = "39%",
-                dailyPrecipProbability = 39,
-                daysFromToday = 5
-            ),
+DailyForecastGraphRenderer.DayData(
+            date = targetDay,
+            label = "Mon",
+            high = 70f,
+            low = 50f,
+            rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "39%", dailyPrecipProbability = 39),
+            daysFromToday = 5
+        ),
         )
 
         // Use reflection to access the shared PaintSet BEFORE any rendering

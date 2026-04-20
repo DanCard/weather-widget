@@ -398,7 +398,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("65%", futureDay.dailyRainLabelText)
+        assertEquals("65%", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -432,8 +432,8 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("30%", futureDay.dailyRainLabelText)
-        assertNull(futureDay.nightRainLabelText)
+        assertEquals("30%", futureDay.rainData.dailyRainLabelText)
+        assertNull(futureDay.rainData.nightRainLabelText)
     }
 
     @Test
@@ -464,8 +464,8 @@ class DailyViewLogicTest {
             return result.first { it.date == today }
         }
 
-        assertNull(renderTonight(50).nightRainLabelText)
-        assertEquals("51%", renderTonight(51).nightRainLabelText)
+        assertNull(renderTonight(50).rainData.nightRainLabelText)
+        assertEquals("51%", renderTonight(51).rainData.nightRainLabelText)
     }
 
     @Test
@@ -502,8 +502,8 @@ class DailyViewLogicTest {
             hourlyForecasts = emptyList(),
         )
 
-        assertNull(result.first { it.date == tomorrow }.nightRainLabelText)
-        assertEquals("60%", result.first { it.date == day2 }.nightRainLabelText)
+        assertNull(result.first { it.date == tomorrow }.rainData.nightRainLabelText)
+        assertEquals("60%", result.first { it.date == day2 }.rainData.nightRainLabelText)
     }
 
     @Test
@@ -534,7 +534,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(".002in", futureDay.dailyRainLabelText)
+        assertEquals(".002in", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -564,7 +564,7 @@ class DailyViewLogicTest {
         )
 
         val todayDay = result.first { it.date == today }
-        assertNotNull(todayDay.dailyRainLabelText)
+        assertNotNull(todayDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -594,7 +594,7 @@ class DailyViewLogicTest {
         )
 
         val todayDay = result.first { it.date == today }
-        assertNull(todayDay.dailyRainLabelText)
+        assertNull(todayDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -625,7 +625,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(".2in", futureDay.dailyRainLabelText)
+        assertEquals(".2in", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -656,7 +656,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("98%", futureDay.dailyRainLabelText)
+        assertEquals("98%", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -687,7 +687,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("99%", futureDay.dailyRainLabelText)
+        assertEquals("99%", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -717,7 +717,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(null, futureDay.dailyRainLabelText)
+        assertEquals(null, futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -747,7 +747,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(null, futureDay.dailyRainLabelText)
+        assertEquals(null, futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -777,7 +777,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals("21%", futureDay.dailyRainLabelText)
+        assertEquals("21%", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -807,7 +807,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(null, futureDay.dailyRainLabelText)
+        assertEquals(null, futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -838,7 +838,7 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(".002in", futureDay.dailyRainLabelText)
+        assertEquals(".002in", futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -1041,7 +1041,7 @@ class DailyViewLogicTest {
         )
 
         val distantDay = result.first { it.date == distant }
-        assertNull(distantDay.dailyRainLabelText)
+        assertNull(distantDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -1071,7 +1071,7 @@ class DailyViewLogicTest {
         )
 
         val nearTermDay = result.first { it.date == nearTerm }
-        assertNull(nearTermDay.dailyRainLabelText)
+        assertNull(nearTermDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -1101,7 +1101,7 @@ class DailyViewLogicTest {
         )
 
         val distantDay = result.first { it.date == distant }
-        assertEquals("50%", distantDay.dailyRainLabelText)
+        assertEquals("50%", distantDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -1131,7 +1131,7 @@ class DailyViewLogicTest {
         )
 
         val day4Data = result.first { it.date == day4 }
-        assertNull(day4Data.dailyRainLabelText)
+        assertNull(day4Data.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -1161,6 +1161,6 @@ class DailyViewLogicTest {
         )
 
         val day3Data = result.first { it.date == day3 }
-        assertNull(day3Data.dailyRainLabelText)
+        assertNull(day3Data.rainData.dailyRainLabelText)
     }
 }
