@@ -758,7 +758,7 @@ object TemperatureGraphRenderer {
         val timings = RenderTimings()
         timings.mark("start")
 
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+        val labelScale = bitmapScale.coerceAtMost(1f)
         val paints = ensurePaints(context, labelScale)
         val density = context.resources.displayMetrics.density
         timings.mark("paints")

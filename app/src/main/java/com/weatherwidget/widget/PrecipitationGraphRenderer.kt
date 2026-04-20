@@ -204,11 +204,11 @@ object PrecipitationGraphRenderer {
 
         val density = context.resources.displayMetrics.density
         val heightDp = heightPx / density
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+        val labelScale = bitmapScale.coerceAtMost(1f)
         val paints = ensurePaints(context, heightDp, labelScale)
 
         // Layout zones (mirrors TemperatureGraphRenderer style)
-        val topPadding = dpToPx(context, 24f * labelScale)
+        val topPadding = dpToPx(context, 44f * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
         val iconSize = dpToPx(context, 22.4f).toInt()

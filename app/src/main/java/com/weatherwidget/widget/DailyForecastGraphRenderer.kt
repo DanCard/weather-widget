@@ -34,7 +34,7 @@ object DailyForecastGraphRenderer {
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
     private const val MIN_RAIN_FONT_SCALE = 0.4f
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
-    private const val TOP_PADDING_DP = 44f
+    private const val TOP_PADDING_DP = 54f
     private const val FORECAST_BAR_WIDTH_DP = 9f
     private const val TODAY_TRIPLE_BAR_WIDTH_DP = 5.25f
 
@@ -45,7 +45,7 @@ object DailyForecastGraphRenderer {
     private const val RAIN_TEXT_MARGIN_DP = 4f
     private const val RAIN_LABEL_EDGE_MARGIN_DP = 2f
     private const val ICON_STACK_SPACING_DP = 4f
-    private const val DAY_LABEL_BASE_SIZE_DP = 15f
+    private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
     private const val RAIN_TEXT_SIZE_DP = 14.4f
     private const val DAY_LABEL_BOTTOM_MARGIN_PX = 3f
@@ -247,7 +247,7 @@ val forecastHigh: Float? = null,
         }
 
         val scaleFactor = widthScaleFactor
-        val labelScale = bitmapScale.coerceIn(0.5f, 1f)
+        val labelScale = bitmapScale.coerceAtMost(1f)
         val horizontalPadding = 0f
         val topPadding = dpToPx(context, TOP_PADDING_DP * scaleFactor * labelScale)
 
