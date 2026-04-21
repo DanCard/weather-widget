@@ -1,9 +1,7 @@
 package com.weatherwidget.data.repository
 
-import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
-import io.mockk.mockk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,8 +10,6 @@ import java.time.LocalDate
 
 @Category(ShortDuration::class)
 class ForecastRepositoryPhantomDayTest {
-
-    private val mapper = NwsForecastMapper(mockk<NwsApi>(), mockk<AppLogDao>(relaxed = true))
 
     @Test
     fun `keeps last future date with null high and valid low`() {
@@ -84,7 +80,7 @@ class ForecastRepositoryPhantomDayTest {
     fun `applyForecastPeriods maps terminal night period to friday low only`() {
         val acc = NwsForecastMapper.NwsDayAccumulator()
 
-        mapper.applyForecastPeriods(
+        NwsForecastMapper.applyForecastPeriods(
             forecastPeriods = listOf(
                 NwsApi.ForecastPeriod(
                     name = "Thursday",

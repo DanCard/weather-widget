@@ -63,9 +63,27 @@ class CurrentTempRepository
         private val openWeatherMapApi: OpenWeatherMapApi? = null,
     ) {
         private val syncMutex = Mutex()
-        companion object { 
+        companion object {
             private const val CURRENT_TEMP_FRESHNESS_MS = 300_000L // 5 minutes
-            private const val MAX_RETRIES = 5 
+            private const val MAX_RETRIES = 5
+
+            fun appendHistoricalPoi(poiString: String, latitude: Double, longitude: Double, name: String): String {
+                val poiStrings = poiString.split(";").filter { it.isNotEmpty() }.toMutableList()
+                poiStrings.removeIf { it.contains("|$latitude|$longitude") }
+                poiStrings.add(0, "$name|$latitude|$longitude")
+                return poiStrings.take(3).joinToString(";")
+            }
+
+            fun parseHistoricalPois(poiString: String): List<Triple<Double, Double, String>> =
+                poiString
+                    .split(";")
+                    .filter { it.isNotEmpty() }
+                    .mapNotNull {
+                        runCatching {
+                            val parts = it.split("|")
+                            Triple(parts[1].toDouble(), parts[2].toDouble(), parts[0])
+                        }.getOrNull()
+                    }
         }
         
         private var lastFetchTime: Long
@@ -465,23 +483,14 @@ class CurrentTempRepository
 
         @androidx.annotation.VisibleForTesting
         internal fun recordHistoricalPoi(latitude: Double, longitude: Double, name: String) {
-            val poiStrings = prefs.getString("historical_pois", "")!!.split(";").filter { it.isNotEmpty() }.toMutableList()
-            poiStrings.removeIf { it.contains("|$latitude|$longitude") }
-            poiStrings.add(0, "$name|$latitude|$longitude")
-            prefs.edit().putString("historical_pois", poiStrings.take(3).joinToString(";")).apply()
+            val current = prefs.getString("historical_pois", "") ?: ""
+            val updated = appendHistoricalPoi(current, latitude, longitude, name)
+            prefs.edit().putString("historical_pois", updated).apply()
         }
 
         @androidx.annotation.VisibleForTesting
-        internal fun getHistoricalPois(): List<Triple<Double, Double, String>> = 
-            prefs.getString("historical_pois", "")!!
-                .split(";")
-                .filter { it.isNotEmpty() }
-                .mapNotNull { 
-                    runCatching { 
-                        val parts = it.split("|")
-                        Triple(parts[1].toDouble(), parts[2].toDouble(), parts[0]) 
-                    }.getOrNull() 
-                }
+        internal fun getHistoricalPois(): List<Triple<Double, Double, String>> =
+            parseHistoricalPois(prefs.getString("historical_pois", "") ?: "")
 
         fun calculateDistance(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
             val results = FloatArray(1)

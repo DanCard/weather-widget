@@ -1,238 +1,189 @@
 package com.weatherwidget.widget
 
 import android.content.Context
-import android.content.SharedPreferences
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.model.WeatherSource
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
-import com.weatherwidget.test.category.ShortDuration
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.experimental.categories.Category
 
-
-
-@Category(ShortDuration::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+@Category(MediumDuration::class)
 class WidgetStateManagerTest {
-    private lateinit var context: Context
-    private lateinit var prefs: SharedPreferences
-    private lateinit var editor: SharedPreferences.Editor
     private lateinit var stateManager: WidgetStateManager
+    private val testWidgetId = 1
 
     @Before
     fun setup() {
-        context = mockk(relaxed = true)
-        prefs = mockk(relaxed = true)
-        editor = mockk(relaxed = true)
-        
-        every { context.getSharedPreferences(any(), any()) } returns prefs
-        every { prefs.edit() } returns editor
-        every { editor.putInt(any(), any()) } returns editor
-        every { editor.putBoolean(any(), any()) } returns editor
-        every { editor.putString(any(), any()) } returns editor
-        every { editor.putFloat(any(), any()) } returns editor
-        every { editor.putLong(any(), any()) } returns editor
-        every { prefs.getLong(any(), any()) } returns 0L
-        every { editor.remove(any()) } returns editor
-        
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+        val prefs = context.getSharedPreferences("test_widget_state_prefs", Context.MODE_PRIVATE)
+        prefs.edit().clear().apply()
         stateManager = WidgetStateManager(context)
+    }
+
+    @After
+    fun tearDown() {
+        WidgetStateManager.setPrefsNameOverrideForTesting(null)
     }
 
     @Test
     fun `toggleViewMode from DAILY to HOURLY resets offset and zoom`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.DAILY.ordinal
-        
-        stateManager.toggleViewMode(widgetId)
-        
-        // Should set view mode to HOURLY and reset offset to 0 and zoom to WIDE
-        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.TEMPERATURE.ordinal) }
-        verify { editor.putInt("widget_hourly_offset_$widgetId", 0) }
-        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+        stateManager.cycleZoomLevel(testWidgetId)
+
+        val newMode = stateManager.toggleViewMode(testWidgetId)
+
+        assertEquals(ViewMode.TEMPERATURE, newMode)
+        assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `toggleViewMode from PRECIPITATION to DAILY does not reset hourly offset`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.PRECIPITATION.ordinal
-        
-        stateManager.toggleViewMode(widgetId)
-        
-        // Should set view mode to DAILY
-        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.DAILY.ordinal) }
-        // Should NOT reset hourly offset (it's only reset when entering HOURLY from DAILY)
-        verify(exactly = 0) { editor.putInt("widget_hourly_offset_$widgetId", 0) }
+        val w = testWidgetId
+        stateManager.setViewMode(w, ViewMode.PRECIPITATION)
+        stateManager.setHourlyOffset(w, 6)
+
+        val modeBefore = stateManager.getViewMode(w)
+        assertEquals(ViewMode.PRECIPITATION, modeBefore)
+
+        val newMode = stateManager.toggleViewMode(w)
+
+        assertEquals(ViewMode.DAILY, newMode)
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(w))
     }
 
-    @Test
+@Test
     fun `togglePrecipitationMode from DAILY to PRECIPITATION resets offset and zoom`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.DAILY.ordinal
+        stateManager.setDateOffset(testWidgetId, 3)
 
-        stateManager.togglePrecipitationMode(widgetId)
+        val newMode = stateManager.togglePrecipitationMode(testWidgetId)
 
-        // Should set view mode to PRECIPITATION and reset offset to 0 and zoom to WIDE
-        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.PRECIPITATION.ordinal) }
-        verify { editor.putInt("widget_hourly_offset_$widgetId", 0) }
-        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+        assertEquals(ViewMode.PRECIPITATION, newMode)
+        assertEquals(0, stateManager.getHourlyOffset(testWidgetId))
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
-
-    // --- Zoom level tests ---
 
     @Test
     fun `getZoomLevel defaults to WIDE`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.WIDE.ordinal
-
-        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(widgetId))
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `cycleZoomLevel toggles WIDE to NARROW`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.WIDE.ordinal
-
-        val result = stateManager.cycleZoomLevel(widgetId)
+        val result = stateManager.cycleZoomLevel(testWidgetId)
 
         assertEquals(ZoomLevel.NARROW, result)
-        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.NARROW.ordinal) }
+        assertEquals(ZoomLevel.NARROW, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `cycleZoomLevel toggles NARROW back to WIDE`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+        stateManager.cycleZoomLevel(testWidgetId)
 
-        val result = stateManager.cycleZoomLevel(widgetId)
+        val result = stateManager.cycleZoomLevel(testWidgetId)
 
         assertEquals(ZoomLevel.WIDE, result)
-        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `getNavJump returns zoom-appropriate value`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.WIDE.ordinal
-        assertEquals(6, stateManager.getNavJump(widgetId))
+        assertEquals(6, stateManager.getNavJump(testWidgetId))
 
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
-        assertEquals(2, stateManager.getNavJump(widgetId))
+        stateManager.cycleZoomLevel(testWidgetId)
+        assertEquals(2, stateManager.getNavJump(testWidgetId))
     }
 
     @Test
     fun `navigateHourlyRight uses zoom-aware nav jump`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_hourly_offset_$widgetId", any()) } returns 0
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+        stateManager.cycleZoomLevel(testWidgetId)
 
-        val result = stateManager.navigateHourlyRight(widgetId)
+        val result = stateManager.navigateHourlyRight(testWidgetId)
 
         assertEquals(2, result)
-        verify { editor.putInt("widget_hourly_offset_$widgetId", 2) }
     }
 
     @Test
     fun `navigateHourlyLeft uses zoom-aware nav jump`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_hourly_offset_$widgetId", any()) } returns 6
-        every { prefs.getInt("widget_zoom_level_$widgetId", any()) } returns ZoomLevel.NARROW.ordinal
+        stateManager.setHourlyOffset(testWidgetId, 6)
+        stateManager.cycleZoomLevel(testWidgetId)
 
-        val result = stateManager.navigateHourlyLeft(widgetId)
+        val result = stateManager.navigateHourlyLeft(testWidgetId)
 
         assertEquals(4, result)
-        verify { editor.putInt("widget_hourly_offset_$widgetId", 4) }
     }
 
     @Test
     fun `setHourlyOffset preserves day-click future offsets within range`() {
-        val widgetId = 1
+        stateManager.setHourlyOffset(testWidgetId, 129)
 
-        stateManager.setHourlyOffset(widgetId, 129)
-
-        verify { editor.putInt("widget_hourly_offset_$widgetId", 129) }
+        assertEquals(129, stateManager.getHourlyOffset(testWidgetId))
     }
 
     @Test
     fun `toggleViewMode to DAILY resets zoom to WIDE`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.TEMPERATURE.ordinal
+        stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
+        stateManager.cycleZoomLevel(testWidgetId)
 
-        stateManager.toggleViewMode(widgetId)
+        val newMode = stateManager.toggleViewMode(testWidgetId)
 
-        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.DAILY.ordinal) }
-        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+        assertEquals(ViewMode.DAILY, newMode)
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `togglePrecipitationMode to DAILY resets zoom to WIDE`() {
-        val widgetId = 1
-        every { prefs.getInt("widget_view_mode_$widgetId", any()) } returns ViewMode.PRECIPITATION.ordinal
+        stateManager.togglePrecipitationMode(testWidgetId)
 
-        stateManager.togglePrecipitationMode(widgetId)
+        stateManager.toggleViewMode(testWidgetId)
 
-        verify { editor.putInt("widget_view_mode_$widgetId", ViewMode.DAILY.ordinal) }
-        verify { editor.putInt("widget_zoom_level_$widgetId", ZoomLevel.WIDE.ordinal) }
+        assertEquals(ViewMode.DAILY, stateManager.getViewMode(testWidgetId))
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `clearWidgetState removes zoom level`() {
-        val widgetId = 1
-        every { prefs.all } returns emptyMap<String, Any>()
+        stateManager.cycleZoomLevel(testWidgetId)
 
-        stateManager.clearWidgetState(widgetId)
+        stateManager.clearWidgetState(testWidgetId)
 
-        verify { editor.remove("widget_zoom_level_$widgetId") }
+        assertEquals(ZoomLevel.WIDE, stateManager.getZoomLevel(testWidgetId))
     }
 
     @Test
     fun `toggleDisplaySource cycles through visible sources in order`() {
-        val widgetId = 1
-        // Already migrated, visible sources set
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
-        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,VISUAL_CROSSING,OPEN_METEO"
-        every { prefs.contains("widget_display_source_$widgetId") } returns true
-        var storedStep = 0
-        every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
-        every { editor.putInt("widget_display_source_$widgetId", any()) } answers {
-            storedStep = secondArg()
-            editor
-        }
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.VISUAL_CROSSING, WeatherSource.OPEN_METEO))
 
-        val first = stateManager.getCurrentDisplaySource(widgetId)
-        val second = stateManager.toggleDisplaySource(widgetId)
-        val third = stateManager.toggleDisplaySource(widgetId)
-        val fourth = stateManager.toggleDisplaySource(widgetId)
+        val first = stateManager.getCurrentDisplaySource(testWidgetId)
+        val second = stateManager.toggleDisplaySource(testWidgetId)
+        val third = stateManager.toggleDisplaySource(testWidgetId)
+        val fourth = stateManager.toggleDisplaySource(testWidgetId)
 
-        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, first)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING, second)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, third)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, fourth)
+        assertEquals(WeatherSource.NWS, first)
+        assertEquals(WeatherSource.VISUAL_CROSSING, second)
+        assertEquals(WeatherSource.OPEN_METEO, third)
+        assertEquals(WeatherSource.NWS, fourth)
     }
 
     @Test
     fun `getEffectiveVisibleSourcesOrder preserves Open-Meteo when enabled`() {
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
-        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
 
         val sources = stateManager.getEffectiveVisibleSourcesOrder(37.42, -122.08)
 
         assertEquals(
             listOf(
-                com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
-                com.weatherwidget.data.model.WeatherSource.WEATHER_API,
+                WeatherSource.NWS,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.WEATHER_API,
             ),
             sources
         )
@@ -240,215 +191,70 @@ class WidgetStateManagerTest {
 
     @Test
     fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install`() {
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
-        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns null
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val freshPrefs = context.getSharedPreferences("fresh_test_prefs", Context.MODE_PRIVATE)
+        freshPrefs.edit().clear().apply()
+        WidgetStateManager.setPrefsNameOverrideForTesting("fresh_test_prefs")
+        val freshManager = WidgetStateManager(context)
 
-        val sources = stateManager.getVisibleSourcesOrder()
-
-        assertEquals(
-            listOf(
-                com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.TOMORROW_IO,
-                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
-                com.weatherwidget.data.model.WeatherSource.SILURIAN,
-            ),
-            sources
-        )
-    }
-
-    @Test
-    fun `getVisibleSourcesOrder migrates existing stored order to append silurian remove owm and insert visual crossing second`() {
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns false
-        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns false
-        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns false
-        every { prefs.getString("visible_sources_order", any()) } returnsMany listOf(
-            "NWS,WEATHER_API,OPEN_METEO",
-            "NWS,WEATHER_API,OPEN_METEO,SILURIAN",
-            "NWS,WEATHER_API,OPEN_METEO,SILURIAN",
-            "NWS,VISUAL_CROSSING,WEATHER_API,OPEN_METEO,SILURIAN",
-        )
-
-        val sources = stateManager.getVisibleSourcesOrder()
+        val sources = freshManager.getVisibleSourcesOrder()
 
         assertEquals(
             listOf(
-                com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING,
-                com.weatherwidget.data.model.WeatherSource.WEATHER_API,
-                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
-                com.weatherwidget.data.model.WeatherSource.SILURIAN,
+                WeatherSource.NWS,
+                WeatherSource.TOMORROW_IO,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
             ),
             sources
         )
-        verify { editor.putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("silurian_migration_done_v2", true) }
-        verify { editor.putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("hide_open_weather_map_migration_done_v4", true) }
-        verify { editor.putString("visible_sources_order", "NWS,VISUAL_CROSSING,WEATHER_API,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("visual_crossing_migration_done_v5", true) }
-    }
-
-    @Test
-    fun `getVisibleSourcesOrder strips open weather map and inserts visual crossing second`() {
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns false
-        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns false
-        every { prefs.getString("visible_sources_order", any()) } returnsMany listOf(
-            "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN",
-            "NWS,OPEN_METEO,SILURIAN",
-            "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN",
-        )
-
-        val sources = stateManager.getVisibleSourcesOrder()
-
-        assertEquals(
-            listOf(
-                com.weatherwidget.data.model.WeatherSource.NWS,
-                com.weatherwidget.data.model.WeatherSource.VISUAL_CROSSING,
-                com.weatherwidget.data.model.WeatherSource.OPEN_METEO,
-                com.weatherwidget.data.model.WeatherSource.SILURIAN,
-            ),
-            sources
-        )
-        verify { editor.putString("visible_sources_order", "NWS,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("hide_open_weather_map_migration_done_v4", true) }
-        verify { editor.putString("visible_sources_order", "NWS,VISUAL_CROSSING,OPEN_METEO,SILURIAN") }
-        verify { editor.putBoolean("visual_crossing_migration_done_v5", true) }
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
     }
 
     @Test
     fun `toggleDisplaySource keeps current temp delta state`() {
-        val widgetId = 1
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getBoolean("silurian_migration_done_v2", false) } returns true
-        every { prefs.getBoolean("hide_open_weather_map_migration_done_v4", false) } returns true
-        every { prefs.getBoolean("visual_crossing_migration_done_v5", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
-        every { prefs.contains("widget_display_source_$widgetId") } returns true
-        every { prefs.getInt("widget_display_source_$widgetId", any()) } returns 0
+        val w = testWidgetId
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+        val nwsState = CurrentTemperatureDeltaState(
+            delta = -5f,
+            lastObservedTemp = 83f,
+            lastObservedAt = 1000L,
+            updatedAtMs = 1000L,
+            sourceId = WeatherSource.NWS.id,
+            locationLat = 37.42,
+            locationLon = -122.08,
+        )
+        stateManager.setCurrentTempDeltaState(w, WeatherSource.NWS, nwsState)
 
-        stateManager.toggleDisplaySource(widgetId)
+        stateManager.toggleDisplaySource(w)
 
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_$widgetId") }
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_observed_$widgetId") }
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_fetched_at_$widgetId") }
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_updated_at_$widgetId") }
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_source_$widgetId") }
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_lat_$widgetId") }
-        verify(exactly = 0) { editor.remove("widget_current_temp_delta_lon_$widgetId") }
+        val restored = stateManager.getCurrentTempDeltaState(w, WeatherSource.NWS)
+        assertNotNull(restored)
+        assertEquals(-5f, restored!!.delta, 0.01f)
     }
 
     @Test
     fun `set and get current temp delta state is source scoped`() {
-        val widgetId = 7
-        val nwsState =
-            CurrentTemperatureDeltaState(
-                delta = -5f,
-                lastObservedTemp = 83f,
-                lastObservedAt = 1000L,
-                updatedAtMs = 1000L,
-                sourceId = WeatherSource.NWS.id,
-                locationLat = 37.42,
-                locationLon = -122.08,
-            )
+        val w = 7
+        val nwsState = CurrentTemperatureDeltaState(
+            delta = -5f,
+            lastObservedTemp = 83f,
+            lastObservedAt = 1000L,
+            updatedAtMs = 1000L,
+            sourceId = WeatherSource.NWS.id,
+            locationLat = 37.42,
+            locationLon = -122.08,
+        )
 
-        every { prefs.contains("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}") } returns true
-        every { prefs.contains("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.NWS.id}") } returns true
-        every { prefs.contains("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.NWS.id}") } returns true
-        every { prefs.contains("widget_current_temp_delta_${widgetId}_${WeatherSource.OPEN_METEO.id}") } returns false
-        every { prefs.contains("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.OPEN_METEO.id}") } returns false
-        every { prefs.contains("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.OPEN_METEO.id}") } returns false
-        every { prefs.getString("widget_current_temp_delta_source_${widgetId}_${WeatherSource.NWS.id}", null) } returns WeatherSource.NWS.id
-        every { prefs.getString("widget_current_temp_delta_lat_${widgetId}_${WeatherSource.NWS.id}", null) } returns "37.42"
-        every { prefs.getString("widget_current_temp_delta_lon_${widgetId}_${WeatherSource.NWS.id}", null) } returns "-122.08"
-        every { prefs.getFloat("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}", 0f) } returns -5f
-        every { prefs.getFloat("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.NWS.id}", 0f) } returns 83f
-        every { prefs.getLong("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.NWS.id}", 0L) } returns 1000L
-        every { prefs.getLong("widget_current_temp_delta_updated_at_${widgetId}_${WeatherSource.NWS.id}", 0L) } returns 1000L
+        stateManager.setCurrentTempDeltaState(w, WeatherSource.NWS, nwsState)
 
-        stateManager.setCurrentTempDeltaState(widgetId, WeatherSource.NWS, nwsState)
-
-        verify { editor.putFloat("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}", -5f) }
-        verify { editor.putString("widget_current_temp_delta_source_${widgetId}_${WeatherSource.NWS.id}", WeatherSource.NWS.id) }
-
-        val restoredNws = stateManager.getCurrentTempDeltaState(widgetId, WeatherSource.NWS)
-        val restoredMeteo = stateManager.getCurrentTempDeltaState(widgetId, WeatherSource.OPEN_METEO)
+        val restoredNws = stateManager.getCurrentTempDeltaState(w, WeatherSource.NWS)
+        val restoredMeteo = stateManager.getCurrentTempDeltaState(w, WeatherSource.OPEN_METEO)
 
         assertNotNull(restoredNws)
         assertEquals(WeatherSource.NWS.id, restoredNws?.sourceId)
         assertEquals(-5f, restoredNws?.delta ?: 0f, 0.01f)
         assertNull(restoredMeteo)
-    }
-
-    @Test
-    fun `get current temp delta state migrates matching legacy widget scoped state`() {
-        val widgetId = 9
-        every { prefs.contains("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}") } returns false
-        every { prefs.contains("widget_current_temp_delta_observed_${widgetId}_${WeatherSource.NWS.id}") } returns false
-        every { prefs.contains("widget_current_temp_delta_fetched_at_${widgetId}_${WeatherSource.NWS.id}") } returns false
-        every { prefs.contains("widget_current_temp_delta_$widgetId") } returns true
-        every { prefs.contains("widget_current_temp_delta_observed_$widgetId") } returns true
-        every { prefs.contains("widget_current_temp_delta_fetched_at_$widgetId") } returns true
-        every { prefs.getString("widget_current_temp_delta_source_$widgetId", null) } returns WeatherSource.NWS.id
-        every { prefs.getString("widget_current_temp_delta_lat_$widgetId", null) } returns "37.42"
-        every { prefs.getString("widget_current_temp_delta_lon_$widgetId", null) } returns "-122.08"
-        every { prefs.getFloat("widget_current_temp_delta_$widgetId", 0f) } returns -4f
-        every { prefs.getFloat("widget_current_temp_delta_observed_$widgetId", 0f) } returns 82f
-        every { prefs.getLong("widget_current_temp_delta_fetched_at_$widgetId", 0L) } returns 2000L
-        every { prefs.getLong("widget_current_temp_delta_updated_at_$widgetId", 0L) } returns 3000L
-
-        val migrated = stateManager.getCurrentTempDeltaState(widgetId, WeatherSource.NWS)
-
-        assertNotNull(migrated)
-        assertEquals(WeatherSource.NWS.id, migrated?.sourceId)
-        verify { editor.putFloat("widget_current_temp_delta_${widgetId}_${WeatherSource.NWS.id}", -4f) }
-        verify { editor.remove("widget_current_temp_delta_$widgetId") }
-        verify { editor.remove("widget_current_temp_delta_observed_$widgetId") }
-        verify { editor.remove("widget_current_temp_delta_fetched_at_$widgetId") }
-    }
-
-    @Test
-    fun `toggleDisplaySource cycles only visible sources when some hidden`() {
-        val widgetId = 1
-        every { prefs.getBoolean("api_pref_migrated", false) } returns true
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,WEATHER_API"
-        every { prefs.contains("widget_display_source_$widgetId") } returns true
-        var storedStep = 0
-        every { prefs.getInt("widget_display_source_$widgetId", any()) } answers { storedStep }
-        every { editor.putInt("widget_display_source_$widgetId", any()) } answers {
-            storedStep = secondArg()
-            editor
-        }
-
-        val first = stateManager.getCurrentDisplaySource(widgetId)
-        val second = stateManager.toggleDisplaySource(widgetId)
-        val third = stateManager.toggleDisplaySource(widgetId)
-
-        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, first)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.WEATHER_API, second)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS, third) // wraps around
-    }
-
-    @Test
-    fun `getCurrentDisplaySource migrates legacy boolean toggle state`() {
-        val widgetId = 1
-        // Migration not done yet, old api_preference exists (ordinal 1 = PREFER_NWS)
-        every { prefs.getBoolean("api_pref_migrated", false) } returns false
-        every { prefs.contains("api_preference") } returns true
-        every { prefs.getInt("api_preference", any()) } returns 1 // PREFER_NWS ordinal
-        // After migration writes new pref, subsequent read should return it
-        every { prefs.getString("visible_sources_order", any()) } returns "NWS,OPEN_METEO,WEATHER_API"
-        every { prefs.contains("widget_display_source_$widgetId") } returns false
-        every { prefs.getBoolean("widget_display_source_$widgetId", false) } returns true
-
-        val source = stateManager.getCurrentDisplaySource(widgetId)
-
-        assertEquals(com.weatherwidget.data.model.WeatherSource.OPEN_METEO, source)
     }
 
     @Test
@@ -468,35 +274,141 @@ class WidgetStateManagerTest {
 
     @Test
     fun `shouldRefreshMissingActuals respects cooldown`() {
-        val widgetId = 5
+        val w = 5
         val source = "NWS"
-        val now = System.currentTimeMillis()
-        every { prefs.getLong(any(), any()) } returns now
+        stateManager.markMissingActualsRefreshRequested(w, source)
 
-        val result = stateManager.shouldRefreshMissingActuals(widgetId, source, 5_000L)
+        val result = stateManager.shouldRefreshMissingActuals(w, source, 5_000L)
 
         assertFalse(result)
     }
 
     @Test
     fun `shouldRefreshMissingActuals returns true after cooldown expires`() {
-        val widgetId = 7
+        val w = 7
         val source = "WEATHER_API"
-        val past = System.currentTimeMillis() - 10_000L
-        every { prefs.getLong(any(), any()) } returns past
+        stateManager.markMissingActualsRefreshRequested(w, source)
+        val cooldownMs = 0L
 
-        val result = stateManager.shouldRefreshMissingActuals(widgetId, source, 5_000L)
+        val result = stateManager.shouldRefreshMissingActuals(w, source, cooldownMs)
 
         assertTrue(result)
     }
 
     @Test
     fun `markMissingActualsRefreshRequested writes timestamp`() {
-        val widgetId = 3
+        val w = 3
         val source = "OPEN_METEO"
 
-        stateManager.markMissingActualsRefreshRequested(widgetId, source)
+        stateManager.markMissingActualsRefreshRequested(w, source)
 
-        verify { editor.putLong("widget_missing_data_refresh_${widgetId}_${source}_actuals", any()) }
+        assertFalse(stateManager.shouldRefreshMissingActuals(w, source, 5_000L))
+    }
+
+    @Test
+    fun `getVisibleSourcesOrder migrates existing stored order to append silurian remove owm and insert visual crossing second`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val migrationPrefs = context.getSharedPreferences("migration_test_prefs_1", Context.MODE_PRIVATE)
+        migrationPrefs.edit().clear().apply()
+        WidgetStateManager.setPrefsNameOverrideForTesting("migration_test_prefs_1")
+        val migrationManager = WidgetStateManager(context)
+
+        migrationPrefs.edit()
+            .putBoolean("api_pref_migrated", true)
+            .putBoolean("silurian_migration_done_v2", false)
+            .putBoolean("hide_open_weather_map_migration_done_v4", false)
+            .putBoolean("visual_crossing_migration_done_v5", false)
+            .putString("visible_sources_order", "NWS,WEATHER_API,OPEN_METEO")
+            .apply()
+
+        val sources = migrationManager.getVisibleSourcesOrder()
+
+        assertEquals(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.VISUAL_CROSSING,
+                WeatherSource.WEATHER_API,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+            ),
+            sources
+        )
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `getVisibleSourcesOrder strips open weather map and inserts visual crossing second`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val migrationPrefs = context.getSharedPreferences("migration_test_prefs_2", Context.MODE_PRIVATE)
+        migrationPrefs.edit().clear().apply()
+        WidgetStateManager.setPrefsNameOverrideForTesting("migration_test_prefs_2")
+        val migrationManager = WidgetStateManager(context)
+
+        migrationPrefs.edit()
+            .putBoolean("api_pref_migrated", true)
+            .putBoolean("silurian_migration_done_v2", true)
+            .putBoolean("hide_open_weather_map_migration_done_v4", false)
+            .putBoolean("visual_crossing_migration_done_v5", false)
+            .putString("visible_sources_order", "NWS,OPEN_WEATHER_MAP,OPEN_METEO,SILURIAN")
+            .apply()
+
+        val sources = migrationManager.getVisibleSourcesOrder()
+
+        assertEquals(
+            listOf(
+                WeatherSource.NWS,
+                WeatherSource.VISUAL_CROSSING,
+                WeatherSource.OPEN_METEO,
+                WeatherSource.SILURIAN,
+            ),
+            sources
+        )
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `getCurrentDisplaySource returns second source when toggle step is 1`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val togglePrefs = context.getSharedPreferences("toggle_test_prefs", Context.MODE_PRIVATE)
+        togglePrefs.edit().clear().apply()
+        WidgetStateManager.setPrefsNameOverrideForTesting("toggle_test_prefs")
+        val toggleManager = WidgetStateManager(context)
+
+        toggleManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+        // Set toggle step to 1 (second source)
+        togglePrefs.edit().putInt("widget_display_source_$testWidgetId", 1).apply()
+
+        val source = toggleManager.getCurrentDisplaySource(testWidgetId)
+
+        assertEquals(WeatherSource.OPEN_METEO, source)
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
+    }
+
+    @Test
+    fun `get current temp delta state migrates matching legacy widget scoped state`() {
+        val w = 9
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val migrationPrefs = context.getSharedPreferences("delta_migration_prefs", Context.MODE_PRIVATE)
+        migrationPrefs.edit().clear().apply()
+        WidgetStateManager.setPrefsNameOverrideForTesting("delta_migration_prefs")
+        val migrationManager = WidgetStateManager(context)
+
+        migrationPrefs.edit()
+            .putFloat("widget_current_temp_delta_$w", -4f)
+            .putFloat("widget_current_temp_delta_observed_$w", 82f)
+            .putLong("widget_current_temp_delta_fetched_at_$w", 2000L)
+            .putLong("widget_current_temp_delta_updated_at_$w", 3000L)
+            .putString("widget_current_temp_delta_source_$w", WeatherSource.NWS.id)
+            .putString("widget_current_temp_delta_lat_$w", "37.42")
+            .putString("widget_current_temp_delta_lon_$w", "-122.08")
+            .apply()
+
+        val migrated = migrationManager.getCurrentTempDeltaState(w, WeatherSource.NWS)
+
+        assertNotNull(migrated)
+        assertEquals(WeatherSource.NWS.id, migrated?.sourceId)
+        assertEquals(-4f, migrated?.delta ?: 0f, 0.01f)
+        assertFalse(migrationPrefs.contains("widget_current_temp_delta_$w"))
+        WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
     }
 }

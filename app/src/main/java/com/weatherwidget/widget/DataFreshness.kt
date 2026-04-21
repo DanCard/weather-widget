@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import android.util.Log
 import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.data.model.WeatherSource
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -13,6 +14,23 @@ import java.time.temporal.ChronoUnit
  */
 object DataFreshness {
     private const val TAG = "DataFreshness"
+
+    fun isStaleForSources(
+        visibleSources: List<WeatherSource>,
+        batchFetchedAtBySource: Map<String, Long>,
+        nowMs: Long,
+    ): Boolean {
+        if (visibleSources.isEmpty()) return false
+
+        for ((index, source) in visibleSources.withIndex()) {
+            val batchFetchedAt = batchFetchedAtBySource[source.id]
+            if (batchFetchedAt == null) return true
+            val ageMs = nowMs - batchFetchedAt
+            val thresholdMs = ForecastStalenessPolicy.getStalenessThresholdMs(index)
+            if (ageMs > thresholdMs) return true
+        }
+        return false
+    }
 
     /**
      * Check if the weather data is stale and needs refreshing.
@@ -26,7 +44,6 @@ object DataFreshness {
             val forecastDao = database.forecastDao()
             val stateManager = WidgetStateManager(context)
 
-            // Get the list of sources currently displayed on active widgets
             val visibleSources = stateManager.getVisibleSourcesOrder()
             if (visibleSources.isEmpty()) {
                 Log.d(TAG, "No visible sources found, skipping stale check")
@@ -34,34 +51,25 @@ object DataFreshness {
             }
 
             val nowMs = System.currentTimeMillis()
-
+            val batchFetchedAtBySource = mutableMapOf<String, Long>()
             for (source in visibleSources) {
                 val latestForSource = forecastDao.getLatestWeatherBySource(source.id)
                 if (latestForSource == null) {
                     Log.d(TAG, "Source ${source.id} has no data, considering stale")
                     return true
                 }
-
-                // Use batchFetchedAt to represent the age of the forecast set
-                val ageMs = nowMs - latestForSource.batchFetchedAt
-                val position = visibleSources.indexOf(source)
-                val thresholdMs = ForecastStalenessPolicy.getStalenessThresholdMs(position)
-
-                val isSourceStale = ageMs > thresholdMs
-                if (isSourceStale) {
-                    Log.d(
-                        TAG,
-                        "Source ${source.id} is stale (age=${ageMs / 60000}m, threshold=${thresholdMs / 60000}m)",
-                    )
-                    return true
-                }
+                batchFetchedAtBySource[source.id] = latestForSource.batchFetchedAt
             }
 
-            Log.d(TAG, "All visible sources are fresh")
-            false
+            val result = isStaleForSources(visibleSources, batchFetchedAtBySource, nowMs)
+            if (result) {
+                Log.d(TAG, "At least one visible source is stale")
+            } else {
+                Log.d(TAG, "All visible sources are fresh")
+            }
+            result
         } catch (e: Exception) {
             Log.e(TAG, "Error checking data staleness", e)
-            // On error, assume data is stale to be safe
             true
         }
     }

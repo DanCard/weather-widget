@@ -255,14 +255,19 @@ class NwsForecastMapper @Inject constructor(
             }
     }
 
-    fun applyForecastPeriods(
-        forecastPeriods: List<NwsApi.ForecastPeriod>,
-        todayDateString: String,
-        acc: NwsDayAccumulator,
-    ): List<NwsApi.ForecastPeriod> {
-        val todayPeriods = mutableListOf<NwsApi.ForecastPeriod>()
-        forecastPeriods.forEach { period ->
-            val dateString = extractNwsForecastDate(period.startTime) ?: return@forEach
+    companion object {
+        fun extractNwsForecastDate(isoString: String): String? =
+            runCatching { ZonedDateTime.parse(isoString).toLocalDate().toString() }.getOrNull()
+            ?: runCatching { LocalDate.parse(isoString.take(10)).toString() }.getOrNull()
+
+        fun applyForecastPeriods(
+            forecastPeriods: List<NwsApi.ForecastPeriod>,
+            todayDateString: String,
+            acc: NwsDayAccumulator,
+        ): List<NwsApi.ForecastPeriod> {
+            val todayPeriods = mutableListOf<NwsApi.ForecastPeriod>()
+            forecastPeriods.forEach { period ->
+                val dateString = extractNwsForecastDate(period.startTime) ?: return@forEach
             if (dateString == todayDateString) todayPeriods.add(period)
 
             val periodAmount = period.precipAmountMm
@@ -297,6 +302,38 @@ class NwsForecastMapper @Inject constructor(
             }
         }
         return todayPeriods
+        }
+
+        fun removePhantomFutureDays(
+            temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
+            today: LocalDate,
+        ): Pair<String, Float>? {
+            val lastFutureDate =
+                temperatureMap.keys
+                    .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+                    .filter { it.isAfter(today) }
+                    .maxOrNull()
+
+            val preserved =
+                lastFutureDate?.toString()?.let { dateStr ->
+                    temperatureMap[dateStr]?.let { temps ->
+                        if (temps.first == null && temps.second != null) {
+                            dateStr to temps.second!!
+                        } else {
+                            null
+                        }
+                    }
+                }
+
+            temperatureMap.entries.removeAll { (dateStr, temps) ->
+                val date = LocalDate.parse(dateStr)
+                date.isAfter(today) &&
+                    temps.first == null &&
+                    !(date == lastFutureDate && temps.second != null)
+            }
+
+            return preserved
+        }
     }
 
     suspend fun logTodayDiagnostics(
@@ -317,10 +354,6 @@ class NwsForecastMapper @Inject constructor(
             "cond=${acc.conditionMap[todayDateString]} (${acc.conditionSourceMap[todayDateString]})"
         )
     }
-
-    fun extractNwsForecastDate(isoString: String): String? =
-        runCatching { ZonedDateTime.parse(isoString).toLocalDate().toString() }.getOrNull()
-        ?: runCatching { LocalDate.parse(isoString.take(10)).toString() }.getOrNull()
 
     suspend fun persistNwsPeriodSummary(url: String, forecastPeriods: List<NwsApi.ForecastPeriod>) {
         if (forecastPeriods.isEmpty()) return
@@ -389,37 +422,4 @@ class NwsForecastMapper @Inject constructor(
         val precipAmountMap: MutableMap<String, Float> = mutableMapOf(),
         val periodTimeMap: MutableMap<String, Pair<String?, String?>> = mutableMapOf(),
     )
-
-    companion object {
-        fun removePhantomFutureDays(
-            temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
-            today: LocalDate,
-        ): Pair<String, Float>? {
-            val lastFutureDate =
-                temperatureMap.keys
-                    .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
-                    .filter { it.isAfter(today) }
-                    .maxOrNull()
-
-            val preserved =
-                lastFutureDate?.toString()?.let { dateStr ->
-                    temperatureMap[dateStr]?.let { temps ->
-                        if (temps.first == null && temps.second != null) {
-                            dateStr to temps.second!!
-                        } else {
-                            null
-                        }
-                    }
-                }
-
-            temperatureMap.entries.removeAll { (dateStr, temps) ->
-                val date = LocalDate.parse(dateStr)
-                date.isAfter(today) &&
-                    temps.first == null &&
-                    !(date == lastFutureDate && temps.second != null)
-            }
-
-            return preserved
-        }
-    }
 }
