@@ -222,7 +222,7 @@ internal fun setupHomeShortcut(
     views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
 }
 
-internal fun setupCurrentStationsShortcut(
+internal fun setupWeatherStationsShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
@@ -234,13 +234,13 @@ internal fun setupCurrentStationsShortcut(
 
     val pendingIntent = PendingIntent.getActivity(
         context,
-        WidgetRequestCodes.currentStations(appWidgetId),
+        WidgetRequestCodes.weatherStations(appWidgetId),
         obsIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
-    views.setOnClickPendingIntent(R.id.current_stations_icon, pendingIntent)
-    views.setOnClickPendingIntent(R.id.current_stations_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.current_stations_touch_zone_inline, pendingIntent)
+    views.setOnClickPendingIntent(R.id.weather_stations_icon, pendingIntent)
+    views.setOnClickPendingIntent(R.id.weather_stations_touch_zone, pendingIntent)
+    views.setOnClickPendingIntent(R.id.weather_stations_touch_zone_inline, pendingIntent)
 }
 
 internal fun setupSettingsShortcut(
@@ -269,10 +269,10 @@ internal fun positionCenterIcons(
     Log.d("TemperatureTouchTargets", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline")
     val floatingVis = if (useInline) View.GONE else View.VISIBLE
     val inlineVis = if (useInline) View.VISIBLE else View.GONE
-    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.history_touch_zone, R.id.current_stations_icon, R.id.current_stations_touch_zone)) {
+    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.history_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone)) {
         views.setViewVisibility(id, floatingVis)
     }
-    for (id in listOf(R.id.home_touch_zone_inline, R.id.history_touch_zone_inline, R.id.current_stations_touch_zone_inline)) {
+    for (id in listOf(R.id.home_touch_zone_inline, R.id.history_touch_zone_inline, R.id.weather_stations_touch_zone_inline)) {
         views.setViewVisibility(id, inlineVis)
     }
 }

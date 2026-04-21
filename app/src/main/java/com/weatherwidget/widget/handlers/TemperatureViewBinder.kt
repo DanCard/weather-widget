@@ -67,10 +67,29 @@ internal object TemperatureViewBinder {
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
-        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible)
+HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible)
 
-        // 3. Center Icons & Navigation
-        positionCenterIcons(views, state.widthDp, header.isPrecipVisible)
+// Apply progressive disclosure for narrow widgets
+val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+    context = context,
+    widthDp = state.widthDp,
+    apiSourceText = header.sourceIndicator,
+    apiTextSizeSp = apiTextSizeSp(state.numRows),
+    currentTempText = header.currentTemp,
+    deltaText = header.deltaText,
+    precipText = header.precipProbability,
+    precipTextSizeSp = header.precipTextSizeSp,
+)
+views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
+views.setViewVisibility(R.id.current_temp_delta, if (header.isDeltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
+views.setViewVisibility(R.id.precip_probability, if (header.isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
+HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible && disclosure.showsPrecip())
+if (disclosure == HeaderDisclosureLevel.NONE) {
+    views.setViewVisibility(R.id.current_weather_container, View.GONE)
+}
+
+// 3. Center Icons & Navigation
+positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip())
 
         // 4. Setup Intent Listeners
         setupZoomTapZones(
@@ -81,7 +100,7 @@ internal object TemperatureViewBinder {
         setupHomeShortcut(context, views, appWidgetId)
         setupSettingsShortcut(context, views, appWidgetId)
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource)
-        setupCurrentStationsShortcut(context, views, appWidgetId)
+        setupWeatherStationsShortcut(context, views, appWidgetId)
         
         HeaderTapTargetHelper.bindToggleTemperatureHeader(
             context = context,
@@ -121,6 +140,12 @@ internal object TemperatureViewBinder {
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
+    }
+
+    private fun apiTextSizeSp(numRows: Int): Float = when {
+        numRows >= 3 -> 18f
+        numRows >= 2 -> 16f
+        else -> 14f
     }
 }

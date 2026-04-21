@@ -13,7 +13,7 @@ object WidgetRequestCodes {
     private const val BASE_CYCLE_ZOOM = 400
     private const val BASE_ZOOM_ZONE = 500
     private const val BASE_HISTORY = 700
-    private const val BASE_CURRENT_STATIONS = 800
+    private const val BASE_WEATHER_STATIONS = 800
     private const val BASE_ICON_VIEW_TOGGLE = 900
     private const val BASE_HOME = 850
     private const val BASE_SETTINGS = 950
@@ -29,7 +29,7 @@ object WidgetRequestCodes {
     fun cycleZoom(id: Int) = id * 10000 + BASE_CYCLE_ZOOM
     fun cycleZoomZone(id: Int, index: Int) = id * 10000 + BASE_ZOOM_ZONE + index
     fun history(id: Int) = id * 10000 + BASE_HISTORY
-    fun currentStations(id: Int) = id * 10000 + BASE_CURRENT_STATIONS
+    fun weatherStations(id: Int) = id * 10000 + BASE_WEATHER_STATIONS
     fun iconViewToggle(id: Int) = id * 10000 + BASE_ICON_VIEW_TOGGLE
     fun home(id: Int) = id * 10000 + BASE_HOME
     fun settings(id: Int) = id * 10000 + BASE_SETTINGS

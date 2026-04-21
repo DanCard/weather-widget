@@ -1064,7 +1064,7 @@
         <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
              replacing the floating center_horizontal icons. Order: stations | home | history. -->
         <FrameLayout
-            android:id="@+id/current_stations_touch_zone_inline"
+            android:id="@+id/weather_stations_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="2dp"
@@ -1073,7 +1073,7 @@
             android:focusable="true"
             android:visibility="gone">
             <ImageView
-                android:id="@+id/current_stations_icon_inline"
+                android:id="@+id/weather_stations_icon_inline"
                 android:layout_width="26dp"
                 android:layout_height="26dp"
                 android:layout_gravity="center"
@@ -1252,7 +1252,7 @@
 
     <!-- Current stations icon (to the left of home) -->
     <ImageView
-        android:id="@+id/current_stations_icon"
+        android:id="@+id/weather_stations_icon"
         android:layout_width="26dp"
         android:layout_height="26dp"
         android:layout_gravity="top|center_horizontal"
@@ -1376,7 +1376,7 @@
 
     <!-- Current stations icon touch zone -->
     <FrameLayout
-        android:id="@+id/current_stations_touch_zone"
+        android:id="@+id/weather_stations_touch_zone"
         android:layout_width="48dp"
         android:layout_height="96dp"
         android:layout_gravity="top|center_horizontal"

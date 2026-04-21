@@ -165,8 +165,8 @@ object PrecipViewHandler {
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
 
         // Hide observations and temp delta in precip mode
-        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         val resolveStartMs = SystemClock.elapsedRealtime()
@@ -220,9 +220,34 @@ object PrecipViewHandler {
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
         }
-        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
+HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
-        // Use graph mode for 2+ rows, text mode for 1 row
+// Apply progressive disclosure for narrow widgets
+val precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
+val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+    context = context,
+    widthDp = dimensions.widthDp,
+    apiSourceText = sourceIndicator,
+    apiTextSizeSp = apiTextSizeSp(numRows),
+    currentTempText = if (currentTemp != null) {
+        CurrentTemperatureResolver.formatDisplayTemperature(
+            temp = currentTemp,
+            numColumns = numColumns,
+            isStaleEstimate = currentTempResolution.isStaleEstimate,
+        )
+    } else null,
+    deltaText = null,
+    precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
+    precipTextSizeSp = precipTextSizeSp,
+)
+views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
+views.setViewVisibility(R.id.precip_probability, if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
+HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible && disclosure.showsPrecip())
+if (disclosure == HeaderDisclosureLevel.NONE) {
+    views.setViewVisibility(R.id.current_weather_container, View.GONE)
+}
+
+// Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f
         var buildHoursMs = 0L
@@ -535,7 +560,7 @@ object PrecipViewHandler {
         views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
     }
 
-    private fun setupCurrentStationsShortcut(
+    private fun setupWeatherStationsShortcut(
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
@@ -547,14 +572,14 @@ object PrecipViewHandler {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            WidgetRequestCodes.currentStations(appWidgetId),
+            WidgetRequestCodes.weatherStations(appWidgetId),
             obsIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        views.setOnClickPendingIntent(R.id.current_stations_icon, pendingIntent)
-        views.setOnClickPendingIntent(R.id.current_stations_touch_zone, pendingIntent)
-        views.setViewVisibility(R.id.current_stations_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.current_stations_touch_zone, View.VISIBLE)
+        views.setOnClickPendingIntent(R.id.weather_stations_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.weather_stations_touch_zone, pendingIntent)
+        views.setViewVisibility(R.id.weather_stations_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.VISIBLE)
     }
 
     private fun setupSettingsShortcut(
@@ -728,4 +753,10 @@ object PrecipViewHandler {
     }
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    private fun apiTextSizeSp(numRows: Int): Float = when {
+        numRows >= 3 -> 18f
+        numRows >= 2 -> 16f
+        else -> 14f
+    }
 }

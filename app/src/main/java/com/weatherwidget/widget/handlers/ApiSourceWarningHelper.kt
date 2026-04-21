@@ -132,8 +132,8 @@ object ApiSourceWarningHelper {
         views.setViewVisibility(R.id.home_touch_zone, View.GONE)
         views.setViewVisibility(R.id.history_icon, View.GONE)
         views.setViewVisibility(R.id.history_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
         HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, false)
         views.setOnClickPendingIntent(
             R.id.widget_warning_container,

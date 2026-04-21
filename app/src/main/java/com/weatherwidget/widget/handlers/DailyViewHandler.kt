@@ -394,12 +394,33 @@ object DailyViewHandler : WidgetViewHandler {
             views.setTextViewText(R.id.current_temp_delta, deltaText)
             views.setTextColor(R.id.current_temp_delta, deltaColor)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
-        }
+} else {
+    views.setViewVisibility(R.id.current_temp_delta, View.GONE)
+}
 
-        // Setup API source toggle click handler
-        setupApiToggle(context, views, appWidgetId, numRows)
+val precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null
+val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+    context = context,
+    widthDp = dimensions.widthDp,
+    apiSourceText = displaySource.shortDisplayName,
+    apiTextSizeSp = apiTextSizeSp(numRows),
+    currentTempText = formattedTemp,
+    deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+    precipText = if (isPrecipVisible) "${precipProb}%" else null,
+    precipTextSizeSp = precipTextSizeSp,
+)
+
+if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
+    views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
+    views.setViewVisibility(R.id.current_temp_delta, if (deltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
+    views.setViewVisibility(R.id.precip_probability, if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
+    HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible && disclosure.showsPrecip())
+} else if (useGraph) {
+    views.setViewVisibility(R.id.current_weather_container, View.GONE)
+}
+
+// Setup API source toggle click handler
+setupApiToggle(context, views, appWidgetId, numRows)
         Log.d(
             TAG,
             buildHeaderStateLog(
@@ -430,8 +451,8 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.home_touch_zone, View.GONE)
         views.setViewVisibility(R.id.history_icon, View.GONE)
         views.setViewVisibility(R.id.history_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
 
         // Set up navigation click handlers
         val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys
@@ -671,9 +692,9 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.history_icon, View.GONE)
         views.setViewVisibility(R.id.history_touch_zone, View.GONE)
         views.setViewVisibility(R.id.history_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.current_stations_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
 
         views.setViewVisibility(R.id.current_temp_zone, View.GONE)
         views.setViewVisibility(R.id.precip_touch_zone, View.GONE)

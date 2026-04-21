@@ -50,7 +50,7 @@ class WeatherObservationsShortcutTest {
         val views = renderTemperatureWidget()
         val applied = applyViews(views)
         
-        val stationsIcon = applied.findViewById<View>(R.id.current_stations_icon)
+        val stationsIcon = applied.findViewById<View>(R.id.weather_stations_icon)
         assertNotNull("Thermometer icon should be present", stationsIcon)
         assertEquals("Thermometer icon should be VISIBLE", View.VISIBLE, stationsIcon.visibility)
 
@@ -73,7 +73,7 @@ class WeatherObservationsShortcutTest {
         val views = renderTemperatureWidget()
         val applied = applyViews(views)
         
-        val stationsIcon = applied.findViewById<View>(R.id.current_stations_touch_zone_inline)
+        val stationsIcon = applied.findViewById<View>(R.id.weather_stations_touch_zone_inline)
         assertNotNull("Inline touch zone should be present", stationsIcon)
         // Note: The visibility of this one depends on positionCenterIcons.
         // We will just perform click anyway as it's wired.
