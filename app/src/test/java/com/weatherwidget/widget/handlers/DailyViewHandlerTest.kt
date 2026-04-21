@@ -18,6 +18,8 @@ import com.weatherwidget.testutil.mockAppWidgetManager
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
+import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetRenderer
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.CapturingSlot
 import org.junit.Assert.assertEquals
@@ -737,6 +739,88 @@ class DailyViewHandlerTest {
 
         assertTrue(highTexts.contains("62°"))
         assertTrue(lowTexts.contains("51°"))
+    }
+
+    @Test
+    fun `single row daily text mode exposes only api and settings controls`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList =
+            listOf(
+                createWeather(todayStr, highTemp = 62f, lowTemp = 51f),
+            )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(142)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 142, widthDp = 200, heightDp = 90)
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 142,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_api_source_container).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_api_touch_zone).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_settings_icon).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_settings_touch_zone).visibility)
+
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.api_source_container).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.api_touch_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.settings_icon).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.settings_touch_zone).visibility)
+
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.nav_left).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.nav_left_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.nav_right).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.nav_right_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.current_temp_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.precip_touch_zone).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_day_zones).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_hour_zones).visibility)
+
+        val textContainer = applied.findViewById<View>(R.id.text_container)
+        val expectedRightPadding = WidgetSizeCalculator.dpToPx(context, 18)
+        assertEquals(0, textContainer.paddingLeft)
+        assertEquals(expectedRightPadding, textContainer.paddingRight)
+    }
+
+    @Test
+    fun `single row widget renders daily text even when stored mode is hourly`() = runBlocking {
+        val todayStr = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherList =
+            listOf(
+                createWeather(todayStr, highTemp = 62f, lowTemp = 51f),
+            )
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(143)
+        stateManager.setViewMode(143, ViewMode.TEMPERATURE)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 143, widthDp = 200, heightDp = 90)
+
+        WidgetRenderer.updateWidgetWithData(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 143,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_container).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_view).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_api_source_container).visibility)
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_settings_touch_zone).visibility)
     }
 
     @Test

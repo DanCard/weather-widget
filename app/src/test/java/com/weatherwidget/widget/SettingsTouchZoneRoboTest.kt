@@ -1,12 +1,15 @@
 package com.weatherwidget.widget
 
 import android.content.Context
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.test.category.ShortDuration
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -57,6 +60,35 @@ class SettingsTouchZoneRoboTest {
 
         assertTrue("settings_icon must be after nav_right in z-order",
             settingsIconIndex > navRightIndex)
+    }
+
+    @Test
+    fun `text mode settings touch zone is bottom end and above navigation`() {
+        val root = rootView as ViewGroup
+        val settingsZone = root.findViewById<View>(R.id.text_mode_settings_touch_zone)
+        val params = settingsZone.layoutParams as FrameLayout.LayoutParams
+        val density = context.resources.displayMetrics.density
+        val navRightZoneIndex = indexOfChild(root, R.id.nav_right_zone)
+        val settingsZoneIndex = indexOfChild(root, R.id.text_mode_settings_touch_zone)
+
+        assertEquals(Gravity.BOTTOM or Gravity.END, params.gravity)
+        assertEquals((-4 * density).toInt(), params.rightMargin)
+        assertEquals((-4 * density).toInt(), params.bottomMargin)
+        assertTrue("text mode settings_touch_zone must be after nav_right_zone in z-order",
+            settingsZoneIndex > navRightZoneIndex)
+    }
+
+    @Test
+    fun `text mode api touch zone is top end and above navigation`() {
+        val root = rootView as ViewGroup
+        val apiZone = root.findViewById<View>(R.id.text_mode_api_touch_zone)
+        val params = apiZone.layoutParams as FrameLayout.LayoutParams
+        val navRightZoneIndex = indexOfChild(root, R.id.nav_right_zone)
+        val apiZoneIndex = indexOfChild(root, R.id.text_mode_api_touch_zone)
+
+        assertEquals(Gravity.TOP or Gravity.END, params.gravity)
+        assertTrue("text mode api_touch_zone must be after nav_right_zone in z-order",
+            apiZoneIndex > navRightZoneIndex)
     }
 
     private fun indexOfChild(parent: ViewGroup, childId: Int): Int {

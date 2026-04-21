@@ -140,7 +140,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setViewMode(appWidgetId, ViewMode.DAILY)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
-        val appWidgetManager = mockWidgetManager(textOptions())
+        val appWidgetManager = mockWidgetManager(graphOptions())
         val now = LocalDateTime.of(2026, 3, 27, 12, 0)
         DailyViewHandler.updateWidget(
             context = context,

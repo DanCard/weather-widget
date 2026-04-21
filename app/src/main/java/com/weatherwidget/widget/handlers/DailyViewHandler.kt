@@ -279,6 +279,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Set API source indicator
         views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)
+        views.setTextViewText(R.id.text_mode_api_source, displaySource.shortDisplayName)
 
         // Set weather icon
         val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
@@ -431,7 +432,7 @@ object DailyViewHandler : WidgetViewHandler {
         val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys
         val sortedDates = availableDates.sorted()
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${sortedDates.firstOrNull()}, maxDate=${sortedDates.lastOrNull()}")
-        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode, today)
+        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode, today, useGraph)
 
         // Use graph mode for 2+ rows
         var prepareMs = 0L
@@ -564,8 +565,9 @@ object DailyViewHandler : WidgetViewHandler {
         } else {
             setTextModeViews(views)
 
-            // Reduce count by 1 to leave an empty cell on the right for API/Settings icons
-            val textCols = (numColumns - 1).coerceIn(1, 7)
+            val textCols = numColumns.coerceIn(1, 7)
+            val rightPaddingPx = WidgetSizeCalculator.dpToPx(context, 18)
+            views.setViewPadding(R.id.text_container, 0, 0, rightPaddingPx, 0)
 
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
@@ -575,14 +577,6 @@ object DailyViewHandler : WidgetViewHandler {
                 currentTemp = currentTemp,
                 observedAt = observedAt
             )
-
-            // If we have fewer than 7 days, the remaining containers are already GONE.
-            // But if textCols < numColumns, we want to make sure the last "grid cell" of the widget is empty.
-            // Since the LinearLayout uses weights, we add a dummy invisible day at the end if we have space.
-            if (textCols < 7) {
-                val nextId = dayIds[visibleDaysInfo.size]
-                views.setViewVisibility(nextId.container, View.INVISIBLE) // INVISIBLE keeps its weight/space
-            }
 
             logDailyRenderSummary(
                 context = context,
@@ -597,7 +591,7 @@ object DailyViewHandler : WidgetViewHandler {
                 visibleDates = visibleDaysInfo.map { it.date },
             )
 
-            setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
+            // setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
@@ -634,6 +628,11 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
+        setSingleRowControlsVisible(views, false)
+        views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
+        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.settings_touch_zone, View.VISIBLE)
     }
 
     private fun setTextModeViews(views: RemoteViews) {
@@ -646,8 +645,39 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
+
+        views.setViewVisibility(R.id.nav_left, View.GONE)
+        views.setViewVisibility(R.id.nav_left_zone, View.GONE)
+        views.setViewVisibility(R.id.nav_right, View.GONE)
+        views.setViewVisibility(R.id.nav_right_zone, View.GONE)
+        views.setViewVisibility(R.id.home_icon, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.history_icon, View.GONE)
+        views.setViewVisibility(R.id.history_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.history_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.current_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.current_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.current_stations_touch_zone_inline, View.GONE)
+
+        views.setViewVisibility(R.id.current_temp_zone, View.GONE)
+        views.setViewVisibility(R.id.precip_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.api_source_container, View.GONE)
+        views.setViewVisibility(R.id.api_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.settings_icon, View.GONE)
+        views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
+        setSingleRowControlsVisible(views, true)
+    }
+
+    private fun setSingleRowControlsVisible(views: RemoteViews, visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        views.setViewVisibility(R.id.text_mode_api_source_container, visibility)
+        views.setViewVisibility(R.id.text_mode_api_touch_zone, visibility)
+        views.setViewVisibility(R.id.text_mode_settings_icon, visibility)
+        views.setViewVisibility(R.id.text_mode_settings_touch_zone, visibility)
     }
 
     private fun logGraphDayIconDetails(
@@ -731,6 +761,8 @@ object DailyViewHandler : WidgetViewHandler {
         )
         views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
         views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
+        views.setOnClickPendingIntent(R.id.text_mode_settings_icon, settingsPendingIntent)
+        views.setOnClickPendingIntent(R.id.text_mode_settings_touch_zone, settingsPendingIntent)
     }
 
     private fun setupApiToggle(context: Context, views: RemoteViews, appWidgetId: Int, numRows: Int) {
@@ -744,9 +776,12 @@ object DailyViewHandler : WidgetViewHandler {
         )
         views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
+        views.setOnClickPendingIntent(R.id.text_mode_api_source_container, togglePendingIntent)
+        views.setOnClickPendingIntent(R.id.text_mode_api_touch_zone, togglePendingIntent)
 
         val textSizeSp = apiTextSizeSp(numRows)
         views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+        views.setTextViewTextSize(R.id.text_mode_api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
     }
 
     private fun apiTextSizeSp(numRows: Int): Float =
@@ -922,6 +957,7 @@ object DailyViewHandler : WidgetViewHandler {
         context: Context, views: RemoteViews, appWidgetId: Int,
         stateManager: WidgetStateManager, availableDates: Set<LocalDate>,
         numColumns: Int, isEveningMode: Boolean, today: LocalDate,
+        useGraph: Boolean,
     ) {
         val sortedDates = availableDates.sorted()
         val minDate = sortedDates.firstOrNull()
@@ -936,10 +972,19 @@ object DailyViewHandler : WidgetViewHandler {
         Log.d(TAG, "setupNavigationButtons: id=$appWidgetId, leftmostVisibleIfNavLeft=$leftmost, minAvailableDate=$minDate, canLeft=$canLeft")
         Log.d(TAG, "setupNavigationButtons: id=$appWidgetId, rightmostVisibleIfNavRight=$rightmost, maxAvailableDate=$maxDate, canRight=$canRight")
 
-        // Always show the left arrow
+        if (!useGraph) {
+            views.setViewVisibility(R.id.nav_left, View.GONE)
+            views.setViewVisibility(R.id.nav_left_zone, View.GONE)
+            views.setViewVisibility(R.id.nav_right, View.GONE)
+            views.setViewVisibility(R.id.nav_right_zone, View.GONE)
+            return
+        }
+
         views.setViewVisibility(R.id.nav_left, View.VISIBLE)
         views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
-        
+        val paddingPx = WidgetSizeCalculator.dpToPx(context, 10)
+        views.setViewPadding(R.id.nav_left, paddingPx, 0, paddingPx, 0)
+
         if (canLeft) {
             val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WeatherWidgetProvider.ACTION_NAV_LEFT
@@ -965,7 +1010,6 @@ object DailyViewHandler : WidgetViewHandler {
             views.setOnClickPendingIntent(R.id.nav_left_zone, toastPendingIntent)
         }
 
-        // Always show the right arrow
         views.setViewVisibility(R.id.nav_right, View.VISIBLE)
         views.setViewVisibility(R.id.nav_right_zone, View.VISIBLE)
 
@@ -1061,6 +1105,9 @@ object DailyViewHandler : WidgetViewHandler {
                 context.getColor(R.color.weather_icon_tint_default)
             }
             views.setInt(ids.icon, "setColorFilter", tintColor)
+        } else {
+            // Clear tint to show natural colors (e.g. blue raindrops)
+            views.setInt(ids.icon, "setColorFilter", 0)
         }
 
         views.setViewVisibility(ids.icon, View.VISIBLE)

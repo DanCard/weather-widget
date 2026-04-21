@@ -19,6 +19,7 @@ import com.weatherwidget.widget.handlers.CloudCoverViewHandler
 import com.weatherwidget.widget.handlers.DailyViewHandler
 import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
+import com.weatherwidget.widget.handlers.WidgetSizeCalculator
 import java.time.ZoneId
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -57,7 +58,18 @@ object WidgetRenderer {
         val renderStartMs = SystemClock.elapsedRealtime()
         val stateManager = WidgetStateManager(context)
         val viewMode = stateManager.getViewMode(appWidgetId)
-        Log.d(TAG, "updateWidgetInternal: widget=$appWidgetId viewMode=$viewMode zoom=${stateManager.getZoomLevel(appWidgetId)}")
+        val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
+        val effectiveViewMode =
+            if (dimensions.rows == 1 && viewMode != ViewMode.DAILY) {
+                ViewMode.DAILY
+            } else {
+                viewMode
+            }
+        Log.d(
+            TAG,
+            "updateWidgetInternal: widget=$appWidgetId viewMode=$viewMode effectiveViewMode=$effectiveViewMode " +
+                "rows=${dimensions.rows} zoom=${stateManager.getZoomLevel(appWidgetId)}",
+        )
 
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val zoom = stateManager.getZoomLevel(appWidgetId)
@@ -142,7 +154,7 @@ object WidgetRenderer {
             .find { it.targetDate == targetDateEpoch && it.source == displaySource.id }
             ?.precipProbability
 
-        when (viewMode) {
+        when (effectiveViewMode) {
             ViewMode.TEMPERATURE -> {
                 TemperatureViewHandler.updateWidget(
                     context = context,
@@ -216,7 +228,8 @@ object WidgetRenderer {
             message = WidgetPerfLogger.kv(
                 "token" to startupToken,
                 "widget" to appWidgetId,
-                "view" to viewMode,
+                "view" to effectiveViewMode,
+                "storedView" to viewMode,
                 "hourlyCount" to hourlyForecasts.size,
                 "forecastCount" to weatherList.size,
                 "totalMs" to totalMs,

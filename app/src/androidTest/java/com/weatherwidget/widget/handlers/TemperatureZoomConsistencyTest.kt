@@ -199,13 +199,16 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
 
         // 1. Trigger update in WIDE zoom
         db.appLogDao().clearAllLogs()
-        com.weatherwidget.widget.WidgetRenderer.updateWidgetWithData(
+        TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = testWidgetId,
-            weatherList = emptyList(), // Not needed for header resolution in this test
             hourlyForecasts = forecasts,
-            currentTemps = listOf(obs1, obs2),
+            currentTempHourlyForecasts = forecasts,
+            centerTime = center,
+            displaySource = WeatherSource.NWS,
+            lastObservedTemp = obs2.temperature,
+            observedAt = obs2.timestamp,
             repository = repo
         )
         
@@ -217,13 +220,16 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
         // 2. Trigger update in NARROW zoom
         db.appLogDao().clearAllLogs()
         stateManager.setZoomLevel(testWidgetId, com.weatherwidget.widget.ZoomLevel.NARROW)
-        com.weatherwidget.widget.WidgetRenderer.updateWidgetWithData(
+        TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = testWidgetId,
-            weatherList = emptyList(),
             hourlyForecasts = forecasts,
-            currentTemps = listOf(obs1, obs2),
+            currentTempHourlyForecasts = forecasts,
+            centerTime = center,
+            displaySource = WeatherSource.NWS,
+            lastObservedTemp = obs2.temperature,
+            observedAt = obs2.timestamp,
             repository = repo
         )
         

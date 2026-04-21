@@ -15,7 +15,7 @@
         android:id="@+id/text_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_marginStart="4dp"
+        android:layout_marginStart="0dp"
         android:layout_marginEnd="4dp"
         android:orientation="horizontal"
         android:gravity="center">
@@ -45,8 +45,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day1_high"
@@ -100,8 +99,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day2_high"
@@ -156,8 +154,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day3_high"
@@ -212,8 +209,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day4_high"
@@ -268,8 +264,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day5_high"
@@ -324,8 +319,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day6_high"
@@ -380,8 +374,7 @@
                 android:layout_marginTop="2dp"
                 android:layout_marginBottom="2dp"
                 android:src="@drawable/ic_weather_unknown"
-                android:visibility="gone"
-                android:tint="@color/widget_text_secondary" />
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/day7_high"
@@ -1362,5 +1355,70 @@
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true" />
+
+    <!-- Single-row text mode API indicator, placed at the far right edge. -->
+    <FrameLayout
+        android:id="@+id/text_mode_api_source_container"
+        android:layout_width="wrap_content"
+        android:layout_height="40dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="-2dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:paddingStart="8dp"
+        android:paddingEnd="0dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/text_mode_api_source"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="4dp"
+            android:text="NWS"
+            android:textColor="#AAFFFFFF"
+            android:textSize="14sp"
+            android:visibility="visible" />
+
+    </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/text_mode_api_touch_zone"
+        android:layout_width="56dp"
+        android:layout_height="44dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="-2dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Single-row text mode settings shortcut, placed at the bottom right. -->
+    <ImageView
+        android:id="@+id/text_mode_settings_icon"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="2dp"
+        android:layout_marginBottom="2dp"
+        android:contentDescription="@string/settings"
+        android:src="@drawable/ic_settings_gear"
+        android:tint="#AAFFFFFF"
+        android:visibility="gone" />
+
+    <FrameLayout
+        android:id="@+id/text_mode_settings_touch_zone"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="-4dp"
+        android:layout_marginBottom="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
 
 </FrameLayout>
