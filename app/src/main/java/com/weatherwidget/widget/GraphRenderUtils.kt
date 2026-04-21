@@ -219,7 +219,9 @@ internal object GraphRenderUtils {
         nowX: Float,
         graphTop: Float,
         graphHeight: Float,
-        nowLabelTextPaint: Paint,
+        textWidth: Float,
+        fontAscent: Float,
+        fontDescent: Float,
         drawnBounds: List<RectF> = emptyList(),
         dpToPx: (Float) -> Float,
     ): NowLabelResult? {
@@ -227,21 +229,15 @@ internal object GraphRenderUtils {
         val lineTop = graphTop + (graphHeight - lineHeight) / 2f
         val lineBottom = lineTop + lineHeight
 
-        val text = "NOW"
-        val textWidth = nowLabelTextPaint.measureText(text)
-        val fontMetrics = nowLabelTextPaint.fontMetrics ?: Paint.FontMetrics().apply {
-            ascent = -nowLabelTextPaint.textSize
-            descent = nowLabelTextPaint.textSize * 0.2f
-        }
         val labelYTop = lineTop - dpToPx(2f)
-        val labelYBottom = lineBottom - fontMetrics.ascent + dpToPx(2f)
+        val labelYBottom = lineBottom - fontAscent + dpToPx(2f)
 
         for (labelY in listOf(labelYBottom, labelYTop)) {
             val textBounds = RectF(
                 nowX - textWidth / 2f,
-                labelY + fontMetrics.ascent,
+                labelY + fontAscent,
                 nowX + textWidth / 2f,
-                labelY + fontMetrics.descent
+                labelY + fontDescent
             )
             val hasCollision = drawnBounds.any { RectF.intersects(it, textBounds) }
             if (!hasCollision) {
@@ -266,11 +262,26 @@ internal object GraphRenderUtils {
         val lineHeight = graphHeight * 0.6f
         val lineTop = graphTop + (graphHeight - lineHeight) / 2f
         val lineBottom = lineTop + lineHeight
-        canvas.drawLine(nowX, lineTop, nowX, lineBottom, currentTimePaint)
+        canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), currentTimePaint)
 
-        val result = computeNowLabelBounds(nowX, graphTop, graphHeight, nowLabelTextPaint, drawnBounds, dpToPx)
+        val text = "NOW"
+        val textWidth = nowLabelTextPaint.measureText(text)
+        val fm = nowLabelTextPaint.fontMetrics ?: Paint.FontMetrics().apply {
+            ascent = -nowLabelTextPaint.textSize
+            descent = nowLabelTextPaint.textSize * 0.2f
+        }
+        val result = computeNowLabelBounds(
+            nowX = nowX,
+            graphTop = graphTop,
+            graphHeight = graphHeight,
+            textWidth = textWidth,
+            fontAscent = fm.ascent,
+            fontDescent = fm.descent,
+            drawnBounds = drawnBounds,
+            dpToPx = dpToPx
+        )
         if (result != null) {
-            canvas.drawText("NOW", nowX, result.labelY, nowLabelTextPaint)
+            canvas.drawText(text, nowX, result.labelY, nowLabelTextPaint)
         }
     }
 

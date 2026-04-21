@@ -71,6 +71,322 @@ object PrecipitationGraphRenderer {
         val yFrac: Float,
     )
 
+    data class PrecipRect(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float
+    ) {
+        fun intersects(other: PrecipRect): Boolean {
+            return left < other.right && right > other.left && top < other.bottom && bottom > other.top
+        }
+        
+        fun toRectF(): RectF = RectF(left, top, right, bottom)
+        
+        companion object {
+            fun fromRectF(rect: RectF): PrecipRect = PrecipRect(rect.left, rect.top, rect.right, rect.bottom)
+        }
+    }
+
+    data class ProbabilityLabelPlacement(
+        val index: Int,
+        val text: String,
+        val x: Float,
+        val baselineY: Float,
+        val bounds: PrecipRect,
+        val debug: LabelPlacementDebug
+    )
+
+    data class RainAmountPlacement(
+        val text: String,
+        val x: Float,
+        val y: Float,
+        val bounds: PrecipRect,
+        val overlapArea: Float
+    )
+
+    data class RainPeriod(
+        val startIndex: Int,
+        val endIndex: Int,
+        val totalAmountMm: Float,
+        val startLabel: String,
+        val endLabel: String,
+    )
+
+    data class PrecipGraphLayout(
+        val points: List<Pair<Float, Float>>,
+        val probabilityPlacements: List<ProbabilityLabelPlacement>,
+        val rainAmountPlacements: List<RainAmountPlacement>,
+        val graphTop: Float,
+        val graphBottom: Float,
+        val graphHeight: Float,
+        val nowX: Float?,
+        val labelSignal: List<Int>,
+        val watermarkPlacement: WatermarkPlacementDebug? = null
+    )
+
+    fun calculateLayout(
+        hours: List<PrecipHourData>,
+        widthPx: Int,
+        heightPx: Int,
+        currentTime: LocalDateTime,
+        bitmapScale: Float = 1f,
+        smoothIterations: Int = 2,
+        highProbThreshold: Int = 99,
+        rainAmountWindowHours: Int = 0,
+        showHourlyIcons: Boolean,
+        measureProbabilityText: (String) -> Float,
+        getProbabilityTextBounds: (String) -> Pair<Float, Float>,
+        measureRainAmountText: (String) -> Float,
+        getRainAmountTextBounds: (String) -> Pair<Float, Float>,
+        dpToPx: (Float) -> Float
+    ): PrecipGraphLayout {
+        val labelScale = bitmapScale.coerceAtMost(1f)
+        val topPadding = dpToPx(44f * labelScale)
+        val iconSize = dpToPx(22.4f).toInt()
+        val iconTopPad = dpToPx(0f)
+        val iconBottomPad = dpToPx(0f)
+        val labelHeight = dpToPx(20f * labelScale)
+        val bottomPadding = dpToPx(0f)
+
+        val graphTop = topPadding
+        val graphBottom =
+            if (showHourlyIcons) {
+                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
+            } else {
+                heightPx - labelHeight - bottomPadding
+            }
+        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
+
+        val points = mutableListOf<Pair<Float, Float>>()
+        val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
+        val isFarOutData = hours.isNotEmpty() && kotlin.math.abs(
+            java.time.Duration.between(
+                hours.first().dateTime.plusHours(hours.size.toLong() / 2),
+                currentTime,
+            ).toHours()
+        ) > 72
+
+        val probs = if (isFarOutData) {
+            GraphRenderUtils.smoothValuesPreservingExtrema(
+                rawProbs,
+                iterations = smoothIterations,
+                preserveGlobalMax = true,
+                preserveGlobalMin = false,
+                preserveStart = true,
+                preserveEnd = true,
+            )
+        } else {
+            GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = smoothIterations)
+        }
+
+        val rawMax = probs.maxOrNull() ?: 0f
+        val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
+
+        hours.forEachIndexed { index, _ ->
+            val x = hourWidth * index
+            val prob = probs[index]
+            val y = graphBottom - graphHeight * (prob / yScaleMax)
+            points.add(x to y)
+        }
+
+        val nowX = GraphRenderUtils.computeNowX(
+            items = hours,
+            points = points,
+            currentTime = currentTime,
+            hourWidth = hourWidth,
+            isCurrentHour = { it.isCurrentHour },
+            dateTimeOf = { it.dateTime },
+        )
+
+        val labelSignal = probs.map { it.roundToInt().coerceIn(0, 100) }
+        val localMaxima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = true)
+        val localMinima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = false)
+        val globalMaxVal = labelSignal.maxOrNull() ?: -1
+        val globalMinVal = labelSignal.minOrNull() ?: -1
+        val globalMaxIdx = localMaxima.firstOrNull { labelSignal[it] == globalMaxVal }
+            ?: labelSignal.indexOfFirst { it == globalMaxVal }
+        val globalMinIdx = localMinima.firstOrNull { labelSignal[it] == globalMinVal }
+            ?: labelSignal.indexOfFirst { it == globalMinVal }
+
+        val firstPositive = labelSignal.indexOfFirst { it > 0 }
+        val firstLabeledPositive = hours.indexOfFirst { it.precipProbability > 0 && it.showLabel }
+
+        val softDipCandidates = mutableListOf<Int>()
+        var jIdx = 0
+        while (jIdx < labelSignal.size) {
+            val prob = labelSignal[jIdx]
+            if (prob <= 0 || prob > 65) { jIdx++; continue }
+            var runEnd = jIdx
+            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) runEnd++
+            val left = (jIdx - 5).coerceAtLeast(0)
+            val right = (runEnd + 5).coerceAtMost(labelSignal.lastIndex)
+            if (left < jIdx && right > runEnd) {
+                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
+                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
+                if (leftMax >= prob + 8 && rightMax >= prob + 8) softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
+            }
+            jIdx = runEnd + 1
+        }
+
+        val zeroRunCandidates = mutableListOf<Int>()
+        var i = 0
+        while (i < labelSignal.size) {
+            if (labelSignal[i] == 0) {
+                val runStart = i
+                while (i < labelSignal.size && labelSignal[i] == 0) i++
+                val runEnd = i - 1
+                if (runStart > 0 && labelSignal[runStart - 1] > 0 && runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] > 0) {
+                    zeroRunCandidates.add((runStart + runEnd) / 2)
+                }
+            } else i++
+        }
+
+        val candidates = mutableListOf<Int>()
+        if (globalMaxIdx >= 0 && labelSignal[globalMaxIdx] > 0) candidates.add(globalMaxIdx)
+        if (globalMinIdx >= 0 && globalMinIdx != globalMaxIdx && labelSignal[globalMinIdx] > 0) candidates.add(globalMinIdx)
+        candidates.addAll(localMaxima.filter { idx -> labelSignal[idx] > 0 })
+        candidates.addAll(localMinima.filter { idx -> labelSignal[idx] > 0 })
+        candidates.addAll(softDipCandidates)
+        if (0 !in candidates) candidates.add(0)
+        if (hours.lastIndex !in candidates && hours.isNotEmpty()) candidates.add(hours.lastIndex)
+        if (firstPositive != -1 && firstPositive !in candidates) candidates.add(firstPositive)
+        if (firstLabeledPositive != -1 && firstLabeledPositive !in candidates) candidates.add(firstLabeledPositive)
+
+        val protectedIndices = buildSet { addAll(softDipCandidates); addAll(zeroRunCandidates) }
+        candidates.sortBy { it }
+        val filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
+            items = labelSignal,
+            candidates = candidates,
+            globalMaxIdx = globalMaxIdx,
+            globalMinIdx = globalMinIdx,
+            maxCandidates = MAX_PRECIP_LABEL_CANDIDATES,
+            diffThresholds = DENSE_LABEL_DIFF_THRESHOLDS,
+            valueFunction = { it },
+            logTag = TAG,
+            protectedIndices = protectedIndices,
+            nearbyWindow = 5,
+        )
+
+        val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
+            items = labelSignal,
+            candidates = filteredCandidates,
+            globalMaxIdx = globalMaxIdx,
+            globalMinIdx = globalMinIdx,
+            valueFunction = { v -> v },
+        )
+
+        val finalCandidates = if (filteredCandidates.size == 2 && filteredCandidates == listOf(0, hours.lastIndex)) {
+            val midIndex = hours.lastIndex / 2
+            if (midIndex != 0 && midIndex != hours.lastIndex && labelSignal[midIndex] > 0) (filteredCandidates + midIndex).sorted() else filteredCandidates
+        } else filteredCandidates
+
+        // Pre-calculate icon bounds for collision detection
+        val drawnIconBounds = mutableListOf<PrecipRect>()
+        if (showHourlyIcons) {
+            hours.forEachIndexed { index, hour ->
+                if (hour.iconRes != null) {
+                    val x = hourWidth * index
+                    val clampedX = x.coerceIn(iconSize / 2f, widthPx - iconSize / 2f)
+                    val iconY = graphBottom + iconTopPad
+                    val iconX = clampedX - iconSize / 2f
+                    drawnIconBounds.add(PrecipRect(iconX, iconY, iconX + iconSize, iconY + iconSize))
+                }
+            }
+        }
+
+        val probabilityPlacements = calculateProbabilityLabelPlacements(
+            labelSignal = labelSignal,
+            hours = hours,
+            points = points,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            graphHeight = graphHeight,
+            globalMaxIdx = globalMaxIdx,
+            globalMinIdx = globalMinIdx,
+            firstPositive = firstPositive,
+            firstLabeledPositive = firstLabeledPositive,
+            softDipCandidates = softDipCandidates,
+            filteredCandidates = finalCandidates,
+            suppressLeftEdgeLabel = suppressLeftEdgeLabel,
+            drawnIconBounds = drawnIconBounds,
+            measureText = measureProbabilityText,
+            getTextBounds = getProbabilityTextBounds,
+            dpToPx = dpToPx
+        )
+
+        val rainPeriods = if (rainAmountWindowHours > 0) findFixedWindowRainPeriods(hours, rainAmountWindowHours) else findHighProbRainPeriods(hours, highProbThreshold)
+        val rainCollisionBounds = probabilityPlacements.map { it.bounds }.toMutableList()
+        
+        // Add now label bounds to rain collision
+        if (nowX != null) {
+            GraphRenderUtils.computeNowLabelBounds(
+                nowX = nowX,
+                graphTop = graphTop,
+                graphHeight = graphHeight,
+                textWidth = 15f,   // Estimated for layout
+                fontAscent = -12f, // Estimated for layout
+                fontDescent = 3f,  // Estimated for layout
+                drawnBounds = rainCollisionBounds.map { it.toRectF() },
+                dpToPx = dpToPx,
+            )?.let { rainCollisionBounds.add(PrecipRect.fromRectF(it.bounds)) }
+        }
+
+        val rainPlacements = calculateRainAmountPlacements(
+            rainPeriods = rainPeriods,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            graphHeight = graphHeight,
+            initialCollisionBounds = rainCollisionBounds,
+            measureText = measureRainAmountText,
+            getTextBounds = getRainAmountTextBounds,
+            dpToPx = dpToPx
+        )
+
+        val totalDrawnBounds = (probabilityPlacements.map { it.bounds } + rainPlacements.map { it.bounds }).toMutableList()
+
+        var watermarkPlacement: WatermarkPlacementDebug? = null
+        if (hours.size >= 3) {
+            val iconSizePx = dpToPx(24f).toInt()
+            val halfIcon = iconSizePx / 2f
+            val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
+            val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
+
+            var placed = false
+            for (yFrac in yFractions) {
+                for (xFrac in xFractions) {
+                    val cx = widthPx * xFrac
+                    val cy = graphTop + graphHeight * yFrac
+                    val bounds = PrecipRect(cx - halfIcon, cy - halfIcon, cx + halfIcon, cy + halfIcon)
+                    if (bounds.left < 0f || bounds.right > widthPx) continue
+                    if (bounds.top < graphTop || bounds.bottom > graphBottom) continue
+                    if (totalDrawnBounds.any { it.intersects(bounds) }) continue
+
+                    watermarkPlacement = WatermarkPlacementDebug(x = bounds.left, y = bounds.top, xFrac = xFrac, yFrac = yFrac)
+                    placed = true; break
+                }
+                if (placed) break
+            }
+        }
+
+        return PrecipGraphLayout(
+            points = points,
+            probabilityPlacements = probabilityPlacements,
+            rainAmountPlacements = rainPlacements,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            graphHeight = graphHeight,
+            nowX = nowX,
+            labelSignal = labelSignal,
+            watermarkPlacement = watermarkPlacement
+        )
+    }
+
     private class PaintSet(
         val density: Float,
         val labelScale: Float,
@@ -175,6 +491,224 @@ object PrecipitationGraphRenderer {
         return paints
     }
 
+    fun calculateProbabilityLabelPlacements(
+        labelSignal: List<Int>,
+        hours: List<PrecipHourData>,
+        points: List<Pair<Float, Float>>,
+        widthPx: Int,
+        heightPx: Int,
+        graphTop: Float,
+        graphBottom: Float,
+        graphHeight: Float,
+        globalMaxIdx: Int,
+        globalMinIdx: Int,
+        firstPositive: Int,
+        firstLabeledPositive: Int,
+        softDipCandidates: List<Int>,
+        filteredCandidates: List<Int>,
+        suppressLeftEdgeLabel: Boolean,
+        drawnIconBounds: List<PrecipRect>,
+        measureText: (String) -> Float,
+        getTextBounds: (String) -> Pair<Float, Float>, // Returns Pair(ascent, descent)
+        dpToPx: (Float) -> Float
+    ): List<ProbabilityLabelPlacement> {
+        val placements = mutableListOf<ProbabilityLabelPlacement>()
+        val drawnLabelBounds = mutableListOf<PrecipRect>()
+
+        for (index in filteredCandidates) {
+            if (index !in labelSignal.indices) continue
+            if (index == 0 && suppressLeftEdgeLabel) continue
+            
+            val prob = labelSignal[index]
+            val labelText = "$prob%"
+            val (textAscent, textDescent) = getTextBounds(labelText)
+            val textWidth = measureText(labelText)
+            val centerX = points[index].first
+            val y = points[index].second
+
+            val kind = GraphLabelPlacementUtils.candidateKind(index, labelSignal, globalMaxIdx, globalMinIdx) { v -> v }
+            val isPeak = kind == GraphLabelPlacementUtils.CandidateKind.PEAK || kind == GraphLabelPlacementUtils.CandidateKind.GLOBAL_MAX
+            val isValley = kind == GraphLabelPlacementUtils.CandidateKind.VALLEY || kind == GraphLabelPlacementUtils.CandidateKind.GLOBAL_MIN
+            val isSoftDip = index in softDipCandidates
+            
+            val graphMidY = (graphTop + graphBottom) / 2f
+            val isNearGraphCenter = abs(y - graphMidY) <= graphHeight * 0.2f
+            val isNearRightEdge = index >= labelSignal.lastIndex - 1
+            val isTrendingDownAtRightEdge = index > 0 && points[index].second > points[index - 1].second + 0.5f
+            val isTrendingUpAtRightEdge = index > 0 && points[index].second < points[index - 1].second - 0.5f
+            val isFirstRising = (index == firstPositive || index == firstLabeledPositive) && prob > 0
+            
+            val preferBelow = when {
+                isFirstRising -> true
+                isPeak -> false
+                isValley || isSoftDip -> true
+                isNearRightEdge && isTrendingDownAtRightEdge -> true
+                isNearRightEdge && isTrendingUpAtRightEdge -> false
+                else -> prob > 50
+            }
+            val directions = if (preferBelow) listOf(false, true) else listOf(true, false)
+
+            for ((attemptIndex, placeAbove) in directions.withIndex()) {
+                val isFallbackAttempt = attemptIndex > 0
+                val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = isFallbackAttempt)
+                val gapPx = if (placeAbove) dpToPx(gapDp.aboveDp) else dpToPx(gapDp.belowDp)
+                val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+                    pointY = y,
+                    placeAbove = placeAbove,
+                    gapPx = gapPx,
+                    textAscent = textAscent,
+                    textDescent = textDescent,
+                )
+                val baselineY = verticalPlacement.baselineY
+                val bounds = PrecipRect(
+                    x - textWidth / 2f, verticalPlacement.top,
+                    x + textWidth / 2f, verticalPlacement.bottom,
+                )
+
+                val safeBottom = graphBottom - dpToPx(2f)
+                val exceedsTop = bounds.top < 0f
+                val exceedsBottom = bounds.bottom > safeBottom
+                
+                val isLowPreferredBelow = !placeAbove && prob <= 55
+                val actualExceedsBottom = if (isLowPreferredBelow) bounds.bottom > heightPx else exceedsBottom
+
+                if (exceedsTop || actualExceedsBottom) continue
+                
+                val overlapsLabel = drawnLabelBounds.any { it.intersects(bounds) }
+                val overlapsIcon = drawnIconBounds.any { it.intersects(bounds) }
+                val hasCollision = (overlapsLabel) || (overlapsIcon && !isLowPreferredBelow)
+
+                if (hasCollision) continue
+
+                val dipBelowRuleApplied = (isValley || isSoftDip) && !placeAbove && isNearGraphCenter
+                val crowdWindow = 6
+                val nearbyLowerCandidates = filteredCandidates.filter { cid ->
+                    cid != index && abs(cid - index) <= crowdWindow && labelSignal[cid] <= prob - 10
+                }
+                val hasLowerNeighbors = nearbyLowerCandidates.any { it < index } && nearbyLowerCandidates.any { it > index }
+                val elevatedPeakRuleApplied = isPeak && placeAbove && prob in 55..85 && hasLowerNeighbors
+
+                val reason = when {
+                    isPeak -> "peak"
+                    isValley -> "valley"
+                    isSoftDip -> "softDip"
+                    index == 0 -> "start"
+                    index == hours.lastIndex -> "end"
+                    else -> "other"
+                }
+
+                val debug = LabelPlacementDebug(
+                    index = index,
+                    hourLabel = hours[index].label,
+                    probability = prob,
+                    placedAbove = placeAbove,
+                    isGlobalMax = index == globalMaxIdx,
+                    isGlobalMin = index == globalMinIdx,
+                    reason = reason,
+                    isPeak = isPeak,
+                    isValley = isValley,
+                    isSoftDip = isSoftDip,
+                    firstLabelBelowRuleApplied = (isFirstRising && !placeAbove),
+                    elevatedPeakRuleApplied = elevatedPeakRuleApplied,
+                    dipBelowRuleApplied = dipBelowRuleApplied
+                )
+                
+                placements.add(ProbabilityLabelPlacement(index, labelText, x, baselineY, bounds, debug))
+                drawnLabelBounds.add(bounds)
+                break
+            }
+        }
+        return placements
+    }
+
+    fun calculateRainAmountPlacements(
+        rainPeriods: List<RainPeriod>,
+        widthPx: Int,
+        heightPx: Int,
+        graphTop: Float,
+        graphBottom: Float,
+        graphHeight: Float,
+        initialCollisionBounds: List<PrecipRect>,
+        measureText: (String) -> Float,
+        getTextBounds: (String) -> Pair<Float, Float>,
+        dpToPx: (Float) -> Float
+    ): List<RainAmountPlacement> {
+        val placements = mutableListOf<RainAmountPlacement>()
+        val rainCollisionBounds = initialCollisionBounds.toMutableList()
+        val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
+        val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
+        val rainPadPx = dpToPx(4f)
+
+        for (period in rainPeriods) {
+            val amountText = formatPrecipAmount(period.totalAmountMm)
+            val textWidth = measureText(amountText)
+            val (textAscent, textDescent) = getTextBounds(amountText)
+
+            var bestX: Float? = null
+            var bestY: Float? = null
+            var bestBounds: PrecipRect? = null
+            var bestOverlapArea = Float.MAX_VALUE
+
+            for (yFrac in yFractions) {
+                for (xFrac in xFractions) {
+                    val cx = (widthPx * xFrac).coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                    val cy = graphTop + graphHeight * yFrac
+                    val candidateBounds = PrecipRect(
+                        cx - textWidth / 2f,
+                        cy + textAscent,
+                        cx + textWidth / 2f,
+                        cy + textDescent,
+                    )
+                    if (candidateBounds.top < graphTop || candidateBounds.bottom > graphBottom) continue
+
+                    val paddedBounds = PrecipRect(
+                        candidateBounds.left - rainPadPx,
+                        candidateBounds.top - rainPadPx,
+                        candidateBounds.right + rainPadPx,
+                        candidateBounds.bottom + rainPadPx,
+                    )
+                    val overlapping = rainCollisionBounds.filter { it.intersects(paddedBounds) }
+                    if (overlapping.isEmpty()) {
+                        bestX = cx
+                        bestY = cy
+                        bestBounds = candidateBounds
+                        bestOverlapArea = 0f
+                        break
+                    }
+                    val overlapArea = overlapping.sumOf { existing ->
+                        val intersectLeft = Math.max(existing.left, paddedBounds.left)
+                        val intersectTop = Math.max(existing.top, paddedBounds.top)
+                        val intersectRight = Math.min(existing.right, paddedBounds.right)
+                        val intersectBottom = Math.min(existing.bottom, paddedBounds.bottom)
+                        if (intersectLeft < intersectRight && intersectTop < intersectBottom) {
+                            ((intersectRight - intersectLeft) * (intersectBottom - intersectTop)).toDouble()
+                        } else 0.0
+                    }
+                    if (overlapArea < bestOverlapArea) {
+                        bestOverlapArea = overlapArea.toFloat()
+                        bestX = cx
+                        bestY = cy
+                        bestBounds = candidateBounds
+                    }
+                }
+                if (bestOverlapArea == 0f) break
+            }
+
+            if (bestX != null && bestY != null && bestBounds != null) {
+                placements.add(RainAmountPlacement(amountText, bestX, bestY, bestBounds, bestOverlapArea))
+                val paddedTrackingBounds = PrecipRect(
+                    bestBounds.left - rainPadPx,
+                    bestBounds.top - rainPadPx,
+                    bestBounds.right + rainPadPx,
+                    bestBounds.bottom + rainPadPx,
+                )
+                rainCollisionBounds.add(paddedTrackingBounds)
+            }
+        }
+        return placements
+    }
+
     fun renderGraph(
         context: Context,
         hours: List<PrecipHourData>,
@@ -206,75 +740,38 @@ object PrecipitationGraphRenderer {
         val heightDp = heightPx / density
         val labelScale = bitmapScale.coerceAtMost(1f)
         val paints = ensurePaints(context, heightDp, labelScale)
+        val showHourlyIcons = hours.any { it.iconRes != null } && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
 
-        // Layout zones (mirrors TemperatureGraphRenderer style)
-        val topPadding = dpToPx(context, 44f * labelScale)
-        val hasHourlyIcons = hours.any { it.iconRes != null }
-        val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-        val iconSize = dpToPx(context, 22.4f).toInt()
-        val iconTopPad = dpToPx(context, 0f)
-        val iconBottomPad = dpToPx(context, 0f)
-        val labelHeight = dpToPx(context, 20f * labelScale)
-        val bottomPadding = dpToPx(context, 0f)
-
-        val graphTop = topPadding
-        val graphBottom =
-            if (showHourlyIcons) {
-                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
-            } else {
-                heightPx - labelHeight - bottomPadding
-            }
-        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
-
-        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
-
-        paints.gradientPaint.shader = LinearGradient(
-            0f,
-            graphTop,
-            0f,
-            graphBottom,
-            Color.parseColor("#445AC8FA"),
-            Color.parseColor("#005AC8FA"),
-            Shader.TileMode.CLAMP,
+        val layout = calculateLayout(
+            hours = hours,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            currentTime = currentTime,
+            bitmapScale = bitmapScale,
+            smoothIterations = smoothIterations,
+            highProbThreshold = highProbThreshold,
+            rainAmountWindowHours = rainAmountWindowHours,
+            showHourlyIcons = showHourlyIcons,
+            measureProbabilityText = { paints.percentLabelPaint.measureText(it) },
+            getProbabilityTextBounds = {
+                val fm = paints.percentLabelPaint.fontMetrics
+                (fm?.ascent ?: -paints.percentLabelPaint.textSize) to (fm?.descent ?: 0f)
+            },
+            measureRainAmountText = { paints.rainAmountPaint.measureText(it) },
+            getRainAmountTextBounds = {
+                val fm = paints.rainAmountPaint.fontMetrics
+                (fm?.ascent ?: -paints.rainAmountPaint.textSize) to (fm?.descent ?: 0f)
+            },
+            dpToPx = { dpToPx(context, it) }
         )
 
-        // --- Build smooth curve + fill ---
-        val points = mutableListOf<Pair<Float, Float>>()
-        val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
+        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
+        paints.gradientPaint.shader = LinearGradient(
+            0f, layout.graphTop, 0f, layout.graphBottom,
+            Color.parseColor("#445AC8FA"), Color.parseColor("#005AC8FA"), Shader.TileMode.CLAMP,
+        )
 
-        // Detect "far out" data (>3 days from now) - for far-out forecast, don't preserve dips
-        val isFarOutData = hours.isNotEmpty() && kotlin.math.abs(
-            java.time.Duration.between(
-                hours.first().dateTime.plusHours(hours.size.toLong() / 2),
-                currentTime,
-            ).toHours()
-        ) > 72
-
-        val probs = if (isFarOutData) {
-            GraphRenderUtils.smoothValuesPreservingExtrema(
-                rawProbs,
-                iterations = smoothIterations,
-                preserveGlobalMax = true,
-                preserveGlobalMin = false, // Don't preserve dips for far-out data
-                preserveStart = true,
-                preserveEnd = true,
-            )
-        } else {
-            GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = smoothIterations)
-        }
-
-        val rawMax = probs.maxOrNull() ?: 0f
-        val yScaleMax = (rawMax * 1.15f).coerceAtLeast(10f).coerceAtMost(100f)
-
-        hours.forEachIndexed { index, _ ->
-            val x = hourWidth * index
-            val prob = probs[index]
-            val y = graphBottom - graphHeight * (prob / yScaleMax)
-            points.add(x to y)
-        }
-
-        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
-
+        val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(layout.points, layout.graphBottom)
         canvas.drawPath(fillPath, paints.gradientPaint)
         canvas.drawPath(curvePath, paints.curvePaint)
 
@@ -282,20 +779,10 @@ object PrecipitationGraphRenderer {
         val minHourLabelSpacing = dpToPx(context, hourLabelSpacingDp)
         val drawnIconBounds = mutableListOf<RectF>()
 
-        val nowX =
-            GraphRenderUtils.computeNowX(
-                items = hours,
-                points = points,
-                currentTime = currentTime,
-                hourWidth = hourWidth,
-                isCurrentHour = { it.isCurrentHour },
-                dateTimeOf = { it.dateTime },
-            )
-
         GraphRenderUtils.drawHourLabels(
             canvas = canvas,
             items = hours,
-            points = points,
+            points = layout.points,
             widthPx = widthPx,
             heightPx = heightPx,
             minHourLabelSpacing = minHourLabelSpacing,
@@ -309,377 +796,44 @@ object PrecipitationGraphRenderer {
             val iconRes = hour.iconRes ?: return@drawHourLabels
             val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
 
-            val iconY = graphBottom + iconTopPad
+            val iconSize = dpToPx(context, 22.4f).toInt()
+            val iconY = layout.graphBottom + dpToPx(context, 0f)
             val iconX = clampedX - iconSize / 2f
             val iconRect = RectF(iconX, iconY, iconX + iconSize, iconY + iconSize)
             drawnIconBounds.add(iconRect)
-            Log.d(TAG, "hourlyIcon: idx=$index x=${iconRect.left} y=${iconRect.top} size=$iconSize")
 
-            drawable.setBounds(
-                iconRect.left.toInt(),
-                iconRect.top.toInt(),
-                iconRect.right.toInt(),
-                iconRect.bottom.toInt(),
-            )
-
+            drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
             if (!hour.isRainy && !hour.isMixed) {
-                val iconTint =
-                    when {
-                        hour.isNight -> Color.parseColor("#BBBBBB")
-                        hour.isTwilight -> Color.parseColor("#FFA726")
-                        hour.isSunny -> Color.parseColor("#FFD60A")
-                        else -> Color.parseColor("#BBBBBB")
-                    }
+                val iconTint = when {
+                    hour.isNight -> Color.parseColor("#BBBBBB")
+                    hour.isTwilight -> Color.parseColor("#FFA726")
+                    hour.isSunny -> Color.parseColor("#FFD60A")
+                    else -> Color.parseColor("#BBBBBB")
+                }
                 drawable.setTint(iconTint)
             }
-
             drawable.draw(canvas)
             onHourIconDrawn?.invoke(index)
         }
 
-        val labelSignal = probs.map { it.roundToInt().coerceIn(0, 100) }
-        val localMaxima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = true)
-        val localMinima = GraphRenderUtils.findLocalExtremaIndices(labelSignal, isMax = false)
-
-        val globalMaxVal = labelSignal.maxOrNull() ?: -1
-        val globalMinVal = labelSignal.minOrNull() ?: -1
-
-        val globalMaxIdx = localMaxima.firstOrNull { labelSignal[it] == globalMaxVal }
-            ?: labelSignal.indexOfFirst { it == globalMaxVal }
-        val globalMinIdx = localMinima.firstOrNull { labelSignal[it] == globalMinVal }
-            ?: labelSignal.indexOfFirst { it == globalMinVal }
-
-        val firstPositive = labelSignal.indexOfFirst { it > 0 }
-        val firstLabeledPositive = hours.indexOfFirst { it.precipProbability > 0 && it.showLabel }
-
-        // Soft dip candidates (mandatory)
-        val softDipCandidates = mutableListOf<Int>()
-        var jIdx = 0
-        while (jIdx < labelSignal.size) {
-            val prob = labelSignal[jIdx]
-            if (prob <= 0 || prob > 65) {
-                jIdx++
-                continue
-            }
-            
-            // Start of a potential plateau
-            var runEnd = jIdx
-            while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
-                runEnd++
-            }
-            
-            val left = (jIdx - 5).coerceAtLeast(0)
-            val right = (runEnd + 5).coerceAtMost(labelSignal.lastIndex)
-            
-            if (left < jIdx && right > runEnd) {
-                val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
-                val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
-                
-                if (leftMax >= prob + 8 && rightMax >= prob + 8) {
-                    // This plateau is a "soft dip". Add the center.
-                    softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
-                }
-            }
-            jIdx = runEnd + 1
-        }
-
-        // Zero-run candidates (mandatory)
-        val zeroRunCandidates = mutableListOf<Int>()
-        var i = 0
-        while (i < labelSignal.size) {
-            if (labelSignal[i] == 0) {
-                val runStart = i
-                while (i < labelSignal.size && labelSignal[i] == 0) i++
-                val runEnd = i - 1
-                val hasRainBefore = runStart > 0 && labelSignal[runStart - 1] > 0
-                val hasRainAfter = runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] > 0
-                if (hasRainBefore && hasRainAfter) {
-                    zeroRunCandidates.add((runStart + runEnd) / 2)
-                }
-            } else { i++ }
-        }
-
-        val candidates = mutableListOf<Int>()
-        if (globalMaxIdx >= 0 && labelSignal[globalMaxIdx] > 0) candidates.add(globalMaxIdx)
-        if (globalMinIdx >= 0 && globalMinIdx != globalMaxIdx && labelSignal[globalMinIdx] > 0) candidates.add(globalMinIdx)
-        candidates.addAll(localMaxima.filter { idx -> labelSignal[idx] > 0 })
-        candidates.addAll(localMinima.filter { idx -> labelSignal[idx] > 0 })
-        candidates.addAll(softDipCandidates)
-        if (0 !in candidates) candidates.add(0)
-        if (hours.lastIndex !in candidates && hours.isNotEmpty()) candidates.add(hours.lastIndex)
-        if (firstPositive != -1 && firstPositive !in candidates) candidates.add(firstPositive)
-        if (firstLabeledPositive != -1 && firstLabeledPositive !in candidates) candidates.add(firstLabeledPositive)
-
-        val protectedIndices = buildSet {
-            addAll(softDipCandidates)
-            addAll(zeroRunCandidates)
-        }
-
-        candidates.sortBy { it }
-        var filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
-            items = labelSignal,
-            candidates = candidates,
-            globalMaxIdx = globalMaxIdx,
-            globalMinIdx = globalMinIdx,
-            maxCandidates = MAX_PRECIP_LABEL_CANDIDATES,
-            diffThresholds = DENSE_LABEL_DIFF_THRESHOLDS,
-            valueFunction = { it },
-            logTag = TAG,
-            protectedIndices = protectedIndices,
-            nearbyWindow = 5,
-        )
-
-        val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
-            items = labelSignal,
-            candidates = filteredCandidates,
-            globalMaxIdx = globalMaxIdx,
-            globalMinIdx = globalMinIdx,
-            valueFunction = { v -> v },
-        )
-        Log.d(TAG, "preInjection: candidates=$filteredCandidates suppressLeft=$suppressLeftEdgeLabel totalHours=${hours.size}")
-
-        if (filteredCandidates.size == 2 && filteredCandidates == listOf(0, hours.lastIndex)) {
-            val midIndex = hours.lastIndex / 2
-            if (midIndex != 0 && midIndex != hours.lastIndex && labelSignal[midIndex] > 0) {
-                filteredCandidates = (filteredCandidates + midIndex).sorted()
-                Log.d(TAG, "midpointLabelInjected: idx=$midIndex value=${labelSignal[midIndex]}% reason=only_two_edge_labels hours=${hours.size}")
-            } else {
-                Log.d(TAG, "midpointLabelSkipped: midIndex=$midIndex value=${labelSignal.getOrElse(midIndex) { -1 }}% reason=${when { midIndex == 0 -> "is_left_edge"; midIndex == hours.lastIndex -> "is_right_edge"; else -> "zero_value" }}")
-            }
-        }
-
-        Log.d(TAG, "postFilter: finalCandidates=$filteredCandidates suppressLeft=$suppressLeftEdgeLabel")
-
-        val drawnLabelBounds = mutableListOf<RectF>()
-
-        for (index in filteredCandidates) {
-            if (index !in labelSignal.indices) continue
-            if (index == 0 && suppressLeftEdgeLabel) {
-                Log.d(TAG, "labelSkipped: idx=0 reason=nearby_lower_valley")
-                continue
-            }
-            val prob = labelSignal[index]
-            val labelText = "$prob%"
-            val fontMetrics = paints.percentLabelPaint.fontMetrics
-            val textAscent = fontMetrics?.ascent ?: -paints.percentLabelPaint.textSize
-            val textDescent = fontMetrics?.descent ?: 0f
-            val textWidth = paints.percentLabelPaint.measureText(labelText)
-            val centerX = points[index].first
-            val y = points[index].second
-
-            val kind = GraphLabelPlacementUtils.candidateKind(index, labelSignal, globalMaxIdx, globalMinIdx) { v -> v }
-            val isPeak = kind == GraphLabelPlacementUtils.CandidateKind.PEAK || kind == GraphLabelPlacementUtils.CandidateKind.GLOBAL_MAX
-            val isValley = kind == GraphLabelPlacementUtils.CandidateKind.VALLEY || kind == GraphLabelPlacementUtils.CandidateKind.GLOBAL_MIN
-            val isSoftDip = index in softDipCandidates
-            
-        // Restore specific design rules for preferred placement
-            val graphMidY = (graphTop + graphBottom) / 2f
-            val isNearGraphCenter = abs(y - graphMidY) <= graphHeight * 0.2f
-            val isNearRightEdge = index >= labelSignal.lastIndex - 1
-            val isTrendingDownAtRightEdge = index > 0 && points[index].second > points[index - 1].second + 0.5f
-            val isTrendingUpAtRightEdge = index > 0 && points[index].second < points[index - 1].second - 0.5f
-            val isFirstRising = (index == firstPositive || index == firstLabeledPositive) && prob > 0
-            
-            val preferBelow = when {
-                isFirstRising -> true
-                isPeak -> false
-                isValley || isSoftDip -> true
-                isNearRightEdge && isTrendingDownAtRightEdge -> true
-                isNearRightEdge && isTrendingUpAtRightEdge -> false
-                else -> prob > 50
-            }
-            val directions = if (preferBelow) listOf(false, true) else listOf(true, false)
-
-            for ((attemptIndex, placeAbove) in directions.withIndex()) {
-                val isFallbackAttempt = attemptIndex > 0
-                val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = isFallbackAttempt)
-                val gapPx = if (placeAbove) dpToPx(context, gapDp.aboveDp) else dpToPx(context, gapDp.belowDp)
-                val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-                    pointY = y,
-                    placeAbove = placeAbove,
-                    gapPx = gapPx,
-                    textAscent = textAscent,
-                    textDescent = textDescent,
-                )
-                val baselineY = verticalPlacement.baselineY
-                val bounds = RectF(
-                    x - textWidth / 2f, verticalPlacement.top,
-                    x + textWidth / 2f, verticalPlacement.bottom,
-                )
-
-                val safeBottom = graphBottom - dpToPx(context, 2f)
-                val exceedsTop = bounds.top < 0f
-                val exceedsBottom = bounds.bottom > safeBottom
-                
-                // Allow some bottom overflow for low preferred below labels, similar to Cloud Cover.
-                // We use a higher threshold (55%) for precipitation to match instrumented test expectations.
-                val isLowPreferredBelow = !placeAbove && prob <= 55
-                val actualExceedsBottom = if (isLowPreferredBelow) bounds.bottom > heightPx else exceedsBottom
-
-                if (exceedsTop || actualExceedsBottom) {
-                    Log.d(
-                        TAG,
-                        "labelRejected: idx=$index value=$prob% side=${if (placeAbove) "above" else "below"} reason=out_of_bounds bounds=$bounds height=$heightPx safeBottom=$safeBottom",
-                    )
-                    continue
-                }
-                
-                val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
-                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                
-                // Allow icon overlap for low preferred below labels
-                val hasCollision = (overlapsLabel) || (overlapsIcon && !isLowPreferredBelow)
-
-                if (hasCollision) {
-                    Log.d(
-                        TAG,
-                        "labelRejected: idx=$index value=$prob% side=${if (placeAbove) "above" else "below"} reason=overlap",
-                    )
-                    continue
-                }
-
-                canvas.drawText(labelText, x, baselineY, paints.percentLabelPaint)
-                drawnLabelBounds.add(bounds)
-                
-                // Log end label placement specifically for instrumented tests
-                if (index == hours.lastIndex) {
-                    val mode = if (isFallbackAttempt) "fallback" else "preferred"
-                    val side = if (placeAbove) "above" else "below"
-                    val logMsg = "PLACED end label: $labelText at right edge ($mode, $side)"
-                    Log.d("PrecipGraph", logMsg)
-                    onDebugLog?.invoke(logMsg)
-                }
-                
-                // Restore specific rules for debug flags to match test expectations
-                val dipBelowRuleApplied = (isValley || isSoftDip) && !placeAbove && isNearGraphCenter
-                
-                val crowdWindow = 6
-                val nearbyLowerCandidates = filteredCandidates.filter { cid ->
-                    cid != index && abs(cid - index) <= crowdWindow && labelSignal[cid] <= prob - 10
-                }
-                val hasLowerNeighbors = nearbyLowerCandidates.any { it < index } && nearbyLowerCandidates.any { it > index }
-                val elevatedPeakRuleApplied = isPeak && placeAbove && prob in 55..85 && hasLowerNeighbors
-
-                val reason = when {
-                    isPeak -> "peak"
-                    isValley -> "valley"
-                    isSoftDip -> "softDip"
-                    index == 0 -> "start"
-                    index == hours.lastIndex -> "end"
-                    else -> "other"
-                }
-
-                onLabelPlaced?.invoke(LabelPlacementDebug(
-                    index = index,
-                    hourLabel = hours[index].label,
-                    probability = prob,
-                    placedAbove = placeAbove,
-                    isGlobalMax = index == globalMaxIdx,
-                    isGlobalMin = index == globalMinIdx,
-                    reason = reason,
-                    isPeak = isPeak,
-                    isValley = isValley,
-                    isSoftDip = isSoftDip,
-                    firstLabelBelowRuleApplied = (isFirstRising && !placeAbove),
-                    elevatedPeakRuleApplied = elevatedPeakRuleApplied,
-                    dipBelowRuleApplied = dipBelowRuleApplied
-                ))
-                break
-            }
-        }
-
-        // --- Rain amount annotations — grid-scan top-to-bottom, left-to-right for clear spot ---
-        val nowLabelBounds = if (nowX != null) {
-            GraphRenderUtils.computeNowLabelBounds(
-                nowX = nowX,
-                graphTop = graphTop,
-                graphHeight = graphHeight,
-                nowLabelTextPaint = paints.nowLabelTextPaint,
-                drawnBounds = drawnLabelBounds,
-                dpToPx = { dpToPx(context, it) },
-            )?.bounds
-        } else null
-        val rainCollisionBounds = drawnLabelBounds.toMutableList()
-        if (nowLabelBounds != null) rainCollisionBounds.add(nowLabelBounds)
-
-        val rainPeriods = if (rainAmountWindowHours > 0) {
-            findFixedWindowRainPeriods(hours, rainAmountWindowHours)
-        } else {
-            findHighProbRainPeriods(hours, highProbThreshold)
-        }
-
-        val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
-        val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
-        val fontMetrics = paints.rainAmountPaint.fontMetrics
-        val textAscent = fontMetrics?.ascent ?: -paints.rainAmountPaint.textSize
-        val textDescent = fontMetrics?.descent ?: 0f
-        val rainPadPx = dpToPx(context, 4f)
-
-        for (period in rainPeriods) {
-            val amountText = formatPrecipAmount(period.totalAmountMm)
-            val textWidth = paints.rainAmountPaint.measureText(amountText)
-
-            var bestX: Float? = null
-            var bestY: Float? = null
-            var bestBounds: RectF? = null
-            var bestOverlapArea = Float.MAX_VALUE
-
-            for (yFrac in yFractions) {
-                for (xFrac in xFractions) {
-                    val cx = (widthPx * xFrac).coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                    val cy = graphTop + graphHeight * yFrac
-                    val candidateBounds = RectF(
-                        cx - textWidth / 2f,
-                        cy + textAscent,
-                        cx + textWidth / 2f,
-                        cy + textDescent,
-                    )
-                    if (candidateBounds.top < graphTop || candidateBounds.bottom > graphBottom) continue
-
-                    val paddedBounds = RectF(
-                        candidateBounds.left - rainPadPx,
-                        candidateBounds.top - rainPadPx,
-                        candidateBounds.right + rainPadPx,
-                        candidateBounds.bottom + rainPadPx,
-                    )
-                    val overlapping = rainCollisionBounds.filter { RectF.intersects(it, paddedBounds) }
-                    if (overlapping.isEmpty()) {
-                        bestX = cx
-                        bestY = cy
-                        bestBounds = candidateBounds
-                        bestOverlapArea = 0f
-                        break
-                    }
-                    val overlapArea = overlapping.sumOf { existing ->
-                        val intersect = RectF()
-                        if (intersect.setIntersect(existing, paddedBounds)) (intersect.width() * intersect.height()).toDouble() else 0.0
-                    }
-                    if (overlapArea < bestOverlapArea) {
-                        bestOverlapArea = overlapArea.toFloat()
-                        bestX = cx
-                        bestY = cy
-                        bestBounds = candidateBounds
-                    }
-                }
-                if (bestOverlapArea == 0f) break
-            }
-
-            if (bestX != null && bestY != null && bestBounds != null) {
-                canvas.drawText(amountText, bestX, bestY, paints.rainAmountPaint)
-                val paddedTrackingBounds = RectF(
-                    bestBounds.left - rainPadPx,
-                    bestBounds.top - rainPadPx,
-                    bestBounds.right + rainPadPx,
-                    bestBounds.bottom + rainPadPx,
-                )
-                drawnLabelBounds.add(bestBounds)
-                rainCollisionBounds.add(paddedTrackingBounds)
-                val logMsg = "rainAmountPlaced: \"$amountText\" at x=$bestX y=$bestY widgetSize=${widthPx}x${heightPx} overlapArea=$bestOverlapArea"
-                Log.d(TAG, logMsg)
+        for (placement in layout.probabilityPlacements) {
+            canvas.drawText(placement.text, placement.x, placement.baselineY, paints.percentLabelPaint)
+            if (placement.index == hours.lastIndex) {
+                val logMsg = "PLACED end label: ${placement.text} at right edge"
+                Log.d("PrecipGraph", logMsg)
                 onDebugLog?.invoke(logMsg)
             }
+            onLabelPlaced?.invoke(placement.debug)
         }
+
+        for (placement in layout.rainAmountPlacements) {
+            canvas.drawText(placement.text, placement.x, placement.y, paints.rainAmountPaint)
+            val logMsg = "rainAmountPlaced: \"${placement.text}\" at x=${placement.x} y=${placement.y} widgetSize=${widthPx}x${heightPx} overlapArea=${placement.overlapArea}"
+            Log.d(TAG, logMsg)
+            onDebugLog?.invoke(logMsg)
+        }
+
+        val drawnLabelBounds = (layout.probabilityPlacements.map { it.bounds.toRectF() } + layout.rainAmountPlacements.map { it.bounds.toRectF() }).toMutableList()
 
         // Day of week indicators
         val today = currentTime.toLocalDate()
@@ -700,8 +854,8 @@ object PrecipitationGraphRenderer {
             leftX = leftTextWidth / 2f,
             rightX = widthPx - rightTextWidth / 2f,
             today = today,
-            graphTop = graphTop,
-            graphBottom = graphBottom,
+            graphTop = layout.graphTop,
+            graphBottom = layout.graphBottom,
             heightPx = heightPx,
             dayLabelTextPaint = paints.dayLabelTextPaint,
             todayDayLabelPaint = paints.todayDayLabelPaint,
@@ -715,67 +869,24 @@ object PrecipitationGraphRenderer {
 
         GraphRenderUtils.drawNowIndicator(
             canvas = canvas,
-            nowX = nowX,
-            graphTop = graphTop,
-            graphHeight = graphHeight,
+            nowX = layout.nowX,
+            graphTop = layout.graphTop,
+            graphHeight = layout.graphHeight,
             currentTimePaint = paints.currentTimePaint,
             nowLabelTextPaint = paints.nowLabelTextPaint,
             dpToPx = { dpToPx(context, it) },
         )
 
-        // Rain cloud icon watermark — scan top-to-bottom, left-to-right for first clear spot
+        // Rain cloud icon watermark
         val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)
-        if (rainDrawable != null && points.size >= 3) {
+        if (rainDrawable != null && layout.watermarkPlacement != null) {
+            val placement = layout.watermarkPlacement
             val iconSizePx = dpToPx(context, 24f).toInt()
-            val halfIcon = iconSizePx / 2f
-            val graphHeight = graphBottom - graphTop
-
-            val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
-            val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
-
-            var placed = false
-            for (yFrac in yFractions) {
-                for (xFrac in xFractions) {
-                    val cx = widthPx * xFrac
-                    val cy = graphTop + graphHeight * yFrac
-                    val bounds = RectF(
-                        cx - halfIcon, cy - halfIcon,
-                        cx + halfIcon, cy + halfIcon,
-                    )
-                    if (bounds.left < 0f || bounds.right > widthPx) continue
-                    if (bounds.top < graphTop || bounds.bottom > graphBottom) continue
-                    if (drawnLabelBounds.any { RectF.intersects(it, bounds) }) continue
-
-                    rainDrawable.alpha = 96
-                    rainDrawable.setBounds(
-                        bounds.left.toInt(),
-                        bounds.top.toInt(),
-                        bounds.right.toInt(),
-                        bounds.bottom.toInt(),
-                    )
-                    rainDrawable.draw(canvas)
-                    Log.d(TAG, "rainWatermark: placed at x=${bounds.left} y=${bounds.top} " +
-                        "xFrac=$xFrac yFrac=$yFrac iconSizePx=$iconSizePx points=${points.size}")
-                    onWatermarkPlaced?.invoke(
-                        WatermarkPlacementDebug(
-                            x = bounds.left,
-                            y = bounds.top,
-                            xFrac = xFrac,
-                            yFrac = yFrac,
-                        ),
-                    )
-                    placed = true
-                    break
-                }
-                if (placed) break
-            }
-
-            if (!placed) {
-                Log.d(TAG, "rainWatermark: no valid position found points=${points.size} " +
-                    "widthPx=$widthPx heightPx=$heightPx drawnLabelCount=${drawnLabelBounds.size}")
-            }
+            rainDrawable.alpha = 96
+            rainDrawable.setBounds(placement.x.toInt(), placement.y.toInt(), (placement.x + iconSizePx).toInt(), (placement.y + iconSizePx).toInt())
+            rainDrawable.draw(canvas)
+            onWatermarkPlaced?.invoke(placement)
         }
-
         return bitmap
     }
 
@@ -783,15 +894,7 @@ object PrecipitationGraphRenderer {
         return widthPx >= MIN_ICON_GRAPH_WIDTH_PX
     }
 
-    private data class RainPeriod(
-        val startIndex: Int,
-        val endIndex: Int,
-        val totalAmountMm: Float,
-        val startLabel: String,
-        val endLabel: String,
-    )
-
-    private fun findHighProbRainPeriods(hours: List<PrecipHourData>, highProbThreshold: Int = 99): List<RainPeriod> {
+    fun findHighProbRainPeriods(hours: List<PrecipHourData>, highProbThreshold: Int = 99): List<RainPeriod> {
         val periods = mutableListOf<RainPeriod>()
         var i = 0
         while (i < hours.size) {
@@ -821,7 +924,7 @@ object PrecipitationGraphRenderer {
         return periods
     }
 
-    private fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
+    fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
         if (windowHours <= 0 || hours.size < windowHours) return emptyList()
         var bestPeriod: RainPeriod? = null
         var bestTotal = 0f

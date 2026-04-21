@@ -4,56 +4,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 import java.time.LocalDateTime
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
+import android.graphics.RectF
 
 @Category(LongDuration::class)
 class PrecipitationGraphRendererTest {
 
-    private lateinit var context: android.content.Context
-
-    @Before
-    fun setUp() {
-        io.mockk.mockkStatic(android.graphics.Bitmap::class)
-        io.mockk.mockkConstructor(android.graphics.Canvas::class)
-        io.mockk.mockkConstructor(android.graphics.Paint::class)
-
-        val bitmap = io.mockk.mockk<android.graphics.Bitmap>(relaxed = true)
-        io.mockk.every {
-            android.graphics.Bitmap.createBitmap(any<Int>(), any<Int>(), any<android.graphics.Bitmap.Config>())
-        } returns bitmap
-        io.mockk.every { anyConstructed<android.graphics.Canvas>().drawText(any<String>(), any(), any(), any()) } returns Unit
-        io.mockk.every { anyConstructed<android.graphics.Canvas>().drawPath(any(), any()) } returns Unit
-
-        io.mockk.every { anyConstructed<android.graphics.Paint>().measureText(any<String>()) } returns 20f
-        val mockFontMetrics = android.graphics.Paint.FontMetrics().apply {
-            ascent = -10f
-            descent = 2f
-        }
-        io.mockk.every { anyConstructed<android.graphics.Paint>().fontMetrics } returns mockFontMetrics
-        io.mockk.every { anyConstructed<android.graphics.Paint>().textSize } returns 12f
-
-        context = io.mockk.mockk<android.content.Context>(relaxed = true)
-        val resources = io.mockk.mockk<android.content.res.Resources>(relaxed = true)
-        val metrics = android.util.DisplayMetrics().apply { density = 1.0f }
-        io.mockk.every { context.resources } returns resources
-        io.mockk.every { resources.displayMetrics } returns metrics
-    }
-
-    @After
-    fun tearDown() {
-        io.mockk.unmockkAll()
-    }
-
-    // --- Existing label placement tests ---
-
-    @Test
-    fun `shouldShowHourlyIcons is true for wide graph`() {
-    }
+    private fun mockDpToPx(dp: Float): Float = dp
+    private fun mockMeasureProbabilityText(text: String): Float = 20f
+    private fun mockGetProbabilityTextBounds(text: String): Pair<Float, Float> = -10f to 2f
+    private fun mockMeasureRainAmountText(text: String): Float = 30f
+    private fun mockGetRainAmountTextBounds(text: String): Pair<Float, Float> = -12f to 3f
 
     @Test
     fun `renderGraph thins out non-peak labels on a monotonic rise`() {
@@ -71,16 +35,20 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val placedLabels = mutableListOf<PrecipitationGraphRenderer.LabelPlacementDebug>()
-
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onLabelPlaced = { placedLabels.add(it) }
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
+
+        val placedLabels = layout.probabilityPlacements.map { it.debug }
 
         val morningHighLabel = placedLabels.find { it.index == 4 }
         assertNull("Index 4 (6 AM, 91%) should NOT be labeled after the fix. Placed: ${placedLabels.map { "${it.index}(${it.probability}%)" }}", morningHighLabel)
@@ -105,15 +73,20 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val placedLabels = mutableListOf<PrecipitationGraphRenderer.LabelPlacementDebug>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onLabelPlaced = { placedLabels.add(it) }
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
+
+        val placedLabels = layout.probabilityPlacements.map { it.debug }
 
         assertTrue("Peak at 80% should be labeled", placedLabels.any { it.probability == 80 })
 
@@ -139,20 +112,22 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val debugLogs = mutableListOf<String>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onDebugLog = { debugLogs.add(it) },
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
 
-        val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "Should place rain amount label for 99%+ block, logs=$debugLogs",
-            placed.isNotEmpty(),
+            "Should place rain amount label for 99%+ block",
+            layout.rainAmountPlacements.isNotEmpty(),
         )
     }
 
@@ -169,20 +144,22 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val debugLogs = mutableListOf<String>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onDebugLog = { debugLogs.add(it) },
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
 
-        val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "Should NOT place rain amount when prob < 99%, logs=$debugLogs",
-            placed.isEmpty(),
+            "Should NOT place rain amount when prob < 99%",
+            layout.rainAmountPlacements.isEmpty(),
         )
     }
 
@@ -199,20 +176,22 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val debugLogs = mutableListOf<String>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onDebugLog = { debugLogs.add(it) },
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
 
-        val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "Should NOT place rain amount when precipAmountMm is null, logs=$debugLogs",
-            placed.isEmpty(),
+            "Should NOT place rain amount when precipAmountMm is null",
+            layout.rainAmountPlacements.isEmpty(),
         )
     }
 
@@ -229,20 +208,22 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val debugLogs = mutableListOf<String>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onDebugLog = { debugLogs.add(it) },
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
 
-        val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "Should NOT place rain amount when total is 0, logs=$debugLogs",
-            placed.isEmpty(),
+            "Should NOT place rain amount when total is 0",
+            layout.rainAmountPlacements.isEmpty(),
         )
     }
 
@@ -261,21 +242,23 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val debugLogs = mutableListOf<String>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onDebugLog = { debugLogs.add(it) },
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
 
-        val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertEquals(
-            "Should place two rain amount labels for two separate blocks, logs=$debugLogs",
+            "Should place two rain amount labels for two separate blocks",
             2,
-            placed.size,
+            layout.rainAmountPlacements.size,
         )
     }
 
@@ -293,26 +276,28 @@ class PrecipitationGraphRendererTest {
             )
         }
 
-        val debugLogs = mutableListOf<String>()
-        PrecipitationGraphRenderer.renderGraph(
-            context = context,
+        val layout = PrecipitationGraphRenderer.calculateLayout(
             hours = hours,
             widthPx = 1000,
             heightPx = 400,
             currentTime = start,
-            onDebugLog = { debugLogs.add(it) },
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx
         )
 
-        val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "Should place rain amount for single-hour block, logs=$debugLogs",
-            placed.isNotEmpty(),
+            "Should place rain amount for single-hour block",
+            layout.rainAmountPlacements.isNotEmpty(),
         )
         // Single hour: label should NOT contain a dash (time range)
-        val label = placed.first()
+        val label = layout.rainAmountPlacements.first().text
         assertTrue(
             "Single-hour label should not contain a time range dash, got: $label",
-            !label.substringAfter("\"").substringBefore("\"").contains("-"),
+            !label.contains("-"),
         )
     }
 }
