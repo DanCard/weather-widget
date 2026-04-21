@@ -10,6 +10,8 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.util.WeatherConditionColors
 import kotlin.math.abs
 import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 object DailyForecastGraphRenderer {
@@ -20,6 +22,8 @@ object DailyForecastGraphRenderer {
     private const val BASE_DAY_WIDTH_DP = 70f
     private const val MIN_DAY_LABEL_WIDTH_SCALE = 0.96f
     private const val MAX_DAY_LABEL_WIDTH_SCALE = 1.04f
+    private const val MIN_DYNAMIC_DAY_LABEL_SCALE = 0.72f
+    private const val DAY_LABEL_HORIZONTAL_GAP_DP = 4f
     private const val MIN_BAR_HEIGHT_DP = 1.0f
 
     private const val COLOR_FORECAST = "#5AC8FA"
@@ -86,6 +90,16 @@ data class RainLabelDrawnDebug(
     val bottomY: Float = Float.NaN,
     val anchorTopY: Float = Float.NaN,
     val anchorBaselineY: Float = Float.NaN,
+)
+
+data class DayLabelDrawnDebug(
+    val date: LocalDate,
+    val text: String,
+    val centerX: Float,
+    val baselineY: Float,
+    val leftX: Float,
+    val rightX: Float,
+    val textSize: Float,
 )
 
 /**
@@ -156,10 +170,26 @@ val forecastHigh: Float? = null,
         val bulbRadius: Float,
         val bitmapScale: Float,
         val minBarHeightPx: Float,
+        val dayLabelTextByDate: Map<LocalDate, String>,
     ) {
         fun tempToY(temp: Float): Float =
             graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
     }
+
+    @VisibleForTesting
+    internal data class DayLabelInput(
+        val date: LocalDate,
+        val label: String,
+        val isToday: Boolean = false,
+    )
+
+    @VisibleForTesting
+    internal data class DayLabelLayoutResult(
+        val textSizePx: Float,
+        val textByDate: Map<LocalDate, String>,
+        val scale: Float,
+        val shortenedLabels: Boolean,
+    )
 
     @VisibleForTesting
     internal data class RainAboveHighPlacement(
@@ -208,6 +238,7 @@ val forecastHigh: Float? = null,
         job: Job? = null,
         onBarDrawn: ((BarDrawnDebug) -> Unit)? = null,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
+        onDayLabelDrawn: ((DayLabelDrawnDebug) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -229,7 +260,7 @@ val forecastHigh: Float? = null,
             val columnIndex = day.columnIndex ?: index
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
             
-            drawDayColumn(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
+            drawDayColumn(canvas, context, day, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
         }
 
@@ -270,7 +301,15 @@ val forecastHigh: Float? = null,
         val topPadding = dpToPx(context, TOP_PADDING_DP * scaleFactor * labelScale)
 
         val dayLabelScale = labelScale * dayLabelWidthScale
-        val dayLabelHeight = dpToPx(context, DAY_LABEL_BASE_SIZE_DP * dayLabelScale * DAY_LABEL_SIZE_MULTIPLIER * DAY_LABEL_TEXT_SCALE)
+        val baseDayLabelTextSizePx = dpToPx(context, DAY_LABEL_BASE_SIZE_DP * dayLabelScale * DAY_LABEL_TEXT_SCALE)
+        val dayWidth = (widthPx - 2 * horizontalPadding) / columns
+        val dayLabelLayout = resolveDayLabelLayout(
+            labels = days.map { DayLabelInput(it.date, it.label, it.isToday) },
+            baseTextSizePx = baseDayLabelTextSizePx,
+            maxTextWidthPx = (dayWidth - dpToPx(context, DAY_LABEL_HORIZONTAL_GAP_DP * labelScale)).coerceAtLeast(1f),
+            minScale = MIN_DYNAMIC_DAY_LABEL_SCALE,
+        )
+        val dayLabelHeight = dayLabelLayout.textSizePx * DAY_LABEL_SIZE_MULTIPLIER
         val tempLabelHeight = dailyForecastTempLabelSizePx(context, heightScaleFactor, bitmapScale)
 
         val iconSize = dpToPx(context, ICON_BASE_SIZE_DP * labelScale).toInt()
@@ -280,9 +319,18 @@ val forecastHigh: Float? = null,
         val graphBottom = heightPx - dayLabelHeight - attachedStackHeight
         val graphHeight = graphBottom - graphTop
 
-        val dayWidth = (widthPx - 2 * horizontalPadding) / columns
         val barWidth = dailyBarStrokeWidthPx(context, scaleFactor, bitmapScale)
         val tripleBarWidth = todayTripleBarStrokeWidthPx(context, scaleFactor, bitmapScale)
+
+        if (dayLabelLayout.scale < 0.999f || dayLabelLayout.shortenedLabels) {
+            Log.d(
+                TAG,
+                "dayLabel layout adjusted: widthPx=$widthPx columns=$columns dayWidth=$dayWidth" +
+                    " baseTextSize=$baseDayLabelTextSizePx finalTextSize=${dayLabelLayout.textSizePx}" +
+                    " scale=${dayLabelLayout.scale} shortened=${dayLabelLayout.shortenedLabels}" +
+                    " labels=${dayLabelLayout.textByDate.values.joinToString(",")}",
+            )
+        }
 
         return LayoutInfo(
             widthPx = widthPx,
@@ -305,6 +353,7 @@ val forecastHigh: Float? = null,
             bulbRadius = tripleBarWidth * BULB_RADIUS_SCALE,
             bitmapScale = bitmapScale,
             minBarHeightPx = dpToPx(context, MIN_BAR_HEIGHT_DP),
+            dayLabelTextByDate = dayLabelLayout.textByDate,
         )
     }
 
@@ -429,10 +478,25 @@ val forecastHigh: Float? = null,
         centerX: Float,
         layout: LayoutInfo,
         paints: PaintSet,
-        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?
+        onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
+        onDayLabelDrawn: ((DayLabelDrawnDebug) -> Unit)?,
     ) {
         val labelPaint = if (day.isToday) paints.todayTextPaint else paints.textPaint
-        canvas.drawText(day.label, centerX, layout.heightPx - DAY_LABEL_BOTTOM_MARGIN_PX, labelPaint)
+        val dayLabel = layout.dayLabelTextByDate[day.date] ?: day.label
+        val dayLabelBaseline = layout.heightPx - DAY_LABEL_BOTTOM_MARGIN_PX
+        canvas.drawText(dayLabel, centerX, dayLabelBaseline, labelPaint)
+        val labelWidth = measureTextWidth(labelPaint, dayLabel)
+        onDayLabelDrawn?.invoke(
+            DayLabelDrawnDebug(
+                date = day.date,
+                text = dayLabel,
+                centerX = centerX,
+                baselineY = dayLabelBaseline,
+                leftX = centerX - labelWidth / 2f,
+                rightX = centerX + labelWidth / 2f,
+                textSize = labelPaint.textSize,
+            ),
+        )
 
         val lowTemp = resolveBottomStackLow(day)
         val lowY = lowTemp?.let { layout.tempToY(it) }
@@ -817,6 +881,82 @@ val label = day.rainData.dailyRainLabelText ?: return
     private fun dpToPx(context: Context, dp: Float): Float {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
     }
+
+    @VisibleForTesting
+    internal fun resolveDayLabelLayout(
+        labels: List<DayLabelInput>,
+        baseTextSizePx: Float,
+        maxTextWidthPx: Float,
+        minScale: Float = MIN_DYNAMIC_DAY_LABEL_SCALE,
+    ): DayLabelLayoutResult {
+        if (labels.isEmpty() || baseTextSizePx <= 0f) {
+            return DayLabelLayoutResult(
+                textSizePx = baseTextSizePx,
+                textByDate = labels.associate { it.date to it.label },
+                scale = 1f,
+                shortenedLabels = false,
+            )
+        }
+
+        val originalTextByDate = labels.associate { it.date to it.label }
+        val originalScale = fittingScale(labels, originalTextByDate, baseTextSizePx, maxTextWidthPx)
+        if (originalScale >= minScale) {
+            return DayLabelLayoutResult(
+                textSizePx = baseTextSizePx * originalScale,
+                textByDate = originalTextByDate,
+                scale = originalScale,
+                shortenedLabels = false,
+            )
+        }
+
+        val shortenedTextByDate = labels.associate { input ->
+            val label = if (input.isToday) {
+                input.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            } else {
+                input.label
+            }
+            input.date to label
+        }
+        val shortenedScale = fittingScale(labels, shortenedTextByDate, baseTextSizePx, maxTextWidthPx)
+            .coerceAtLeast(minScale)
+
+        return DayLabelLayoutResult(
+            textSizePx = baseTextSizePx * shortenedScale,
+            textByDate = shortenedTextByDate,
+            scale = shortenedScale,
+            shortenedLabels = shortenedTextByDate != originalTextByDate,
+        )
+    }
+
+    private fun fittingScale(
+        labels: List<DayLabelInput>,
+        textByDate: Map<LocalDate, String>,
+        baseTextSizePx: Float,
+        maxTextWidthPx: Float,
+    ): Float {
+        val regularPaint = dayLabelMeasurePaint(baseTextSizePx, bold = false)
+        val todayPaint = dayLabelMeasurePaint(baseTextSizePx, bold = true)
+        val widest = labels.maxOfOrNull { input ->
+            val text = textByDate[input.date].orEmpty()
+            val paint = if (input.isToday) todayPaint else regularPaint
+            measureTextWidth(paint, text)
+        } ?: 0f
+        if (widest <= 0f || widest <= maxTextWidthPx) return 1f
+        return (maxTextWidthPx / widest).coerceAtMost(1f)
+    }
+
+    private fun measureTextWidth(paint: Paint, text: String): Float {
+        val measured = paint.measureText(text)
+        if (measured > 0f) return measured
+        return text.length * paint.textSize * 0.55f
+    }
+
+    private fun dayLabelMeasurePaint(textSizePx: Float, bold: Boolean): Paint =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = textSizePx
+            textAlign = Paint.Align.CENTER
+            if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
 
     internal fun computeDayLabelWidthScale(dayWidthDp: Float): Float {
         return (dayWidthDp / BASE_DAY_WIDTH_DP).coerceIn(MIN_DAY_LABEL_WIDTH_SCALE, MAX_DAY_LABEL_WIDTH_SCALE)

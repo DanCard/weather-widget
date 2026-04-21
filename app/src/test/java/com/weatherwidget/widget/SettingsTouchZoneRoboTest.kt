@@ -72,8 +72,8 @@ class SettingsTouchZoneRoboTest {
         val settingsZoneIndex = indexOfChild(root, R.id.text_mode_settings_touch_zone)
 
         assertEquals(Gravity.BOTTOM or Gravity.END, params.gravity)
-        assertEquals((-4 * density).toInt(), params.rightMargin)
-        assertEquals((-4 * density).toInt(), params.bottomMargin)
+        assertEquals(0, params.rightMargin)
+        assertEquals(0, params.bottomMargin)
         assertTrue("text mode settings_touch_zone must be after nav_right_zone in z-order",
             settingsZoneIndex > navRightZoneIndex)
     }
