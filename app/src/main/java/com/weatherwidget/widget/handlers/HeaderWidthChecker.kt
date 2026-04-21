@@ -27,7 +27,7 @@ object HeaderWidthChecker {
     private const val DELTA_MARGIN_START_DP = 4f
     private const val PRECIP_MARGIN_START_DP = 8f
     private const val CURRENT_TEMP_TEXT_SIZE_DP = 22f
-    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_SP = 14f
+    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_DP = 14f
 
     private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -35,11 +35,11 @@ object HeaderWidthChecker {
         context: Context,
         widthDp: Int,
         apiSourceText: String,
-        apiTextSizeSp: Float,
+        apiTextSizeDp: Float,
         currentTempText: String?,
         deltaText: String?,
         precipText: String?,
-        precipTextSizeSp: Float?,
+        precipTextSizeDp: Float?,
 ): HeaderDisclosureLevel {
     val widthPx = dpToPx(context, widthDp.toFloat())
 
@@ -48,10 +48,10 @@ object HeaderWidthChecker {
             currentTempText = currentTempText,
             deltaText = deltaText,
             precipText = precipText,
-            precipTextSizeSp = precipTextSizeSp,
+            precipTextSizeDp = precipTextSizeDp,
             includeIcon = true,
         )
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeSp)
+        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
 
         if (leftClusterRightFull + gapPx <= apiLeft) {
@@ -63,7 +63,7 @@ object HeaderWidthChecker {
             currentTempText = currentTempText,
             deltaText = deltaText,
             precipText = precipText,
-            precipTextSizeSp = precipTextSizeSp,
+            precipTextSizeDp = precipTextSizeDp,
             includeIcon = false,
         )
         if (leftClusterRightNoIcon + gapPx <= apiLeft) {
@@ -75,7 +75,7 @@ object HeaderWidthChecker {
             currentTempText = currentTempText,
             deltaText = null,
             precipText = precipText,
-            precipTextSizeSp = precipTextSizeSp,
+            precipTextSizeDp = precipTextSizeDp,
             includeIcon = false,
         )
         if (leftClusterRightNoIconNoDelta + gapPx <= apiLeft) {
@@ -87,7 +87,7 @@ object HeaderWidthChecker {
             currentTempText = currentTempText,
             deltaText = null,
             precipText = null,
-            precipTextSizeSp = null,
+            precipTextSizeDp = null,
             includeIcon = false,
         )
         if (leftClusterRightMinimal + gapPx <= apiLeft) {
@@ -102,7 +102,7 @@ object HeaderWidthChecker {
         currentTempText: String?,
         deltaText: String?,
         precipText: String?,
-        precipTextSizeSp: Float?,
+        precipTextSizeDp: Float?,
         includeIcon: Boolean,
     ): Float {
         var width = 0f
@@ -114,11 +114,11 @@ object HeaderWidthChecker {
         }
         if (!deltaText.isNullOrBlank()) {
             width += dpToPx(context, DELTA_MARGIN_START_DP)
-            width += textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_SP)
+            width += textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_DP)
         }
-        if (!precipText.isNullOrBlank() && precipTextSizeSp != null) {
+        if (!precipText.isNullOrBlank() && precipTextSizeDp != null) {
             width += dpToPx(context, PRECIP_MARGIN_START_DP)
-            width += textWidthPx(context, precipText, precipTextSizeSp)
+            width += textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
     }
@@ -127,10 +127,10 @@ object HeaderWidthChecker {
         context: Context,
         widthPx: Float,
         apiSourceText: String,
-        apiTextSizeSp: Float,
+        apiTextSizeDp: Float,
     ): Float {
         val apiContainerWidth = dpToPx(context, API_SOURCE_CONTAINER_PADDING_DP) +
-            textWidthPx(context, apiSourceText, apiTextSizeSp)
+            textWidthPx(context, apiSourceText, apiTextSizeDp)
         return widthPx - dpToPx(context, API_SOURCE_MARGIN_END_DP) - apiContainerWidth
     }
 
@@ -142,10 +142,10 @@ object HeaderWidthChecker {
         )
     }
 
-    private fun textWidthPx(context: Context, text: String, textSizeSp: Float): Float {
+    private fun textWidthPx(context: Context, text: String, textSizeDp: Float): Float {
         measurePaint.textSize = TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_SP,
-            textSizeSp,
+            TypedValue.COMPLEX_UNIT_DIP,
+            textSizeDp,
             context.resources.displayMetrics,
         )
         return measurePaint.measureText(text)

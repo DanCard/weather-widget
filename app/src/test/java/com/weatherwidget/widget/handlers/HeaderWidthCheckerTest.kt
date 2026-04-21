@@ -29,11 +29,11 @@ class HeaderWidthCheckerTest {
             context = context,
             widthDp = 500,
             apiSourceText = "NWS",
-            apiTextSizeSp = 16f,
+            apiTextSizeDp = 16f,
             currentTempText = "72.5°",
             deltaText = "+1.2",
             precipText = "30%",
-            precipTextSizeSp = 26f,
+            precipTextSizeDp = 26f,
         )
         assertEquals(HeaderDisclosureLevel.FULL, result)
     }
@@ -44,11 +44,11 @@ class HeaderWidthCheckerTest {
             context = context,
             widthDp = 80,
             apiSourceText = "NWS",
-            apiTextSizeSp = 16f,
+            apiTextSizeDp = 16f,
             currentTempText = "72.5°",
             deltaText = "+1.2",
             precipText = "30%",
-            precipTextSizeSp = 26f,
+            precipTextSizeDp = 26f,
         )
         assertTrue("Expected disclosure level below FULL, got $result", result != HeaderDisclosureLevel.FULL)
     }
@@ -57,13 +57,13 @@ class HeaderWidthCheckerTest {
     fun `current temp always shown when any header is shown`() {
         val withAll = HeaderWidthChecker.resolveHeaderDisclosure(
             context = context, widthDp = 80,
-            apiSourceText = "NWS", apiTextSizeSp = 16f,
-            currentTempText = "72.5°", deltaText = "+1.2", precipText = "30%", precipTextSizeSp = 26f,
+            apiSourceText = "NWS", apiTextSizeDp = 16f,
+            currentTempText = "72.5°", deltaText = "+1.2", precipText = "30%", precipTextSizeDp = 26f,
         )
         val minimalOnly = HeaderWidthChecker.resolveHeaderDisclosure(
             context = context, widthDp = 80,
-            apiSourceText = "NWS", apiTextSizeSp = 16f,
-            currentTempText = "72.5°", deltaText = null, precipText = null, precipTextSizeSp = null,
+            apiSourceText = "NWS", apiTextSizeDp = 16f,
+            currentTempText = "72.5°", deltaText = null, precipText = null, precipTextSizeDp = null,
         )
         assertTrue(withAll != HeaderDisclosureLevel.NONE)
         assertTrue(minimalOnly != HeaderDisclosureLevel.NONE)
@@ -102,11 +102,11 @@ class HeaderWidthCheckerTest {
             context = context,
             widthDp = 200,
             apiSourceText = "NWS",
-            apiTextSizeSp = 16f,
+            apiTextSizeDp = 16f,
             currentTempText = "72°",
             deltaText = null,
             precipText = null,
-            precipTextSizeSp = null,
+            precipTextSizeDp = null,
         )
         assertTrue("Expected non-NONE disclosure level, got $result", result != HeaderDisclosureLevel.NONE)
     }
@@ -117,11 +117,11 @@ class HeaderWidthCheckerTest {
             context = context,
             widthDp = 500,
             apiSourceText = "NWS",
-            apiTextSizeSp = 16f,
+            apiTextSizeDp = 16f,
             currentTempText = null,
             deltaText = "+1.2",
             precipText = "30%",
-            precipTextSizeSp = 26f,
+            precipTextSizeDp = 26f,
         )
         assertTrue(result != HeaderDisclosureLevel.NONE)
     }

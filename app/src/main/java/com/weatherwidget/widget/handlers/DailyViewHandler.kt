@@ -62,9 +62,9 @@ object DailyViewHandler : WidgetViewHandler {
     private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private const val DELTA_COLOR_HEX = "#FF6B35"
     private const val HEADER_DATE_MIN_COLUMNS = 6
-    private const val HEADER_DATE_TEXT_SIZE_SP = 20f
+    private const val HEADER_DATE_TEXT_SIZE_DP = 20f
     private const val HEADER_DATE_RIGHT_MARGIN_DP = 112f
-    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_SP = 14f
+    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_DP = 14f
     private const val WEATHER_ICON_WIDTH_DP = 24f
     private const val WEATHER_ICON_END_MARGIN_DP = 2f
     private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
@@ -192,7 +192,7 @@ object DailyViewHandler : WidgetViewHandler {
         val numRows = dimensions.rows
 
         // Use graph mode for 2+ rows
-        val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP).toFloat() / CELL_HEIGHT_DP
+        val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP) / CELL_HEIGHT_DP
         val useGraph = rawRows >= GRAPH_ROW_THRESHOLD
 
         val stateManager = WidgetStateManager(context)
@@ -353,7 +353,8 @@ object DailyViewHandler : WidgetViewHandler {
 
         if (formattedTemp != null) {
             views.setTextViewText(R.id.current_temp, formattedTemp)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP)
+            val tempPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -375,8 +376,9 @@ object DailyViewHandler : WidgetViewHandler {
         if (isPrecipVisible) {
             val prob = precipProb ?: 0
             views.setTextViewText(R.id.precip_probability, "$prob%")
-            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(prob)
-            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+            val textSizeDp = HeaderPrecipCalculator.getPrecipTextSize(prob)
+            val precipPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
@@ -393,21 +395,23 @@ object DailyViewHandler : WidgetViewHandler {
             val deltaColor = Color.parseColor(DELTA_COLOR_HEX)
             views.setTextViewText(R.id.current_temp_delta, deltaText)
             views.setTextColor(R.id.current_temp_delta, deltaColor)
+            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, CURRENT_TEMP_DELTA_TEXT_SIZE_DP, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.current_temp_delta, TypedValue.COMPLEX_UNIT_PX, deltaPx)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
 } else {
     views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 }
 
-val precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null
+val precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null
 val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
     apiSourceText = displaySource.shortDisplayName,
-    apiTextSizeSp = apiTextSizeSp(numRows),
+    apiTextSizeDp = apiTextSizeDp(numRows),
     currentTempText = formattedTemp,
     deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
     precipText = if (isPrecipVisible) "${precipProb}%" else null,
-    precipTextSizeSp = precipTextSizeSp,
+    precipTextSizeDp = precipTextSizeDp,
 )
 
 if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
@@ -580,9 +584,9 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 currentTempText = formattedTemp,
                 deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
                 precipText = if (isPrecipVisible) "$precipProb%" else null,
-                precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null,
+                precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null,
                 apiSourceText = displaySource.shortDisplayName,
-                apiTextSizeSp = apiTextSizeSp(numRows),
+                apiTextSizeDp = apiTextSizeDp(numRows),
                 dateText = today.format(headerDateFormatter),
             )
 
@@ -812,12 +816,13 @@ setupApiToggle(context, views, appWidgetId, numRows)
         views.setOnClickPendingIntent(R.id.text_mode_api_source_container, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.text_mode_api_touch_zone, togglePendingIntent)
 
-        val textSizeSp = apiTextSizeSp(numRows)
-        views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
-        views.setTextViewTextSize(R.id.text_mode_api_source, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+        val textSizeDp = apiTextSizeDp(numRows)
+        val apiPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
+        views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
+        views.setTextViewTextSize(R.id.text_mode_api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
     }
 
-    private fun apiTextSizeSp(numRows: Int): Float =
+    private fun apiTextSizeDp(numRows: Int): Float =
         when {
             numRows >= 3 -> 18f
             numRows >= 2 -> 16f
@@ -832,9 +837,9 @@ setupApiToggle(context, views, appWidgetId, numRows)
         currentTempText: String?,
         deltaText: String?,
         precipText: String?,
-        precipTextSizeSp: Float?,
+        precipTextSizeDp: Float?,
         apiSourceText: String,
-        apiTextSizeSp: Float,
+        apiTextSizeDp: Float,
         dateText: String,
     ) {
         views.setViewVisibility(R.id.header_date_center, View.GONE)
@@ -849,9 +854,9 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 currentTempText = currentTempText,
                 deltaText = deltaText,
                 precipText = precipText,
-                precipTextSizeSp = precipTextSizeSp,
+                precipTextSizeDp = precipTextSizeDp,
                 apiSourceText = apiSourceText,
-                apiTextSizeSp = apiTextSizeSp,
+                apiTextSizeDp = apiTextSizeDp,
                 dateText = dateText,
             ) ?: return
 
@@ -861,7 +866,8 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 HeaderDatePlacement.RIGHT -> R.id.header_date_right
             }
         views.setTextViewText(targetId, dateText)
-        views.setTextViewTextSize(targetId, TypedValue.COMPLEX_UNIT_SP, HEADER_DATE_TEXT_SIZE_SP)
+        val datePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HEADER_DATE_TEXT_SIZE_DP, context.resources.displayMetrics)
+        views.setTextViewTextSize(targetId, TypedValue.COMPLEX_UNIT_PX, datePx)
         views.setViewVisibility(targetId, View.VISIBLE)
     }
 
@@ -873,9 +879,9 @@ setupApiToggle(context, views, appWidgetId, numRows)
         currentTempText: String?,
         deltaText: String?,
         precipText: String?,
-        precipTextSizeSp: Float?,
+        precipTextSizeDp: Float?,
         apiSourceText: String,
-        apiTextSizeSp: Float,
+        apiTextSizeDp: Float,
         dateText: String,
     ): HeaderDatePlacement? {
         if (numColumns < HEADER_DATE_MIN_COLUMNS) return null
@@ -887,10 +893,10 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 currentTempText = currentTempText,
                 deltaText = deltaText,
                 precipText = precipText,
-                precipTextSizeSp = precipTextSizeSp,
+                precipTextSizeDp = precipTextSizeDp,
             )
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeSp)
-        val dateWidth = textWidthPx(context, dateText, HEADER_DATE_TEXT_SIZE_SP)
+        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
+        val dateWidth = textWidthPx(context, dateText, HEADER_DATE_TEXT_SIZE_DP)
         val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
 
         val centerLeft = (widthPx - dateWidth) / 2f
@@ -913,17 +919,17 @@ setupApiToggle(context, views, appWidgetId, numRows)
         currentTempText: String?,
         deltaText: String?,
         precipText: String?,
-        precipTextSizeSp: Float?,
+        precipTextSizeDp: Float?,
     ): Float {
         var width = dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP)
         if (!currentTempText.isNullOrBlank()) {
             width += currentTempTextWidthPx(context, currentTempText)
         }
         if (!deltaText.isNullOrBlank()) {
-            width += dpToPx(context, 4f) + textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_SP)
+            width += dpToPx(context, 4f) + textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_DP)
         }
-        if (!precipText.isNullOrBlank() && precipTextSizeSp != null) {
-            width += dpToPx(context, 8f) + textWidthPx(context, precipText, precipTextSizeSp)
+        if (!precipText.isNullOrBlank() && precipTextSizeDp != null) {
+            width += dpToPx(context, 8f) + textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
     }
@@ -932,19 +938,19 @@ setupApiToggle(context, views, appWidgetId, numRows)
         context: Context,
         widthPx: Float,
         apiSourceText: String,
-        apiTextSizeSp: Float,
+        apiTextSizeDp: Float,
     ): Float {
-        val apiContainerWidth = dpToPx(context, 14f) + textWidthPx(context, apiSourceText, apiTextSizeSp)
+        val apiContainerWidth = dpToPx(context, 14f) + textWidthPx(context, apiSourceText, apiTextSizeDp)
         return widthPx - dpToPx(context, 32f) - apiContainerWidth
     }
 
     private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-    private fun textWidthPx(context: Context, text: String, textSizeSp: Float): Float {
+    private fun textWidthPx(context: Context, text: String, textSizeDp: Float): Float {
         measurePaint.textSize =
             TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_SP,
-                textSizeSp,
+                TypedValue.COMPLEX_UNIT_DIP,
+                textSizeDp,
                 context.resources.displayMetrics,
             )
         return measurePaint.measureText(text)

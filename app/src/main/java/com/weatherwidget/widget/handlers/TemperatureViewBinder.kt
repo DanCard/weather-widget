@@ -46,7 +46,8 @@ internal object TemperatureViewBinder {
         
         if (header.currentTemp != null) {
             views.setTextViewText(R.id.current_temp, header.currentTemp)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, header.currentTempSizeSp)
+            val tempPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, header.currentTempSizeDp, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -55,6 +56,8 @@ internal object TemperatureViewBinder {
         if (header.isDeltaVisible && header.deltaText != null) {
             views.setTextViewText(R.id.current_temp_delta, header.deltaText)
             views.setTextColor(R.id.current_temp_delta, header.deltaColor)
+            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.current_temp_delta, TypedValue.COMPLEX_UNIT_PX, deltaPx)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp_delta, View.GONE)
@@ -62,7 +65,8 @@ internal object TemperatureViewBinder {
 
         if (header.isPrecipVisible && header.precipProbability != null) {
             views.setTextViewText(R.id.precip_probability, header.precipProbability)
-            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, header.precipTextSizeSp)
+            val precipPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, header.precipTextSizeDp, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
@@ -74,11 +78,11 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = state.widthDp,
     apiSourceText = header.sourceIndicator,
-    apiTextSizeSp = apiTextSizeSp(state.numRows),
+    apiTextSizeDp = apiTextSizeDp(state.numRows),
     currentTempText = header.currentTemp,
     deltaText = header.deltaText,
     precipText = header.precipProbability,
-    precipTextSizeSp = header.precipTextSizeSp,
+    precipTextSizeDp = header.precipTextSizeDp,
 )
 views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
 views.setViewVisibility(R.id.current_temp_delta, if (header.isDeltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
@@ -143,7 +147,7 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
 views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
     }
 
-    private fun apiTextSizeSp(numRows: Int): Float = when {
+    private fun apiTextSizeDp(numRows: Int): Float = when {
         numRows >= 3 -> 18f
         numRows >= 2 -> 16f
         else -> 14f

@@ -195,7 +195,8 @@ object PrecipViewHandler {
                     isStaleEstimate = currentTempResolution.isStaleEstimate,
                 )
             views.setTextViewText(R.id.current_temp, formattedTemp)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP)
+            val tempPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
@@ -214,8 +215,9 @@ object PrecipViewHandler {
         val isPrecipVisible = headerPrecipProbability != null
         if (isPrecipVisible) {
             views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
-            val textSizeSp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
-            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+            val textSizeDp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
+            val precipPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
+            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
@@ -223,12 +225,12 @@ object PrecipViewHandler {
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
 // Apply progressive disclosure for narrow widgets
-val precipTextSizeSp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
+val precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
 val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
     apiSourceText = sourceIndicator,
-    apiTextSizeSp = apiTextSizeSp(numRows),
+    apiTextSizeDp = apiTextSizeDp(numRows),
     currentTempText = if (currentTemp != null) {
         CurrentTemperatureResolver.formatDisplayTemperature(
             temp = currentTemp,
@@ -238,7 +240,7 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     } else null,
     deltaText = null,
     precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
-    precipTextSizeSp = precipTextSizeSp,
+    precipTextSizeDp = precipTextSizeDp,
 )
 views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
 views.setViewVisibility(R.id.precip_probability, if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
@@ -494,13 +496,14 @@ if (disclosure == HeaderDisclosureLevel.NONE) {
         views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
 
-        val textSizeSp =
+        val textSizeDp =
             when {
                 numRows >= 3 -> 18f
                 numRows >= 2 -> 16f
                 else -> 14f
             }
-        views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+        val apiPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
+        views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
     }
 
     private fun setupHistoryShortcut(
@@ -754,7 +757,7 @@ if (disclosure == HeaderDisclosureLevel.NONE) {
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
 
-    private fun apiTextSizeSp(numRows: Int): Float = when {
+    private fun apiTextSizeDp(numRows: Int): Float = when {
         numRows >= 3 -> 18f
         numRows >= 2 -> 16f
         else -> 14f

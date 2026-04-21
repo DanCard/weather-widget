@@ -27,9 +27,9 @@ class DailyViewHeaderDatePlacementTest {
                 currentTempText = "1234567890°",
                 deltaText = null,
                 precipText = null,
-                precipTextSizeSp = null,
+                precipTextSizeDp = null,
                 apiSourceText = "NWS",
-                apiTextSizeSp = 16f,
+                apiTextSizeDp = 16f,
                 dateText = "Sun 19",
             )
 
@@ -48,9 +48,9 @@ class DailyViewHeaderDatePlacementTest {
                 currentTempText = "60.0°",
                 deltaText = null,
                 precipText = null,
-                precipTextSizeSp = null,
+                precipTextSizeDp = null,
                 apiSourceText = "NWS",
-                apiTextSizeSp = 16f,
+                apiTextSizeDp = 16f,
                 dateText = "Sun 19",
             )
 
@@ -69,9 +69,9 @@ class DailyViewHeaderDatePlacementTest {
                 currentTempText = "60.0°",
                 deltaText = "+2.6",
                 precipText = "54%",
-                precipTextSizeSp = 26f,
+                precipTextSizeDp = 26f,
                 apiSourceText = "NWS",
-                apiTextSizeSp = 16f,
+                apiTextSizeDp = 16f,
                 dateText = "Sun 19",
             )
 

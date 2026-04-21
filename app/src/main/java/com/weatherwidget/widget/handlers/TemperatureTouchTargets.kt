@@ -158,13 +158,14 @@ internal fun setupApiToggle(
     views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
     views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
 
-    val textSizeSp =
+    val textSizeDp =
         when {
             numRows >= 3 -> 18f
             numRows >= 2 -> 16f
             else -> 14f
         }
-    views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+    val apiPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
+    views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
 }
 
 internal fun setupHistoryShortcut(
