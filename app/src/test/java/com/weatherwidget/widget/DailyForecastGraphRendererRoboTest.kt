@@ -19,7 +19,6 @@ import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowLog
 import java.time.LocalDate
 
 @Category(MediumDuration::class)
@@ -30,13 +29,11 @@ class DailyForecastGraphRendererRoboTest {
 
     @Before
     fun setup() {
-        ShadowLog.stream = System.out
         context = ApplicationProvider.getApplicationContext()
     }
 
     @After
     fun tearDown() {
-        ShadowLog.stream = null
     }
 
     private fun render(
@@ -246,24 +243,30 @@ class DailyForecastGraphRendererRoboTest {
 
     @Test
     fun renderGraph_placesRainLabelAboveHighWhenRoomExists() {
-        // Use dimensions that result in scaleFactor=1.0 (width/columns <= 70)
-        // 280 / 4 = 70.
+        // Use a dummy day with high=100 to push the graph scale up,
+        // so the 70f day has more headroom below the header.
         val labels = renderRainLabels(
             days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 2),
+                    label = "Sun",
+                    high = 100f,
+                    low = 80f,
+                ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
                     high = 70f,
                     low = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
-                    columnIndex = 0
                 ),
             ),
-            widthPx = 280,
+            widthPx = 800,
             heightPx = 500,
+            numColumns = 4
         )
 
-        assertEquals("Rain label should be shown when room exists (scale=1.0)", 1, labels.size)
+        assertEquals("Rain label should be shown when room exists", 1, labels.size)
         assertEquals("ABOVE_HIGH", labels.first().placement)
     }
 

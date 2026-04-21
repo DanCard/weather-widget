@@ -41,40 +41,57 @@ The rain probability label is drawn above the high temperature text. To avoid cl
 
 ## Automated Test Case (Kotlin)
 
+These tests are implemented in `app/src/test/java/com/weatherwidget/widget/DailyForecastGraphRendererRoboTest.kt`:
+
 ```kotlin
 @Test
-fun `renderGraph shows rain label when high temp leaves room below 50 percent header limit`() {
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val today = LocalDate.now()
-    val day = DailyForecastGraphRenderer.DayData(
-        date = today,
-        label = "Mon",
-        high = 70f,
-        low = 50f,
-        rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%")
+fun renderGraph_placesRainLabelAboveHighWhenRoomExists() {
+    // Use a dummy day with high=100 to push the graph scale up,
+    // so the 70f day has more headroom below the header.
+    val labels = renderRainLabels(
+        days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = LocalDate.of(2026, 2, 2),
+                label = "Sun",
+                high = 100f,
+                low = 80f,
+            ),
+            DailyForecastGraphRenderer.DayData(
+                date = LocalDate.of(2026, 2, 3),
+                label = "Mon",
+                high = 70f,
+                low = 50f,
+                rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+            ),
+        ),
+        widthPx = 800,
+        heightPx = 500,
+        numColumns = 4
     )
 
-    val labels = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
-    runBlocking {
-        DailyForecastGraphRenderer.renderGraph(
-            context = context,
-            days = listOf(day),
-            widthPx = 800,
-            heightPx = 500, // Sufficient height
-            onRainLabelDrawn = labels::add
-        )
-    }
-
-    assertEquals("Rain label should be shown on emulator-like dimensions", 1, labels.size)
+    assertEquals("Rain label should be shown when room exists", 1, labels.size)
     assertEquals("ABOVE_HIGH", labels.first().placement)
 }
 
 @Test
-fun `renderGraph hides rain label when it would cross the 50 percent header forbidden zone`() {
-    val context = ApplicationProvider.getApplicationContext<Context>()
-    val today = LocalDate.now()
-    // By using a very small height, we trigger the tight layout logic
-    // Or we can verify the resolveRainAboveHighPlacement logic directly
+fun renderGraph_hidesRainLabelWhenItCrossesTopFiftyPercentOfHeader() {
+    // At 100px height, high temp at 100f is forced to graphTop (54px).
+    // The rain label would sit around 20-30px from top, which is < 27px (50% of 54px).
+    val labels = renderRainLabels(
+        days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = LocalDate.of(2026, 2, 3),
+                label = "Mon",
+                high = 100f,
+                low = 50f,
+                rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
+            ),
+        ),
+        widthPx = 800,
+        heightPx = 100,
+    )
+
+    assertTrue("Rain label should be hidden when it crosses into the top forbidden zone", labels.isEmpty())
 }
 ```
 
