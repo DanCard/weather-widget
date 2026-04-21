@@ -41,7 +41,6 @@ object DailyForecastGraphRenderer {
     private const val HIGH_LABEL_OFFSET_DP = 6f
     private const val ICON_BELOW_BAR_SPACING_DP = 3f
     private const val TEMP_LABEL_SPACING_DP = 1f
-    private const val RAIN_LABEL_SPACING_DP = 11f
     private const val RAIN_TEXT_MARGIN_DP = 4f
     private const val RAIN_LABEL_EDGE_MARGIN_DP = 2f
     private const val ICON_STACK_SPACING_DP = 4f
@@ -83,6 +82,10 @@ data class RainLabelDrawnDebug(
     val placement: String,
     val centerX: Float,
     val baselineY: Float,
+    val topY: Float = Float.NaN,
+    val bottomY: Float = Float.NaN,
+    val anchorTopY: Float = Float.NaN,
+    val anchorBaselineY: Float = Float.NaN,
 )
 
 /**
@@ -157,6 +160,21 @@ val forecastHigh: Float? = null,
         fun tempToY(temp: Float): Float =
             graphTop + graphHeight * (1 - (temp - minTemp) / tempRange)
     }
+
+    @VisibleForTesting
+    internal data class RainAboveHighPlacement(
+        val baseline: Float,
+        val top: Float,
+        val bottom: Float,
+        val highLabelTop: Float,
+        val fits: Boolean,
+    )
+
+    @VisibleForTesting
+    internal data class TextMetrics(
+        val ascent: Float,
+        val descent: Float,
+    )
 
     private class PaintSet(
         val barPaint: Paint,
@@ -618,37 +636,92 @@ val label = day.rainData.dailyRainLabelText ?: return
             return
         }
 
-        val metrics = localRainPaint.fontMetrics
-        val topMargin = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.scaleFactor)
-        val spacing = dpToPx(context, RAIN_LABEL_SPACING_DP * layout.scaleFactor)
-        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.scaleFactor)
-
-        resolveHighLabelBaseline(context, day, layout)?.let { highBaseline ->
-            val aboveBaseline = highBaseline - spacing
-            if (aboveBaseline + metrics.ascent >= topMargin) {
-                canvas.drawText(rainText, centerX, aboveBaseline, localRainPaint)
-                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "ABOVE_HIGH", centerX, aboveBaseline))
-                return
-            }
-        }
-
-        resolveLowLabelBaseline(context, day, layout)?.let { lowBaseline ->
-            val belowBaseline = lowBaseline + spacing - metrics.ascent
-            if (belowBaseline + metrics.descent <= bottomLimit) {
-                canvas.drawText(rainText, centerX, belowBaseline, localRainPaint)
-                onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "BELOW_LOW", centerX, belowBaseline))
-                return
-            }
-            Log.d(TAG, "rainLabel skipped: below-low overflow: date=${day.date} belowBaseline=$belowBaseline bottomLimit=$bottomLimit descent=${metrics.descent} overflow=${belowBaseline + metrics.descent - bottomLimit}px")
-        }
-
         val highBaseline = resolveHighLabelBaseline(context, day, layout)
         if (highBaseline == null) {
             Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} high=${day.high}")
-        } else {
-            val aboveBaseline = highBaseline - spacing
-            Log.d(TAG, "rainLabel skipped: above-high overflow: date=${day.date} aboveBaseline=$aboveBaseline topMargin=$topMargin ascent=${metrics.ascent} overflow=${topMargin - (aboveBaseline + metrics.ascent)}px")
+            return
         }
+
+        val metrics = textMetrics(localRainPaint)
+        val tempPaint = when {
+            day.isToday -> paints.todayTempTextPaint
+            day.isPast -> paints.pastTempTextPaint
+            else -> paints.tempTextPaint
+        }
+        val tempMetrics = textMetrics(tempPaint)
+        val topMargin = layout.graphTop * 0.5f
+        val gap = dpToPx(context, 0.5f * layout.scaleFactor)
+        val placement = resolveRainAboveHighPlacement(
+            highBaseline = highBaseline,
+            highMetrics = tempMetrics,
+            rainMetrics = metrics,
+            topMargin = topMargin,
+            gap = gap,
+        )
+
+        if (placement.fits) {
+            canvas.drawText(rainText, centerX, placement.baseline, localRainPaint)
+            onRainLabelDrawn?.invoke(
+                RainLabelDrawnDebug(
+                    date = day.date,
+                    text = rainText,
+                    placement = "ABOVE_HIGH",
+                    centerX = centerX,
+                    baselineY = placement.baseline,
+                    topY = placement.top,
+                    bottomY = placement.bottom,
+                    anchorTopY = placement.highLabelTop,
+                    anchorBaselineY = highBaseline,
+                ),
+            )
+            Log.d(
+                TAG,
+                "rainLabel drawn: date=${day.date} label=\"$rainText\" baseline=${placement.baseline}" +
+                    " top=${placement.top} bottom=${placement.bottom} highBaseline=$highBaseline" +
+                    " highTop=${placement.highLabelTop} gap=$gap",
+            )
+            return
+        }
+
+        Log.d(
+            TAG,
+            "rainLabel skipped: above-high insufficient space: date=${day.date} label=\"$rainText\"" +
+                " baseline=${placement.baseline} top=${placement.top} topMargin=$topMargin ascent=${metrics.ascent}" +
+                " descent=${metrics.descent} highBaseline=$highBaseline highTop=${placement.highLabelTop}" +
+                " gap=$gap overflow=${topMargin - placement.top}px",
+        )
+    }
+
+    @VisibleForTesting
+    internal fun resolveRainAboveHighPlacement(
+        highBaseline: Float,
+        highMetrics: TextMetrics,
+        rainMetrics: TextMetrics,
+        topMargin: Float,
+        gap: Float,
+    ): RainAboveHighPlacement {
+        val highLabelTop = highBaseline + highMetrics.ascent
+        val baseline = highLabelTop - gap - rainMetrics.descent
+        val top = baseline + rainMetrics.ascent
+        val bottom = baseline + rainMetrics.descent
+        return RainAboveHighPlacement(
+            baseline = baseline,
+            top = top,
+            bottom = bottom,
+            highLabelTop = highLabelTop,
+            fits = top >= topMargin,
+        )
+    }
+
+    private fun textMetrics(paint: Paint): TextMetrics {
+        val metrics = paint.fontMetrics
+        if ((metrics.ascent != 0f || metrics.descent != 0f) || paint.textSize <= 0f) {
+            return TextMetrics(metrics.ascent, metrics.descent)
+        }
+        return TextMetrics(
+            ascent = -paint.textSize * 0.8f,
+            descent = paint.textSize * 0.2f,
+        )
     }
 
     private fun drawNightRainLabel(

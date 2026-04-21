@@ -202,8 +202,8 @@ class DailyGapFallbackGraphIntegrationTest {
                 today to forecast(today.format(fmt), 70f, 55f, WeatherSource.NWS),
                 today.plusDays(1) to forecast(
                     date = today.plusDays(1).format(fmt),
-                    highTemp = 72f,
-                    lowTemp = 56f,
+                    highTemp = 50f,
+                    lowTemp = 30f,
                     source = WeatherSource.NWS,
                     condition = "Rain",
                     precipProbability = 100,
