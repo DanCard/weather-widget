@@ -73,7 +73,7 @@ class DailyViewHandlerTest {
             displaySource = WeatherSource.NWS
         )
 
-        assertEquals(7, result.size)
+        assertEquals(8, result.size)
         assertEquals(2, result.count { it.isVisible })
         assertTrue(result[1].isVisible) // today
         assertTrue(result[2].isVisible) // tomorrow
@@ -824,6 +824,37 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `wide single row daily text mode can expose eighth day column`() = runBlocking {
+        val today = LocalDate.now()
+        val weatherList = (-1..6).map { offset ->
+            createWeather(today.plusDays(offset.toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE))
+        }
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(144)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 144, widthDp = 520, heightDp = 90)
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 144,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+        )
+
+        val root = FrameLayout(context)
+        val applied = viewsSlot.captured.apply(context, root as ViewGroup)
+
+        assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.day8_container).visibility)
+        assertEquals(
+            today.plusDays(6).dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.getDefault()),
+            applied.findViewById<TextView>(R.id.day8_label).text.toString(),
+        )
+    }
+
+    @Test
     fun `updateWidget text labels show today forecast without source actuals at Noon`() = runBlocking {
         val now = LocalDateTime.of(2026, 3, 2, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -1396,7 +1427,7 @@ class DailyViewHandlerTest {
     }
 
     private fun createWeatherMap(today: LocalDate): Map<LocalDate, ForecastEntity> {
-        return (-1..5).associate { offset ->
+        return (-1..6).associate { offset ->
             val date = today.plusDays(offset.toLong())
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
             date to createWeather(dateStr)

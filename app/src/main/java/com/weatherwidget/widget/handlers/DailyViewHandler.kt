@@ -70,6 +70,11 @@ object DailyViewHandler : WidgetViewHandler {
     private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
     private const val GRAPH_ROW_THRESHOLD = 2.2f
+    private const val TEXT_MODE_ROOT_LEFT_PADDING_DP = 2
+    private const val TEXT_MODE_ROOT_TOP_PADDING_DP = 0
+    private const val TEXT_MODE_ROOT_RIGHT_PADDING_DP = 8
+    private const val TEXT_MODE_ROOT_BOTTOM_PADDING_DP = 0
+    private const val TEXT_MODE_CONTENT_RIGHT_PADDING_DP = 18
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
     @VisibleForTesting
@@ -565,8 +570,15 @@ object DailyViewHandler : WidgetViewHandler {
         } else {
             setTextModeViews(views)
 
-            val textCols = numColumns.coerceIn(1, 7)
-            val rightPaddingPx = WidgetSizeCalculator.dpToPx(context, 18)
+            val textCols = numColumns.coerceAtLeast(1)
+            views.setViewPadding(
+                R.id.widget_root,
+                WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_LEFT_PADDING_DP),
+                WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_TOP_PADDING_DP),
+                WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_RIGHT_PADDING_DP),
+                WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_BOTTOM_PADDING_DP),
+            )
+            val rightPaddingPx = WidgetSizeCalculator.dpToPx(context, TEXT_MODE_CONTENT_RIGHT_PADDING_DP)
             views.setViewPadding(R.id.text_container, 0, 0, rightPaddingPx, 0)
 
             val visibleDaysInfo = updateTextMode(
@@ -1069,6 +1081,7 @@ object DailyViewHandler : WidgetViewHandler {
             DayIds(R.id.day5_container, R.id.day5_label, R.id.day5_icon, R.id.day5_high, R.id.day5_low, R.id.day5_rain),
             DayIds(R.id.day6_container, R.id.day6_label, R.id.day6_icon, R.id.day6_high, R.id.day6_low, R.id.day6_rain),
             DayIds(R.id.day7_container, R.id.day7_label, R.id.day7_icon, R.id.day7_high, R.id.day7_low, R.id.day7_rain),
+            DayIds(R.id.day8_container, R.id.day8_label, R.id.day8_icon, R.id.day8_high, R.id.day8_low, R.id.day8_rain),
         )
 
         dayDataList.forEachIndexed { index, data ->
@@ -1157,7 +1170,7 @@ object DailyViewHandler : WidgetViewHandler {
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
         visibleDays: List<DailyViewLogic.TextDayData>, lat: Double, lon: Double, displaySource: WeatherSource
     ) {
-        val containerIds = listOf(R.id.day1_container, R.id.day2_container, R.id.day3_container, R.id.day4_container, R.id.day5_container, R.id.day6_container, R.id.day7_container)
+        val containerIds = listOf(R.id.day1_container, R.id.day2_container, R.id.day3_container, R.id.day4_container, R.id.day5_container, R.id.day6_container, R.id.day7_container, R.id.day8_container)
         visibleDays.forEach { day ->
             val intent = buildDayClickIntent(context, appWidgetId, day.dayIndex, day.date, day.iconRes, lat, lon, displaySource, now)
             val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.dayClick(appWidgetId, day.dayIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

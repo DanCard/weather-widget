@@ -40,10 +40,10 @@
 
             <ImageView
                 android:id="@+id/day1_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -94,10 +94,10 @@
 
             <ImageView
                 android:id="@+id/day2_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -149,10 +149,10 @@
 
             <ImageView
                 android:id="@+id/day3_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -204,10 +204,10 @@
 
             <ImageView
                 android:id="@+id/day4_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -259,10 +259,10 @@
 
             <ImageView
                 android:id="@+id/day5_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -314,10 +314,10 @@
 
             <ImageView
                 android:id="@+id/day6_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -369,10 +369,10 @@
 
             <ImageView
                 android:id="@+id/day7_icon"
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="2dp"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:src="@drawable/ic_weather_unknown"
                 android:visibility="gone" />
 
@@ -395,6 +395,61 @@
 
             <TextView
                 android:id="@+id/day7_rain"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text=""
+                android:textSize="11sp"
+                android:textColor="#5AC8FA"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Day 8 -->
+        <LinearLayout
+            android:id="@+id/day8_container"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/day8_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Day"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <ImageView
+                android:id="@+id/day8_icon"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/day8_high"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="22sp"
+                android:textColor="@color/widget_text_primary"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day8_low"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="--°"
+                android:textSize="18sp"
+                android:textColor="@color/widget_text_secondary" />
+
+            <TextView
+                android:id="@+id/day8_rain"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"

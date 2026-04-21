@@ -260,6 +260,54 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `prepareTextDays labels today as Today`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val tomorrow = today.plusDays(1)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            tomorrow to createWeather(tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+        )
+
+        assertEquals("Today", result.first { it.date == today }.label)
+        assertEquals("Sun", result.first { it.date == tomorrow }.label)
+    }
+
+    @Test
+    fun `prepareTextDays supports eight visible columns`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = (-1..6).associate { offset ->
+            val date = today.plusDays(offset.toLong())
+            date to createWeather(date.format(DateTimeFormatter.ISO_LOCAL_DATE))
+        }
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 8,
+            displaySource = WeatherSource.NWS,
+        )
+
+        assertEquals(8, result.size)
+        assertEquals(8, result.count { it.isVisible })
+        assertEquals(today.plusDays(6), result.last().date)
+    }
+
+    @Test
     fun `prepareTextDays keeps terminal NWS low only future day without climate fallback`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()

@@ -92,7 +92,7 @@ object DailyViewLogic {
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        val daySlots = listOf(-1, 0, 1, 2, 3, 4, 5).mapIndexed { index, offset ->
+        val daySlots = listOf(-1, 0, 1, 2, 3, 4, 5, 6).mapIndexed { index, offset ->
             val date = effectiveCenter.plusDays(offset.toLong())
             val weather = weatherByDate[date]
             val isToday = date == today
@@ -110,7 +110,8 @@ object DailyViewLogic {
             }
 
             val isVisible = when {
-                numColumns >= 7 -> true
+                numColumns >= 8 -> true
+                numColumns == 7 -> index <= 6
                 numColumns == 6 -> index <= 5
                 numColumns == 5 -> index <= 4
                 numColumns == 4 -> index <= 3
@@ -244,7 +245,7 @@ object DailyViewLogic {
                 } else {
                     (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
                 },
-                label = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
                 weather = weather,
                 rainSummary = displayedSummaries[index],
                 showRain = index == firstRainDayIndex,
