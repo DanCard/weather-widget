@@ -69,7 +69,7 @@ object DailyViewHandler : WidgetViewHandler {
     private const val WEATHER_ICON_END_MARGIN_DP = 2f
     private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
-    private const val GRAPH_ROW_THRESHOLD = 1.4f
+    private const val GRAPH_ROW_THRESHOLD = 2.2f
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
     @VisibleForTesting
@@ -186,6 +186,10 @@ object DailyViewHandler : WidgetViewHandler {
         val numColumns = dimensions.cols
         val numRows = dimensions.rows
 
+        // Use graph mode for 2+ rows
+        val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP).toFloat() / CELL_HEIGHT_DP
+        val useGraph = rawRows >= GRAPH_ROW_THRESHOLD
+
         val stateManager = WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
@@ -301,8 +305,15 @@ object DailyViewHandler : WidgetViewHandler {
                     longitude = lon,
                 )
             }
-        views.setImageViewResource(R.id.weather_icon, iconRes)
-        views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
+        
+        if (useGraph) {
+            views.setImageViewResource(R.id.weather_icon, iconRes)
+            views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
+            views.setViewVisibility(R.id.current_weather_container, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.weather_icon, View.GONE)
+            views.setViewVisibility(R.id.current_weather_container, View.GONE)
+        }
 
         val resolveStartMs = SystemClock.elapsedRealtime()
         val currentTempResolution =
@@ -423,8 +434,6 @@ object DailyViewHandler : WidgetViewHandler {
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode, today)
 
         // Use graph mode for 2+ rows
-        val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP).toFloat() / CELL_HEIGHT_DP
-        val useGraph = rawRows >= GRAPH_ROW_THRESHOLD
         var prepareMs = 0L
         var renderMs = 0L
 
@@ -555,14 +564,25 @@ object DailyViewHandler : WidgetViewHandler {
         } else {
             setTextModeViews(views)
 
+            // Reduce count by 1 to leave an empty cell on the right for API/Settings icons
+            val textCols = (numColumns - 1).coerceIn(1, 7)
+
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
-                hourlyForecasts, numColumns, displaySource, skipHistory,
+                hourlyForecasts, textCols, displaySource, skipHistory,
                 stateManager, appWidgetId, precipProb, dailyActuals, climateNormals,
                 currentTemps,
                 currentTemp = currentTemp,
                 observedAt = observedAt
             )
+
+            // If we have fewer than 7 days, the remaining containers are already GONE.
+            // But if textCols < numColumns, we want to make sure the last "grid cell" of the widget is empty.
+            // Since the LinearLayout uses weights, we add a dummy invisible day at the end if we have space.
+            if (textCols < 7) {
+                val nextId = dayIds[visibleDaysInfo.size]
+                views.setViewVisibility(nextId.container, View.INVISIBLE) // INVISIBLE keeps its weight/space
+            }
 
             logDailyRenderSummary(
                 context = context,

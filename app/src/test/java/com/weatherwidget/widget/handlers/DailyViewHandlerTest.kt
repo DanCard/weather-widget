@@ -822,7 +822,8 @@ class DailyViewHandlerTest {
             applied.findViewById<TextView>(id)?.text?.toString()
         }
         
-        assertTrue("Evening highTexts $highTexts should contain 62.9° for Today", highTexts.contains("62.9°"))
+        // In text mode, forecast temperatures are rounded to the nearest integer
+        assertTrue("Evening highTexts $highTexts should contain 63° for Today's 62.9° forecast", highTexts.contains("63°"))
     }
 
     @Test
@@ -1159,7 +1160,7 @@ class DailyViewHandlerTest {
         stateManager.clearWidgetState(45)
         stateManager.setVisibleSourcesOrder(listOf(WeatherSource.VISUAL_CROSSING, WeatherSource.NWS, WeatherSource.OPEN_METEO))
 
-        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 45, widthDp = 140, heightDp = 90)
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 45, widthDp = 300, heightDp = 200)
 
         DailyViewHandler.updateWidget(
             context = context,
