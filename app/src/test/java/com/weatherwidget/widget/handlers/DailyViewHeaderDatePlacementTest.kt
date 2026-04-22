@@ -79,6 +79,84 @@ class DailyViewHeaderDatePlacementTest {
     }
 
     @Test
+    fun `resolveHeaderPrecipPlacement keeps precip in header when date still fits`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val placement =
+            DailyViewHandler.resolveHeaderPrecipPlacement(
+                context = context,
+                widthDp = 360,
+                numColumns = 8,
+                currentTempText = "60.0°",
+                deltaText = "+2.6",
+                precipText = "54%",
+                precipTextSizeDp = 26f,
+                apiSourceText = "NWS",
+                apiTextSizeDp = 16f,
+                dateText = "Sun 19",
+                headerCanShowPrecip = true,
+                includeIcon = false,
+            )
+
+        assertEquals(
+            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
+            placement,
+        )
+    }
+
+    @Test
+    fun `resolveHeaderPrecipPlacement moves precip to today column when header cannot show precip but date fits`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val placement =
+            DailyViewHandler.resolveHeaderPrecipPlacement(
+                context = context,
+                widthDp = 220,
+                numColumns = 8,
+                currentTempText = "60.0°",
+                deltaText = null,
+                precipText = "100%",
+                precipTextSizeDp = 26f,
+                apiSourceText = "NWS",
+                apiTextSizeDp = 16f,
+                dateText = "Sun 19",
+                headerCanShowPrecip = false,
+                includeIcon = false,
+            )
+
+        assertEquals(
+            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = true),
+            placement,
+        )
+    }
+
+    @Test
+    fun `resolveHeaderPrecipPlacement does not move precip when date still cannot fit`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val placement =
+            DailyViewHandler.resolveHeaderPrecipPlacement(
+                context = context,
+                widthDp = 110,
+                numColumns = 8,
+                currentTempText = "60.0°",
+                deltaText = null,
+                precipText = "100%",
+                precipTextSizeDp = 26f,
+                apiSourceText = "NWS",
+                apiTextSizeDp = 16f,
+                dateText = "Sun 19",
+                headerCanShowPrecip = true,
+                includeIcon = false,
+            )
+
+        assertEquals(
+            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
+            placement,
+        )
+    }
+
+    @Test
     @Suppress("DEPRECATION")
     fun `current temp text size ignores font scale`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

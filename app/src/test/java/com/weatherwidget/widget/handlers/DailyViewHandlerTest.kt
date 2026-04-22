@@ -825,7 +825,8 @@ class DailyViewHandlerTest {
 
     @Test
     fun `wide single row daily text mode can expose eighth day column`() = runBlocking {
-        val today = LocalDate.now()
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
         val weatherList = (-1..6).map { offset ->
             createWeather(today.plusDays(offset.toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE))
         }
@@ -842,6 +843,10 @@ class DailyViewHandlerTest {
             weatherList = weatherList,
             forecastSnapshots = emptyMap(),
             hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
+            now = now,
         )
 
         val root = FrameLayout(context)

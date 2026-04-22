@@ -646,6 +646,70 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `prepareGraphDays today rain chance label shown when header fallback is allowed`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 80,
+                precipAmountMm = 10f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+            todayNext8HourPrecipProbability = 80,
+            allowTodayRainChanceLabel = true,
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals("80%", todayDay.rainData.dailyRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays today rain amount still wins when header fallback is allowed`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 100,
+                precipAmountMm = 10f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+            todayNext8HourPrecipProbability = 100,
+            allowTodayRainChanceLabel = true,
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals(".39in", todayDay.rainData.dailyRainLabelText)
+    }
+
+    @Test
     fun `rainy future day with 99 percent and amount shows amount`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()

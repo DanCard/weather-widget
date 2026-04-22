@@ -83,6 +83,12 @@ object DailyViewHandler : WidgetViewHandler {
         RIGHT,
     }
 
+    @VisibleForTesting
+    internal data class HeaderPrecipPlacement(
+        val showHeaderPrecip: Boolean,
+        val allowTodayColumnPrecip: Boolean,
+    )
+
     private data class DayIds(
         val container: Int,
         val label: Int,
@@ -496,32 +502,63 @@ setupApiToggle(context, views, appWidgetId, numRows)
                     "sourceCurrentRows=${sourceCurrentTemps.size} sourceCurrentSpan=$currentTempSpan " +
                     "hourlyRows=${hourlyForecasts.count { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }}",
             )
-            val days = DailyViewLogic.prepareGraphDays(
-                now, centerDate, today, weatherByDate, forecastSnapshots,
-                numColumns, displaySource, isEveningMode, skipHistory,
-                hourlyForecasts, stateManager, appWidgetId, precipProb,
-                dailyActuals, climateNormals, currentTemps,
-                currentTemp = currentTemp,
-                observedAt = observedAt
-            )
+            fun prepareGraphDays(allowTodayRainChanceLabel: Boolean): List<DailyForecastGraphRenderer.DayData> =
+                DailyViewLogic.prepareGraphDays(
+                    now, centerDate, today, weatherByDate, forecastSnapshots,
+                    numColumns, displaySource, isEveningMode, skipHistory,
+                    hourlyForecasts, stateManager, appWidgetId, precipProb,
+                    dailyActuals, climateNormals, currentTemps,
+                    currentTemp = currentTemp,
+                    observedAt = observedAt,
+                    allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+                )
+
+            val days = prepareGraphDays(allowTodayRainChanceLabel = false)
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
             // Stabilize column count: at offset 0 (home view), record days.size as the
             // baseline.  When navigating away, cap to that baseline so the grid doesn't
             // gain or lose a column as data availability shifts.
-            val displayDays = if (dateOffset == 0) {
-                stateManager.setDailyColumnCount(appWidgetId, days.size)
-                days
+            fun stabilizeDisplayDays(preparedDays: List<DailyForecastGraphRenderer.DayData>): List<DailyForecastGraphRenderer.DayData> = if (dateOffset == 0) {
+                stateManager.setDailyColumnCount(appWidgetId, preparedDays.size)
+                preparedDays
             } else {
                 val baseline = stateManager.getDailyColumnCount(appWidgetId)
-                if (baseline > 0 && days.size > baseline) days.take(baseline) else days
+                if (baseline > 0 && preparedDays.size > baseline) preparedDays.take(baseline) else preparedDays
             }
+            var displayDays = stabilizeDisplayDays(days)
             Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days, displaying ${displayDays.size} for $numColumns columns (offset=$dateOffset).")
 
             if (displayDays.isEmpty() && weatherList.isNotEmpty()) {
                 Log.w(TAG, "displayDays is empty despite ${weatherList.size} weather entries, skipping bitmap update")
                 appWidgetManager.updateAppWidget(appWidgetId, views)
                 return
+            }
+
+            val widthDp = dimensions.widthDp - 24
+            val heightDp = dimensions.heightDp - 16
+            val dateText = if (displayDays.size >= HEADER_DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
+            val headerPrecipPlacement = resolveHeaderPrecipPlacement(
+                context = context,
+                widthDp = widthDp,
+                numColumns = displayDays.size,
+                currentTempText = formattedTemp,
+                deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", delta) else null,
+                precipText = if (isPrecipVisible) "$precipProb%" else null,
+                precipTextSizeDp = precipTextSizeDp,
+                apiSourceText = displaySource.shortDisplayName,
+                apiTextSizeDp = apiTextSizeDp(numRows),
+                dateText = dateText,
+                headerCanShowPrecip = disclosure.showsPrecip(),
+                includeIcon = disclosure.showsIcon(),
+            )
+            if (headerPrecipPlacement.allowTodayColumnPrecip) {
+                displayDays = stabilizeDisplayDays(prepareGraphDays(allowTodayRainChanceLabel = true))
+                Log.d(
+                    TAG,
+                    "headerPrecip moved to today column: widget=$appWidgetId widthDp=$widthDp " +
+                        "dateText=$dateText precip=$precipProb disclosure=$disclosure",
+                )
             }
 
             val graphRefreshDecisions = computeMissingDataRefreshes(
@@ -565,8 +602,6 @@ setupApiToggle(context, views, appWidgetId, numRows)
             logGraphDayIconDetails(context, appWidgetId, displayDays)
 
             // Render graph
-            val widthDp = dimensions.widthDp - 24
-            val heightDp = dimensions.heightDp - 16
             val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
             val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
             val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
@@ -574,7 +609,6 @@ setupApiToggle(context, views, appWidgetId, numRows)
 
             // Build header data for bitmap rendering
             val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
-                val dateText = if (displayDays.size >= HEADER_DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
                 DailyForecastGraphRenderer.HeaderRenderData(
                     iconRes = iconRes,
                     currentTempText = formattedTemp,
@@ -587,7 +621,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                     settingsIconRes = R.drawable.ic_settings_gear,
                     showIcon = disclosure.showsIcon(),
                     showDelta = deltaVisible && disclosure.showsDelta(),
-                    showPrecip = isPrecipVisible && disclosure.showsPrecip(),
+                    showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
                 )
             } else null
 
@@ -899,6 +933,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
         apiSourceText: String,
         apiTextSizeDp: Float,
         dateText: String,
+        includeIcon: Boolean = true,
     ): HeaderDatePlacement? {
         if (numColumns < HEADER_DATE_MIN_COLUMNS) return null
 
@@ -910,6 +945,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 deltaText = deltaText,
                 precipText = precipText,
                 precipTextSizeDp = precipTextSizeDp,
+                includeIcon = includeIcon,
             )
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val dateWidth = textWidthPx(context, dateText, HEADER_DATE_TEXT_SIZE_DP)
@@ -930,14 +966,77 @@ setupApiToggle(context, views, appWidgetId, numRows)
         return null
     }
 
+    @VisibleForTesting
+    internal fun resolveHeaderPrecipPlacement(
+        context: Context,
+        widthDp: Int,
+        numColumns: Int,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeDp: Float?,
+        apiSourceText: String,
+        apiTextSizeDp: Float,
+        dateText: String?,
+        headerCanShowPrecip: Boolean,
+        includeIcon: Boolean,
+    ): HeaderPrecipPlacement {
+        if (precipText.isNullOrBlank() || precipTextSizeDp == null) {
+            return HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false)
+        }
+        if (dateText.isNullOrBlank() || numColumns < HEADER_DATE_MIN_COLUMNS) {
+            return HeaderPrecipPlacement(showHeaderPrecip = headerCanShowPrecip, allowTodayColumnPrecip = false)
+        }
+
+        val dateFitsWithPrecip =
+            headerCanShowPrecip &&
+                resolveHeaderDatePlacement(
+                    context = context,
+                    widthDp = widthDp,
+                    numColumns = numColumns,
+                    currentTempText = currentTempText,
+                    deltaText = deltaText,
+                    precipText = precipText,
+                    precipTextSizeDp = precipTextSizeDp,
+                    apiSourceText = apiSourceText,
+                    apiTextSizeDp = apiTextSizeDp,
+                    dateText = dateText,
+                    includeIcon = includeIcon,
+                ) != null
+        if (dateFitsWithPrecip) {
+            return HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false)
+        }
+
+        val dateFitsWithoutPrecip =
+            resolveHeaderDatePlacement(
+                context = context,
+                widthDp = widthDp,
+                numColumns = numColumns,
+                currentTempText = currentTempText,
+                deltaText = deltaText,
+                precipText = null,
+                precipTextSizeDp = null,
+                apiSourceText = apiSourceText,
+                apiTextSizeDp = apiTextSizeDp,
+                dateText = dateText,
+                includeIcon = includeIcon,
+            ) != null
+
+        return HeaderPrecipPlacement(
+            showHeaderPrecip = headerCanShowPrecip && !dateFitsWithoutPrecip,
+            allowTodayColumnPrecip = dateFitsWithoutPrecip,
+        )
+    }
+
     private fun resolveLeftHeaderClusterRightPx(
         context: Context,
         currentTempText: String?,
         deltaText: String?,
         precipText: String?,
         precipTextSizeDp: Float?,
+        includeIcon: Boolean = true,
     ): Float {
-        var width = dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP)
+        var width = if (includeIcon) dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP) else 0f
         if (!currentTempText.isNullOrBlank()) {
             width += currentTempTextWidthPx(context, currentTempText)
         }

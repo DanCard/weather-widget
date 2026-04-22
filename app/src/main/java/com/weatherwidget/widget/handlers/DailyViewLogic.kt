@@ -279,6 +279,7 @@ object DailyViewLogic {
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
         observedAt: Long? = null,
+        allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
     ): List<DailyForecastGraphRenderer.DayData> {
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
@@ -463,6 +464,7 @@ object DailyViewLogic {
                 dailyPrecipProbability = weather?.precipProbability,
                 dayPrecipProbability = dayPrecipForIcon,
                 nightPrecipProbability = nightPrecipForIcon,
+                allowTodayRainChanceLabel = allowTodayRainChanceLabel,
             )
 
             days.add(
@@ -554,6 +556,7 @@ forecastHigh = fHigh,
         dailyPrecipProbability: Int? = null,
         dayPrecipProbability: Int? = null,
         nightPrecipProbability: Int? = null,
+        allowTodayRainChanceLabel: Boolean = false,
     ): String? {
         if (isPastDate) {
             Log.d(TAG, "buildDailyRainLabel skipping past date=$date")
@@ -563,6 +566,10 @@ forecastHigh = fHigh,
             if (dailyPrecipProbability != null && dailyPrecipProbability >= 95 && precipAmountMm != null) {
                 Log.d(TAG, "buildDailyRainLabel today label: date=$date dailyPrecip=$dailyPrecipProbability% amount=${precipAmountMm}mm")
                 return formatPrecipAmount(precipAmountMm)
+            }
+            if (allowTodayRainChanceLabel && precipProbability != null && precipProbability > 0) {
+                Log.d(TAG, "buildDailyRainLabel today fallback label: date=$date precipProbability=$precipProbability%")
+                return "$precipProbability%"
             }
             Log.d(TAG, "buildDailyRainLabel skipping today: date=$date dailyPrecip=$dailyPrecipProbability precipAmount=$precipAmountMm")
             return null
