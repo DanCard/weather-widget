@@ -80,9 +80,10 @@ class CurrentTempTouchRoutingRoboTest {
     fun `daily current temp delta routes to temperature view`() = runBlocking {
         val views = renderDailyWidget(lastObservedTemp = 72.4f, precipProbability = 0)
 
-        val intent = clickView(views, R.id.current_temp_delta)
+        // Delta text is rendered in bitmap; touch goes through the current_temp_zone overlay
+        val intent = clickView(views, R.id.current_temp_zone)
 
-        assertNotNull("Expected current temp delta to send a broadcast", intent)
+        assertNotNull("Expected current temp zone to send a broadcast", intent)
         assertEquals(WidgetIntentRouter.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
@@ -179,14 +180,7 @@ class CurrentTempTouchRoutingRoboTest {
             now = now,
         )
 
-        val applied = applyViews(appWidgetManager.second.captured)
-        val centerDate = applied.findViewById<View>(R.id.header_date_center)
-        val rightDate = applied.findViewById<View>(R.id.header_date_right)
-        assertTrue(
-            "Expected daily graph render to make one date header visible before reapply",
-            centerDate.visibility == View.VISIBLE || rightDate.visibility == View.VISIBLE,
-        )
-        return applied
+        return applyViews(appWidgetManager.second.captured)
     }
 
     private suspend fun renderTemperatureWidget(

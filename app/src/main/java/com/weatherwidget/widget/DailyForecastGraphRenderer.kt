@@ -62,6 +62,19 @@ object DailyForecastGraphRenderer {
     private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     private const val PAST_TEMP_SCALE = 0.9f
 
+    // Header rendering constants
+    private const val HEADER_TEXT_COLOR = "#AAFFFFFF"
+    private const val HEADER_CURRENT_TEMP_SIZE_DP = 22f
+    private const val HEADER_DELTA_SIZE_DP = 14f
+    private const val HEADER_DATE_SIZE_DP = 20f
+    private const val HEADER_ICON_SIZE_DP = 24f
+    private const val HEADER_ICON_END_MARGIN_DP = 2f
+    private const val HEADER_DELTA_MARGIN_START_DP = 4f
+    private const val HEADER_PRECIP_MARGIN_START_DP = 8f
+    private const val HEADER_SETTINGS_ICON_SIZE_DP = 18f
+    private const val HEADER_API_MARGIN_END_DP = 32f
+    private const val HEADER_SETTINGS_MARGIN_END_DP = 0f
+
     @Volatile
     private var cachedPaintSet: PaintSet? = null
     @Volatile
@@ -118,7 +131,24 @@ data class RainData(
     val hasRainForecast: Boolean = false,
 )
 
-private fun DayData.effectiveHigh(): Float? {
+    data class HeaderRenderData(
+        val iconRes: Int? = null,
+        val currentTempText: String? = null,
+        val deltaText: String? = null,
+        val deltaColor: Int = Color.parseColor("#FF6B35"),
+        val precipText: String? = null,
+        val precipColor: Int = Color.parseColor("#5AC8FA"),
+        val precipTextSizeDp: Float = 26f,
+        val dateText: String? = null,
+        val apiSourceText: String? = null,
+        val apiTextSizeDp: Float = 16f,
+        val settingsIconRes: Int = 0,
+        val showIcon: Boolean = true,
+        val showDelta: Boolean = true,
+        val showPrecip: Boolean = true,
+    )
+
+    private fun DayData.effectiveHigh(): Float? {
         if (!isToday) return high
         return listOfNotNull(high, forecastHigh, trueActualHigh).maxOrNull()
     }
@@ -239,6 +269,7 @@ val forecastHigh: Float? = null,
         onBarDrawn: ((BarDrawnDebug) -> Unit)? = null,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
         onDayLabelDrawn: ((DayLabelDrawnDebug) -> Unit)? = null,
+        headerData: HeaderRenderData? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -253,13 +284,17 @@ val forecastHigh: Float? = null,
         val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale, job)
         val paints = getPaintSet(context, layout.scaleFactor, layout)
 
+        if (headerData != null) {
+            drawHeader(canvas, context, headerData, widthPx, layout)
+        }
+
         Log.d(TAG, "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx")
 
         days.forEachIndexed { index, day ->
             job?.ensureActive()
             val columnIndex = day.columnIndex ?: index
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
-            
+
             drawDayColumn(canvas, context, day, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
         }
@@ -419,6 +454,142 @@ val forecastHigh: Float? = null,
         textSize = size
         textAlign = Paint.Align.CENTER
         if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+    }
+
+    private fun drawHeader(
+        canvas: Canvas,
+        context: Context,
+        header: HeaderRenderData,
+        widthPx: Int,
+        layout: LayoutInfo,
+    ) {
+        val density = context.resources.displayMetrics.density
+        val headerColor = Color.parseColor(HEADER_TEXT_COLOR)
+        val labelScale = layout.bitmapScale.coerceAtMost(1f)
+
+        // Use the same text size as graph temp labels for visual consistency across devices.
+        val tempTextSizePx = layout.tempLabelHeight
+        val baselineY = tempTextSizePx + dpToPx(context, 2f * labelScale)
+
+        var cursorX = 0f
+
+        // Weather icon
+        if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
+            val iconSizePx = dpToPx(context, HEADER_ICON_SIZE_DP * labelScale).toInt()
+            try {
+                val drawable = androidx.core.content.ContextCompat.getDrawable(context, header.iconRes)
+                if (drawable != null) {
+                    val iconTop = (baselineY - iconSizePx * 0.8f).toInt()
+                    drawable.setBounds(
+                        cursorX.toInt(), iconTop,
+                        cursorX.toInt() + iconSizePx, iconTop + iconSizePx,
+                    )
+                    drawable.draw(canvas)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "drawHeader: failed to draw weather icon", e)
+            }
+            cursorX += dpToPx(context, (HEADER_ICON_SIZE_DP + HEADER_ICON_END_MARGIN_DP) * labelScale)
+        }
+
+        // Current temperature
+        val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = headerColor
+            textSize = tempTextSizePx
+            textAlign = Paint.Align.LEFT
+        }
+        if (!header.currentTempText.isNullOrBlank()) {
+            canvas.drawText(header.currentTempText, cursorX, baselineY, tempPaint)
+            cursorX += tempPaint.measureText(header.currentTempText)
+        }
+
+        // Delta
+        if (header.showDelta && !header.deltaText.isNullOrBlank()) {
+            cursorX += dpToPx(context, HEADER_DELTA_MARGIN_START_DP * labelScale)
+            val deltaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = header.deltaColor
+                textSize = dpToPx(context, HEADER_DELTA_SIZE_DP * labelScale)
+                textAlign = Paint.Align.LEFT
+            }
+            canvas.drawText(header.deltaText, cursorX, baselineY, deltaPaint)
+            cursorX += deltaPaint.measureText(header.deltaText)
+        }
+
+        // Precip probability
+        if (header.showPrecip && !header.precipText.isNullOrBlank()) {
+            cursorX += dpToPx(context, HEADER_PRECIP_MARGIN_START_DP * labelScale)
+            val precipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = header.precipColor
+                textSize = dpToPx(context, header.precipTextSizeDp * labelScale)
+                textAlign = Paint.Align.LEFT
+            }
+            canvas.drawText(header.precipText, cursorX, baselineY, precipPaint)
+        }
+
+        // Settings gear icon (top-right corner)
+        if (header.settingsIconRes != 0) {
+            val gearSizePx = dpToPx(context, HEADER_SETTINGS_ICON_SIZE_DP * labelScale).toInt()
+            try {
+                val drawable = androidx.core.content.ContextCompat.getDrawable(context, header.settingsIconRes)
+                if (drawable != null) {
+                    drawable.setTint(Color.parseColor(HEADER_TEXT_COLOR))
+                    val gearRight = widthPx
+                    val gearTop = dpToPx(context, 2f * labelScale).toInt()
+                    drawable.setBounds(
+                        gearRight - gearSizePx, gearTop,
+                        gearRight, gearTop + gearSizePx,
+                    )
+                    drawable.draw(canvas)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "drawHeader: failed to draw settings icon", e)
+            }
+        }
+
+        // API source (top-right, left of settings gear)
+        if (!header.apiSourceText.isNullOrBlank()) {
+            val apiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = headerColor
+                textSize = dpToPx(context, header.apiTextSizeDp * labelScale)
+                textAlign = Paint.Align.RIGHT
+            }
+            val apiX = widthPx - dpToPx(context, HEADER_API_MARGIN_END_DP * labelScale)
+            canvas.drawText(header.apiSourceText, apiX, baselineY, apiPaint)
+        }
+
+        // Date text (centered or right-aligned, using same logic as before)
+        if (!header.dateText.isNullOrBlank()) {
+            val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = headerColor
+                textSize = dpToPx(context, HEADER_DATE_SIZE_DP * labelScale)
+                textAlign = Paint.Align.CENTER
+            }
+            val dateWidth = datePaint.measureText(header.dateText)
+            val leftClusterRight = cursorX
+            val apiPaintForMeasure = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = dpToPx(context, header.apiTextSizeDp * labelScale)
+            }
+            val apiContainerWidth = dpToPx(context, 14f * labelScale) +
+                apiPaintForMeasure.measureText(header.apiSourceText ?: "")
+            val apiLeft = widthPx - dpToPx(context, HEADER_API_MARGIN_END_DP * labelScale) - apiContainerWidth
+            val gapPx = dpToPx(context, 6f * labelScale)
+
+            // Try center placement
+            val centerX = widthPx / 2f
+            val centerLeft = centerX - dateWidth / 2f
+            val centerRight = centerX + dateWidth / 2f
+            if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
+                canvas.drawText(header.dateText, centerX, baselineY, datePaint)
+            } else {
+                // Fall back to right placement (left of API area)
+                val rightMarginPx = dpToPx(context, 112f * labelScale)
+                val rightX = widthPx - rightMarginPx
+                val rightLeft = rightX - dateWidth / 2f
+                if (rightLeft >= leftClusterRight + gapPx) {
+                    canvas.drawText(header.dateText, rightX, baselineY, datePaint)
+                }
+            }
+        }
     }
 
     private fun drawWeatherAdaptiveBar(

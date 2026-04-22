@@ -117,8 +117,8 @@ class DailyViewHandlerTodayDropIntegrationTest {
 
         // Capture the DayData passed to the renderer
         val daysSlot = slot<List<DailyForecastGraphRenderer.DayData>>()
-        every { 
-            DailyForecastGraphRenderer.renderGraph(any(), capture(daysSlot), any(), any(), any(), any(), any()) 
+        every {
+            DailyForecastGraphRenderer.renderGraph(any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } returns Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
 
         DailyViewHandler.updateWidget(

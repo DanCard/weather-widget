@@ -572,23 +572,39 @@ setupApiToggle(context, views, appWidgetId, numRows)
             val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
             val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
 
+            // Build header data for bitmap rendering
+            val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
+                val dateText = if (displayDays.size >= HEADER_DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
+                DailyForecastGraphRenderer.HeaderRenderData(
+                    iconRes = iconRes,
+                    currentTempText = formattedTemp,
+                    deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+                    precipText = if (isPrecipVisible) "$precipProb%" else null,
+                    precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else 26f,
+                    dateText = dateText,
+                    apiSourceText = displaySource.shortDisplayName,
+                    apiTextSizeDp = apiTextSizeDp(numRows),
+                    settingsIconRes = R.drawable.ic_settings_gear,
+                    showIcon = disclosure.showsIcon(),
+                    showDelta = deltaVisible && disclosure.showsDelta(),
+                    showPrecip = isPrecipVisible && disclosure.showsPrecip(),
+                )
+            } else null
+
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size, job = coroutineContext[Job])
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size, job = coroutineContext[Job], headerData = headerRenderData)
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
-            bindHeaderDate(
-                context = context,
-                views = views,
-                widthDp = dimensions.widthDp,
-                numColumns = displayDays.size,
-                currentTempText = formattedTemp,
-                deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
-                precipText = if (isPrecipVisible) "$precipProb%" else null,
-                precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null,
-                apiSourceText = displaySource.shortDisplayName,
-                apiTextSizeDp = apiTextSizeDp(numRows),
-                dateText = today.format(headerDateFormatter),
-            )
+
+            // Hide RemoteViews header text — now rendered in bitmap
+            views.setViewVisibility(R.id.current_temp, View.INVISIBLE)
+            views.setViewVisibility(R.id.current_temp_delta, View.INVISIBLE)
+            views.setViewVisibility(R.id.precip_probability, View.INVISIBLE)
+            views.setViewVisibility(R.id.weather_icon, View.INVISIBLE)
+            views.setViewVisibility(R.id.api_source, View.INVISIBLE)
+            views.setViewVisibility(R.id.settings_icon, View.INVISIBLE)
+            views.setViewVisibility(R.id.header_date_center, View.GONE)
+            views.setViewVisibility(R.id.header_date_right, View.GONE)
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
             setupGraphBottomDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
