@@ -7,6 +7,7 @@ import android.graphics.*
 import android.util.Log
 import android.util.TypedValue
 import androidx.annotation.VisibleForTesting
+import com.weatherwidget.widget.handlers.HeaderConstants
 import com.weatherwidget.util.WeatherConditionColors
 import kotlin.math.abs
 import java.time.LocalDate
@@ -64,10 +65,8 @@ object DailyForecastGraphRenderer {
 
     // Header rendering constants
     private const val HEADER_TEXT_COLOR = "#AAFFFFFF"
-    private const val HEADER_CURRENT_TEMP_SIZE_DP = 22f
     private const val HEADER_DELTA_SIZE_DP = 14f
     private const val HEADER_DATE_SIZE_DP = 20f
-    private const val HEADER_ICON_SIZE_DP = 24f
     private const val HEADER_ICON_END_MARGIN_DP = 2f
     private const val HEADER_DELTA_MARGIN_START_DP = 4f
     private const val HEADER_PRECIP_MARGIN_START_DP = 8f
@@ -467,15 +466,13 @@ val forecastHigh: Float? = null,
         val headerColor = Color.parseColor(HEADER_TEXT_COLOR)
         val labelScale = layout.bitmapScale.coerceAtMost(1f)
 
-        // Use the same text size as graph temp labels for visual consistency across devices.
-        val tempTextSizePx = layout.tempLabelHeight
-        val baselineY = tempTextSizePx
+        val tempTextSizePx = dpToPx(context, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP * labelScale)
 
         var cursorX = 0f
 
         // Weather icon
         if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
-            val iconSizePx = dpToPx(context, HEADER_ICON_SIZE_DP * labelScale).toInt()
+            val iconSizePx = dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP * labelScale).toInt()
             try {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, header.iconRes)
                 if (drawable != null) {
@@ -489,7 +486,7 @@ val forecastHigh: Float? = null,
             } catch (e: Exception) {
                 Log.w(TAG, "drawHeader: failed to draw weather icon", e)
             }
-            cursorX += dpToPx(context, (HEADER_ICON_SIZE_DP + HEADER_ICON_END_MARGIN_DP) * labelScale)
+            cursorX += dpToPx(context, (HeaderConstants.WEATHER_ICON_SIZE_DP + HEADER_ICON_END_MARGIN_DP) * labelScale)
         }
 
         // Current temperature
@@ -524,6 +521,7 @@ val forecastHigh: Float? = null,
                 textAlign = Paint.Align.LEFT
             }
             canvas.drawText(header.precipText, cursorX, -precipPaint.ascent(), precipPaint)
+            cursorX += precipPaint.measureText(header.precipText)
         }
 
         // Settings gear icon (top-right corner)
@@ -586,7 +584,8 @@ val forecastHigh: Float? = null,
                 val rightMarginPx = dpToPx(context, 112f * labelScale)
                 val rightX = widthPx - rightMarginPx
                 val rightLeft = rightX - dateWidth / 2f
-                if (rightLeft >= leftClusterRight + gapPx) {
+                val rightRight = rightX + dateWidth / 2f
+                if (rightLeft >= leftClusterRight + gapPx && rightRight <= apiLeft - gapPx) {
                     canvas.drawText(header.dateText, rightX, dateBaseline, datePaint)
                 }
             }

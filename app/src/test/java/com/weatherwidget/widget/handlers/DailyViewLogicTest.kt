@@ -646,7 +646,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays today rain chance label shown when header fallback is allowed`() {
+    fun `prepareGraphDays today rain chance label shown when today label is allowed`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val weatherByDate = mapOf(
@@ -678,7 +678,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays today rain amount still wins when header fallback is allowed`() {
+    fun `prepareGraphDays today rain amount still wins when today label is allowed`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val weatherByDate = mapOf(

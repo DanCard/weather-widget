@@ -79,6 +79,21 @@ class DailyViewHeaderDatePlacementTest {
     }
 
     @Test
+    fun `resolveHeaderDatePlacementFromBounds moves date right when center collides`() {
+        val placement = DailyViewHandler.resolveHeaderDatePlacementFromBounds(
+            numColumns = 8,
+            widthPx = 360f,
+            leftClusterRight = 175f,
+            apiLeft = 330f,
+            dateWidth = 60f,
+            gapPx = 6f,
+            rightMarginPx = 112f,
+        )
+
+        assertEquals(DailyViewHandler.HeaderDatePlacement.RIGHT, placement)
+    }
+
+    @Test
     fun `resolveHeaderPrecipPlacement keeps precip in header when date still fits`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
@@ -105,7 +120,7 @@ class DailyViewHeaderDatePlacementTest {
     }
 
     @Test
-    fun `resolveHeaderPrecipPlacement moves precip to today column when header cannot show precip but date fits`() {
+    fun `resolveHeaderPrecipPlacement does not move precip to today column when header cannot show precip but date fits`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
@@ -125,10 +140,37 @@ class DailyViewHeaderDatePlacementTest {
             )
 
         assertEquals(
-            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = true),
+            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false),
             placement,
         )
     }
+
+    @Test
+    fun `resolveHeaderPrecipPlacement keeps header precip when right date placement fits`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val placement =
+            DailyViewHandler.resolveHeaderPrecipPlacement(
+                context = context,
+                widthDp = 230,
+                numColumns = 8,
+                currentTempText = "60.0°",
+                deltaText = "+2.6",
+                precipText = "100%",
+                precipTextSizeDp = 26f,
+                apiSourceText = "NWS",
+                apiTextSizeDp = 16f,
+                dateText = "Sun 19",
+                headerCanShowPrecip = true,
+                includeIcon = false,
+            )
+
+        assertEquals(
+            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
+            placement,
+        )
+    }
+
 
     @Test
     fun `resolveHeaderPrecipPlacement does not move precip when date still cannot fit`() {
@@ -162,7 +204,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val metrics = context.resources.displayMetrics
         val originalScaledDensity = metrics.scaledDensity
-        val expectedPx = 22f * metrics.density
+        val expectedPx = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP * metrics.density
 
         try {
             metrics.scaledDensity = metrics.density * 0.8f

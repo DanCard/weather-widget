@@ -19,14 +19,12 @@ fun HeaderDisclosureLevel.showsDelta(): Boolean = this == HeaderDisclosureLevel.
 fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON || this == HeaderDisclosureLevel.NO_ICON_NO_DELTA
 
 object HeaderWidthChecker {
-    private const val WEATHER_ICON_WIDTH_DP = 24f
     private const val WEATHER_ICON_END_MARGIN_DP = 2f
     private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
     private const val API_SOURCE_MARGIN_END_DP = 32f
     private const val API_SOURCE_CONTAINER_PADDING_DP = 14f
     private const val DELTA_MARGIN_START_DP = 4f
     private const val PRECIP_MARGIN_START_DP = 8f
-    private const val CURRENT_TEMP_TEXT_SIZE_DP = 22f
     private const val CURRENT_TEMP_DELTA_TEXT_SIZE_DP = 14f
 
     private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -107,7 +105,7 @@ object HeaderWidthChecker {
     ): Float {
         var width = 0f
         if (includeIcon) {
-            width += dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP)
+            width += dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + WEATHER_ICON_END_MARGIN_DP)
         }
         if (!currentTempText.isNullOrBlank()) {
             width += currentTempTextWidthPx(context, currentTempText)
@@ -154,7 +152,7 @@ object HeaderWidthChecker {
     private fun currentTempTextWidthPx(context: Context, text: String): Float {
         measurePaint.textSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
-            CURRENT_TEMP_TEXT_SIZE_DP,
+            HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             context.resources.displayMetrics,
         )
         return measurePaint.measureText(text)

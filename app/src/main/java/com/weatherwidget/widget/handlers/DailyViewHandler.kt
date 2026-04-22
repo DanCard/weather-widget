@@ -65,7 +65,6 @@ object DailyViewHandler : WidgetViewHandler {
     private const val HEADER_DATE_TEXT_SIZE_DP = 20f
     private const val HEADER_DATE_RIGHT_MARGIN_DP = 112f
     private const val CURRENT_TEMP_DELTA_TEXT_SIZE_DP = 14f
-    private const val WEATHER_ICON_WIDTH_DP = 24f
     private const val WEATHER_ICON_END_MARGIN_DP = 2f
     private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
@@ -513,7 +512,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                     allowTodayRainChanceLabel = allowTodayRainChanceLabel,
                 )
 
-            val days = prepareGraphDays(allowTodayRainChanceLabel = false)
+            val days = prepareGraphDays(allowTodayRainChanceLabel = true)
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
             // Stabilize column count: at offset 0 (home view), record days.size as the
@@ -552,15 +551,6 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 headerCanShowPrecip = disclosure.showsPrecip(),
                 includeIcon = disclosure.showsIcon(),
             )
-            if (headerPrecipPlacement.allowTodayColumnPrecip) {
-                displayDays = stabilizeDisplayDays(prepareGraphDays(allowTodayRainChanceLabel = true))
-                Log.d(
-                    TAG,
-                    "headerPrecip moved to today column: widget=$appWidgetId widthDp=$widthDp " +
-                        "dateText=$dateText precip=$precipProb disclosure=$disclosure",
-                )
-            }
-
             val graphRefreshDecisions = computeMissingDataRefreshes(
                 today = today,
                 displaySource = displaySource,
@@ -950,15 +940,39 @@ setupApiToggle(context, views, appWidgetId, numRows)
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val dateWidth = textWidthPx(context, dateText, HEADER_DATE_TEXT_SIZE_DP)
         val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
+        val rightMarginPx = dpToPx(context, HEADER_DATE_RIGHT_MARGIN_DP)
 
+        return resolveHeaderDatePlacementFromBounds(
+            numColumns = numColumns,
+            widthPx = widthPx,
+            leftClusterRight = leftClusterRight,
+            apiLeft = apiLeft,
+            dateWidth = dateWidth,
+            gapPx = gapPx,
+            rightMarginPx = rightMarginPx,
+        )
+    }
+
+    @VisibleForTesting
+    internal fun resolveHeaderDatePlacementFromBounds(
+        numColumns: Int,
+        widthPx: Float,
+        leftClusterRight: Float,
+        apiLeft: Float,
+        dateWidth: Float,
+        gapPx: Float,
+        rightMarginPx: Float,
+    ): HeaderDatePlacement? {
+        if (numColumns < HEADER_DATE_MIN_COLUMNS) return null
         val centerLeft = (widthPx - dateWidth) / 2f
         val centerRight = centerLeft + dateWidth
         if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
             return HeaderDatePlacement.CENTER
         }
 
-        val rightRight = widthPx - dpToPx(context, HEADER_DATE_RIGHT_MARGIN_DP)
-        val rightLeft = rightRight - dateWidth
+        val rightCenter = widthPx - rightMarginPx
+        val rightLeft = rightCenter - dateWidth / 2f
+        val rightRight = rightCenter + dateWidth / 2f
         if (rightLeft >= leftClusterRight + gapPx && rightRight <= apiLeft - gapPx) {
             return HeaderDatePlacement.RIGHT
         }
@@ -1024,7 +1038,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
 
         return HeaderPrecipPlacement(
             showHeaderPrecip = headerCanShowPrecip && !dateFitsWithoutPrecip,
-            allowTodayColumnPrecip = dateFitsWithoutPrecip,
+            allowTodayColumnPrecip = false,
         )
     }
 
@@ -1036,7 +1050,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
         precipTextSizeDp: Float?,
         includeIcon: Boolean = true,
     ): Float {
-        var width = if (includeIcon) dpToPx(context, WEATHER_ICON_WIDTH_DP + WEATHER_ICON_END_MARGIN_DP) else 0f
+        var width = if (includeIcon) dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + WEATHER_ICON_END_MARGIN_DP) else 0f
         if (!currentTempText.isNullOrBlank()) {
             width += currentTempTextWidthPx(context, currentTempText)
         }
