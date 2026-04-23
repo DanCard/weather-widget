@@ -2,6 +2,7 @@ package com.weatherwidget.util
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.widget.handlers.HeaderConstants
 import java.time.LocalDateTime
 
 object HeaderPrecipCalculator {
@@ -36,14 +37,15 @@ object HeaderPrecipCalculator {
     }
 
     fun getPrecipTextSize(precipProb: Int): Float {
+        val base = HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP
         return when {
-            precipProb <= 1 -> 26f * 0.4f
-            precipProb <= 2 -> 26f * 0.5f
-            precipProb <= 4 -> 26f * 0.6f
-            precipProb <= 8 -> 26f * 0.7f
-            precipProb <= 15 -> 26f * 0.8f
-            precipProb <= 25 -> 26f * 0.9f
-            else -> 26f
+            precipProb <= 1 -> base * 0.4f
+            precipProb <= 2 -> base * 0.5f
+            precipProb <= 4 -> base * 0.6f
+            precipProb <= 8 -> base * 0.7f
+            precipProb <= 15 -> base * 0.8f
+            precipProb <= 25 -> base * 0.9f
+            else -> base
         }
     }
 }

@@ -231,7 +231,7 @@ object TemperatureViewHandler {
 
             if (refined.appliedDelta != null && kotlin.math.abs(refined.appliedDelta) >= DELTA_VISIBILITY_THRESHOLD && params.isNowLineVisible) {
                 partialViews.setTextViewText(com.weatherwidget.R.id.current_temp_delta, String.format("%+.1f", refined.appliedDelta))
-                val deltaPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, 14f, appContext.resources.displayMetrics)
+                val deltaPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, appContext.resources.displayMetrics)
                 partialViews.setTextViewTextSize(com.weatherwidget.R.id.current_temp_delta, android.util.TypedValue.COMPLEX_UNIT_PX, deltaPx)
                 partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp_delta, android.view.View.VISIBLE)
             } else {

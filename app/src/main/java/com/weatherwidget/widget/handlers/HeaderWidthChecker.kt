@@ -19,14 +19,6 @@ fun HeaderDisclosureLevel.showsDelta(): Boolean = this == HeaderDisclosureLevel.
 fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON || this == HeaderDisclosureLevel.NO_ICON_NO_DELTA
 
 object HeaderWidthChecker {
-    private const val WEATHER_ICON_END_MARGIN_DP = 2f
-    private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
-    private const val API_SOURCE_MARGIN_END_DP = 32f
-    private const val API_SOURCE_CONTAINER_PADDING_DP = 14f
-    private const val DELTA_MARGIN_START_DP = 4f
-    private const val PRECIP_MARGIN_START_DP = 8f
-    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_DP = 14f
-
     private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun resolveHeaderDisclosure(
@@ -50,7 +42,7 @@ object HeaderWidthChecker {
             includeIcon = true,
         )
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
+        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
 
         if (leftClusterRightFull + gapPx <= apiLeft) {
             return HeaderDisclosureLevel.FULL
@@ -105,17 +97,17 @@ object HeaderWidthChecker {
     ): Float {
         var width = 0f
         if (includeIcon) {
-            width += dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + WEATHER_ICON_END_MARGIN_DP)
+            width += dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP)
         }
         if (!currentTempText.isNullOrBlank()) {
             width += currentTempTextWidthPx(context, currentTempText)
         }
         if (!deltaText.isNullOrBlank()) {
-            width += dpToPx(context, DELTA_MARGIN_START_DP)
-            width += textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_DP)
+            width += dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP)
+            width += textWidthPx(context, deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP)
         }
         if (!precipText.isNullOrBlank() && precipTextSizeDp != null) {
-            width += dpToPx(context, PRECIP_MARGIN_START_DP)
+            width += dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP)
             width += textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
@@ -127,9 +119,9 @@ object HeaderWidthChecker {
         apiSourceText: String,
         apiTextSizeDp: Float,
     ): Float {
-        val apiContainerWidth = dpToPx(context, API_SOURCE_CONTAINER_PADDING_DP) +
+        val apiContainerWidth = dpToPx(context, HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP) +
             textWidthPx(context, apiSourceText, apiTextSizeDp)
-        return widthPx - dpToPx(context, API_SOURCE_MARGIN_END_DP) - apiContainerWidth
+        return widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP) - apiContainerWidth
     }
 
     private fun dpToPx(context: Context, dp: Float): Float {

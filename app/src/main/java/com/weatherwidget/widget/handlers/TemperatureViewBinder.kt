@@ -56,7 +56,7 @@ internal object TemperatureViewBinder {
         if (header.isDeltaVisible && header.deltaText != null) {
             views.setTextViewText(R.id.current_temp_delta, header.deltaText)
             views.setTextColor(R.id.current_temp_delta, header.deltaColor)
-            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 14f, context.resources.displayMetrics)
+            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, context.resources.displayMetrics)
             views.setTextViewTextSize(R.id.current_temp_delta, TypedValue.COMPLEX_UNIT_PX, deltaPx)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
         } else {
@@ -78,7 +78,7 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = state.widthDp,
     apiSourceText = header.sourceIndicator,
-    apiTextSizeDp = apiTextSizeDp(state.numRows),
+    apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
     currentTempText = header.currentTemp,
     deltaText = header.deltaText,
     precipText = header.precipProbability,
@@ -144,12 +144,6 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
-views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
-    }
-
-    private fun apiTextSizeDp(numRows: Int): Float = when {
-        numRows >= 3 -> 18f
-        numRows >= 2 -> 16f
-        else -> 14f
+ views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
     }
 }

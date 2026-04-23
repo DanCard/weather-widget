@@ -272,7 +272,7 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
     apiSourceText = sourceIndicator,
-    apiTextSizeDp = apiTextSizeDp(numRows),
+    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
     currentTempText = if (currentTemp != null) {
         CurrentTemperatureResolver.formatDisplayTemperature(
             temp = currentTemp,
@@ -528,11 +528,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
 
-        val textSizeDp = when {
-            numRows >= 3 -> 18f
-            numRows >= 2 -> 16f
-            else -> 14f
-        }
+        val textSizeDp = HeaderConstants.apiTextSizeDp(numRows)
         val apiPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
         views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
     }
@@ -749,10 +745,4 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
     }
 
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
-
-    private fun apiTextSizeDp(numRows: Int): Float = when {
-        numRows >= 3 -> 18f
-        numRows >= 2 -> 16f
-        else -> 14f
-    }
 }

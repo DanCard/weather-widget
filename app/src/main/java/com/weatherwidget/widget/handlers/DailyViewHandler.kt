@@ -406,7 +406,7 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
     apiSourceText = displaySource.shortDisplayName,
-    apiTextSizeDp = HeaderConstants.HeaderConstants.apiTextSizeDp(numRows),
+    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
     currentTempText = formattedTemp,
     deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
     precipText = if (isPrecipVisible) "${precipProb}%" else null,
@@ -598,7 +598,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                     currentTempText = formattedTemp,
                     deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
                     precipText = if (isPrecipVisible) "$precipProb%" else null,
-                    precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else 26f,
+                    precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                     dateText = dateText,
                     apiSourceText = displaySource.shortDisplayName,
                     apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
@@ -850,18 +850,11 @@ setupApiToggle(context, views, appWidgetId, numRows)
         views.setOnClickPendingIntent(R.id.text_mode_api_source_container, togglePendingIntent)
         views.setOnClickPendingIntent(R.id.text_mode_api_touch_zone, togglePendingIntent)
 
-        val textSizeDp = apiTextSizeDp(numRows)
+        val textSizeDp = HeaderConstants.apiTextSizeDp(numRows)
         val apiPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
         views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
         views.setTextViewTextSize(R.id.text_mode_api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
     }
-
-    private fun apiTextSizeDp(numRows: Int): Float =
-        when {
-            numRows >= 3 -> 18f
-            numRows >= 2 -> 16f
-            else -> 14f
-        }
 
     private fun bindHeaderDate(
         context: Context,
@@ -933,8 +926,8 @@ setupApiToggle(context, views, appWidgetId, numRows)
             )
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
         val dateWidth = textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
-        val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
-        val rightMarginPx = dpToPx(context, HEADER_DATE_RIGHT_MARGIN_DP)
+        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
+        val rightMarginPx = dpToPx(context, HeaderConstants.DATE_RIGHT_MARGIN_DP)
 
         return resolveHeaderDatePlacementFromBounds(
             numColumns = numColumns,
@@ -1044,15 +1037,15 @@ setupApiToggle(context, views, appWidgetId, numRows)
         precipTextSizeDp: Float?,
         includeIcon: Boolean = true,
     ): Float {
-        var width = if (includeIcon) dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + WEATHER_ICON_END_MARGIN_DP) else 0f
+        var width = if (includeIcon) dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP) else 0f
         if (!currentTempText.isNullOrBlank()) {
             width += currentTempTextWidthPx(context, currentTempText)
         }
         if (!deltaText.isNullOrBlank()) {
-            width += dpToPx(context, 4f) + textWidthPx(context, deltaText, CURRENT_TEMP_DELTA_TEXT_SIZE_DP)
+            width += dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP) + textWidthPx(context, deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP)
         }
         if (!precipText.isNullOrBlank() && precipTextSizeDp != null) {
-            width += dpToPx(context, 8f) + textWidthPx(context, precipText, precipTextSizeDp)
+            width += dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP) + textWidthPx(context, precipText, precipTextSizeDp)
         }
         return width
     }
@@ -1063,8 +1056,8 @@ setupApiToggle(context, views, appWidgetId, numRows)
         apiSourceText: String,
         apiTextSizeDp: Float,
     ): Float {
-        val apiContainerWidth = dpToPx(context, 14f) + textWidthPx(context, apiSourceText, apiTextSizeDp)
-        return widthPx - dpToPx(context, 32f) - apiContainerWidth
+        val apiContainerWidth = dpToPx(context, HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP) + textWidthPx(context, apiSourceText, apiTextSizeDp)
+        return widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP) - apiContainerWidth
     }
 
     private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
