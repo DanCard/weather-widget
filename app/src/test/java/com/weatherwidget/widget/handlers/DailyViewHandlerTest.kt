@@ -80,6 +80,40 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `prepareTextDays hides Today label in single-column mode only`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val weatherByDate = createWeatherMap(today)
+
+        val oneColumnResult = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 1,
+            displaySource = WeatherSource.NWS,
+        )
+        val oneColumnToday = oneColumnResult.first { it.isVisible }
+        assertEquals(today, oneColumnToday.date)
+        assertEquals("Today", oneColumnToday.label)
+        assertFalse(oneColumnToday.showLabel)
+
+        val twoColumnResult = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = emptyList(),
+            numColumns = 2,
+            displaySource = WeatherSource.NWS,
+        )
+        val twoColumnToday = twoColumnResult.first { it.date == today }
+        assertEquals("Today", twoColumnToday.label)
+        assertTrue(twoColumnToday.showLabel)
+    }
+
+    @Test
     fun `prepareTextDays skipHistory shifts visible dates`() {
 
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)

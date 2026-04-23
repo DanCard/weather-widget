@@ -71,6 +71,7 @@ object PrecipViewHandler {
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
         val numRows = dimensions.rows
+        val isIconWidth = dimensions.isIconWidth
 
         val stateManager = WidgetStateManager(context)
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
@@ -91,7 +92,9 @@ object PrecipViewHandler {
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
         setupHomeShortcut(context, views, appWidgetId, setVisibility = true)
-        setupSettingsShortcut(context, views, appWidgetId)
+        if (!isIconWidth) {
+            setupSettingsShortcut(context, views, appWidgetId)
+        }
 
         // In precipitation mode: current temp → hourly graph, precip % → daily forecast
         HeaderTapTargetHelper.bindSetTemperatureHeader(context, views, appWidgetId)
@@ -152,8 +155,10 @@ object PrecipViewHandler {
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goCloudPending)
 
-        // Setup API toggle
-        setupApiToggle(context, views, appWidgetId, numRows)
+        // Setup API toggle (skipped at 1 icon wide — target is hidden)
+        if (!isIconWidth) {
+            setupApiToggle(context, views, appWidgetId, numRows)
+        }
 
         // Setup History shortcut
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, setVisibility = true)
@@ -284,6 +289,10 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
             // Text mode: show precip percentages
             updatePrecipTextMode(views, hourlyForecasts, centerTime, numColumns, displaySource)
+        }
+
+        if (isIconWidth) {
+            DailyViewHandler.hideIconWidthControls(views)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=data thread=${Thread.currentThread().name}")

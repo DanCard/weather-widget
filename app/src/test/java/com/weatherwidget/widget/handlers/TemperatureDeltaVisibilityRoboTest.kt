@@ -39,7 +39,7 @@ class TemperatureDeltaVisibilityRoboTest {
         lastObservedTemp: Float?,
         centerTime: LocalDateTime = now
     ): TemperatureWidgetState {
-        val dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 180)
+        val dimensions = WidgetDimensions(cols = 4, rows = 2, widthDp = 300, heightDp = 180, isIconWidth = false)
         
         val result = TemperatureStateResolver.resolve(
             context = context,

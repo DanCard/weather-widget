@@ -116,6 +116,7 @@ object CloudCoverViewHandler {
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
         val numRows = dimensions.rows
+        val isIconWidth = dimensions.isIconWidth
 
         val stateManager = WidgetStateManager(context)
         val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
@@ -140,7 +141,9 @@ object CloudCoverViewHandler {
 
         setupNavigationButtons(context, views, appWidgetId, stateManager)
         setupHomeShortcut(context, views, appWidgetId, setVisibility = true)
-        setupSettingsShortcut(context, views, appWidgetId)
+        if (!isIconWidth) {
+            setupSettingsShortcut(context, views, appWidgetId)
+        }
 
         // Current temp → hourly temp graph
         HeaderTapTargetHelper.bindSetTemperatureHeader(context, views, appWidgetId)
@@ -205,7 +208,9 @@ object CloudCoverViewHandler {
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goTempIconPending)
 
-        setupApiToggle(context, views, appWidgetId, numRows)
+        if (!isIconWidth) {
+            setupApiToggle(context, views, appWidgetId, numRows)
+        }
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, setVisibility = true)
 
         views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
@@ -322,6 +327,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
             views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
             updateCloudTextMode(views, hourlyForecasts, centerTime, numColumns, effectiveDisplaySource)
+        }
+
+        if (isIconWidth) {
+            DailyViewHandler.hideIconWidthControls(views)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data thread=${Thread.currentThread().name}")

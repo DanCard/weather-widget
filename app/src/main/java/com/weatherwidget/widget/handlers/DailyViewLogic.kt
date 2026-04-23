@@ -57,6 +57,7 @@ object DailyViewLogic {
         val isVisible: Boolean,
         val hasData: Boolean,
         val label: String,
+        val showLabel: Boolean,
         val weather: ForecastEntity?,
         val rainSummary: String?,
         val showRain: Boolean,
@@ -234,6 +235,14 @@ object DailyViewLogic {
                     )
                 }
 
+            val showLabel = !(isToday && numColumns == 1)
+            val label =
+                if (isToday) {
+                    "Today"
+                } else {
+                    date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                }
+
             TextDayData(
                 dayIndex = dayIndex,
                 date = date,
@@ -245,7 +254,8 @@ object DailyViewLogic {
                 } else {
                     (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
                 },
-                label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                label = label,
+                showLabel = showLabel,
                 weather = weather,
                 rainSummary = displayedSummaries[index],
                 showRain = index == firstRainDayIndex,

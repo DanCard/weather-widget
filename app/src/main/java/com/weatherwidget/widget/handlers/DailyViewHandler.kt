@@ -186,6 +186,7 @@ object DailyViewHandler : WidgetViewHandler {
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
         val numRows = dimensions.rows
+        val isIconWidth = dimensions.isIconWidth
 
         // Use graph mode for 2+ rows
         val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP) / CELL_HEIGHT_DP
@@ -195,15 +196,19 @@ object DailyViewHandler : WidgetViewHandler {
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
         val isEveningMode = NavigationUtils.isEveningMode(now.toLocalTime())
-        
+
         // Single source of truth for time in this update cycle
         val today = now.toLocalDate()
         val skipHistory = NavigationUtils.shouldSkipHistory(isEveningMode, dateOffset)
         val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, isEveningMode)
 
-        // Setup common click actions
+        // Setup common click actions.
+        // At 1 icon wide, skip wiring API toggle and settings shortcut since the
+        // tap targets are hidden (see hideIconWidthControls below).
         setupCurrentTempToggle(context, views, appWidgetId)
-        setupSettingsShortcut(context, views, appWidgetId, includeTextMode = true)
+        if (!isIconWidth) {
+            setupSettingsShortcut(context, views, appWidgetId, includeTextMode = true)
+        }
 
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -390,8 +395,10 @@ if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
     views.setViewVisibility(R.id.current_weather_container, View.GONE)
 }
 
-// Setup API source toggle click handler
-setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
+// Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
+if (!isIconWidth) {
+    setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
+}
         Log.d(
             TAG,
             buildHeaderStateLog(
@@ -555,7 +562,9 @@ setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
 
             // Render graph (bitmapDims already computed above)
 
-            // Build header data for bitmap rendering
+            // Build header data for bitmap rendering.
+            // At 1 icon wide, blank out apiSourceText and zero settingsIconRes so
+            // DailyForecastGraphRenderer.drawHeader skips drawing them.
             val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
                 DailyForecastGraphRenderer.HeaderRenderData(
                     iconRes = iconRes,
@@ -564,9 +573,9 @@ setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
                     precipText = if (isPrecipVisible) "$precipProb%" else null,
                     precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                     dateText = dateText,
-                    apiSourceText = displaySource.shortDisplayName,
+                    apiSourceText = if (isIconWidth) null else displaySource.shortDisplayName,
                     apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-                    settingsIconRes = R.drawable.ic_settings_gear,
+                    settingsIconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
                     showIcon = disclosure.showsIcon(),
                     showDelta = deltaVisible && disclosure.showsDelta(),
                     showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
@@ -594,14 +603,18 @@ setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
             setTextModeViews(views)
 
             val textCols = numColumns.coerceAtLeast(1)
+            // At 1 icon wide, the API/gear icons that consume the top-right are hidden,
+            // so mirror the left padding on the right to keep the content centered.
+            val rootRightPaddingDp = if (isIconWidth) TEXT_MODE_ROOT_LEFT_PADDING_DP else TEXT_MODE_ROOT_RIGHT_PADDING_DP
+            val contentRightPaddingDp = if (isIconWidth) 0 else TEXT_MODE_CONTENT_RIGHT_PADDING_DP
             views.setViewPadding(
                 R.id.widget_root,
                 WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_LEFT_PADDING_DP),
                 WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_TOP_PADDING_DP),
-                WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_RIGHT_PADDING_DP),
+                WidgetSizeCalculator.dpToPx(context, rootRightPaddingDp),
                 WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_BOTTOM_PADDING_DP),
             )
-            val rightPaddingPx = WidgetSizeCalculator.dpToPx(context, TEXT_MODE_CONTENT_RIGHT_PADDING_DP)
+            val rightPaddingPx = WidgetSizeCalculator.dpToPx(context, contentRightPaddingDp)
             views.setViewPadding(R.id.text_container, 0, 0, rightPaddingPx, 0)
 
             val visibleDaysInfo = updateTextMode(
@@ -627,6 +640,10 @@ setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
             )
 
             // setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
+        }
+
+        if (isIconWidth) {
+            hideIconWidthControls(views)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
@@ -713,6 +730,19 @@ setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
         views.setViewVisibility(R.id.text_mode_api_touch_zone, visibility)
         views.setViewVisibility(R.id.text_mode_settings_icon, visibility)
         views.setViewVisibility(R.id.text_mode_settings_touch_zone, visibility)
+    }
+
+    internal fun hideIconWidthControls(views: RemoteViews) {
+        views.setViewVisibility(R.id.api_source_container, View.GONE)
+        views.setViewVisibility(R.id.api_source, View.GONE)
+        views.setViewVisibility(R.id.api_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.settings_icon, View.GONE)
+        views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.text_mode_api_source_container, View.GONE)
+        views.setViewVisibility(R.id.text_mode_api_source, View.GONE)
+        views.setViewVisibility(R.id.text_mode_api_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.text_mode_settings_icon, View.GONE)
+        views.setViewVisibility(R.id.text_mode_settings_touch_zone, View.GONE)
     }
 
     private fun logGraphDayIconDetails(
@@ -1131,6 +1161,7 @@ setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
         hourlyForecasts: List<HourlyForecastEntity>, displaySource: WeatherSource
     ) {
         views.setTextViewText(ids.label, data.label)
+        views.setViewVisibility(ids.label, if (data.showLabel) View.VISIBLE else View.GONE)
         
         val iconRes = data.iconRes
         views.setImageViewResource(ids.icon, iconRes)

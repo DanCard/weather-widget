@@ -9,12 +9,16 @@ import kotlin.math.roundToInt
 
 /**
  * Data class representing widget dimensions.
+ *
+ * `isIconWidth` flags widgets that are approximately one launcher-icon wide
+ * (widthDp <= ICON_WIDTH_THRESHOLD_DP). Independent of `cols` (data columns).
  */
 data class WidgetDimensions(
     val cols: Int,
     val rows: Int,
     val widthDp: Int,
     val heightDp: Int,
+    val isIconWidth: Boolean,
 )
 
 /**
@@ -23,6 +27,7 @@ data class WidgetDimensions(
 object WidgetSizeCalculator {
     private const val CELL_WIDTH_DP = 70
     private const val CELL_HEIGHT_DP = 90
+    private const val ICON_WIDTH_THRESHOLD_DP = 130
     private const val MAX_BITMAP_PIXELS = 225_000 // Limit bitmap to ~900KB (ARGB_8888 is 4 bytes/px)
 
     /**
@@ -50,8 +55,9 @@ object WidgetSizeCalculator {
         // Using +15/+25 padding and proper rounding to handle widgets that are "almost" N rows/cols
         val cols = ((width + 15).toFloat() / CELL_WIDTH_DP).roundToInt().coerceAtLeast(1)
         val rows = ((height + 25).toFloat() / CELL_HEIGHT_DP).roundToInt().coerceAtLeast(1)
+        val isIconWidth = width <= ICON_WIDTH_THRESHOLD_DP
 
-        return WidgetDimensions(cols, rows, width, height)
+        return WidgetDimensions(cols, rows, width, height, isIconWidth)
     }
 
     /**
