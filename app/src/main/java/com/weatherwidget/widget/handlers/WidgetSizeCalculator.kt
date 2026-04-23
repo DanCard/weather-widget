@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.res.Configuration
 import android.util.TypedValue
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -112,5 +113,27 @@ object WidgetSizeCalculator {
             dp,
             context.resources.displayMetrics,
         )
+    }
+
+    data class BitmapDimensions(
+        val widthPx: Int,
+        val heightPx: Int,
+        val bitmapScale: Float,
+    )
+
+    fun computeBitmapDimensions(
+        context: Context,
+        widgetWidthDp: Int,
+        widgetHeightDp: Int,
+        widthPaddingDp: Int = 24,
+        heightPaddingDp: Int = 16,
+    ): BitmapDimensions {
+        val widthDp = widgetWidthDp - widthPaddingDp
+        val heightDp = widgetHeightDp - heightPaddingDp
+        val (widthPx, heightPx) = getOptimalBitmapSize(context, widthDp, heightDp)
+        val rawWidthPx = dpToPx(context, widthDp).coerceAtLeast(1)
+        val rawHeightPx = dpToPx(context, heightDp).coerceAtLeast(1)
+        val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
+        return BitmapDimensions(widthPx, heightPx, bitmapScale)
     }
 }

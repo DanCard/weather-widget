@@ -2,7 +2,6 @@ package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
@@ -44,33 +43,24 @@ internal object TemperatureViewBinder {
         views.setImageViewResource(R.id.weather_icon, header.iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
         
-        if (header.currentTemp != null) {
-            views.setTextViewText(R.id.current_temp, header.currentTemp)
-            val tempPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, header.currentTempSizeDp, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
-            views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.current_temp, View.GONE)
-        }
+        HeaderRemoteViewsBinder.bindCurrentTemp(
+            context = context,
+            views = views,
+            formattedTemp = header.currentTemp,
+            textSizeDp = header.currentTempSizeDp,
+        )
 
-        if (header.isDeltaVisible && header.deltaText != null) {
-            views.setTextViewText(R.id.current_temp_delta, header.deltaText)
-            views.setTextColor(R.id.current_temp_delta, header.deltaColor)
-            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.current_temp_delta, TypedValue.COMPLEX_UNIT_PX, deltaPx)
-            views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
-        }
+        HeaderRemoteViewsBinder.bindDelta(
+            context, views,
+            header.deltaText,
+            header.isDeltaVisible,
+        )
 
-        if (header.isPrecipVisible && header.precipProbability != null) {
-            views.setTextViewText(R.id.precip_probability, header.precipProbability)
-            val precipPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, header.precipTextSizeDp, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
-            views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.precip_probability, View.GONE)
-        }
+        HeaderRemoteViewsBinder.bindPrecipProbability(
+            context, views,
+            if (header.isPrecipVisible) header.precipProbability else null,
+            header.precipTextSizeDp,
+        )
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible)
 
 // Apply progressive disclosure for narrow widgets
@@ -84,13 +74,7 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     precipText = header.precipProbability,
     precipTextSizeDp = header.precipTextSizeDp,
 )
-views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
-views.setViewVisibility(R.id.current_temp_delta, if (header.isDeltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
-views.setViewVisibility(R.id.precip_probability, if (header.isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
-HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible && disclosure.showsPrecip())
-if (disclosure == HeaderDisclosureLevel.NONE) {
-    views.setViewVisibility(R.id.current_weather_container, View.GONE)
-}
+HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = header.isDeltaVisible, isPrecipVisible = header.isPrecipVisible)
 
 // 3. Center Icons & Navigation
 positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip())

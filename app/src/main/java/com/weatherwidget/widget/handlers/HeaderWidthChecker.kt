@@ -19,7 +19,7 @@ fun HeaderDisclosureLevel.showsDelta(): Boolean = this == HeaderDisclosureLevel.
 fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel.FULL || this == HeaderDisclosureLevel.NO_ICON || this == HeaderDisclosureLevel.NO_ICON_NO_DELTA
 
 object HeaderWidthChecker {
-    private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    internal val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     fun resolveHeaderDisclosure(
         context: Context,
@@ -87,7 +87,7 @@ object HeaderWidthChecker {
         return HeaderDisclosureLevel.NONE
     }
 
-    private fun resolveLeftClusterRightPx(
+    internal fun resolveLeftClusterRightPx(
         context: Context,
         currentTempText: String?,
         deltaText: String?,
@@ -113,7 +113,7 @@ object HeaderWidthChecker {
         return width
     }
 
-    private fun resolveApiLeftPx(
+    internal fun resolveApiLeftPx(
         context: Context,
         widthPx: Float,
         apiSourceText: String,
@@ -124,7 +124,7 @@ object HeaderWidthChecker {
         return widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP) - apiContainerWidth
     }
 
-    private fun dpToPx(context: Context, dp: Float): Float {
+    internal fun dpToPx(context: Context, dp: Float): Float {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             dp,
@@ -132,7 +132,7 @@ object HeaderWidthChecker {
         )
     }
 
-    private fun textWidthPx(context: Context, text: String, textSizeDp: Float): Float {
+    internal fun textWidthPx(context: Context, text: String, textSizeDp: Float): Float {
         measurePaint.textSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             textSizeDp,
@@ -141,7 +141,7 @@ object HeaderWidthChecker {
         return measurePaint.measureText(text)
     }
 
-    private fun currentTempTextWidthPx(context: Context, text: String): Float {
+    internal fun currentTempTextWidthPx(context: Context, text: String): Float {
         measurePaint.textSize = TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP,
             HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,

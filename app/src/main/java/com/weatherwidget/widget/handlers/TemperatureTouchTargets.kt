@@ -27,7 +27,7 @@ private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
 private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
 private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
 
-private val HOUR_ZONE_IDS = listOf(
+internal val HOUR_ZONE_IDS = listOf(
     R.id.graph_hour_zone_0, R.id.graph_hour_zone_1, R.id.graph_hour_zone_2,
     R.id.graph_hour_zone_3, R.id.graph_hour_zone_4, R.id.graph_hour_zone_5,
     R.id.graph_hour_zone_6, R.id.graph_hour_zone_7, R.id.graph_hour_zone_8,
@@ -142,6 +142,7 @@ internal fun setupApiToggle(
     views: RemoteViews,
     appWidgetId: Int,
     numRows: Int,
+    includeTextMode: Boolean = false,
 ) {
     val toggleIntent =
         Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -158,9 +159,17 @@ internal fun setupApiToggle(
     views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
     views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
 
+    if (includeTextMode) {
+        views.setOnClickPendingIntent(R.id.text_mode_api_source_container, togglePendingIntent)
+        views.setOnClickPendingIntent(R.id.text_mode_api_touch_zone, togglePendingIntent)
+    }
+
     val textSizeDp = HeaderConstants.apiTextSizeDp(numRows)
     val apiPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
     views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
+    if (includeTextMode) {
+        views.setTextViewTextSize(R.id.text_mode_api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
+    }
 }
 
 internal fun setupHistoryShortcut(
@@ -170,6 +179,7 @@ internal fun setupHistoryShortcut(
     centerTime: LocalDateTime,
     hourlyForecasts: List<HourlyForecastEntity>,
     displaySource: WeatherSource,
+    setVisibility: Boolean = false,
 ) {
     val dateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
     val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -195,12 +205,17 @@ internal fun setupHistoryShortcut(
     views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
     views.setOnClickPendingIntent(R.id.history_touch_zone_inline, pendingIntent)
+    if (setVisibility) {
+        views.setViewVisibility(R.id.history_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
+    }
 }
 
 internal fun setupHomeShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
+    setVisibility: Boolean = false,
 ) {
     val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
         action = WidgetIntentRouter.ACTION_SET_VIEW
@@ -216,12 +231,17 @@ internal fun setupHomeShortcut(
     views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
+    if (setVisibility) {
+        views.setViewVisibility(R.id.home_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
+    }
 }
 
 internal fun setupWeatherStationsShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
+    setVisibility: Boolean = false,
 ) {
     val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -237,12 +257,17 @@ internal fun setupWeatherStationsShortcut(
     views.setOnClickPendingIntent(R.id.weather_stations_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.weather_stations_touch_zone, pendingIntent)
     views.setOnClickPendingIntent(R.id.weather_stations_touch_zone_inline, pendingIntent)
+    if (setVisibility) {
+        views.setViewVisibility(R.id.weather_stations_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.VISIBLE)
+    }
 }
 
 internal fun setupSettingsShortcut(
     context: Context,
     views: RemoteViews,
     appWidgetId: Int,
+    includeTextMode: Boolean = false,
 ) {
     val settingsIntent = Intent(context, SettingsActivity::class.java)
     val settingsPendingIntent =
@@ -254,6 +279,10 @@ internal fun setupSettingsShortcut(
         )
     views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
     views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
+    if (includeTextMode) {
+        views.setOnClickPendingIntent(R.id.text_mode_settings_icon, settingsPendingIntent)
+        views.setOnClickPendingIntent(R.id.text_mode_settings_touch_zone, settingsPendingIntent)
+    }
 }
 
 internal fun positionCenterIcons(

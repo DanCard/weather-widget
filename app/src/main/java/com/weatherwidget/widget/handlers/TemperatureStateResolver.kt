@@ -3,7 +3,6 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import android.graphics.Color
 import android.util.Log
-import android.util.TypedValue
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
@@ -34,7 +33,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.min
 
 internal object TemperatureStateResolver {
     private const val TAG = "TemperatureStateResolver"
@@ -185,7 +183,7 @@ internal object TemperatureStateResolver {
             widthDp = dimensions.widthDp
         )
 
-        val currentHourForecast = getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
+        val currentHourForecast = WeatherTimeUtils.getCurrentHourForecast(currentTempHourlyForecasts, displaySource)
         val iconRes = WeatherIconMapper.getIconResource(
             condition = currentHourForecast?.condition,
             isNight = sunInfo.isNight,
@@ -222,22 +220,17 @@ internal object TemperatureStateResolver {
         var renderMs = 0L
         var bitmap: android.graphics.Bitmap? = null
         if (useGraph) {
-            val widthDp = dimensions.widthDp - 24
-            val heightDp = dimensions.heightDp - 16
-            val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
-            val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
-            val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
-            val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
+            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
             val renderStartMs = System.currentTimeMillis()
             bitmap = try {
                 TemperatureGraphRenderer.renderGraph(
                     context = context,
                     hours = graphHours,
-                    widthPx = widthPx,
-                    heightPx = heightPx,
+                    widthPx = bitmapDims.widthPx,
+                    heightPx = bitmapDims.heightPx,
                     currentTime = now,
-                    bitmapScale = bitmapScale,
+                    bitmapScale = bitmapDims.bitmapScale,
                     appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
                     observedAt = observedAt,
                     lastObservedTemp = lastObservedTemp,
@@ -481,18 +474,4 @@ internal object TemperatureStateResolver {
 
     private fun emptyResolution() = CurrentTemperatureResolution(null, null, null, false, null, null, false)
 
-    private fun getCurrentHourForecast(
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-    ): HourlyForecastEntity? {
-        val currentHourKey = WeatherTimeUtils.toHourlyForecastKeyMs(LocalDateTime.now())
-
-        return hourlyForecasts
-            .filter { it.dateTime == currentHourKey }
-            .let { forecasts ->
-                forecasts.find { it.source == displaySource.id }
-                    ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    ?: forecasts.firstOrNull()
-            }
-    }
 }

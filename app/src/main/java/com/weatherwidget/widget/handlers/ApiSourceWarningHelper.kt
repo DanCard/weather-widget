@@ -9,6 +9,7 @@ import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogDao
+import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
 
@@ -148,6 +149,44 @@ object ApiSourceWarningHelper {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             ),
         )
+    }
+
+    internal suspend fun checkAndRenderBlockingWarning(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        numRows: Int,
+        appLogDao: AppLogDao,
+        displaySource: WeatherSource,
+        hasSelectedSourceData: Boolean,
+        callerTag: String,
+        includeTextMode: Boolean = false,
+    ): Boolean {
+        val warning =
+            resolveBlockingSourceWarning(
+                appLogDao = appLogDao,
+                displaySource = displaySource,
+                hasSelectedSourceData = hasSelectedSourceData,
+            )
+        if (warning == null) {
+            hideSourceWarning(views)
+            return false
+        }
+
+        renderSourceWarningState(context, views, appWidgetId, warning)
+        setupApiToggle(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            numRows = numRows,
+            includeTextMode = includeTextMode,
+        )
+        appLogDao.log(
+            "${callerTag}_SOURCE_BLOCKED",
+            "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
+            "WARN",
+        )
+        return true
     }
 
     internal fun hideSourceWarning(views: RemoteViews) {

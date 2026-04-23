@@ -7,8 +7,6 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.SystemClock
 import android.util.Log
 import android.util.TypedValue
@@ -52,7 +50,6 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.min
 
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
@@ -206,7 +203,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Setup common click actions
         setupCurrentTempToggle(context, views, appWidgetId)
-        setupSettingsShortcut(context, views, appWidgetId)
+        setupSettingsShortcut(context, views, appWidgetId, includeTextMode = true)
 
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
@@ -242,14 +239,19 @@ object DailyViewHandler : WidgetViewHandler {
 
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
-            appLogDao = appLogDao,
-            displaySource = displaySource,
-            hasSelectedSourceData = weatherList.any { it.source == displaySource.id && !it.isClimateNormal },
-        )
-        if (warning != null) {
-            ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, warning)
-            setupApiToggle(context, views, appWidgetId, numRows)
+        if (
+            ApiSourceWarningHelper.checkAndRenderBlockingWarning(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                numRows = numRows,
+                appLogDao = appLogDao,
+                displaySource = displaySource,
+                hasSelectedSourceData = weatherList.any { it.source == displaySource.id && !it.isClimateNormal },
+                callerTag = "DAILY",
+                includeTextMode = true,
+            )
+        ) {
             logDailyRenderSummary(
                 context = context,
                 appWidgetId = appWidgetId,
@@ -262,17 +264,10 @@ object DailyViewHandler : WidgetViewHandler {
                 centerDate = centerDate,
                 visibleDates = emptyList(),
             )
-            appLogDao.log(
-                "DAILY_SOURCE_BLOCKED",
-                "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
-                "WARN",
-            )
             appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=warning thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
             return
         }
-
-        ApiSourceWarningHelper.hideSourceWarning(views)
 
         // Build weather map: prefer the selected display source, fallback to generic gap
         val weatherByDate =
@@ -320,24 +315,19 @@ object DailyViewHandler : WidgetViewHandler {
             views.setViewVisibility(R.id.current_weather_container, View.GONE)
         }
 
-        val resolveStartMs = SystemClock.elapsedRealtime()
-        val currentTempResolution =
-            CurrentTemperatureResolver.resolve(
+        val (currentTempResolution, resolveMs) =
+            CurrentTempResolutionHelper.resolveAndPersistDelta(
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
-                currentLat = lat,
-                currentLon = lon,
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                lat = lat,
+                lon = lon,
                 smoothedForecasts = smoothedForecasts,
             )
-        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
-        if (currentTempResolution.shouldClearStoredDelta) {
-            stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
-        }
-        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
         val currentTemp = currentTempResolution.displayTemp
         val configuredLocation = stateManager.getWidgetLocation(appWidgetId)
 
@@ -350,15 +340,7 @@ object DailyViewHandler : WidgetViewHandler {
                 )
             }
 
-        if (formattedTemp != null) {
-            views.setTextViewText(R.id.current_temp, formattedTemp)
-            val tempPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
-            views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.current_temp, View.GONE)
-            views.setViewVisibility(R.id.current_temp_delta, View.GONE)
-        }
+        HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp, hideDeltaOnNull = true)
         views.setViewVisibility(R.id.header_date_center, View.GONE)
         views.setViewVisibility(R.id.header_date_right, View.GONE)
 
@@ -372,16 +354,12 @@ object DailyViewHandler : WidgetViewHandler {
                 referenceTime = now,
             )
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
-        if (isPrecipVisible) {
-            val prob = precipProb ?: 0
-            views.setTextViewText(R.id.precip_probability, "$prob%")
-            val textSizeDp = HeaderPrecipCalculator.getPrecipTextSize(prob)
-            val precipPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
-            views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.precip_probability, View.GONE)
-        }
+        val precipTextSizeDp = if (precipProb != null) HeaderPrecipCalculator.getPrecipTextSize(precipProb) else null
+        HeaderRemoteViewsBinder.bindPrecipProbability(
+            context, views,
+            if (isPrecipVisible) "${precipProb ?: 0}%" else null,
+            precipTextSizeDp ?: 0f,
+        )
         HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
         val delta = currentTempResolution.appliedDelta
@@ -389,19 +367,12 @@ object DailyViewHandler : WidgetViewHandler {
             currentTemp != null &&
             delta != null &&
             kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
-        if (deltaVisible) {
-            val deltaText = String.format("%+.1f", delta)
-            val deltaColor = Color.parseColor(DELTA_COLOR_HEX)
-            views.setTextViewText(R.id.current_temp_delta, deltaText)
-            views.setTextColor(R.id.current_temp_delta, deltaColor)
-            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.current_temp_delta, TypedValue.COMPLEX_UNIT_PX, deltaPx)
-            views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
-} else {
-    views.setViewVisibility(R.id.current_temp_delta, View.GONE)
-}
+        HeaderRemoteViewsBinder.bindDelta(
+            context, views,
+            if (deltaVisible) String.format("%+.1f", delta) else null,
+            deltaVisible,
+        )
 
-val precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else null
 val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
@@ -414,16 +385,13 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
 )
 
 if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
-    views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
-    views.setViewVisibility(R.id.current_temp_delta, if (deltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
-    views.setViewVisibility(R.id.precip_probability, if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
-    HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible && disclosure.showsPrecip())
+    HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = deltaVisible, isPrecipVisible = isPrecipVisible)
 } else if (useGraph) {
     views.setViewVisibility(R.id.current_weather_container, View.GONE)
 }
 
 // Setup API source toggle click handler
-setupApiToggle(context, views, appWidgetId, numRows)
+setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
         Log.d(
             TAG,
             buildHeaderStateLog(
@@ -528,8 +496,8 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 return
             }
 
+            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
             val widthDp = dimensions.widthDp - 24
-            val heightDp = dimensions.heightDp - 16
             val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
             val headerPrecipPlacement = resolveHeaderPrecipPlacement(
                 context = context,
@@ -585,11 +553,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
             )
             logGraphDayIconDetails(context, appWidgetId, displayDays)
 
-            // Render graph
-            val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
-            val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
-            val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
-            val bitmapScale = min(widthPx.toFloat() / rawWidthPx.toFloat(), heightPx.toFloat() / rawHeightPx.toFloat())
+            // Render graph (bitmapDims already computed above)
 
             // Build header data for bitmap rendering
             val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
@@ -610,7 +574,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
             } else null
 
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, widthPx, heightPx, bitmapScale, displayDays.size, job = coroutineContext[Job], headerData = headerRenderData)
+            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, bitmapDims.widthPx, bitmapDims.heightPx, bitmapDims.bitmapScale, displayDays.size, job = coroutineContext[Job], headerData = headerRenderData)
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
@@ -824,38 +788,6 @@ setupApiToggle(context, views, appWidgetId, numRows)
         )
     }
 
-    private fun setupSettingsShortcut(context: Context, views: RemoteViews, appWidgetId: Int) {
-        val settingsIntent = Intent(context, SettingsActivity::class.java)
-        val settingsPendingIntent = PendingIntent.getActivity(
-            context, WidgetRequestCodes.settings(appWidgetId), settingsIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
-        views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
-        views.setOnClickPendingIntent(R.id.text_mode_settings_icon, settingsPendingIntent)
-        views.setOnClickPendingIntent(R.id.text_mode_settings_touch_zone, settingsPendingIntent)
-    }
-
-    private fun setupApiToggle(context: Context, views: RemoteViews, appWidgetId: Int, numRows: Int) {
-        val toggleIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_TOGGLE_API
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-        }
-        val togglePendingIntent = PendingIntent.getBroadcast(
-            context, WidgetRequestCodes.apiToggle(appWidgetId), toggleIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
-        views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
-        views.setOnClickPendingIntent(R.id.text_mode_api_source_container, togglePendingIntent)
-        views.setOnClickPendingIntent(R.id.text_mode_api_touch_zone, togglePendingIntent)
-
-        val textSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-        val apiPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
-        views.setTextViewTextSize(R.id.api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
-        views.setTextViewTextSize(R.id.text_mode_api_source, TypedValue.COMPLEX_UNIT_PX, apiPx)
-    }
-
     private fun bindHeaderDate(
         context: Context,
         views: RemoteViews,
@@ -916,7 +848,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
 
         val widthPx = WidgetSizeCalculator.dpToPx(context, widthDp).toFloat()
         val leftClusterRight =
-            resolveLeftHeaderClusterRightPx(
+            HeaderWidthChecker.resolveLeftClusterRightPx(
                 context = context,
                 currentTempText = currentTempText,
                 deltaText = deltaText,
@@ -924,10 +856,10 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 precipTextSizeDp = precipTextSizeDp,
                 includeIcon = includeIcon,
             )
-        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val dateWidth = textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
-        val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-        val rightMarginPx = dpToPx(context, HeaderConstants.DATE_RIGHT_MARGIN_DP)
+        val apiLeft = HeaderWidthChecker.resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
+        val dateWidth = HeaderWidthChecker.textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
+        val gapPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
+        val rightMarginPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_RIGHT_MARGIN_DP)
 
         return resolveHeaderDatePlacementFromBounds(
             numColumns = numColumns,
@@ -1029,54 +961,6 @@ setupApiToggle(context, views, appWidgetId, numRows)
         )
     }
 
-    private fun resolveLeftHeaderClusterRightPx(
-        context: Context,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        includeIcon: Boolean = true,
-    ): Float {
-        var width = if (includeIcon) dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP) else 0f
-        if (!currentTempText.isNullOrBlank()) {
-            width += currentTempTextWidthPx(context, currentTempText)
-        }
-        if (!deltaText.isNullOrBlank()) {
-            width += dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP) + textWidthPx(context, deltaText, HeaderConstants.DELTA_TEXT_SIZE_DP)
-        }
-        if (!precipText.isNullOrBlank() && precipTextSizeDp != null) {
-            width += dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP) + textWidthPx(context, precipText, precipTextSizeDp)
-        }
-        return width
-    }
-
-    private fun resolveApiLeftPx(
-        context: Context,
-        widthPx: Float,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-    ): Float {
-        val apiContainerWidth = dpToPx(context, HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP) + textWidthPx(context, apiSourceText, apiTextSizeDp)
-        return widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP) - apiContainerWidth
-    }
-
-    private val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
-
-    private fun textWidthPx(context: Context, text: String, textSizeDp: Float): Float {
-        measurePaint.textSize =
-            TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                textSizeDp,
-                context.resources.displayMetrics,
-            )
-        return measurePaint.measureText(text)
-    }
-
-    private fun currentTempTextWidthPx(context: Context, text: String): Float {
-        measurePaint.textSize = currentTempTextSizePx(context)
-        return measurePaint.measureText(text)
-    }
-
     @VisibleForTesting
     internal fun currentTempTextSizePx(context: Context): Float =
         TypedValue.applyDimension(
@@ -1084,9 +968,6 @@ setupApiToggle(context, views, appWidgetId, numRows)
             HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             context.resources.displayMetrics,
         )
-
-    private fun dpToPx(context: Context, dp: Float): Float =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)
 
     @VisibleForTesting
     internal fun resolveTodayHeaderForecast(

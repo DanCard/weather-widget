@@ -6,14 +6,11 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
-import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.ui.SettingsActivity
-import com.weatherwidget.ui.WeatherObservationsActivity
 import com.weatherwidget.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.SunPhase
@@ -37,7 +34,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
-import kotlin.math.min
 
 /**
  * Handler for the precipitation view mode.
@@ -94,7 +90,7 @@ object PrecipViewHandler {
 
         // Setup navigation buttons
         setupNavigationButtons(context, views, appWidgetId, stateManager)
-        setupHomeShortcut(context, views, appWidgetId)
+        setupHomeShortcut(context, views, appWidgetId, setVisibility = true)
         setupSettingsShortcut(context, views, appWidgetId)
 
         // In precipitation mode: current temp → hourly graph, precip % → daily forecast
@@ -103,24 +99,22 @@ object PrecipViewHandler {
 
         // Get current display source
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
-        val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
-            appLogDao = appLogDao,
-            displaySource = displaySource,
-            hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
-        )
-        if (warning != null) {
-            ApiSourceWarningHelper.renderSourceWarningState(context, views, appWidgetId, warning)
-            setupApiToggle(context, views, appWidgetId, numRows)
-            appLogDao.log(
-                "PRECIP_SOURCE_BLOCKED",
-                "widget=$appWidgetId source=${displaySource.id} message=${warning.toastMessage}",
-                "WARN",
+        if (
+            ApiSourceWarningHelper.checkAndRenderBlockingWarning(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                numRows = numRows,
+                appLogDao = appLogDao,
+                displaySource = displaySource,
+                hasSelectedSourceData = hourlyForecasts.any { it.source == displaySource.id },
+                callerTag = "PRECIP",
             )
+        ) {
             appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=PRECIPITATION state=warning thread=${Thread.currentThread().name}")
             appWidgetManager.updateAppWidget(appWidgetId, views)
             return
         }
-        ApiSourceWarningHelper.hideSourceWarning(views)
         val sourceIndicator = HeaderFormatter.formatSourceIndicator(
             centerTime = centerTime,
             now = LocalDateTime.now(),
@@ -134,7 +128,7 @@ object PrecipViewHandler {
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
         val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
-        val currentHourForecast = getCurrentHourForecast(hourlyForecasts, displaySource)
+        val currentHourForecast = WeatherTimeUtils.getCurrentHourForecast(hourlyForecasts, displaySource)
         val iconRes = WeatherIconMapper.getIconResource(
             condition = currentHourForecast?.condition,
             isNight = sunInfo.isNight,
@@ -162,45 +156,34 @@ object PrecipViewHandler {
         setupApiToggle(context, views, appWidgetId, numRows)
 
         // Setup History shortcut
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, setVisibility = true)
 
         // Hide observations and temp delta in precip mode
         views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
         views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
-        val resolveStartMs = SystemClock.elapsedRealtime()
-        val currentTempResolution =
-            CurrentTemperatureResolver.resolve(
+        val (currentTempResolution, resolveMs) =
+            CurrentTempResolutionHelper.resolveAndPersistDelta(
                 now = now,
                 displaySource = displaySource,
                 hourlyForecasts = hourlyForecasts,
                 lastObservedTemp = lastObservedTemp,
                 observedAt = observedAt,
-                storedDeltaState = stateManager.getCurrentTempDeltaState(appWidgetId, displaySource),
-                currentLat = lat,
-                currentLon = lon,
+                stateManager = stateManager,
+                appWidgetId = appWidgetId,
+                lat = lat,
+                lon = lon,
             )
-        val resolveMs = SystemClock.elapsedRealtime() - resolveStartMs
-        if (currentTempResolution.shouldClearStoredDelta) {
-            stateManager.clearCurrentTempDeltaState(appWidgetId, displaySource)
-        }
-        currentTempResolution.updatedDeltaState?.let { stateManager.setCurrentTempDeltaState(appWidgetId, displaySource, it) }
         val currentTemp = currentTempResolution.displayTemp
-        if (currentTemp != null) {
-            val formattedTemp =
-                CurrentTemperatureResolver.formatDisplayTemperature(
-                    temp = currentTemp,
-                    numColumns = numColumns,
-                    isStaleEstimate = currentTempResolution.isStaleEstimate,
-                )
-            views.setTextViewText(R.id.current_temp, formattedTemp)
-            val tempPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
-            views.setViewVisibility(R.id.current_temp, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.current_temp, View.GONE)
-        }
+        val formattedTemp = if (currentTemp != null) {
+            CurrentTemperatureResolver.formatDisplayTemperature(
+                temp = currentTemp,
+                numColumns = numColumns,
+                isStaleEstimate = currentTempResolution.isStaleEstimate,
+            )
+        } else null
+        HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp)
 
         val headerPrecipProbability =
             HeaderPrecipCalculator.getNext8HourPrecipProbability(
@@ -213,41 +196,26 @@ object PrecipViewHandler {
         // Show precipitation probability next to current temp.
         // In precipitation mode, show even if 0% so the user gets confirmation.
         val isPrecipVisible = headerPrecipProbability != null
-        if (isPrecipVisible) {
-            views.setTextViewText(R.id.precip_probability, "$headerPrecipProbability%")
-            val textSizeDp = HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability)
-            val precipPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
-            views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
-            views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.precip_probability, View.GONE)
-        }
+        val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
+        HeaderRemoteViewsBinder.bindPrecipProbability(
+            context, views,
+            if (isPrecipVisible) "$headerPrecipProbability%" else null,
+            precipTextSizeDp ?: 0f,
+        )
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
 // Apply progressive disclosure for narrow widgets
-val precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
 val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
     apiSourceText = sourceIndicator,
     apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-    currentTempText = if (currentTemp != null) {
-        CurrentTemperatureResolver.formatDisplayTemperature(
-            temp = currentTemp,
-            numColumns = numColumns,
-            isStaleEstimate = currentTempResolution.isStaleEstimate,
-        )
-    } else null,
+    currentTempText = formattedTemp,
     deltaText = null,
     precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
     precipTextSizeDp = precipTextSizeDp,
 )
-views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
-views.setViewVisibility(R.id.precip_probability, if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
-HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible && disclosure.showsPrecip())
-if (disclosure == HeaderDisclosureLevel.NONE) {
-    views.setViewVisibility(R.id.current_weather_container, View.GONE)
-}
+HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isPrecipVisible)
 
 // Use graph mode for 2+ rows, text mode for 1 row
         val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
@@ -272,18 +240,7 @@ if (disclosure == HeaderDisclosureLevel.NONE) {
                 return
             }
 
-            // Use actual widget dimensions for bitmap
-            // Account for 8dp root padding + 4dp graph margins on each side = 24dp total
-            val widthDp = dimensions.widthDp - 24
-            val heightDp = dimensions.heightDp - 16
-            val (widthPx, heightPx) = WidgetSizeCalculator.getOptimalBitmapSize(context, widthDp, heightDp)
-            val rawWidthPx = WidgetSizeCalculator.dpToPx(context, widthDp).coerceAtLeast(1)
-            val rawHeightPx = WidgetSizeCalculator.dpToPx(context, heightDp).coerceAtLeast(1)
-            val bitmapScale =
-                min(
-                    widthPx.toFloat() / rawWidthPx.toFloat(),
-                    heightPx.toFloat() / rawHeightPx.toFloat(),
-                )
+            val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
             // Render precipitation graph
             val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
@@ -293,10 +250,10 @@ if (disclosure == HeaderDisclosureLevel.NONE) {
             val bitmap = PrecipitationGraphRenderer.renderGraph(
                 context = context,
                 hours = hours,
-                widthPx = widthPx,
-                heightPx = heightPx,
+                widthPx = bitmapDims.widthPx,
+                heightPx = bitmapDims.heightPx,
                 currentTime = now,
-                bitmapScale = bitmapScale,
+                bitmapScale = bitmapDims.bitmapScale,
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 highProbThreshold = highProbThreshold,
@@ -351,250 +308,6 @@ if (disclosure == HeaderDisclosureLevel.NONE) {
             ),
             debugTag = TAG,
         )
-    }
-
-    /**
-     * Get the weather condition for the current hour from hourly forecasts.
-     */
-    private fun getCurrentHourForecast(
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-    ): HourlyForecastEntity? {
-        val currentHourKey = WeatherTimeUtils.toHourlyForecastKeyMs(LocalDateTime.now())
-
-        return hourlyForecasts
-            .filter { it.dateTime == currentHourKey }
-            .let { forecasts ->
-                forecasts.find { it.source == displaySource.id }
-                    ?: forecasts.find { it.source == WeatherSource.GENERIC_GAP.id }
-                    ?: forecasts.firstOrNull()
-            }
-    }
-
-    private val HOUR_ZONE_IDS = listOf(
-        R.id.graph_hour_zone_0, R.id.graph_hour_zone_1, R.id.graph_hour_zone_2,
-        R.id.graph_hour_zone_3, R.id.graph_hour_zone_4, R.id.graph_hour_zone_5,
-        R.id.graph_hour_zone_6, R.id.graph_hour_zone_7, R.id.graph_hour_zone_8,
-        R.id.graph_hour_zone_9, R.id.graph_hour_zone_10, R.id.graph_hour_zone_11,
-        R.id.graph_hour_zone_12,
-    )
-
-    private fun setupZoomTapZones(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        zoom: com.weatherwidget.widget.ZoomLevel,
-        hourlyOffset: Int,
-    ) {
-        views.setViewVisibility(R.id.graph_hour_zones, View.VISIBLE)
-        views.setOnClickPendingIntent(R.id.graph_view, null)
-
-        HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
-            val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset, zoom)
-            val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_CYCLE_ZOOM
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.cycleZoomZone(appWidgetId, i),
-                zoomIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            Log.d(TAG, "setupZoomTapZones: widget=$appWidgetId zone=$i centerOffset=$zoneCenterOffset zoom=$zoom action=ZOOM")
-            views.setOnClickPendingIntent(zoneId, pendingIntent)
-        }
-    }
-
-    private fun setupNavigationButtons(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        stateManager: WidgetStateManager,
-    ) {
-        val canLeft = stateManager.canNavigateHourlyLeft(appWidgetId)
-        val canRight = stateManager.canNavigateHourlyRight(appWidgetId)
-
-        // Always show the left arrow
-        views.setViewVisibility(R.id.nav_left, View.VISIBLE)
-        views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
-
-        if (canLeft) {
-            val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_NAV_LEFT
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val leftPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navLeft(appWidgetId), leftIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
-        } else {
-            val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_SHOW_TOAST
-                putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "No additional history available")
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val toastPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navLeft(appWidgetId), toastIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.nav_left, toastPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_left_zone, toastPendingIntent)
-        }
-
-        // Always show the right arrow
-        views.setViewVisibility(R.id.nav_right, View.VISIBLE)
-        views.setViewVisibility(R.id.nav_right_zone, View.VISIBLE)
-
-        if (canRight) {
-            val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_NAV_RIGHT
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val rightPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navRight(appWidgetId), rightIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
-        } else {
-            val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_SHOW_TOAST
-                putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "No more forecast available")
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val toastPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navRight(appWidgetId), toastIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.nav_right, toastPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_right_zone, toastPendingIntent)
-        }
-    }
-
-    private fun setupApiToggle(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        numRows: Int,
-    ) {
-        val toggleIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_TOGGLE_API
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-        val togglePendingIntent =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.apiToggle(appWidgetId),
-                toggleIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.api_source_container, togglePendingIntent)
-        views.setOnClickPendingIntent(R.id.api_touch_zone, togglePendingIntent)
-
-        val textSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-        val apiPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
-        views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
-    }
-
-    private fun setupHistoryShortcut(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        centerTime: LocalDateTime,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-    ) {
-        val dateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-        val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-
-        val historyIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WeatherWidgetProvider.ACTION_DAY_CLICK
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra("date", dateStr)
-            putExtra("showHistory", true)
-            putExtra("isHistory", centerTime.toLocalDate().isBefore(LocalDate.now()))
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-        }
-
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            WidgetRequestCodes.history(appWidgetId),
-            historyIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
-        views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
-        views.setViewVisibility(R.id.history_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
-    }
-
-    private fun setupHomeShortcut(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-    ) {
-        val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WidgetIntentRouter.ACTION_SET_VIEW
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.DAILY.name)
-        }
-        val pendingIntent = PendingIntent.getBroadcast(
-            context,
-            WidgetRequestCodes.home(appWidgetId),
-            homeIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
-        views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
-        views.setViewVisibility(R.id.home_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.home_touch_zone, View.VISIBLE)
-    }
-
-    private fun setupWeatherStationsShortcut(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-    ) {
-        val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            WidgetRequestCodes.weatherStations(appWidgetId),
-            obsIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        views.setOnClickPendingIntent(R.id.weather_stations_icon, pendingIntent)
-        views.setOnClickPendingIntent(R.id.weather_stations_touch_zone, pendingIntent)
-        views.setViewVisibility(R.id.weather_stations_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone, View.VISIBLE)
-    }
-
-    private fun setupSettingsShortcut(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-    ) {
-        val settingsIntent = Intent(context, SettingsActivity::class.java)
-        val settingsPendingIntent =
-            PendingIntent.getActivity(
-                context,
-                WidgetRequestCodes.settings(appWidgetId),
-                settingsIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.settings_icon, settingsPendingIntent)
-        views.setOnClickPendingIntent(R.id.settings_touch_zone, settingsPendingIntent)
     }
 
     @androidx.annotation.VisibleForTesting
