@@ -61,12 +61,6 @@ object DailyViewHandler : WidgetViewHandler {
     private const val MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
     private const val DELTA_COLOR_HEX = "#FF6B35"
-    private const val HEADER_DATE_MIN_COLUMNS = 6
-    private const val HEADER_DATE_TEXT_SIZE_DP = 20f
-    private const val HEADER_DATE_RIGHT_MARGIN_DP = 112f
-    private const val CURRENT_TEMP_DELTA_TEXT_SIZE_DP = 14f
-    private const val WEATHER_ICON_END_MARGIN_DP = 2f
-    private const val HEADER_DATE_HORIZONTAL_GAP_DP = 6f
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
     private const val GRAPH_ROW_THRESHOLD = 2.2f
     private const val TEXT_MODE_ROOT_LEFT_PADDING_DP = 2
@@ -400,7 +394,7 @@ object DailyViewHandler : WidgetViewHandler {
             val deltaColor = Color.parseColor(DELTA_COLOR_HEX)
             views.setTextViewText(R.id.current_temp_delta, deltaText)
             views.setTextColor(R.id.current_temp_delta, deltaColor)
-            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, CURRENT_TEMP_DELTA_TEXT_SIZE_DP, context.resources.displayMetrics)
+            val deltaPx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DELTA_TEXT_SIZE_DP, context.resources.displayMetrics)
             views.setTextViewTextSize(R.id.current_temp_delta, TypedValue.COMPLEX_UNIT_PX, deltaPx)
             views.setViewVisibility(R.id.current_temp_delta, View.VISIBLE)
 } else {
