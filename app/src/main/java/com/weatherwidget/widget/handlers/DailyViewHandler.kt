@@ -406,7 +406,7 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     context = context,
     widthDp = dimensions.widthDp,
     apiSourceText = displaySource.shortDisplayName,
-    apiTextSizeDp = apiTextSizeDp(numRows),
+    apiTextSizeDp = HeaderConstants.HeaderConstants.apiTextSizeDp(numRows),
     currentTempText = formattedTemp,
     deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
     precipText = if (isPrecipVisible) "${precipProb}%" else null,
@@ -530,7 +530,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
 
             val widthDp = dimensions.widthDp - 24
             val heightDp = dimensions.heightDp - 16
-            val dateText = if (displayDays.size >= HEADER_DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
+            val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
             val headerPrecipPlacement = resolveHeaderPrecipPlacement(
                 context = context,
                 widthDp = widthDp,
@@ -540,7 +540,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 precipText = if (isPrecipVisible) "$precipProb%" else null,
                 precipTextSizeDp = precipTextSizeDp,
                 apiSourceText = displaySource.shortDisplayName,
-                apiTextSizeDp = apiTextSizeDp(numRows),
+                apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
                 dateText = dateText,
                 headerCanShowPrecip = disclosure.showsPrecip(),
                 includeIcon = disclosure.showsIcon(),
@@ -601,7 +601,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                     precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else 26f,
                     dateText = dateText,
                     apiSourceText = displaySource.shortDisplayName,
-                    apiTextSizeDp = apiTextSizeDp(numRows),
+                    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
                     settingsIconRes = R.drawable.ic_settings_gear,
                     showIcon = disclosure.showsIcon(),
                     showDelta = deltaVisible && disclosure.showsDelta(),
@@ -900,7 +900,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 HeaderDatePlacement.RIGHT -> R.id.header_date_right
             }
         views.setTextViewText(targetId, dateText)
-        val datePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HEADER_DATE_TEXT_SIZE_DP, context.resources.displayMetrics)
+        val datePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DATE_TEXT_SIZE_DP, context.resources.displayMetrics)
         views.setTextViewTextSize(targetId, TypedValue.COMPLEX_UNIT_PX, datePx)
         views.setViewVisibility(targetId, View.VISIBLE)
     }
@@ -919,7 +919,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
         dateText: String,
         includeIcon: Boolean = true,
     ): HeaderDatePlacement? {
-        if (numColumns < HEADER_DATE_MIN_COLUMNS) return null
+        if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
 
         val widthPx = WidgetSizeCalculator.dpToPx(context, widthDp).toFloat()
         val leftClusterRight =
@@ -932,7 +932,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
                 includeIcon = includeIcon,
             )
         val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val dateWidth = textWidthPx(context, dateText, HEADER_DATE_TEXT_SIZE_DP)
+        val dateWidth = textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
         val gapPx = dpToPx(context, HEADER_DATE_HORIZONTAL_GAP_DP)
         val rightMarginPx = dpToPx(context, HEADER_DATE_RIGHT_MARGIN_DP)
 
@@ -957,7 +957,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
         gapPx: Float,
         rightMarginPx: Float,
     ): HeaderDatePlacement? {
-        if (numColumns < HEADER_DATE_MIN_COLUMNS) return null
+        if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
         val centerLeft = (widthPx - dateWidth) / 2f
         val centerRight = centerLeft + dateWidth
         if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
@@ -992,7 +992,7 @@ setupApiToggle(context, views, appWidgetId, numRows)
         if (precipText.isNullOrBlank() || precipTextSizeDp == null) {
             return HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false)
         }
-        if (dateText.isNullOrBlank() || numColumns < HEADER_DATE_MIN_COLUMNS) {
+        if (dateText.isNullOrBlank() || numColumns < HeaderConstants.DATE_MIN_COLUMNS) {
             return HeaderPrecipPlacement(showHeaderPrecip = headerCanShowPrecip, allowTodayColumnPrecip = false)
         }
 
