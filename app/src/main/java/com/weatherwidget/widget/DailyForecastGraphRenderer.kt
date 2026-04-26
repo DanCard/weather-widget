@@ -41,7 +41,7 @@ object DailyForecastGraphRenderer {
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
     private const val TOP_PADDING_DP = 60f
     private const val FORECAST_BAR_WIDTH_DP = 9f
-    private const val TODAY_TRIPLE_BAR_WIDTH_DP = 5.25f
+    private const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
 
     private const val HIGH_LABEL_OFFSET_DP = 6f
     private const val ICON_BELOW_BAR_SPACING_DP = 3f
@@ -371,7 +371,7 @@ val forecastHigh: Float? = null,
             graphHeight = graphHeight,
             dayWidth = dayWidth,
             horizontalPadding = horizontalPadding,
-            tripleBarOffset = dpToPx(context, 6f * scaleFactor * labelScale),
+            tripleBarOffset = dpToPx(context, 8f * scaleFactor * labelScale),
             forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,

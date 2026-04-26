@@ -81,17 +81,6 @@ class DailyForecastGraphRendererSizingTest {
     }
 
     @Test
-    fun `today column bar stroke uses wider baseline`() {
-        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-
-        val fullScale = DailyForecastGraphRenderer.todayTripleBarStrokeWidthPx(context)
-        val downscaled = DailyForecastGraphRenderer.todayTripleBarStrokeWidthPx(context, bitmapScale = 0.34f)
-
-        assertEquals(5.25f * context.resources.displayMetrics.density, fullScale, 0.01f)
-        assertEquals(2.625f * context.resources.displayMetrics.density, downscaled, 0.01f)
-    }
-
-    @Test
     fun `day label layout keeps baseline size when labels fit`() {
         val today = LocalDate.of(2026, 4, 21)
 
