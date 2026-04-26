@@ -73,7 +73,7 @@ class TemperatureTouchRoutingRoboTest {
         val graphBodyTapZone = applied.findViewById<View>(R.id.graph_body_tap_zone)
 
         assertEquals(View.VISIBLE, bodyZone.visibility)
-        assertEquals(View.GONE, bottomHourZones.visibility)
+        assertEquals(View.VISIBLE, bottomHourZones.visibility)
         assertEquals(View.VISIBLE, bottomHourFooterZones.visibility)
         assertEquals(View.GONE, bottomZone.visibility)
         assertEquals(View.GONE, graphBodyTapZone.visibility)
@@ -125,6 +125,15 @@ class TemperatureTouchRoutingRoboTest {
             }
         }
         assertTrue("Expected at least one footer zone to switch to cloud cover", cloudIntentFound)
+
+        // Test bottom hour overlay zones (the icons themselves)
+        val overlayZone0 = applied.findViewById<View>(R.id.graph_bottom_hour_zone_0)
+        val beforeOverlayTap = shadowApp.broadcastIntents.size
+        overlayZone0.performClick()
+        val overlayIntent = shadowApp.broadcastIntents.drop(beforeOverlayTap).lastOrNull()
+        assertNotNull("Expected bottom hour overlay zone tap to trigger an intent", overlayIntent)
+        assertEquals(WidgetIntentRouter.ACTION_SET_VIEW, overlayIntent!!.action)
+        assertEquals(ViewMode.CLOUD_COVER.name, overlayIntent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW))
     }
 
     @Test
@@ -147,7 +156,7 @@ class TemperatureTouchRoutingRoboTest {
 
         assertEquals(View.GONE, graphBodyTapZone.visibility)
         assertEquals(View.VISIBLE, hourZones.visibility)
-        assertEquals(View.GONE, bottomHourZones.visibility)
+        assertEquals(View.VISIBLE, bottomHourZones.visibility)
         assertEquals(View.VISIBLE, bottomHourFooterZones.visibility)
         assertEquals(View.GONE, bottomZone.visibility)
 

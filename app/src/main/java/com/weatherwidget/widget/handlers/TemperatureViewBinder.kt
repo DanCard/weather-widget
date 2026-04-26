@@ -113,7 +113,6 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
                 currentViewMode = ViewMode.TEMPERATURE,
                 zoom = state.zoom,
                 hourlyOffset = state.hourlyOffset,
-                showBodyOverlayZones = false,
             )
         } else if (state.graph.showTextMode) {
             showTextMode(views)
