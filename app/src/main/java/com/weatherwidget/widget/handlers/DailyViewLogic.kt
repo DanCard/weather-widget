@@ -468,7 +468,6 @@ object DailyViewLogic {
                 date = date,
                 today = today,
                 isPastDate = isPastDate,
-                iconRes = iconRes,
                 precipProbability = precip,
                 precipAmountMm = weather?.precipAmountMm,
                 dailyPrecipProbability = weather?.precipProbability,
@@ -560,7 +559,6 @@ forecastHigh = fHigh,
         date: LocalDate,
         today: LocalDate,
         isPastDate: Boolean,
-        iconRes: Int,
         precipProbability: Int?,
         precipAmountMm: Float?,
         dailyPrecipProbability: Int? = null,
@@ -594,10 +592,6 @@ forecastHigh = fHigh,
         val nightSuppresses = nightPrecip != null && nightPrecip < nightMinProb
         if (daySuppresses && nightSuppresses) {
             Log.d(TAG, "buildDailyRainLabel suppressing label for $date: dayPrecip=$dayPrecip dayMin=$dayMinProb nightPrecip=$nightPrecip nightMin=$nightMinProb")
-            return null
-        }
-        if (!WeatherIconMapper.isRainIndicator(iconRes)) {
-            Log.d(TAG, "buildDailyRainLabel skipping non-rain icon: date=$date iconRes=$iconRes dayPrecip=$dayPrecip nightPrecip=$nightPrecip")
             return null
         }
         val result = when {

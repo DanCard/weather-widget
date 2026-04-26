@@ -28,7 +28,7 @@ object DailyForecastIconResolver {
             - day 7: 32.33 → 32
             - day 8+: 33 (capped)
         */
-        return (7.0 / 3.0 * daysFromToday + 16).toInt().coerceIn(0, 33)
+        return (7.0 / 3.0 * daysFromToday + 10).toInt().coerceIn(0, 33)
     }
 
     fun getMinimumPrecipProbabilityNight(daysFromToday: Long): Int {

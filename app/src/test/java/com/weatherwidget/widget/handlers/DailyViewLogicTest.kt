@@ -893,15 +893,18 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rainy future day just below threshold returns null label`() {
+    fun `future day rain label does not depend on rain icon`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val future = today.plusDays(1)
         val weatherByDate = mapOf(
             future to createWeather(
                 date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                condition = "Rain",
-                precipProbability = 17,
+                condition = "Mostly Clear",
+                nativeDailyIconToken = "Mostly Clear",
+                precipProbability = 15,
+                daytimePrecipProbability = 15,
+                nighttimePrecipProbability = 0,
             ),
         )
 
@@ -919,7 +922,38 @@ class DailyViewLogicTest {
         )
 
         val futureDay = result.first { it.date == future }
-        assertEquals(null, futureDay.rainData.dailyRainLabelText)
+        assertEquals(R.drawable.ic_weather_mostly_clear, futureDay.iconRes)
+        assertEquals("15%", futureDay.rainData.dailyRainLabelText)
+    }
+
+    @Test
+    fun `rainy future day below tomorrow threshold returns null label`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val future = today.plusDays(1)
+        val weatherByDate = mapOf(
+            future to createWeather(
+                date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                condition = "Rain",
+                precipProbability = 11,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            isEveningMode = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList(),
+        )
+
+        val futureDay = result.first { it.date == future }
+        assertNull(futureDay.rainData.dailyRainLabelText)
     }
 
     @Test
@@ -1157,7 +1191,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label suppressed for near term day with 19 percent probability`() {
+    fun `rain label suppressed for near term day below threshold`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val nearTerm = today.plusDays(2)
@@ -1165,7 +1199,7 @@ class DailyViewLogicTest {
             nearTerm to createWeather(
                 date = nearTerm.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 19,
+                precipProbability = 13,
             ),
         )
 
@@ -1217,7 +1251,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label suppressed for day exactly 4 away with 20 percent probability`() {
+    fun `rain label suppressed for day exactly 4 away below threshold`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val day4 = today.plusDays(4)
@@ -1225,7 +1259,7 @@ class DailyViewLogicTest {
             day4 to createWeather(
                 date = day4.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 20,
+                precipProbability = 18,
             ),
         )
 
@@ -1247,7 +1281,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label suppressed for day 3 away with 20 percent probability`() {
+    fun `rain label suppressed for day 3 away below threshold`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val day3 = today.plusDays(3)
@@ -1255,7 +1289,7 @@ class DailyViewLogicTest {
             day3 to createWeather(
                 date = day3.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 20,
+                precipProbability = 16,
             ),
         )
 

@@ -142,7 +142,7 @@ object WeatherIconMapper {
         baseRainIcon: Int
     ): Int {
         if (precipProbability == null || precipProbability >= 80) return baseRainIcon
-        if (precipProbability <= 15) return getCloudCoverIcon(isNight, cloudCover)
+        if (precipProbability < 8) return getCloudCoverIcon(isNight, cloudCover)
 
         val isChance = precipProbability >= 60
         val cloudPct = cloudCover ?: 50
