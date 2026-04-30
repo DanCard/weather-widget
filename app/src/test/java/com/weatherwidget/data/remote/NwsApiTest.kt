@@ -175,7 +175,7 @@ class NwsApiTest {
         }
 
     @Test
-    fun `getSkyCover converts UTC valid times into local hourly keys`() =
+    fun `getGridpointsBundle skyCover converts UTC valid times into local hourly keys`() =
         runTest {
             val gridResponse =
                 """
@@ -211,7 +211,7 @@ class NwsApiTest {
 
             val api = NwsApi(client, json)
             val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
-            val result = api.getSkyCover(gridPoint)
+            val result = api.getGridpointsBundle(gridPoint).skyCoverByHour
 
             val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:00")
             val firstLocalHour = ZonedDateTime.parse("2026-03-14T14:00:00+00:00")
@@ -226,7 +226,7 @@ class NwsApiTest {
         }
 
     @Test
-    fun `getQuantitativePrecipitation parses grid intervals and preserves zeroes`() =
+    fun `getGridpointsBundle qpf parses grid intervals and preserves zeroes`() =
         runTest {
             val gridResponse =
                 """
@@ -268,11 +268,170 @@ class NwsApiTest {
 
             val api = NwsApi(client, json)
             val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
-            val result = api.getQuantitativePrecipitation(gridPoint)
+            val result = api.getGridpointsBundle(gridPoint).qpfIntervals
 
             assertEquals(2, result.size)
             assertEquals(0f, result[0].amountMm)
             assertEquals(12.7f, result[1].amountMm, 0.001f)
+        }
+
+    @Test
+    fun `getDailyTemperaturesFromGridpoints converts Celsius to Fahrenheit`() =
+        runTest {
+            val gridResponse =
+                """
+                {
+                    "properties": {
+                        "maxTemperature": {
+                            "uom": "wmoUnit:degC",
+                            "values": [
+                                {
+                                    "validTime": "2026-05-07T15:00:00+00:00/PT13H",
+                                    "value": 24.44
+                                }
+                            ]
+                        },
+                        "minTemperature": {
+                            "uom": "wmoUnit:degC",
+                            "values": []
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = gridResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://example.com/forecast")
+            val result = api.getGridpointsBundle(gridPoint).dailyTemperatures
+
+            // Date attribution for daytime windows: validTime "2026-05-07T15:00:00Z/PT13H" =
+            // 8am-9pm PDT on May 7 (or 7am-8pm PST on May 7 depending on DST). The local date
+            // is 2026-05-07 in any US timezone — use that to assert.
+            val expectedDate = ZonedDateTime.parse("2026-05-07T15:00:00+00:00")
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDate()
+                .toString()
+            val temp = result.maxByDate[expectedDate]
+            assertNotNull(temp)
+            assertEquals(75.992f, temp!!, 0.01f) // (24.44 * 1.8) + 32 = 75.992
+        }
+
+    @Test
+    fun `getDailyTemperaturesFromGridpoints attributes overnight low to morning date`() =
+        runTest {
+            // validTime 2026-05-07T03:00:00Z/PT11H = 8pm PDT May 6 → 7am PDT May 7.
+            // Per /forecast convention, this low belongs to May 7 (the morning the night ends).
+            val gridResponse =
+                """
+                {
+                    "properties": {
+                        "maxTemperature": {
+                            "uom": "wmoUnit:degC",
+                            "values": []
+                        },
+                        "minTemperature": {
+                            "uom": "wmoUnit:degC",
+                            "values": [
+                                {
+                                    "validTime": "2026-05-07T03:00:00+00:00/PT11H",
+                                    "value": 11.11
+                                }
+                            ]
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = gridResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://example.com/forecast")
+            val result = api.getGridpointsBundle(gridPoint).dailyTemperatures
+
+            // Compute expected date in local zone — end - 1 minute, then toLocalDate.
+            val end = ZonedDateTime.parse("2026-05-07T03:00:00+00:00").plusHours(11)
+            val expectedDate = end.minusMinutes(1)
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDate()
+                .toString()
+            val temp = result.minByDate[expectedDate]
+            assertNotNull(temp)
+            assertEquals(51.998f, temp!!, 0.01f) // (11.11 * 1.8) + 32 = 51.998
+        }
+
+    @Test
+    fun `getDailyTemperaturesFromGridpoints picks max when multiple intervals share a date`() =
+        runTest {
+            val gridResponse =
+                """
+                {
+                    "properties": {
+                        "maxTemperature": {
+                            "uom": "wmoUnit:degC",
+                            "values": [
+                                { "validTime": "2026-05-07T15:00:00+00:00/PT4H", "value": 20.0 },
+                                { "validTime": "2026-05-07T19:00:00+00:00/PT4H", "value": 25.0 }
+                            ]
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = gridResponse,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val gridPoint = NwsApi.GridPointInfo("MTR", 93, 87, "https://example.com/forecast")
+            val result = api.getGridpointsBundle(gridPoint).dailyTemperatures
+
+            val expectedDate = ZonedDateTime.parse("2026-05-07T15:00:00+00:00")
+                .withZoneSameInstant(ZoneId.systemDefault())
+                .toLocalDate()
+                .toString()
+            // Larger of the two: 25.0°C → 77.0°F
+            assertEquals(77.0f, result.maxByDate[expectedDate]!!, 0.01f)
         }
 
     @Test

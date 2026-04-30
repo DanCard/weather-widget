@@ -330,10 +330,10 @@ class NwsApi
         }
 
         /**
-         * Fetch sky cover (cloud cover %) from the raw gridpoints endpoint.
-         * Returns a map of ISO 8601 hour key (e.g. "2026-03-14T14:00") to cover percent (0-100).
+         * Fetch sky cover, QPF, and daily temperature extremes from the raw gridpoints
+         * endpoint in a single HTTP call.
          */
-        suspend fun getSkyCover(gridPoint: GridPointInfo): Map<String, Int> {
+        suspend fun getGridpointsBundle(gridPoint: GridPointInfo): GridpointsBundle {
             val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}"
             val response: String =
                 httpClient.get(url) {
@@ -341,8 +341,23 @@ class NwsApi
                     header("Accept", "application/json")
                 }.body()
 
-            val jsonObj = json.parseToJsonElement(response).jsonObject
-            val skyCover = jsonObj["properties"]?.jsonObject?.get("skyCover")?.jsonObject
+            val properties = json.parseToJsonElement(response).jsonObject["properties"]?.jsonObject
+                ?: return GridpointsBundle(emptyMap(), emptyList(), DailyTemperatureExtremes(emptyMap(), emptyMap()))
+
+            val skyCoverByHour = parseSkyCoverFromProperties(properties)
+            val qpfIntervals = parseQpfFromProperties(properties)
+            val maxByDate = parseDailyExtremes(properties["maxTemperature"]?.jsonObject, isMax = true)
+            val minByDate = parseDailyExtremes(properties["minTemperature"]?.jsonObject, isMax = false)
+
+            Log.d(
+                TAG,
+                "getGridpointsBundle: skyCover=${skyCoverByHour.size}h qpf=${qpfIntervals.size} maxDays=${maxByDate.size} minDays=${minByDate.size}",
+            )
+            return GridpointsBundle(skyCoverByHour, qpfIntervals, DailyTemperatureExtremes(maxByDate, minByDate))
+        }
+
+        private fun parseSkyCoverFromProperties(properties: JsonObject): Map<String, Int> {
+            val skyCover = properties["skyCover"]?.jsonObject
             val values = skyCover?.get("values")?.jsonArray ?: return emptyMap()
 
             val result = mutableMapOf<String, Int>()
@@ -357,10 +372,8 @@ class NwsApi
                 val startTimeStr = validTime.substring(0, slashIndex)
                 val durationStr = validTime.substring(slashIndex + 1)
 
-                // Parse duration hours (PT1H, PT2H, PT3H, etc.)
                 val durationHours = Regex("PT(\\d+)H").find(durationStr)?.groupValues?.get(1)?.toIntOrNull() ?: 1
 
-                // Parse start time and expand intervals
                 val startZdt = runCatching { java.time.ZonedDateTime.parse(startTimeStr) }.getOrNull() ?: continue
                 for (h in 0 until durationHours) {
                     val hourZdt = startZdt.plusHours(h.toLong()).withZoneSameInstant(java.time.ZoneId.systemDefault())
@@ -368,22 +381,12 @@ class NwsApi
                     result[hourKey] = value
                 }
             }
-            Log.d(TAG, "getSkyCover: parsed ${result.size} hourly entries from gridpoints")
             return result
         }
 
-        suspend fun getQuantitativePrecipitation(gridPoint: GridPointInfo): List<QuantitativePrecipitationInterval> {
-            val url = "$BASE_URL/gridpoints/${gridPoint.gridId}/${gridPoint.gridX},${gridPoint.gridY}"
-            val response: String =
-                httpClient.get(url) {
-                    header("User-Agent", USER_AGENT)
-                    header("Accept", "application/json")
-                }.body()
-
-            val jsonObj = json.parseToJsonElement(response).jsonObject
+        private fun parseQpfFromProperties(properties: JsonObject): List<QuantitativePrecipitationInterval> {
             val values =
-                jsonObj["properties"]?.jsonObject
-                    ?.get("quantitativePrecipitation")?.jsonObject
+                properties["quantitativePrecipitation"]?.jsonObject
                     ?.get("values")?.jsonArray
                     ?: return emptyList()
 
@@ -404,6 +407,47 @@ class NwsApi
                     amountMm = amountMm,
                 )
             }
+        }
+
+        private fun parseDailyExtremes(node: JsonObject?, isMax: Boolean): Map<String, Float> {
+            val values = node?.get("values")?.jsonArray ?: return emptyMap()
+            val unitCode = node["uom"]?.jsonPrimitive?.content
+            val zone = java.time.ZoneId.systemDefault()
+            val result = mutableMapOf<String, Float>()
+
+            for (entry in values) {
+                val obj = entry.jsonObject
+                val validTime = obj["validTime"]?.jsonPrimitive?.content ?: continue
+                val rawValue = obj["value"]?.jsonPrimitive?.content?.toFloatOrNull() ?: continue
+
+                val slashIndex = validTime.indexOf('/')
+                if (slashIndex == -1) continue
+                val start = runCatching { ZonedDateTime.parse(validTime.substring(0, slashIndex)) }.getOrNull() ?: continue
+                val duration = runCatching { Duration.parse(validTime.substring(slashIndex + 1)) }.getOrNull() ?: continue
+                val end = start.plus(duration)
+
+                // For maxTemperature (daytime windows), date = local date of start.
+                // For minTemperature (overnight windows that cross midnight), date = local date the night ends.
+                val dateString = if (isMax) {
+                    start.withZoneSameInstant(zone).toLocalDate().toString()
+                } else {
+                    end.minusMinutes(1).withZoneSameInstant(zone).toLocalDate().toString()
+                }
+
+                val tempF = when (unitCode) {
+                    "wmoUnit:degF" -> rawValue
+                    null, "", "wmoUnit:degC" -> (rawValue * 1.8f) + 32f
+                    else -> (rawValue * 1.8f) + 32f
+                }
+
+                val existing = result[dateString]
+                result[dateString] = when {
+                    existing == null -> tempF
+                    isMax -> kotlin.math.max(existing, tempF)
+                    else -> kotlin.math.min(existing, tempF)
+                }
+            }
+            return result
         }
 
         private fun parseObservationProperties(props: JsonObject, defaultStationName: String): Observation? {
@@ -541,6 +585,17 @@ class NwsApi
             val startTime: Long,
             val endTime: Long,
             val amountMm: Float,
+        )
+
+        data class DailyTemperatureExtremes(
+            val maxByDate: Map<String, Float>,
+            val minByDate: Map<String, Float>,
+        )
+
+        data class GridpointsBundle(
+            val skyCoverByHour: Map<String, Int>,
+            val qpfIntervals: List<QuantitativePrecipitationInterval>,
+            val dailyTemperatures: DailyTemperatureExtremes,
         )
 
         private fun parseQuantitativePrecipitationMm(obj: JsonObject?): Float? {

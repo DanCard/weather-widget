@@ -50,31 +50,27 @@ class NwsForecastMapper @Inject constructor(
         val grid = nwsApi.getGridPoint(latitude, longitude)
         val forecastDeferred = async { nwsApi.getForecast(grid) }
         val hourlyDeferred = async { nwsApi.getHourlyForecast(grid) }
-        val skyCoverDeferred = async {
+        val gridpointsDeferred = async {
             try {
-                nwsApi.getSkyCover(grid)
+                nwsApi.getGridpointsBundle(grid)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "getSkyCover failed: ${e.message}")
-                emptyMap()
-            }
-        }
-        val qpfDeferred = async {
-            try {
-                nwsApi.getQuantitativePrecipitation(grid)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "getQuantitativePrecipitation failed: ${e.message}")
-                emptyList()
+                Log.w(TAG, "getGridpointsBundle failed: ${e.message}")
+                NwsApi.GridpointsBundle(
+                    skyCoverByHour = emptyMap(),
+                    qpfIntervals = emptyList(),
+                    dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
+                )
             }
         }
 
         val forecastPeriods = forecastDeferred.await()
         val rawHourlyPeriods = hourlyDeferred.await()
-        val skyCoverMap = skyCoverDeferred.await()
-        val gridQpfIntervals = qpfDeferred.await()
+        val gridpoints = gridpointsDeferred.await()
+        val skyCoverMap = gridpoints.skyCoverByHour
+        val gridQpfIntervals = gridpoints.qpfIntervals
+        val gridDailyTemps = gridpoints.dailyTemperatures
 
         val hourlyPeriodsWithSkyCover = if (skyCoverMap.isNotEmpty()) {
             rawHourlyPeriods.map { period ->
@@ -118,6 +114,15 @@ class NwsForecastMapper @Inject constructor(
         logTodayDiagnostics(
             todayDateString, todayForecastPeriods, acc
         )
+
+        val gridMergedDates = mergeGridpointTemperatures(acc.temperatureMap, gridDailyTemps, todayDate)
+        if (gridMergedDates.isNotEmpty()) {
+            val detail = gridMergedDates.sorted().joinToString(",") { d ->
+                val (h, l) = acc.temperatureMap[d] ?: (null to null)
+                "$d:h=${h}/l=${l}"
+            }
+            appLogDao.log("NWS_GRID_TEMP_MERGE", "filled=${gridMergedDates.size} $detail")
+        }
 
         val preservedTerminalLowOnlyDay = removePhantomFutureDays(acc.temperatureMap, todayDate)
         preservedTerminalLowOnlyDay?.let { (date, lowTemp) ->
@@ -302,6 +307,35 @@ class NwsForecastMapper @Inject constructor(
             }
         }
         return todayPeriods
+        }
+
+        /**
+         * Merge daily highs/lows from the raw NWS gridpoints endpoint into temperatureMap.
+         * Only fills nulls — values already supplied by /forecast take precedence.
+         * Caps at horizonDays days from today to avoid unbounded ingestion if NWS extends the gridpoints window.
+         * Returns the set of dateStrings whose temperatureMap entry changed (for diagnostics).
+         */
+        fun mergeGridpointTemperatures(
+            temperatureMap: MutableMap<String, Pair<Float?, Float?>>,
+            extremes: NwsApi.DailyTemperatureExtremes,
+            today: LocalDate,
+            horizonDays: Int = 8,
+        ): Set<String> {
+            val changed = mutableSetOf<String>()
+            val maxDate = today.plusDays((horizonDays - 1).toLong())
+            val candidateDates = extremes.maxByDate.keys + extremes.minByDate.keys
+            for (dateString in candidateDates) {
+                val date = runCatching { LocalDate.parse(dateString) }.getOrNull() ?: continue
+                if (date.isBefore(today) || date.isAfter(maxDate)) continue
+                val current = temperatureMap[dateString] ?: (null to null)
+                val newHigh = current.first ?: extremes.maxByDate[dateString]
+                val newLow = current.second ?: extremes.minByDate[dateString]
+                if (newHigh != current.first || newLow != current.second) {
+                    temperatureMap[dateString] = newHigh to newLow
+                    changed.add(dateString)
+                }
+            }
+            return changed
         }
 
         fun removePhantomFutureDays(
