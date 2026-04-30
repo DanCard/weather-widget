@@ -591,8 +591,7 @@ forecastHigh = fHigh,
         val nightPrecip = nightPrecipProbability ?: dayPrecip
 
         val daySuppresses = dayPrecip != null && dayPrecip < dayMinProb
-        val nightSuppresses = nightPrecip != null && nightPrecip < nightMinProb
-        if (daySuppresses && nightSuppresses) {
+        if (daySuppresses) {
             Log.d(TAG, "buildDailyRainLabel suppressing label for $date: dayPrecip=$dayPrecip dayMin=$dayMinProb nightPrecip=$nightPrecip nightMin=$nightMinProb")
             return null
         }
