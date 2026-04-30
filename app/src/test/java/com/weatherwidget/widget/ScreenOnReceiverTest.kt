@@ -8,8 +8,6 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.testutil.TestDatabase
 import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -57,11 +55,6 @@ class ScreenOnReceiverTest {
         runBlocking {
             WeatherDatabase.getDatabase(context).appLogDao().clearAllLogs()
         }
-
-        mockkObject(NwsTerminalDayCatchUpScheduler)
-        coEvery {
-            NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(any(), any(), any(), any(), any())
-        } returns Unit
     }
 
     @Test
@@ -183,21 +176,6 @@ class ScreenOnReceiverTest {
             WeatherDatabase.getDatabase(context).appLogDao().getLogsByTag("UNLOCK_REFRESH_POLICY", 1).firstOrNull()
         assertNotNull("Expected latest UNLOCK_REFRESH_POLICY log", latest)
         assertFalse("Expected uiOnly field in log message", latest!!.message.contains("uiOnly=").not())
-    }
-
-    @Test
-    fun `onReceive with USER_PRESENT evaluates terminal catch up`() = runTest {
-        receiver.onReceive(context, Intent(Intent.ACTION_USER_PRESENT))
-
-        coVerify(exactly = 1) {
-            NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
-                context = context,
-                isCharging = any(),
-                isScreenInteractive = true,
-                trigger = "screen_unlock",
-                now = any(),
-            )
-        }
     }
 
     private fun unlockPolicyLogCount(): Int {

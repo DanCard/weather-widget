@@ -347,7 +347,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         super.onDisabled(context)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_CURRENT_TEMP)
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_NWS_TERMINAL_CATCHUP)
 
         val uiScheduler = UIUpdateScheduler(context)
         uiScheduler.cancelScheduledUpdates()
@@ -775,7 +774,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val WORK_NAME_ONE_TIME = "weather_widget_one_time"
         const val WORK_NAME_CURRENT_TEMP = "weather_widget_current_temp"
         const val WORK_NAME_OBSERVATION_BACKFILL = "weather_widget_observation_backfill"
-        const val WORK_NAME_NWS_TERMINAL_CATCHUP = "weather_widget_nws_terminal_catch_up"
 
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L

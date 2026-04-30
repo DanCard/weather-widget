@@ -53,13 +53,6 @@ class UIUpdateReceiver : BroadcastReceiver() {
             )
         val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
 
-        NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
-            context = context,
-            isCharging = isCharging,
-            isScreenInteractive = true,
-            trigger = "ui_update_alarm",
-        )
-
         // Trigger UI-only update (no network fetch)
         val workRequest =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()

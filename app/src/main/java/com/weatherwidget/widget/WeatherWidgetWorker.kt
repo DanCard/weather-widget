@@ -49,7 +49,6 @@ class WeatherWidgetWorker
             val currentTempReason = inputData.getString(KEY_CURRENT_TEMP_REASON) ?: "unspecified"
             val targetSourceId = inputData.getString(KEY_TARGET_SOURCE)
             val observationBackfillMode = inputData.getBoolean(KEY_OBSERVATION_BACKFILL_ONLY, false)
-            val nwsTerminalCatchUp = inputData.getBoolean(KEY_NWS_TERMINAL_CATCH_UP, false)
             val backfillLat = inputData.getDouble(KEY_BACKFILL_LAT, DEFAULT_LAT)
             val backfillLon = inputData.getDouble(KEY_BACKFILL_LON, DEFAULT_LON)
             val backfillHours = inputData.getLong(KEY_OBSERVATION_BACKFILL_HOURS, DEFAULT_OBSERVATION_BACKFILL_HOURS)
@@ -73,7 +72,7 @@ class WeatherWidgetWorker
 
             // Cooldown: skip full background syncs if one finished very recently (last 5 mins)
             // Does not apply to forced (user-triggered) or UI-only updates.
-            if (!forceRefresh && !uiOnlyRefresh && !currentTempOnly && !observationBackfillMode && !nwsTerminalCatchUp && lastFullFetchAge in 0..300) {
+            if (!forceRefresh && !uiOnlyRefresh && !currentTempOnly && !observationBackfillMode && lastFullFetchAge in 0..300) {
                 appLogDao.log("SYNC_SKIP", "reason=cooldown age=${lastFullFetchAge}s", "INFO")
                 return Result.success()
             }
@@ -84,15 +83,6 @@ class WeatherWidgetWorker
                     longitude = backfillLon,
                     lookbackHours = backfillHours,
                     reason = backfillReason,
-                )
-            }
-
-            if (nwsTerminalCatchUp) {
-                return handleNwsTerminalCatchUpWork(
-                    latitude = backfillLat,
-                    longitude = backfillLon,
-                    isPlugged = isPlugged,
-                    isScreenInteractive = isScreenInteractive,
                 )
             }
 
@@ -183,17 +173,6 @@ class WeatherWidgetWorker
                         if (!uiOnlyRefresh) {
                             val uiScheduler = UIUpdateScheduler(context)
                             uiScheduler.scheduleNextUpdate()
-
-                            try {
-                                NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
-                                    context = context,
-                                    isCharging = isPlugged,
-                                    isScreenInteractive = isScreenInteractive,
-                                    trigger = "full_sync",
-                                )
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Failed to check NWS terminal catch-up after sync", e)
-                            }
                         } else {
                             // Even on UI-only, ensure heartbeats are alive
                             manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
@@ -344,12 +323,6 @@ class WeatherWidgetWorker
                 }
 
                 refreshWidgetsFromCache()
-                NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
-                    context = context,
-                    isCharging = isPlugged,
-                    isScreenInteractive = isScreenInteractive,
-                    trigger = reason,
-                )
                 manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
                 Result.success()
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -393,85 +366,6 @@ class WeatherWidgetWorker
                     "reason=$reason ${e.javaClass.simpleName}: ${e.message}",
                     "ERROR",
                 )
-                Result.retry()
-            }
-        }
-
-        private suspend fun handleNwsTerminalCatchUpWork(
-            latitude: Double,
-            longitude: Double,
-            isPlugged: Boolean,
-            isScreenInteractive: Boolean,
-        ): Result {
-            return try {
-                appLogDao.log(
-                    "NWS_TERMINAL_CATCH_UP_RUN",
-                    "lat=$latitude lon=$longitude plugged=$isPlugged interactive=$isScreenInteractive",
-                    "INFO",
-                )
-                val result =
-                    weatherRepository.getWeatherData(
-                        latitude = latitude,
-                        longitude = longitude,
-                        locationName = getLocationName(latitude, longitude),
-                        forceRefresh = true,
-                        targetSourceId = com.weatherwidget.data.model.WeatherSource.NWS.id,
-                    )
-
-                result.fold(
-                    onSuccess = { weatherList ->
-                        val today = LocalDate.now()
-                        val terminalDay = NwsTerminalDayCatchUpPolicy.detectTerminalDayMissingHigh(weatherList, today)
-
-                        if (terminalDay != null) {
-                            val stillInWindow = NwsTerminalDayCatchUpPolicy.isInCatchUpWindow(java.time.LocalTime.now())
-                            val shouldContinue = NwsTerminalDayCatchUpPolicy.shouldScheduleCatchUp(
-                                isCharging = isPlugged,
-                                isScreenInteractive = isScreenInteractive,
-                                isInWindow = stillInWindow,
-                            )
-                            if (shouldContinue) {
-                                appLogDao.log(
-                                    "NWS_TERMINAL_CATCH_UP_RETRY",
-                                    "date=${terminalDay.date} still_missing_high scheduling_next_attempt",
-                                    "INFO",
-                                )
-                                NwsTerminalDayCatchUpScheduler.scheduleNextCatchUpAttempt(context)
-                            } else {
-                                appLogDao.log(
-                                    "NWS_TERMINAL_CATCH_UP_STOP",
-                                    "date=${terminalDay.date} reason=conditions_not_met inWindow=$stillInWindow plugged=$isPlugged interactive=$isScreenInteractive",
-                                    "INFO",
-                                )
-                            }
-                        } else {
-                            appLogDao.log(
-                                "NWS_TERMINAL_CATCH_UP_COMPLETE",
-                                "high_found_after_fetch",
-                                "INFO",
-                            )
-                        }
-
-                        val forecastSnapshots = fetchForecastSnapshots(latitude, longitude)
-                        val dailyActuals = fetchDailyActuals(latitude, longitude, recompute = false)
-                        val hourlyForecasts = fetchHourlyForecasts(latitude, longitude)
-                        val todayStartMs = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
-                            latitude, longitude, todayStartMs,
-                        )
-                        updateAllWidgets(weatherList, forecastSnapshots, hourlyForecasts, currentTemps, dailyActuals, WidgetUpdateTracker.JobType.BACKGROUND_SYNC)
-                        Result.success()
-                    },
-                    onFailure = { e ->
-                        appLogDao.log("NWS_TERMINAL_CATCH_UP_FAIL", "${e.message}", "ERROR")
-                        Result.retry()
-                    },
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                appLogDao.log("NWS_TERMINAL_CATCH_UP_CANCELLED", "stopReason=$stopReason msg=${e.message}", "INFO")
-                throw e
-            } catch (e: Exception) {
-                appLogDao.log("NWS_TERMINAL_CATCH_UP_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
                 Result.retry()
             }
         }
@@ -540,7 +434,6 @@ class WeatherWidgetWorker
             const val KEY_CURRENT_TEMP_REASON = "current_temp_reason"
             const val KEY_TARGET_SOURCE = "target_source"
             const val KEY_OBSERVATION_BACKFILL_ONLY = "observation_backfill_only"
-            const val KEY_NWS_TERMINAL_CATCH_UP = "nws_terminal_catch_up"
             const val KEY_OBSERVATION_BACKFILL_HOURS = "observation_backfill_hours"
             const val KEY_OBSERVATION_BACKFILL_REASON = "observation_backfill_reason"
             const val KEY_BACKFILL_LAT = "backfill_lat"

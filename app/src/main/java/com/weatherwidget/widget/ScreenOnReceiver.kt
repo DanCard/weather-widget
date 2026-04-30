@@ -107,16 +107,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 )
                 UIUpdateScheduler(context).scheduleNextUpdate()
 
-                try {
-                    NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
-                        context = context,
-                        isCharging = battery.isCharging,
-                        isScreenInteractive = true,
-                        trigger = "screen_unlock",
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to check NWS terminal catch-up on screen unlock", e)
-                }
+
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to schedule next update on screen on", e)
             } finally {
@@ -128,7 +119,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
     private fun handleScreenOff(context: Context) {
         Log.d(TAG, "Screen turned off - canceling charging current-temp loop")
         CurrentTempUpdateScheduler.cancel(context)
-        NwsTerminalDayCatchUpScheduler.cancel(context)
     }
 
     private fun logPowerConnectedEvent(
