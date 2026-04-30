@@ -57,7 +57,8 @@ class WeatherWidgetWorker
 
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
             val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val isPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
+            val physicalPlugged = (batteryStatus?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1) > 0
+            val isPlugged = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
             val isScreenInteractive = isScreenInteractive()
 
             val lastFullFetchMs = weatherRepository.lastNetworkFetchTimeMs
@@ -65,7 +66,7 @@ class WeatherWidgetWorker
             appLogDao.log(
                 "SYNC_START",
                 "uiOnly=$uiOnlyRefresh, force=$forceRefresh, currentOnly=$currentTempOnly, " +
-                    "opportunistic=$opportunisticCurrentTemp, battery=$batteryLevel%, plugged=$isPlugged, " +
+                    "opportunistic=$opportunisticCurrentTemp, battery=$batteryLevel%, plugged=$isPlugged, physicalPlugged=$physicalPlugged, " +
                     "interactive=$isScreenInteractive, reason=$currentTempReason, " +
                     "obsBackfillOnly=$observationBackfillMode, lastFullFetch=${lastFullFetchAge}s ago",
             )
@@ -183,26 +184,15 @@ class WeatherWidgetWorker
                             val uiScheduler = UIUpdateScheduler(context)
                             uiScheduler.scheduleNextUpdate()
 
-                            if (NwsTerminalDayCatchUpPolicy.isInCatchUpWindow(java.time.LocalTime.now())) {
-                                try {
-                                    val db = WeatherDatabase.getDatabase(context)
-                                    val awm = AppWidgetManager.getInstance(context)
-                                    val widgetIds = awm.getAppWidgetIds(
-                                        ComponentName(context, WeatherWidgetProvider::class.java)
-                                    )
-                                    for (wid in widgetIds.toList()) {
-                                        NwsTerminalDayCatchUpScheduler.maybeEnqueueCatchUp(
-                                            context = context,
-                                            database = db,
-                                            stateManager = widgetStateManager,
-                                            appWidgetId = wid,
-                                            lat = location.first,
-                                            lon = location.second,
-                                        )
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to check NWS terminal catch-up after sync", e)
-                                }
+                            try {
+                                NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
+                                    context = context,
+                                    isCharging = isPlugged,
+                                    isScreenInteractive = isScreenInteractive,
+                                    trigger = "full_sync",
+                                )
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to check NWS terminal catch-up after sync", e)
                             }
                         } else {
                             // Even on UI-only, ensure heartbeats are alive
@@ -354,6 +344,12 @@ class WeatherWidgetWorker
                 }
 
                 refreshWidgetsFromCache()
+                NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
+                    context = context,
+                    isCharging = isPlugged,
+                    isScreenInteractive = isScreenInteractive,
+                    trigger = reason,
+                )
                 manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
                 Result.success()
             } catch (e: kotlinx.coroutines.CancellationException) {

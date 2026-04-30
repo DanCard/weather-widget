@@ -1,5 +1,7 @@
 package com.weatherwidget.widget
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.util.Log
 import androidx.work.Constraints
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -46,6 +49,56 @@ object NwsTerminalDayCatchUpScheduler {
         }
     }
 
+    suspend fun evaluateAndMaybeEnqueue(
+        context: Context,
+        isCharging: Boolean,
+        isScreenInteractive: Boolean,
+        trigger: String,
+        now: LocalTime = LocalTime.now(),
+    ) {
+        val inWindow = NwsTerminalDayCatchUpPolicy.isInCatchUpWindow(now)
+        if (!NwsTerminalDayCatchUpPolicy.shouldScheduleCatchUp(isCharging, isScreenInteractive, inWindow)) {
+            WeatherDatabase.getDatabase(context).appLogDao().log(
+                "NWS_TERMINAL_CATCH_UP_EVAL",
+                "trigger=$trigger result=policy_skip charging=$isCharging interactive=$isScreenInteractive inWindow=$inWindow",
+                "INFO",
+            )
+            return
+        }
+
+        val database = WeatherDatabase.getDatabase(context)
+        val latestForecast = database.forecastDao().getLatestWeather()
+        val lat = latestForecast?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
+        val lon = latestForecast?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val widgetIds = appWidgetManager.getAppWidgetIds(
+            ComponentName(context, WeatherWidgetProvider::class.java),
+        )
+
+        database.appLogDao().log(
+            "NWS_TERMINAL_CATCH_UP_EVAL",
+            "trigger=$trigger result=eligible widgetCount=${widgetIds.size} lat=$lat lon=$lon",
+            "INFO",
+        )
+
+        if (widgetIds.isEmpty()) {
+            return
+        }
+
+        val stateManager = WidgetStateManager(context)
+        for (wid in widgetIds) {
+            maybeEnqueueCatchUp(
+                context = context,
+                database = database,
+                stateManager = stateManager,
+                appWidgetId = wid,
+                lat = lat,
+                lon = lon,
+                now = now,
+            )
+        }
+    }
+
     suspend fun maybeEnqueueCatchUp(
         context: Context,
         database: WeatherDatabase,
@@ -53,8 +106,8 @@ object NwsTerminalDayCatchUpScheduler {
         appWidgetId: Int,
         lat: Double,
         lon: Double,
+        now: LocalTime = LocalTime.now(),
     ) {
-        val now = java.time.LocalTime.now()
         if (!NwsTerminalDayCatchUpPolicy.isInCatchUpWindow(now)) {
             return
         }

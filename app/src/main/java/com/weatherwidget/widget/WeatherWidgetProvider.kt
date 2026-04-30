@@ -518,8 +518,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             UIUpdateScheduler(context).scheduleNextUpdate()
             
             val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-            val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
                 CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
@@ -680,8 +679,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private suspend fun restartHeartbeats(context: Context) {
         UIUpdateScheduler(context).scheduleNextUpdate()
         val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
             CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)

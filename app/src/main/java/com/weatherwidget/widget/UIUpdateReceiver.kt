@@ -46,6 +46,20 @@ class UIUpdateReceiver : BroadcastReceiver() {
 
         Log.d(TAG, "UI update alarm triggered")
 
+        val batteryStatus =
+            context.registerReceiver(
+                null,
+                android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED),
+            )
+        val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+
+        NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
+            context = context,
+            isCharging = isCharging,
+            isScreenInteractive = true,
+            trigger = "ui_update_alarm",
+        )
+
         // Trigger UI-only update (no network fetch)
         val workRequest =
             OneTimeWorkRequestBuilder<WeatherWidgetWorker>()

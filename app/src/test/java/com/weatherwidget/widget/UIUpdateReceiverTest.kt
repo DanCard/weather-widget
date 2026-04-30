@@ -13,6 +13,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkConstructor
+import io.mockk.mockkObject
 import io.mockk.mockkStatic
 import io.mockk.unmockkAll
 import io.mockk.verify
@@ -56,6 +57,10 @@ class UIUpdateReceiverTest {
         shadowPowerManager = shadowOf(powerManager)
         mockkConstructor(UIUpdateScheduler::class)
         coEvery { anyConstructed<UIUpdateScheduler>().scheduleNextUpdate() } returns Unit
+        mockkObject(NwsTerminalDayCatchUpScheduler)
+        coEvery {
+            NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(any(), any(), any(), any(), any())
+        } returns Unit
         
         receiver = UIUpdateReceiver()
         // Inject UnconfinedTestDispatcher for synchronous deterministic execution
@@ -85,6 +90,15 @@ class UIUpdateReceiverTest {
                 eq(WeatherWidgetProvider.WORK_NAME_ONE_TIME + "_ui"),
                 eq(ExistingWorkPolicy.REPLACE),
                 any<OneTimeWorkRequest>()
+            )
+        }
+        coVerify(exactly = 1) {
+            NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
+                context = context,
+                isCharging = any(),
+                isScreenInteractive = true,
+                trigger = "ui_update_alarm",
+                now = any(),
             )
         }
         coVerify(exactly = 1) { anyConstructed<UIUpdateScheduler>().scheduleNextUpdate() }

@@ -107,30 +107,15 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 )
                 UIUpdateScheduler(context).scheduleNextUpdate()
 
-                if (battery.isCharging && NwsTerminalDayCatchUpPolicy.isInCatchUpWindow(java.time.LocalTime.now())) {
-                    try {
-                        val db = WeatherDatabase.getDatabase(context)
-                        val latestForecast = db.forecastDao().getLatestWeather()
-                        val lat = latestForecast?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
-                        val lon = latestForecast?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
-                        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
-                        val widgetIds = appWidgetManager.getAppWidgetIds(
-                            android.content.ComponentName(context, WeatherWidgetProvider::class.java)
-                        )
-                        val stateManager = WidgetStateManager(context)
-                        for (wid in widgetIds) {
-                            NwsTerminalDayCatchUpScheduler.maybeEnqueueCatchUp(
-                                context = context,
-                                database = db,
-                                stateManager = stateManager,
-                                appWidgetId = wid,
-                                lat = lat,
-                                lon = lon,
-                            )
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to check NWS terminal catch-up on screen unlock", e)
-                    }
+                try {
+                    NwsTerminalDayCatchUpScheduler.evaluateAndMaybeEnqueue(
+                        context = context,
+                        isCharging = battery.isCharging,
+                        isScreenInteractive = true,
+                        trigger = "screen_unlock",
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to check NWS terminal catch-up on screen unlock", e)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to schedule next update on screen on", e)
@@ -174,10 +159,6 @@ class ScreenOnReceiver : BroadcastReceiver() {
                 context.registerReceiver(null, filter)
             }
 
-        val status = batteryStatus?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
-            status == BatteryManager.BATTERY_STATUS_FULL
-
         val level = batteryStatus?.let { intent ->
             val rawLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
             val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
@@ -189,7 +170,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
         } ?: 100
 
         return BatteryState(
-            isCharging = isCharging,
+            isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus),
             level = level,
         )
     }
