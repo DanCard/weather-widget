@@ -45,9 +45,10 @@ object DailyForecastGraphRenderer {
 
     private const val HIGH_LABEL_OFFSET_DP = 6f
     private const val ICON_BELOW_BAR_SPACING_DP = 3f
-    private const val TEMP_LABEL_SPACING_DP = 1f
+    private const val TEMP_LABEL_SPACING_DP = -1f
     private const val RAIN_TEXT_MARGIN_DP = 4f
-    private const val RAIN_LABEL_EDGE_MARGIN_DP = 2f
+    private const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
+    private const val NIGHT_RAIN_TEMP_OVERLAP_DP = 3f
     private const val ICON_STACK_SPACING_DP = 4f
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
@@ -281,12 +282,14 @@ val forecastHigh: Float? = null,
 
         Log.d(TAG, "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx")
 
+        val daysByColumn = days.withIndex().associate { (i, d) -> (d.columnIndex ?: i) to d }
         days.forEachIndexed { index, day ->
             job?.ensureActive()
             val columnIndex = day.columnIndex ?: index
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
+            val rightNeighbor = daysByColumn[columnIndex + 1]
 
-            drawDayColumn(canvas, context, day, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
+            drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
         }
 
@@ -638,6 +641,7 @@ val forecastHigh: Float? = null,
         canvas: Canvas,
         context: Context,
         day: DayData,
+        rightNeighbor: DayData?,
         centerX: Float,
         layout: LayoutInfo,
         paints: PaintSet,
@@ -680,7 +684,7 @@ val forecastHigh: Float? = null,
         }
 
         drawDailyRainLabel(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
-        drawNightRainLabel(canvas, context, day, centerX, layout, paints, onRainLabelDrawn)
+        drawNightRainLabel(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn)
     }
 
     private fun drawWeatherIcon(canvas: Canvas, context: Context, day: DayData, centerX: Float, iconY: Float, iconSize: Int) {
@@ -955,6 +959,7 @@ val label = day.rainData.dailyRainLabelText ?: return
         canvas: Canvas,
         context: Context,
         day: DayData,
+        rightNeighbor: DayData?,
         centerX: Float,
         layout: LayoutInfo,
         paints: PaintSet,
@@ -1010,22 +1015,25 @@ val label = day.rainData.dailyRainLabelText ?: return
             }
         }
 
-        val lowBaseline = resolveLowLabelBaseline(context, day, layout)
-        if (lowBaseline == null) {
+        val leftBaseline = resolveLowLabelBaseline(context, day, layout)
+        if (leftBaseline == null) {
             Log.d(TAG, "nightRainLabel skipped: no low baseline: date=${day.date} low=${day.low}")
             return
         }
 
+        // For shifted placements the label sits in the gap between this column and the next,
+        // so it must clear whichever neighbor's low-temp label hangs lower (larger Y).
+        val isShifted = placementType == "NIGHT_SHIFTED_RIGHT" || placementType == "NIGHT_SHIFTED_SCALED"
+        val rightBaseline = if (isShifted) {
+            rightNeighbor?.let { resolveLowLabelBaseline(context, it, layout) }
+        } else null
+        val anchorBaseline = maxOf(leftBaseline, rightBaseline ?: leftBaseline)
+
         val metrics = finalPaint.fontMetrics
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
-        
-        // Vertical placement is the same for shifted and in-column: just below the low-temp
-        // label (in the icon-row band), which sits underneath the temp labels and above the
-        // day-of-week labels. The horizontal shift handles "between columns"; this Y handles
-        // "underneath the temp labels."
-        val spacing = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.bitmapScale.coerceAtMost(1f))
-        val topY = lowBaseline + tempMetrics.descent + spacing
+
+        val topY = anchorBaseline + tempMetrics.descent - dpToPx(context, NIGHT_RAIN_TEMP_OVERLAP_DP)
         val baseline = topY - metrics.ascent
 
         val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
@@ -1042,13 +1050,13 @@ val label = day.rainData.dailyRainLabelText ?: return
                     baselineY = baseline,
                     topY = baseline + metrics.ascent,
                     bottomY = baseline + metrics.descent,
-                    anchorBaselineY = lowBaseline,
+                    anchorBaselineY = anchorBaseline,
                 )
             )
             return
         }
 
-        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$baseline hardBottomLimit=$hardBottomLimit descent=${metrics.descent} topY=${baseline + metrics.ascent} lowBaseline=$lowBaseline overflow=${baselineWithMargin - hardBottomLimit}px")
+        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$baseline hardBottomLimit=$hardBottomLimit descent=${metrics.descent} topY=${baseline + metrics.ascent} anchorBaseline=$anchorBaseline leftBaseline=$leftBaseline rightBaseline=$rightBaseline overflow=${baselineWithMargin - hardBottomLimit}px")
     }
 
     private fun createScaledRainPaint(
@@ -1061,7 +1069,8 @@ val label = day.rainData.dailyRainLabelText ?: return
     ): Paint {
         val prob = (probability ?: 0).toFloat() / 100f
         val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
-        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE) * extraScale
+        val nightScale = if (labelType == "night") 0.8f else 1.0f
+        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE) * extraScale * nightScale
         val scaledTextSize = paints.rainTextPaint.textSize * clampedScale
 
         val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
