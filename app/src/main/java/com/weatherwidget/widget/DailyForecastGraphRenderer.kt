@@ -1019,13 +1019,16 @@ val label = day.rainData.dailyRainLabelText ?: return
         val metrics = finalPaint.fontMetrics
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
+        
+        // Vertical placement is the same for shifted and in-column: just below the low-temp
+        // label (in the icon-row band), which sits underneath the temp labels and above the
+        // day-of-week labels. The horizontal shift handles "between columns"; this Y handles
+        // "underneath the temp labels."
         val spacing = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.bitmapScale.coerceAtMost(1f))
         val topY = lowBaseline + tempMetrics.descent + spacing
         val baseline = topY - metrics.ascent
-        
-        // Relaxed bottom limit for night labels: allow them to overlap slightly into the day label area 
-        // if they still fit above the actual day label text baseline.
-        val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX) 
+
+        val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
         val baselineWithMargin = baseline + metrics.descent + dpToPx(context, 1f)
 
         if (baselineWithMargin <= hardBottomLimit) {

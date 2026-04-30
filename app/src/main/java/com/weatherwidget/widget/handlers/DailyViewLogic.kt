@@ -11,6 +11,8 @@ import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.WidgetStateManager
+import com.weatherwidget.widget.DailyActualMap
+import com.weatherwidget.widget.ObservationResolver
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -82,7 +84,7 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
-        dailyActuals: com.weatherwidget.widget.DailyActualMap = emptyMap(),
+        dailyActuals: DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
@@ -284,7 +286,7 @@ object DailyViewLogic {
         stateManager: WidgetStateManager? = null,
         appWidgetId: Int = 0,
         todayNext8HourPrecipProbability: Int? = null,
-        dailyActuals: com.weatherwidget.widget.DailyActualMap = emptyMap(),
+        dailyActuals: DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
         currentTemps: List<com.weatherwidget.data.local.ObservationEntity> = emptyList(),
         currentTemp: Float? = null,
@@ -625,12 +627,8 @@ forecastHigh = fHigh,
         val daysFromToday = ChronoUnit.DAYS.between(today, date)
         if (daysFromToday < 0) return null
 
-        val threshold = 50 + (daysFromToday * 5).toInt()
-        val shouldShow = if (daysFromToday == 0L) {
-            probability > threshold
-        } else {
-            threshold <= 100 && probability >= threshold
-        }
+        val threshold = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)
+        val shouldShow = probability >= threshold
 
         if (!shouldShow) {
             Log.d(TAG, "buildNightRainLabel suppressing label for $date: nightPrecip=$probability threshold=$threshold daysFromToday=$daysFromToday")

@@ -1,17 +1,31 @@
-# Fix Test Failures Plan
+# Plan: Fix Test Failures and Compilation Error
 
-## Objective
-Fix the failing unit test `CloudCoverGraphRendererTest.left edge label is suppressed when nearby lower valley exists`.
+This plan addresses the current test failures and the compilation error introduced during the implementation of the "Shift Night Rain Labels" plan.
 
-## Background & Motivation
-The behavior of `GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel` was updated in commit `01d5e11` to suppress the left edge label if any nearby candidate has a similar value (within 5), rather than checking for a nearby lower valley. The corresponding unit test was not updated to reflect this new logic, causing it to fail.
+## Background
+- The project is shifting to a new precipitation probability threshold formula: `(7.0 / 3.0 * daysFromToday + 16)`.
+- The source code in `DailyForecastIconResolver.kt` and `WeatherIconMapper.kt` was updated to reflect this, but some tests were still expecting the old values (based on a `+ 10` formula).
+- A compilation error was introduced in `DailyViewLogic.kt` where the `probability` variable was removed but still used.
 
-## Implementation Steps
-1. **Update `CloudCoverGraphRendererTest.kt`**:
-   - Rename the test from `left edge label is suppressed when nearby lower valley exists` to `left edge label is suppressed when nearby candidate has a similar value`.
-   - Update the `labelSignal` test data so that a nearby candidate (e.g., at index 2) has a value within 5 units of the left edge value. For example, change `listOf(25, 18, 10, 22, ...)` to `listOf(25, 18, 23, 22, ...)` where `23` is within `5` of `25`.
-   - Ensure the assertion remains `assertTrue(result)`.
+## Proposed Changes
 
-## Verification & Testing
-- Run `./gradlew test --tests "com.weatherwidget.widget.CloudCoverGraphRendererTest.*"` to verify the updated test passes.
-- Ensure all other unit tests continue to pass.
+### 1. Fix Compilation Error
+- **File**: `app/src/main/java/com/weatherwidget/widget/handlers/DailyViewLogic.kt`
+- **Change**: Re-introduce the `probability` variable assignment in `buildNightRainLabel` or use `nightPrecipProbability` directly. I will re-introduce it for better readability and logging as originally intended.
+
+### 2. Standardize Thresholds
+- **File**: `app/src/main/java/com/weatherwidget/util/DailyForecastIconResolver.kt`
+- **Ensure**: `getMinimumPrecipProbabilityDay` uses `+ 16`. (Currently on disk as `+ 16`).
+- **File**: `app/src/main/java/com/weatherwidget/util/WeatherIconMapper.kt`
+- **Ensure**: `getPrecipitationIcon` uses `precipProbability < 16`. (Currently on disk as `16`).
+
+### 3. Update Test Expectations
+- **File**: `app/src/test/java/com/weatherwidget/util/DailyForecastIconResolverTest.kt`
+- **Change**: Update assertions to match the `+ 16` formula.
+- **File**: `app/src/test/java/com/weatherwidget/widget/handlers/DailyViewLogicTest.kt`
+- **Change**: Update assertions to match the `+ 16` formula (e.g., change `19` to `17` for Day 1 suppression tests).
+
+## Verification
+- Run `:app:testShortDebugUnitTestFresh` (Verify `DailyForecastIconResolverTest` and `WeatherIconMapperTest`).
+- Run `:app:testMediumDebugUnitTestFresh` (Verify `DailyViewLogicTest`).
+- Ensure all tests pass and the build is stable.

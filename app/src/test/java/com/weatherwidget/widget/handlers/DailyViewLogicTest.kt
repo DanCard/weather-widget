@@ -512,12 +512,12 @@ class DailyViewLogicTest {
             return result.first { it.date == today }
         }
 
-        assertNull(renderTonight(50).rainData.nightRainLabelText)
-        assertEquals("51%", renderTonight(51).rainData.nightRainLabelText)
+        assertNull(renderTonight(28).rainData.nightRainLabelText)
+        assertEquals("29%", renderTonight(29).rainData.nightRainLabelText)
     }
 
     @Test
-    fun `prepareGraphDays future night rain thresholds increase by five percent per day`() {
+    fun `prepareGraphDays future night rain thresholds follow getMinimumPrecipProbabilityNight`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val tomorrow = today.plusDays(1)
@@ -527,13 +527,13 @@ class DailyViewLogicTest {
                 date = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Clear",
                 precipProbability = 0,
-                nighttimePrecipProbability = 54,
+                nighttimePrecipProbability = 31,
             ),
             day2 to createWeather(
                 date = day2.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Clear",
                 precipProbability = 0,
-                nighttimePrecipProbability = 60,
+                nighttimePrecipProbability = 36,
             ),
         )
 
@@ -551,7 +551,7 @@ class DailyViewLogicTest {
         )
 
         assertNull(result.first { it.date == tomorrow }.rainData.nightRainLabelText)
-        assertEquals("60%", result.first { it.date == day2 }.rainData.nightRainLabelText)
+        assertEquals("36%", result.first { it.date == day2 }.rainData.nightRainLabelText)
     }
 
     @Test
