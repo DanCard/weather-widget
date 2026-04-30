@@ -18,15 +18,17 @@ object DailyForecastIconResolver {
 
     fun getMinimumPrecipProbabilityDay(daysFromToday: Long): Int {
         /*
-            - day 0: 16.0 → 16
-            - day 1: 18.33 → 18
-            - day 2: 20.67 → 20
-            - day 3: 23.0 → 23
-            - day 4: 25.33 → 25
-            - day 5: 27.67 → 27
-            - day 6: 30.0 → 30
-            - day 7: 32.33 → 32
-            - day 8+: 33 (capped)
+            - day 0: 10.0 → 10
+            - day 1: 12.33 → 12
+            - day 2: 14.67 → 14
+            - day 3: 17.0 → 17
+            - day 4: 19.33 → 19
+            - day 5: 21.67 → 21
+            - day 6: 24.0 → 24
+            - day 7: 26.33 → 26
+            - day 8: 28.67 → 28
+            - day 9: 31.0 → 31
+            - day 10+: 33 (capped)
         */
         return (7.0 / 3.0 * daysFromToday + 10).toInt().coerceIn(0, 33)
     }

@@ -618,10 +618,6 @@ forecastHigh = fHigh,
             Log.d(TAG, "buildNightRainLabel skipping past date=$date")
             return null
         }
-        if (dailyRainLabelText != null) {
-            Log.d(TAG, "buildNightRainLabel skipping because day label exists: date=$date dayLabel=$dailyRainLabelText")
-            return null
-        }
         val probability = nightPrecipProbability ?: run {
             Log.d(TAG, "buildNightRainLabel skipping null night precip: date=$date")
             return null

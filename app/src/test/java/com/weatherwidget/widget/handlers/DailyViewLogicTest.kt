@@ -481,7 +481,7 @@ class DailyViewLogicTest {
 
         val futureDay = result.first { it.date == future }
         assertEquals("30%", futureDay.rainData.dailyRainLabelText)
-        assertNull(futureDay.rainData.nightRainLabelText)
+        assertEquals("80%", futureDay.rainData.nightRainLabelText)
     }
 
     @Test

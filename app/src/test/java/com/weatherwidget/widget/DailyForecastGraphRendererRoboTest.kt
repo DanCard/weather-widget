@@ -397,12 +397,12 @@ class DailyForecastGraphRendererRoboTest {
         )
 
         assertEquals(1, labels.size)
-        assertEquals("NIGHT_BELOW_LOW", labels.first().placement)
+        assertEquals("NIGHT_SHIFTED_RIGHT", labels.first().placement)
         assertEquals("65%", labels.first().text)
     }
 
     @Test
-    fun renderGraph_nightRainLabelIsSkippedWhenDayRainLabelExists() {
+    fun renderGraph_nightRainLabelIsDrawnWhenDayRainLabelExists() {
         val labels = renderRainLabels(
             days = listOf(
                 DailyForecastGraphRenderer.DayData(
@@ -418,14 +418,20 @@ class DailyForecastGraphRendererRoboTest {
                     low = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "30%", nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 4),
+                    label = "Tue",
+                    high = 65f,
+                    low = 45f,
+                ),
             ),
-            widthPx = 500,
+            widthPx = 800,
             heightPx = 500,
         )
 
-        assertEquals(1, labels.size)
-        assertEquals("ABOVE_HIGH", labels.first().placement)
-        assertEquals("30%", labels.first().text)
+        assertEquals(2, labels.size)
+        assertTrue(labels.any { it.placement == "ABOVE_HIGH" && it.text == "30%" })
+        assertTrue(labels.any { it.placement == "NIGHT_SHIFTED_RIGHT" && it.text == "65%" })
     }
 
     @Test
@@ -437,7 +443,7 @@ class DailyForecastGraphRendererRoboTest {
                     label = "Mon",
                     high = 70f,
                     low = 50f,
-                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 100, nightRainLabelText = "100000%"),
+                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 100, nightRainLabelText = "100000000000000000000000000000000000000000000000000000%"),
                 ),
             ),
             widthPx = 40,

@@ -164,7 +164,7 @@ class WeatherIconMapperTest {
     fun testGetIconResource_IcePelletsLowProbabilityFallsBackToCloudCover() {
         assertEquals(
             R.drawable.ic_weather_mostly_clear,
-            WeatherIconMapper.getIconResource("Ice Pellets", isNight = false, cloudCover = 5, precipProbability = 15)
+            WeatherIconMapper.getIconResource("Ice Pellets", isNight = false, cloudCover = 5, precipProbability = 5)
         )
     }
 
@@ -249,7 +249,7 @@ class WeatherIconMapperTest {
 
     @Test
     fun testGetIconResource_RainLowProbabilityTrace_ShowsCloudCoverOnly() {
-        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 10, precipProbability = 15)
+        val res = WeatherIconMapper.getIconResource("Rain", isNight = false, cloudCover = 10, precipProbability = 5)
         assertEquals(R.drawable.ic_weather_mostly_clear, res)
     }
 

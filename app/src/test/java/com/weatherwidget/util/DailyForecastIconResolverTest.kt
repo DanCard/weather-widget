@@ -356,7 +356,7 @@ class DailyForecastIconResolverTest {
     )
 
     @Test
-    fun `distant day with 21 percent rain shows cloud icon instead of rain icon`() {
+    fun `distant day with 21 percent rain shows slight chance rain icon`() {
         val distant = today.plusDays(4)
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
@@ -371,7 +371,7 @@ class DailyForecastIconResolverTest {
             longitude = -122.08,
         )
 
-        assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
+        assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 
     @Test
@@ -507,28 +507,28 @@ class DailyForecastIconResolverTest {
     // --- Night threshold formula tests ---
 
     @Test
-    fun `day threshold at day 0 is 16`() {
-        assertEquals(16, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
+    fun `day threshold at day 0 is 10`() {
+        assertEquals(10, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
     }
 
     @Test
-    fun `day threshold at day 3 is 23`() {
-        assertEquals(23, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
+    fun `day threshold at day 3 is 17`() {
+        assertEquals(17, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
     }
 
     @Test
-    fun `day threshold at day 6 is 30`() {
-        assertEquals(30, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
+    fun `day threshold at day 6 is 24`() {
+        assertEquals(24, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
     }
 
     @Test
-    fun `day threshold at day 7 is 32`() {
-        assertEquals(32, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
+    fun `day threshold at day 7 is 26`() {
+        assertEquals(26, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
     }
 
     @Test
-    fun `day threshold caps at 33 for day 8 plus`() {
-        assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(8))
+    fun `day threshold caps at 33 for day 10 plus`() {
+        assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(10))
         assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(100))
     }
 
@@ -565,14 +565,14 @@ class DailyForecastIconResolverTest {
         val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
         val result = DailyForecastIconResolver.shouldSuppressRainIcon(
             icon = icon,
-            dailyPrecipProbability = 20,
+            dailyPrecipProbability = 18,
             daysFromToday = 4,
             isNight = false,
-            dayPrecipProbability = 20,
+            dayPrecipProbability = 18,
             nightPrecipProbability = 15,
         )
-        // day 4: day threshold=25, night threshold=43
-        // day 20 < 25 (suppress), night 15 < 43 (suppress) → both suppress → true
+        // day 4: day threshold=19, night threshold=43
+        // day 18 < 19 (suppress), night 15 < 43 (suppress) → both suppress → true
         assertEquals(true, result)
     }
 
@@ -680,16 +680,16 @@ class DailyForecastIconResolverTest {
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 20,
+                precipProbability = 18,
             ),
             targetDate = day4,
             now = now,
             latitude = 37.42,
             longitude = -122.08,
-            dayPrecipProbability = 20,
+            dayPrecipProbability = 18,
             nightPrecipProbability = 15,
         )
-        // day 4: day threshold=25, night threshold=43
+        // day 4: day threshold=19, night threshold=43
         // both below → suppressed → cloud icon
         assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
     }

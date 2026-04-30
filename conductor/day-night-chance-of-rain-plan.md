@@ -1,44 +1,68 @@
-# Plan: Day/Night Chance of Rain Labels on Daily Graph
+# Plan: Shift Night Rain Labels to Inter-Column Gaps
+
+This plan addresses the request to move nighttime precipitation chance labels in the daily forecast view to the space between day bars, making them more logically associated with the transition between days.
 
 ## Objective
-Enhance the daily forecast graph to distinctly display the day and night chance of rain using the following user-defined rules:
-1. **Day Chance of Rain**: Displayed at the top of the column (above the high temperature).
-2. **Night Chance of Rain**: Displayed at the bottom of the column (below the low temperature).
-3. **Night Visibility Rules**: 
-   - Only shown if the day chance of rain is *not* shown.
-   - Tonight (Day 0) requires > 50% chance.
-   - Each subsequent night increases the threshold by 5% (Tomorrow night > 55%, Day 2 > 60%, etc.).
-4. **Font Scaling**: The font size for the rain labels will progressively shrink the further out the forecast is.
-5. **Header**: The top header rain probability will remain unchanged (it will continue to use the 8-hour lookahead window to act as an "imminent threat" indicator).
+- Allow both day and night rain labels to be displayed for the same day if both are significant.
+- Shift the night rain label horizontally so it sits in the gap between the current day and the next day.
+- Ensure the label is only shifted when there is sufficient room and it won't overflow the widget boundaries.
 
 ## Key Files & Context
-- `app/src/main/java/com/weatherwidget/widget/handlers/DailyViewLogic.kt`: Responsible for computing the label text and enforcing the visibility thresholds.
-- `app/src/main/java/com/weatherwidget/widget/DailyForecastGraphRenderer.kt`: Responsible for rendering the labels on the canvas, handling collision detection, and scaling the fonts.
+- `DailyViewLogic.kt`: Populates the `DayData` and `RainData` for the renderer.
+- `DailyForecastGraphRenderer.kt`: Handles the actual drawing of bars and labels.
+- `RainData`: Data class holding both `dailyRainLabelText` and `nightRainLabelText`.
 
 ## Implementation Steps
 
-### 1. Update `DayData` Model
-- Modify `DayData` in `DailyForecastGraphRenderer.kt` to replace `dailyRainLabelText` with two specific fields: `dayRainLabelText: String?` and `nightRainLabelText: String?`.
+### 1. Update Data Population
+In `DailyViewLogic.kt`, modify `buildNightRainLabel` to remove the suppression check that skips the night label if a day label already exists.
 
-### 2. Update `DailyViewLogic.kt`
-- Modify `buildDailyRainLabel` (or create a new specialized function) to return a `Pair<String?, String?>` representing the day and night labels.
-- **Direct NWS API Values**: For the calculations below, strictly use the direct NWS API period values (`ForecastEntity.daytimePrecipProbability` and `ForecastEntity.nighttimePrecipProbability`) rather than the hourly-derived `dayNightPrecip` values, ensuring Day 2+ rain chances exactly match the NWS 12-hour period predictions.
-- **Day Label Logic**: Keep the existing formatting logic (e.g., showing amount if >= 99%, otherwise percent) using `daytimePrecipProbability`.
-- **Night Label Logic**: 
-  - Only evaluate if the day label is null.
-  - Calculate the dynamic threshold: `val threshold = 50 + (daysFromToday * 5)`.
-  - If `nighttimePrecipProbability > threshold`, set the night label to the formatted percent.
+### 2. Update Renderer Logic
+In `DailyForecastGraphRenderer.kt`, modify `drawNightRainLabel` to:
+- Calculate a potential `shiftedCenterX = centerX + layout.dayWidth / 2f`.
+- Implement a multi-step fitting strategy:
+    1. **Standard Shift**: Try placing at `shiftedCenterX` with standard font size.
+    2. **Scaled Shift**: If it overflows the widget boundary, try a smaller font scale (down to `MIN_RAIN_FONT_SCALE`).
+    3. **Allow Slight Overlap**: Relax the `maxTextWidth` constraint for nighttime labels to allow them to sit between columns even if they slightly encroach on the horizontal padding of the icons.
+    4. **Fallback**: If still impossible, fallback to `NIGHT_CENTERED` or skip if extremely crowded.
+- Use this new horizontal position and potentially adjusted font size for drawing the text.
 
-### 3. Update `DailyForecastGraphRenderer.kt`
-- Update `drawDailyRainLabel` to handle both the top (day) and bottom (night) labels.
-- **Top Placement (Day)**: Attempt to place `dayRainLabelText` above the high temperature label.
-- **Bottom Placement (Night)**: Attempt to place `nightRainLabelText` below the low temperature label or icon.
-- **Progressive Font Scaling**: Calculate a scale factor based on `daysFromToday` (e.g., `val scale = maxOf(0.5f, 1.0f - (day.daysFromToday * 0.08f))`). Apply this scale to `rainTextPaint.textSize` before drawing the labels so they get progressively smaller the further into the future they are.
-- **Collision Detection**: Ensure both labels participate in the `drawnLabelBounds` collision detection to prevent overlapping with other UI elements.
+### 3. Verification & Testing
+- Use a mock location with both day and night rain (e.g., "50% chance of rain during the day, 90% at night").
+- Verify that both labels appear: the day label above the bar and the night label below and to the right of the bar.
+- Test with different column counts (3, 5, 7) to ensure "room" logic works correctly on narrow vs. wide columns.
+- Check 1-column (1x1) widget behavior.
 
-## Verification & Testing
-- **Robolectric Tests**: 
-  - Update `DailyViewLogicTest.kt` (which runs under Robolectric) to verify the dynamic threshold math.
-  - Add test cases ensuring that when `daytimePrecipProbability` is null or doesn't trigger a label, the `nighttimePrecipProbability` is evaluated against the `50 + (daysFromToday * 5)` threshold.
-  - Verify that Day 0 > 50% shows the night label, while Day 1 at 52% does not (since Day 1 threshold is 55%).
-- **Emulator/Visual Check**: Verify that a rainy day shows the chance of rain at the top, while a rainy night (following a clear day) shows the chance of rain at the bottom with a font size that shrinks for later days.
+## Proposed Code Changes
+
+### DailyViewLogic.kt
+```kotlin
+// In buildNightRainLabel
+- if (dailyRainLabelText != null) {
+-     Log.d(TAG, "buildNightRainLabel skipping because day label exists: date=$date dayLabel=$dailyRainLabelText")
+-     return null
+- }
+```
+
+### DailyForecastGraphRenderer.kt
+```kotlin
+// In drawNightRainLabel
+val textWidth = localRainPaint.measureText(rainText)
+val halfWidth = textWidth / 2f
+val shiftedCenterX = centerX + layout.dayWidth / 2f
+
+val (finalCenterX, placementType) = when {
+    shiftedCenterX + halfWidth <= layout.widthPx -> {
+        shiftedCenterX to "NIGHT_SHIFTED_RIGHT"
+    }
+    else -> {
+        centerX to "NIGHT_CENTERED"
+    }
+}
+
+// ... use finalCenterX for drawing ...
+```
+
+## Alignment Check
+- The night label remains vertically positioned below the low temperature stack, avoiding collisions with the day label (above high) or the bars themselves.
+- Shifting to the right boundary correctly places it "between" the bars as requested.

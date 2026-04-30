@@ -959,16 +959,55 @@ val label = day.rainData.dailyRainLabelText ?: return
         layout: LayoutInfo,
         paints: PaintSet,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
-) {
-    if (day.rainData.dailyRainLabelText != null) return
-    val rainText = day.rainData.nightRainLabelText ?: return
-    val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night")
-
-        val textWidth = localRainPaint.measureText(rainText)
-        val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
-        if (textWidth > maxTextWidth) {
-            Log.d(TAG, "nightRainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
-            return
+    ) {
+        val rainText = day.rainData.nightRainLabelText ?: return
+        
+        // Multi-step fitting strategy
+        var currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night")
+        var textWidth = currentPaint.measureText(rainText)
+        val shiftedCenterX = centerX + layout.dayWidth / 2f
+        val halfWidth = textWidth / 2f
+        
+        // 1. Try shifted position with current scale
+        val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx)
+        
+        val finalCenterX: Float
+        val finalPaint: Paint
+        val placementType: String
+        
+        if (canShiftStandard) {
+            finalCenterX = shiftedCenterX
+            finalPaint = currentPaint
+            placementType = "NIGHT_SHIFTED_RIGHT"
+        } else {
+            // 2. Try smaller font scale at shifted position if near boundary
+            val reducedPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", extraScale = 0.85f)
+            val reducedWidth = reducedPaint.measureText(rainText)
+            val reducedHalfWidth = reducedWidth / 2f
+            
+            if (shiftedCenterX + reducedHalfWidth <= layout.widthPx) {
+                finalCenterX = shiftedCenterX
+                finalPaint = reducedPaint
+                placementType = "NIGHT_SHIFTED_SCALED"
+            } else {
+                // 3. Fallback to centered if shifting is impossible (last day)
+                val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
+                if (textWidth > maxTextWidth) {
+                    // Try reduced scale centered
+                    if (reducedWidth <= maxTextWidth) {
+                        finalCenterX = centerX
+                        finalPaint = reducedPaint
+                        placementType = "NIGHT_CENTERED_SCALED"
+                    } else {
+                        Log.d(TAG, "nightRainLabel skipped: text too wide even scaled: date=${day.date} textWidth=${reducedWidth}px maxWidth=${maxTextWidth}px")
+                        return
+                    }
+                } else {
+                    finalCenterX = centerX
+                    finalPaint = currentPaint
+                    placementType = "NIGHT_CENTERED"
+                }
+            }
         }
 
         val lowBaseline = resolveLowLabelBaseline(context, day, layout)
@@ -977,21 +1016,36 @@ val label = day.rainData.dailyRainLabelText ?: return
             return
         }
 
-        val metrics = localRainPaint.fontMetrics
+        val metrics = finalPaint.fontMetrics
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
         val spacing = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.bitmapScale.coerceAtMost(1f))
         val topY = lowBaseline + tempMetrics.descent + spacing
         val baseline = topY - metrics.ascent
-        val bottomLimit = layout.heightPx - layout.dayLabelHeight - dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP * layout.bitmapScale.coerceAtMost(1f))
+        
+        // Relaxed bottom limit for night labels: allow them to overlap slightly into the day label area 
+        // if they still fit above the actual day label text baseline.
+        val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX) 
+        val baselineWithMargin = baseline + metrics.descent + dpToPx(context, 1f)
 
-        if (baseline + metrics.descent <= bottomLimit) {
-            canvas.drawText(rainText, centerX, baseline, localRainPaint)
-            onRainLabelDrawn?.invoke(RainLabelDrawnDebug(day.date, rainText, "NIGHT_BELOW_LOW", centerX, baseline))
+        if (baselineWithMargin <= hardBottomLimit) {
+            canvas.drawText(rainText, finalCenterX, baseline, finalPaint)
+            onRainLabelDrawn?.invoke(
+                RainLabelDrawnDebug(
+                    date = day.date,
+                    text = rainText,
+                    placement = placementType,
+                    centerX = finalCenterX,
+                    baselineY = baseline,
+                    topY = baseline + metrics.ascent,
+                    bottomY = baseline + metrics.descent,
+                    anchorBaselineY = lowBaseline,
+                )
+            )
             return
         }
 
-        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$baseline bottomLimit=$bottomLimit descent=${metrics.descent} overflow=${baseline + metrics.descent - bottomLimit}px")
+        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$baseline hardBottomLimit=$hardBottomLimit descent=${metrics.descent} topY=${baseline + metrics.ascent} lowBaseline=$lowBaseline overflow=${baselineWithMargin - hardBottomLimit}px")
     }
 
     private fun createScaledRainPaint(
@@ -1000,11 +1054,13 @@ val label = day.rainData.dailyRainLabelText ?: return
         day: DayData,
         probability: Int?,
         labelType: String,
+        extraScale: Float = 1.0f,
     ): Paint {
-        val prob = (probability ?: 0) / 100f
+        val prob = (probability ?: 0).toFloat() / 100f
         val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
-        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE)
+        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE) * extraScale
         val scaledTextSize = paints.rainTextPaint.textSize * clampedScale
+
         val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
         Log.d(TAG, "rainFont: type=$labelType date=${day.date} daysFromToday=${day.daysFromToday} prob=$probability% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${paints.rainTextPaint.textSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
 
