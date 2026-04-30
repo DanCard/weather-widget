@@ -880,7 +880,7 @@ val label = day.rainData.dailyRainLabelText ?: return
             else -> paints.tempTextPaint
         }
         val tempMetrics = textMetrics(tempPaint)
-        val topMargin = layout.graphTop * 0.5f
+        val topMargin = layout.graphTop * 0.2f
         val gap = dpToPx(context, 0.5f * layout.bitmapScale.coerceAtMost(1f))
         val placement = resolveRainAboveHighPlacement(
             highBaseline = highBaseline,

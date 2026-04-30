@@ -271,9 +271,10 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
-    fun renderGraph_hidesRainLabelWhenItCrossesTopFiftyPercentOfHeader() {
+    fun renderGraph_drawsRainLabelInHeaderSpaceWhenHighTempIsNearTop() {
         // At 100px height, high temp at 100f is forced to graphTop (54px).
-        // The rain label would sit around 20-30px from top, which is < 27px (50% of 54px).
+        // The rain label sits around 20-30px from top. With topMargin = graphTop * 0.2f (~11px),
+        // the label fits in the header space above the graph area.
         val labels = renderRainLabels(
             days = listOf(
                 DailyForecastGraphRenderer.DayData(
@@ -288,7 +289,8 @@ class DailyForecastGraphRendererRoboTest {
             heightPx = 100,
         )
 
-        assertTrue("Rain label should be hidden when it crosses into the top forbidden zone", labels.isEmpty())
+        assertEquals("Rain label should be drawn in header space", 1, labels.size)
+        assertEquals("65%", labels.first().text)
     }
 
     @Test
@@ -353,7 +355,7 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
-    fun renderGraph_rainLabelIsNotMovedBelowLowWhenTopSpaceIsTight() {
+    fun renderGraph_rainLabelIsDrawnAboveHighWhenTopSpaceIsTight() {
         val labels = renderRainLabels(
             days = listOf(
                 DailyForecastGraphRenderer.DayData(
@@ -369,9 +371,10 @@ class DailyForecastGraphRendererRoboTest {
         )
 
         assertTrue(
-            "When top space is tight, rain label should be omitted, NOT drawn below low. size=${labels.size}",
-            labels.isEmpty()
+            "Rain label should be drawn above high when header space is available. size=${labels.size}",
+            labels.isNotEmpty()
         )
+        assertEquals("ABOVE_HIGH", labels.first().placement)
     }
 
     @Test
