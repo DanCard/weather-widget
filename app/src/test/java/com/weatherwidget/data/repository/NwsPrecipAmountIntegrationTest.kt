@@ -75,18 +75,21 @@ class NwsPrecipAmountIntegrationTest {
         val zoneId = ZoneId.systemDefault()
 
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        coEvery { nwsApi.getSkyCover(gridPoint) } returns emptyMap()
-        coEvery { nwsApi.getQuantitativePrecipitation(gridPoint) } returns listOf(
-            NwsApi.QuantitativePrecipitationInterval(
-                startTime = tomorrow.atStartOfDay(zoneId).toInstant().toEpochMilli(),
-                endTime = tomorrow.atStartOfDay(zoneId).plusHours(6).toInstant().toEpochMilli(),
-                amountMm = 6f,
+        coEvery { nwsApi.getGridpointsBundle(gridPoint) } returns NwsApi.GridpointsBundle(
+            skyCoverByHour = emptyMap(),
+            qpfIntervals = listOf(
+                NwsApi.QuantitativePrecipitationInterval(
+                    startTime = tomorrow.atStartOfDay(zoneId).toInstant().toEpochMilli(),
+                    endTime = tomorrow.atStartOfDay(zoneId).plusHours(6).toInstant().toEpochMilli(),
+                    amountMm = 6f,
+                ),
+                NwsApi.QuantitativePrecipitationInterval(
+                    startTime = tomorrow.atStartOfDay(zoneId).plusHours(6).toInstant().toEpochMilli(),
+                    endTime = tomorrow.atStartOfDay(zoneId).plusHours(12).toInstant().toEpochMilli(),
+                    amountMm = 12f,
+                ),
             ),
-            NwsApi.QuantitativePrecipitationInterval(
-                startTime = tomorrow.atStartOfDay(zoneId).plusHours(6).toInstant().toEpochMilli(),
-                endTime = tomorrow.atStartOfDay(zoneId).plusHours(12).toInstant().toEpochMilli(),
-                amountMm = 12f,
-            ),
+            dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
         )
         coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
             NwsApi.ForecastPeriod(
@@ -184,8 +187,11 @@ class NwsPrecipAmountIntegrationTest {
         val gridPoint = NwsApi.GridPointInfo("MTR", 85, 105, "https://example.com/forecast")
 
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        coEvery { nwsApi.getSkyCover(gridPoint) } returns emptyMap()
-        coEvery { nwsApi.getQuantitativePrecipitation(gridPoint) } returns emptyList()
+        coEvery { nwsApi.getGridpointsBundle(gridPoint) } returns NwsApi.GridpointsBundle(
+            skyCoverByHour = emptyMap(),
+            qpfIntervals = emptyList(),
+            dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
+        )
         coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
             NwsApi.ForecastPeriod(
                 name = "Tonight",
@@ -257,8 +263,11 @@ class NwsPrecipAmountIntegrationTest {
         val zoneId = ZoneId.systemDefault()
 
         coEvery { nwsApi.getGridPoint(testLat, testLon) } returns gridPoint
-        coEvery { nwsApi.getSkyCover(gridPoint) } returns emptyMap()
-        coEvery { nwsApi.getQuantitativePrecipitation(gridPoint) } returns emptyList()
+        coEvery { nwsApi.getGridpointsBundle(gridPoint) } returns NwsApi.GridpointsBundle(
+            skyCoverByHour = emptyMap(),
+            qpfIntervals = emptyList(),
+            dailyTemperatures = NwsApi.DailyTemperatureExtremes(emptyMap(), emptyMap()),
+        )
         coEvery { nwsApi.getForecast(gridPoint) } returns listOf(
             NwsApi.ForecastPeriod(
                 name = "Tomorrow",
