@@ -3,6 +3,7 @@ package com.weatherwidget.data.repository
 import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -74,6 +75,42 @@ class ForecastRepositoryPhantomDayTest {
         val map = mutableMapOf<String, Pair<Float?, Float?>>()
         NwsForecastMapper.removePhantomFutureDays(map, today)
         assertTrue(map.isEmpty())
+    }
+
+    @Test
+    fun `applyForecastPeriods fills temperature nulls left by gridpoints`() {
+        val acc = NwsForecastMapper.NwsDayAccumulator()
+        acc.temperatureMap["2026-04-23"] = (72.6f to null)
+
+        NwsForecastMapper.applyForecastPeriods(
+            forecastPeriods = listOf(
+                NwsApi.ForecastPeriod(
+                    name = "Thursday",
+                    startTime = "2026-04-23T06:00:00-07:00",
+                    endTime = "2026-04-23T18:00:00-07:00",
+                    temperature = 73,
+                    temperatureUnit = "F",
+                    shortForecast = "Sunny",
+                    isDaytime = true,
+                ),
+                NwsApi.ForecastPeriod(
+                    name = "Thursday Night",
+                    startTime = "2026-04-23T18:00:00-07:00",
+                    endTime = "2026-04-24T06:00:00-07:00",
+                    temperature = 48,
+                    temperatureUnit = "F",
+                    shortForecast = "Mostly Clear",
+                    isDaytime = false,
+                ),
+            ),
+            todayDateString = "2026-04-17",
+            acc = acc,
+        )
+
+        assertEquals(72.6f, acc.temperatureMap["2026-04-23"]?.first)
+        assertNull(acc.highTempSourceMap["2026-04-23"])
+        assertEquals(48f, acc.temperatureMap["2026-04-24"]?.second)
+        assertEquals("FCST:Thursday Night@2026-04-23T18:00:00-07:00", acc.lowTempSourceMap["2026-04-24"])
     }
 
     @Test

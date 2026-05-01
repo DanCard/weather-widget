@@ -108,21 +108,25 @@ class NwsForecastMapper @Inject constructor(
         initPrecipFromHourly(hourlyPeriods, todayDate, acc.precipProbabilityMap, acc.precipAmountMap)
         initConditionsFromHourly(hourlyPeriods, acc.conditionMap, acc.conditionSourceMap)
 
+        val gridMergedDates = mergeGridpointTemperatures(
+            acc.temperatureMap, gridDailyTemps, todayDate,
+            highTempSourceMap = acc.highTempSourceMap,
+            lowTempSourceMap = acc.lowTempSourceMap,
+        )
+        if (gridMergedDates.isNotEmpty()) {
+            val detail = gridMergedDates.sorted().joinToString(",") { d ->
+                val (h, l) = acc.temperatureMap[d] ?: (null to null)
+                "$d:h=${h}/l=${l}"
+            }
+            appLogDao.log("NWS_GRID_TEMP_PRIMARY", "dates=${gridMergedDates.size} $detail")
+        }
+
         val todayForecastPeriods = applyForecastPeriods(
             forecastPeriods, todayDateString, acc
         )
         logTodayDiagnostics(
             todayDateString, todayForecastPeriods, acc
         )
-
-        val gridMergedDates = mergeGridpointTemperatures(acc.temperatureMap, gridDailyTemps, todayDate)
-        if (gridMergedDates.isNotEmpty()) {
-            val detail = gridMergedDates.sorted().joinToString(",") { d ->
-                val (h, l) = acc.temperatureMap[d] ?: (null to null)
-                "$d:h=${h}/l=${l}"
-            }
-            appLogDao.log("NWS_GRID_TEMP_MERGE", "filled=${gridMergedDates.size} $detail")
-        }
 
         val preservedTerminalLowOnlyDay = removePhantomFutureDays(acc.temperatureMap, todayDate)
         preservedTerminalLowOnlyDay?.let { (date, lowTemp) ->
@@ -288,8 +292,11 @@ class NwsForecastMapper @Inject constructor(
                     }
                 }
                 val currentTemps = acc.temperatureMap[dateString] ?: (null to null)
-                acc.temperatureMap[dateString] = period.temperature.toFloat() to currentTemps.second
-                acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                val newHigh = currentTemps.first ?: period.temperature.toFloat()
+                acc.temperatureMap[dateString] = newHigh to currentTemps.second
+                if (currentTemps.first == null) {
+                    acc.highTempSourceMap[dateString] = "FCST:${period.name}@${period.startTime}"
+                }
                 acc.periodTimeMap[dateString] = period.startTime to period.endTime
             } else {
                 period.precipProbability?.let { probability ->
@@ -297,8 +304,11 @@ class NwsForecastMapper @Inject constructor(
                 }
                 val lowDateString = extractNwsForecastDate(period.endTime) ?: dateString
                 val currentLowTemps = acc.temperatureMap[lowDateString] ?: (null to null)
-                acc.temperatureMap[lowDateString] = currentLowTemps.first to period.temperature.toFloat()
-                acc.lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
+                val newLow = currentLowTemps.second ?: period.temperature.toFloat()
+                acc.temperatureMap[lowDateString] = currentLowTemps.first to newLow
+                if (currentLowTemps.second == null) {
+                    acc.lowTempSourceMap[lowDateString] = "FCST:${period.name}@${period.startTime}"
+                }
             }
 
             if (acc.conditionMap[dateString] == null) {
@@ -320,6 +330,8 @@ class NwsForecastMapper @Inject constructor(
             extremes: NwsApi.DailyTemperatureExtremes,
             today: LocalDate,
             horizonDays: Int = 8,
+            highTempSourceMap: MutableMap<String, String>? = null,
+            lowTempSourceMap: MutableMap<String, String>? = null,
         ): Set<String> {
             val changed = mutableSetOf<String>()
             val maxDate = today.plusDays((horizonDays - 1).toLong())
@@ -328,10 +340,14 @@ class NwsForecastMapper @Inject constructor(
                 val date = runCatching { LocalDate.parse(dateString) }.getOrNull() ?: continue
                 if (date.isBefore(today) || date.isAfter(maxDate)) continue
                 val current = temperatureMap[dateString] ?: (null to null)
+                val highFromGrid = current.first == null && extremes.maxByDate.containsKey(dateString)
+                val lowFromGrid = current.second == null && extremes.minByDate.containsKey(dateString)
                 val newHigh = current.first ?: extremes.maxByDate[dateString]
                 val newLow = current.second ?: extremes.minByDate[dateString]
                 if (newHigh != current.first || newLow != current.second) {
                     temperatureMap[dateString] = newHigh to newLow
+                    if (highFromGrid) highTempSourceMap?.put(dateString, "GRID:max")
+                    if (lowFromGrid) lowTempSourceMap?.put(dateString, "GRID:min")
                     changed.add(dateString)
                 }
             }

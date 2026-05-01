@@ -144,4 +144,60 @@ class NwsForecastMapperGridpointMergeTest {
         assertEquals(70f, map["2026-05-04"]!!.first)
         assertNull(map["2026-05-05"])
     }
+
+    @Test
+    fun `source tracking records GRID source for highs and lows`() {
+        val map = mutableMapOf<String, Pair<Float?, Float?>>()
+        val highSources = mutableMapOf<String, String>()
+        val lowSources = mutableMapOf<String, String>()
+        NwsForecastMapper.mergeGridpointTemperatures(
+            map,
+            extremes(
+                max = mapOf("2026-05-01" to 78f),
+                min = mapOf("2026-05-01" to 52f),
+            ),
+            today,
+            highTempSourceMap = highSources,
+            lowTempSourceMap = lowSources,
+        )
+        assertEquals(78f, map["2026-05-01"]!!.first)
+        assertEquals(52f, map["2026-05-01"]!!.second)
+        assertEquals("GRID:max", highSources["2026-05-01"])
+        assertEquals("GRID:min", lowSources["2026-05-01"])
+    }
+
+    @Test
+    fun `source tracking does not overwrite existing forecast source`() {
+        val map = mutableMapOf<String, Pair<Float?, Float?>>(
+            "2026-05-01" to (75f to null),
+        )
+        val highSources = mutableMapOf("2026-05-01" to "FCST:Today@2026-05-01T06:00")
+        val lowSources = mutableMapOf<String, String>()
+        NwsForecastMapper.mergeGridpointTemperatures(
+            map,
+            extremes(
+                max = mapOf("2026-05-01" to 80f),
+                min = mapOf("2026-05-01" to 50f),
+            ),
+            today,
+            highTempSourceMap = highSources,
+            lowTempSourceMap = lowSources,
+        )
+        assertEquals(75f, map["2026-05-01"]!!.first)
+        assertEquals(50f, map["2026-05-01"]!!.second)
+        assertEquals("FCST:Today@2026-05-01T06:00", highSources["2026-05-01"])
+        assertEquals("GRID:min", lowSources["2026-05-01"])
+    }
+
+    @Test
+    fun `source tracking null maps are ignored without error`() {
+        val map = mutableMapOf<String, Pair<Float?, Float?>>()
+        NwsForecastMapper.mergeGridpointTemperatures(
+            map,
+            extremes(max = mapOf("2026-05-01" to 78f), min = mapOf("2026-05-01" to 52f)),
+            today,
+        )
+        assertEquals(78f, map["2026-05-01"]!!.first)
+        assertEquals(52f, map["2026-05-01"]!!.second)
+    }
 }
