@@ -421,6 +421,15 @@ object DailyViewLogic {
                 dayNightPrecip?.nightMax
             }
 
+            val cloudCoverRatioOverride =
+                resolveNoonCloudCoverRatio(
+                    date = date,
+                    hourlyForecasts = hourlyForecasts,
+                    displaySource = displaySource,
+                    weatherSourceId = weather?.source,
+                )
+            val cloudCoverPercent = cloudCoverRatioOverride?.let { (it * 100).toInt() }
+
             val iconRes =
                 when {
                     weather != null ->
@@ -432,6 +441,7 @@ object DailyViewLogic {
                             longitude = weather.locationLon,
                             dayPrecipProbability = dayPrecipForIcon,
                             nightPrecipProbability = nightPrecipForIcon,
+                            cloudCover = cloudCoverPercent,
                         )
                     actual != null -> WeatherIconMapper.getIconResource(
                         condition = actual.condition,
@@ -442,17 +452,10 @@ object DailyViewLogic {
                         precipProbability = null,
                     )
                 }
-
+            
             val rawRainSummary = if (!isPastDate) {
                 rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
-            val cloudCoverRatioOverride =
-                resolveNoonCloudCoverRatio(
-                    date = date,
-                    hourlyForecasts = hourlyForecasts,
-                    displaySource = displaySource,
-                    weatherSourceId = weather?.source,
-                )
             
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             val hasRainForecast = DayClickHelper.hasRainForecast(rawRainSummary, precip)

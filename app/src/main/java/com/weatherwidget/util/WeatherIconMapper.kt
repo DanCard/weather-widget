@@ -70,7 +70,7 @@ object WeatherIconMapper {
                 cloudCover != null &&
                 cloudCover < FULLY_CLOUDY_THRESHOLD
         
-        return when {
+        val result = when {
             normalizedCondition.contains("thunder") || normalizedCondition.contains("storm") || normalizedCondition.contains("hail") -> {
                 val effectiveProb = precipProbability ?: if (isSlightChance) 20 else null
                 getPrecipitationIcon(isNight, cloudCover, effectiveProb, R.drawable.ic_weather_storm)
@@ -104,6 +104,7 @@ object WeatherIconMapper {
             }
             normalizedCondition.contains("(25%)") || normalizedCondition.contains("mostly clear") || normalizedCondition.contains("mostly sunny") || normalizedCondition.contains("partly sunny") -> {
                 if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight && cloudCover != null && cloudCover > 25) getCloudCoverIcon(true, cloudCover)
                 else if (isNight) R.drawable.ic_weather_night else R.drawable.ic_weather_mostly_clear
             }
             normalizedCondition.contains("partly") -> {
@@ -124,15 +125,19 @@ object WeatherIconMapper {
                 "clear",
             ) || normalizedCondition.contains("sunny") || normalizedCondition.contains("fair") || normalizedCondition.contains("observed") -> {
                 if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight && cloudCover != null && cloudCover > 25) getCloudCoverIcon(true, cloudCover)
                 else if (isNight) R.drawable.ic_weather_night
                 else R.drawable.ic_weather_clear
             }
             else -> {
                 if (isSunBoundary) R.drawable.ic_weather_horizon_sun
+                else if (isNight && cloudCover != null && cloudCover > 25) getCloudCoverIcon(true, cloudCover)
                 else if (isNight) R.drawable.ic_weather_night
                 else R.drawable.ic_weather_clear
             }
         }
+        android.util.Log.d("WeatherIconMapper", "getIconResource: condition=$lowerCondition isNight=$isNight cloudCover=$cloudCover -> ${if (result == R.drawable.ic_weather_night) "ic_weather_night" else if (result == R.drawable.ic_weather_partly_cloudy_night) "ic_weather_partly_cloudy_night" else "icon=$result"}")
+        return result
     }
 
     private fun getPrecipitationIcon(

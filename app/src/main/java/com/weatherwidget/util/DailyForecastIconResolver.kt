@@ -104,6 +104,7 @@ object DailyForecastIconResolver {
         longitude: Double,
         dayPrecipProbability: Int? = null,
         nightPrecipProbability: Int? = null,
+        cloudCover: Int? = null,
     ): Int {
         if (weather == null) return R.drawable.ic_weather_unknown
 
@@ -113,9 +114,9 @@ object DailyForecastIconResolver {
 
         val nativeToken = weather.nativeDailyIconToken?.trim().orEmpty()
         if (nativeToken.isNotEmpty()) {
-            resolveNativeTokenIcon(weather, source, nativeToken, targetDate, now, latitude, longitude)?.let { icon ->
+            resolveNativeTokenIcon(weather, source, nativeToken, targetDate, now, latitude, longitude, cloudCover)?.let { icon ->
                 if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight, dayPrecipProbability, nightPrecipProbability)) {
-                    return WeatherIconMapper.getCloudCoverIcon(isNight, null)
+                    return WeatherIconMapper.getCloudCoverIcon(isNight, cloudCover)
                 }
                 return icon
             }
@@ -124,11 +125,12 @@ object DailyForecastIconResolver {
         val icon = WeatherIconMapper.getIconResource(
             condition = weather.condition,
             isNight = isNight,
+            cloudCover = cloudCover,
             precipProbability = weather.precipProbability,
         )
 
         if (shouldSuppressRainIcon(icon, weather.precipProbability, daysFromToday, isNight, dayPrecipProbability, nightPrecipProbability)) {
-            return WeatherIconMapper.getCloudCoverIcon(isNight, null)
+            return WeatherIconMapper.getCloudCoverIcon(isNight, cloudCover)
         }
 
         return icon
@@ -164,6 +166,7 @@ object DailyForecastIconResolver {
         now: LocalDateTime,
         latitude: Double,
         longitude: Double,
+        cloudCover: Int? = null,
     ): Int? {
         return when (source) {
             WeatherSource.OPEN_METEO -> nativeToken.toIntOrNull()?.let { code ->
@@ -171,6 +174,7 @@ object DailyForecastIconResolver {
                 WeatherIconMapper.getIconResource(
                     condition = OpenMeteoConditionMapper.toCondition(code),
                     isNight = isNight,
+                    cloudCover = cloudCover,
                     precipProbability = weather.precipProbability,
                 )
             }
@@ -183,6 +187,7 @@ object DailyForecastIconResolver {
                 WeatherIconMapper.getIconResource(
                     condition = TomorrowIoConditionMapper.toCondition(code),
                     isNight = isNight,
+                    cloudCover = cloudCover,
                     precipProbability = weather.precipProbability,
                 )
             }
@@ -191,6 +196,7 @@ object DailyForecastIconResolver {
                 WeatherIconMapper.getIconResource(
                     condition = nativeToken,
                     isNight = isNight,
+                    cloudCover = cloudCover,
                     precipProbability = weather.precipProbability,
                 )
             }

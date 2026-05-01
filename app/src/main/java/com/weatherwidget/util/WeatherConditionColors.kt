@@ -52,8 +52,8 @@ object WeatherConditionColors {
             R.drawable.ic_weather_fog_sunny -> 0.15f
             R.drawable.ic_weather_fog_light,
             R.drawable.ic_weather_fog_light_night -> 0.30f
-            R.drawable.ic_weather_partly_cloudy,
-            R.drawable.ic_weather_partly_cloudy_night -> 0.35f
+            R.drawable.ic_weather_partly_cloudy -> 0.35f
+            R.drawable.ic_weather_partly_cloudy_night -> 0.25f
             R.drawable.ic_weather_partly_cloudy_slight_chance_rain,
             R.drawable.ic_weather_partly_cloudy_slight_chance_rain_night -> 0.38f
             R.drawable.ic_weather_partly_cloudy_chance_rain,
