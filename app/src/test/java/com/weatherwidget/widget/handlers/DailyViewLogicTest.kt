@@ -485,7 +485,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `prepareGraphDays tonight rain label requires greater than 50 percent`() {
+    fun `prepareGraphDays tonight rain label requires greater than 0 percent`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
 
@@ -512,8 +512,8 @@ class DailyViewLogicTest {
             return result.first { it.date == today }
         }
 
-        assertNull(renderTonight(28).rainData.nightRainLabelText)
-        assertEquals("29%", renderTonight(29).rainData.nightRainLabelText)
+        assertNull(renderTonight(-1).rainData.nightRainLabelText)
+        assertEquals("1%", renderTonight(1).rainData.nightRainLabelText)
     }
 
     @Test
@@ -527,13 +527,13 @@ class DailyViewLogicTest {
                 date = tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Clear",
                 precipProbability = 0,
-                nighttimePrecipProbability = 31,
+                nighttimePrecipProbability = 4,
             ),
             day2 to createWeather(
                 date = day2.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Clear",
                 precipProbability = 0,
-                nighttimePrecipProbability = 36,
+                nighttimePrecipProbability = 10,
             ),
         )
 
@@ -550,8 +550,10 @@ class DailyViewLogicTest {
             hourlyForecasts = emptyList(),
         )
 
+        // day 1: threshold=5. 4 < 5 -> null
         assertNull(result.first { it.date == tomorrow }.rainData.nightRainLabelText)
-        assertEquals("36%", result.first { it.date == day2 }.rainData.nightRainLabelText)
+        // day 2: threshold=10. 10 >= 10 -> "10%"
+        assertEquals("10%", result.first { it.date == day2 }.rainData.nightRainLabelText)
     }
 
     @Test
@@ -935,7 +937,7 @@ class DailyViewLogicTest {
             future to createWeather(
                 date = future.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 11,
+                precipProbability = 4,
             ),
         )
 
@@ -1199,7 +1201,7 @@ class DailyViewLogicTest {
             nearTerm to createWeather(
                 date = nearTerm.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 13,
+                precipProbability = 9,
             ),
         )
 
@@ -1289,7 +1291,7 @@ class DailyViewLogicTest {
             day3 to createWeather(
                 date = day3.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 16,
+                precipProbability = 14,
             ),
         )
 

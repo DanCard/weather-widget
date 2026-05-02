@@ -587,7 +587,7 @@ forecastHigh = fHigh,
             Log.d(TAG, "buildDailyRainLabel skipping today: date=$date dailyPrecip=$dailyPrecipProbability precipAmount=$precipAmountMm")
             return null
         }
-        val daysFromToday = ChronoUnit.DAYS.between(today, date)
+        val daysFromToday = ChronoUnit.DAYS.between(today, date).toInt()
         val dayMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityDay(daysFromToday)
         val nightMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)
         val dayPrecip = dayPrecipProbability ?: precipProbability ?: dailyPrecipProbability
@@ -626,7 +626,7 @@ forecastHigh = fHigh,
             Log.d(TAG, "buildNightRainLabel skipping null night precip: date=$date")
             return null
         }
-        val daysFromToday = ChronoUnit.DAYS.between(today, date)
+        val daysFromToday = ChronoUnit.DAYS.between(today, date).toInt()
         if (daysFromToday < 0) return null
 
         val threshold = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)

@@ -507,55 +507,55 @@ class DailyForecastIconResolverTest {
     // --- Night threshold formula tests ---
 
     @Test
-    fun `day threshold at day 0 is 10`() {
-        assertEquals(10, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
+    fun `day threshold at day 0 is 0`() {
+        assertEquals(0, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
     }
 
     @Test
-    fun `day threshold at day 3 is 17`() {
-        assertEquals(17, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
+    fun `day threshold at day 3 is 15`() {
+        assertEquals(15, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
     }
 
     @Test
-    fun `day threshold at day 6 is 24`() {
-        assertEquals(24, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
+    fun `day threshold at day 6 is 30`() {
+        assertEquals(30, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
     }
 
     @Test
-    fun `day threshold at day 7 is 26`() {
-        assertEquals(26, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
+    fun `day threshold at day 7 is 35`() {
+        assertEquals(35, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
     }
 
     @Test
-    fun `day threshold caps at 33 for day 10 plus`() {
-        assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(10))
-        assertEquals(33, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(100))
+    fun `day threshold is 50 for day 10 plus`() {
+        assertEquals(50, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(10))
+        assertEquals(500, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(100))
     }
 
     @Test
-    fun `night threshold at day 0 is 29`() {
-        assertEquals(29, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(0))
+    fun `night threshold at day 0 is 0`() {
+        assertEquals(0, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(0))
     }
 
     @Test
-    fun `night threshold at day 1 is 32`() {
-        assertEquals(32, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(1))
+    fun `night threshold at day 1 is 5`() {
+        assertEquals(5, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(1))
     }
 
     @Test
-    fun `night threshold at day 3 is 39`() {
-        assertEquals(39, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(3))
+    fun `night threshold at day 3 is 15`() {
+        assertEquals(15, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(3))
     }
 
     @Test
-    fun `night threshold at day 6 is 50`() {
-        assertEquals(50, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(6))
+    fun `night threshold at day 6 is 30`() {
+        assertEquals(30, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(6))
     }
 
     @Test
-    fun `night threshold caps at 51 for day 7 plus`() {
-        assertEquals(51, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(7))
-        assertEquals(51, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(100))
+    fun `night threshold is 50 for day 10 plus`() {
+        assertEquals(50, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(10))
+        assertEquals(500, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(100))
     }
 
     // --- OR logic: suppression tests with shouldSuppressRainIcon ---
@@ -571,8 +571,8 @@ class DailyForecastIconResolverTest {
             dayPrecipProbability = 18,
             nightPrecipProbability = 15,
         )
-        // day 4: day threshold=19, night threshold=43
-        // day 18 < 19 (suppress), night 15 < 43 (suppress) → both suppress → true
+        // day 4: day threshold=19, night threshold=19
+        // day 18 < 19 (suppress), night 15 < 19 (suppress) → both suppress → true
         assertEquals(true, result)
     }
 
@@ -587,8 +587,8 @@ class DailyForecastIconResolverTest {
             dayPrecipProbability = 30,
             nightPrecipProbability = 10,
         )
-        // day 4: day threshold=25, night threshold=43
-        // day 30 >= 25 (show), night 10 < 43 (suppress) → OR → false (not suppressed)
+        // day 4: day threshold=19, night threshold=19
+        // day 30 >= 19 (show), night 10 < 19 (suppress) → OR → false (not suppressed)
         assertEquals(false, result)
     }
 
@@ -600,11 +600,11 @@ class DailyForecastIconResolverTest {
             dailyPrecipProbability = 20,
             daysFromToday = 4,
             isNight = false,
-            dayPrecipProbability = 20,
+            dayPrecipProbability = 15,
             nightPrecipProbability = 48,
         )
-        // day 4: day threshold=25, night threshold=43
-        // day 20 < 25 (suppress), night 48 >= 43 (show) → OR → false (not suppressed)
+        // day 4: day threshold=19, night threshold=19
+        // day 15 < 19 (suppress), night 48 >= 19 (show) → OR → false (not suppressed)
         assertEquals(false, result)
     }
 
@@ -619,7 +619,7 @@ class DailyForecastIconResolverTest {
             dayPrecipProbability = 30,
             nightPrecipProbability = 35,
         )
-        // day 2: day threshold=20, night threshold=27
+        // day 2: day threshold=14, night threshold=14
         // both pass → not suppressed
         assertEquals(false, result)
     }
@@ -629,14 +629,14 @@ class DailyForecastIconResolverTest {
         val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
         val result = DailyForecastIconResolver.shouldSuppressRainIcon(
             icon = icon,
-            dailyPrecipProbability = 30,
+            dailyPrecipProbability = 20,
             daysFromToday = 4,
             isNight = false,
             dayPrecipProbability = null,
             nightPrecipProbability = null,
         )
-        // day 4: day threshold=25, night threshold=39
-        // both fall back to daily=30 → day 30 >= 25, night 30 < 39 → OR → not suppressed
+        // day 4: day threshold=19, night threshold=19
+        // both fall back to daily=20 → both 20 >= 19 → OR → not suppressed
         assertEquals(false, result)
     }
 
@@ -651,8 +651,8 @@ class DailyForecastIconResolverTest {
             dayPrecipProbability = 10,
             nightPrecipProbability = 5,
         )
-        // day 6: day threshold=30, night threshold=51
-        // day 10 < 30, night 5 < 51 → both suppress → true
+        // day 6: day threshold=24, night threshold=24
+        // day 10 < 24, night 5 < 24 → both suppress → true
         assertEquals(true, result)
     }
 
@@ -689,7 +689,7 @@ class DailyForecastIconResolverTest {
             dayPrecipProbability = 18,
             nightPrecipProbability = 15,
         )
-        // day 4: day threshold=19, night threshold=43
+        // day 4: day threshold=19, night threshold=19
         // both below → suppressed → cloud icon
         assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
     }
@@ -711,8 +711,8 @@ class DailyForecastIconResolverTest {
             dayPrecipProbability = 30,
             nightPrecipProbability = 10,
         )
-        // day 4: day threshold=25, night threshold=43
-        // day 30 >= 25 → show (even though night 10 < 43)
+        // day 4: day threshold=19, night threshold=19
+        // day 30 >= 19 → show (even though night 10 < 19)
         assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 
@@ -730,11 +730,11 @@ class DailyForecastIconResolverTest {
             now = now,
             latitude = 37.42,
             longitude = -122.08,
-            dayPrecipProbability = 20,
+            dayPrecipProbability = 15,
             nightPrecipProbability = 48,
         )
-        // day 4: day threshold=25, night threshold=43
-        // day 20 < 25 (suppress), night 48 >= 43 (show) → OR → show
+        // day 4: day threshold=19, night threshold=19
+        // day 15 < 19 (suppress), night 48 >= 19 (show) → OR → show
         assertEquals(R.drawable.ic_weather_partly_cloudy_slight_chance_rain, icon)
     }
 

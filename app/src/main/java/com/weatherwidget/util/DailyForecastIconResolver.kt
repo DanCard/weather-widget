@@ -16,39 +16,16 @@ object DailyForecastIconResolver {
         val nightMax: Int?,
     )
 
-    fun getMinimumPrecipProbabilityDay(daysFromToday: Long): Int {
-        /*
-            - day 0: 10.0 → 10
-            - day 1: 12.33 → 12
-            - day 2: 14.67 → 14
-            - day 3: 17.0 → 17
-            - day 4: 19.33 → 19
-            - day 5: 21.67 → 21
-            - day 6: 24.0 → 24
-            - day 7: 26.33 → 26
-            - day 8: 28.67 → 28
-            - day 9: 31.0 → 31
-            - day 10+: 33 (capped)
-        */
-        return (7.0 / 3.0 * daysFromToday + 10).toInt().coerceIn(0, 33)
+    fun getMinimumPrecipProbabilityDay(daysFromToday: Int): Int {
+        return 5 * daysFromToday
     }
 
-    fun getMinimumPrecipProbabilityNight(daysFromToday: Long): Int {
-        /*
-            - day 0: 29.0 → 29
-            - day 1: 32.5 → 32
-            - day 2: 36.0 → 36
-            - day 3: 39.5 → 39
-            - day 4: 43.0 → 43
-            - day 5: 46.5 → 46
-            - day 6: 50.0 → 50
-            - day 7+: 51 (capped)
-        */
-        return (3.5 * daysFromToday + 29).toInt().coerceIn(0, 51)
+    fun getMinimumPrecipProbabilityNight(daysFromToday: Int): Int {
+        return getMinimumPrecipProbabilityDay(daysFromToday)
     }
 
     @Deprecated("Use getMinimumPrecipProbabilityDay() for clarity", replaceWith = ReplaceWith("getMinimumPrecipProbabilityDay(daysFromToday)"))
-    fun getMinimumPrecipProbability(daysFromToday: Long): Int = getMinimumPrecipProbabilityDay(daysFromToday)
+    fun getMinimumPrecipProbability(daysFromToday: Int): Int = getMinimumPrecipProbabilityDay(daysFromToday)
 
     fun calculateDayNightPrecipProbabilities(
         hourlyForecasts: List<HourlyForecastEntity>,
@@ -110,7 +87,7 @@ object DailyForecastIconResolver {
 
         val source = WeatherSource.fromId(weather.source)
         val isNight = targetDate == now.toLocalDate() && SunPositionUtils.isNight(now, latitude, longitude)
-        val daysFromToday = ChronoUnit.DAYS.between(now.toLocalDate(), targetDate)
+        val daysFromToday = ChronoUnit.DAYS.between(now.toLocalDate(), targetDate).toInt()
 
         val nativeToken = weather.nativeDailyIconToken?.trim().orEmpty()
         if (nativeToken.isNotEmpty()) {
@@ -139,7 +116,7 @@ object DailyForecastIconResolver {
     internal fun shouldSuppressRainIcon(
         icon: Int,
         dailyPrecipProbability: Int?,
-        daysFromToday: Long,
+        daysFromToday: Int,
         isNight: Boolean,
         dayPrecipProbability: Int? = null,
         nightPrecipProbability: Int? = null,
