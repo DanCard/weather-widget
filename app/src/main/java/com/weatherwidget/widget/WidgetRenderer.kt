@@ -214,7 +214,9 @@ object WidgetRenderer {
                     repository,
                     lastObservedTemp = observation?.temperature,
                     observedAt = observation?.observedAt,
+                    now = LocalDateTime.now(),
                     startupToken = startupToken,
+                    stateManager = stateManager,
                 )
             }
         }

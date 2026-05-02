@@ -60,7 +60,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
         )
 
         // WHEN: Calling setupGraphDayClickHandlers with numColumns = days.size (as DailyViewHandler does)
-        DailyViewHandler.setupGraphDayClickHandlers(
+        DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context = context,
             views = views,
             appWidgetId = appWidgetId,
@@ -123,7 +123,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             )
         }
         val views1 = RemoteViews(context.packageName, R.layout.widget_weather)
-        DailyViewHandler.setupGraphDayClickHandlers(
+        DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context, views1, widgetId, now, days5, 37.77, -122.42, WeatherSource.NWS, days5.size
         )
 
@@ -138,7 +138,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
         }
         val cappedDays = days8.take(5) // simulating displayDays = days.take(baseline)
         val views2 = RemoteViews(context.packageName, R.layout.widget_weather)
-        DailyViewHandler.setupGraphDayClickHandlers(
+        DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context, views2, widgetId, now, cappedDays, 37.77, -122.42, WeatherSource.NWS, cappedDays.size
         )
 

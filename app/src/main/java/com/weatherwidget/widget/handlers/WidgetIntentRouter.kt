@@ -757,7 +757,9 @@ suspend fun handleResize(
             repository,
             lastObservedTemp = graphStyleObs?.temperature,
             observedAt = graphStyleObs?.observedAt,
+            now = LocalDateTime.now(),
             smoothedForecasts = smoothedForecasts,
+            stateManager = stateManager,
         )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs

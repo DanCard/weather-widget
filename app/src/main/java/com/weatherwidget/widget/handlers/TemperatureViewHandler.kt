@@ -87,7 +87,7 @@ object TemperatureViewHandler {
         )
 
         if (dimensions.isIconWidth) {
-            DailyViewHandler.hideIconWidthControls(views)
+            HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=TEMPERATURE state=data thread=${Thread.currentThread().name}")

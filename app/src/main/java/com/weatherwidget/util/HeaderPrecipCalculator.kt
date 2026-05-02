@@ -36,16 +36,17 @@ object HeaderPrecipCalculator {
         return fallbackDailyProbability
     }
 
+    fun getPrecipScaleFactor(precipProb: Int): Float = when {
+        precipProb <= 1 -> 0.4f
+        precipProb <= 2 -> 0.5f
+        precipProb <= 4 -> 0.6f
+        precipProb <= 8 -> 0.7f
+        precipProb <= 15 -> 0.8f
+        precipProb <= 25 -> 0.9f
+        else -> 1.0f
+    }
+
     fun getPrecipTextSize(precipProb: Int): Float {
-        val base = HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP
-        return when {
-            precipProb <= 1 -> base * 0.4f
-            precipProb <= 2 -> base * 0.5f
-            precipProb <= 4 -> base * 0.6f
-            precipProb <= 8 -> base * 0.7f
-            precipProb <= 15 -> base * 0.8f
-            precipProb <= 25 -> base * 0.9f
-            else -> base
-        }
+        return HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * getPrecipScaleFactor(precipProb)
     }
 }

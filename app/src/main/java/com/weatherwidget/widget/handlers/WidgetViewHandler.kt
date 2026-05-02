@@ -8,6 +8,7 @@ import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * Abstract base interface for view handlers.
@@ -35,6 +36,12 @@ interface WidgetViewHandler {
         currentTemps: List<ObservationEntity> = emptyList(),
         dailyActualsBySource: DailyActualsBySource = emptyMap(),
         repository: com.weatherwidget.data.repository.WeatherRepository? = null,
+        lastObservedTemp: Float? = null,
+        observedAt: Long? = null,
+        now: LocalDateTime = LocalDateTime.now(),
+        startupToken: String? = null,
+        smoothedForecasts: Map<Long, Float>? = null,
+        stateManager: WidgetStateManager? = null,
     )
 
     /**

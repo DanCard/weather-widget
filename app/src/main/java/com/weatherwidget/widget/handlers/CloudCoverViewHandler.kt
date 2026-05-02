@@ -331,7 +331,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         }
 
         if (isIconWidth) {
-            DailyViewHandler.hideIconWidthControls(views)
+            HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=CLOUD_COVER state=data thread=${Thread.currentThread().name}")

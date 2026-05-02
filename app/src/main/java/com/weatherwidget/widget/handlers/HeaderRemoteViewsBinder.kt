@@ -75,6 +75,19 @@ internal object HeaderRemoteViewsBinder {
         }
     }
 
+    fun hideIconWidthControls(views: RemoteViews) {
+        views.setViewVisibility(R.id.api_source_container, View.GONE)
+        views.setViewVisibility(R.id.api_source, View.GONE)
+        views.setViewVisibility(R.id.api_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.settings_icon, View.GONE)
+        views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.text_mode_api_source_container, View.GONE)
+        views.setViewVisibility(R.id.text_mode_api_source, View.GONE)
+        views.setViewVisibility(R.id.text_mode_api_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.text_mode_settings_icon, View.GONE)
+        views.setViewVisibility(R.id.text_mode_settings_touch_zone, View.GONE)
+    }
+
     fun applyDisclosure(
         views: RemoteViews,
         disclosure: HeaderDisclosureLevel,

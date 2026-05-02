@@ -189,12 +189,12 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
         views.setViewVisibility(R.id.graph_day_zones, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
 
-        DailyViewHandler.setupGraphDayClickHandlers(
+        DailyClickHandlerFactory.setupGraphDayClickHandlers(
             context, views, testWidgetId, now, days, 
             WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON, 
             displaySource, 5
         )
-        DailyViewHandler.setupGraphBottomDayClickHandlers(
+        DailyClickHandlerFactory.setupGraphBottomDayClickHandlers(
             context, views, testWidgetId, now, days,
             WeatherWidgetWorker.DEFAULT_LAT, WeatherWidgetWorker.DEFAULT_LON,
             displaySource, 5

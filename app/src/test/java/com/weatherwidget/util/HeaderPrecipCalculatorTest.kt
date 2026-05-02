@@ -151,6 +151,23 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
+    fun `getPrecipScaleFactor returns correct multipliers based on probability`() {
+        assertEquals(0.4f, HeaderPrecipCalculator.getPrecipScaleFactor(0), 0.01f)
+        assertEquals(0.4f, HeaderPrecipCalculator.getPrecipScaleFactor(1), 0.01f)
+        assertEquals(0.5f, HeaderPrecipCalculator.getPrecipScaleFactor(2), 0.01f)
+        assertEquals(0.6f, HeaderPrecipCalculator.getPrecipScaleFactor(3), 0.01f)
+        assertEquals(0.6f, HeaderPrecipCalculator.getPrecipScaleFactor(4), 0.01f)
+        assertEquals(0.7f, HeaderPrecipCalculator.getPrecipScaleFactor(5), 0.01f)
+        assertEquals(0.7f, HeaderPrecipCalculator.getPrecipScaleFactor(8), 0.01f)
+        assertEquals(0.8f, HeaderPrecipCalculator.getPrecipScaleFactor(9), 0.01f)
+        assertEquals(0.8f, HeaderPrecipCalculator.getPrecipScaleFactor(15), 0.01f)
+        assertEquals(0.9f, HeaderPrecipCalculator.getPrecipScaleFactor(16), 0.01f)
+        assertEquals(0.9f, HeaderPrecipCalculator.getPrecipScaleFactor(25), 0.01f)
+        assertEquals(1.0f, HeaderPrecipCalculator.getPrecipScaleFactor(26), 0.01f)
+        assertEquals(1.0f, HeaderPrecipCalculator.getPrecipScaleFactor(100), 0.01f)
+    }
+
+    @Test
     fun `getPrecipTextSize returns correct sizes based on probability`() {
         // Base size is 26f
         // <= 1% -> 26 * 0.4 = 10.4

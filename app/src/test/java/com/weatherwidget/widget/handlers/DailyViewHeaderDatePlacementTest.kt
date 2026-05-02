@@ -20,7 +20,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderDatePlacement(
+            DailyHeaderBinder.resolveHeaderDatePlacement(
                 context = context,
                 widthDp = 300,
                 numColumns = 5,
@@ -41,7 +41,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderDatePlacement(
+            DailyHeaderBinder.resolveHeaderDatePlacement(
                 context = context,
                 widthDp = 360,
                 numColumns = 8,
@@ -54,7 +54,7 @@ class DailyViewHeaderDatePlacementTest {
                 dateText = "Sun 19",
             )
 
-        assertEquals(DailyViewHandler.HeaderDatePlacement.CENTER, placement)
+        assertEquals(DailyHeaderBinder.HeaderDatePlacement.CENTER, placement)
     }
 
     @Test
@@ -62,7 +62,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderDatePlacement(
+            DailyHeaderBinder.resolveHeaderDatePlacement(
                 context = context,
                 widthDp = 220,
                 numColumns = 8,
@@ -75,12 +75,12 @@ class DailyViewHeaderDatePlacementTest {
                 dateText = "Sun 19",
             )
 
-        assertEquals(DailyViewHandler.HeaderDatePlacement.CENTER, placement)
+        assertEquals(DailyHeaderBinder.HeaderDatePlacement.CENTER, placement)
     }
 
     @Test
     fun `resolveHeaderDatePlacementFromBounds moves date right when center collides`() {
-        val placement = DailyViewHandler.resolveHeaderDatePlacementFromBounds(
+        val placement = DailyHeaderBinder.resolveHeaderDatePlacementFromBounds(
             numColumns = 8,
             widthPx = 360f,
             leftClusterRight = 175f,
@@ -90,7 +90,7 @@ class DailyViewHeaderDatePlacementTest {
             rightMarginPx = 112f,
         )
 
-        assertEquals(DailyViewHandler.HeaderDatePlacement.RIGHT, placement)
+        assertEquals(DailyHeaderBinder.HeaderDatePlacement.RIGHT, placement)
     }
 
     @Test
@@ -98,7 +98,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderPrecipPlacement(
+            DailyHeaderBinder.resolveHeaderPrecipPlacement(
                 context = context,
                 widthDp = 360,
                 numColumns = 8,
@@ -114,7 +114,7 @@ class DailyViewHeaderDatePlacementTest {
             )
 
         assertEquals(
-            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
+            DailyHeaderBinder.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
             placement,
         )
     }
@@ -124,7 +124,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderPrecipPlacement(
+            DailyHeaderBinder.resolveHeaderPrecipPlacement(
                 context = context,
                 widthDp = 220,
                 numColumns = 8,
@@ -140,7 +140,7 @@ class DailyViewHeaderDatePlacementTest {
             )
 
         assertEquals(
-            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false),
+            DailyHeaderBinder.HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false),
             placement,
         )
     }
@@ -150,7 +150,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderPrecipPlacement(
+            DailyHeaderBinder.resolveHeaderPrecipPlacement(
                 context = context,
                 widthDp = 230,
                 numColumns = 8,
@@ -166,7 +166,7 @@ class DailyViewHeaderDatePlacementTest {
             )
 
         assertEquals(
-            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
+            DailyHeaderBinder.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
             placement,
         )
     }
@@ -177,7 +177,7 @@ class DailyViewHeaderDatePlacementTest {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
         val placement =
-            DailyViewHandler.resolveHeaderPrecipPlacement(
+            DailyHeaderBinder.resolveHeaderPrecipPlacement(
                 context = context,
                 widthDp = 110,
                 numColumns = 8,
@@ -193,7 +193,7 @@ class DailyViewHeaderDatePlacementTest {
             )
 
         assertEquals(
-            DailyViewHandler.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
+            DailyHeaderBinder.HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false),
             placement,
         )
     }
@@ -208,10 +208,10 @@ class DailyViewHeaderDatePlacementTest {
 
         try {
             metrics.scaledDensity = metrics.density * 0.8f
-            val samsungScaleSize = DailyViewHandler.currentTempTextSizePx(context)
+            val samsungScaleSize = DailyHeaderBinder.currentTempTextSizePx(context)
 
             metrics.scaledDensity = metrics.density * 1.15f
-            val pixelScaleSize = DailyViewHandler.currentTempTextSizePx(context)
+            val pixelScaleSize = DailyHeaderBinder.currentTempTextSizePx(context)
 
             assertEquals(expectedPx, samsungScaleSize, 0.01f)
             assertEquals(expectedPx, pixelScaleSize, 0.01f)

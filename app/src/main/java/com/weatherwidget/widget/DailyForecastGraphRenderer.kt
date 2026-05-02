@@ -8,6 +8,7 @@ import android.util.Log
 import android.util.TypedValue
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.widget.handlers.HeaderConstants
+import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.WeatherConditionColors
 import kotlin.math.abs
 import java.time.LocalDate
@@ -37,7 +38,6 @@ object DailyForecastGraphRenderer {
     private const val COLOR_SUNNY = "#FFD60A"
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
-    private const val MIN_RAIN_FONT_SCALE = 0.4f
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
     private const val TOP_PADDING_DP = 60f
     private const val FORECAST_BAR_WIDTH_DP = 9f
@@ -49,17 +49,18 @@ object DailyForecastGraphRenderer {
     private const val RAIN_TEXT_MARGIN_DP = 4f
     private const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
     private const val NIGHT_RAIN_TEMP_OVERLAP_DP = 3f
-    private const val NIGHT_INTERSTITIAL_H_NUDGE_DP = 1f
+    private const val NIGHT_INTERSTITIAL_H_NUDGE_DP = 2f
     private const val NIGHT_INTERSTITIAL_V_DROP_DP = 1f
     private const val ICON_STACK_SPACING_DP = 4f
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
-    private const val RAIN_TEXT_SIZE_DP = 14.4f
+    private const val RAIN_TEXT_SIZE_DP = 24f
     private const val DAY_LABEL_BOTTOM_MARGIN_PX = 3f
     private const val GHOST_BAR_ALPHA = 75
     private const val CLIMATE_OVERLAY_ALPHA = 80
     private const val BULB_RADIUS_SCALE = 1.2f
     private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
+    private const val RAIN_HIGH_TEMP_GAP_DP = -1.5f
     private const val HISTORY_BAR_WIDTH_SCALE = 0.7f
     private const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
@@ -515,9 +516,11 @@ val forecastHigh: Float? = null,
         // Precip probability
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
             cursorX += dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP * labelScale)
+            val precipTextSizePx = dpToPx(context, header.precipTextSizeDp * labelScale)
+            Log.d(TAG, "headerPrecip: text=\"${header.precipText}\" precipTextSizeDp=${header.precipTextSizeDp} labelScale=$labelScale textSizePx=$precipTextSizePx textSizeDp=${precipTextSizePx / context.resources.displayMetrics.density}")
             val precipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = header.precipColor
-                textSize = dpToPx(context, header.precipTextSizeDp * labelScale)
+                textSize = precipTextSizePx
                 textAlign = Paint.Align.LEFT
             }
             canvas.drawText(header.precipText, cursorX, -precipPaint.ascent(), precipPaint)
@@ -863,7 +866,8 @@ val forecastHigh: Float? = null,
     ) {
 val label = day.rainData.dailyRainLabelText ?: return
     val rainText = label
-    val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.dailyPrecipProbability, "day")
+    val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
+    val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.dailyPrecipProbability, "day", labelScale = labelScale)
 
         val textWidth = localRainPaint.measureText(rainText)
         val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
@@ -886,7 +890,7 @@ val label = day.rainData.dailyRainLabelText ?: return
         }
         val tempMetrics = textMetrics(tempPaint)
         val topMargin = layout.graphTop * 0.2f
-        val gap = dpToPx(context, 0.5f * layout.bitmapScale.coerceAtMost(1f))
+        val gap = dpToPx(context, RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f))
         val placement = resolveRainAboveHighPlacement(
             highBaseline = highBaseline,
             highMetrics = tempMetrics,
@@ -976,7 +980,7 @@ val label = day.rainData.dailyRainLabelText ?: return
         val rainText = day.rainData.nightRainLabelText ?: return
         
         // Multi-step fitting strategy
-        var currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night")
+        var currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
         var textWidth = currentPaint.measureText(rainText)
         val shiftedCenterX = centerX + layout.dayWidth / 2f
         val halfWidth = textWidth / 2f
@@ -994,7 +998,7 @@ val label = day.rainData.dailyRainLabelText ?: return
             placementType = "NIGHT_SHIFTED_RIGHT"
         } else {
             // 2. Try smaller font scale at shifted position if near boundary
-            val reducedPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", extraScale = 0.85f)
+            val reducedPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", extraScale = 0.85f, labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
             val reducedWidth = reducedPaint.measureText(rainText)
             val reducedHalfWidth = reducedWidth / 2f
             
@@ -1115,18 +1119,20 @@ val label = day.rainData.dailyRainLabelText ?: return
         probability: Int?,
         labelType: String,
         extraScale: Float = 1.0f,
+        labelScale: Float = 1.0f,
     ): Paint {
         val prob = (probability ?: 0).toFloat() / 100f
-        val scale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
-        val nightScale = if (labelType == "night") 0.8f else 1.0f
-        val clampedScale = scale.coerceAtLeast(MIN_RAIN_FONT_SCALE) * extraScale * nightScale
-        val scaledTextSize = paints.rainTextPaint.textSize * clampedScale
+        val probScale = HeaderPrecipCalculator.getPrecipScaleFactor(probability ?: 0)
+        val distanceScale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - prob) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
+        val nightScale = if (labelType == "night") 0.72f else 1.0f
+        val combinedScale = probScale * distanceScale
+        val finalTextSize = paints.rainTextPaint.textSize * combinedScale * extraScale * nightScale
 
-        val scaledTextSizeDp = scaledTextSize / context.resources.displayMetrics.density
-        Log.d(TAG, "rainFont: type=$labelType date=${day.date} daysFromToday=${day.daysFromToday} prob=$probability% rawScale=$scale clampedScale=$clampedScale probFraction=$prob baseTextSize=${paints.rainTextPaint.textSize}px finalTextSize=${scaledTextSize}px (${scaledTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
+        val finalTextSizeDp = finalTextSize / context.resources.displayMetrics.density
+        Log.d(TAG, "rainFont: type=$labelType date=${day.date} daysFromToday=${day.daysFromToday} prob=$probability% probScale=$probScale distanceScale=$distanceScale combinedScale=$combinedScale extraScale=$extraScale nightScale=$nightScale baseTextSize=${paints.rainTextPaint.textSize}px finalTextSize=${finalTextSize}px (${finalTextSizeDp}dp) density=${context.resources.displayMetrics.density}")
 
         return Paint(paints.rainTextPaint).apply {
-            textSize = scaledTextSize
+            textSize = finalTextSize
         }
     }
 

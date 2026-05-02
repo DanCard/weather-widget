@@ -674,7 +674,7 @@ class DailyViewHandlerTest {
         val date = LocalDate.of(2030, 6, 16) // Tomorrow
         val dateStr = date.toString()
 
-        val intent = DailyViewHandler.buildDayClickIntent(
+        val intent = DailyClickHandlerFactory.buildDayClickIntent(
             context = context,
             appWidgetId = 42,
             dayIndex = 1,
@@ -698,7 +698,7 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val date = LocalDate.of(2030, 6, 16) // Tomorrow
 
-        val intent = DailyViewHandler.buildDayClickIntent(
+        val intent = DailyClickHandlerFactory.buildDayClickIntent(
             context = context,
             appWidgetId = 42,
             dayIndex = 1,
@@ -721,7 +721,7 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val date = LocalDate.of(2030, 6, 14) // Yesterday
 
-        val intent = DailyViewHandler.buildDayClickIntent(
+        val intent = DailyClickHandlerFactory.buildDayClickIntent(
             context = context,
             appWidgetId = 42,
             dayIndex = 1,
@@ -1269,7 +1269,7 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        val forecast = DailyViewHandler.resolveTodayHeaderForecast(
+        val forecast = DailyHeaderBinder.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = listOf(
                 HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.NWS.id, 0, 90, null, 1L),
@@ -1287,7 +1287,7 @@ class DailyViewHandlerTest {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        val forecast = DailyViewHandler.resolveTodayHeaderForecast(
+        val forecast = DailyHeaderBinder.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = listOf(
                 HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Partly Cloudy", WeatherSource.NWS.id, 0, 40, null, 1L),

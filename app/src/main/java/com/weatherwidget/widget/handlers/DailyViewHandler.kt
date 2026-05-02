@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
-import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
@@ -44,6 +43,7 @@ import com.weatherwidget.widget.ZoomLevel
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import kotlinx.coroutines.Job
 import kotlin.coroutines.coroutineContext
+import kotlin.math.abs
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -57,28 +57,17 @@ object DailyViewHandler : WidgetViewHandler {
     private const val CELL_HEIGHT_DP = 90
     private const val MISSING_ACTUALS_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val MISSING_TODAY_SNAPSHOT_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
-    private const val DELTA_VISIBILITY_THRESHOLD = 0.1f
+    private const val DELTA_VISIBILITY_THRESHOLD = DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
     private const val DELTA_COLOR_HEX = "#FF6B35"
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
     private const val GRAPH_ROW_THRESHOLD = 2.2f
+    private const val GRAPH_CONTENT_PADDING_DP = 24
     private const val TEXT_MODE_ROOT_LEFT_PADDING_DP = 2
     private const val TEXT_MODE_ROOT_TOP_PADDING_DP = 0
     private const val TEXT_MODE_ROOT_RIGHT_PADDING_DP = 8
     private const val TEXT_MODE_ROOT_BOTTOM_PADDING_DP = 0
     private const val TEXT_MODE_CONTENT_RIGHT_PADDING_DP = 18
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
-
-    @VisibleForTesting
-    internal enum class HeaderDatePlacement {
-        CENTER,
-        RIGHT,
-    }
-
-    @VisibleForTesting
-    internal data class HeaderPrecipPlacement(
-        val showHeaderPrecip: Boolean,
-        val allowTodayColumnPrecip: Boolean,
-    )
 
     private data class DayIds(
         val container: Int,
@@ -90,17 +79,12 @@ object DailyViewHandler : WidgetViewHandler {
     )
 
     // Intent actions from WeatherWidgetProvider
+    
     private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
     private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
-    private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
-    private const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
-    private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
-    private const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
-    private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
-    private const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
-    private const val EXTRA_CLICK_SOURCE = "com.weatherwidget.EXTRA_CLICK_SOURCE"
-    private const val NIGHT_RAIN_GRID_ROWS = 6
-    private const val NIGHT_RAIN_GRID_COLS = 20
+
+    internal const val NIGHT_RAIN_GRID_ROWS = NightRainGridMapper.GRID_ROWS
+    internal const val NIGHT_RAIN_GRID_COLS = NightRainGridMapper.GRID_COLS
 
     override fun canHandle(
         stateManager: WidgetStateManager,
@@ -119,70 +103,12 @@ object DailyViewHandler : WidgetViewHandler {
         currentTemps: List<ObservationEntity>,
         dailyActualsBySource: DailyActualsBySource,
         repository: WeatherRepository?,
-    ) {
-        updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            weatherList = weatherList,
-            forecastSnapshots = forecastSnapshots,
-            hourlyForecasts = hourlyForecasts,
-            currentTemps = currentTemps,
-            dailyActualsBySource = dailyActualsBySource,
-            repository = repository,
-            now = LocalDateTime.now(),
-        )
-    }
-
-    suspend fun updateWidget(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
-        weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<ObservationEntity>,
-        dailyActualsBySource: DailyActualsBySource,
-        repository: WeatherRepository?,
-        lastObservedTemp: Float? = null,
-        observedAt: Long? = null,
-        startupToken: String? = null,
-        smoothedForecasts: Map<Long, Float>? = null,
-    ) {
-        updateWidget(
-            context = context,
-            appWidgetManager = appWidgetManager,
-            appWidgetId = appWidgetId,
-            weatherList = weatherList,
-            forecastSnapshots = forecastSnapshots,
-            hourlyForecasts = hourlyForecasts,
-            currentTemps = currentTemps,
-            dailyActualsBySource = dailyActualsBySource,
-            repository = repository,
-            lastObservedTemp = lastObservedTemp,
-            observedAt = observedAt,
-            now = LocalDateTime.now(),
-            startupToken = startupToken,
-            smoothedForecasts = smoothedForecasts,
-        )
-    }
-
-    @VisibleForTesting
-    suspend fun updateWidget(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
-        weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<ObservationEntity>,
-        dailyActualsBySource: DailyActualsBySource,
-        repository: WeatherRepository?,
-        lastObservedTemp: Float? = null,
-        observedAt: Long? = null,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
         now: LocalDateTime,
-        startupToken: String? = null,
-        smoothedForecasts: Map<Long, Float>? = null,
+        startupToken: String?,
+        smoothedForecasts: Map<Long, Float>?,
+        stateManager: WidgetStateManager?,
     ) {
         Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
         val handlerStartMs = SystemClock.elapsedRealtime()
@@ -196,7 +122,7 @@ object DailyViewHandler : WidgetViewHandler {
         val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP) / CELL_HEIGHT_DP
         val useGraph = rawRows >= GRAPH_ROW_THRESHOLD
 
-        val stateManager = WidgetStateManager(context)
+        val stateManager = stateManager ?: WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
         val isEveningMode = NavigationUtils.isEveningMode(now.toLocalTime(), numColumns)
@@ -292,7 +218,7 @@ object DailyViewHandler : WidgetViewHandler {
         // Set weather icon
         val climateNormals = repository?.getHistoricalNormalsByMonthDay(lat, lon) ?: emptyMap()
 
-        val todayHeaderForecast = resolveTodayHeaderForecast(
+        val todayHeaderForecast = DailyHeaderBinder.resolveTodayHeaderForecast(
             now = now,
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
@@ -375,7 +301,7 @@ object DailyViewHandler : WidgetViewHandler {
         val deltaVisible =
             currentTemp != null &&
             delta != null &&
-            kotlin.math.abs(delta) >= DELTA_VISIBILITY_THRESHOLD
+            abs(delta) >= DELTA_VISIBILITY_THRESHOLD
         HeaderRemoteViewsBinder.bindDelta(
             context, views,
             if (deltaVisible) String.format("%+.1f", delta) else null,
@@ -410,7 +336,7 @@ object DailyViewHandler : WidgetViewHandler {
         }
         Log.d(
             TAG,
-            buildHeaderStateLog(
+            DailyHeaderBinder.buildHeaderStateLog(
                 widgetId = appWidgetId,
                 viewMode = ViewMode.DAILY,
                 displaySource = displaySource,
@@ -423,7 +349,7 @@ object DailyViewHandler : WidgetViewHandler {
                 observedTemp = currentTempResolution.observedTemp,
                 appliedDelta = delta,
                 deltaVisible = deltaVisible,
-                deltaHiddenReason = dailyDeltaHiddenReason(currentTemp, delta),
+                deltaHiddenReason = DailyHeaderBinder.dailyDeltaHiddenReason(currentTemp, delta),
                 precipVisible = isPrecipVisible,
                 precipProbability = precipProb,
                 isNowLineVisible = null,
@@ -452,7 +378,7 @@ object DailyViewHandler : WidgetViewHandler {
         var renderMs = 0L
 
         if (useGraph) {
-            setGraphModeViews(views)
+            DailyVisibilityManager.setGraphModeViews(views)
 
             val prepareStartMs = SystemClock.elapsedRealtime()
             val todayActual = dailyActuals[today]
@@ -513,9 +439,9 @@ object DailyViewHandler : WidgetViewHandler {
             }
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
-            val widthDp = dimensions.widthDp - 24
+            val widthDp = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
             val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
-            val headerPrecipPlacement = resolveHeaderPrecipPlacement(
+            val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
                 context = context,
                 widthDp = widthDp,
                 numColumns = displayDays.size,
@@ -623,21 +549,24 @@ object DailyViewHandler : WidgetViewHandler {
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
             setupGraphBottomDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
-            setupNightRainClickHandlers(
-                context = context,
-                views = views,
-                appWidgetId = appWidgetId,
-                now = now,
-                days = displayDays,
-                lat = lat,
-                lon = lon,
-                displaySource = displaySource,
-                bitmapWidthPx = bitmapDims.widthPx,
-                bitmapHeightPx = bitmapDims.heightPx,
-                nightLabelDraws = nightRainLabelDraws,
-            )
+             NightRainGridMapper.setupNightRainClickHandlers(
+                 context = context,
+                 views = views,
+                 appWidgetId = appWidgetId,
+                 now = now,
+                 days = displayDays,
+                 lat = lat,
+                 lon = lon,
+                 displaySource = displaySource,
+                 bitmapWidthPx = bitmapDims.widthPx,
+                 bitmapHeightPx = bitmapDims.heightPx,
+                 nightLabelDraws = nightRainLabelDraws,
+                 buildClickIntent = { aid, di, d, ir, la, lo, ds, n, tmo, oo, cs ->
+                     DailyClickHandlerFactory.buildDayClickIntent(context, aid, di, d, ir, la, lo, ds, n, tmo, oo, cs)
+                 },
+             )
         } else {
-            setTextModeViews(views)
+            DailyVisibilityManager.setTextModeViews(views)
 
             val textCols = numColumns.coerceAtLeast(1)
             // At 1 icon wide, the API/gear icons that consume the top-right are hidden,
@@ -676,11 +605,10 @@ object DailyViewHandler : WidgetViewHandler {
                 visibleDates = visibleDaysInfo.map { it.date },
             )
 
-            // setupTextDayClickHandlers(context, views, appWidgetId, now, visibleDaysInfo, lat, lon, displaySource)
         }
 
         if (isIconWidth) {
-            hideIconWidthControls(views)
+            HeaderRemoteViewsBinder.hideIconWidthControls(views)
         }
 
         appLogDao.log(WidgetPerfLogger.TAG_WIDGET_PAINT, "widget=$appWidgetId caller=DAILY state=data thread=${Thread.currentThread().name}")
@@ -705,84 +633,6 @@ object DailyViewHandler : WidgetViewHandler {
             ),
             debugTag = TAG,
         )
-    }
-
-    private fun setGraphModeViews(views: RemoteViews) {
-        views.setViewVisibility(R.id.text_container, View.GONE)
-        views.setViewVisibility(R.id.graph_view, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_day_zones, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_night_rain_zones, View.VISIBLE)
-        Log.d(TAG, "setGraphModeViews: graph_night_rain_zones set VISIBLE")
-        setSingleRowControlsVisible(views, false)
-        views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
-        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.settings_touch_zone, View.VISIBLE)
-    }
-
-    private fun setTextModeViews(views: RemoteViews) {
-        views.setViewVisibility(R.id.text_container, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_view, View.GONE)
-        views.setViewVisibility(R.id.header_date_center, View.GONE)
-        views.setViewVisibility(R.id.header_date_right, View.GONE)
-        views.setViewVisibility(R.id.graph_day_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_hour_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
-        views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
-
-        views.setViewVisibility(R.id.nav_left, View.GONE)
-        views.setViewVisibility(R.id.nav_left_zone, View.GONE)
-        views.setViewVisibility(R.id.nav_right, View.GONE)
-        views.setViewVisibility(R.id.nav_right_zone, View.GONE)
-        views.setViewVisibility(R.id.home_icon, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.history_icon, View.GONE)
-        views.setViewVisibility(R.id.history_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.history_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
-
-        views.setViewVisibility(R.id.current_temp_zone, View.GONE)
-        views.setViewVisibility(R.id.precip_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.api_source_container, View.GONE)
-        views.setViewVisibility(R.id.api_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.settings_icon, View.GONE)
-        views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
-        setSingleRowControlsVisible(views, true)
-    }
-
-    private fun setSingleRowControlsVisible(views: RemoteViews, visible: Boolean) {
-        val visibility = if (visible) View.VISIBLE else View.GONE
-        views.setViewVisibility(R.id.text_mode_api_source_container, visibility)
-        views.setViewVisibility(R.id.text_mode_api_touch_zone, visibility)
-        views.setViewVisibility(R.id.text_mode_settings_icon, visibility)
-        views.setViewVisibility(R.id.text_mode_settings_touch_zone, visibility)
-    }
-
-    internal fun hideIconWidthControls(views: RemoteViews) {
-        views.setViewVisibility(R.id.api_source_container, View.GONE)
-        views.setViewVisibility(R.id.api_source, View.GONE)
-        views.setViewVisibility(R.id.api_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.settings_icon, View.GONE)
-        views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.text_mode_api_source_container, View.GONE)
-        views.setViewVisibility(R.id.text_mode_api_source, View.GONE)
-        views.setViewVisibility(R.id.text_mode_api_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.text_mode_settings_icon, View.GONE)
-        views.setViewVisibility(R.id.text_mode_settings_touch_zone, View.GONE)
     }
 
     private fun logGraphDayIconDetails(
@@ -856,207 +706,6 @@ object DailyViewHandler : WidgetViewHandler {
             tag,
             "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows evening=$isEveningMode center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
         )
-    }
-
-    private fun bindHeaderDate(
-        context: Context,
-        views: RemoteViews,
-        widthDp: Int,
-        numColumns: Int,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        dateText: String,
-    ) {
-        views.setViewVisibility(R.id.header_date_center, View.GONE)
-        views.setViewVisibility(R.id.header_date_right, View.GONE)
-        if (dateText.isBlank()) return
-
-        val placement =
-            resolveHeaderDatePlacement(
-                context = context,
-                widthDp = widthDp,
-                numColumns = numColumns,
-                currentTempText = currentTempText,
-                deltaText = deltaText,
-                precipText = precipText,
-                precipTextSizeDp = precipTextSizeDp,
-                apiSourceText = apiSourceText,
-                apiTextSizeDp = apiTextSizeDp,
-                dateText = dateText,
-            ) ?: return
-
-        val targetId =
-            when (placement) {
-                HeaderDatePlacement.CENTER -> R.id.header_date_center
-                HeaderDatePlacement.RIGHT -> R.id.header_date_right
-            }
-        views.setTextViewText(targetId, dateText)
-        val datePx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.DATE_TEXT_SIZE_DP, context.resources.displayMetrics)
-        views.setTextViewTextSize(targetId, TypedValue.COMPLEX_UNIT_PX, datePx)
-        views.setViewVisibility(targetId, View.VISIBLE)
-    }
-
-    @VisibleForTesting
-    internal fun resolveHeaderDatePlacement(
-        context: Context,
-        widthDp: Int,
-        numColumns: Int,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        dateText: String,
-        includeIcon: Boolean = true,
-    ): HeaderDatePlacement? {
-        if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
-
-        val widthPx = WidgetSizeCalculator.dpToPx(context, widthDp).toFloat()
-        val leftClusterRight =
-            HeaderWidthChecker.resolveLeftClusterRightPx(
-                context = context,
-                currentTempText = currentTempText,
-                deltaText = deltaText,
-                precipText = precipText,
-                precipTextSizeDp = precipTextSizeDp,
-                includeIcon = includeIcon,
-            )
-        val apiLeft = HeaderWidthChecker.resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
-        val dateWidth = HeaderWidthChecker.textWidthPx(context, dateText, HeaderConstants.DATE_TEXT_SIZE_DP)
-        val gapPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP)
-        val rightMarginPx = HeaderWidthChecker.dpToPx(context, HeaderConstants.DATE_RIGHT_MARGIN_DP)
-
-        return resolveHeaderDatePlacementFromBounds(
-            numColumns = numColumns,
-            widthPx = widthPx,
-            leftClusterRight = leftClusterRight,
-            apiLeft = apiLeft,
-            dateWidth = dateWidth,
-            gapPx = gapPx,
-            rightMarginPx = rightMarginPx,
-        )
-    }
-
-    @VisibleForTesting
-    internal fun resolveHeaderDatePlacementFromBounds(
-        numColumns: Int,
-        widthPx: Float,
-        leftClusterRight: Float,
-        apiLeft: Float,
-        dateWidth: Float,
-        gapPx: Float,
-        rightMarginPx: Float,
-    ): HeaderDatePlacement? {
-        if (numColumns < HeaderConstants.DATE_MIN_COLUMNS) return null
-        val centerLeft = (widthPx - dateWidth) / 2f
-        val centerRight = centerLeft + dateWidth
-        if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
-            return HeaderDatePlacement.CENTER
-        }
-
-        val rightCenter = widthPx - rightMarginPx
-        val rightLeft = rightCenter - dateWidth / 2f
-        val rightRight = rightCenter + dateWidth / 2f
-        if (rightLeft >= leftClusterRight + gapPx && rightRight <= apiLeft - gapPx) {
-            return HeaderDatePlacement.RIGHT
-        }
-
-        return null
-    }
-
-    @VisibleForTesting
-    internal fun resolveHeaderPrecipPlacement(
-        context: Context,
-        widthDp: Int,
-        numColumns: Int,
-        currentTempText: String?,
-        deltaText: String?,
-        precipText: String?,
-        precipTextSizeDp: Float?,
-        apiSourceText: String,
-        apiTextSizeDp: Float,
-        dateText: String?,
-        headerCanShowPrecip: Boolean,
-        includeIcon: Boolean,
-    ): HeaderPrecipPlacement {
-        if (precipText.isNullOrBlank() || precipTextSizeDp == null) {
-            return HeaderPrecipPlacement(showHeaderPrecip = false, allowTodayColumnPrecip = false)
-        }
-        if (dateText.isNullOrBlank() || numColumns < HeaderConstants.DATE_MIN_COLUMNS) {
-            return HeaderPrecipPlacement(showHeaderPrecip = headerCanShowPrecip, allowTodayColumnPrecip = false)
-        }
-
-        val dateFitsWithPrecip =
-            headerCanShowPrecip &&
-                resolveHeaderDatePlacement(
-                    context = context,
-                    widthDp = widthDp,
-                    numColumns = numColumns,
-                    currentTempText = currentTempText,
-                    deltaText = deltaText,
-                    precipText = precipText,
-                    precipTextSizeDp = precipTextSizeDp,
-                    apiSourceText = apiSourceText,
-                    apiTextSizeDp = apiTextSizeDp,
-                    dateText = dateText,
-                    includeIcon = includeIcon,
-                ) != null
-        if (dateFitsWithPrecip) {
-            return HeaderPrecipPlacement(showHeaderPrecip = true, allowTodayColumnPrecip = false)
-        }
-
-        val dateFitsWithoutPrecip =
-            resolveHeaderDatePlacement(
-                context = context,
-                widthDp = widthDp,
-                numColumns = numColumns,
-                currentTempText = currentTempText,
-                deltaText = deltaText,
-                precipText = null,
-                precipTextSizeDp = null,
-                apiSourceText = apiSourceText,
-                apiTextSizeDp = apiTextSizeDp,
-                dateText = dateText,
-                includeIcon = includeIcon,
-            ) != null
-
-        return HeaderPrecipPlacement(
-            showHeaderPrecip = headerCanShowPrecip && !dateFitsWithoutPrecip,
-            allowTodayColumnPrecip = false,
-        )
-    }
-
-    @VisibleForTesting
-    internal fun currentTempTextSizePx(context: Context): Float =
-        TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP,
-            HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
-            context.resources.displayMetrics,
-        )
-
-    @VisibleForTesting
-    internal fun resolveTodayHeaderForecast(
-        now: LocalDateTime,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        displaySource: WeatherSource,
-    ): HourlyForecastEntity? {
-        val today = now.toLocalDate()
-        val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
-
-        val candidateTimes =
-            listOf(
-                now.plusHours(1).takeIf { it.toLocalDate() == today },
-                now,
-            ).filterNotNull()
-
-        return candidateTimes.firstNotNullOfOrNull { candidateTime ->
-            forecastsByTime[WeatherTimeUtils.toHourlyForecastKeyMs(candidateTime)]
-        }
     }
 
     private fun setupNavigationButtons(
@@ -1150,7 +799,7 @@ object DailyViewHandler : WidgetViewHandler {
         today: LocalDate, weatherByDate: Map<LocalDate, ForecastEntity>,
         hourlyForecasts: List<HourlyForecastEntity>, numColumns: Int,
         displaySource: WeatherSource, skipHistory: Boolean,
-        stateManager: WidgetStateManager?, appWidgetId: Int,
+        stateManager: WidgetStateManager, appWidgetId: Int,
         todayNext8HourPrecipProbability: Int?,
         dailyActuals: DailyActualMap = emptyMap(),
         climateNormals: Map<java.time.MonthDay, Pair<Int, Int>> = emptyMap(),
@@ -1189,7 +838,7 @@ object DailyViewHandler : WidgetViewHandler {
         }
 
         if (dayDataList.any { it.isToday && it.rainSummary != null }) {
-            stateManager?.markRainShown(appWidgetId, today.format(DateTimeFormatter.ISO_LOCAL_DATE))
+            stateManager.markRainShown(appWidgetId, today.format(DateTimeFormatter.ISO_LOCAL_DATE))
         }
 
         return dayDataList.filter { it.isVisible }
@@ -1223,87 +872,24 @@ object DailyViewHandler : WidgetViewHandler {
         views.setTextViewText(ids.low, data.lowLabel ?: "--°")
 
         if (data.showRain && !data.rainSummary.isNullOrEmpty()) {
-            views.setTextViewText(ids.rain, "💧 ${data.rainSummary}")
+            views.setTextViewText(ids.rain, data.rainSummary)
             views.setViewVisibility(ids.rain, View.VISIBLE)
         } else {
             views.setViewVisibility(ids.rain, View.GONE)
         }
     }
 
-    @VisibleForTesting
-    internal fun buildDayClickIntent(
-        context: Context, appWidgetId: Int, dayIndex: Int, date: LocalDate,
-        iconRes: Int?, lat: Double, lon: Double,
-        displaySource: WeatherSource,
-        now: LocalDateTime = LocalDateTime.now(),
-        targetModeOverride: ViewMode? = null,
-        offsetOverride: Int? = null,
-        clickSource: String? = null,
-    ): Intent {
-        val isHistory = date.isBefore(now.toLocalDate())
-        val showHistory = DayClickHelper.shouldShowHistory(isHistory)
-
-        return Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_DAY_CLICK
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra("date", date.toString())
-            putExtra("isHistory", isHistory)
-            putExtra("showHistory", showHistory)
-            putExtra("index", dayIndex)
-            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-            clickSource?.let { putExtra(EXTRA_CLICK_SOURCE, it) }
-
-            if (!showHistory) {
-                val targetMode = targetModeOverride ?: DayClickHelper.resolveDailyTargetViewMode(iconRes)
-                val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
-                putExtra(EXTRA_TARGET_VIEW, targetMode.name)
-                putExtra(EXTRA_HOURLY_OFFSET, offset)
-            }
-        }
-    }
-
-    private fun setupTextDayClickHandlers(
-        context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
-        visibleDays: List<DailyViewLogic.TextDayData>, lat: Double, lon: Double, displaySource: WeatherSource
-    ) {
-        val containerIds = listOf(R.id.day1_container, R.id.day2_container, R.id.day3_container, R.id.day4_container, R.id.day5_container, R.id.day6_container, R.id.day7_container, R.id.day8_container)
-        visibleDays.forEach { day ->
-            val intent = buildDayClickIntent(context, appWidgetId, day.dayIndex, day.date, day.iconRes, lat, lon, displaySource, now)
-            val pendingIntent = PendingIntent.getBroadcast(context, WidgetRequestCodes.dayClick(appWidgetId, day.dayIndex), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-            views.setOnClickPendingIntent(containerIds[day.dayIndex - 1], pendingIntent)
-        }
-    }
-
-    @VisibleForTesting
-    internal fun setupGraphDayClickHandlers(
+private fun setupGraphDayClickHandlers(
         context: Context, views: RemoteViews, appWidgetId: Int, now: LocalDateTime,
         days: List<DailyForecastGraphRenderer.DayData>, lat: Double, lon: Double, displaySource: WeatherSource,
         numColumns: Int
     ) {
-        val zoneIds = listOf(
-            R.id.graph_day1_zone, R.id.graph_day2_zone, R.id.graph_day3_zone, R.id.graph_day4_zone,
-            R.id.graph_day5_zone, R.id.graph_day6_zone, R.id.graph_day7_zone, R.id.graph_day8_zone,
-            R.id.graph_day9_zone, R.id.graph_day10_zone
-        )
-        setupGraphZoneClickHandlers(
-            context = context,
-            views = views,
-            appWidgetId = appWidgetId,
-            now = now,
-            days = days,
-            lat = lat,
-            lon = lon,
-            displaySource = displaySource,
-            numColumns = numColumns,
-            zoneIds = zoneIds,
-            requestCodeOffset = 0,
+        DailyClickHandlerFactory.setupGraphDayClickHandlers(
+            context, views, appWidgetId, now, days, lat, lon, displaySource, numColumns
         )
     }
 
-    @VisibleForTesting
-    internal fun setupGraphBottomDayClickHandlers(
+    private fun setupGraphBottomDayClickHandlers(
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
@@ -1314,157 +900,12 @@ object DailyViewHandler : WidgetViewHandler {
         displaySource: WeatherSource,
         numColumns: Int,
     ) {
-        val zoneIds = listOf(
-            R.id.graph_bottom_day1_zone, R.id.graph_bottom_day2_zone, R.id.graph_bottom_day3_zone, R.id.graph_bottom_day4_zone,
-            R.id.graph_bottom_day5_zone, R.id.graph_bottom_day6_zone, R.id.graph_bottom_day7_zone, R.id.graph_bottom_day8_zone,
-            R.id.graph_bottom_day9_zone, R.id.graph_bottom_day10_zone,
-        )
-        setupGraphZoneClickHandlers(
-            context = context,
-            views = views,
-            appWidgetId = appWidgetId,
-            now = now,
-            days = days,
-            lat = lat,
-            lon = lon,
-            displaySource = displaySource,
-            numColumns = numColumns,
-            zoneIds = zoneIds,
-            requestCodeOffset = 100,
-            resolveTargetMode = { iconRes -> DayClickHelper.resolveBottomRowTargetViewMode(iconRes) },
+        DailyClickHandlerFactory.setupGraphBottomDayClickHandlers(
+            context, views, appWidgetId, now, days, lat, lon, displaySource, numColumns
         )
     }
 
-    private val nightRainGridZoneIds: List<IntArray> = listOf(
-        intArrayOf(R.id.graph_night_rain_zone_r0_c0, R.id.graph_night_rain_zone_r0_c1, R.id.graph_night_rain_zone_r0_c2, R.id.graph_night_rain_zone_r0_c3, R.id.graph_night_rain_zone_r0_c4, R.id.graph_night_rain_zone_r0_c5, R.id.graph_night_rain_zone_r0_c6, R.id.graph_night_rain_zone_r0_c7, R.id.graph_night_rain_zone_r0_c8, R.id.graph_night_rain_zone_r0_c9, R.id.graph_night_rain_zone_r0_c10, R.id.graph_night_rain_zone_r0_c11, R.id.graph_night_rain_zone_r0_c12, R.id.graph_night_rain_zone_r0_c13, R.id.graph_night_rain_zone_r0_c14, R.id.graph_night_rain_zone_r0_c15, R.id.graph_night_rain_zone_r0_c16, R.id.graph_night_rain_zone_r0_c17, R.id.graph_night_rain_zone_r0_c18, R.id.graph_night_rain_zone_r0_c19),
-        intArrayOf(R.id.graph_night_rain_zone_r1_c0, R.id.graph_night_rain_zone_r1_c1, R.id.graph_night_rain_zone_r1_c2, R.id.graph_night_rain_zone_r1_c3, R.id.graph_night_rain_zone_r1_c4, R.id.graph_night_rain_zone_r1_c5, R.id.graph_night_rain_zone_r1_c6, R.id.graph_night_rain_zone_r1_c7, R.id.graph_night_rain_zone_r1_c8, R.id.graph_night_rain_zone_r1_c9, R.id.graph_night_rain_zone_r1_c10, R.id.graph_night_rain_zone_r1_c11, R.id.graph_night_rain_zone_r1_c12, R.id.graph_night_rain_zone_r1_c13, R.id.graph_night_rain_zone_r1_c14, R.id.graph_night_rain_zone_r1_c15, R.id.graph_night_rain_zone_r1_c16, R.id.graph_night_rain_zone_r1_c17, R.id.graph_night_rain_zone_r1_c18, R.id.graph_night_rain_zone_r1_c19),
-        intArrayOf(R.id.graph_night_rain_zone_r2_c0, R.id.graph_night_rain_zone_r2_c1, R.id.graph_night_rain_zone_r2_c2, R.id.graph_night_rain_zone_r2_c3, R.id.graph_night_rain_zone_r2_c4, R.id.graph_night_rain_zone_r2_c5, R.id.graph_night_rain_zone_r2_c6, R.id.graph_night_rain_zone_r2_c7, R.id.graph_night_rain_zone_r2_c8, R.id.graph_night_rain_zone_r2_c9, R.id.graph_night_rain_zone_r2_c10, R.id.graph_night_rain_zone_r2_c11, R.id.graph_night_rain_zone_r2_c12, R.id.graph_night_rain_zone_r2_c13, R.id.graph_night_rain_zone_r2_c14, R.id.graph_night_rain_zone_r2_c15, R.id.graph_night_rain_zone_r2_c16, R.id.graph_night_rain_zone_r2_c17, R.id.graph_night_rain_zone_r2_c18, R.id.graph_night_rain_zone_r2_c19),
-        intArrayOf(R.id.graph_night_rain_zone_r3_c0, R.id.graph_night_rain_zone_r3_c1, R.id.graph_night_rain_zone_r3_c2, R.id.graph_night_rain_zone_r3_c3, R.id.graph_night_rain_zone_r3_c4, R.id.graph_night_rain_zone_r3_c5, R.id.graph_night_rain_zone_r3_c6, R.id.graph_night_rain_zone_r3_c7, R.id.graph_night_rain_zone_r3_c8, R.id.graph_night_rain_zone_r3_c9, R.id.graph_night_rain_zone_r3_c10, R.id.graph_night_rain_zone_r3_c11, R.id.graph_night_rain_zone_r3_c12, R.id.graph_night_rain_zone_r3_c13, R.id.graph_night_rain_zone_r3_c14, R.id.graph_night_rain_zone_r3_c15, R.id.graph_night_rain_zone_r3_c16, R.id.graph_night_rain_zone_r3_c17, R.id.graph_night_rain_zone_r3_c18, R.id.graph_night_rain_zone_r3_c19),
-        intArrayOf(R.id.graph_night_rain_zone_r4_c0, R.id.graph_night_rain_zone_r4_c1, R.id.graph_night_rain_zone_r4_c2, R.id.graph_night_rain_zone_r4_c3, R.id.graph_night_rain_zone_r4_c4, R.id.graph_night_rain_zone_r4_c5, R.id.graph_night_rain_zone_r4_c6, R.id.graph_night_rain_zone_r4_c7, R.id.graph_night_rain_zone_r4_c8, R.id.graph_night_rain_zone_r4_c9, R.id.graph_night_rain_zone_r4_c10, R.id.graph_night_rain_zone_r4_c11, R.id.graph_night_rain_zone_r4_c12, R.id.graph_night_rain_zone_r4_c13, R.id.graph_night_rain_zone_r4_c14, R.id.graph_night_rain_zone_r4_c15, R.id.graph_night_rain_zone_r4_c16, R.id.graph_night_rain_zone_r4_c17, R.id.graph_night_rain_zone_r4_c18, R.id.graph_night_rain_zone_r4_c19),
-        intArrayOf(R.id.graph_night_rain_zone_r5_c0, R.id.graph_night_rain_zone_r5_c1, R.id.graph_night_rain_zone_r5_c2, R.id.graph_night_rain_zone_r5_c3, R.id.graph_night_rain_zone_r5_c4, R.id.graph_night_rain_zone_r5_c5, R.id.graph_night_rain_zone_r5_c6, R.id.graph_night_rain_zone_r5_c7, R.id.graph_night_rain_zone_r5_c8, R.id.graph_night_rain_zone_r5_c9, R.id.graph_night_rain_zone_r5_c10, R.id.graph_night_rain_zone_r5_c11, R.id.graph_night_rain_zone_r5_c12, R.id.graph_night_rain_zone_r5_c13, R.id.graph_night_rain_zone_r5_c14, R.id.graph_night_rain_zone_r5_c15, R.id.graph_night_rain_zone_r5_c16, R.id.graph_night_rain_zone_r5_c17, R.id.graph_night_rain_zone_r5_c18, R.id.graph_night_rain_zone_r5_c19),
-    )
-
-    @VisibleForTesting
-    internal fun setupNightRainClickHandlers(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        now: LocalDateTime,
-        days: List<DailyForecastGraphRenderer.DayData>,
-        lat: Double,
-        lon: Double,
-        displaySource: WeatherSource,
-        bitmapWidthPx: Int,
-        bitmapHeightPx: Int,
-        nightLabelDraws: List<DailyForecastGraphRenderer.RainLabelDrawnDebug>,
-    ) {
-        nightRainGridZoneIds.forEach { rowIds ->
-            rowIds.forEach { zoneId ->
-                views.setOnClickPendingIntent(zoneId, null)
-            }
-        }
-
-        Log.d(
-            TAG,
-            "nightRainZones layout: widget=$appWidgetId grid=${NIGHT_RAIN_GRID_ROWS}x${NIGHT_RAIN_GRID_COLS} " +
-                "bitmap=${bitmapWidthPx}x${bitmapHeightPx} labels=${nightLabelDraws.size}",
-        )
-
-        val daysByDate = days.associateBy { it.date }
-        var wired = 0
-        nightLabelDraws.filter { it.isNightLabel }.forEach { labelDraw ->
-            val day = daysByDate[labelDraw.date]
-            if (day == null) {
-                Log.w(TAG, "nightRainZone skip: date=${labelDraw.date} reason=no_day_match")
-                return@forEach
-            }
-            val labelText = day.rainData.nightRainLabelText
-            if (labelText == null) {
-                Log.d(TAG, "nightRainZone skip: date=${day.date} reason=no_label")
-                return@forEach
-            }
-            if (day.date.isBefore(now.toLocalDate())) {
-                Log.d(TAG, "nightRainZone skip: date=${day.date} reason=past_date")
-                return@forEach
-            }
-
-            val colIndex = day.columnIndex ?: days.indexOf(day)
-            val nightOffset = DayClickHelper.calculateNightCenterOffset(now, day.date, lat, lon)
-            val intent = buildDayClickIntent(
-                context = context,
-                appWidgetId = appWidgetId,
-                dayIndex = colIndex + 1,
-                date = day.date,
-                iconRes = day.iconRes,
-                lat = lat,
-                lon = lon,
-                displaySource = displaySource,
-                now = now,
-                targetModeOverride = ViewMode.PRECIPITATION,
-                offsetOverride = nightOffset,
-                clickSource = "night_rain:col=$colIndex:date=${day.date}",
-            )
-            val requestCode = WidgetRequestCodes.nightRainClick(appWidgetId, colIndex)
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                requestCode,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-
-            val coveredCells = computeNightRainGridCells(labelDraw, bitmapWidthPx, bitmapHeightPx)
-            if (coveredCells.isEmpty()) {
-                Log.w(TAG, "nightRainZone skip: date=${day.date} reason=no_cells left=${labelDraw.leftX} right=${labelDraw.rightX} top=${labelDraw.topY} bottom=${labelDraw.bottomY}")
-                return@forEach
-            }
-            coveredCells.forEach { (rowIndex, colCellIndex) ->
-                views.setOnClickPendingIntent(nightRainGridZoneIds[rowIndex][colCellIndex], pendingIntent)
-            }
-            wired++
-            Log.d(
-                TAG,
-                "nightRainZone wired: widget=$appWidgetId col=$colIndex date=${day.date} " +
-                    "label=\"$labelText\" iconRes=${day.iconRes} offset=${nightOffset}h " +
-                    "bounds=(${labelDraw.leftX},${labelDraw.topY})..(${labelDraw.rightX},${labelDraw.bottomY}) " +
-                    "zoneIds=${coveredCells.joinToString(",") { (rowIndex, colCellIndex) ->
-                        context.resources.getResourceEntryName(nightRainGridZoneIds[rowIndex][colCellIndex])
-                    }} " +
-                    "targetMode=PRECIPITATION requestCode=$requestCode " +
-                    "intentAction=${intent.action} hasExtras=${intent.extras != null}",
-            )
-        }
-        Log.d(TAG, "nightRainZones summary: widget=$appWidgetId wired=$wired numDays=${days.size}")
-    }
-
-    private fun computeNightRainGridCells(
-        labelDraw: DailyForecastGraphRenderer.RainLabelDrawnDebug,
-        bitmapWidthPx: Int,
-        bitmapHeightPx: Int,
-    ): List<Pair<Int, Int>> {
-        if (
-            bitmapWidthPx <= 0 ||
-            labelDraw.leftX.isNaN() ||
-            labelDraw.rightX.isNaN()
-        ) {
-            return emptyList()
-        }
-
-        val safeLeft = labelDraw.leftX.coerceIn(0f, bitmapWidthPx.toFloat() - 1f)
-        val safeRight = labelDraw.rightX.coerceIn(safeLeft + 0.01f, bitmapWidthPx.toFloat())
-
-        val startCol = floor((safeLeft / bitmapWidthPx) * NIGHT_RAIN_GRID_COLS).toInt().coerceIn(0, NIGHT_RAIN_GRID_COLS - 1)
-        val endCol = floor((((safeRight - 0.01f).coerceAtLeast(safeLeft)) / bitmapWidthPx) * NIGHT_RAIN_GRID_COLS).toInt().coerceIn(0, NIGHT_RAIN_GRID_COLS - 1)
-
-        return buildList {
-            for (rowIndex in 0 until NIGHT_RAIN_GRID_ROWS) {
-                for (colIndex in startCol..endCol) {
-                    add(rowIndex to colIndex)
-                }
-            }
-        }
-    }
-
-    private fun setupGraphZoneClickHandlers(
+private fun setupGraphZoneClickHandlers(
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
@@ -1478,92 +919,10 @@ object DailyViewHandler : WidgetViewHandler {
         requestCodeOffset: Int = 0,
         resolveTargetMode: ((Int?) -> ViewMode)? = null,
     ) {
-        for (i in zoneIds.indices) {
-            val zoneId = zoneIds[i]
-            if (i < numColumns) {
-                views.setViewVisibility(zoneId, View.VISIBLE)
-                views.setOnClickPendingIntent(zoneId, null)
-            } else {
-                views.setViewVisibility(zoneId, View.GONE)
-            }
-        }
-
-        days.forEachIndexed { index, dayData ->
-            val colIndex = dayData.columnIndex ?: index
-            val zoneId = zoneIds.getOrNull(colIndex) ?: return@forEachIndexed
-            val targetModeOverride = resolveTargetMode?.invoke(dayData.iconRes)
-            val intent = buildDayClickIntent(
-                context = context,
-                appWidgetId = appWidgetId,
-                dayIndex = colIndex + 1,
-                date = dayData.date,
-                iconRes = dayData.iconRes,
-                lat = lat,
-                lon = lon,
-                displaySource = displaySource,
-                now = now,
-                targetModeOverride = targetModeOverride,
-                clickSource = if (requestCodeOffset == 0) {
-                    "graph_day:col=$colIndex:date=${dayData.date}"
-                } else {
-                    "graph_bottom_day:col=$colIndex:date=${dayData.date}"
-                },
-            )
-            val pendingIntent = PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.graphClick(appWidgetId, colIndex + requestCodeOffset),
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(zoneId, pendingIntent)
-        }
+        DailyClickHandlerFactory.setupGraphZoneClickHandlers(
+            context, views, appWidgetId, now, days, lat, lon, displaySource,
+            numColumns, zoneIds, requestCodeOffset, resolveTargetMode,
+        )
     }
 
-    private fun dailyDeltaHiddenReason(
-        currentTemp: Float?,
-        appliedDelta: Float?,
-    ): String? =
-        when {
-            currentTemp == null -> "current_temp_missing"
-            appliedDelta == null -> "no_delta"
-            kotlin.math.abs(appliedDelta) < DELTA_VISIBILITY_THRESHOLD -> "below_threshold"
-            else -> null
-        }
-
-    private fun buildHeaderStateLog(
-        widgetId: Int,
-        viewMode: ViewMode,
-        displaySource: WeatherSource,
-        configuredLocation: Pair<Double, Double>?,
-        dataLat: Double,
-        dataLon: Double,
-        dimensions: WidgetDimensions,
-        currentTemp: Float?,
-        estimatedTemp: Float?,
-        observedTemp: Float?,
-        appliedDelta: Float?,
-        deltaVisible: Boolean,
-        deltaHiddenReason: String?,
-        precipVisible: Boolean,
-        precipProbability: Int?,
-        isNowLineVisible: Boolean?,
-        offset: Int,
-        zoom: ZoomLevel?,
-        resolveMs: Long,
-    ): String =
-        "headerState widget=$widgetId mode=${viewMode.name} source=${displaySource.id} " +
-            "configuredLoc=${formatLocation(configuredLocation)} dataLoc=${formatLocation(dataLat to dataLon)} " +
-            "cols=${dimensions.cols} rows=${dimensions.rows} sizeDp=${dimensions.widthDp}x${dimensions.heightDp} " +
-            "currentTemp=${formatTemp(currentTemp)} estimatedTemp=${formatTemp(estimatedTemp)} " +
-            "observedTemp=${formatTemp(observedTemp)} appliedDelta=${formatTemp(appliedDelta)} " +
-            "deltaVisible=$deltaVisible deltaHiddenReason=${deltaHiddenReason ?: "none"} " +
-            "precipVisible=$precipVisible precipProbability=${precipProbability ?: "none"} " +
-            "isNowLineVisible=${isNowLineVisible ?: "n/a"} offset=$offset zoom=${zoom?.name ?: "n/a"} resolveMs=$resolveMs"
-
-    private fun formatLocation(location: Pair<Double, Double>?): String {
-        if (location == null) return "none"
-        return String.format("%.5f,%.5f", location.first, location.second)
-    }
-
-    private fun formatTemp(value: Float?): String = value?.let { String.format("%.2f", it) } ?: "none"
 }

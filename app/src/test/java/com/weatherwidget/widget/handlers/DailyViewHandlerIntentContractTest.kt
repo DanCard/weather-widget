@@ -40,7 +40,7 @@ class DailyViewHandlerIntentContractTest {
         val targetDate = LocalDate.of(2030, 6, 14)
 
         val intent =
-            DailyViewHandler.buildDayClickIntent(
+            DailyClickHandlerFactory.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 1,
@@ -70,7 +70,7 @@ class DailyViewHandlerIntentContractTest {
         val targetDate = LocalDate.of(2030, 6, 16)
 
         val intent =
-            DailyViewHandler.buildDayClickIntent(
+            DailyClickHandlerFactory.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
@@ -104,7 +104,7 @@ class DailyViewHandlerIntentContractTest {
         val today = LocalDate.of(2030, 6, 15)
 
         val intent =
-            DailyViewHandler.buildDayClickIntent(
+            DailyClickHandlerFactory.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
@@ -128,7 +128,7 @@ class DailyViewHandlerIntentContractTest {
         val today = LocalDate.of(2030, 6, 15)
 
         val intent =
-            DailyViewHandler.buildDayClickIntent(
+            DailyClickHandlerFactory.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 2,
@@ -152,7 +152,7 @@ class DailyViewHandlerIntentContractTest {
         val targetDate = LocalDate.of(2030, 6, 17)
 
         val intent =
-            DailyViewHandler.buildDayClickIntent(
+            DailyClickHandlerFactory.buildDayClickIntent(
                 context = context,
                 appWidgetId = TEST_WIDGET_ID,
                 dayIndex = 3,
