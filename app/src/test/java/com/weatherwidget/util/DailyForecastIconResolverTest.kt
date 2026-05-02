@@ -507,34 +507,34 @@ class DailyForecastIconResolverTest {
     // --- Night threshold formula tests ---
 
     @Test
-    fun `day threshold at day 0 is 0`() {
-        assertEquals(0, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
+    fun `day threshold at day 0 is 1`() {
+        assertEquals(1, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(0))
     }
 
     @Test
-    fun `day threshold at day 3 is 15`() {
-        assertEquals(15, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
+    fun `day threshold at day 3 is 13`() {
+        assertEquals(13, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(3))
     }
 
     @Test
-    fun `day threshold at day 6 is 30`() {
-        assertEquals(30, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
+    fun `day threshold at day 6 is 25`() {
+        assertEquals(25, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(6))
     }
 
     @Test
-    fun `day threshold at day 7 is 35`() {
-        assertEquals(35, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
+    fun `day threshold at day 7 is 29`() {
+        assertEquals(29, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(7))
     }
 
     @Test
-    fun `day threshold is 50 for day 10 plus`() {
-        assertEquals(50, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(10))
-        assertEquals(500, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(100))
+    fun `day threshold is 41 for day 10 plus`() {
+        assertEquals(41, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(10))
+        assertEquals(401, DailyForecastIconResolver.getMinimumPrecipProbabilityDay(100))
     }
 
     @Test
-    fun `night threshold at day 0 is 0`() {
-        assertEquals(0, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(0))
+    fun `night threshold at day 0 is 1`() {
+        assertEquals(1, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(0))
     }
 
     @Test

@@ -17,7 +17,7 @@ object DailyForecastIconResolver {
     )
 
     fun getMinimumPrecipProbabilityDay(daysFromToday: Int): Int {
-        return 5 * daysFromToday
+        return (4 * daysFromToday) + 1
     }
 
     fun getMinimumPrecipProbabilityNight(daysFromToday: Int): Int {

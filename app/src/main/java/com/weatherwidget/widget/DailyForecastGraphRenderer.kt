@@ -989,18 +989,22 @@ object DailyForecastGraphRenderer {
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
         
-        // 2. Calculate dynamic tuck intensity based on vertical position (Interpolation)
-        // relativePos: 0.0 (top) to 1.0 (bottom)
-        val relativePos = (anchorBaseline / layout.heightPx).coerceIn(0f, 1f)
-        
-        // Linear interpolation ramp:
-        // <= 60% height: Standard tuck (2.5dp overlap, 1.5dp nudge)
-        // >= 90% height: Max tuck (4.5dp overlap, 3.0dp nudge)
-        val tightFraction = ((relativePos - 0.6f) / 0.3f).coerceIn(0f, 1f)
+        // 2. Calculate dynamic tuck intensity based on vertical space available below
+        val hardBottomLimitEarly = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
+        val roomBelowPx = (hardBottomLimitEarly - anchorBaseline).coerceAtLeast(0f)
+        val roomBelowDp = roomBelowPx / density
+
+        // Linear interpolation ramp based on absolute room below:
+        // <= 6dp room: Max tuck (4.5dp overlap, 3.0dp nudge) — label is near bottom
+        // >= 18dp room: Min tuck (2.5dp overlap, 1.5dp nudge) — label has plenty of room
+        val tightFraction = (1f - (roomBelowDp - 6f) / (18f - 6f)).coerceIn(0f, 1f)
         
         val dynamicOverlapDp = 2.5f + (2.0f * tightFraction)
         val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
-        val hNudgePx = dpToPx(context, dynamicNudgeDp)
+
+        val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
+        val effectiveNudgeDp = if (isLeftTempLower) 0f else dynamicNudgeDp
+        val hNudgePx = dpToPx(context, effectiveNudgeDp)
 
         // 3. Multi-step fitting strategy
         var currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
@@ -1076,7 +1080,7 @@ object DailyForecastGraphRenderer {
                     isNightLabel = true,
                 )
             )
-            Log.d(TAG, "nightRainLabel drawn: date=${day.date} relPos=${(relativePos*100).toInt()}% tight=${(tightFraction*100).toInt()}% overlap=${dynamicOverlapDp}dp nudge=${dynamicNudgeDp}dp")
+            Log.d(TAG, "nightRainLabel drawn: date=${day.date} room=${roomBelowDp.toInt()}dp tight=${(tightFraction*100).toInt()}% overlap=${String.format("%.1f", dynamicOverlapDp)}dp nudge=${String.format("%.1f", effectiveNudgeDp)}dp centerX=${finalCenterX.toInt()} leftBl=${leftBaseline.toInt()} rightBl=${rightNeighborBaseline?.toInt()} leftLower=$isLeftTempLower")
             return
         }
 
