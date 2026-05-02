@@ -2,9 +2,12 @@ package com.weatherwidget.util
 
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
+import java.time.LocalTime
 
 @Category(ShortDuration::class)
 class NavigationUtilsTest {
@@ -56,5 +59,35 @@ class NavigationUtilsTest {
 
         val centerNeg1 = NavigationUtils.getDisplayCenterDate(today, -1, isEveningMode = true)
         assertEquals("Offset -1 evening should be today", today, centerNeg1)
+    }
+
+    @Test
+    fun `isEveningMode uses 5pm threshold for narrow widgets`() {
+        val fivePm = LocalTime.of(17, 0)
+        val fourFiftyNine = LocalTime.of(16, 59)
+        val sixPm = LocalTime.of(18, 0)
+
+        assertTrue("8 cols at 5pm should be evening mode",
+            NavigationUtils.isEveningMode(fivePm, numColumns = 8))
+        assertFalse("8 cols at 4:59pm should not be evening mode",
+            NavigationUtils.isEveningMode(fourFiftyNine, numColumns = 8))
+        assertTrue("1 col at 5pm should be evening mode",
+            NavigationUtils.isEveningMode(fivePm, numColumns = 1))
+    }
+
+    @Test
+    fun `isEveningMode uses 6pm threshold for wide widgets`() {
+        val fivePm = LocalTime.of(17, 0)
+        val sixPm = LocalTime.of(18, 0)
+        val elevenPm = LocalTime.of(23, 0)
+
+        assertFalse("9 cols at 5pm should not be evening mode",
+            NavigationUtils.isEveningMode(fivePm, numColumns = 9))
+        assertFalse("9 cols at 6pm should not be evening mode",
+            NavigationUtils.isEveningMode(sixPm, numColumns = 9))
+        assertFalse("9 cols at 11pm should not be evening mode",
+            NavigationUtils.isEveningMode(elevenPm, numColumns = 9))
+        assertFalse("Default numColumns at 6pm should not be evening mode",
+            NavigationUtils.isEveningMode(sixPm))
     }
 }

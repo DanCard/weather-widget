@@ -195,7 +195,7 @@ object DailyViewHandler : WidgetViewHandler {
         val stateManager = WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
-        val isEveningMode = NavigationUtils.isEveningMode(now.toLocalTime())
+        val isEveningMode = NavigationUtils.isEveningMode(now.toLocalTime(), numColumns)
 
         // Single source of truth for time in this update cycle
         val today = now.toLocalDate()

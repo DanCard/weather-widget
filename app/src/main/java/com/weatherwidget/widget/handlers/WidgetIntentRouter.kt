@@ -156,7 +156,7 @@ suspend fun handleNavigation(
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
-        val isEveningMode = NavigationUtils.isEveningMode()
+        val isEveningMode = NavigationUtils.isEveningMode(numColumns = numColumns)
 
         val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.toSet()
 

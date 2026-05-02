@@ -9,17 +9,39 @@ import java.time.LocalTime
  */
 object NavigationUtils {
     /**
-     * Hour when evening mode starts (6 PM). At or after this hour, the widget
-     * skips history and shows today with forecast comparison.
+     * Hour when evening mode starts for wide widgets (>8 columns).
+     * Set to 24 (midnight) so wide widgets never enter evening mode early;
+     * the day advances naturally when the calendar date rolls over.
      */
-    const val EVENING_MODE_START_HOUR = 18
+    const val EVENING_MODE_START_HOUR = 24
 
     /**
-     * Checks if current time is in "evening mode" (6 PM or later).
-     * In evening mode, the widget shows today+forecast instead of yesterday+today.
+     * Hour when evening mode starts for narrow widgets (8 or fewer columns).
+     * These widgets show fewer days, so advancing earlier avoids showing stale
+     * history at the expense of forward forecasts.
      */
-    fun isEveningMode(time: LocalTime = LocalTime.now()): Boolean {
-        return time.hour >= EVENING_MODE_START_HOUR
+    const val NARROW_EVENING_MODE_START_HOUR = 17
+
+    /**
+     * Column threshold below which the earlier evening mode hour is used.
+     */
+    const val NARROW_EVENING_MODE_COLUMN_THRESHOLD = 8
+
+    /**
+     * Checks if current time is in "evening mode".
+     * In evening mode, the widget shows today+forecast instead of yesterday+today.
+     *
+     * @param numColumns Number of widget columns. Widgets with 8 or fewer columns
+     *                   enter evening mode at [NARROW_EVENING_MODE_START_HOUR] (5 PM).
+     *                   Wider widgets use [EVENING_MODE_START_HOUR] (6 PM).
+     */
+    fun isEveningMode(time: LocalTime = LocalTime.now(), numColumns: Int = Int.MAX_VALUE): Boolean {
+        val threshold = if (numColumns <= NARROW_EVENING_MODE_COLUMN_THRESHOLD) {
+            NARROW_EVENING_MODE_START_HOUR
+        } else {
+            EVENING_MODE_START_HOUR
+        }
+        return time.hour >= threshold
     }
 
     /**
