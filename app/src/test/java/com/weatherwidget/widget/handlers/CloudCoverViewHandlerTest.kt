@@ -25,55 +25,34 @@ class CloudCoverViewHandlerTest {
     }
 
     @Test
-    fun `selectCloudCoverSource keeps requested source when it has visible cloud cover`() {
-        val hours = listOf(
-            hourly("2026-03-14T20:00", WeatherSource.SILURIAN, 40),
-            hourly("2026-03-14T21:00", WeatherSource.NWS, 70),
-        )
+    fun `buildWindowHourKeys spans backHours through forwardHours inclusive`() {
+        val center = LocalDateTime.of(2026, 3, 14, 12, 0)
+        val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomLevel.WIDE)
 
-        val selected = CloudCoverViewHandler.selectCloudCoverSource(
-            hourlyForecasts = hours,
-            requestedSource = WeatherSource.SILURIAN,
-            centerTime = LocalDateTime.of(2026, 3, 14, 21, 0),
-            zoom = ZoomLevel.WIDE,
-        )
+        val expectedSize = (ZoomLevel.WIDE.backHours + ZoomLevel.WIDE.forwardHours + 1L).toInt()
+        assertEquals(expectedSize, keys.size)
 
-        assertEquals(WeatherSource.SILURIAN, selected)
+        val expectedStart = center
+            .minusHours(ZoomLevel.WIDE.backHours.toLong())
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        assertEquals(expectedStart, keys.min())
     }
 
     @Test
-    fun `selectCloudCoverSource falls back to source with visible cloud cover`() {
-        val hours = listOf(
-            hourly("2026-03-14T21:00", WeatherSource.SILURIAN, null),
-            hourly("2026-03-14T21:00", WeatherSource.NWS, 65),
-            hourly("2026-03-14T22:00", WeatherSource.NWS, 62),
-        )
+    fun `buildWindowHourKeys aligns half-hours forward to next whole hour`() {
+        val center = LocalDateTime.of(2026, 3, 14, 12, 30)
+        val keys = CloudCoverViewHandler.buildWindowHourKeys(center, ZoomLevel.WIDE)
 
-        val selected = CloudCoverViewHandler.selectCloudCoverSource(
-            hourlyForecasts = hours,
-            requestedSource = WeatherSource.SILURIAN,
-            centerTime = LocalDateTime.of(2026, 3, 14, 21, 0),
-            zoom = ZoomLevel.WIDE,
-        )
-
-        assertEquals(WeatherSource.NWS, selected)
-    }
-
-    @Test
-    fun `selectCloudCoverSource ignores cloud cover outside visible window`() {
-        val hours = listOf(
-            hourly("2026-03-16T21:00", WeatherSource.NWS, 65),
-            hourly("2026-03-14T21:00", WeatherSource.SILURIAN, null),
-        )
-
-        val selected = CloudCoverViewHandler.selectCloudCoverSource(
-            hourlyForecasts = hours,
-            requestedSource = WeatherSource.SILURIAN,
-            centerTime = LocalDateTime.of(2026, 3, 14, 21, 0),
-            zoom = ZoomLevel.WIDE,
-        )
-
-        assertEquals(WeatherSource.SILURIAN, selected)
+        // 12:30 should align to 13:00 as the center, so the span is [13 - back, 13 + forward]
+        val alignedCenter = LocalDateTime.of(2026, 3, 14, 13, 0)
+        val expectedStart = alignedCenter
+            .minusHours(ZoomLevel.WIDE.backHours.toLong())
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        assertEquals(expectedStart, keys.min())
     }
 
     @Test

@@ -6,6 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
+import java.time.LocalDateTime
 import java.util.Locale
 
 @Category(ShortDuration::class)
@@ -78,5 +79,50 @@ class WidgetFormatUtilsTest {
     fun `formatPrecipAmount large mm rounds to integer`() {
         Locale.setDefault(Locale.GERMANY)
         assertEquals("25mm", formatPrecipAmount(25.0f))
+    }
+
+    // --- formatMissingHourRanges ---
+
+    @Test
+    fun `formatMissingHourRanges empty returns empty string`() {
+        assertEquals("", formatMissingHourRanges(emptyList()))
+    }
+
+    @Test
+    fun `formatMissingHourRanges single hour returns single label`() {
+        assertEquals("9p", formatMissingHourRanges(listOf(LocalDateTime.of(2026, 5, 2, 21, 0))))
+    }
+
+    @Test
+    fun `formatMissingHourRanges contiguous hours collapse into a range`() {
+        val hours = listOf(7, 8, 9, 10).map { LocalDateTime.of(2026, 5, 2, it, 0) }
+        assertEquals("7a–10a", formatMissingHourRanges(hours))
+    }
+
+    @Test
+    fun `formatMissingHourRanges multiple disjoint ranges are joined with commas`() {
+        val hours = listOf(7, 8, 11, 14, 15).map { LocalDateTime.of(2026, 5, 2, it, 0) }
+        assertEquals("7a–8a, 11a, 2p–3p", formatMissingHourRanges(hours))
+    }
+
+    @Test
+    fun `formatMissingHourRanges spans noon and midnight transitions`() {
+        val hours = listOf(11, 12, 13).map { LocalDateTime.of(2026, 5, 2, it, 0) }
+        assertEquals("11a–1p", formatMissingHourRanges(hours))
+    }
+
+    @Test
+    fun `formatMissingHourRanges sorts unsorted input`() {
+        val hours = listOf(15, 14, 7, 8).map { LocalDateTime.of(2026, 5, 2, it, 0) }
+        assertEquals("7a–8a, 2p–3p", formatMissingHourRanges(hours))
+    }
+
+    @Test
+    fun `formatMissingHourRanges treats day boundary as non-contiguous`() {
+        val hours = listOf(
+            LocalDateTime.of(2026, 5, 2, 23, 0),
+            LocalDateTime.of(2026, 5, 3, 0, 0),
+        )
+        assertEquals("11p–12a", formatMissingHourRanges(hours))
     }
 }

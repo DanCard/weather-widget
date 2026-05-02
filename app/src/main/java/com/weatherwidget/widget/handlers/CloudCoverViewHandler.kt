@@ -57,45 +57,46 @@ object CloudCoverViewHandler {
             com.weatherwidget.widget.ZoomLevel.NARROW -> (zoom.smoothIterations - 1).coerceAtLeast(0)
         }
 
+    /**
+     * Look up the most likely upstream reason for missing cloud cover data by checking
+     * recent app_logs entries written by NwsForecastMapper. Returns a short human phrase
+     * suitable for display in the graph diagnostic, or null if no recent matching event.
+     */
+    private suspend fun resolveMissingDataReason(
+        appLogDao: com.weatherwidget.data.local.AppLogDao,
+        lookbackMs: Long = 4 * 60 * 60 * 1000L,
+    ): String? {
+        val cutoff = System.currentTimeMillis() - lookbackMs
+        val gridFail = appLogDao.getLogsByTag("NWS_GRIDPOINTS_FAIL", limit = 1).firstOrNull()
+        if (gridFail != null && gridFail.timestamp >= cutoff) return "NWS gridpoints fetch failed"
+        val skyEmpty = appLogDao.getLogsByTag("NWS_SKYCOVER_EMPTY", limit = 1).firstOrNull()
+        if (skyEmpty != null && skyEmpty.timestamp >= cutoff) return "NWS sky cover unavailable"
+        return null
+    }
+
+    /**
+     * Build the set of epoch-ms keys for every hour in the visible cloud cover window
+     * around [centerTime] given the current [zoom]. Used to count how many hours in the
+     * window have cloud cover data, so the renderer can flag missing data honestly
+     * without silently switching weather sources.
+     */
     @androidx.annotation.VisibleForTesting
-    internal fun selectCloudCoverSource(
-        hourlyForecasts: List<HourlyForecastEntity>,
-        requestedSource: WeatherSource,
+    internal fun buildWindowHourKeys(
         centerTime: LocalDateTime,
         zoom: com.weatherwidget.widget.ZoomLevel,
-    ): WeatherSource {
+    ): Set<Long> {
         val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
         val zoneId = ZoneId.systemDefault()
-        val windowKeys = buildSet {
+        return buildSet {
             var currentHour = startHour
             while (currentHour.isBefore(endHour) || currentHour.isEqual(endHour)) {
                 add(currentHour.atZone(zoneId).toInstant().toEpochMilli())
                 currentHour = currentHour.plusHours(1)
             }
         }
-
-        val cloudCountsBySource = hourlyForecasts
-            .asSequence()
-            .filter { it.cloudCover != null && it.dateTime in windowKeys }
-            .groupingBy { it.source }
-            .eachCount()
-
-        if ((cloudCountsBySource[requestedSource.id] ?: 0) > 0) {
-            return requestedSource
-        }
-
-        val fallbackSourceId = cloudCountsBySource
-            .maxWithOrNull(
-                compareBy<Map.Entry<String, Int>> { it.value }
-                    .thenBy { it.key == WeatherSource.NWS.id }
-                    .thenBy { it.key == WeatherSource.OPEN_METEO.id },
-            )
-            ?.key
-
-        return fallbackSourceId?.let(WeatherSource::fromId) ?: requestedSource
     }
 
     suspend fun updateWidget(
@@ -137,7 +138,8 @@ object CloudCoverViewHandler {
 
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
-        val effectiveDisplaySource = selectCloudCoverSource(hourlyForecasts, displaySource, centerTime, zoom)
+        val windowHourKeys = buildWindowHourKeys(centerTime, zoom)
+        val effectiveDisplaySource = displaySource
         setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
 
         setupNavigationButtons(context, views, appWidgetId, stateManager)
@@ -174,12 +176,6 @@ object CloudCoverViewHandler {
             widthDp = dimensions.widthDp
         )
         views.setTextViewText(R.id.api_source, sourceIndicator)
-        if (effectiveDisplaySource != displaySource) {
-            Log.i(
-                TAG,
-                "Falling back cloud cover source from $displaySource to $effectiveDisplaySource for widget $appWidgetId",
-            )
-        }
 
         val now = LocalDateTime.now()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -281,11 +277,31 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
             val hours = buildCloudHourDataList(hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom)
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
 
+            val totalWindowHours = windowHourKeys.size
+            val missingHours = (totalWindowHours - hours.size).coerceAtLeast(0)
+
+            val zoneId = ZoneId.systemDefault()
+            val presentHourMs = hours.asSequence()
+                .map { it.dateTime.atZone(zoneId).toInstant().toEpochMilli() }
+                .toSet()
+            val missingHourTimes = (windowHourKeys - presentHourMs).asSequence()
+                .map { Instant.ofEpochMilli(it).atZone(zoneId).toLocalDateTime() }
+                .sorted()
+                .toList()
+            val missingDescription = formatMissingHourRanges(missingHourTimes).takeIf { it.isNotEmpty() }
+            val missingReason = if (missingHours > 0) resolveMissingDataReason(appLogDao) else null
+
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
                 Log.w(TAG, "buildCloudHourDataList returned empty despite ${hourlyForecasts.size} hourly rows — " +
-                    "centerTime=$centerTime zoom=$zoom source=$effectiveDisplaySource, skipping bitmap update")
-                appWidgetManager.updateAppWidget(appWidgetId, views)
-                return
+                    "centerTime=$centerTime zoom=$zoom source=$effectiveDisplaySource, rendering diagnostic")
+            }
+            if (missingHours > 0) {
+                appLogDao.log(
+                    "CLOUD_COVER_GAPS",
+                    "widget=$appWidgetId source=${effectiveDisplaySource.id} " +
+                        "missing=$missingHours total=$totalWindowHours " +
+                        "ranges=${missingDescription ?: "-"} reason=${missingReason ?: "-"}",
+                )
             }
 
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
@@ -301,6 +317,10 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 bitmapScale = bitmapDims.bitmapScale,
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
+                missingHours = missingHours,
+                totalHours = totalWindowHours,
+                missingDescription = missingDescription,
+                missingReason = missingReason,
                 job = coroutineContext[Job],
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs

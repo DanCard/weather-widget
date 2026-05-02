@@ -57,6 +57,11 @@ class NwsForecastMapper @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "getGridpointsBundle failed: ${e.message}")
+                appLogDao.log(
+                    "NWS_GRIDPOINTS_FAIL",
+                    "exception=${e::class.simpleName} message=${e.message} " +
+                        "grid=${grid.gridId}/${grid.gridX},${grid.gridY}",
+                )
                 NwsApi.GridpointsBundle(
                     skyCoverByHour = emptyMap(),
                     qpfIntervals = emptyList(),
@@ -71,6 +76,19 @@ class NwsForecastMapper @Inject constructor(
         val skyCoverMap = gridpoints.skyCoverByHour
         val gridQpfIntervals = gridpoints.qpfIntervals
         val gridDailyTemps = gridpoints.dailyTemperatures
+
+        // If skyCover is empty after a successful fetch, the API returned a structurally
+        // valid response missing the skyCover field — distinct from the catch-block path
+        // above. Log enough sibling-field counts to tell the two cases apart post-hoc.
+        if (skyCoverMap.isEmpty()) {
+            appLogDao.log(
+                "NWS_SKYCOVER_EMPTY",
+                "grid=${grid.gridId}/${grid.gridX},${grid.gridY} " +
+                    "qpf=${gridQpfIntervals.size} " +
+                    "maxDays=${gridDailyTemps.maxByDate.size} " +
+                    "minDays=${gridDailyTemps.minByDate.size}",
+            )
+        }
 
         val hourlyPeriodsWithSkyCover = if (skyCoverMap.isNotEmpty()) {
             rawHourlyPeriods.map { period ->

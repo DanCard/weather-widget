@@ -60,7 +60,7 @@ object DailyForecastGraphRenderer {
     private const val CLIMATE_OVERLAY_ALPHA = 80
     private const val BULB_RADIUS_SCALE = 1.2f
     private const val BULB_VERTICAL_CENTER_FRACTION = 0.5f
-    private const val RAIN_HIGH_TEMP_GAP_DP = -1.5f
+    private const val RAIN_HIGH_TEMP_GAP_DP = -2f
     private const val HISTORY_BAR_WIDTH_SCALE = 0.7f
     private const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f

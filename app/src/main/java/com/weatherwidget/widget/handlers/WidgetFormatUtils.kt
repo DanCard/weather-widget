@@ -13,6 +13,33 @@ internal fun formatHourLabel(time: LocalDateTime): String {
     }
 }
 
+/**
+ * Format a list of LocalDateTimes (hour-aligned) into a compact human-readable description
+ * grouping contiguous hours into ranges. e.g. [7a, 8a, 9a, 11p] -> "7a–9a, 11p".
+ */
+internal fun formatMissingHourRanges(missingHours: List<LocalDateTime>): String {
+    if (missingHours.isEmpty()) return ""
+    val sorted = missingHours.sorted()
+    val ranges = mutableListOf<Pair<LocalDateTime, LocalDateTime>>()
+    var rangeStart = sorted[0]
+    var rangeEnd = sorted[0]
+    for (i in 1 until sorted.size) {
+        val current = sorted[i]
+        if (current == rangeEnd.plusHours(1)) {
+            rangeEnd = current
+        } else {
+            ranges.add(rangeStart to rangeEnd)
+            rangeStart = current
+            rangeEnd = current
+        }
+    }
+    ranges.add(rangeStart to rangeEnd)
+    return ranges.joinToString(", ") { (start, end) ->
+        if (start == end) formatHourLabel(start)
+        else "${formatHourLabel(start)}–${formatHourLabel(end)}"
+    }
+}
+
 internal fun formatPrecipAmount(amountMm: Float): String {
     val country = Locale.getDefault().country.uppercase(Locale.US)
     return if (country == "US" || country == "GB") {

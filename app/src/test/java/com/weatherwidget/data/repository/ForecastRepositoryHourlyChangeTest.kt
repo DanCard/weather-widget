@@ -3,6 +3,7 @@ package com.weatherwidget.data.repository
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,6 +53,46 @@ class ForecastRepositoryHourlyChangeTest {
         val fetched = hourly(cloudCover = 55, precipProbability = 20, fetchedAt = 1000L + 30 * 60 * 1000L)
 
         assertFalse(ForecastRepository.hasMeaningfulHourlyChange(existing, fetched))
+    }
+
+    @Test
+    fun `mergePreservingNullableFields keeps existing cloudCover when fetched is null`() {
+        val existing = hourly(cloudCover = 42, precipProbability = 30)
+        val fetched = hourly(cloudCover = null, precipProbability = 30)
+
+        val merged = ForecastRepository.mergePreservingNullableFields(existing, fetched)
+
+        assertEquals(42, merged.cloudCover)
+    }
+
+    @Test
+    fun `mergePreservingNullableFields keeps existing precipProbability when fetched is null`() {
+        val existing = hourly(cloudCover = 50, precipProbability = 70)
+        val fetched = hourly(cloudCover = 50, precipProbability = null)
+
+        val merged = ForecastRepository.mergePreservingNullableFields(existing, fetched)
+
+        assertEquals(70, merged.precipProbability)
+    }
+
+    @Test
+    fun `mergePreservingNullableFields prefers fetched value when not null`() {
+        val existing = hourly(cloudCover = 42, precipProbability = 10)
+        val fetched = hourly(cloudCover = 88, precipProbability = 90)
+
+        val merged = ForecastRepository.mergePreservingNullableFields(existing, fetched)
+
+        assertEquals(88, merged.cloudCover)
+        assertEquals(90, merged.precipProbability)
+    }
+
+    @Test
+    fun `mergePreservingNullableFields returns fetched as-is when no existing row`() {
+        val fetched = hourly(cloudCover = null, precipProbability = null)
+
+        val merged = ForecastRepository.mergePreservingNullableFields(existing = null, newlyFetched = fetched)
+
+        assertEquals(fetched, merged)
     }
 
     private fun hourly(

@@ -94,6 +94,25 @@ class ForecastRepository
                     newlyFetched.fetchedAt - existing.fetchedAt > 60 * 60 * 1000L
             }
 
+            /**
+             * Merge a newly fetched hourly entity with the existing DB row, preserving any
+             * non-null nullable fields from the existing row when the new fetch returned null.
+             * Prevents a single bad fetch (e.g., NWS gridpoints failure that drops the skyCover
+             * field) from wiping previously good cloudCover / precip data.
+             */
+            @androidx.annotation.VisibleForTesting
+            internal fun mergePreservingNullableFields(
+                existing: HourlyForecastEntity?,
+                newlyFetched: HourlyForecastEntity,
+            ): HourlyForecastEntity {
+                if (existing == null) return newlyFetched
+                return newlyFetched.copy(
+                    cloudCover = newlyFetched.cloudCover ?: existing.cloudCover,
+                    precipProbability = newlyFetched.precipProbability ?: existing.precipProbability,
+                    precipAmountMm = newlyFetched.precipAmountMm ?: existing.precipAmountMm,
+                )
+            }
+
         }
 
         private var lastFetchTime: Long
@@ -639,9 +658,13 @@ class ForecastRepository
                 minDateTime, maxDateTime, sample.locationLat, sample.locationLon, sample.source
             ).associateBy { it.dateTime }
 
-            val changedEntities = entities.filter { newlyFetched ->
-                val existing = existingByDateTime[newlyFetched.dateTime]
-                hasMeaningfulHourlyChange(existing, newlyFetched)
+            val mergedEntities = entities.map { newlyFetched ->
+                mergePreservingNullableFields(existingByDateTime[newlyFetched.dateTime], newlyFetched)
+            }
+
+            val changedEntities = mergedEntities.filter { merged ->
+                val existing = existingByDateTime[merged.dateTime]
+                hasMeaningfulHourlyChange(existing, merged)
             }
 
             if (changedEntities.isNotEmpty()) {

@@ -166,6 +166,18 @@ object CloudCoverGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 1,
         hourLabelSpacingDp: Float = 28f,
+        // Total number of hours in the visible window and how many lack cloud cover data.
+        // Used to render an in-graph "data missing" diagnostic when the upstream feed has
+        // gaps, so the user sees the gap honestly instead of guessing whether the sky was
+        // clear or the fetch failed. When totalHours is 0 these are ignored.
+        missingHours: Int = 0,
+        totalHours: Int = 0,
+        // Compact human description of which hours are missing, e.g., "7a–8p" or
+        // "9a, 11p". Optional: when null, the diagnostic falls back to the count.
+        missingDescription: String? = null,
+        // Short upstream reason (e.g., "NWS gridpoints fetch failed"). Renders as a
+        // dim second line below the main diagnostic when present.
+        missingReason: String? = null,
         job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
@@ -176,7 +188,15 @@ object CloudCoverGraphRenderer {
         val canvas = Canvas(bitmap)
 
         if (hours.isEmpty()) {
-            Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
+            Log.w(TAG, "renderGraph: empty hours list (${widthPx}x${heightPx})")
+            if (totalHours > 0) {
+                drawMissingDataDiagnostic(
+                    context, canvas, widthPx, heightPx,
+                    missingHours = totalHours, totalHours = totalHours,
+                    missingDescription = missingDescription, missingReason = missingReason,
+                    labelScale = 1f,
+                )
+            }
             return bitmap
         }
 
@@ -599,7 +619,88 @@ object CloudCoverGraphRenderer {
             )
         }
 
+        if (missingHours > 0 && totalHours > 0) {
+            drawMissingDataDiagnostic(
+                context, canvas, widthPx, heightPx,
+                missingHours = missingHours, totalHours = totalHours,
+                missingDescription = missingDescription, missingReason = missingReason,
+                labelScale = labelScale,
+            )
+        }
+
         return bitmap
+    }
+
+    /**
+     * Draws a permanent "Cloud data missing …" indicator centered in the graph. Rendered
+     * on every paint where the visible window has gaps so the user can tell the difference
+     * between "actually clear" and "feed missing data." When [missingReason] is supplied
+     * (typically pulled from recent NwsForecastMapper failure logs), it renders below the
+     * main line in a dimmer style.
+     */
+    private fun drawMissingDataDiagnostic(
+        context: Context,
+        canvas: Canvas,
+        widthPx: Int,
+        heightPx: Int,
+        missingHours: Int,
+        totalHours: Int,
+        missingDescription: String?,
+        missingReason: String?,
+        labelScale: Float,
+    ) {
+        val mainText = buildMissingDiagnosticText(missingHours, totalHours, missingDescription)
+        val effectiveScale = labelScale.coerceAtLeast(0.85f)
+        val mainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#DDC8CFD8")
+            textSize = dpToPx(context, 9f * effectiveScale)
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            setShadowLayer(
+                dpToPx(context, 3f),
+                0f,
+                dpToPx(context, 1f),
+                Color.parseColor("#CC000000"),
+            )
+        }
+        val mainY = heightPx / 2f + mainPaint.textSize / 2f
+        canvas.drawText(mainText, widthPx / 2f, mainY, mainPaint)
+
+        if (!missingReason.isNullOrBlank()) {
+            val reasonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#AAB0B6BE")
+                textSize = dpToPx(context, 7.5f * effectiveScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(
+                    dpToPx(context, 3f),
+                    0f,
+                    dpToPx(context, 1f),
+                    Color.parseColor("#CC000000"),
+                )
+            }
+            val reasonY = mainY + mainPaint.textSize * 1.15f
+            canvas.drawText("($missingReason)", widthPx / 2f, reasonY, reasonPaint)
+        }
+    }
+
+    private fun buildMissingDiagnosticText(
+        missingHours: Int,
+        totalHours: Int,
+        missingDescription: String?,
+    ): String {
+        if (missingHours >= totalHours) {
+            return "Cloud data unavailable"
+        }
+        if (missingDescription.isNullOrBlank()) {
+            val noun = if (missingHours == 1) "hr" else "hrs"
+            return "Cloud data missing for $missingHours of $totalHours $noun"
+        }
+        return if (missingHours == 1) {
+            "Cloud data missing at $missingDescription"
+        } else {
+            "Cloud data missing $missingDescription ($missingHours of $totalHours hrs)"
+        }
     }
 
     private fun dpToPx(context: Context, dp: Float): Float =
