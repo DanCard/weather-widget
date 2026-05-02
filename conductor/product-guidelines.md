@@ -9,6 +9,7 @@
 
 ## UI/UX Standards
 - **Daily View:** Use graphical bars for temperature ranges.
+    - **Rain Labels:** Night rain chance labels should be "tucked" into the gap between day columns, consistently nudged left (3dp) to utilize the space under the preceding day's degree symbol.
 - **Hourly View:** Use Bezier curves for temperature trends.
 - **Accuracy Indicators:** Use color-coded dots (Green: ≤2°, Yellow: ≤5°, Red: >5°).
 - **Navigation:** Arrow buttons for time shifting; tap API indicator to toggle source.
