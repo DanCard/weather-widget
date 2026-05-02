@@ -13,12 +13,22 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.google.android.flexbox.FlexboxLayout
 import dagger.hilt.android.AndroidEntryPoint
 
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WeatherWidgetWorker
 import com.weatherwidget.widget.WidgetStateManager
+import java.util.UUID
 
 import javax.inject.Inject
 
@@ -40,6 +50,56 @@ class SettingsActivity : AppCompatActivity() {
 
         // Icon Gallery
         setupIconGallery()
+
+        // Refresh data button
+        val refreshDataButton = findViewById<Button>(R.id.refresh_data_button)
+        refreshDataButton.setOnClickListener {
+            val forecastRefreshWork =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .build(),
+                    )
+                    .build()
+            val currentRefreshWork =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_CURRENT_TEMP_ONLY, true)
+                            .putBoolean(WeatherWidgetWorker.KEY_FORCE_REFRESH, true)
+                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "settings_manual_refresh")
+                            .build(),
+                    )
+                    .setConstraints(
+                        Constraints.Builder()
+                            .setRequiredNetworkType(NetworkType.CONNECTED)
+                            .build(),
+                    )
+                    .build()
+
+            val workManager = WorkManager.getInstance(this)
+            workManager.enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_ONE_TIME,
+                ExistingWorkPolicy.REPLACE,
+                forecastRefreshWork,
+            )
+            workManager.enqueueUniqueWork(
+                WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
+                ExistingWorkPolicy.REPLACE,
+                currentRefreshWork,
+            )
+
+            Toast.makeText(this, getString(R.string.refresh_now_enqueued_toast), Toast.LENGTH_SHORT).show()
+            refreshDataButton.isEnabled = false
+
+            observeRefreshCompletion(
+                workManager = workManager,
+                refreshButton = refreshDataButton,
+                forecastWorkId = forecastRefreshWork.id,
+                currentWorkId = currentRefreshWork.id,
+            )
+        }
 
         val viewAppLogsButton = findViewById<Button>(R.id.view_app_logs_button)
         viewAppLogsButton.setOnClickListener {
@@ -221,6 +281,41 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             container.addView(row)
+        }
+    }
+
+    private fun observeRefreshCompletion(
+        workManager: WorkManager,
+        refreshButton: Button,
+        forecastWorkId: UUID,
+        currentWorkId: UUID,
+    ) {
+        var forecastFinished = false
+        var currentFinished = false
+        var refreshSucceeded = false
+        var handled = false
+
+        fun onFinished(workInfo: WorkInfo?, isForecastWork: Boolean) {
+            if (workInfo == null || !workInfo.state.isFinished || handled) return
+
+            if (isForecastWork) {
+                forecastFinished = true
+            } else {
+                currentFinished = true
+            }
+            refreshSucceeded = refreshSucceeded || workInfo.state == WorkInfo.State.SUCCEEDED
+
+            if (forecastFinished && currentFinished) {
+                handled = true
+                refreshButton.isEnabled = true
+            }
+        }
+
+        workManager.getWorkInfoByIdLiveData(forecastWorkId).observe(this) { workInfo ->
+            onFinished(workInfo, isForecastWork = true)
+        }
+        workManager.getWorkInfoByIdLiveData(currentWorkId).observe(this) { workInfo ->
+            onFinished(workInfo, isForecastWork = false)
         }
     }
 }

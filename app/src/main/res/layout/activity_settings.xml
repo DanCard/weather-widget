@@ -48,6 +48,21 @@
                     android:textStyle="bold" />
 
                 <Button
+                    android:id="@+id/refresh_data_button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/rounded_button_green"
+                    android:paddingStart="12dp"
+                    android:paddingTop="12dp"
+                    android:paddingEnd="12dp"
+                    android:paddingBottom="12dp"
+                    android:text="@string/refresh_now"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp" />
+
+                <Button
                     android:id="@+id/view_app_logs_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
