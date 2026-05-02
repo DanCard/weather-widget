@@ -518,22 +518,29 @@ class ForecastRepository
                 
                 // associateBy picks the first occurrence.
                 // Since DAO orders by batchFetchedAt DESC, then fetchedAt DESC, this is the latest row for each targetDate.
-                val latestByDate = existingForecasts.associateBy { it.targetDate }
+                val latestByDate = existingForecasts.distinctBy { it.targetDate }.associateBy { it.targetDate }
                 
                 val changedForecasts = forecastsToSave.filter { newlyFetched ->
                     val existing = latestByDate[newlyFetched.targetDate]
-                    if (existing != null && 
-                        existing.highTemp == newlyFetched.highTemp && 
-                        existing.lowTemp == newlyFetched.lowTemp && 
+                    val fieldsMatch = existing != null &&
+                        existing.highTemp == newlyFetched.highTemp &&
+                        existing.lowTemp == newlyFetched.lowTemp &&
                         existing.condition == newlyFetched.condition &&
                         existing.nativeDailyIconToken == newlyFetched.nativeDailyIconToken &&
                         existing.precipProbability == newlyFetched.precipProbability &&
                         existing.daytimePrecipProbability == newlyFetched.daytimePrecipProbability &&
                         existing.nighttimePrecipProbability == newlyFetched.nighttimePrecipProbability &&
-                        existing.precipAmountMm == newlyFetched.precipAmountMm) {
-                        appLogDao.log("SNAPSHOT_SKIP", "date=${newlyFetched.targetDate} source=$sourceId")
+                        existing.precipAmountMm == newlyFetched.precipAmountMm
+                    val newDataIsStrictlyBetter = existing != null &&
+                        ((existing.highTemp == null && newlyFetched.highTemp != null) ||
+                        (existing.lowTemp == null && newlyFetched.lowTemp != null))
+                    if (fieldsMatch && !newDataIsStrictlyBetter) {
+                        appLogDao.log("SNAPSHOT_SKIP", "date=${newlyFetched.targetDate} source=$sourceId existing_high=${existing.highTemp} new_high=${newlyFetched.highTemp} existing_low=${existing.lowTemp} new_low=${newlyFetched.lowTemp} existing_cond=${existing.condition} new_cond=${newlyFetched.condition} existing_precip=${existing.precipProbability} new_precip=${newlyFetched.precipProbability}")
                         false
                     } else {
+                        if (existing != null && newDataIsStrictlyBetter) {
+                            appLogDao.log("SNAPSHOT_UPGRADE", "date=${newlyFetched.targetDate} source=$sourceId existing_high=${existing.highTemp} new_high=${newlyFetched.highTemp} existing_low=${existing.lowTemp} new_low=${newlyFetched.lowTemp}")
+                        }
                         appLogDao.log("SNAPSHOT_SAVE", "date=${newlyFetched.targetDate} source=$sourceId")
                         true
                     }

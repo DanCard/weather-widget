@@ -1,0 +1,116 @@
+package com.weatherwidget.data.repository
+
+import com.weatherwidget.data.local.WeatherDatabase
+import com.weatherwidget.testutil.TestData
+import com.weatherwidget.testutil.TestData.LAT
+import com.weatherwidget.testutil.TestData.LON
+import com.weatherwidget.testutil.TestDatabase
+import com.weatherwidget.util.TemperatureInterpolator
+import io.mockk.*
+import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import com.weatherwidget.test.category.LongDuration
+import org.junit.experimental.categories.Category
+
+@RunWith(RobolectricTestRunner::class)
+@Category(LongDuration::class)
+class ForecastDeduplicationBugReproTest {
+    private lateinit var db: WeatherDatabase
+    private lateinit var repository: WeatherRepository
+
+    private val tomorrow = LocalDate.now().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+    @Before
+    fun setup() {
+        db = TestDatabase.create()
+        val context = RuntimeEnvironment.getApplication()
+        val forecastRepo = ForecastRepository(
+            context,
+            db.forecastDao(),
+            db.hourlyForecastDao(),
+            db.appLogDao(),
+            mockk(),
+            mockk(),
+            mockk(relaxed = true),
+            mockk(),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            db.climateNormalDao(),
+            db.observationDao(),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            mockk(relaxed = true)
+        )
+        val currentRepo = CurrentTempRepository(
+            context,
+            db.observationDao(),
+            db.hourlyForecastDao(),
+            db.appLogDao(),
+            mockk(),
+            mockk(),
+            mockk(relaxed = true),
+            mockk(),
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+            TemperatureInterpolator(),
+            mockk(relaxed = true),
+            mockk(relaxed = true)
+        )
+        repository = WeatherRepository(context, forecastRepo, currentRepo, db.forecastDao(), db.appLogDao(), mockk(relaxed = true))
+    }
+
+    @After
+    fun tearDown() = db.close()
+
+    @Test
+    fun `reproduce bug where good forecast is skipped after a regression`() = runTest {
+        // 1. Save a good forecast (Batch 1)
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
+            LAT, LON, "NWS", batchFetchedAt = 1000L
+        )
+        assertEquals(1, db.forecastDao().getCount())
+
+        // 2. Save a regressed forecast (missing high) (Batch 2)
+        // This should be saved because it's different from Batch 1
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = null, lowTemp = 54f)),
+            LAT, LON, "NWS", batchFetchedAt = 2000L
+        )
+        assertEquals(2, db.forecastDao().getCount())
+
+        // 3. Save the good forecast again (Batch 3)
+        // This SHOULD be saved because it's strictly better than Batch 2 (the current latest)
+        // BUT it's currently being skipped because it's compared against Batch 1.
+        repository.saveForecastSnapshot(
+            listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
+            LAT, LON, "NWS", batchFetchedAt = 3000L
+        )
+
+        // If the bug exists, count will still be 2. If fixed, count should be 3.
+        val count = db.forecastDao().getCount()
+        
+        // Let's also check what getForecastsInRange returns. It should return the row with MAX batchFetchedAt.
+        // If Batch 3 was skipped, it will return Batch 2 (the NULL one).
+        val forecasts = repository.getForecastsInRange(
+            LocalDate.now().toEpochDay() * 86400000L,
+            LocalDate.now().plusDays(2).toEpochDay() * 86400000L,
+            LAT, LON
+        )
+        val tomorrowForecast = forecasts.find { it.targetDate == TestData.dateEpoch(tomorrow) }
+        
+        assertNotNull("Tomorrow forecast should exist", tomorrowForecast)
+        assertNotNull("High temp should NOT be null", tomorrowForecast?.highTemp)
+        assertEquals(3, count) // This will fail if the bug is present
+    }
+}

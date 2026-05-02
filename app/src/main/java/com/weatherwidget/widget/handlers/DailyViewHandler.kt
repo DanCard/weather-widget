@@ -209,7 +209,14 @@ object DailyViewHandler : WidgetViewHandler {
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
                 .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                .mapValues { (_, items) -> items.find { it.source == displaySource.id } ?: items.first() }
+                .mapValues { (_, items) -> 
+                    val preferred = items.find { it.source == displaySource.id }
+                    if (preferred != null && (preferred.highTemp == null || preferred.lowTemp == null)) {
+                        items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null } ?: preferred
+                    } else {
+                        preferred ?: items.first()
+                    }
+                }
 
         // Set API source indicator
         views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)

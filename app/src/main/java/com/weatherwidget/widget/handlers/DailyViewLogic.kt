@@ -91,6 +91,7 @@ object DailyViewLogic {
         observedAt: Long? = null,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
     ): List<TextDayData> {
+        Log.d(TAG, "prepareTextDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, displaySource=${displaySource.id}")
 
         val effectiveCenter = if (skipHistory) centerDate.plusDays(1) else centerDate
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -111,6 +112,8 @@ object DailyViewLogic {
             } else {
                 (weather != null && (weather.highTemp != null || weather.lowTemp != null)) || dailyActuals.containsKey(date)
             }
+
+            Log.d(TAG, "prepareTextDays: index=$index date=$date weather=${weather != null} hasData=$hasData high=${weather?.highTemp} low=${weather?.lowTemp} terminalNws=$isTerminalLowOnlyNwsFuture")
 
             val isVisible = when {
                 numColumns >= 8 -> true
@@ -294,6 +297,8 @@ object DailyViewLogic {
         allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
     ): List<DailyForecastGraphRenderer.DayData> {
+        Log.d(TAG, "prepareGraphDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, forecastSnapshotKeys=${forecastSnapshots.keys}")
+
         val days = mutableListOf<DailyForecastGraphRenderer.DayData>()
         val dayOffsets = NavigationUtils.getDayOffsets(numColumns, skipHistory)
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -315,6 +320,8 @@ object DailyViewLogic {
             val isToday = date == today
             val isPastDate = date.isBefore(today)
             val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
+
+            Log.d(TAG, "prepareGraphDays: index=$index date=$date weather=${weather != null} forecast=${forecast != null} forecastsSize=${forecasts.size} terminalNws=$isTerminalLowOnlyNwsFuture")
 
             val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             val showComparison = (isPastDate || (isToday && isEveningMode))
