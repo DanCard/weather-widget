@@ -49,6 +49,8 @@ object DailyForecastGraphRenderer {
     private const val RAIN_TEXT_MARGIN_DP = 4f
     private const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
     private const val NIGHT_RAIN_TEMP_OVERLAP_DP = 3f
+    private const val NIGHT_INTERSTITIAL_H_NUDGE_DP = 1f
+    private const val NIGHT_INTERSTITIAL_V_DROP_DP = 1f
     private const val ICON_STACK_SPACING_DP = 4f
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
@@ -1021,22 +1023,57 @@ val label = day.rainData.dailyRainLabelText ?: return
             return
         }
 
-        // For shifted placements the label sits in the gap between this column and the next,
-        // so it must clear whichever neighbor's low-temp label hangs lower (larger Y).
         val isShifted = placementType == "NIGHT_SHIFTED_RIGHT" || placementType == "NIGHT_SHIFTED_SCALED"
         val rightBaseline = if (isShifted) {
             rightNeighbor?.let { resolveLowLabelBaseline(context, it, layout) }
         } else null
-        val anchorBaseline = maxOf(leftBaseline, rightBaseline ?: leftBaseline)
 
         val metrics = finalPaint.fontMetrics
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
+        val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
+
+        // 1. Try interstitial: tuck rain label between the two temp labels,
+        //    anchoring just below the higher one.
+        if (isShifted && rightBaseline != null && leftBaseline != rightBaseline) {
+            val higherBaseline = minOf(leftBaseline, rightBaseline)
+            val lowerBaseline = maxOf(leftBaseline, rightBaseline)
+            val hNudge = dpToPx(context, NIGHT_INTERSTITIAL_H_NUDGE_DP)
+            val interstitialCenterX = if (lowerBaseline == leftBaseline) {
+                finalCenterX + hNudge
+            } else {
+                finalCenterX - hNudge
+            }
+            val vDrop = dpToPx(context, NIGHT_INTERSTITIAL_V_DROP_DP)
+            val interstitialTopY = higherBaseline + tempMetrics.descent - dpToPx(context, NIGHT_RAIN_TEMP_OVERLAP_DP) + vDrop
+            val interstitialBaseline = interstitialTopY - metrics.ascent
+            val interstitialBottomWithMargin = interstitialBaseline + metrics.descent + dpToPx(context, 1f)
+
+            if (interstitialBottomWithMargin <= hardBottomLimit) {
+                canvas.drawText(rainText, interstitialCenterX, interstitialBaseline, finalPaint)
+                onRainLabelDrawn?.invoke(
+                    RainLabelDrawnDebug(
+                        date = day.date,
+                        text = rainText,
+                        placement = "NIGHT_INTERSTITIAL",
+                        centerX = interstitialCenterX,
+                        baselineY = interstitialBaseline,
+                        topY = interstitialBaseline + metrics.ascent,
+                        bottomY = interstitialBaseline + metrics.descent,
+                        anchorBaselineY = higherBaseline,
+                    )
+                )
+                Log.d(TAG, "nightRainLabel interstitial: date=${day.date} baseline=$interstitialBaseline higherBaseline=$higherBaseline lowerBaseline=$lowerBaseline leftBaseline=$leftBaseline rightBaseline=$rightBaseline")
+                return
+            }
+        }
+
+        // 2. Fallback: anchor below the lower of the two temp labels.
+        val anchorBaseline = maxOf(leftBaseline, rightBaseline ?: leftBaseline)
 
         val topY = anchorBaseline + tempMetrics.descent - dpToPx(context, NIGHT_RAIN_TEMP_OVERLAP_DP)
         val baseline = topY - metrics.ascent
 
-        val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
         val baselineWithMargin = baseline + metrics.descent + dpToPx(context, 1f)
 
         if (baselineWithMargin <= hardBottomLimit) {

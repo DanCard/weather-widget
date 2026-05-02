@@ -400,7 +400,7 @@ class DailyForecastGraphRendererRoboTest {
         )
 
         assertEquals(1, labels.size)
-        assertEquals("NIGHT_SHIFTED_RIGHT", labels.first().placement)
+        assertEquals("NIGHT_INTERSTITIAL", labels.first().placement)
         assertEquals("65%", labels.first().text)
     }
 
@@ -434,7 +434,61 @@ class DailyForecastGraphRendererRoboTest {
 
         assertEquals(2, labels.size)
         assertTrue(labels.any { it.placement == "ABOVE_HIGH" && it.text == "30%" })
-        assertTrue(labels.any { it.placement == "NIGHT_SHIFTED_RIGHT" && it.text == "65%" })
+        assertTrue(labels.any { it.placement == "NIGHT_INTERSTITIAL" && it.text == "65%" })
+    }
+
+    @Test
+    fun renderGraph_nightRainLabelFallsBackWhenBaselinesEqual() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 4),
+                    label = "Tue",
+                    high = 65f,
+                    low = 50f,
+                ),
+            ),
+            widthPx = 800,
+            heightPx = 500,
+        )
+
+        assertEquals(1, labels.size)
+        assertEquals("NIGHT_SHIFTED_RIGHT", labels.first().placement)
+    }
+
+    @Test
+    fun renderGraph_nightRainLabelInterstitialAnchorsBelowHigherLabel() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 30f,
+                    rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
+                ),
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 4),
+                    label = "Tue",
+                    high = 65f,
+                    low = 55f,
+                ),
+            ),
+            widthPx = 800,
+            heightPx = 500,
+        )
+
+        assertEquals(1, labels.size)
+        val label = labels.first()
+        assertEquals("NIGHT_INTERSTITIAL", label.placement)
+        assertTrue("Interstitial baseline should be near the higher (lower-Y) temp label", label.baselineY < label.anchorBaselineY + 50f)
     }
 
     @Test
