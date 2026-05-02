@@ -48,9 +48,6 @@ object DailyForecastGraphRenderer {
     private const val TEMP_LABEL_SPACING_DP = -1f
     private const val RAIN_TEXT_MARGIN_DP = 4f
     private const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
-    private const val NIGHT_RAIN_TEMP_OVERLAP_DP = 3.5f
-    private const val NIGHT_INTERSTITIAL_H_NUDGE_DP = 1.5f
-    private const val NIGHT_INTERSTITIAL_V_DROP_DP = 0.5f
     private const val ICON_STACK_SPACING_DP = 4f
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
@@ -88,46 +85,46 @@ object DailyForecastGraphRenderer {
         val adaptiveSegments: Boolean = false,
     )
 
-data class RainLabelDrawnDebug(
-    val date: LocalDate,
-    val text: String,
-    val placement: String,
-    val centerX: Float,
-    val leftX: Float = Float.NaN,
-    val rightX: Float = Float.NaN,
-    val baselineY: Float,
-    val topY: Float = Float.NaN,
-    val bottomY: Float = Float.NaN,
-    val anchorTopY: Float = Float.NaN,
-    val anchorBaselineY: Float = Float.NaN,
-    val isNightLabel: Boolean = false,
-)
+    data class RainLabelDrawnDebug(
+        val date: LocalDate,
+        val text: String,
+        val placement: String,
+        val centerX: Float,
+        val leftX: Float = Float.NaN,
+        val rightX: Float = Float.NaN,
+        val baselineY: Float,
+        val topY: Float = Float.NaN,
+        val bottomY: Float = Float.NaN,
+        val anchorTopY: Float = Float.NaN,
+        val anchorBaselineY: Float = Float.NaN,
+        val isNightLabel: Boolean = false,
+    )
 
-data class DayLabelDrawnDebug(
-    val date: LocalDate,
-    val text: String,
-    val centerX: Float,
-    val baselineY: Float,
-    val leftX: Float,
-    val rightX: Float,
-    val textSize: Float,
-)
+    data class DayLabelDrawnDebug(
+        val date: LocalDate,
+        val text: String,
+        val centerX: Float,
+        val baselineY: Float,
+        val leftX: Float,
+        val rightX: Float,
+        val textSize: Float,
+    )
 
-/**
- * Groups all precipitation-related data for a day.
- * Used for rain labels, probability, and amount data.
- */
-data class RainData(
-    val rainSummary: String? = null,
-    /** Daytime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
-    val dailyPrecipProbability: Int? = null,
-    /** Nighttime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
-    val nighttimePrecipProbability: Int? = null,
-    val dailyPrecipAmountMm: Float? = null,
-    val dailyRainLabelText: String? = null,
-    val nightRainLabelText: String? = null,
-    val hasRainForecast: Boolean = false,
-)
+    /**
+     * Groups all precipitation-related data for a day.
+     * Used for rain labels, probability, and amount data.
+     */
+    data class RainData(
+        val rainSummary: String? = null,
+        /** Daytime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
+        val dailyPrecipProbability: Int? = null,
+        /** Nighttime precipitation probability, 0–100 (percentage). Divided by 100 internally for font scaling. */
+        val nighttimePrecipProbability: Int? = null,
+        val dailyPrecipAmountMm: Float? = null,
+        val dailyRainLabelText: String? = null,
+        val nightRainLabelText: String? = null,
+        val hasRainForecast: Boolean = false,
+    )
 
     data class HeaderRenderData(
         val iconRes: Int? = null,
@@ -165,10 +162,10 @@ data class RainData(
         val isPast: Boolean = false,
         val isClimateNormal: Boolean = false,
         val isSourceGapFallback: Boolean = false,
-val forecastHigh: Float? = null,
-    val forecastLow: Float? = null,
-    val rainData: RainData = RainData(),
-    val columnIndex: Int? = null,
+        val forecastHigh: Float? = null,
+        val forecastLow: Float? = null,
+        val rainData: RainData = RainData(),
+        val columnIndex: Int? = null,
         val isTodayForecastFallback: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
@@ -864,10 +861,10 @@ val forecastHigh: Float? = null,
         paints: PaintSet,
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
     ) {
-val label = day.rainData.dailyRainLabelText ?: return
-    val rainText = label
-    val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
-    val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.dailyPrecipProbability, "day", labelScale = labelScale)
+        val label = day.rainData.dailyRainLabelText ?: return
+        val rainText = label
+        val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
+        val localRainPaint = createScaledRainPaint(context, paints, day, day.rainData.dailyPrecipProbability, "day", labelScale = labelScale)
 
         val textWidth = localRainPaint.measureText(rainText)
         val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
@@ -978,16 +975,42 @@ val label = day.rainData.dailyRainLabelText ?: return
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
     ) {
         val rainText = day.rainData.nightRainLabelText ?: return
+        val density = context.resources.displayMetrics.density
+
+        // 1. Resolve baselines for tucking logic
+        val leftBaseline = resolveLowLabelBaseline(context, day, layout) ?: return
+        val rightNeighborBaseline = rightNeighbor?.let { resolveLowLabelBaseline(context, it, layout) }
+        val anchorBaseline = if (rightNeighborBaseline != null) {
+            minOf(leftBaseline, rightNeighborBaseline)
+        } else {
+            leftBaseline
+        }
+
+        val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
+        val tempMetrics = tempPaint.fontMetrics
         
-        // Multi-step fitting strategy
+        // 2. Calculate dynamic tuck intensity based on vertical position (Interpolation)
+        // relativePos: 0.0 (top) to 1.0 (bottom)
+        val relativePos = (anchorBaseline / layout.heightPx).coerceIn(0f, 1f)
+        
+        // Linear interpolation ramp:
+        // <= 60% height: Standard tuck (2.5dp overlap, 1.5dp nudge)
+        // >= 90% height: Max tuck (4.5dp overlap, 3.0dp nudge)
+        val tightFraction = ((relativePos - 0.6f) / 0.3f).coerceIn(0f, 1f)
+        
+        val dynamicOverlapDp = 2.5f + (2.0f * tightFraction)
+        val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
+        val hNudgePx = dpToPx(context, dynamicNudgeDp)
+
+        // 3. Multi-step fitting strategy
         var currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
         var textWidth = currentPaint.measureText(rainText)
-        val hNudgePx = dpToPx(context, NIGHT_INTERSTITIAL_H_NUDGE_DP)
         val shiftedCenterX = centerX + layout.dayWidth / 2f - hNudgePx
         val halfWidth = textWidth / 2f
         
-        // 1. Try shifted position with current scale
-        val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx) && (shiftedCenterX - halfWidth >= 0)
+        // Relaxed boundary check: allow it if it stays within bitmap.
+        val edgeMargin = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP)
+        val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx - edgeMargin) && (shiftedCenterX - halfWidth >= 0)
         
         val finalCenterX: Float
         val finalPaint: Paint
@@ -998,26 +1021,25 @@ val label = day.rainData.dailyRainLabelText ?: return
             finalPaint = currentPaint
             placementType = "NIGHT_SHIFTED_LEFT"
         } else {
-            // 2. Try smaller font scale at shifted position if near boundary
+            // Try smaller font scale at shifted position if near boundary
             val reducedPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", extraScale = 0.85f, labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
             val reducedWidth = reducedPaint.measureText(rainText)
             val reducedHalfWidth = reducedWidth / 2f
             
-            if (shiftedCenterX + reducedHalfWidth <= layout.widthPx && shiftedCenterX - reducedHalfWidth >= 0) {
+            if (shiftedCenterX + reducedHalfWidth <= layout.widthPx - edgeMargin && shiftedCenterX - reducedHalfWidth >= 0) {
                 finalCenterX = shiftedCenterX
                 finalPaint = reducedPaint
                 placementType = "NIGHT_SHIFTED_SCALED"
             } else {
-                // 3. Fallback to centered if shifting is impossible (last day)
+                // Fallback to centered if shifting is impossible (last day)
                 val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
                 if (textWidth > maxTextWidth) {
-                    // Try reduced scale centered
                     if (reducedWidth <= maxTextWidth) {
                         finalCenterX = centerX
                         finalPaint = reducedPaint
                         placementType = "NIGHT_CENTERED_SCALED"
                     } else {
-                        Log.d(TAG, "nightRainLabel skipped: text too wide even scaled: date=${day.date} textWidth=${reducedWidth}px maxWidth=${maxTextWidth}px")
+                        Log.d(TAG, "nightRainLabel skipped: text too wide: date=${day.date} textWidth=${reducedWidth}px")
                         return
                     }
                 } else {
@@ -1028,38 +1050,17 @@ val label = day.rainData.dailyRainLabelText ?: return
             }
         }
 
-        val leftBaseline = resolveLowLabelBaseline(context, day, layout)
-        if (leftBaseline == null) {
-            Log.d(TAG, "nightRainLabel skipped: no low baseline: date=${day.date} low=${day.low}")
-            return
-        }
-
-        val isShifted = placementType == "NIGHT_SHIFTED_LEFT" || placementType == "NIGHT_SHIFTED_SCALED"
-        val rightBaseline = if (isShifted) {
-            rightNeighbor?.let { resolveLowLabelBaseline(context, it, layout) }
-        } else null
-
+        // 4. Final vertical anchoring and draw
         val metrics = finalPaint.fontMetrics
-        val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
-        val tempMetrics = tempPaint.fontMetrics
         val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
+        
+        val finalTopOverlap = dpToPx(context, dynamicOverlapDp)
+        val finalTopY = anchorBaseline + tempMetrics.descent - finalTopOverlap
+        val finalBaseline = finalTopY - metrics.ascent
+        val finalBottomWithMargin = finalBaseline + metrics.descent
 
-        // Anchor to the higher (colder) of the two temp labels to "tuck" it in.
-        // If they are equal, either one works.
-        val anchorBaseline = if (rightBaseline != null) {
-            minOf(leftBaseline, rightBaseline)
-        } else {
-            leftBaseline
-        }
-
-        val vDrop = dpToPx(context, NIGHT_INTERSTITIAL_V_DROP_DP)
-        val topY = anchorBaseline + tempMetrics.descent - dpToPx(context, NIGHT_RAIN_TEMP_OVERLAP_DP) + vDrop
-        val baseline = topY - metrics.ascent
-
-        val baselineWithMargin = baseline + metrics.descent + dpToPx(context, 1f)
-
-        if (baselineWithMargin <= hardBottomLimit) {
-            canvas.drawText(rainText, finalCenterX, baseline, finalPaint)
+        if (finalBottomWithMargin <= hardBottomLimit) {
+            canvas.drawText(rainText, finalCenterX, finalBaseline, finalPaint)
             onRainLabelDrawn?.invoke(
                 RainLabelDrawnDebug(
                     date = day.date,
@@ -1068,18 +1069,18 @@ val label = day.rainData.dailyRainLabelText ?: return
                     centerX = finalCenterX,
                     leftX = finalCenterX - finalPaint.measureText(rainText) / 2f,
                     rightX = finalCenterX + finalPaint.measureText(rainText) / 2f,
-                    baselineY = baseline,
-                    topY = baseline + metrics.ascent,
-                    bottomY = baseline + metrics.descent,
+                    baselineY = finalBaseline,
+                    topY = finalBaseline + metrics.ascent,
+                    bottomY = finalBaseline + metrics.descent,
                     anchorBaselineY = anchorBaseline,
                     isNightLabel = true,
                 )
             )
-            Log.d(TAG, "nightRainLabel drawn: date=${day.date} baseline=$baseline anchorBaseline=$anchorBaseline leftBaseline=$leftBaseline rightBaseline=$rightBaseline placement=$placementType nudge=${if (isShifted) hNudgePx else 0f}px")
+            Log.d(TAG, "nightRainLabel drawn: date=${day.date} relPos=${(relativePos*100).toInt()}% tight=${(tightFraction*100).toInt()}% overlap=${dynamicOverlapDp}dp nudge=${dynamicNudgeDp}dp")
             return
         }
 
-        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$baseline hardBottomLimit=$hardBottomLimit descent=${metrics.descent} topY=${baseline + metrics.ascent} anchorBaseline=$anchorBaseline leftBaseline=$leftBaseline rightBaseline=$rightBaseline overflow=${baselineWithMargin - hardBottomLimit}px")
+        Log.d(TAG, "nightRainLabel skipped: bottom overflow: date=${day.date} baseline=$finalBaseline")
     }
 
     private fun createScaledRainPaint(

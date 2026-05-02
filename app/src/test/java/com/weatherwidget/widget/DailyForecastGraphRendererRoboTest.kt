@@ -400,7 +400,7 @@ class DailyForecastGraphRendererRoboTest {
         )
 
         assertEquals(1, labels.size)
-        assertEquals("NIGHT_INTERSTITIAL", labels.first().placement)
+        assertEquals("NIGHT_SHIFTED_LEFT", labels.first().placement)
         assertEquals("65%", labels.first().text)
     }
 
@@ -434,7 +434,7 @@ class DailyForecastGraphRendererRoboTest {
 
         assertEquals(2, labels.size)
         assertTrue(labels.any { it.placement == "ABOVE_HIGH" && it.text == "30%" })
-        assertTrue(labels.any { it.placement == "NIGHT_INTERSTITIAL" && it.text == "65%" })
+        assertTrue(labels.any { it.placement == "NIGHT_SHIFTED_LEFT" && it.text == "65%" })
     }
 
     @Test
@@ -460,7 +460,7 @@ class DailyForecastGraphRendererRoboTest {
         )
 
         assertEquals(1, labels.size)
-        assertEquals("NIGHT_SHIFTED_RIGHT", labels.first().placement)
+        assertEquals("NIGHT_SHIFTED_LEFT", labels.first().placement)
     }
 
     @Test
@@ -487,7 +487,7 @@ class DailyForecastGraphRendererRoboTest {
 
         assertEquals(1, labels.size)
         val label = labels.first()
-        assertEquals("NIGHT_INTERSTITIAL", label.placement)
+        assertEquals("NIGHT_SHIFTED_LEFT", label.placement)
         assertTrue("Interstitial baseline should be near the higher (lower-Y) temp label", label.baselineY < label.anchorBaselineY + 50f)
     }
 
