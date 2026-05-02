@@ -382,7 +382,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
             ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             ACTION_SET_VIEW -> handleSetViewAction(context, intent)
-            ACTION_DAY_CLICK -> handleDayClickAction(context, intent)
+            ACTION_DAY_CLICK -> {
+                Log.d(TAG, "onReceive: ACTION_DAY_CLICK extras: date=${intent.getStringExtra("date")} index=${intent.getIntExtra("index", -1)} targetView=${intent.getStringExtra(EXTRA_TARGET_VIEW)} offset=${intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)} widget=${getWidgetId(intent)}")
+                handleDayClickAction(context, intent)
+            }
             ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
             Intent.ACTION_MY_PACKAGE_REPLACED -> triggerUiOnlyUpdate(context, reason = "package_replaced")
         }
@@ -403,13 +406,16 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val index = intent.getIntExtra("index", -1)
         val showHistory = intent.getBooleanExtra("showHistory", isHistory) // Default to isHistory for backward compat
 
-        Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index")
+        val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "null"
+        val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
+        val clickSource = intent.getStringExtra(EXTRA_CLICK_SOURCE) ?: "unknown"
+        Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index, targetView=$targetViewName, hourlyOffset=$targetOffset, clickSource=$clickSource")
 
         val receiveTimeMs = System.currentTimeMillis()
         launchAsync {
             val coroutineStartMs = System.currentTimeMillis()
             val database = WeatherDatabase.getDatabase(context)
-            database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory")
+            database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, targetView=$targetViewName, offset=$targetOffset, clickSource=$clickSource")
 
             if (showHistory) {
                 val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
@@ -448,7 +454,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         dateStr = dateStr,
                         intent = intent,
                     )
+                Log.d(TAG, "handleDayClickAction branch: hasHourlyData=$hasHourlyData targetMode=$targetMode date=$dateStr offset=$targetOffset")
                 if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE || targetMode == ViewMode.CLOUD_COVER)) {
+                    Log.w(TAG, "handleDayClickAction: NO hourly data for date=$dateStr mode=$targetMode -> opening settings")
                     database.appLogDao().log(
                         "CLICK_DAILY_NO_HOURLY",
                         "date=$dateStr mode=$targetMode -> settings",
@@ -790,6 +798,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
         const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
         const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
+        const val EXTRA_CLICK_SOURCE = "com.weatherwidget.EXTRA_CLICK_SOURCE"
         const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
         const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
         const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"

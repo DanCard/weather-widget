@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.util.SunPositionUtils
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.ViewMode
 import java.time.Duration
@@ -106,5 +107,31 @@ object DayClickHelper {
         val alignedNow = WeatherTimeUtils.alignToNearestHourHalfUp(now)
         val targetCenter = targetDay.atTime(12, 0)
         return Duration.between(alignedNow, targetCenter).toHours().toInt()
+    }
+
+    /**
+     * Hours from `now` to the midpoint of the target day's night, where night
+     * spans sunset of the target day to sunrise of the next day. Used to center
+     * the precipitation graph on a tapped night rain label.
+     *
+     * Polar regions (sunsetHour >= 24 or sunriseHour <= 0) collapse to the
+     * arithmetic midpoint of whatever sunrise/sunset values were returned —
+     * acceptable degradation for the widget's audience.
+     */
+    fun calculateNightCenterOffset(
+        now: LocalDateTime,
+        targetDay: LocalDate,
+        lat: Double,
+        lon: Double,
+    ): Int {
+        val sunsetToday = SunPositionUtils.getSunTimes(targetDay.atStartOfDay(), lat, lon).sunsetHour
+        val sunriseTomorrow =
+            SunPositionUtils.getSunTimes(targetDay.plusDays(1).atStartOfDay(), lat, lon).sunriseHour
+        val nightMidHourFromTargetMidnight = (sunsetToday + 24.0 + sunriseTomorrow) / 2.0
+        val nightMid = targetDay.atStartOfDay()
+            .plusMinutes((nightMidHourFromTargetMidnight * 60).toLong())
+
+        val alignedNow = WeatherTimeUtils.alignToNearestHourHalfUp(now)
+        return Duration.between(alignedNow, nightMid).toHours().toInt()
     }
 }

@@ -92,11 +92,14 @@ data class RainLabelDrawnDebug(
     val text: String,
     val placement: String,
     val centerX: Float,
+    val leftX: Float = Float.NaN,
+    val rightX: Float = Float.NaN,
     val baselineY: Float,
     val topY: Float = Float.NaN,
     val bottomY: Float = Float.NaN,
     val anchorTopY: Float = Float.NaN,
     val anchorBaselineY: Float = Float.NaN,
+    val isNightLabel: Boolean = false,
 )
 
 data class DayLabelDrawnDebug(
@@ -900,11 +903,14 @@ val label = day.rainData.dailyRainLabelText ?: return
                     text = rainText,
                     placement = "ABOVE_HIGH",
                     centerX = centerX,
+                    leftX = centerX - localRainPaint.measureText(rainText) / 2f,
+                    rightX = centerX + localRainPaint.measureText(rainText) / 2f,
                     baselineY = placement.baseline,
                     topY = placement.top,
                     bottomY = placement.bottom,
                     anchorTopY = placement.highLabelTop,
                     anchorBaselineY = highBaseline,
+                    isNightLabel = false,
                 ),
             )
             Log.d(
@@ -1057,10 +1063,13 @@ val label = day.rainData.dailyRainLabelText ?: return
                         text = rainText,
                         placement = "NIGHT_INTERSTITIAL",
                         centerX = interstitialCenterX,
+                        leftX = interstitialCenterX - finalPaint.measureText(rainText) / 2f,
+                        rightX = interstitialCenterX + finalPaint.measureText(rainText) / 2f,
                         baselineY = interstitialBaseline,
                         topY = interstitialBaseline + metrics.ascent,
                         bottomY = interstitialBaseline + metrics.descent,
                         anchorBaselineY = higherBaseline,
+                        isNightLabel = true,
                     )
                 )
                 Log.d(TAG, "nightRainLabel interstitial: date=${day.date} baseline=$interstitialBaseline higherBaseline=$higherBaseline lowerBaseline=$lowerBaseline leftBaseline=$leftBaseline rightBaseline=$rightBaseline")
@@ -1084,10 +1093,13 @@ val label = day.rainData.dailyRainLabelText ?: return
                     text = rainText,
                     placement = placementType,
                     centerX = finalCenterX,
+                    leftX = finalCenterX - finalPaint.measureText(rainText) / 2f,
+                    rightX = finalCenterX + finalPaint.measureText(rainText) / 2f,
                     baselineY = baseline,
                     topY = baseline + metrics.ascent,
                     bottomY = baseline + metrics.descent,
                     anchorBaselineY = anchorBaseline,
+                    isNightLabel = true,
                 )
             )
             return

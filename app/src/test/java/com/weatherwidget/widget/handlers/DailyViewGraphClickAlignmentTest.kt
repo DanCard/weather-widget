@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
+import android.view.View.MeasureSpec
 import android.widget.FrameLayout
 import android.content.Context
 import android.content.Intent
@@ -23,6 +24,7 @@ import io.mockk.slot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -341,6 +343,60 @@ class DailyViewGraphClickAlignmentTest {
         )
     }
 
+    @Test
+    fun `night rain overlay stays within bottom band so cloud icon taps are not blocked`() = runBlocking {
+        val now = LocalDateTime.of(2026, 5, 1, 12, 0)
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(31)
+        stateManager.setHourlyOffset(31, 0)
+        stateManager.setZoomLevel(31, ZoomLevel.WIDE)
+        stateManager.setViewMode(31, com.weatherwidget.widget.ViewMode.DAILY)
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 600)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 300)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 300)
+        }
+        every { appWidgetManager.getAppWidgetOptions(31) } returns options
+        val viewsSlot = slot<android.widget.RemoteViews>()
+        every { appWidgetManager.updateAppWidget(31, capture(viewsSlot)) } just runs
+
+        val weatherList = listOf(
+            createWeather("2026-04-30"),
+            createWeather("2026-05-01"),
+            createWeather("2026-05-02"),
+            createWeather("2026-05-03"),
+            createWeather("2026-05-04"),
+        )
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 31,
+            weatherList = weatherList,
+            forecastSnapshots = emptyMap(),
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
+            now = now,
+        )
+
+        val applied = applyMeasuredViews(viewsSlot.captured)
+        val nightRainOverlay = applied.findViewById<View>(R.id.graph_night_rain_zones)
+        val bottomDayZones = applied.findViewById<View>(R.id.graph_bottom_day_zones)
+
+        assertEquals(View.VISIBLE, nightRainOverlay.visibility)
+        assertEquals(View.VISIBLE, bottomDayZones.visibility)
+        assertTrue(
+            "Night rain overlay should start no higher than the bottom icon/label band or it can swallow cloud-icon taps",
+            nightRainOverlay.top >= bottomDayZones.top,
+        )
+    }
+
     private fun createWeather(date: String): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
@@ -355,5 +411,15 @@ class DailyViewGraphClickAlignmentTest {
             precipProbability = 0,
             fetchedAt = 1L
         )
+    }
+
+    private fun applyMeasuredViews(views: android.widget.RemoteViews): View {
+        val root = FrameLayout(context)
+        val applied = views.apply(context, root as ViewGroup)
+        val widthSpec = MeasureSpec.makeMeasureSpec(600, MeasureSpec.EXACTLY)
+        val heightSpec = MeasureSpec.makeMeasureSpec(400, MeasureSpec.EXACTLY)
+        applied.measure(widthSpec, heightSpec)
+        applied.layout(0, 0, applied.measuredWidth, applied.measuredHeight)
+        return applied
     }
 }

@@ -121,6 +121,7 @@ object ApiSourceWarningHelper {
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
         views.setViewVisibility(R.id.current_temp, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
         views.setViewVisibility(R.id.precip_probability, View.GONE)

@@ -1012,6 +1012,177 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Renderer-aligned night rain touch grid. Cells are activated from actual bitmap
+         label bounds so taps cover the rendered night rain label rather than a guessed
+         half-column band. -->
+    <LinearLayout
+        android:id="@+id/graph_night_rain_zones"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:layoutDirection="ltr"
+        android:orientation="vertical"
+        android:visibility="gone">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r0_c19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r1_c19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r2_c19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r3_c19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r4_c19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c4" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c5" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c6" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c7" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c8" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c9" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c10" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c11" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c12" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c13" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c14" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c15" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c16" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c17" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c18" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+            <FrameLayout android:id="@+id/graph_night_rain_zone_r5_c19" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" />
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Current temperature and weather icon - positioned in top-left corner -->
     <LinearLayout
         android:id="@+id/current_weather_container"

@@ -83,6 +83,7 @@ object PrecipViewHandler {
 
         // Hide graph day zones (not used in precipitation mode)
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
 
         // Set up zoom tap zones
         val zoom = stateManager.getZoomLevel(appWidgetId)

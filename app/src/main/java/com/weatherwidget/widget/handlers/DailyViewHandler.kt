@@ -50,6 +50,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.floor
 
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
@@ -97,6 +98,9 @@ object DailyViewHandler : WidgetViewHandler {
     private const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
     private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
     private const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
+    private const val EXTRA_CLICK_SOURCE = "com.weatherwidget.EXTRA_CLICK_SOURCE"
+    private const val NIGHT_RAIN_GRID_ROWS = 6
+    private const val NIGHT_RAIN_GRID_COLS = 20
 
     override fun canHandle(
         stateManager: WidgetStateManager,
@@ -378,27 +382,32 @@ object DailyViewHandler : WidgetViewHandler {
             deltaVisible,
         )
 
-val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
-    context = context,
-    widthDp = dimensions.widthDp,
-    apiSourceText = displaySource.shortDisplayName,
-    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
-    currentTempText = formattedTemp,
-    deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
-    precipText = if (isPrecipVisible) "${precipProb}%" else null,
-    precipTextSizeDp = precipTextSizeDp,
-)
+        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+            context = context,
+            widthDp = dimensions.widthDp,
+            apiSourceText = displaySource.shortDisplayName,
+            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+            currentTempText = formattedTemp,
+            deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+            precipText = if (isPrecipVisible) "${precipProb}%" else null,
+            precipTextSizeDp = precipTextSizeDp,
+        )
 
-if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
-    HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = deltaVisible, isPrecipVisible = isPrecipVisible)
-} else if (useGraph) {
-    views.setViewVisibility(R.id.current_weather_container, View.GONE)
-}
+        if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
+            HeaderRemoteViewsBinder.applyDisclosure(
+                views,
+                disclosure,
+                isDeltaVisible = deltaVisible,
+                isPrecipVisible = isPrecipVisible,
+            )
+        } else if (useGraph) {
+            views.setViewVisibility(R.id.current_weather_container, View.GONE)
+        }
 
-// Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
-if (!isIconWidth) {
-    setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
-}
+        // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
+        if (!isIconWidth) {
+            setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
+        }
         Log.d(
             TAG,
             buildHeaderStateLog(
@@ -582,8 +591,23 @@ if (!isIconWidth) {
                 )
             } else null
 
+            val nightRainLabelDraws = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
             val renderStartMs = SystemClock.elapsedRealtime()
-            val bitmap = DailyForecastGraphRenderer.renderGraph(context, displayDays, bitmapDims.widthPx, bitmapDims.heightPx, bitmapDims.bitmapScale, displayDays.size, job = coroutineContext[Job], headerData = headerRenderData)
+            val bitmap = DailyForecastGraphRenderer.renderGraph(
+                context,
+                displayDays,
+                bitmapDims.widthPx,
+                bitmapDims.heightPx,
+                bitmapDims.bitmapScale,
+                displayDays.size,
+                job = coroutineContext[Job],
+                onRainLabelDrawn = {
+                    if (it.isNightLabel) {
+                        nightRainLabelDraws.add(it)
+                    }
+                },
+                headerData = headerRenderData,
+            )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 
@@ -599,6 +623,19 @@ if (!isIconWidth) {
 
             setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
             setupGraphBottomDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
+            setupNightRainClickHandlers(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                now = now,
+                days = displayDays,
+                lat = lat,
+                lon = lon,
+                displaySource = displaySource,
+                bitmapWidthPx = bitmapDims.widthPx,
+                bitmapHeightPx = bitmapDims.heightPx,
+                nightLabelDraws = nightRainLabelDraws,
+            )
         } else {
             setTextModeViews(views)
 
@@ -680,6 +717,8 @@ if (!isIconWidth) {
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.VISIBLE)
+        views.setViewVisibility(R.id.graph_night_rain_zones, View.VISIBLE)
+        Log.d(TAG, "setGraphModeViews: graph_night_rain_zones set VISIBLE")
         setSingleRowControlsVisible(views, false)
         views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
         views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
@@ -700,6 +739,7 @@ if (!isIconWidth) {
         views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
 
         views.setViewVisibility(R.id.nav_left, View.GONE)
         views.setViewVisibility(R.id.nav_left_zone, View.GONE)
@@ -1197,6 +1237,8 @@ if (!isIconWidth) {
         displaySource: WeatherSource,
         now: LocalDateTime = LocalDateTime.now(),
         targetModeOverride: ViewMode? = null,
+        offsetOverride: Int? = null,
+        clickSource: String? = null,
     ): Intent {
         val isHistory = date.isBefore(now.toLocalDate())
         val showHistory = DayClickHelper.shouldShowHistory(isHistory)
@@ -1211,10 +1253,11 @@ if (!isIconWidth) {
             putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
             putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
+            clickSource?.let { putExtra(EXTRA_CLICK_SOURCE, it) }
 
             if (!showHistory) {
                 val targetMode = targetModeOverride ?: DayClickHelper.resolveDailyTargetViewMode(iconRes)
-                val offset = DayClickHelper.calculatePrecipitationOffset(now, date)
+                val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
                 putExtra(EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(EXTRA_HOURLY_OFFSET, offset)
             }
@@ -1292,6 +1335,135 @@ if (!isIconWidth) {
         )
     }
 
+    private val nightRainGridZoneIds: List<IntArray> = listOf(
+        intArrayOf(R.id.graph_night_rain_zone_r0_c0, R.id.graph_night_rain_zone_r0_c1, R.id.graph_night_rain_zone_r0_c2, R.id.graph_night_rain_zone_r0_c3, R.id.graph_night_rain_zone_r0_c4, R.id.graph_night_rain_zone_r0_c5, R.id.graph_night_rain_zone_r0_c6, R.id.graph_night_rain_zone_r0_c7, R.id.graph_night_rain_zone_r0_c8, R.id.graph_night_rain_zone_r0_c9, R.id.graph_night_rain_zone_r0_c10, R.id.graph_night_rain_zone_r0_c11, R.id.graph_night_rain_zone_r0_c12, R.id.graph_night_rain_zone_r0_c13, R.id.graph_night_rain_zone_r0_c14, R.id.graph_night_rain_zone_r0_c15, R.id.graph_night_rain_zone_r0_c16, R.id.graph_night_rain_zone_r0_c17, R.id.graph_night_rain_zone_r0_c18, R.id.graph_night_rain_zone_r0_c19),
+        intArrayOf(R.id.graph_night_rain_zone_r1_c0, R.id.graph_night_rain_zone_r1_c1, R.id.graph_night_rain_zone_r1_c2, R.id.graph_night_rain_zone_r1_c3, R.id.graph_night_rain_zone_r1_c4, R.id.graph_night_rain_zone_r1_c5, R.id.graph_night_rain_zone_r1_c6, R.id.graph_night_rain_zone_r1_c7, R.id.graph_night_rain_zone_r1_c8, R.id.graph_night_rain_zone_r1_c9, R.id.graph_night_rain_zone_r1_c10, R.id.graph_night_rain_zone_r1_c11, R.id.graph_night_rain_zone_r1_c12, R.id.graph_night_rain_zone_r1_c13, R.id.graph_night_rain_zone_r1_c14, R.id.graph_night_rain_zone_r1_c15, R.id.graph_night_rain_zone_r1_c16, R.id.graph_night_rain_zone_r1_c17, R.id.graph_night_rain_zone_r1_c18, R.id.graph_night_rain_zone_r1_c19),
+        intArrayOf(R.id.graph_night_rain_zone_r2_c0, R.id.graph_night_rain_zone_r2_c1, R.id.graph_night_rain_zone_r2_c2, R.id.graph_night_rain_zone_r2_c3, R.id.graph_night_rain_zone_r2_c4, R.id.graph_night_rain_zone_r2_c5, R.id.graph_night_rain_zone_r2_c6, R.id.graph_night_rain_zone_r2_c7, R.id.graph_night_rain_zone_r2_c8, R.id.graph_night_rain_zone_r2_c9, R.id.graph_night_rain_zone_r2_c10, R.id.graph_night_rain_zone_r2_c11, R.id.graph_night_rain_zone_r2_c12, R.id.graph_night_rain_zone_r2_c13, R.id.graph_night_rain_zone_r2_c14, R.id.graph_night_rain_zone_r2_c15, R.id.graph_night_rain_zone_r2_c16, R.id.graph_night_rain_zone_r2_c17, R.id.graph_night_rain_zone_r2_c18, R.id.graph_night_rain_zone_r2_c19),
+        intArrayOf(R.id.graph_night_rain_zone_r3_c0, R.id.graph_night_rain_zone_r3_c1, R.id.graph_night_rain_zone_r3_c2, R.id.graph_night_rain_zone_r3_c3, R.id.graph_night_rain_zone_r3_c4, R.id.graph_night_rain_zone_r3_c5, R.id.graph_night_rain_zone_r3_c6, R.id.graph_night_rain_zone_r3_c7, R.id.graph_night_rain_zone_r3_c8, R.id.graph_night_rain_zone_r3_c9, R.id.graph_night_rain_zone_r3_c10, R.id.graph_night_rain_zone_r3_c11, R.id.graph_night_rain_zone_r3_c12, R.id.graph_night_rain_zone_r3_c13, R.id.graph_night_rain_zone_r3_c14, R.id.graph_night_rain_zone_r3_c15, R.id.graph_night_rain_zone_r3_c16, R.id.graph_night_rain_zone_r3_c17, R.id.graph_night_rain_zone_r3_c18, R.id.graph_night_rain_zone_r3_c19),
+        intArrayOf(R.id.graph_night_rain_zone_r4_c0, R.id.graph_night_rain_zone_r4_c1, R.id.graph_night_rain_zone_r4_c2, R.id.graph_night_rain_zone_r4_c3, R.id.graph_night_rain_zone_r4_c4, R.id.graph_night_rain_zone_r4_c5, R.id.graph_night_rain_zone_r4_c6, R.id.graph_night_rain_zone_r4_c7, R.id.graph_night_rain_zone_r4_c8, R.id.graph_night_rain_zone_r4_c9, R.id.graph_night_rain_zone_r4_c10, R.id.graph_night_rain_zone_r4_c11, R.id.graph_night_rain_zone_r4_c12, R.id.graph_night_rain_zone_r4_c13, R.id.graph_night_rain_zone_r4_c14, R.id.graph_night_rain_zone_r4_c15, R.id.graph_night_rain_zone_r4_c16, R.id.graph_night_rain_zone_r4_c17, R.id.graph_night_rain_zone_r4_c18, R.id.graph_night_rain_zone_r4_c19),
+        intArrayOf(R.id.graph_night_rain_zone_r5_c0, R.id.graph_night_rain_zone_r5_c1, R.id.graph_night_rain_zone_r5_c2, R.id.graph_night_rain_zone_r5_c3, R.id.graph_night_rain_zone_r5_c4, R.id.graph_night_rain_zone_r5_c5, R.id.graph_night_rain_zone_r5_c6, R.id.graph_night_rain_zone_r5_c7, R.id.graph_night_rain_zone_r5_c8, R.id.graph_night_rain_zone_r5_c9, R.id.graph_night_rain_zone_r5_c10, R.id.graph_night_rain_zone_r5_c11, R.id.graph_night_rain_zone_r5_c12, R.id.graph_night_rain_zone_r5_c13, R.id.graph_night_rain_zone_r5_c14, R.id.graph_night_rain_zone_r5_c15, R.id.graph_night_rain_zone_r5_c16, R.id.graph_night_rain_zone_r5_c17, R.id.graph_night_rain_zone_r5_c18, R.id.graph_night_rain_zone_r5_c19),
+    )
+
+    @VisibleForTesting
+    internal fun setupNightRainClickHandlers(
+        context: Context,
+        views: RemoteViews,
+        appWidgetId: Int,
+        now: LocalDateTime,
+        days: List<DailyForecastGraphRenderer.DayData>,
+        lat: Double,
+        lon: Double,
+        displaySource: WeatherSource,
+        bitmapWidthPx: Int,
+        bitmapHeightPx: Int,
+        nightLabelDraws: List<DailyForecastGraphRenderer.RainLabelDrawnDebug>,
+    ) {
+        nightRainGridZoneIds.forEach { rowIds ->
+            rowIds.forEach { zoneId ->
+                views.setOnClickPendingIntent(zoneId, null)
+            }
+        }
+
+        Log.d(
+            TAG,
+            "nightRainZones layout: widget=$appWidgetId grid=${NIGHT_RAIN_GRID_ROWS}x${NIGHT_RAIN_GRID_COLS} " +
+                "bitmap=${bitmapWidthPx}x${bitmapHeightPx} labels=${nightLabelDraws.size}",
+        )
+
+        val daysByDate = days.associateBy { it.date }
+        var wired = 0
+        nightLabelDraws.filter { it.isNightLabel }.forEach { labelDraw ->
+            val day = daysByDate[labelDraw.date]
+            if (day == null) {
+                Log.w(TAG, "nightRainZone skip: date=${labelDraw.date} reason=no_day_match")
+                return@forEach
+            }
+            val labelText = day.rainData.nightRainLabelText
+            if (labelText == null) {
+                Log.d(TAG, "nightRainZone skip: date=${day.date} reason=no_label")
+                return@forEach
+            }
+            if (day.date.isBefore(now.toLocalDate())) {
+                Log.d(TAG, "nightRainZone skip: date=${day.date} reason=past_date")
+                return@forEach
+            }
+
+            val colIndex = day.columnIndex ?: days.indexOf(day)
+            val nightOffset = DayClickHelper.calculateNightCenterOffset(now, day.date, lat, lon)
+            val intent = buildDayClickIntent(
+                context = context,
+                appWidgetId = appWidgetId,
+                dayIndex = colIndex + 1,
+                date = day.date,
+                iconRes = day.iconRes,
+                lat = lat,
+                lon = lon,
+                displaySource = displaySource,
+                now = now,
+                targetModeOverride = ViewMode.PRECIPITATION,
+                offsetOverride = nightOffset,
+                clickSource = "night_rain:col=$colIndex:date=${day.date}",
+            )
+            val requestCode = WidgetRequestCodes.nightRainClick(appWidgetId, colIndex)
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                requestCode,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            val coveredCells = computeNightRainGridCells(labelDraw, bitmapWidthPx, bitmapHeightPx)
+            if (coveredCells.isEmpty()) {
+                Log.w(TAG, "nightRainZone skip: date=${day.date} reason=no_cells left=${labelDraw.leftX} right=${labelDraw.rightX} top=${labelDraw.topY} bottom=${labelDraw.bottomY}")
+                return@forEach
+            }
+            coveredCells.forEach { (rowIndex, colCellIndex) ->
+                views.setOnClickPendingIntent(nightRainGridZoneIds[rowIndex][colCellIndex], pendingIntent)
+            }
+            wired++
+            Log.d(
+                TAG,
+                "nightRainZone wired: widget=$appWidgetId col=$colIndex date=${day.date} " +
+                    "label=\"$labelText\" iconRes=${day.iconRes} offset=${nightOffset}h " +
+                    "bounds=(${labelDraw.leftX},${labelDraw.topY})..(${labelDraw.rightX},${labelDraw.bottomY}) " +
+                    "zoneIds=${coveredCells.joinToString(",") { (rowIndex, colCellIndex) ->
+                        context.resources.getResourceEntryName(nightRainGridZoneIds[rowIndex][colCellIndex])
+                    }} " +
+                    "targetMode=PRECIPITATION requestCode=$requestCode " +
+                    "intentAction=${intent.action} hasExtras=${intent.extras != null}",
+            )
+        }
+        Log.d(TAG, "nightRainZones summary: widget=$appWidgetId wired=$wired numDays=${days.size}")
+    }
+
+    private fun computeNightRainGridCells(
+        labelDraw: DailyForecastGraphRenderer.RainLabelDrawnDebug,
+        bitmapWidthPx: Int,
+        bitmapHeightPx: Int,
+    ): List<Pair<Int, Int>> {
+        if (
+            bitmapWidthPx <= 0 ||
+            labelDraw.leftX.isNaN() ||
+            labelDraw.rightX.isNaN()
+        ) {
+            return emptyList()
+        }
+
+        val safeLeft = labelDraw.leftX.coerceIn(0f, bitmapWidthPx.toFloat() - 1f)
+        val safeRight = labelDraw.rightX.coerceIn(safeLeft + 0.01f, bitmapWidthPx.toFloat())
+
+        val startCol = floor((safeLeft / bitmapWidthPx) * NIGHT_RAIN_GRID_COLS).toInt().coerceIn(0, NIGHT_RAIN_GRID_COLS - 1)
+        val endCol = floor((((safeRight - 0.01f).coerceAtLeast(safeLeft)) / bitmapWidthPx) * NIGHT_RAIN_GRID_COLS).toInt().coerceIn(0, NIGHT_RAIN_GRID_COLS - 1)
+
+        return buildList {
+            for (rowIndex in 0 until NIGHT_RAIN_GRID_ROWS) {
+                for (colIndex in startCol..endCol) {
+                    add(rowIndex to colIndex)
+                }
+            }
+        }
+    }
+
     private fun setupGraphZoneClickHandlers(
         context: Context,
         views: RemoteViews,
@@ -1331,6 +1503,11 @@ if (!isIconWidth) {
                 displaySource = displaySource,
                 now = now,
                 targetModeOverride = targetModeOverride,
+                clickSource = if (requestCodeOffset == 0) {
+                    "graph_day:col=$colIndex:date=${dayData.date}"
+                } else {
+                    "graph_bottom_day:col=$colIndex:date=${dayData.date}"
+                },
             )
             val pendingIntent = PendingIntent.getBroadcast(
                 context,

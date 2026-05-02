@@ -133,6 +133,7 @@ object CloudCoverViewHandler {
         views.setViewVisibility(R.id.header_date_right, View.GONE)
 
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)
 
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)

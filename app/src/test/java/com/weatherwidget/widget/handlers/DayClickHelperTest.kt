@@ -388,4 +388,41 @@ class DayClickHelperTest {
         assertNull(DayClickHelper.resolveHourlyBottomRowAction(null, ViewMode.CLOUD_COVER))
         assertNull(DayClickHelper.resolveHourlyBottomRowAction(null, ViewMode.PRECIPITATION))
     }
+
+    // ── calculateNightCenterOffset: centers the precip graph on astronomical night ──
+
+    private val sfLat = 37.7749
+    private val sfLon = -122.4194
+
+    @Test
+    fun `calculateNightCenterOffset SF tonight from afternoon centers on night midpoint`() {
+        // 2026-05-01 in SF: sunset ~20:11 PDT, sunrise (May 2) ~06:11 PDT
+        // Night midpoint ≈ 01:11 on May 2 → ~9 hours from 17:00 May 1
+        val now = LocalDateTime.of(2026, 5, 1, 17, 0)
+        val target = LocalDate.of(2026, 5, 1)
+        val offset = DayClickHelper.calculateNightCenterOffset(now, target, sfLat, sfLon)
+        // Allow ±2h slack: civil-twilight approximation isn't astronomically exact
+        assertTrue("offset $offset should be in 7..11", offset in 7..11)
+    }
+
+    @Test
+    fun `calculateNightCenterOffset future day centers on that night midpoint`() {
+        // Tap "tomorrow night" from morning of today: 2026-05-01 06:00 → night midpoint of May 1
+        // Distance ~19 hours
+        val now = LocalDateTime.of(2026, 5, 1, 6, 0)
+        val target = LocalDate.of(2026, 5, 1)
+        val offset = DayClickHelper.calculateNightCenterOffset(now, target, sfLat, sfLon)
+        assertTrue("offset $offset should be roughly 18..21h", offset in 18..21)
+    }
+
+    @Test
+    fun `calculateNightCenterOffset polar night degrades gracefully`() {
+        // Antarctic interior in winter: sunsetHour=0 sunriseHour=0 → midpoint = (0 + 24 + 0)/2 = 12
+        // i.e. centers on noon of the next day. Not astronomically meaningful, but doesn't crash.
+        val now = LocalDateTime.of(2026, 7, 1, 12, 0)
+        val target = LocalDate.of(2026, 7, 1)
+        val offset = DayClickHelper.calculateNightCenterOffset(now, target, -82.0, 0.0)
+        // Just verify it returns a finite int and doesn't throw
+        assertTrue("offset $offset should be sane", offset in -100..100)
+    }
 }
