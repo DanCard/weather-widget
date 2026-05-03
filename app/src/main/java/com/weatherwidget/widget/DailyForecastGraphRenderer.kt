@@ -28,14 +28,25 @@ object DailyForecastGraphRenderer {
     private const val DAY_LABEL_HORIZONTAL_GAP_DP = 4f
     private const val MIN_BAR_HEIGHT_DP = 1.0f
 
-    private const val COLOR_FORECAST = "#5AC8FA"
-    private const val COLOR_TODAY_HIGHLIGHT = "#FFFF00"
-    private const val COLOR_OBSERVED_RED = "#FF3366"
-    private const val COLOR_LABEL_GRAY = "#AAAAAA"
-    private const val COLOR_TODAY_TEXT = "#FFEACC"
-    private const val COLOR_WHITE = "#FFFFFF"
-    private const val COLOR_GAP_FALLBACK = "#34C759"
-    private const val COLOR_SUNNY = "#FFD60A"
+    private const val COLOR_HEX_FORECAST = "#5AC8FA"
+    private const val COLOR_HEX_TODAY_HIGHLIGHT = "#FFFF00"
+    private const val COLOR_HEX_OBSERVED_RED = "#FF3366"
+    private const val COLOR_HEX_LABEL_GRAY = "#AAAAAA"
+    private const val COLOR_HEX_TODAY_TEXT = "#FFEACC"
+    private const val COLOR_HEX_WHITE = "#FFFFFF"
+    private const val COLOR_HEX_GAP_FALLBACK = "#34C759"
+    private const val COLOR_HEX_SUNNY = "#FFD60A"
+    private const val COLOR_HEX_HEADER = "#AAFFFFFF"
+
+    private val COLOR_FORECAST = Color.parseColor(COLOR_HEX_FORECAST)
+    private val COLOR_TODAY_HIGHLIGHT = Color.parseColor(COLOR_HEX_TODAY_HIGHLIGHT)
+    private val COLOR_OBSERVED_RED = Color.parseColor(COLOR_HEX_OBSERVED_RED)
+    private val COLOR_LABEL_GRAY = Color.parseColor(COLOR_HEX_LABEL_GRAY)
+    private val COLOR_TODAY_TEXT = Color.parseColor(COLOR_HEX_TODAY_TEXT)
+    private val COLOR_WHITE = Color.parseColor(COLOR_HEX_WHITE)
+    private val COLOR_GAP_FALLBACK = Color.parseColor(COLOR_HEX_GAP_FALLBACK)
+    private val COLOR_SUNNY = Color.parseColor(COLOR_HEX_SUNNY)
+    private val COLOR_HEADER = Color.parseColor(COLOR_HEX_HEADER)
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
@@ -52,6 +63,7 @@ object DailyForecastGraphRenderer {
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
     private const val RAIN_TEXT_SIZE_DP = 24f
+    // Raw pixels (not dp) — tiny margin so day label baseline sits just inside bitmap bottom edge.
     private const val DAY_LABEL_BOTTOM_MARGIN_PX = 3f
     private const val GHOST_BAR_ALPHA = 75
     private const val CLIMATE_OVERLAY_ALPHA = 80
@@ -64,13 +76,27 @@ object DailyForecastGraphRenderer {
     private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     private const val PAST_TEMP_SCALE = 0.9f
 
-    // Header rendering constants
+    // Header rendering constants (hex kept for HeaderRenderData defaults which need compile-time consts)
     private const val HEADER_TEXT_COLOR = "#AAFFFFFF"
 
     @Volatile
     private var cachedPaintSet: PaintSet? = null
     @Volatile
     private var cachedScaleKey: String = ""
+
+    private data class HeaderPaintSet(
+        val tempPaint: Paint,
+        val deltaPaint: Paint,
+        val precipPaint: Paint,
+        val apiPaint: Paint,
+        val datePaint: Paint,
+        val dateMeasurePaint: Paint,
+    )
+
+    @Volatile
+    private var cachedHeaderPaints: HeaderPaintSet? = null
+    @Volatile
+    private var cachedHeaderPaintKey: String = ""
 
     /**
      * Fired once for each bar drawn, for testing and debugging.
@@ -322,7 +348,8 @@ object DailyForecastGraphRenderer {
         val widthScaleFactor = (dayWidthDp / BASE_DAY_WIDTH_DP).coerceIn(1.0f, 1.2f)
         val dayLabelWidthScale = computeDayLabelWidthScale(dayWidthDp)
 
-        val heightScaleFactor = when {
+    // Only used for tempLabelHeight scaling, not the overall scaleFactor which is width-driven.
+    val heightScaleFactor = when {
             heightDp < 150f -> 0.92f
             else -> 1.0f
         }
@@ -400,38 +427,38 @@ object DailyForecastGraphRenderer {
         val tripleBarWidth = todayTripleBarStrokeWidthPx(context, scaleFactor, layout.bitmapScale)
 
         val set = PaintSet(
-            barPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth),
-            todayBarPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), barWidth),
-            todayObservedRedPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth),
-            todayObservedGhostPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), tripleBarWidth).apply { alpha = GHOST_BAR_ALPHA },
+            barPaint = createBarPaint(COLOR_FORECAST, barWidth),
+            todayBarPaint = createBarPaint(COLOR_TODAY_HIGHLIGHT, barWidth),
+            todayObservedRedPaint = createBarPaint(COLOR_OBSERVED_RED, tripleBarWidth),
+            todayObservedGhostPaint = createBarPaint(COLOR_OBSERVED_RED, tripleBarWidth).apply { alpha = GHOST_BAR_ALPHA },
             todayObservedRedBulbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor(COLOR_OBSERVED_RED)
+                color = COLOR_OBSERVED_RED
                 style = Paint.Style.FILL
             },
-            todaySnapshotYellowPaint = createBarPaint(Color.parseColor(COLOR_TODAY_HIGHLIGHT), tripleBarWidth),
-            todayForecastBluePaint = createBarPaint(Color.parseColor(COLOR_FORECAST), tripleBarWidth),
-            historyBarPaint = createBarPaint(Color.parseColor(COLOR_OBSERVED_RED), barWidth * HISTORY_BAR_WIDTH_SCALE),
-            forecastBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * FORECAST_OVERLAY_WIDTH_SCALE),
-            climateOverlayBarPaint = createBarPaint(Color.parseColor(COLOR_FORECAST), barWidth * CLIMATE_OVERLAY_WIDTH_SCALE).apply { alpha = CLIMATE_OVERLAY_ALPHA },
-            gapFallbackBarPaint = createBarPaint(Color.parseColor(COLOR_GAP_FALLBACK), barWidth),
+            todaySnapshotYellowPaint = createBarPaint(COLOR_TODAY_HIGHLIGHT, tripleBarWidth),
+            todayForecastBluePaint = createBarPaint(COLOR_FORECAST, tripleBarWidth),
+            historyBarPaint = createBarPaint(COLOR_OBSERVED_RED, barWidth * HISTORY_BAR_WIDTH_SCALE),
+            forecastBarPaint = createBarPaint(COLOR_FORECAST, barWidth * FORECAST_OVERLAY_WIDTH_SCALE),
+            climateOverlayBarPaint = createBarPaint(COLOR_FORECAST, barWidth * CLIMATE_OVERLAY_WIDTH_SCALE).apply { alpha = CLIMATE_OVERLAY_ALPHA },
+            gapFallbackBarPaint = createBarPaint(COLOR_GAP_FALLBACK, barWidth),
             textPaint = createTextPaint(
-                Color.parseColor(COLOR_LABEL_GRAY),
+                COLOR_LABEL_GRAY,
                 layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER
             ),
             todayTextPaint = createTextPaint(
-                Color.parseColor(COLOR_TODAY_TEXT),
+                COLOR_TODAY_TEXT,
                 layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER,
                 true
             ),
-            tempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight),
-            pastTempTextPaint = createTextPaint(Color.parseColor(COLOR_WHITE), layout.tempLabelHeight * PAST_TEMP_SCALE),
-            todayTempTextPaint = createTextPaint(Color.parseColor(COLOR_TODAY_TEXT), layout.tempLabelHeight, true),
-            rainTextPaint = createTextPaint(Color.parseColor(COLOR_FORECAST), dpToPx(context, RAIN_TEXT_SIZE_DP * scaleFactor * labelScale)),
+            tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight),
+            pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE),
+            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight, true),
+            rainTextPaint = createTextPaint(COLOR_FORECAST, dpToPx(context, RAIN_TEXT_SIZE_DP * scaleFactor * labelScale)),
             iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                colorFilter = PorterDuffColorFilter(Color.parseColor(COLOR_LABEL_GRAY), PorterDuff.Mode.SRC_IN)
+                colorFilter = PorterDuffColorFilter(COLOR_LABEL_GRAY, PorterDuff.Mode.SRC_IN)
             },
             todayIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                colorFilter = PorterDuffColorFilter(Color.parseColor(COLOR_TODAY_TEXT), PorterDuff.Mode.SRC_IN)
+                colorFilter = PorterDuffColorFilter(COLOR_TODAY_TEXT, PorterDuff.Mode.SRC_IN)
             }
         )
 
@@ -461,14 +488,11 @@ object DailyForecastGraphRenderer {
         layout: LayoutInfo,
     ) {
         val density = context.resources.displayMetrics.density
-        val headerColor = Color.parseColor(HEADER_TEXT_COLOR)
         val labelScale = layout.bitmapScale.coerceAtMost(1f)
-
-        val tempTextSizePx = dpToPx(context, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP * labelScale)
+        val headerPaints = getHeaderPaintSet(context, header, labelScale)
 
         var cursorX = -dpToPx(context, 3f * labelScale)
 
-        // Weather icon
         if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
             val iconSizePx = dpToPx(context, HeaderConstants.WEATHER_ICON_SIZE_DP * labelScale).toInt()
             try {
@@ -487,50 +511,30 @@ object DailyForecastGraphRenderer {
             cursorX += dpToPx(context, (HeaderConstants.WEATHER_ICON_SIZE_DP + HeaderConstants.WEATHER_ICON_END_MARGIN_DP) * labelScale)
         }
 
-        // Current temperature
-        val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = headerColor
-            textSize = tempTextSizePx
-            textAlign = Paint.Align.LEFT
-        }
         if (!header.currentTempText.isNullOrBlank()) {
-            canvas.drawText(header.currentTempText, cursorX, -tempPaint.ascent(), tempPaint)
-            cursorX += tempPaint.measureText(header.currentTempText)
+            canvas.drawText(header.currentTempText, cursorX, -headerPaints.tempPaint.ascent(), headerPaints.tempPaint)
+            cursorX += headerPaints.tempPaint.measureText(header.currentTempText)
         }
 
-        // Delta
         if (header.showDelta && !header.deltaText.isNullOrBlank()) {
             cursorX += dpToPx(context, HeaderConstants.DELTA_MARGIN_START_DP * labelScale)
-            val deltaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = header.deltaColor
-                textSize = dpToPx(context, HeaderConstants.DELTA_TEXT_SIZE_DP * labelScale)
-                textAlign = Paint.Align.LEFT
-            }
-            canvas.drawText(header.deltaText, cursorX, -deltaPaint.ascent(), deltaPaint)
-            cursorX += deltaPaint.measureText(header.deltaText)
+            canvas.drawText(header.deltaText, cursorX, -headerPaints.deltaPaint.ascent(), headerPaints.deltaPaint)
+            cursorX += headerPaints.deltaPaint.measureText(header.deltaText)
         }
 
-        // Precip probability
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
             cursorX += dpToPx(context, HeaderConstants.PRECIP_MARGIN_START_DP * labelScale)
-            val precipTextSizePx = dpToPx(context, header.precipTextSizeDp * labelScale)
-            Log.d(TAG, "headerPrecip: text=\"${header.precipText}\" precipTextSizeDp=${header.precipTextSizeDp} labelScale=$labelScale textSizePx=$precipTextSizePx textSizeDp=${precipTextSizePx / context.resources.displayMetrics.density}")
-            val precipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = header.precipColor
-                textSize = precipTextSizePx
-                textAlign = Paint.Align.LEFT
-            }
-            canvas.drawText(header.precipText, cursorX, -precipPaint.ascent(), precipPaint)
-            cursorX += precipPaint.measureText(header.precipText)
+            Log.d(TAG, "headerPrecip: text=\"${header.precipText}\" precipTextSizeDp=${header.precipTextSizeDp} labelScale=$labelScale textSizePx=${headerPaints.precipPaint.textSize}px textSizeDp=${headerPaints.precipPaint.textSize / context.resources.displayMetrics.density}")
+            canvas.drawText(header.precipText, cursorX, -headerPaints.precipPaint.ascent(), headerPaints.precipPaint)
+            cursorX += headerPaints.precipPaint.measureText(header.precipText)
         }
 
-        // Settings gear icon (top-right corner)
         if (header.settingsIconRes != 0) {
             val gearSizePx = dpToPx(context, HeaderConstants.SETTINGS_ICON_SIZE_DP * labelScale).toInt()
             try {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, header.settingsIconRes)
                 if (drawable != null) {
-                    drawable.setTint(Color.parseColor(HEADER_TEXT_COLOR))
+                    drawable.setTint(COLOR_HEADER)
                     val gearRight = widthPx
                     val gearTop = 0
                     drawable.setBounds(
@@ -544,52 +548,79 @@ object DailyForecastGraphRenderer {
             }
         }
 
-        // API source (top-right, left of settings gear)
         if (!header.apiSourceText.isNullOrBlank()) {
-            val apiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = headerColor
-                textSize = dpToPx(context, header.apiTextSizeDp * labelScale)
-                textAlign = Paint.Align.RIGHT
-            }
             val apiX = widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP * labelScale)
-            canvas.drawText(header.apiSourceText, apiX, -apiPaint.ascent(), apiPaint)
+            canvas.drawText(header.apiSourceText, apiX, -headerPaints.apiPaint.ascent(), headerPaints.apiPaint)
         }
 
-        // Date text (centered or right-aligned, using same logic as before)
         if (!header.dateText.isNullOrBlank()) {
-            val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = headerColor
-                textSize = dpToPx(context, HeaderConstants.DATE_TEXT_SIZE_DP * labelScale)
-                textAlign = Paint.Align.CENTER
-            }
-            val dateWidth = datePaint.measureText(header.dateText)
+            val dateWidth = headerPaints.datePaint.measureText(header.dateText)
             val leftClusterRight = cursorX
-            val apiPaintForMeasure = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                textSize = dpToPx(context, header.apiTextSizeDp * labelScale)
-            }
             val apiContainerWidth = dpToPx(context, HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP * labelScale) +
-                apiPaintForMeasure.measureText(header.apiSourceText ?: "")
+                headerPaints.dateMeasurePaint.measureText(header.apiSourceText ?: "")
             val apiLeft = widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP * labelScale) - apiContainerWidth
             val gapPx = dpToPx(context, HeaderConstants.DATE_HORIZONTAL_GAP_DP * labelScale)
 
-            // Try center placement
             val centerX = widthPx / 2f
             val centerLeft = centerX - dateWidth / 2f
             val centerRight = centerX + dateWidth / 2f
-            val dateBaseline = -datePaint.ascent()
+            val dateBaseline = -headerPaints.datePaint.ascent()
             if (centerLeft >= leftClusterRight + gapPx && centerRight <= apiLeft - gapPx) {
-                canvas.drawText(header.dateText, centerX, dateBaseline, datePaint)
+                canvas.drawText(header.dateText, centerX, dateBaseline, headerPaints.datePaint)
             } else {
-                // Fall back to right placement (left of API area)
                 val rightMarginPx = dpToPx(context, HeaderConstants.DATE_RIGHT_MARGIN_DP * labelScale)
                 val rightX = widthPx - rightMarginPx
                 val rightLeft = rightX - dateWidth / 2f
                 val rightRight = rightX + dateWidth / 2f
                 if (rightLeft >= leftClusterRight + gapPx && rightRight <= apiLeft - gapPx) {
-                    canvas.drawText(header.dateText, rightX, dateBaseline, datePaint)
+                    canvas.drawText(header.dateText, rightX, dateBaseline, headerPaints.datePaint)
                 }
             }
         }
+    }
+
+    private fun getHeaderPaintSet(
+        context: Context,
+        header: HeaderRenderData,
+        labelScale: Float,
+    ): HeaderPaintSet {
+        val key = "$labelScale-${header.deltaColor}-${header.precipColor}-${header.precipTextSizeDp}-${header.apiTextSizeDp}"
+        cachedHeaderPaints?.let { if (cachedHeaderPaintKey == key) return it }
+
+        val tempTextSizePx = dpToPx(context, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP * labelScale)
+        val set = HeaderPaintSet(
+            tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = COLOR_HEADER
+                textSize = tempTextSizePx
+                textAlign = Paint.Align.LEFT
+            },
+            deltaPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = header.deltaColor
+                textSize = dpToPx(context, HeaderConstants.DELTA_TEXT_SIZE_DP * labelScale)
+                textAlign = Paint.Align.LEFT
+            },
+            precipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = header.precipColor
+                textSize = dpToPx(context, header.precipTextSizeDp * labelScale)
+                textAlign = Paint.Align.LEFT
+            },
+            apiPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = COLOR_HEADER
+                textSize = dpToPx(context, header.apiTextSizeDp * labelScale)
+                textAlign = Paint.Align.RIGHT
+            },
+            datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = COLOR_HEADER
+                textSize = dpToPx(context, HeaderConstants.DATE_TEXT_SIZE_DP * labelScale)
+                textAlign = Paint.Align.CENTER
+            },
+            dateMeasurePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = dpToPx(context, header.apiTextSizeDp * labelScale)
+            },
+        )
+        cachedHeaderPaints = set
+        cachedHeaderPaintKey = key
+        return set
     }
 
     private fun drawWeatherAdaptiveBar(
@@ -700,7 +731,7 @@ object DailyForecastGraphRenderer {
         drawable.setBounds(iconX.toInt(), iconY.toInt(), (iconX + iconSize).toInt(), (iconY + iconSize).toInt())
         
         if (!day.isRainy && !day.isMixed) {
-            val tint = if (day.isSunny) Color.parseColor(COLOR_SUNNY) else Color.parseColor(COLOR_LABEL_GRAY)
+            val tint = if (day.isSunny) COLOR_SUNNY else COLOR_LABEL_GRAY
             drawable.setTint(tint)
         }
         drawable.draw(canvas)
@@ -726,7 +757,7 @@ object DailyForecastGraphRenderer {
             val paint = when {
                 day.isPast -> paints.historyBarPaint
                 day.isSourceGapFallback -> paints.gapFallbackBarPaint
-                else -> paints.barPaint.also { it.color = condColor }
+                else -> Paint(paints.barPaint).apply { color = condColor }
             }
             
             val usesAdaptiveSegments = !day.isPast && day.isMixed && day.iconRes != null
@@ -755,9 +786,9 @@ object DailyForecastGraphRenderer {
             val forecastX = centerX + layout.forecastBarOffset
             val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
             val overlayPaint = if (day.isClimateNormal) {
-                paints.climateOverlayBarPaint.also { it.color = condColor; it.alpha = CLIMATE_OVERLAY_ALPHA }
+                Paint(paints.climateOverlayBarPaint).apply { color = condColor; alpha = CLIMATE_OVERLAY_ALPHA }
             } else {
-                paints.forecastBarPaint.also { it.color = condColor }
+                Paint(paints.forecastBarPaint).apply { color = condColor }
             }
             val overlayGradient = day.isMixed && day.iconRes != null
             Log.d(TAG, "Overlay color decision: date=${day.date}" +
@@ -782,8 +813,7 @@ object DailyForecastGraphRenderer {
             val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
             val y = highY ?: (lowY?.let { it - layout.minBarHeightPx } ?: 0f)
             val labelY = if (day.isToday) {
-                val absoluteHigh = listOfNotNull(day.high, day.forecastHigh, day.trueActualHigh).maxOrNull() ?: 0f
-                layout.tempToY(absoluteHigh)
+                layout.tempToY(day.effectiveHigh() ?: day.high)
             } else y
             val tempPaint = when {
                 day.isToday -> paints.todayTempTextPaint
@@ -823,7 +853,7 @@ object DailyForecastGraphRenderer {
         val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
         
         val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
-        val forecastPaint = paints.todayForecastBluePaint.also { it.color = condColor }
+        val forecastPaint = Paint(paints.todayForecastBluePaint).apply { color = condColor }
         val todayForecastX = centerX + layout.tripleBarOffset
         drawWeatherAdaptiveBar(
             canvas = canvas,
@@ -964,6 +994,107 @@ object DailyForecastGraphRenderer {
         )
     }
 
+    private data class NightTuckParams(
+        val anchorBaseline: Float,
+        val leftBaseline: Float,
+        val rightNeighborBaseline: Float?,
+        val dynamicOverlapDp: Float,
+        val effectiveNudgeDp: Float,
+        val tightFraction: Float,
+        val roomBelowDp: Float,
+        val isLeftTempLower: Boolean,
+        val tempMetrics: Paint.FontMetrics,
+    )
+
+    private data class NightHorizontalFit(
+        val centerX: Float,
+        val paint: Paint,
+        val placementType: String,
+    )
+
+    private fun resolveNightAnchorBaseline(
+        context: Context,
+        day: DayData,
+        rightNeighbor: DayData?,
+        layout: LayoutInfo,
+        paints: PaintSet,
+    ): NightTuckParams? {
+        val leftBaseline = resolveLowLabelBaseline(context, day, layout) ?: return null
+        val rightNeighborBaseline = rightNeighbor?.let { resolveLowLabelBaseline(context, it, layout) }
+        val anchorBaseline = if (rightNeighborBaseline != null) {
+            minOf(leftBaseline, rightNeighborBaseline)
+        } else {
+            leftBaseline
+        }
+
+        val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
+        val tempMetrics = tempPaint.fontMetrics
+
+        val density = context.resources.displayMetrics.density
+        val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
+        val roomBelowPx = (hardBottomLimit - anchorBaseline).coerceAtLeast(0f)
+        val roomBelowDp = roomBelowPx / density
+
+        val tightFraction = (1f - (roomBelowDp - 6f) / (18f - 6f)).coerceIn(0f, 1f)
+        val dynamicOverlapDp = 4.0f + (2.0f * tightFraction)
+        val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
+
+        val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
+        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.9f else dynamicNudgeDp
+
+        return NightTuckParams(
+            anchorBaseline = anchorBaseline,
+            leftBaseline = leftBaseline,
+            rightNeighborBaseline = rightNeighborBaseline,
+            dynamicOverlapDp = dynamicOverlapDp,
+            effectiveNudgeDp = effectiveNudgeDp,
+            tightFraction = tightFraction,
+            roomBelowDp = roomBelowDp,
+            isLeftTempLower = isLeftTempLower,
+            tempMetrics = tempMetrics,
+        )
+    }
+
+    private fun resolveNightHorizontalFit(
+        context: Context,
+        paints: PaintSet,
+        day: DayData,
+        rainText: String,
+        centerX: Float,
+        layout: LayoutInfo,
+        hNudgePx: Float,
+    ): NightHorizontalFit? {
+        val currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
+        val textWidth = currentPaint.measureText(rainText)
+        val shiftedCenterX = centerX + layout.dayWidth / 2f - hNudgePx
+        val halfWidth = textWidth / 2f
+        val edgeMargin = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP)
+        val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx - edgeMargin) && (shiftedCenterX - halfWidth >= 0)
+
+        if (canShiftStandard) {
+            return NightHorizontalFit(shiftedCenterX, currentPaint, "NIGHT_SHIFTED_LEFT")
+        }
+
+        val reducedPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", extraScale = 0.85f, labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
+        val reducedWidth = reducedPaint.measureText(rainText)
+        val reducedHalfWidth = reducedWidth / 2f
+
+        if (shiftedCenterX + reducedHalfWidth <= layout.widthPx - edgeMargin && shiftedCenterX - reducedHalfWidth >= 0) {
+            return NightHorizontalFit(shiftedCenterX, reducedPaint, "NIGHT_SHIFTED_SCALED")
+        }
+
+        val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
+        if (textWidth > maxTextWidth) {
+            if (reducedWidth <= maxTextWidth) {
+                return NightHorizontalFit(centerX, reducedPaint, "NIGHT_CENTERED_SCALED")
+            }
+            Log.d(TAG, "nightRainLabel skipped: text too wide: date=${day.date} textWidth=${reducedWidth}px")
+            return null
+        }
+
+        return NightHorizontalFit(centerX, currentPaint, "NIGHT_CENTERED")
+    }
+
     private fun drawNightRainLabel(
         canvas: Canvas,
         context: Context,
@@ -975,112 +1106,37 @@ object DailyForecastGraphRenderer {
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
     ) {
         val rainText = day.rainData.nightRainLabelText ?: return
-        val density = context.resources.displayMetrics.density
 
-        // 1. Resolve baselines for tucking logic
-        val leftBaseline = resolveLowLabelBaseline(context, day, layout) ?: return
-        val rightNeighborBaseline = rightNeighbor?.let { resolveLowLabelBaseline(context, it, layout) }
-        val anchorBaseline = if (rightNeighborBaseline != null) {
-            minOf(leftBaseline, rightNeighborBaseline)
-        } else {
-            leftBaseline
-        }
+        val tuck = resolveNightAnchorBaseline(context, day, rightNeighbor, layout, paints) ?: return
+        val hNudgePx = dpToPx(context, tuck.effectiveNudgeDp)
+        val fit = resolveNightHorizontalFit(context, paints, day, rainText, centerX, layout, hNudgePx) ?: return
 
-        val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
-        val tempMetrics = tempPaint.fontMetrics
-        
-        // 2. Calculate dynamic tuck intensity based on vertical space available below
-        val hardBottomLimitEarly = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
-        val roomBelowPx = (hardBottomLimitEarly - anchorBaseline).coerceAtLeast(0f)
-        val roomBelowDp = roomBelowPx / density
-
-        // Linear interpolation ramp based on absolute room below:
-        // <= 6dp room: Max tuck (6.0dp overlap, 3.0dp nudge) — label is near bottom
-        // >= 18dp room: Min tuck (4.0dp overlap, 1.5dp nudge) — label has plenty of room
-        val tightFraction = (1f - (roomBelowDp - 6f) / (18f - 6f)).coerceIn(0f, 1f)
-        
-        val dynamicOverlapDp = 4.0f + (2.0f * tightFraction)
-        val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
-
-        val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
-        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.9f else dynamicNudgeDp
-        val hNudgePx = dpToPx(context, effectiveNudgeDp)
-
-        // 3. Multi-step fitting strategy
-        var currentPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
-        var textWidth = currentPaint.measureText(rainText)
-        val shiftedCenterX = centerX + layout.dayWidth / 2f - hNudgePx
-        val halfWidth = textWidth / 2f
-        
-        // Relaxed boundary check: allow it if it stays within bitmap.
-        val edgeMargin = dpToPx(context, RAIN_LABEL_EDGE_MARGIN_DP)
-        val canShiftStandard = (shiftedCenterX + halfWidth <= layout.widthPx - edgeMargin) && (shiftedCenterX - halfWidth >= 0)
-        
-        val finalCenterX: Float
-        val finalPaint: Paint
-        val placementType: String
-        
-        if (canShiftStandard) {
-            finalCenterX = shiftedCenterX
-            finalPaint = currentPaint
-            placementType = "NIGHT_SHIFTED_LEFT"
-        } else {
-            // Try smaller font scale at shifted position if near boundary
-            val reducedPaint = createScaledRainPaint(context, paints, day, day.rainData.nighttimePrecipProbability, "night", extraScale = 0.85f, labelScale = layout.bitmapScale.coerceIn(0.5f, 1f))
-            val reducedWidth = reducedPaint.measureText(rainText)
-            val reducedHalfWidth = reducedWidth / 2f
-            
-            if (shiftedCenterX + reducedHalfWidth <= layout.widthPx - edgeMargin && shiftedCenterX - reducedHalfWidth >= 0) {
-                finalCenterX = shiftedCenterX
-                finalPaint = reducedPaint
-                placementType = "NIGHT_SHIFTED_SCALED"
-            } else {
-                // Fallback to centered if shifting is impossible (last day)
-                val maxTextWidth = layout.dayWidth - dpToPx(context, RAIN_TEXT_MARGIN_DP * layout.scaleFactor)
-                if (textWidth > maxTextWidth) {
-                    if (reducedWidth <= maxTextWidth) {
-                        finalCenterX = centerX
-                        finalPaint = reducedPaint
-                        placementType = "NIGHT_CENTERED_SCALED"
-                    } else {
-                        Log.d(TAG, "nightRainLabel skipped: text too wide: date=${day.date} textWidth=${reducedWidth}px")
-                        return
-                    }
-                } else {
-                    finalCenterX = centerX
-                    finalPaint = currentPaint
-                    placementType = "NIGHT_CENTERED"
-                }
-            }
-        }
-
-        // 4. Final vertical anchoring and draw
-        val metrics = finalPaint.fontMetrics
+        val metrics = fit.paint.fontMetrics
         val hardBottomLimit = layout.heightPx - dpToPx(context, DAY_LABEL_BOTTOM_MARGIN_PX)
-        
-        val finalTopOverlap = dpToPx(context, dynamicOverlapDp)
-        val finalTopY = anchorBaseline + tempMetrics.descent - finalTopOverlap
+
+        val finalTopOverlap = dpToPx(context, tuck.dynamicOverlapDp)
+        val finalTopY = tuck.anchorBaseline + tuck.tempMetrics.descent - finalTopOverlap
         val finalBaseline = finalTopY - metrics.ascent
         val finalBottomWithMargin = finalBaseline + metrics.descent
 
         if (finalBottomWithMargin <= hardBottomLimit) {
-            canvas.drawText(rainText, finalCenterX, finalBaseline, finalPaint)
+            canvas.drawText(rainText, fit.centerX, finalBaseline, fit.paint)
             onRainLabelDrawn?.invoke(
                 RainLabelDrawnDebug(
                     date = day.date,
                     text = rainText,
-                    placement = placementType,
-                    centerX = finalCenterX,
-                    leftX = finalCenterX - finalPaint.measureText(rainText) / 2f,
-                    rightX = finalCenterX + finalPaint.measureText(rainText) / 2f,
+                    placement = fit.placementType,
+                    centerX = fit.centerX,
+                    leftX = fit.centerX - fit.paint.measureText(rainText) / 2f,
+                    rightX = fit.centerX + fit.paint.measureText(rainText) / 2f,
                     baselineY = finalBaseline,
                     topY = finalBaseline + metrics.ascent,
                     bottomY = finalBaseline + metrics.descent,
-                    anchorBaselineY = anchorBaseline,
+                    anchorBaselineY = tuck.anchorBaseline,
                     isNightLabel = true,
                 )
             )
-            Log.d(TAG, "nightRainLabel drawn: date=${day.date} room=${roomBelowDp.toInt()}dp tight=${(tightFraction*100).toInt()}% overlap=${String.format("%.1f", dynamicOverlapDp)}dp nudge=${String.format("%.1f", effectiveNudgeDp)}dp centerX=${finalCenterX.toInt()} leftBl=${leftBaseline.toInt()} rightBl=${rightNeighborBaseline?.toInt()} leftLower=$isLeftTempLower")
+            Log.d(TAG, "nightRainLabel drawn: date=${day.date} room=${tuck.roomBelowDp.toInt()}dp tight=${(tuck.tightFraction*100).toInt()}% overlap=${String.format("%.1f", tuck.dynamicOverlapDp)}dp nudge=${String.format("%.1f", tuck.effectiveNudgeDp)}dp centerX=${fit.centerX.toInt()} leftBl=${tuck.leftBaseline.toInt()} rightBl=${tuck.rightNeighborBaseline?.toInt()} leftLower=${tuck.isLeftTempLower}")
             return
         }
 
