@@ -52,7 +52,7 @@ class PrecipitationGraphRendererRobolectricTest {
     }
 
     @Test
-    fun `rain amount blocks do not overlap each other second one skipped on narrow graph`() {
+    fun `rain amount remains single visible-window label on narrow graph`() {
         val start = LocalDateTime.of(2026, 4, 11, 6, 0)
         val probs = listOf(100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100)
         val hours = probs.mapIndexed { i, prob ->
@@ -79,18 +79,13 @@ class PrecipitationGraphRendererRobolectricTest {
 
         val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "At least one rain amount label should be placed. logs=$debugLogs",
-            placed.isNotEmpty(),
-        )
-        val secondOverlaps = debugLogs.any { it.startsWith("rainAmountSkipped") && it.contains("overlapsRainAmountLabel=true") }
-        assertTrue(
-            "On narrow 200px width with 12h of 100%, some rain amount annotations should overlap each other. logs=$debugLogs",
-            secondOverlaps || placed.size == 1,
+            "Expected one visible-window rain amount label. logs=$debugLogs",
+            placed.size == 1,
         )
     }
 
     @Test
-    fun `rain amount at 97 percent with highProbThreshold 97`() {
+    fun `rain amount does not depend on highProbThreshold when visible totals exist`() {
         val start = LocalDateTime.of(2026, 4, 11, 17, 0)
         val probs = listOf(20, 30, 50, 97, 70, 40)
         val hours = probs.mapIndexed { i, prob ->
@@ -117,13 +112,13 @@ class PrecipitationGraphRendererRobolectricTest {
 
         val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "97% block should produce rain amount label with threshold=97. logs=$debugLogs",
+            "Visible-window rain amount should be placed. logs=$debugLogs",
             placed.isNotEmpty(),
         )
     }
 
     @Test
-    fun `rain amount not placed at 97 percent with highProbThreshold 99`() {
+    fun `rain amount still placed when threshold is higher than probabilities`() {
         val start = LocalDateTime.of(2026, 4, 11, 17, 0)
         val probs = listOf(20, 30, 50, 97, 70, 40)
         val hours = probs.mapIndexed { i, prob ->
@@ -150,8 +145,8 @@ class PrecipitationGraphRendererRobolectricTest {
 
         val placed = debugLogs.filter { it.startsWith("rainAmountPlaced") }
         assertTrue(
-            "97% block should NOT produce rain amount label with threshold=99. logs=$debugLogs",
-            placed.isEmpty(),
+            "Visible-window rain amount should still be placed. logs=$debugLogs",
+            placed.isNotEmpty(),
         )
     }
 

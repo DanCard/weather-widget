@@ -71,6 +71,12 @@ object PrecipitationGraphRenderer {
         val yFrac: Float,
     )
 
+    data class NowLabelPlacementDebug(
+        val x: Float,
+        val baselineY: Float,
+        val bounds: PrecipRect,
+    )
+
     data class PrecipRect(
         val left: Float,
         val top: Float,
@@ -122,6 +128,8 @@ object PrecipitationGraphRenderer {
         val graphHeight: Float,
         val nowX: Float?,
         val labelSignal: List<Int>,
+        val nowLabelPlacement: NowLabelPlacementDebug? = null,
+        val dayLabelPlacements: List<DayLabelPlacementDebug> = emptyList(),
         val watermarkPlacement: WatermarkPlacementDebug? = null
     )
 
@@ -139,7 +147,11 @@ object PrecipitationGraphRenderer {
         getProbabilityTextBounds: (String) -> Pair<Float, Float>,
         measureRainAmountText: (String) -> Float,
         getRainAmountTextBounds: (String) -> Pair<Float, Float>,
-        dpToPx: (Float) -> Float
+        dpToPx: (Float) -> Float,
+        measureNowText: (String) -> Float = { 15f },
+        getNowTextBounds: (String) -> Pair<Float, Float> = { -12f to 3f },
+        measureDayText: (String, Boolean) -> Float = { text, _ -> text.length * 8f },
+        getDayTextBounds: (Boolean) -> Pair<Float, Float> = { _ -> -10f to 2f },
     ): PrecipGraphLayout {
         val labelScale = bitmapScale.coerceAtMost(1f)
         val topPadding = dpToPx(44f * labelScale)
@@ -318,21 +330,33 @@ object PrecipitationGraphRenderer {
             dpToPx = dpToPx
         )
 
-        val rainPeriods = if (rainAmountWindowHours > 0) findFixedWindowRainPeriods(hours, rainAmountWindowHours) else findHighProbRainPeriods(hours, highProbThreshold)
+        val rainPeriods = if (rainAmountWindowHours > 0) {
+            findFixedWindowRainPeriods(hours, rainAmountWindowHours)
+        } else {
+            findVisibleWindowRainPeriods(hours)
+        }
         val rainCollisionBounds = probabilityPlacements.map { it.bounds }.toMutableList()
-        
-        // Add now label bounds to rain collision
-        if (nowX != null) {
+
+        val nowLabelPlacement = if (nowX != null) {
+            val nowText = "NOW"
+            val nowTextWidth = measureNowText(nowText)
+            val (nowTextAscent, nowTextDescent) = getNowTextBounds(nowText)
             GraphRenderUtils.computeNowLabelBounds(
                 nowX = nowX,
                 graphTop = graphTop,
                 graphHeight = graphHeight,
-                textWidth = 15f,   // Estimated for layout
-                fontAscent = -12f, // Estimated for layout
-                fontDescent = 3f,  // Estimated for layout
+                textWidth = nowTextWidth,
+                fontAscent = nowTextAscent,
+                fontDescent = nowTextDescent,
                 drawnBounds = rainCollisionBounds.map { it.toRectF() },
                 dpToPx = dpToPx,
-            )?.let { rainCollisionBounds.add(PrecipRect.fromRectF(it.bounds)) }
+            )?.let {
+                val bounds = PrecipRect.fromRectF(it.bounds)
+                rainCollisionBounds.add(bounds)
+                NowLabelPlacementDebug(x = nowX, baselineY = it.labelY, bounds = bounds)
+            }
+        } else {
+            null
         }
 
         val rainPlacements = calculateRainAmountPlacements(
@@ -348,7 +372,51 @@ object PrecipitationGraphRenderer {
             dpToPx = dpToPx
         )
 
-        val totalDrawnBounds = (probabilityPlacements.map { it.bounds } + rainPlacements.map { it.bounds }).toMutableList()
+        val overlayBounds = (probabilityPlacements.map { it.bounds } + rainPlacements.map { it.bounds }).toMutableList()
+        nowLabelPlacement?.let { overlayBounds.add(it.bounds) }
+
+        val today = currentTime.toLocalDate()
+        val leftDate = hours.first().dateTime.toLocalDate()
+        val rightDate = hours.last().dateTime.toLocalDate()
+        val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+        val dayLabelTextPaint = Paint().apply {
+            val (ascent, descent) = getDayTextBounds(false)
+            textSize = descent - ascent
+        }
+        val todayDayLabelPaint = Paint().apply {
+            val (ascent, descent) = getDayTextBounds(true)
+            textSize = descent - ascent
+        }
+        val computedDayPlacements = GraphRenderUtils.computeDayLabelPlacements(
+            leftDate = leftDate,
+            rightDate = rightDate,
+            leftText = leftText,
+            rightText = rightText,
+            leftX = measureDayText(leftText, leftDate == today) / 2f,
+            rightX = widthPx - measureDayText(rightText, rightDate == today) / 2f,
+            today = today,
+            graphTop = graphTop,
+            graphBottom = graphBottom,
+            heightPx = heightPx,
+            dayLabelTextPaint = dayLabelTextPaint,
+            todayDayLabelPaint = todayDayLabelPaint,
+            drawnLabelBounds = overlayBounds.map { it.toRectF() },
+            drawnIconBounds = drawnIconBounds.map { it.toRectF() },
+            dpToPx = dpToPx,
+        )
+        val dayPlacements = computedDayPlacements.map {
+            DayLabelPlacementDebug(
+                side = it.side,
+                dayText = it.text,
+                date = it.date,
+                x = it.x,
+                y = it.y,
+                placement = it.placement,
+                isToday = it.isToday,
+            )
+        }
+        overlayBounds.addAll(computedDayPlacements.map { PrecipRect.fromRectF(it.bounds) })
 
         var watermarkPlacement: WatermarkPlacementDebug? = null
         if (hours.size >= 3) {
@@ -365,7 +433,7 @@ object PrecipitationGraphRenderer {
                     val bounds = PrecipRect(cx - halfIcon, cy - halfIcon, cx + halfIcon, cy + halfIcon)
                     if (bounds.left < 0f || bounds.right > widthPx) continue
                     if (bounds.top < graphTop || bounds.bottom > graphBottom) continue
-                    if (totalDrawnBounds.any { it.intersects(bounds) }) continue
+                    if (overlayBounds.any { it.intersects(bounds) }) continue
 
                     watermarkPlacement = WatermarkPlacementDebug(x = bounds.left, y = bounds.top, xFrac = xFrac, yFrac = yFrac)
                     placed = true; break
@@ -383,6 +451,8 @@ object PrecipitationGraphRenderer {
             graphHeight = graphHeight,
             nowX = nowX,
             labelSignal = labelSignal,
+            nowLabelPlacement = nowLabelPlacement,
+            dayLabelPlacements = dayPlacements,
             watermarkPlacement = watermarkPlacement
         )
     }
@@ -762,7 +832,20 @@ object PrecipitationGraphRenderer {
                 val fm = paints.rainAmountPaint.fontMetrics
                 (fm?.ascent ?: -paints.rainAmountPaint.textSize) to (fm?.descent ?: 0f)
             },
-            dpToPx = { dpToPx(context, it) }
+            dpToPx = { dpToPx(context, it) },
+            measureNowText = { paints.nowLabelTextPaint.measureText(it) },
+            getNowTextBounds = {
+                val fm = paints.nowLabelTextPaint.fontMetrics
+                (fm?.ascent ?: -paints.nowLabelTextPaint.textSize) to (fm?.descent ?: 0f)
+            },
+            measureDayText = { text, isToday ->
+                (if (isToday) paints.todayDayLabelPaint else paints.dayLabelTextPaint).measureText(text)
+            },
+            getDayTextBounds = { isToday ->
+                val paint = if (isToday) paints.todayDayLabelPaint else paints.dayLabelTextPaint
+                val fm = paint.fontMetrics
+                (fm?.ascent ?: -paint.textSize) to (fm?.descent ?: 0f)
+            },
         )
 
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
@@ -835,47 +918,24 @@ object PrecipitationGraphRenderer {
 
         val drawnLabelBounds = (layout.probabilityPlacements.map { it.bounds.toRectF() } + layout.rainAmountPlacements.map { it.bounds.toRectF() }).toMutableList()
 
-        // Day of week indicators
-        val today = currentTime.toLocalDate()
-        val leftDate  = hours.first().dateTime.toLocalDate()
+        val lineHeight = layout.graphHeight * 0.6f
+        val lineTop = layout.graphTop + (layout.graphHeight - lineHeight) / 2f
+        val lineBottom = lineTop + lineHeight
+        layout.nowX?.let { nowX ->
+            canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), paints.currentTimePaint)
+        }
+        layout.nowLabelPlacement?.let { placement ->
+            canvas.drawText("NOW", placement.x, placement.baselineY, paints.nowLabelTextPaint)
+            drawnLabelBounds.add(placement.bounds.toRectF())
+        }
+
+        val leftDate = hours.first().dateTime.toLocalDate()
         val rightDate = hours.last().dateTime.toLocalDate()
-        val leftText  = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-        val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-        val leftTextWidth  = (if (leftDate  == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint).measureText(leftText)
-        val rightTextWidth = (if (rightDate == today) paints.todayDayLabelPaint else paints.dayLabelTextPaint).measureText(rightText)
-
-        GraphRenderUtils.drawDayLabels(
-            context = context,
-            canvas = canvas,
-            leftDate = leftDate,
-            rightDate = rightDate,
-            leftText = leftText,
-            rightText = rightText,
-            leftX = leftTextWidth / 2f,
-            rightX = widthPx - rightTextWidth / 2f,
-            today = today,
-            graphTop = layout.graphTop,
-            graphBottom = layout.graphBottom,
-            heightPx = heightPx,
-            dayLabelTextPaint = paints.dayLabelTextPaint,
-            todayDayLabelPaint = paints.todayDayLabelPaint,
-            drawnLabelBounds = drawnLabelBounds,
-            drawnIconBounds = drawnIconBounds,
-            dpToPx = { dpToPx(context, it) },
-            onDayLabelPlaced = if (onDayLabelPlaced != null) { side, text, date, x, y, placement, isToday ->
-                onDayLabelPlaced.invoke(DayLabelPlacementDebug(side, text, date, x, y, placement, isToday))
-            } else null,
-        )
-
-        GraphRenderUtils.drawNowIndicator(
-            canvas = canvas,
-            nowX = layout.nowX,
-            graphTop = layout.graphTop,
-            graphHeight = layout.graphHeight,
-            currentTimePaint = paints.currentTimePaint,
-            nowLabelTextPaint = paints.nowLabelTextPaint,
-            dpToPx = { dpToPx(context, it) },
-        )
+        for (placement in layout.dayLabelPlacements) {
+            val paint = if (placement.isToday) paints.todayDayLabelPaint else paints.dayLabelTextPaint
+            canvas.drawText(placement.dayText, placement.x, placement.y, paint)
+            onDayLabelPlaced?.invoke(placement)
+        }
 
         // Rain cloud icon watermark
         val rainDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_rain)
@@ -892,6 +952,21 @@ object PrecipitationGraphRenderer {
 
     private fun shouldShowHourlyIcons(widthPx: Int): Boolean {
         return widthPx >= MIN_ICON_GRAPH_WIDTH_PX
+    }
+
+    fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
+        if (hours.isEmpty()) return emptyList()
+        val totalMm = hours.sumOf { (it.precipAmountMm ?: 0f).toDouble() }.toFloat()
+        if (totalMm <= 0f) return emptyList()
+        return listOf(
+            RainPeriod(
+                startIndex = 0,
+                endIndex = hours.lastIndex,
+                totalAmountMm = totalMm,
+                startLabel = hours.first().label,
+                endLabel = hours.last().label,
+            ),
+        )
     }
 
     fun findHighProbRainPeriods(hours: List<PrecipHourData>, highProbThreshold: Int = 99): List<RainPeriod> {

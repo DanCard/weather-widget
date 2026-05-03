@@ -8,7 +8,6 @@ import org.junit.Test
 import java.time.LocalDateTime
 import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
-import android.graphics.RectF
 
 @Category(LongDuration::class)
 class PrecipitationGraphRendererTest {
@@ -100,12 +99,12 @@ class PrecipitationGraphRendererTest {
     // --- Rain amount annotation tests ---
 
     @Test
-    fun `renderGraph shows rain amount for 99+ percent block`() {
+    fun `renderGraph shows rain amount for visible graph window`() {
         val start = LocalDateTime.of(2026, 4, 10, 6, 0)
         val hours = (0 until 12).map { i ->
             PrecipitationGraphRenderer.PrecipHourData(
                 dateTime = start.plusHours(i.toLong()),
-                precipProbability = 100,
+                precipProbability = 40,
                 precipAmountMm = 1.0f,
                 label = "${(start.plusHours(i.toLong()).hour)}h",
                 showLabel = true,
@@ -126,13 +125,13 @@ class PrecipitationGraphRendererTest {
         )
 
         assertTrue(
-            "Should place rain amount label for 99%+ block",
+            "Should place one rain amount label for the visible graph window",
             layout.rainAmountPlacements.isNotEmpty(),
         )
     }
 
     @Test
-    fun `renderGraph skips rain amount when below 99 percent`() {
+    fun `renderGraph does not require high probability for visible graph total`() {
         val start = LocalDateTime.of(2026, 4, 10, 6, 0)
         val hours = (0 until 12).map { i ->
             PrecipitationGraphRenderer.PrecipHourData(
@@ -158,8 +157,8 @@ class PrecipitationGraphRendererTest {
         )
 
         assertTrue(
-            "Should NOT place rain amount when prob < 99%",
-            layout.rainAmountPlacements.isEmpty(),
+            "Visible-window rain total should still be shown when precipitation amounts are present",
+            layout.rainAmountPlacements.isNotEmpty(),
         )
     }
 
@@ -228,7 +227,7 @@ class PrecipitationGraphRendererTest {
     }
 
     @Test
-    fun `renderGraph handles two separate 99+ blocks`() {
+    fun `renderGraph collapses separate rain blocks into one visible-window amount`() {
         val start = LocalDateTime.of(2026, 4, 10, 6, 0)
         // Two blocks of 100% separated by a 50% gap
         val probs = listOf(100, 100, 100, 50, 50, 100, 100, 100)
@@ -256,14 +255,14 @@ class PrecipitationGraphRendererTest {
         )
 
         assertEquals(
-            "Should place two rain amount labels for two separate blocks",
-            2,
+            "Should place one visible-window rain amount label",
+            1,
             layout.rainAmountPlacements.size,
         )
     }
 
     @Test
-    fun `renderGraph single hour 99+ block omits time range`() {
+    fun `renderGraph single hour rain amount omits time range`() {
         val start = LocalDateTime.of(2026, 4, 10, 6, 0)
         val probs = listOf(0, 0, 100, 0, 0)
         val hours = probs.mapIndexed { i, prob ->
@@ -299,5 +298,62 @@ class PrecipitationGraphRendererTest {
             "Single-hour label should not contain a time range dash, got: $label",
             !label.contains("-"),
         )
+    }
+
+    @Test
+    fun `renderGraph fixed window override still chooses best window`() {
+        val start = LocalDateTime.of(2026, 4, 10, 6, 0)
+        val amounts = listOf(0f, 1f, 4f, 5f, 1f, 0f)
+        val hours = amounts.mapIndexed { i, amount ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = 40,
+                precipAmountMm = amount,
+                label = "${(start.plusHours(i.toLong()).hour)}h",
+                showLabel = true,
+            )
+        }
+
+        val periods = PrecipitationGraphRenderer.findFixedWindowRainPeriods(hours, windowHours = 3)
+
+        assertEquals(1, periods.size)
+        assertEquals(10f, periods.first().totalAmountMm)
+    }
+
+    @Test
+    fun `renderGraph places now label before rain amount overlap`() {
+        val start = LocalDateTime.of(2026, 4, 10, 6, 0)
+        val hours = (0 until 8).map { i ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = if (i in 2..5) 85 else 20,
+                precipAmountMm = 1.5f,
+                label = "${(start.plusHours(i.toLong()).hour)}h",
+                isCurrentHour = i == 3,
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 600,
+            heightPx = 300,
+            currentTime = start.plusHours(3),
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx,
+            measureNowText = { 24f },
+            getNowTextBounds = { -10f to 2f },
+        )
+
+        val nowBounds = layout.nowLabelPlacement?.bounds
+        val rainBounds = layout.rainAmountPlacements.firstOrNull()?.bounds
+
+        assertNotNull("Expected NOW label placement", nowBounds)
+        assertNotNull("Expected rain amount placement", rainBounds)
+        assertTrue("NOW and rain amount labels should not overlap", !nowBounds!!.intersects(rainBounds!!))
     }
 }

@@ -143,4 +143,59 @@ class PrecipitationGraphWatermarkTest {
 
         assertNull("Watermark should NOT be placed with < 3 points", layout.watermarkPlacement)
     }
+
+    @Test
+    fun `watermark avoids now label and day labels`() {
+        val start = LocalDateTime.of(2026, 4, 7, 10, 0)
+        val hours = (0 until 12).map { i ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = if (i in 3..8) 80 else 15,
+                precipAmountMm = 0.8f,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                isCurrentHour = i == 5,
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 600,
+            heightPx = 300,
+            currentTime = start.plusHours(5),
+            showHourlyIcons = false,
+            measureProbabilityText = ::mockMeasureProbabilityText,
+            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+            measureRainAmountText = ::mockMeasureRainAmountText,
+            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+            dpToPx = ::mockDpToPx,
+            measureNowText = { 24f },
+            getNowTextBounds = { -10f to 2f },
+            measureDayText = { text, _ -> text.length * 12f },
+            getDayTextBounds = { -10f to 2f },
+        )
+
+        val watermark = layout.watermarkPlacement
+        assertNotNull("Watermark should be placed", watermark)
+
+        val watermarkBounds = PrecipitationGraphRenderer.PrecipRect(
+            left = watermark!!.x,
+            top = watermark.y,
+            right = watermark.x + 24f,
+            bottom = watermark.y + 24f,
+        )
+
+        layout.nowLabelPlacement?.let {
+            assertTrue("Watermark should not overlap NOW label", !watermarkBounds.intersects(it.bounds))
+        }
+        layout.dayLabelPlacements.forEach { day ->
+            val dayBounds = PrecipitationGraphRenderer.PrecipRect(
+                left = day.x - 18f,
+                top = day.y - 10f,
+                right = day.x + 18f,
+                bottom = day.y + 2f,
+            )
+            assertTrue("Watermark should not overlap ${day.side} day label", !watermarkBounds.intersects(dayBounds))
+        }
+    }
 }
