@@ -216,8 +216,8 @@ internal object DailyForecastRainLabelRenderer {
         val roomBelowPx = (hardBottomLimit - anchorBaseline).coerceAtLeast(0f)
         val roomBelowDp = roomBelowPx / layout.density
 
-        val tightFraction = (1f - (roomBelowDp - 6f) / (18f - 6f)).coerceIn(0f, 1f)
-        val dynamicOverlapDp = 2.0f + (1.0f * tightFraction)
+        val tightFraction = (1f - (roomBelowDp - 10f) / (22f - 10f)).coerceIn(0f, 1f)
+        val dynamicOverlapDp = 5.0f * tightFraction
         val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
 
         val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
