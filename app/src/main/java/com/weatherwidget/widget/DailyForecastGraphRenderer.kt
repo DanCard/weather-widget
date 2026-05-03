@@ -995,15 +995,15 @@ object DailyForecastGraphRenderer {
         val roomBelowDp = roomBelowPx / density
 
         // Linear interpolation ramp based on absolute room below:
-        // <= 6dp room: Max tuck (4.5dp overlap, 3.0dp nudge) — label is near bottom
-        // >= 18dp room: Min tuck (2.5dp overlap, 1.5dp nudge) — label has plenty of room
+        // <= 6dp room: Max tuck (6.0dp overlap, 3.0dp nudge) — label is near bottom
+        // >= 18dp room: Min tuck (4.0dp overlap, 1.5dp nudge) — label has plenty of room
         val tightFraction = (1f - (roomBelowDp - 6f) / (18f - 6f)).coerceIn(0f, 1f)
         
-        val dynamicOverlapDp = 2.5f + (2.0f * tightFraction)
+        val dynamicOverlapDp = 4.0f + (2.0f * tightFraction)
         val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
 
         val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
-        val effectiveNudgeDp = if (isLeftTempLower) 0f else dynamicNudgeDp
+        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.9f else dynamicNudgeDp
         val hNudgePx = dpToPx(context, effectiveNudgeDp)
 
         // 3. Multi-step fitting strategy
