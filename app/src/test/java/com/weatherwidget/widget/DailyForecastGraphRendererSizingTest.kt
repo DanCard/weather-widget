@@ -37,7 +37,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size uses larger daily baseline`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context)
+        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density)
 
         assertEquals(24f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -46,7 +46,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size compensates for bitmap downscale`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context, bitmapScale = 0.34f)
+        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
 
         assertEquals(12f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -55,7 +55,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size uses smaller scale for short widgets`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context, heightScaleFactor = 0.92f)
+        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, heightScaleFactor = 0.92f)
 
         assertEquals(22.08f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -64,7 +64,7 @@ class DailyForecastGraphRendererSizingTest {
     fun `forecast temperature label size stays at baseline for tall widgets`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context, heightScaleFactor = 1.0f)
+        val sizePx = DailyForecastGraphRenderer.dailyForecastTempLabelSizePx(context.resources.displayMetrics.density, heightScaleFactor = 1.0f)
 
         assertEquals(24f * context.resources.displayMetrics.density, sizePx, 0.01f)
     }
@@ -73,8 +73,8 @@ class DailyForecastGraphRendererSizingTest {
     fun `daily bar stroke uses wider baseline and bitmap scale floor`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
-        val fullScale = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context)
-        val downscaled = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context, bitmapScale = 0.34f)
+        val fullScale = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density)
+        val downscaled = DailyForecastGraphRenderer.dailyBarStrokeWidthPx(context.resources.displayMetrics.density, bitmapScale = 0.34f)
 
         assertEquals(9f * context.resources.displayMetrics.density, fullScale, 0.01f)
         assertEquals(4.5f * context.resources.displayMetrics.density, downscaled, 0.01f)

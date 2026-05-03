@@ -38,7 +38,7 @@ class DailyForecastGraphRendererTest {
 
     @Test
     fun `resolveRainAboveHighPlacement fits when rain label clears top margin`() {
-        val placement = DailyForecastGraphRenderer.resolveRainAboveHighPlacement(
+        val placement = DailyForecastRainLabelRenderer.resolveRainAboveHighPlacement(
             highBaseline = 80f,
             highMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -24f, descent = 6f),
             rainMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -14f, descent = 4f),
@@ -54,7 +54,7 @@ class DailyForecastGraphRendererTest {
 
     @Test
     fun `resolveRainAboveHighPlacement rejects label when top space is insufficient`() {
-        val placement = DailyForecastGraphRenderer.resolveRainAboveHighPlacement(
+        val placement = DailyForecastRainLabelRenderer.resolveRainAboveHighPlacement(
             highBaseline = 36f,
             highMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -24f, descent = 6f),
             rainMetrics = DailyForecastGraphRenderer.TextMetrics(ascent = -14f, descent = 4f),
