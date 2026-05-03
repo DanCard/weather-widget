@@ -9,67 +9,54 @@ import java.time.LocalTime
  */
 object NavigationUtils {
     /**
-     * Hour when evening mode starts for wide widgets (>8 columns).
-     * Set to 24 (midnight) so wide widgets never enter evening mode early;
-     * the day advances naturally when the calendar date rolls over.
+     * Hour at which narrow widgets (8 or fewer columns) drop yesterday from the
+     * day window and shift forward, gaining an extra forecast day. Wide widgets
+     * never shift early — they have room for yesterday plus a long forecast,
+     * and let the calendar date roll over naturally.
      */
-    const val EVENING_MODE_START_HOUR = 24
+    const val NARROW_SKIP_YESTERDAY_HOUR = 8
 
     /**
-     * Hour when evening mode starts for narrow widgets (8 or fewer columns).
-     * These widgets show fewer days, so advancing earlier avoids showing stale
-     * history at the expense of forward forecasts.
+     * Column threshold at or below which the narrow skip-yesterday rule applies.
      */
-    const val NARROW_EVENING_MODE_START_HOUR = 17
+    const val NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD = 8
 
     /**
-     * Column threshold below which the earlier evening mode hour is used.
+     * Returns true when the widget should drop yesterday from its day window
+     * (showing today + forecast instead of yesterday + today + forecast).
+     * Only narrow widgets shift early; wide widgets always include yesterday
+     * until the calendar date rolls over.
      */
-    const val NARROW_EVENING_MODE_COLUMN_THRESHOLD = 8
-
-    /**
-     * Checks if current time is in "evening mode".
-     * In evening mode, the widget shows today+forecast instead of yesterday+today.
-     *
-     * @param numColumns Number of widget columns. Widgets with 8 or fewer columns
-     *                   enter evening mode at [NARROW_EVENING_MODE_START_HOUR] (5 PM).
-     *                   Wider widgets use [EVENING_MODE_START_HOUR] (6 PM).
-     */
-    fun isEveningMode(time: LocalTime = LocalTime.now(), numColumns: Int = Int.MAX_VALUE): Boolean {
-        val threshold = if (numColumns <= NARROW_EVENING_MODE_COLUMN_THRESHOLD) {
-            NARROW_EVENING_MODE_START_HOUR
-        } else {
-            EVENING_MODE_START_HOUR
-        }
-        return time.hour >= threshold
+    fun shouldSkipYesterday(time: LocalTime = LocalTime.now(), numColumns: Int = Int.MAX_VALUE): Boolean {
+        if (numColumns > NARROW_SKIP_YESTERDAY_COLUMN_THRESHOLD) return false
+        return time.hour >= NARROW_SKIP_YESTERDAY_HOUR
     }
 
     /**
-     * Returns whether evening "skip history" mode should be applied for the current offset.
-     * In evening mode, only offset 0 uses the today-first window.
+     * Returns whether history should be skipped at the given offset.
+     * Only offset 0 uses the today-first window when skipYesterday is on.
      */
     fun shouldSkipHistory(
-        isEveningMode: Boolean,
+        skipYesterday: Boolean,
         dateOffset: Int,
     ): Boolean {
-        return isEveningMode && dateOffset == 0
+        return skipYesterday && dateOffset == 0
     }
 
     /**
      * Computes the center date for daily rendering/navigation.
      *
-     * Evening mode uses a today-first window at offset 0. For negative offsets in evening mode,
-     * shift the center forward by one day so moving left/right still advances exactly one day.
+     * Skip-yesterday at offset 0 uses a today-first window. For non-zero offsets
+     * we shift the center forward by one day so moving left/right still advances
+     * exactly one day. Without this shift, going from offset 0 (today) to
+     * offset 1 would jump two days because skipHistory drops at offset 0 only.
      */
     fun getDisplayCenterDate(
         today: LocalDate,
         dateOffset: Int,
-        isEveningMode: Boolean,
+        skipYesterday: Boolean,
     ): LocalDate {
-        return if (isEveningMode && dateOffset != 0) {
-            // Evening mode at offset 0 uses skipHistory to shift the window forward by 1 day
-            // (showing today+6 instead of yesterday+5). Non-zero offsets don't use skipHistory,
-            // so we shift the center by +1 to keep each offset step moving exactly 1 day.
+        return if (skipYesterday && dateOffset != 0) {
             today.plusDays(dateOffset.toLong() + 1L)
         } else {
             today.plusDays(dateOffset.toLong())
@@ -83,10 +70,10 @@ object NavigationUtils {
         today: LocalDate,
         dateOffset: Int,
         numColumns: Int,
-        isEveningMode: Boolean,
+        skipYesterday: Boolean,
     ): Pair<LocalDate, LocalDate> {
-        val skipHistory = shouldSkipHistory(isEveningMode, dateOffset)
-        val centerDate = getDisplayCenterDate(today, dateOffset, isEveningMode)
+        val skipHistory = shouldSkipHistory(skipYesterday, dateOffset)
+        val centerDate = getDisplayCenterDate(today, dateOffset, skipYesterday)
         val dayOffsets = getDayOffsets(numColumns, skipHistory)
         return centerDate.plusDays(dayOffsets.first()) to centerDate.plusDays(dayOffsets.last())
     }
@@ -96,12 +83,10 @@ object NavigationUtils {
      *
      * @param numColumns Number of grid columns available in the widget.
      * @param skipHistory If true, start from today (offset 0) instead of yesterday (offset -1).
-     *                    Used in evening mode to show today's forecast comparison.
      * @return List of offsets (e.g., -1 for yesterday, 0 for today, 1 for tomorrow).
      */
     fun getDayOffsets(numColumns: Int, skipHistory: Boolean = false): List<Long> {
-        // In evening mode with skipHistory, start from today (0) instead of yesterday (-1).
-        // On very narrow widgets (1-2 columns), also start from today to prioritize immediate forecast.
+        // On very narrow widgets (1-2 columns), always start from today to prioritize immediate forecast.
         val startOffset = if (skipHistory || numColumns <= 2) 0L else -1L
 
         return when {

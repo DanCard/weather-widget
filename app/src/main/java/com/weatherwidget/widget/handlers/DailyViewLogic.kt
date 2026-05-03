@@ -283,7 +283,7 @@ object DailyViewLogic {
         forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         numColumns: Int,
         displaySource: WeatherSource,
-        isEveningMode: Boolean,
+        skipYesterday: Boolean,
         skipHistory: Boolean,
         hourlyForecasts: List<HourlyForecastEntity>,
         stateManager: WidgetStateManager? = null,
@@ -324,7 +324,7 @@ object DailyViewLogic {
             Log.d(TAG, "prepareGraphDays: index=$index date=$date weather=${weather != null} forecast=${forecast != null} forecastsSize=${forecasts.size} terminalNws=$isTerminalLowOnlyNwsFuture")
 
             val label = if (isToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-            val showComparison = (isPastDate || (isToday && isEveningMode))
+            val showComparison = isPastDate
 
             var finalHigh: Float? = weather?.highTemp
             var finalLow: Float? = weather?.lowTemp

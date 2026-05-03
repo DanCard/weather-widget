@@ -176,7 +176,7 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
             forecastSnapshots = emptyMap(),
             numColumns = 5,
             displaySource = displaySource,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             stateManager = stateManager,

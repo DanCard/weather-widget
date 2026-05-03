@@ -15,7 +15,7 @@ object UIUpdateIntervalStrategy {
         nextUpdateTimeMillis: Long,
         nowMillis: Long,
         isCharging: Boolean,
-        timeUntilEveningModeMillis: Long
+        timeUntilSkipYesterdayMillis: Long
     ): Long {
         var delayMillis = nextUpdateTimeMillis - nowMillis
 
@@ -26,9 +26,9 @@ object UIUpdateIntervalStrategy {
             }
         }
 
-        // Check if we need to schedule an update for evening mode transition (6 PM)
-        if (timeUntilEveningModeMillis in 1..delayMillis) {
-            delayMillis = timeUntilEveningModeMillis
+        // Check if we need to schedule an update for the skip-yesterday window shift.
+        if (timeUntilSkipYesterdayMillis in 1..delayMillis) {
+            delayMillis = timeUntilSkipYesterdayMillis
         }
 
         return delayMillis.coerceAtLeast(MINIMUM_DELAY_MS)

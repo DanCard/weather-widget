@@ -150,7 +150,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
 
     @Test
     fun `updateWidget today text label shows peak even when mercury is lower`() = runBlocking {
-        val now = LocalDateTime.of(2026, 3, 24, 16, 0)
+        val now = LocalDateTime.of(2026, 3, 24, 7, 0)
         val today = now.toLocalDate()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 

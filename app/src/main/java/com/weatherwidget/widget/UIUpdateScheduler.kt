@@ -80,7 +80,7 @@ class UIUpdateScheduler(private val context: Context) {
                 nextUpdateTimeMillis = nextUpdateTime.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 nowMillis = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 isCharging = isCharging,
-                timeUntilEveningModeMillis = getTimeUntilEveningMode()
+                timeUntilSkipYesterdayMillis = getTimeUntilSkipYesterday()
             )
 
             Log.d(
@@ -152,24 +152,16 @@ class UIUpdateScheduler(private val context: Context) {
     }
 
     /**
-     * Calculates milliseconds until 6 PM (evening mode start).
-     * Returns 0 if already in evening mode, or negative if before 6 PM today
-     * and 6 PM has already passed (shouldn't happen with normal logic).
+     * Calculates milliseconds until the narrow-widget skip-yesterday threshold.
+     * If the threshold has already passed today, returns the duration until tomorrow's threshold.
      */
-    private fun getTimeUntilEveningMode(): Long {
+    private fun getTimeUntilSkipYesterday(): Long {
         val now = LocalDateTime.now()
-        val currentHour = now.hour
+        val threshold = NavigationUtils.NARROW_SKIP_YESTERDAY_HOUR
 
-        // If already in evening mode (6 PM or later), no need to schedule for today
-        if (currentHour >= NavigationUtils.EVENING_MODE_START_HOUR) {
-            // Schedule for 6 PM tomorrow
-            val tomorrow6pm = now.plusDays(1).withHour(18).withMinute(0).withSecond(0)
-            return java.time.Duration.between(now, tomorrow6pm).toMillis()
-        }
-
-        // Schedule for 6 PM today
-        val today6pm = now.withHour(18).withMinute(0).withSecond(0)
-        return java.time.Duration.between(now, today6pm).toMillis()
+        val targetToday = now.withHour(threshold).withMinute(0).withSecond(0).withNano(0)
+        val target = if (now.hour >= threshold) targetToday.plusDays(1) else targetToday
+        return java.time.Duration.between(now, target).toMillis()
     }
 
     companion object {

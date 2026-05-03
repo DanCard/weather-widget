@@ -45,7 +45,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList()
         )
@@ -74,7 +74,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList()
         )
@@ -114,7 +114,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList()
         )
@@ -151,7 +151,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             climateNormals = climateNormals
@@ -183,7 +183,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList()
         )
@@ -406,7 +406,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 9,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             climateNormals = climateNormals,
@@ -440,7 +440,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -472,7 +472,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = listOf(
                 createHourlyForecast(future.atTime(14, 0), cloudCover = 50).copy(precipProbability = 95),
@@ -505,7 +505,7 @@ class DailyViewLogicTest {
                 forecastSnapshots = emptyMap(),
                 numColumns = 3,
                 displaySource = WeatherSource.NWS,
-                isEveningMode = false,
+                skipYesterday = false,
                 skipHistory = true,
                 hourlyForecasts = emptyList(),
             )
@@ -545,7 +545,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -578,7 +578,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -608,7 +608,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -638,7 +638,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -668,7 +668,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
             todayNext8HourPrecipProbability = 80,
@@ -700,7 +700,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
             todayNext8HourPrecipProbability = 100,
@@ -733,7 +733,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -764,7 +764,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -795,7 +795,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -825,7 +825,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -855,7 +855,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -885,7 +885,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -918,7 +918,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -949,7 +949,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -980,7 +980,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -1036,7 +1036,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.OPEN_WEATHER_MAP,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -1069,7 +1069,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = hourlyForecasts,
         )
@@ -1103,7 +1103,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = hourlyForecasts,
         )
@@ -1183,7 +1183,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -1213,7 +1213,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -1243,7 +1243,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -1273,7 +1273,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )
@@ -1303,7 +1303,7 @@ class DailyViewLogicTest {
             forecastSnapshots = emptyMap(),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = true,
             hourlyForecasts = emptyList(),
         )

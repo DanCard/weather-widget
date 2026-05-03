@@ -58,7 +58,7 @@ class DailyGapFallbackGraphIntegrationTest {
             forecastSnapshots = emptyMap(),
             numColumns = 4,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
         )
@@ -119,7 +119,7 @@ class DailyGapFallbackGraphIntegrationTest {
             forecastSnapshots = forecastSnapshots.mapValues { it.value },
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = emptyMap(),
@@ -219,7 +219,7 @@ class DailyGapFallbackGraphIntegrationTest {
                 forecastSnapshots = emptyMap(),
                 numColumns = 2,
                 displaySource = WeatherSource.NWS,
-                isEveningMode = false,
+                skipYesterday = false,
                 skipHistory = false,
                 hourlyForecasts = emptyList(),
             )

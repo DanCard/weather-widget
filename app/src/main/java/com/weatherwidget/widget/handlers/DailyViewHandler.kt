@@ -125,12 +125,12 @@ object DailyViewHandler : WidgetViewHandler {
         val stateManager = stateManager ?: WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
-        val isEveningMode = NavigationUtils.isEveningMode(now.toLocalTime(), numColumns)
+        val skipYesterday = NavigationUtils.shouldSkipYesterday(now.toLocalTime(), numColumns)
 
         // Single source of truth for time in this update cycle
         val today = now.toLocalDate()
-        val skipHistory = NavigationUtils.shouldSkipHistory(isEveningMode, dateOffset)
-        val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, isEveningMode)
+        val skipHistory = NavigationUtils.shouldSkipHistory(skipYesterday, dateOffset)
+        val centerDate = NavigationUtils.getDisplayCenterDate(today, dateOffset, skipYesterday)
 
         // Setup common click actions.
         // At 1 icon wide, skip wiring API toggle and settings shortcut since the
@@ -149,7 +149,7 @@ object DailyViewHandler : WidgetViewHandler {
         Log.d(
             TAG,
             "updateWidget: widgetId=$appWidgetId, cols=$numColumns, rows=$numRows, offset=$dateOffset, " +
-                "isEveningMode=$isEveningMode, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
+                "skipYesterday=$skipYesterday, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
 
         val earlyRefreshDecisions = computeMissingDataRefreshes(
@@ -195,7 +195,7 @@ object DailyViewHandler : WidgetViewHandler {
                 numColumns = numColumns,
                 numRows = numRows,
                 useGraph = false,
-                isEveningMode = isEveningMode,
+                skipYesterday = skipYesterday,
                 centerDate = centerDate,
                 visibleDates = emptyList(),
             )
@@ -378,7 +378,7 @@ object DailyViewHandler : WidgetViewHandler {
         val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys
         val sortedDates = availableDates.sorted()
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${sortedDates.firstOrNull()}, maxDate=${sortedDates.lastOrNull()}")
-        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, isEveningMode, today, useGraph)
+        setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, skipYesterday, today, useGraph)
 
         // Use graph mode for 2+ rows
         var prepareMs = 0L
@@ -415,7 +415,7 @@ object DailyViewHandler : WidgetViewHandler {
             fun prepareGraphDays(allowTodayRainChanceLabel: Boolean): List<DailyForecastGraphRenderer.DayData> =
                 DailyViewLogic.prepareGraphDays(
                     now, centerDate, today, weatherByDate, forecastSnapshots,
-                    numColumns, displaySource, isEveningMode, skipHistory,
+                    numColumns, displaySource, skipYesterday, skipHistory,
                     hourlyForecasts, stateManager, appWidgetId, precipProb,
                     dailyActuals, climateNormals, currentTemps,
                     currentTemp = currentTemp,
@@ -496,7 +496,7 @@ object DailyViewHandler : WidgetViewHandler {
                 numColumns = numColumns,
                 numRows = numRows,
                 useGraph = true,
-                isEveningMode = isEveningMode,
+                skipYesterday = skipYesterday,
                 centerDate = centerDate,
                 visibleDates = displayDays.map { it.date },
             )
@@ -607,7 +607,7 @@ object DailyViewHandler : WidgetViewHandler {
                 numColumns = numColumns,
                 numRows = numRows,
                 useGraph = false,
-                isEveningMode = isEveningMode,
+                skipYesterday = skipYesterday,
                 centerDate = centerDate,
                 visibleDates = visibleDaysInfo.map { it.date },
             )
@@ -702,7 +702,7 @@ object DailyViewHandler : WidgetViewHandler {
         numColumns: Int,
         numRows: Int,
         useGraph: Boolean,
-        isEveningMode: Boolean,
+        skipYesterday: Boolean,
         centerDate: LocalDate,
         visibleDates: List<LocalDate>,
     ) {
@@ -711,22 +711,22 @@ object DailyViewHandler : WidgetViewHandler {
         val tag = if (visibleDates.isEmpty()) "DAILY_RENDER_EMPTY" else "DAILY_RENDER"
         WeatherDatabase.getDatabase(context).appLogDao().log(
             tag,
-            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows evening=$isEveningMode center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
+            "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
         )
     }
 
     private fun setupNavigationButtons(
         context: Context, views: RemoteViews, appWidgetId: Int,
         stateManager: WidgetStateManager, availableDates: Set<LocalDate>,
-        numColumns: Int, isEveningMode: Boolean, today: LocalDate,
+        numColumns: Int, skipYesterday: Boolean, today: LocalDate,
         useGraph: Boolean,
     ) {
         val sortedDates = availableDates.sorted()
         val minDate = sortedDates.firstOrNull()
         val maxDate = sortedDates.lastOrNull()
 
-        val (leftmost, _) = NavigationUtils.getVisibleDateRange(today, stateManager.getDateOffset(appWidgetId) - 1, numColumns, isEveningMode)
-        val (_, rightmost) = NavigationUtils.getVisibleDateRange(today, stateManager.getDateOffset(appWidgetId) + 1, numColumns, isEveningMode)
+        val (leftmost, _) = NavigationUtils.getVisibleDateRange(today, stateManager.getDateOffset(appWidgetId) - 1, numColumns, skipYesterday)
+        val (_, rightmost) = NavigationUtils.getVisibleDateRange(today, stateManager.getDateOffset(appWidgetId) + 1, numColumns, skipYesterday)
 
         val canLeft = minDate != null && !minDate.isAfter(leftmost)
         val canRight = maxDate != null && !maxDate.isBefore(rightmost)

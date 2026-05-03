@@ -14,13 +14,13 @@ class UIUpdateIntervalStrategyTest {
     fun `when charging delay is capped at PLUGGED_IN_MAX_DELAY_MS`() {
         val nowMillis = 1000L
         val nextUpdateTimeMillis = nowMillis + 60 * 60 * 1000L // 60 minutes away
-        val timeUntilEveningModeMillis = 80 * 60 * 1000L // 80 minutes away
+        val timeUntilSkipYesterdayMillis = 80 * 60 * 1000L // 80 minutes away
 
         val delay = UIUpdateIntervalStrategy.computeDelayMillis(
             nextUpdateTimeMillis = nextUpdateTimeMillis,
             nowMillis = nowMillis,
             isCharging = true,
-            timeUntilEveningModeMillis = timeUntilEveningModeMillis
+            timeUntilSkipYesterdayMillis = timeUntilSkipYesterdayMillis
         )
 
         assertEquals(UIUpdateIntervalStrategy.PLUGGED_IN_MAX_DELAY_MS, delay)
@@ -30,29 +30,29 @@ class UIUpdateIntervalStrategyTest {
     fun `when not charging delay relies on nextUpdateTime`() {
         val nowMillis = 1000L
         val nextUpdateTimeMillis = nowMillis + 15 * 60 * 1000L // 15 minutes away
-        val timeUntilEveningModeMillis = 80 * 60 * 1000L // 80 minutes away
+        val timeUntilSkipYesterdayMillis = 80 * 60 * 1000L // 80 minutes away
 
         val delay = UIUpdateIntervalStrategy.computeDelayMillis(
             nextUpdateTimeMillis = nextUpdateTimeMillis,
             nowMillis = nowMillis,
             isCharging = false,
-            timeUntilEveningModeMillis = timeUntilEveningModeMillis
+            timeUntilSkipYesterdayMillis = timeUntilSkipYesterdayMillis
         )
 
         assertEquals(15 * 60 * 1000L, delay)
     }
 
     @Test
-    fun `evening mode transition overrides longer delay`() {
+    fun `skip-yesterday transition overrides longer delay`() {
         val nowMillis = 1000L
         val nextUpdateTimeMillis = nowMillis + 30 * 60 * 1000L // 30 minutes away
-        val timeUntilEveningModeMillis = 5 * 60 * 1000L // 5 minutes away
+        val timeUntilSkipYesterdayMillis = 5 * 60 * 1000L // 5 minutes away
         
         val delay = UIUpdateIntervalStrategy.computeDelayMillis(
             nextUpdateTimeMillis = nextUpdateTimeMillis,
             nowMillis = nowMillis,
             isCharging = false,
-            timeUntilEveningModeMillis = timeUntilEveningModeMillis
+            timeUntilSkipYesterdayMillis = timeUntilSkipYesterdayMillis
         )
 
         assertEquals(5 * 60 * 1000L, delay)
@@ -62,13 +62,13 @@ class UIUpdateIntervalStrategyTest {
     fun `delay cannot be less than MINIMUM_DELAY_MS`() {
         val nowMillis = 1000L
         val nextUpdateTimeMillis = nowMillis + 10L // 10 milliseconds away
-        val timeUntilEveningModeMillis = 80 * 60 * 1000L 
+        val timeUntilSkipYesterdayMillis = 80 * 60 * 1000L 
         
         val delay = UIUpdateIntervalStrategy.computeDelayMillis(
             nextUpdateTimeMillis = nextUpdateTimeMillis,
             nowMillis = nowMillis,
             isCharging = false,
-            timeUntilEveningModeMillis = timeUntilEveningModeMillis
+            timeUntilSkipYesterdayMillis = timeUntilSkipYesterdayMillis
         )
 
         assertEquals(UIUpdateIntervalStrategy.MINIMUM_DELAY_MS, delay)

@@ -46,48 +46,50 @@ class NavigationUtilsTest {
     }
 
     @Test
-    fun `getDisplayCenterDate shift for evening mode`() {
+    fun `getDisplayCenterDate shift for skipYesterday`() {
         val today = LocalDate.of(2030, 6, 15)
-        
-        // Offset 0 in evening mode does NOT shift center (it uses skipHistory instead)
-        val center0 = NavigationUtils.getDisplayCenterDate(today, 0, isEveningMode = true)
-        assertEquals("Offset 0 evening should be today", today, center0)
-        
-        // Offset 1 in evening mode SHIFTS center by +1 to maintain 1-day step
-        val center1 = NavigationUtils.getDisplayCenterDate(today, 1, isEveningMode = true)
-        assertEquals("Offset 1 evening should be today+2", today.plusDays(2), center1)
 
-        val centerNeg1 = NavigationUtils.getDisplayCenterDate(today, -1, isEveningMode = true)
-        assertEquals("Offset -1 evening should be today", today, centerNeg1)
+        // Offset 0 with skipYesterday does NOT shift center (skipHistory handles offset 0).
+        val center0 = NavigationUtils.getDisplayCenterDate(today, 0, skipYesterday = true)
+        assertEquals("Offset 0 skipYesterday should be today", today, center0)
+
+        // Offset 1 with skipYesterday SHIFTS center by +1 to keep one-day steps.
+        val center1 = NavigationUtils.getDisplayCenterDate(today, 1, skipYesterday = true)
+        assertEquals("Offset 1 skipYesterday should be today+2", today.plusDays(2), center1)
+
+        val centerNeg1 = NavigationUtils.getDisplayCenterDate(today, -1, skipYesterday = true)
+        assertEquals("Offset -1 skipYesterday should be today", today, centerNeg1)
     }
 
     @Test
-    fun `isEveningMode uses 5pm threshold for narrow widgets`() {
-        val fivePm = LocalTime.of(17, 0)
-        val fourFiftyNine = LocalTime.of(16, 59)
-        val sixPm = LocalTime.of(18, 0)
+    fun `shouldSkipYesterday uses 8am threshold for narrow widgets`() {
+        val eightAm = LocalTime.of(8, 0)
+        val sevenFiftyNine = LocalTime.of(7, 59)
 
-        assertTrue("8 cols at 5pm should be evening mode",
-            NavigationUtils.isEveningMode(fivePm, numColumns = 8))
-        assertFalse("8 cols at 4:59pm should not be evening mode",
-            NavigationUtils.isEveningMode(fourFiftyNine, numColumns = 8))
-        assertTrue("1 col at 5pm should be evening mode",
-            NavigationUtils.isEveningMode(fivePm, numColumns = 1))
+        assertTrue("8 cols at 8am should skip yesterday",
+            NavigationUtils.shouldSkipYesterday(eightAm, numColumns = 8))
+        assertFalse("8 cols at 7:59am should not skip yesterday",
+            NavigationUtils.shouldSkipYesterday(sevenFiftyNine, numColumns = 8))
+        assertTrue("1 col at 8am should skip yesterday",
+            NavigationUtils.shouldSkipYesterday(eightAm, numColumns = 1))
     }
 
     @Test
-    fun `isEveningMode uses 6pm threshold for wide widgets`() {
+    fun `shouldSkipYesterday wide widgets never skip yesterday early`() {
+        val nineAm = LocalTime.of(9, 0)
         val fivePm = LocalTime.of(17, 0)
         val sixPm = LocalTime.of(18, 0)
         val elevenPm = LocalTime.of(23, 0)
 
-        assertFalse("9 cols at 5pm should not be evening mode",
-            NavigationUtils.isEveningMode(fivePm, numColumns = 9))
-        assertFalse("9 cols at 6pm should not be evening mode",
-            NavigationUtils.isEveningMode(sixPm, numColumns = 9))
-        assertFalse("9 cols at 11pm should not be evening mode",
-            NavigationUtils.isEveningMode(elevenPm, numColumns = 9))
-        assertFalse("Default numColumns at 6pm should not be evening mode",
-            NavigationUtils.isEveningMode(sixPm))
+        assertFalse("9 cols at 9am should not skip yesterday",
+            NavigationUtils.shouldSkipYesterday(nineAm, numColumns = 9))
+        assertFalse("9 cols at 5pm should not skip yesterday",
+            NavigationUtils.shouldSkipYesterday(fivePm, numColumns = 9))
+        assertFalse("9 cols at 6pm should not skip yesterday",
+            NavigationUtils.shouldSkipYesterday(sixPm, numColumns = 9))
+        assertFalse("9 cols at 11pm should not skip yesterday",
+            NavigationUtils.shouldSkipYesterday(elevenPm, numColumns = 9))
+        assertFalse("Default numColumns at 6pm should not skip yesterday",
+            NavigationUtils.shouldSkipYesterday(sixPm))
     }
 }

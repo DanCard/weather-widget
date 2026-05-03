@@ -53,7 +53,7 @@ class NwsHistoryIntegrationTest {
             forecastSnapshots = mapOf(yesterday to listOf(partialForecast)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = dailyActuals
@@ -101,7 +101,7 @@ class NwsHistoryIntegrationTest {
             forecastSnapshots = mapOf(yesterday to listOf(completeForecast, partialForecast)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = emptyMap()
@@ -149,7 +149,7 @@ class NwsHistoryIntegrationTest {
             forecastSnapshots = mapOf(today to listOf(middayWeather)),
             numColumns = 7,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = hourly,
             dailyActuals = dailyActuals

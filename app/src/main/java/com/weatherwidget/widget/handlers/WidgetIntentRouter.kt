@@ -156,7 +156,7 @@ suspend fun handleNavigation(
         val appWidgetManager = AppWidgetManager.getInstance(context)
         val dimensions = WidgetSizeCalculator.getWidgetSize(context, appWidgetManager, appWidgetId)
         val numColumns = dimensions.cols
-        val isEveningMode = NavigationUtils.isEveningMode(numColumns = numColumns)
+        val skipYesterday = NavigationUtils.shouldSkipYesterday(numColumns = numColumns)
 
         val availableForecastDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }.toSet()
 
@@ -178,7 +178,7 @@ suspend fun handleNavigation(
                     today = today,
                     dateOffset = currentOffset - 1,
                     numColumns = numColumns,
-                    isEveningMode = isEveningMode,
+                    skipYesterday = skipYesterday,
                 )
             canNavigate = minDate != null && minDate.isBefore(newLeftmost.plusDays(1))
             navDebug = "LEFT: newLeftmost=$newLeftmost, minDate=$minDate"
@@ -188,7 +188,7 @@ suspend fun handleNavigation(
                     today = today,
                     dateOffset = currentOffset + 1,
                     numColumns = numColumns,
-                    isEveningMode = isEveningMode,
+                    skipYesterday = skipYesterday,
                 )
             canNavigate = maxDate != null && maxDate.isAfter(newRightmost.minusDays(1))
             navDebug = "RIGHT: newRightmost=$newRightmost, maxDate=$maxDate"
@@ -196,13 +196,13 @@ suspend fun handleNavigation(
 
         appLogDao.log(
             "DAILY_NAV_ATTEMPT",
-            "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns rows=${dimensions.rows} evening=$isEveningMode source=${displaySource.id} minDate=$minDate maxDate=$maxDate $navDebug canNavigate=$canNavigate"
+            "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns rows=${dimensions.rows} skipYesterday=$skipYesterday source=${displaySource.id} minDate=$minDate maxDate=$maxDate $navDebug canNavigate=$canNavigate"
         )
 
         if (!canNavigate) {
             appLogDao.log(
                 "DAILY_NAV_BLOCKED",
-                "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns evening=$isEveningMode source=${displaySource.id} minDate=$minDate maxDate=$maxDate"
+                "widget=$appWidgetId dir=${if (isLeft) "LEFT" else "RIGHT"} offset=$currentOffset cols=$numColumns skipYesterday=$skipYesterday source=${displaySource.id} minDate=$minDate maxDate=$maxDate"
             )
             return
         }

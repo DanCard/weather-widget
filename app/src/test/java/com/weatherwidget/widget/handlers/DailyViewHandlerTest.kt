@@ -206,7 +206,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = true,
+            skipYesterday = true,
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
             dailyActuals = mapOf(
@@ -269,7 +269,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = snapshots,
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = emptyMap(),
@@ -316,7 +316,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = snapshots,
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = emptyMap(),
@@ -369,7 +369,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
             dailyActuals = emptyMap(),
@@ -414,7 +414,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = true,
+            skipYesterday = true,
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
             dailyActuals = mapOf(
@@ -521,7 +521,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList(),
             dailyActuals = dailyActuals,
@@ -577,7 +577,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.VISUAL_CROSSING,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = hourlyForecasts,
         )
@@ -630,7 +630,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 3,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList()
         )
@@ -658,7 +658,7 @@ class DailyViewHandlerTest {
             forecastSnapshots = emptyMap(),
             numColumns = 5,
             displaySource = WeatherSource.NWS,
-            isEveningMode = false,
+            skipYesterday = false,
             skipHistory = false,
             hourlyForecasts = emptyList()
         )
@@ -859,7 +859,7 @@ class DailyViewHandlerTest {
 
     @Test
     fun `wide single row daily text mode can expose eighth day column`() = runBlocking {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val now = LocalDateTime.of(2030, 6, 15, 7, 0)
         val today = now.toLocalDate()
         val weatherList = (-1..6).map { offset ->
             createWeather(today.plusDays(offset.toLong()).format(DateTimeFormatter.ISO_LOCAL_DATE))
@@ -1341,7 +1341,7 @@ class DailyViewHandlerTest {
 
     @Test
     fun `updateWidget today text icon prefers native daily token`() = runBlocking {
-        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val now = LocalDateTime.of(2030, 6, 15, 7, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
         val tomorrowStr = now.toLocalDate().plusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
         val weatherList = listOf(

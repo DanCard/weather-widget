@@ -112,7 +112,7 @@ object DailyActualsEstimator {
 
     /**
      * Estimates a single high/low pair for Today, using full-day hourly data
-     * (consistent with existing behavior in evening mode).
+     * (consistent with existing skip-yesterday behavior).
      */
     fun estimateTodayActualsFromHourly(
         hourlyForecasts: List<HourlyForecastEntity>,
