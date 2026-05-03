@@ -543,19 +543,19 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
-    fun `night threshold at day 3 is 15`() {
-        assertEquals(15, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(3))
+    fun `night threshold at day 3 is 13`() {
+        assertEquals(13, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(3))
     }
 
     @Test
-    fun `night threshold at day 6 is 30`() {
-        assertEquals(30, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(6))
+    fun `night threshold at day 6 is 25`() {
+        assertEquals(25, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(6))
     }
 
     @Test
-    fun `night threshold is 50 for day 10 plus`() {
-        assertEquals(50, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(10))
-        assertEquals(500, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(100))
+    fun `night threshold is 41 for day 10 plus`() {
+        assertEquals(41, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(10))
+        assertEquals(401, DailyForecastIconResolver.getMinimumPrecipProbabilityNight(100))
     }
 
     // --- OR logic: suppression tests with shouldSuppressRainIcon ---
@@ -565,14 +565,14 @@ class DailyForecastIconResolverTest {
         val icon = R.drawable.ic_weather_partly_cloudy_slight_chance_rain
         val result = DailyForecastIconResolver.shouldSuppressRainIcon(
             icon = icon,
-            dailyPrecipProbability = 18,
+            dailyPrecipProbability = 15,
             daysFromToday = 4,
             isNight = false,
-            dayPrecipProbability = 18,
-            nightPrecipProbability = 15,
+            dayPrecipProbability = 15,
+            nightPrecipProbability = 10,
         )
-        // day 4: day threshold=19, night threshold=19
-        // day 18 < 19 (suppress), night 15 < 19 (suppress) → both suppress → true
+        // day 4: threshold=17
+        // day 15 < 17 (suppress), night 10 < 17 (suppress) → both suppress → true
         assertEquals(true, result)
     }
 
@@ -680,16 +680,16 @@ class DailyForecastIconResolverTest {
                 source = WeatherSource.NWS.id,
                 condition = "Chance Light Rain",
                 nativeDailyIconToken = "Chance Light Rain",
-                precipProbability = 18,
+                precipProbability = 15,
             ),
             targetDate = day4,
             now = now,
             latitude = 37.42,
             longitude = -122.08,
-            dayPrecipProbability = 18,
-            nightPrecipProbability = 15,
+            dayPrecipProbability = 15,
+            nightPrecipProbability = 10,
         )
-        // day 4: day threshold=19, night threshold=19
+        // day 4: threshold=17
         // both below → suppressed → cloud icon
         assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
     }

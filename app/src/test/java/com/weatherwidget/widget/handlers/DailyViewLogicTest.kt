@@ -1193,7 +1193,7 @@ class DailyViewLogicTest {
     }
 
     @Test
-    fun `rain label suppressed for near term day below threshold`() {
+     fun `rain label suppressed for near term day below threshold`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
         val nearTerm = today.plusDays(2)
@@ -1201,7 +1201,7 @@ class DailyViewLogicTest {
             nearTerm to createWeather(
                 date = nearTerm.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 9,
+                precipProbability = 8,
             ),
         )
 
@@ -1261,7 +1261,7 @@ class DailyViewLogicTest {
             day4 to createWeather(
                 date = day4.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 18,
+                precipProbability = 16,
             ),
         )
 
@@ -1291,7 +1291,7 @@ class DailyViewLogicTest {
             day3 to createWeather(
                 date = day3.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 condition = "Rain",
-                precipProbability = 14,
+                precipProbability = 12,
             ),
         )
 

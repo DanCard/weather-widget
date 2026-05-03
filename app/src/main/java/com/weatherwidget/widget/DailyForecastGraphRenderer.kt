@@ -19,7 +19,7 @@ import kotlin.math.roundToInt
 object DailyForecastGraphRenderer {
     private const val TAG = "DailyGraphRenderer"
 
-    private const val DAY_LABEL_SIZE_MULTIPLIER = 1.4f
+    private const val DAY_LABEL_SIZE_MULTIPLIER = 1.15f
     private const val DAY_LABEL_TEXT_SCALE = 1.5f
     private const val BASE_DAY_WIDTH_DP = 70f
     private const val MIN_DAY_LABEL_WIDTH_SCALE = 0.96f
@@ -39,7 +39,7 @@ object DailyForecastGraphRenderer {
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
     private const val TEMP_LABEL_TEXT_SIZE_DP = 24f
-    private const val TOP_PADDING_DP = 60f
+    private const val TOP_PADDING_DP = 50f
     private const val FORECAST_BAR_WIDTH_DP = 9f
     private const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
 
