@@ -534,17 +534,19 @@ class DailyForecastGraphRendererRoboTest {
         )
 
         val rendererClass = DailyForecastGraphRenderer::class.java
-        val paintCacheField = rendererClass.getDeclaredField("paintCache")
-        paintCacheField.isAccessible = true
-        
+        val paintCachesField = rendererClass.getDeclaredField("paintCaches")
+        paintCachesField.isAccessible = true
+
         val width = 1000
         val height = 1000
         runBlocking {
             DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 0f, low = 0f)), width, height)
         }
-        val cache = paintCacheField.get(null)
-        assertNotNull(cache)
-        val paintSetField = cache!!.javaClass.getDeclaredField("set")
+        @Suppress("UNCHECKED_CAST")
+        val caches = paintCachesField.get(null) as List<Any>
+        assertTrue("paintCaches should have at least one entry after warmup render", caches.isNotEmpty())
+        val cache = caches.first()
+        val paintSetField = cache.javaClass.getDeclaredField("set")
         paintSetField.isAccessible = true
         val paintSet = paintSetField.get(cache)
         assertNotNull(paintSet)

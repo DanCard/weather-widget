@@ -127,7 +127,7 @@ internal object DailyForecastRainLabelRenderer {
         val fit = resolveNightHorizontalFit(day, rainText, centerX, layout, hNudgePx, paints) ?: return
 
         val metrics = fit.paint.fontMetrics
-        val hardBottomLimit = layout.heightPx - (DailyForecastGraphRenderer.DAY_LABEL_BOTTOM_MARGIN_PX)
+        val hardBottomLimit = layout.heightPx - (DailyForecastGraphRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
 
         val finalTopOverlap = (tuck.dynamicOverlapDp).dp(layout.density)
         val finalTopY = tuck.anchorBaseline + tuck.tempMetrics.descent - finalTopOverlap
@@ -205,7 +205,7 @@ internal object DailyForecastRainLabelRenderer {
         val tempPaint = if (day.isToday) paints.todayTempTextPaint else paints.tempTextPaint
         val tempMetrics = tempPaint.fontMetrics
 
-        val hardBottomLimit = layout.heightPx - (DailyForecastGraphRenderer.DAY_LABEL_BOTTOM_MARGIN_PX)
+        val hardBottomLimit = layout.heightPx - (DailyForecastGraphRenderer.DAY_LABEL_BOTTOM_MARGIN_DP * layout.density)
         val roomBelowPx = (hardBottomLimit - anchorBaseline).coerceAtLeast(0f)
         val roomBelowDp = roomBelowPx / layout.density
 
