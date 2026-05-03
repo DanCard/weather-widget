@@ -582,7 +582,7 @@ object DailyForecastGraphRenderer {
 
         }
 
-        DailyForecastRainLabelRenderer.drawDailyRainLabel(context, day, centerX, layout, paints, onRainLabelDrawn, canvas)
+        DailyForecastRainLabelRenderer.drawDailyRainLabel(day, centerX, layout, paints, onRainLabelDrawn, canvas)
         DailyForecastRainLabelRenderer.drawNightRainLabel(day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, canvas)
     }
 
