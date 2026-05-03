@@ -134,6 +134,13 @@ internal object DailyForecastRainLabelRenderer {
         val finalBaseline = finalTopY - metrics.ascent
         val finalBottomWithMargin = finalBaseline + metrics.descent
 
+        Log.d(TAG, "nightRainLabel position: date=${day.date} text=\"$rainText\"" +
+            " anchorBaseline=${tuck.anchorBaseline} tightFraction=${tuck.tightFraction}" +
+            " dynamicOverlapDp=${tuck.dynamicOverlapDp} finalTopOverlap=${finalTopOverlap}px" +
+            " finalTopY=$finalTopY finalBaseline=$finalBaseline finalBottom=$finalBottomWithMargin" +
+            " hardBottomLimit=$hardBottomLimit roomBelowDp=${tuck.roomBelowDp}" +
+            " tempDescent=${tuck.tempMetrics.descent}")
+
         if (finalBottomWithMargin <= hardBottomLimit) {
             canvas.drawText(rainText, fit.centerX, finalBaseline, fit.paint)
             onRainLabelDrawn?.invoke(
@@ -210,11 +217,11 @@ internal object DailyForecastRainLabelRenderer {
         val roomBelowDp = roomBelowPx / layout.density
 
         val tightFraction = (1f - (roomBelowDp - 6f) / (18f - 6f)).coerceIn(0f, 1f)
-        val dynamicOverlapDp = 4.0f + (2.0f * tightFraction)
+        val dynamicOverlapDp = 2.0f + (1.0f * tightFraction)
         val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
 
         val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
-        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.9f else dynamicNudgeDp
+        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.1f else dynamicNudgeDp
 
         return NightTuckParams(
             anchorBaseline = anchorBaseline,
