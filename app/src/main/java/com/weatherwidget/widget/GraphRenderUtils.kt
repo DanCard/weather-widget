@@ -318,16 +318,20 @@ internal object GraphRenderUtils {
         graphTop: Float,
         graphBottom: Float,
         heightPx: Int,
-        dayLabelTextPaint: Paint,
-        todayDayLabelPaint: Paint,
+        dayLabelFontMetrics: Pair<Float, Float>,
+        todayLabelFontMetrics: Pair<Float, Float>,
+        measureDayText: (String, Boolean) -> Float,
         drawnLabelBounds: List<RectF>,
         drawnIconBounds: List<RectF>,
         dpToPx: (Float) -> Float,
     ): List<DayLabelPlacement> {
-        val fm = dayLabelTextPaint.fontMetrics ?: Paint.FontMetrics()
+        val fm = Paint.FontMetrics().apply {
+            ascent = dayLabelFontMetrics.first
+            descent = dayLabelFontMetrics.second
+        }
 
-        fun dayBounds(x: Float, y: Float, textWidth: Float): RectF =
-            RectF(x - textWidth / 2f, y + fm.ascent, x + textWidth / 2f, y + fm.descent)
+        fun dayBounds(x: Float, y: Float, textWidth: Float, fontMetrics: Paint.FontMetrics): RectF =
+            RectF(x - textWidth / 2f, y + fontMetrics.ascent, x + textWidth / 2f, y + fontMetrics.descent)
 
         val placedBounds = mutableListOf<RectF>()
 
@@ -349,13 +353,18 @@ internal object GraphRenderUtils {
 
         for (candidate in candidates) {
             val isToday = candidate.date == today
-            val paint = if (isToday) todayDayLabelPaint else dayLabelTextPaint
-            val textWidth = paint.measureText(candidate.text)
+            val fontMetrics = if (isToday) {
+                Paint.FontMetrics().apply {
+                    ascent = todayLabelFontMetrics.first
+                    descent = todayLabelFontMetrics.second
+                }
+            } else fm
+            val textWidth = measureDayText(candidate.text, isToday)
 
             var placement: DayLabelPlacement? = null
             for (yFrac in yFractions) {
                 val y = graphTop + graphHeight * yFrac
-                val bounds = dayBounds(candidate.x, y, textWidth)
+                val bounds = dayBounds(candidate.x, y, textWidth, fontMetrics)
                 if (!collides(bounds)) {
                     placement = DayLabelPlacement(
                         side = candidate.side,
@@ -381,7 +390,7 @@ internal object GraphRenderUtils {
                     y = y,
                     placement = "BOTTOM_FALLBACK",
                     isToday = isToday,
-                    bounds = dayBounds(candidate.x, y, textWidth),
+                    bounds = dayBounds(candidate.x, y, textWidth, fontMetrics),
                 )
             }
 
@@ -618,6 +627,13 @@ internal object GraphRenderUtils {
         dpToPx: (Float) -> Float,
         onDayLabelPlaced: ((side: String, text: String, date: LocalDate, x: Float, y: Float, placement: String, isToday: Boolean) -> Unit)? = null,
     ) {
+        val dayLabelFontMetrics = dayLabelTextPaint.fontMetrics?.let { it.ascent to it.descent }
+            ?: (-dayLabelTextPaint.textSize to dayLabelTextPaint.textSize * 0.2f)
+        val todayLabelFontMetrics = todayDayLabelPaint.fontMetrics?.let { it.ascent to it.descent }
+            ?: (-todayDayLabelPaint.textSize to todayDayLabelPaint.textSize * 0.2f)
+        val measureDayText: (String, Boolean) -> Float = { text, isToday ->
+            (if (isToday) todayDayLabelPaint else dayLabelTextPaint).measureText(text)
+        }
         val placements = computeDayLabelPlacements(
             leftDate = leftDate,
             rightDate = rightDate,
@@ -629,8 +645,9 @@ internal object GraphRenderUtils {
             graphTop = graphTop,
             graphBottom = graphBottom,
             heightPx = heightPx,
-            dayLabelTextPaint = dayLabelTextPaint,
-            todayDayLabelPaint = todayDayLabelPaint,
+            dayLabelFontMetrics = dayLabelFontMetrics,
+            todayLabelFontMetrics = todayLabelFontMetrics,
+            measureDayText = measureDayText,
             drawnLabelBounds = drawnLabelBounds,
             drawnIconBounds = drawnIconBounds,
             dpToPx = dpToPx,

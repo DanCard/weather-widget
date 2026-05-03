@@ -18,6 +18,19 @@ class PrecipitationGraphRendererTest {
     private fun mockMeasureRainAmountText(text: String): Float = 30f
     private fun mockGetRainAmountTextBounds(text: String): Pair<Float, Float> = -12f to 3f
 
+    private val mockTextMeasurer = PrecipitationGraphRenderer.TextMeasurer(
+        measureProbabilityText = ::mockMeasureProbabilityText,
+        getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+        measureRainAmountText = ::mockMeasureRainAmountText,
+        getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+        dpToPx = ::mockDpToPx
+    )
+
+    private val mockTextMeasurerWithNow = mockTextMeasurer.copy(
+        measureNowText = { 24f },
+        getNowTextBounds = { -10f to 2f },
+    )
+
     @Test
     fun `renderGraph thins out non-peak labels on a monotonic rise`() {
         val start = LocalDateTime.of(2026, 2, 17, 2, 0)
@@ -40,11 +53,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         val placedLabels = layout.probabilityPlacements.map { it.debug }
@@ -78,11 +87,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         val placedLabels = layout.probabilityPlacements.map { it.debug }
@@ -117,11 +122,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertTrue(
@@ -149,11 +150,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertTrue(
@@ -181,11 +178,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertTrue(
@@ -213,11 +206,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertTrue(
@@ -247,11 +236,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertEquals(
@@ -281,11 +266,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 400,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertTrue(
@@ -340,13 +321,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 300,
             currentTime = start.plusHours(3),
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx,
-            measureNowText = { 24f },
-            getNowTextBounds = { -10f to 2f },
+            textMeasurer = mockTextMeasurerWithNow,
         )
 
         val nowBounds = layout.nowLabelPlacement?.bounds

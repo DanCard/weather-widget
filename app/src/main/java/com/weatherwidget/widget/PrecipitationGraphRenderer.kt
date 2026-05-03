@@ -22,6 +22,22 @@ object PrecipitationGraphRenderer {
     private const val MAX_PRECIP_LABEL_CANDIDATES = 5
     private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(5, 10, 15)
 
+    private const val COLOR_CURVE = "#5AC8FA"
+    private const val COLOR_CURVE_FILL_TOP = "#445AC8FA"
+    private const val COLOR_CURVE_FILL_BOTTOM = "#005AC8FA"
+    private const val COLOR_CURRENT_TIME = "#FF9F0A"
+    private const val COLOR_HOUR_LABEL = "#99FFFFFF"
+    private const val COLOR_PERCENT_LABEL = "#FFFFFF"
+    private const val COLOR_NOW_LABEL = "#BBFF9F0A"
+    private const val COLOR_DAY_LABEL = "#88FFFFFF"
+    private const val COLOR_TODAY_LABEL = "#BBFF9F0A"
+    private const val COLOR_RAIN_AMOUNT = "#FFFFFF"
+    private const val COLOR_SHADOW_LIGHT = "#44000000"
+    private const val COLOR_SHADOW_DARK = "#88000000"
+    private const val COLOR_ICON_DEFAULT = "#BBBBBB"
+    private const val COLOR_ICON_TWILIGHT = "#FFA726"
+    private const val COLOR_ICON_SUNNY = "#FFD60A"
+
     data class PrecipHourData(
         val dateTime: LocalDateTime,
         val precipProbability: Int, // 0-100
@@ -119,6 +135,18 @@ object PrecipitationGraphRenderer {
         val endLabel: String,
     )
 
+    data class TextMeasurer(
+        val measureProbabilityText: (String) -> Float,
+        val getProbabilityTextBounds: (String) -> Pair<Float, Float>,
+        val measureRainAmountText: (String) -> Float,
+        val getRainAmountTextBounds: (String) -> Pair<Float, Float>,
+        val dpToPx: (Float) -> Float,
+        val measureNowText: (String) -> Float = { 15f },
+        val getNowTextBounds: (String) -> Pair<Float, Float> = { -12f to 3f },
+        val measureDayText: (String, Boolean) -> Float = { text, _ -> text.length * 8f },
+        val getDayTextBounds: (Boolean) -> Pair<Float, Float> = { _ -> -10f to 2f },
+    )
+
     data class PrecipGraphLayout(
         val points: List<Pair<Float, Float>>,
         val probabilityPlacements: List<ProbabilityLabelPlacement>,
@@ -140,26 +168,17 @@ object PrecipitationGraphRenderer {
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
         smoothIterations: Int = 2,
-        highProbThreshold: Int = 99,
         rainAmountWindowHours: Int = 0,
         showHourlyIcons: Boolean,
-        measureProbabilityText: (String) -> Float,
-        getProbabilityTextBounds: (String) -> Pair<Float, Float>,
-        measureRainAmountText: (String) -> Float,
-        getRainAmountTextBounds: (String) -> Pair<Float, Float>,
-        dpToPx: (Float) -> Float,
-        measureNowText: (String) -> Float = { 15f },
-        getNowTextBounds: (String) -> Pair<Float, Float> = { -12f to 3f },
-        measureDayText: (String, Boolean) -> Float = { text, _ -> text.length * 8f },
-        getDayTextBounds: (Boolean) -> Pair<Float, Float> = { _ -> -10f to 2f },
+        textMeasurer: TextMeasurer,
     ): PrecipGraphLayout {
         val labelScale = bitmapScale.coerceAtMost(1f)
-        val topPadding = dpToPx(44f * labelScale)
-        val iconSize = dpToPx(22.4f).toInt()
-        val iconTopPad = dpToPx(0f)
-        val iconBottomPad = dpToPx(0f)
-        val labelHeight = dpToPx(20f * labelScale)
-        val bottomPadding = dpToPx(0f)
+        val topPadding = textMeasurer.dpToPx(44f * labelScale)
+        val iconSize = textMeasurer.dpToPx(22.4f).toInt()
+        val iconTopPad = textMeasurer.dpToPx(0f)
+        val iconBottomPad = textMeasurer.dpToPx(0f)
+        val labelHeight = textMeasurer.dpToPx(20f * labelScale)
+        val bottomPadding = textMeasurer.dpToPx(0f)
 
         val graphTop = topPadding
         val graphBottom =
@@ -325,9 +344,9 @@ object PrecipitationGraphRenderer {
             filteredCandidates = finalCandidates,
             suppressLeftEdgeLabel = suppressLeftEdgeLabel,
             drawnIconBounds = drawnIconBounds,
-            measureText = measureProbabilityText,
-            getTextBounds = getProbabilityTextBounds,
-            dpToPx = dpToPx
+            measureText = textMeasurer.measureProbabilityText,
+            getTextBounds = textMeasurer.getProbabilityTextBounds,
+            dpToPx = textMeasurer.dpToPx
         )
 
         val rainPeriods = if (rainAmountWindowHours > 0) {
@@ -339,8 +358,8 @@ object PrecipitationGraphRenderer {
 
         val nowLabelPlacement = if (nowX != null) {
             val nowText = "NOW"
-            val nowTextWidth = measureNowText(nowText)
-            val (nowTextAscent, nowTextDescent) = getNowTextBounds(nowText)
+            val nowTextWidth = textMeasurer.measureNowText(nowText)
+            val (nowTextAscent, nowTextDescent) = textMeasurer.getNowTextBounds(nowText)
             GraphRenderUtils.computeNowLabelBounds(
                 nowX = nowX,
                 graphTop = graphTop,
@@ -349,7 +368,7 @@ object PrecipitationGraphRenderer {
                 fontAscent = nowTextAscent,
                 fontDescent = nowTextDescent,
                 drawnBounds = rainCollisionBounds.map { it.toRectF() },
-                dpToPx = dpToPx,
+                dpToPx = textMeasurer.dpToPx,
             )?.let {
                 val bounds = PrecipRect.fromRectF(it.bounds)
                 rainCollisionBounds.add(bounds)
@@ -367,9 +386,9 @@ object PrecipitationGraphRenderer {
             graphBottom = graphBottom,
             graphHeight = graphHeight,
             initialCollisionBounds = rainCollisionBounds,
-            measureText = measureRainAmountText,
-            getTextBounds = getRainAmountTextBounds,
-            dpToPx = dpToPx
+            measureText = textMeasurer.measureRainAmountText,
+            getTextBounds = textMeasurer.getRainAmountTextBounds,
+            dpToPx = textMeasurer.dpToPx
         )
 
         val overlayBounds = (probabilityPlacements.map { it.bounds } + rainPlacements.map { it.bounds }).toMutableList()
@@ -380,30 +399,25 @@ object PrecipitationGraphRenderer {
         val rightDate = hours.last().dateTime.toLocalDate()
         val leftText = hours.first().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
         val rightText = hours.last().dateTime.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-        val dayLabelTextPaint = Paint().apply {
-            val (ascent, descent) = getDayTextBounds(false)
-            textSize = descent - ascent
-        }
-        val todayDayLabelPaint = Paint().apply {
-            val (ascent, descent) = getDayTextBounds(true)
-            textSize = descent - ascent
-        }
+        val dayLabelFontMetrics = textMeasurer.getDayTextBounds(false)
+        val todayLabelFontMetrics = textMeasurer.getDayTextBounds(true)
         val computedDayPlacements = GraphRenderUtils.computeDayLabelPlacements(
             leftDate = leftDate,
             rightDate = rightDate,
             leftText = leftText,
             rightText = rightText,
-            leftX = measureDayText(leftText, leftDate == today) / 2f,
-            rightX = widthPx - measureDayText(rightText, rightDate == today) / 2f,
+            leftX = textMeasurer.measureDayText(leftText, leftDate == today) / 2f,
+            rightX = widthPx - textMeasurer.measureDayText(rightText, rightDate == today) / 2f,
             today = today,
             graphTop = graphTop,
             graphBottom = graphBottom,
             heightPx = heightPx,
-            dayLabelTextPaint = dayLabelTextPaint,
-            todayDayLabelPaint = todayDayLabelPaint,
+            dayLabelFontMetrics = dayLabelFontMetrics,
+            todayLabelFontMetrics = todayLabelFontMetrics,
+            measureDayText = textMeasurer.measureDayText,
             drawnLabelBounds = overlayBounds.map { it.toRectF() },
             drawnIconBounds = drawnIconBounds.map { it.toRectF() },
-            dpToPx = dpToPx,
+            dpToPx = textMeasurer.dpToPx,
         )
         val dayPlacements = computedDayPlacements.map {
             DayLabelPlacementDebug(
@@ -420,7 +434,7 @@ object PrecipitationGraphRenderer {
 
         var watermarkPlacement: WatermarkPlacementDebug? = null
         if (hours.size >= 3) {
-            val iconSizePx = dpToPx(24f).toInt()
+            val iconSizePx = textMeasurer.dpToPx(24f).toInt()
             val halfIcon = iconSizePx / 2f
             val xFractions = listOf(0.15f, 0.3f, 0.45f, 0.6f, 0.75f)
             val yFractions = listOf(0.12f, 0.25f, 0.38f, 0.5f, 0.65f, 0.8f)
@@ -472,7 +486,9 @@ object PrecipitationGraphRenderer {
         val rainAmountPaint: Paint,
     )
 
+    @Volatile
     private var cachedPaints: PaintSet? = null
+    private val paintsLock = Any()
 
     private fun ensurePaints(context: Context, heightDp: Float, labelScale: Float): PaintSet {
         val density = context.resources.displayMetrics.density
@@ -481,84 +497,91 @@ object PrecipitationGraphRenderer {
             return current
         }
 
-        val curveStrokeDp = if (heightDp >= 160) 2.5f else 3f
-        val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#5AC8FA")
-            strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
+        return synchronized(paintsLock) {
+            val recheck = cachedPaints
+            if (recheck != null && recheck.density == density && recheck.heightDp == heightDp && recheck.labelScale == labelScale) {
+                return@synchronized recheck
+            }
 
-        val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL
-        }
+            val curveStrokeDp = if (heightDp >= 160) 2.5f else 3f
+            val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_CURVE)
+                strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
 
-        val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF9F0A")
-            strokeWidth = dpToPx(context, 1.0f * labelScale)
-            style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f * labelScale), dpToPx(context, 3f * labelScale)), 0f)
-        }
+            val gradientPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+            }
 
-        val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 23.0f * labelScale)
-            textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#44000000"))
-        }
+            val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_CURRENT_TIME)
+                strokeWidth = dpToPx(context, 1.0f * labelScale)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f * labelScale), dpToPx(context, 3f * labelScale)), 0f)
+            }
 
-        val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 23.0f * labelScale)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#88000000"))
-        }
+            val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_HOUR_LABEL)
+                textSize = dpToPx(context, 23.0f * labelScale)
+                textAlign = Paint.Align.CENTER
+                setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(COLOR_SHADOW_LIGHT))
+            }
 
-        val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#BBFF9F0A")
-            textSize = dpToPx(context, 15.5f * labelScale)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor("#44000000"))
-        }
+            val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_PERCENT_LABEL)
+                textSize = dpToPx(context, 23.0f * labelScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(COLOR_SHADOW_DARK))
+            }
 
-        val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#88FFFFFF")
-            textSize = dpToPx(context, 23.0f * labelScale)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        }
+            val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_NOW_LABEL)
+                textSize = dpToPx(context, 15.5f * labelScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+                setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor(COLOR_SHADOW_LIGHT))
+            }
 
-        val todayDayLabelPaint = Paint(dayLabelTextPaint).apply {
-            color = Color.parseColor("#BBFF9F0A")
-        }
+            val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_DAY_LABEL)
+                textSize = dpToPx(context, 23.0f * labelScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            }
 
-        val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 18.0f * labelScale)
-            textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#88000000"))
-        }
+            val todayDayLabelPaint = Paint(dayLabelTextPaint).apply {
+                color = Color.parseColor(COLOR_TODAY_LABEL)
+            }
 
-        val paints = PaintSet(
-            density = density,
-            labelScale = labelScale,
-            heightDp = heightDp,
-            curvePaint = curvePaint,
-            gradientPaint = gradientPaint,
-            currentTimePaint = currentTimePaint,
-            hourLabelTextPaint = hourLabelTextPaint,
-            percentLabelPaint = percentLabelPaint,
-            nowLabelTextPaint = nowLabelTextPaint,
-            dayLabelTextPaint = dayLabelTextPaint,
-            todayDayLabelPaint = todayDayLabelPaint,
-            rainAmountPaint = rainAmountPaint,
-        )
-        cachedPaints = paints
-        return paints
+            val rainAmountPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_RAIN_AMOUNT)
+                textSize = dpToPx(context, 18.0f * labelScale)
+                textAlign = Paint.Align.CENTER
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(COLOR_SHADOW_DARK))
+            }
+
+            val paints = PaintSet(
+                density = density,
+                labelScale = labelScale,
+                heightDp = heightDp,
+                curvePaint = curvePaint,
+                gradientPaint = gradientPaint,
+                currentTimePaint = currentTimePaint,
+                hourLabelTextPaint = hourLabelTextPaint,
+                percentLabelPaint = percentLabelPaint,
+                nowLabelTextPaint = nowLabelTextPaint,
+                dayLabelTextPaint = dayLabelTextPaint,
+                todayDayLabelPaint = todayDayLabelPaint,
+                rainAmountPaint = rainAmountPaint,
+            )
+            cachedPaints = paints
+            paints
+        }
     }
 
     fun calculateProbabilityLabelPlacements(
@@ -788,7 +811,6 @@ object PrecipitationGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = 28f,
-        highProbThreshold: Int = 99,
         rainAmountWindowHours: Int = 0,
         job: Job? = null,
         onDebugLog: ((String) -> Unit)? = null,
@@ -812,16 +834,7 @@ object PrecipitationGraphRenderer {
         val paints = ensurePaints(context, heightDp, labelScale)
         val showHourlyIcons = hours.any { it.iconRes != null } && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
 
-        val layout = calculateLayout(
-            hours = hours,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            currentTime = currentTime,
-            bitmapScale = bitmapScale,
-            smoothIterations = smoothIterations,
-            highProbThreshold = highProbThreshold,
-            rainAmountWindowHours = rainAmountWindowHours,
-            showHourlyIcons = showHourlyIcons,
+        val textMeasurer = TextMeasurer(
             measureProbabilityText = { paints.percentLabelPaint.measureText(it) },
             getProbabilityTextBounds = {
                 val fm = paints.percentLabelPaint.fontMetrics
@@ -848,10 +861,22 @@ object PrecipitationGraphRenderer {
             },
         )
 
+        val layout = calculateLayout(
+            hours = hours,
+            widthPx = widthPx,
+            heightPx = heightPx,
+            currentTime = currentTime,
+            bitmapScale = bitmapScale,
+            smoothIterations = smoothIterations,
+            rainAmountWindowHours = rainAmountWindowHours,
+            showHourlyIcons = showHourlyIcons,
+            textMeasurer = textMeasurer,
+        )
+
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
         paints.gradientPaint.shader = LinearGradient(
             0f, layout.graphTop, 0f, layout.graphBottom,
-            Color.parseColor("#445AC8FA"), Color.parseColor("#005AC8FA"), Shader.TileMode.CLAMP,
+            Color.parseColor(COLOR_CURVE_FILL_TOP), Color.parseColor(COLOR_CURVE_FILL_BOTTOM), Shader.TileMode.CLAMP,
         )
 
         val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(layout.points, layout.graphBottom)
@@ -888,10 +913,10 @@ object PrecipitationGraphRenderer {
             drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
             if (!hour.isRainy && !hour.isMixed) {
                 val iconTint = when {
-                    hour.isNight -> Color.parseColor("#BBBBBB")
-                    hour.isTwilight -> Color.parseColor("#FFA726")
-                    hour.isSunny -> Color.parseColor("#FFD60A")
-                    else -> Color.parseColor("#BBBBBB")
+                    hour.isNight -> Color.parseColor(COLOR_ICON_DEFAULT)
+                    hour.isTwilight -> Color.parseColor(COLOR_ICON_TWILIGHT)
+                    hour.isSunny -> Color.parseColor(COLOR_ICON_SUNNY)
+                    else -> Color.parseColor(COLOR_ICON_DEFAULT)
                 }
                 drawable.setTint(iconTint)
             }
@@ -950,10 +975,6 @@ object PrecipitationGraphRenderer {
         return bitmap
     }
 
-    private fun shouldShowHourlyIcons(widthPx: Int): Boolean {
-        return widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-    }
-
     fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
         if (hours.isEmpty()) return emptyList()
         val totalMm = hours.sumOf { (it.precipAmountMm ?: 0f).toDouble() }.toFloat()
@@ -967,36 +988,6 @@ object PrecipitationGraphRenderer {
                 endLabel = hours.last().label,
             ),
         )
-    }
-
-    fun findHighProbRainPeriods(hours: List<PrecipHourData>, highProbThreshold: Int = 99): List<RainPeriod> {
-        val periods = mutableListOf<RainPeriod>()
-        var i = 0
-        while (i < hours.size) {
-            if (hours[i].precipProbability >= highProbThreshold) {
-                val start = i
-                var totalMm = 0f
-                while (i < hours.size && hours[i].precipProbability >= highProbThreshold) {
-                    totalMm += hours[i].precipAmountMm ?: 0f
-                    i++
-                }
-                val end = i - 1
-                if (totalMm > 0f) {
-                    periods.add(
-                        RainPeriod(
-                            startIndex = start,
-                            endIndex = end,
-                            totalAmountMm = totalMm,
-                            startLabel = hours[start].label,
-                            endLabel = hours[end].label,
-                        ),
-                    )
-                }
-            } else {
-                i++
-            }
-        }
-        return periods
     }
 
     fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {

@@ -250,7 +250,6 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
             // Render precipitation graph
             val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
-            val highProbThreshold = 95
             val rainAmountWindowHours = hours.size
             val renderStartMs = SystemClock.elapsedRealtime()
             val bitmap = PrecipitationGraphRenderer.renderGraph(
@@ -262,7 +261,6 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                 bitmapScale = bitmapDims.bitmapScale,
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
-                highProbThreshold = highProbThreshold,
                 rainAmountWindowHours = rainAmountWindowHours,
                 job = coroutineContext[Job],
             )

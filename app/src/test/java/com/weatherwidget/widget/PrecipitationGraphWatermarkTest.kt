@@ -18,6 +18,21 @@ class PrecipitationGraphWatermarkTest {
     private fun mockMeasureRainAmountText(text: String): Float = 30f
     private fun mockGetRainAmountTextBounds(text: String): Pair<Float, Float> = -12f to 3f
 
+    private val mockTextMeasurer = PrecipitationGraphRenderer.TextMeasurer(
+        measureProbabilityText = ::mockMeasureProbabilityText,
+        getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
+        measureRainAmountText = ::mockMeasureRainAmountText,
+        getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+        dpToPx = ::mockDpToPx
+    )
+
+    private val mockTextMeasurerWithExtras = mockTextMeasurer.copy(
+        measureNowText = { 24f },
+        getNowTextBounds = { -10f to 2f },
+        measureDayText = { text, _ -> text.length * 12f },
+        getDayTextBounds = { -10f to 2f },
+    )
+
     private fun makeHours(
         count: Int,
         baseProb: Int = 30,
@@ -41,11 +56,7 @@ class PrecipitationGraphWatermarkTest {
             heightPx = 300,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertNotNull("Watermark should be placed", layout.watermarkPlacement)
@@ -63,11 +74,7 @@ class PrecipitationGraphWatermarkTest {
             heightPx = 300,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertNotNull("Watermark should be placed", layout.watermarkPlacement)
@@ -85,11 +92,7 @@ class PrecipitationGraphWatermarkTest {
             heightPx = 300,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         val placement = layout.watermarkPlacement
@@ -115,11 +118,7 @@ class PrecipitationGraphWatermarkTest {
             heightPx = 308,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertNotNull("Watermark should find a position even with many labels", layout.watermarkPlacement)
@@ -134,11 +133,7 @@ class PrecipitationGraphWatermarkTest {
             heightPx = 300,
             currentTime = start,
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx
+            textMeasurer = mockTextMeasurer
         )
 
         assertNull("Watermark should NOT be placed with < 3 points", layout.watermarkPlacement)
@@ -164,15 +159,7 @@ class PrecipitationGraphWatermarkTest {
             heightPx = 300,
             currentTime = start.plusHours(5),
             showHourlyIcons = false,
-            measureProbabilityText = ::mockMeasureProbabilityText,
-            getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
-            measureRainAmountText = ::mockMeasureRainAmountText,
-            getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-            dpToPx = ::mockDpToPx,
-            measureNowText = { 24f },
-            getNowTextBounds = { -10f to 2f },
-            measureDayText = { text, _ -> text.length * 12f },
-            getDayTextBounds = { -10f to 2f },
+            textMeasurer = mockTextMeasurerWithExtras,
         )
 
         val watermark = layout.watermarkPlacement

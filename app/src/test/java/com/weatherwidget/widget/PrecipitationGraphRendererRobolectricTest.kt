@@ -40,7 +40,6 @@ class PrecipitationGraphRendererRobolectricTest {
             widthPx = 700,
             heightPx = 337,
             currentTime = start.plusHours(4),
-            highProbThreshold = 97,
             onDebugLog = { debugLogs.add(it) },
         )
 
@@ -73,7 +72,6 @@ class PrecipitationGraphRendererRobolectricTest {
             widthPx = 200,
             heightPx = 400,
             currentTime = start.plusHours(6),
-            highProbThreshold = 97,
             onDebugLog = { debugLogs.add(it) },
         )
 
@@ -106,7 +104,6 @@ class PrecipitationGraphRendererRobolectricTest {
             widthPx = 1000,
             heightPx = 400,
             currentTime = start.plusHours(3),
-            highProbThreshold = 97,
             onDebugLog = { debugLogs.add(it) },
         )
 
@@ -139,7 +136,6 @@ class PrecipitationGraphRendererRobolectricTest {
             widthPx = 1000,
             heightPx = 400,
             currentTime = start.plusHours(3),
-            highProbThreshold = 99,
             onDebugLog = { debugLogs.add(it) },
         )
 
@@ -172,7 +168,6 @@ class PrecipitationGraphRendererRobolectricTest {
             widthPx = 1000,
             heightPx = 400,
             currentTime = start.plusHours(2),
-            highProbThreshold = 97,
             onDebugLog = { debugLogs.add(it) },
         )
 
