@@ -221,7 +221,7 @@ internal object DailyForecastRainLabelRenderer {
         val dynamicNudgeDp = 1.5f + (1.5f * tightFraction)
 
         val isLeftTempLower = rightNeighborBaseline != null && leftBaseline > rightNeighborBaseline
-        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.1f else dynamicNudgeDp
+        val effectiveNudgeDp = if (isLeftTempLower) dynamicNudgeDp * 0.0f else dynamicNudgeDp
 
         return NightTuckParams(
             anchorBaseline = anchorBaseline,

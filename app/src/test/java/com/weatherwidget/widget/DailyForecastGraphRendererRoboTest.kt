@@ -661,4 +661,103 @@ class DailyForecastGraphRendererRoboTest {
         assertTrue(bars.any { it.barType == "TODAY" })
         assertTrue(bars.any { it.barType == "FUTURE" })
     }
+
+    @Test
+    fun renderGraph_clampsOutOfRangeColumnIndex() {
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Far",
+                high = 70f,
+                low = 50f,
+                columnIndex = 99,
+            ),
+        )
+        val widthPx = 500
+        val heightPx = 200
+        val results = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                numColumns = 5,
+                onBarDrawn = { results.add(it) },
+            )
+        }
+        assertTrue("Should have drawn a bar even with out-of-range columnIndex", results.isNotEmpty())
+        val bar = results.first()
+        assertTrue(
+            "centerX (${bar.centerX}) should be clamped within [0, $widthPx]",
+            bar.centerX in 0f..widthPx.toFloat(),
+        )
+    }
+
+    @Test
+    fun renderGraph_paintCacheLruRetainsPriorEntries() {
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 70f, low = 50f),
+        )
+        val width = 400
+        val height = 200
+
+        val rendererClass = DailyForecastGraphRenderer::class.java
+        val paintCachesField = rendererClass.getDeclaredField("paintCaches")
+        paintCachesField.isAccessible = true
+        paintCachesField.set(null, emptyList<Any>())
+
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f) }
+        @Suppress("UNCHECKED_CAST")
+        val cachesAfter1 = paintCachesField.get(null) as List<Any>
+        assertEquals("First render should add one cache entry", 1, cachesAfter1.size)
+        val setField = cachesAfter1.first().javaClass.getDeclaredField("set").apply { isAccessible = true }
+        val firstSet = setField.get(cachesAfter1.first())
+
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.8f) }
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 0.6f) }
+
+        @Suppress("UNCHECKED_CAST")
+        val cachesAfter3 = paintCachesField.get(null) as List<Any>
+        assertEquals("LRU should hold exactly 3 entries after 3 distinct renders", 3, cachesAfter3.size)
+        val setsRetained = cachesAfter3.map { setField.get(it) }
+        assertTrue(
+            "PaintSet from the first render should still live in the LRU",
+            setsRetained.any { it === firstSet },
+        )
+
+        runBlocking { DailyForecastGraphRenderer.renderGraph(context, days, width, height, bitmapScale = 1.0f) }
+        @Suppress("UNCHECKED_CAST")
+        val cachesAfter4 = paintCachesField.get(null) as List<Any>
+        assertEquals("Re-rendering at a cached scale must not grow the LRU past 3", 3, cachesAfter4.size)
+    }
+
+    @Test
+    fun renderGraph_mixedBarWithCompressedHeight_doesNotCrash() {
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Mix",
+                high = 50f,
+                low = 50f,
+                isMixed = true,
+                iconRes = R.drawable.ic_weather_partly_cloudy,
+            ),
+        )
+        val results = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
+        val bitmap = runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = 100,
+                heightPx = 80,
+                onBarDrawn = { results.add(it) },
+            )
+        }
+        assertNotNull("renderGraph must produce a bitmap when mixed bar height collapses to <= 1px", bitmap)
+        assertEquals("Exactly one primary-bar callback should fire for the day", 1, results.size)
+    }
 }
