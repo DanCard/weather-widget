@@ -375,8 +375,17 @@ object DailyForecastGraphRenderer {
         val attachedStackHeight = tempLabelHeight + iconSize + dpToPx(context, ICON_STACK_SPACING_DP * labelScale)
 
         val graphTop = topPadding
-        val graphBottom = heightPx - dayLabelHeight - attachedStackHeight
-        val graphHeight = graphBottom - graphTop
+        val requestedGraphBottom = heightPx - dayLabelHeight - attachedStackHeight
+        val graphBottom = requestedGraphBottom.coerceAtLeast(graphTop + 1f)
+        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+
+        if (requestedGraphBottom < graphTop + 1f) {
+            Log.w(
+                TAG,
+                "computeLayout: clamping undersized graph area widthPx=$widthPx heightPx=$heightPx" +
+                    " graphTop=$graphTop requestedGraphBottom=$requestedGraphBottom graphBottom=$graphBottom",
+            )
+        }
 
         val barWidth = dailyBarStrokeWidthPx(context, scaleFactor, bitmapScale)
         val tripleBarWidth = todayTripleBarStrokeWidthPx(context, scaleFactor, bitmapScale)

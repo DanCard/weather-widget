@@ -601,6 +601,29 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_withUndersizedHeight_keepsBarGeometryNonInverted() {
+        val day = LocalDate.of(2026, 2, 3)
+        val bars = render(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = day,
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                ),
+            ),
+            widthPx = 500,
+            heightPx = 100,
+        )
+
+        val futureBar = bars.single { it.date == day && it.barType == "FUTURE" }
+        assertTrue(
+            "Expected highY to remain above lowY after undersized layout clamp. bar=$futureBar",
+            futureBar.highY < futureBar.lowY,
+        )
+    }
+
+    @Test
     fun renderGraph_historyMixedIcon_drawsActualRangeSolidRed() {
         val feb01 = LocalDate.of(2026, 2, 1)
         val day = DailyForecastGraphRenderer.DayData(
