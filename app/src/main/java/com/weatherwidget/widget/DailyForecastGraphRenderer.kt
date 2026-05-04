@@ -572,7 +572,13 @@ object DailyForecastGraphRenderer {
             drawWeatherIcon(canvas, context, day, centerX, iconY, layout.iconSize)
 
             val lowTempY = iconY + layout.iconSize + layout.tempLabelHeight + (TEMP_LABEL_SPACING_DP).dp(layout.density)
-            val lowLabelText = formatTempLabel(lowTemp, day.isToday || day.isPast)
+            
+            val isLowest = lowTemp <= layout.minTemp + 0.01f
+            val hasNightRain = day.rainData.nightRainLabelText != null
+            val forceInteger = isLowest && hasNightRain
+            val isActualData = (day.isToday || day.isPast) && !forceInteger
+            val lowLabelText = formatTempLabel(lowTemp, isActualData)
+
             val tempPaint = when {
                 day.isToday -> paints.todayTempTextPaint
                 day.isPast -> paints.pastTempTextPaint
@@ -903,7 +909,7 @@ object DailyForecastGraphRenderer {
         return hY to clampMinBarHeight(hY, lY, minBarHeight)
     }
 
-    private fun formatTempLabel(actual: Float, isActualData: Boolean): String {
+    internal fun formatTempLabel(actual: Float, isActualData: Boolean): String {
         if (!isActualData) return "${actual.roundToInt()}°"
         val rounded = actual.roundToInt()
         return if (kotlin.math.abs(actual - rounded) < 0.01f) "$rounded°" else String.format(Locale.getDefault(), "%.1f°", actual)

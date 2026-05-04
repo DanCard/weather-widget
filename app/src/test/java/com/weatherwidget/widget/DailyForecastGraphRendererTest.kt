@@ -5,9 +5,28 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.experimental.categories.Category
 import java.time.LocalDate
+import kotlin.math.roundToInt
 
 @Category(ShortDuration::class)
 class DailyForecastGraphRendererTest {
+
+    @Test
+    fun `formatTempLabel rounds to integer when not actual data`() {
+        val renderer = DailyForecastGraphRenderer
+        assertEquals("49°", renderer.formatTempLabel(48.6f, isActualData = false))
+    }
+
+    @Test
+    fun `formatTempLabel preserves decimal for actual data with fractional part`() {
+        val renderer = DailyForecastGraphRenderer
+        assertEquals("48.6°", renderer.formatTempLabel(48.6f, isActualData = true))
+    }
+
+    @Test
+    fun `formatTempLabel avoids decimal for actual data with whole number`() {
+        val renderer = DailyForecastGraphRenderer
+        assertEquals("49°", renderer.formatTempLabel(49.0f, isActualData = true))
+    }
 
     @Test
     fun `resolveBottomStackLow prefers explicit bottom stack low over observed low`() {

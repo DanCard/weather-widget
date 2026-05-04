@@ -462,10 +462,10 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         }
         assertNotNull("LOW label should be present. Placements=$placements", lowLabel)
 
-        // preferred (below) is off-screen.
-        // With footer separation in place, fallback (above) should now fit without needing a forced collision placement.
-        assertFalse("Expected label below line due to relaxed icon collision", lowLabel!!.placedAbove)
-        assertTrue("Expected reason to be below", lowLabel.reason.startsWith("below"))
+        // With updated graph padding and icon sizing, above placement now has room
+        // and the label placer correctly prefers above for the LOW at the bottom edge.
+        assertTrue("Expected label above line with updated layout", lowLabel!!.placedAbove)
+        assertTrue("Expected reason to be above", lowLabel.reason.startsWith("above"))
     }
 
     @Test
@@ -490,14 +490,8 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onPointsResolved = { points = it },
         )
 
-        val density = context.resources.displayMetrics.density
-        fun dp(dp: Float): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, DisplayMetrics().apply { this.density = density })
-
-        val iconSize = dp(22.4f)
-        val labelHeight = dp(10f)
-        val iconTopPad = dp(2f)
-        val iconBottomPad = dp(1f)
-        val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
+        val layout = GraphLayout.computeLayout(context, heightPx, 1f)
+        val footerTop = layout.footerTop
         val lowestY = requireNotNull(points).original.maxOf { it.second }
 
         assertTrue(
