@@ -9,8 +9,8 @@ object GraphLayout {
     private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 2.5f
-    private const val GRAPH_TOP_PADDING_DP = 24f
-    private const val GRAPH_TO_FOOTER_GAP_DP = 1.8f
+    private const val GRAPH_TOP_PADDING_DP = 0f
+    private const val GRAPH_TO_FOOTER_GAP_DP = 0f
 
     data class Layout(
         val topPadding: Float,
@@ -39,10 +39,10 @@ object GraphLayout {
 
     fun computeLayout(context: Context, heightPx: Int, labelScale: Float): Layout {
         val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP)
-        val iconSize = dpToPx(context, 22.4f).toInt()
+        val iconSize = dpToPx(context, 11.2f).toInt()
         val labelHeight = dpToPx(context, 10f)
-        val iconTopPad = dpToPx(context, 2f)
-        val iconBottomPad = dpToPx(context, 1f)
+        val iconTopPad = dpToPx(context, 1f)
+        val iconBottomPad = dpToPx(context, 0.5f)
 
         val graphTop = topPadding
         val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
