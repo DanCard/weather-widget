@@ -64,6 +64,12 @@ object GraphLayout {
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 2.5f
     private const val GRAPH_TOP_PADDING_DP = 8f
     private const val GRAPH_TO_FOOTER_GAP_DP = -1f
+    private const val FOOTER_LABEL_HEIGHT_DP = 10f
+    private const val ICON_TOP_PAD_DP = -1f
+    private const val DEFAULT_FALLBACK_MIN_TEMP = 0f
+    private const val DEFAULT_FALLBACK_MAX_TEMP = 100f
+    private const val MIN_TEMP_RANGE = 1f
+    private const val MIN_GRAPH_HEIGHT_DP = 1f
 
     data class Layout(
         val topPadding: Float,
@@ -77,15 +83,15 @@ object GraphLayout {
 
     fun computeScaling(hours: List<HourData>): Triple<Float, Float, Float> {
         val allTemps = hours.map { it.temperature } + hours.mapNotNull { it.actualTemperature }
-        val rawMin = allTemps.minOrNull() ?: 0f
-        val rawMax = allTemps.maxOrNull() ?: 100f
-        val rawRange = (rawMax - rawMin).coerceAtLeast(1f)
+        val rawMin = allTemps.minOrNull() ?: DEFAULT_FALLBACK_MIN_TEMP
+        val rawMax = allTemps.maxOrNull() ?: DEFAULT_FALLBACK_MAX_TEMP
+        val rawRange = (rawMax - rawMin).coerceAtLeast(MIN_TEMP_RANGE)
 
         val topBuffer = (rawRange * TOP_TEMP_BUFFER_RATIO).coerceAtLeast(MIN_TOP_TEMP_BUFFER_DEGREES)
         val bottomBuffer = (rawRange * BOTTOM_TEMP_BUFFER_RATIO).coerceAtLeast(MIN_BOTTOM_TEMP_BUFFER_DEGREES)
         val minTemp = rawMin - bottomBuffer
         val maxTemp = rawMax + topBuffer
-        val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
+        val tempRange = (maxTemp - minTemp).coerceAtLeast(MIN_TEMP_RANGE)
         Log.d("TempGraphRenderer", "Scaling: rawMin=$rawMin, rawMax=$rawMax, minTemp=$minTemp, maxTemp=$maxTemp, tempRange=$tempRange")
         return Triple(minTemp, maxTemp, tempRange)
     }
@@ -93,14 +99,14 @@ object GraphLayout {
     fun computeLayout(context: Context, heightPx: Int, labelScale: Float): Layout {
         val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP)
         val iconSize = dpToPx(context, HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
-        val labelHeight = dpToPx(context, 10f)
-        val iconTopPad = dpToPx(context, -1f)
+        val labelHeight = dpToPx(context, FOOTER_LABEL_HEIGHT_DP)
+        val iconTopPad = dpToPx(context, ICON_TOP_PAD_DP)
         val iconBottomPad = dpToPx(context, 0f)
 
         val graphTop = topPadding
         val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
-        val graphBottom = (footerTop - dpToPx(context, GRAPH_TO_FOOTER_GAP_DP)).coerceAtLeast(graphTop + 1f)
-        val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
+        val graphBottom = (footerTop - dpToPx(context, GRAPH_TO_FOOTER_GAP_DP)).coerceAtLeast(graphTop + MIN_GRAPH_HEIGHT_DP)
+        val graphHeight = (graphBottom - graphTop).coerceAtLeast(MIN_GRAPH_HEIGHT_DP)
         Log.d("TempGraphRenderer", "Layout: heightPx=$heightPx, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
         return Layout(topPadding, iconSize, footerTop, graphTop, graphBottom, graphHeight, iconTopPad)
     }

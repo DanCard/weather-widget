@@ -27,6 +27,14 @@ object TemperatureGraphRenderer {
 
     private const val MIN_GHOST_LINE_DELTA = 0.1f
     private const val MAX_LEADER_DISPLACEMENT_STEPS = 3
+    private const val X_COORDINATE_MATCH_TOLERANCE = 0.5f
+    private const val TRANSITION_CLIP_EXTRA_DP = 1f
+    private const val MIN_INTERPOLATION_SPAN = 0.0001f
+    private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
+    private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
+    private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
+    private const val VALUE_LABEL_BASELINE_DIVISOR = 3f
+    private const val SECONDS_PER_HOUR = 3600f
 
     private fun formatAgeLabel(ageMinutes: Long, hoursSpanHours: Long): String? = TemperatureGraphStyle.formatAgeLabel(ageMinutes, hoursSpanHours)
     private fun withAlpha(color: Int, alpha: Int): Int = TemperatureGraphStyle.withAlpha(color, alpha)
@@ -82,7 +90,7 @@ object TemperatureGraphRenderer {
         hours.indices.forEach { index ->
             job?.ensureActive()
             val pointEpoch = hours[index].dateTime.toEpochSecond(ZoneOffset.UTC)
-            val x = ((pointEpoch - minTimeEpoch) / 3600f) * hourWidth
+            val x = ((pointEpoch - minTimeEpoch) / SECONDS_PER_HOUR) * hourWidth
             val yTruth = TemperatureGraphStyle.tempToY(actualTemps[index], graphTop, graphHeight, minTemp, tempRange)
             originalPoints.add(x to yTruth)
 
@@ -121,7 +129,7 @@ object TemperatureGraphRenderer {
             listOfNotNull(raw, nowX, fetchDotX).min()
         }
         val effectiveActualEndIndex = if (transitionX != null) {
-            val idx = originalPoints.indexOfLast { it.first <= transitionX + 1f }
+            val idx = originalPoints.indexOfLast { it.first <= transitionX + TRANSITION_CLIP_EXTRA_DP }
             if (idx >= 0) idx else lastActualIndex
         } else -1
 
@@ -161,7 +169,7 @@ object TemperatureGraphRenderer {
         job?.ensureActive()
         if (transitionX == null || originalPoints.isEmpty()) return emptyList()
 
-        val anchoredToFetchDot = fetchDotX != null && abs(fetchDotX - transitionX) <= 0.5f && lastObservedTemp != null
+        val anchoredToFetchDot = fetchDotX != null && abs(fetchDotX - transitionX) <= X_COORDINATE_MATCH_TOLERANCE && lastObservedTemp != null
         val terminalY =
             if (anchoredToFetchDot) {
                 TemperatureGraphStyle.tempToY(lastObservedTemp, graphTop, graphHeight, minTemp, tempRange)
@@ -169,7 +177,7 @@ object TemperatureGraphRenderer {
                 interpolateYAtX(originalPoints, transitionX)
             }
 
-        val visible = originalPoints.filter { it.first < transitionX - 0.5f }.toMutableList()
+        val visible = originalPoints.filter { it.first < transitionX - X_COORDINATE_MATCH_TOLERANCE }.toMutableList()
         val terminalPoint = transitionX to terminalY
         visible += terminalPoint
         return visible
@@ -179,7 +187,7 @@ object TemperatureGraphRenderer {
         points: List<Pair<Float, Float>>,
         targetX: Float,
     ): Float {
-        val exact = points.firstOrNull { abs(it.first - targetX) <= 0.5f }
+        val exact = points.firstOrNull { abs(it.first - targetX) <= X_COORDINATE_MATCH_TOLERANCE }
         if (exact != null) return exact.second
 
         val afterIndex = points.indexOfFirst { it.first > targetX }
@@ -188,7 +196,7 @@ object TemperatureGraphRenderer {
             else -> {
                 val before = points[afterIndex - 1]
                 val after = points[afterIndex]
-                val span = (after.first - before.first).coerceAtLeast(0.0001f)
+                val span = (after.first - before.first).coerceAtLeast(MIN_INTERPOLATION_SPAN)
                 val fraction = ((targetX - before.first) / span).coerceIn(0f, 1f)
                 before.second + (after.second - before.second) * fraction
             }
@@ -198,7 +206,7 @@ object TemperatureGraphRenderer {
     private fun drawFillAndCurves(ctx: RenderContext, expectedFillPath: Path, hours: List<HourData>) {
         val paints = ctx.paints
         paints.expectedFillPaint.shader = buildTempGradient(
-            ctx.graphTop, ctx.graphBottom, ctx.minTemp, ctx.maxTemp, ctx.tempRange, alphaTop = 68, alphaBottom = 0
+            ctx.graphTop, ctx.graphBottom, ctx.minTemp, ctx.maxTemp, ctx.tempRange, alphaTop = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_TOP, alphaBottom = TemperatureGraphStyle.EXPECTED_FILL_ALPHA_BOTTOM
         )
         ctx.canvas.drawPath(expectedFillPath, paints.expectedFillPaint)
 
@@ -215,8 +223,8 @@ object TemperatureGraphRenderer {
             ctx.canvas.restore()
         }
 
-        val dashOn = dpToPx(ctx.context, 8f)
-        val dashOff = dpToPx(ctx.context, 4f)
+        val dashOn = dpToPx(ctx.context, TemperatureGraphStyle.FORECAST_DASH_ON_DP)
+        val dashOff = dpToPx(ctx.context, TemperatureGraphStyle.FORECAST_DASH_OFF_DP)
         val dashPattern = floatArrayOf(dashOn, dashOff)
         val segmentPaint = Paint(paints.forecastDashedPaint)
         val pathMeasure = PathMeasure()
@@ -235,7 +243,7 @@ object TemperatureGraphRenderer {
         val transitionX = ctx.transitionX
         if (transitionX != null) {
             ctx.canvas.save()
-            ctx.canvas.clipRect(0f, 0f, transitionX + dpToPx(ctx.context, 1f), ctx.heightPx.toFloat())
+            ctx.canvas.clipRect(0f, 0f, transitionX + dpToPx(ctx.context, TRANSITION_CLIP_EXTRA_DP), ctx.heightPx.toFloat())
             ctx.canvas.drawPath(ctx.actualPath, paints.actualLinePaint)
             ctx.canvas.restore()
         }
@@ -634,7 +642,7 @@ object TemperatureGraphRenderer {
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
         val aboveGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
-        val baselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+        val baselineOffset = ctx.paints.valueTextPaint.textSize / VALUE_LABEL_BASELINE_DIVISOR
         val vAscent = fontAscent(ctx.paints.valueTextPaint)
         val vDescent = fontDescent(ctx.paints.valueTextPaint)
 
@@ -649,7 +657,7 @@ object TemperatureGraphRenderer {
             val sDescent = fontDescent(ctx.paints.stalenessTextPaint)
             val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
             val padding = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * 0.40f
+            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * STALENESS_MINOR_OVERLAP_RATIO
             bounds.add(resolveStalenessInitialLayout(clampedX, fetchY, dotRadius, padding, ageWidth, sAscent, sDescent, ctx.heightPx, bounds, minorOverlapThreshold).bounds)
         }
 
@@ -675,7 +683,7 @@ object TemperatureGraphRenderer {
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
         val sideGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
         val aboveGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
-        val baselineOffset = ctx.paints.valueTextPaint.textSize / 3f
+        val baselineOffset = ctx.paints.valueTextPaint.textSize / VALUE_LABEL_BASELINE_DIVISOR
         val vAscent = fontAscent(ctx.paints.valueTextPaint)
         val vDescent = fontDescent(ctx.paints.valueTextPaint)
         val valueLayout = resolveValueLabelLayout(clampedX, fetchY, dotRadius, valueWidth, sideGap, aboveGap, ctx.widthPx, baselineOffset, vAscent, vDescent)
@@ -697,7 +705,7 @@ object TemperatureGraphRenderer {
             val padding = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
             val leaderLinePaint = ctx.paints.actualLeaderLinePaint
             val allBounds = ctx.drawnLabelBounds + drawnBounds
-            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * 0.40f
+            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * STALENESS_MINOR_OVERLAP_RATIO
 
             val initial = resolveStalenessInitialLayout(clampedX, fetchY, dotRadius, padding, ageWidth, sAscent, sDescent, ctx.heightPx, allBounds, minorOverlapThreshold)
             var placeAbove = initial.placeAbove
@@ -706,7 +714,7 @@ object TemperatureGraphRenderer {
             var collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > minorOverlapThreshold
 
             var step = 0
-            while (collision && step < 15) {
+            while (collision && step < MAX_STALENESS_DISPLACEMENT_STEPS) {
                 step++
                 val bump = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
                 ageBaselineY += if (placeAbove) -bump else bump
@@ -714,7 +722,7 @@ object TemperatureGraphRenderer {
                 collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > minorOverlapThreshold
             }
 
-            if (step > 2) {
+            if (step > STALENESS_LEADER_LINE_MIN_STEPS) {
                 val lineEndY = if (placeAbove) bounds.bottom else bounds.top
                 val lineStartY = if (placeAbove) fetchY - dotRadius else fetchY + dotRadius
                 ctx.canvas.drawLine(clampedX, lineStartY, clampedX, lineEndY, leaderLinePaint)
@@ -769,7 +777,7 @@ object TemperatureGraphRenderer {
 
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
         val maxTimeEpoch = hours.lastOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
-        val timeRangeHours = if (maxTimeEpoch > minTimeEpoch) (maxTimeEpoch - minTimeEpoch) / 3600f else hours.size.toFloat() - 1f
+        val timeRangeHours = if (maxTimeEpoch > minTimeEpoch) (maxTimeEpoch - minTimeEpoch) / SECONDS_PER_HOUR else hours.size.toFloat() - 1f
         val hourWidth = widthPx.toFloat() / timeRangeHours.coerceAtLeast(1f)
 
         val update = computePoints(
@@ -792,7 +800,7 @@ object TemperatureGraphRenderer {
                 endY = update.actualVisiblePoints.lastOrNull()?.second,
                 pointCount = update.actualVisiblePoints.size,
                 anchoredToFetchDot = update.fetchDotX != null &&
-                    update.actualVisiblePoints.lastOrNull()?.first?.let { abs(it - update.fetchDotX) <= 0.5f } == true,
+                    update.actualVisiblePoints.lastOrNull()?.first?.let { abs(it - update.fetchDotX) <= X_COORDINATE_MATCH_TOLERANCE } == true,
             ),
         )
 

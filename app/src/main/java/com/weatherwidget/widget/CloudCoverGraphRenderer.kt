@@ -19,9 +19,32 @@ object CloudCoverGraphRenderer {
     private const val TAG = "CloudCoverGraph"
     private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = HourlyGraphDefaults.MAX_LABEL_CANDIDATES
     private val DENSE_LABEL_DIFF_THRESHOLDS = HourlyGraphDefaults.DENSE_LABEL_DIFF_THRESHOLDS
-    private const val NEARBY_LABEL_WINDOW = 3
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
     private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
+
+    private const val GRAPH_TOP_PADDING_DP = 34f
+    private const val GRAPH_BOTTOM_PADDING_DP = 3f
+    private const val SOFT_DIP_MAX_PERCENT = 85
+    private const val SOFT_DIP_MIN_DIFF = 15
+    private const val WATERMARK_WINDOW_DIVISOR = 5
+    private const val WATERMARK_WINDOW_MIN = 3
+    private const val WATERMARK_WINDOW_MAX = 6
+    private val WATERMARK_VERT_FRACTIONS = listOf(0.5f, 0.65f, 0.35f)
+    private const val WATERMARK_ICON_CURVE_GAP_DP = 2f
+
+    private const val COLOR_CLOUD_CURVE = "#AAAAAA"
+    private const val COLOR_CLOUD_GRADIENT_START = "#44AAAAAA"
+    private const val COLOR_CLOUD_GRADIENT_END = "#00AAAAAA"
+    private const val COLOR_MISSING_DIAG_TEXT = "#DDC8CFD8"
+    private const val COLOR_MISSING_DIAG_SHADOW = "#CC000000"
+    private const val COLOR_MISSING_DIAG_REASON_TEXT = "#AAB0B6BE"
+
+    private const val MISSING_DIAG_TEXT_SIZE_DP = 9f
+    private const val MISSING_DIAG_REASON_TEXT_SIZE_DP = 7.5f
+    private const val MISSING_DIAG_MIN_LABEL_SCALE = 0.85f
+    private const val MISSING_DIAG_LINE_SPACING = 1.15f
+    private const val MISSING_DIAG_SHADOW_RADIUS_DP = 3f
+    private const val MISSING_DIAG_SHADOW_DY_DP = 1f
 
     data class CloudHourData(
         val dateTime: LocalDateTime,
@@ -86,7 +109,7 @@ object CloudCoverGraphRenderer {
 
         val curveStrokeDp = if (tallGraph) HourlyGraphDefaults.CURVE_STROKE_TALL_DP else HourlyGraphDefaults.CURVE_STROKE_SHORT_DP
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#AAAAAA")
+            color = Color.parseColor(COLOR_CLOUD_CURVE)
             strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
             style = Paint.Style.STROKE
             strokeCap = Paint.Cap.ROUND
@@ -108,7 +131,7 @@ object CloudCoverGraphRenderer {
             color = Color.parseColor(HourlyGraphDefaults.COLOR_HOUR_LABEL)
             textSize = dpToPx(context, HourlyGraphDefaults.HOUR_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
         }
 
         val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -116,7 +139,7 @@ object CloudCoverGraphRenderer {
             textSize = dpToPx(context, HourlyGraphDefaults.PERCENT_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
         }
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -124,7 +147,7 @@ object CloudCoverGraphRenderer {
             textSize = dpToPx(context, HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
+            setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_LIGHT_DP * labelScale), 0f, 0f, Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
         }
 
         val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -163,7 +186,7 @@ object CloudCoverGraphRenderer {
         currentTime: LocalDateTime,
         bitmapScale: Float = 1f,
         smoothIterations: Int = 1,
-        hourLabelSpacingDp: Float = 28f,
+        hourLabelSpacingDp: Float = HourlyGraphDefaults.DEFAULT_HOUR_LABEL_SPACING_DP,
         // Total number of hours in the visible window and how many lack cloud cover data.
         // Used to render an in-graph "data missing" diagnostic when the upstream feed has
         // gaps, so the user sees the gap honestly instead of guessing whether the sky was
@@ -203,14 +226,14 @@ object CloudCoverGraphRenderer {
         val tallGraph = heightDp >= HourlyGraphDefaults.TALL_GRAPH_HEIGHT_DP
         val labelScale = bitmapScale.coerceAtMost(1f)
 
-        val topPadding = dpToPx(context, 34f * labelScale)
+        val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= HourlyGraphDefaults.MIN_ICON_GRAPH_WIDTH_PX
         val iconSize = dpToPx(context, HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
         val iconTopPad = dpToPx(context, 0f)
         val iconBottomPad = dpToPx(context, 0f)
-        val labelHeight = dpToPx(context, 20f * labelScale)
-        val bottomPadding = dpToPx(context, 3f * labelScale)
+        val labelHeight = dpToPx(context, HourlyGraphDefaults.BOTTOM_LABEL_HEIGHT_DP * labelScale)
+        val bottomPadding = dpToPx(context, GRAPH_BOTTOM_PADDING_DP * labelScale)
 
         val graphTop = topPadding
         val graphBottom =
@@ -227,8 +250,8 @@ object CloudCoverGraphRenderer {
         val paints = ensurePaints(context, tallGraph, labelScale)
         paints.gradientPaint.shader = LinearGradient(
             0f, graphTop, 0f, graphBottom,
-            Color.parseColor("#44AAAAAA"),
-            Color.parseColor("#00AAAAAA"),
+            Color.parseColor(COLOR_CLOUD_GRADIENT_START),
+            Color.parseColor(COLOR_CLOUD_GRADIENT_END),
             Shader.TileMode.CLAMP,
         )
 
@@ -321,25 +344,25 @@ object CloudCoverGraphRenderer {
         var jIdx = 0
         while (jIdx < labelSignal.size) {
             val prob = labelSignal[jIdx]
-            if (prob <= 0 || prob > 85) { // Dips are only relevant if not already fully overcast/clear
+            if (prob <= 0 || prob > SOFT_DIP_MAX_PERCENT) { // Dips are only relevant if not already fully overcast/clear
                 jIdx++
                 continue
             }
-            
+
             // Start of a potential plateau
             var runEnd = jIdx
             while (runEnd < labelSignal.lastIndex && labelSignal[runEnd + 1] == prob) {
                 runEnd++
             }
-            
-            val left = (jIdx - 5).coerceAtLeast(0)
-            val right = (runEnd + 5).coerceAtMost(labelSignal.lastIndex)
-            
+
+            val left = (jIdx - HourlyGraphDefaults.SOFT_DIP_WINDOW_SIZE).coerceAtLeast(0)
+            val right = (runEnd + HourlyGraphDefaults.SOFT_DIP_WINDOW_SIZE).coerceAtMost(labelSignal.lastIndex)
+
             if (left < jIdx && right > runEnd) {
                 val leftMax = (left until jIdx).maxOfOrNull { labelSignal[it] } ?: prob
                 val rightMax = ((runEnd + 1)..right).maxOfOrNull { labelSignal[it] } ?: prob
-                
-                if (leftMax >= prob + 15 && rightMax >= prob + 15) {
+
+                if (leftMax >= prob + SOFT_DIP_MIN_DIFF && rightMax >= prob + SOFT_DIP_MIN_DIFF) {
                     // This plateau is a "soft dip". Add the center.
                     softDipCandidates.add(jIdx + (runEnd - jIdx) / 2)
                 }
@@ -374,7 +397,7 @@ object CloudCoverGraphRenderer {
             valueFunction = { it },
             logTag = TAG,
             protectedIndices = protectedIndices,
-            nearbyWindow = 5,
+            nearbyWindow = HourlyGraphDefaults.LABEL_FILTER_NEARBY_WINDOW,
         )
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
             items = labelSignal,
@@ -404,11 +427,11 @@ object CloudCoverGraphRenderer {
             val isEndLabelCandidate = index == hours.lastIndex
             val isRisingAtEnd = isEndLabelCandidate &&
                 index > 0 &&
-                points[index].second < points[index - 1].second - 0.5f
+                points[index].second < points[index - 1].second - HourlyGraphDefaults.TRENDING_THRESHOLD_PX
             val isFallingFromLeftEdge =
                 index == 0 &&
                     points.size > 1 &&
-                    points[1].second > points[0].second + 0.5f
+                    points[1].second > points[0].second + HourlyGraphDefaults.TRENDING_THRESHOLD_PX
             val preferAbove = isPeak || isRisingAtEnd || isFallingFromLeftEdge
 
             val attempts = if (preferAbove) {
@@ -444,7 +467,7 @@ object CloudCoverGraphRenderer {
                     x + textWidth / 2f, verticalPlacement.bottom,
                 )
 
-                val safeBottom = graphBottom - dpToPx(context, 2f)
+                val safeBottom = graphBottom - dpToPx(context, HourlyGraphDefaults.LABEL_SAFE_BOTTOM_INSET_DP)
                 val lowCloudBelowOverflowPx = dpToPx(context, LOW_CLOUD_BELOW_OVERFLOW_DP)
                 val allowBottomOverflow =
                     shouldAllowBottomOverflow(
@@ -557,8 +580,8 @@ object CloudCoverGraphRenderer {
         val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
         if (cloudDrawable != null && points.size >= 3) {
             val iconSizePx = dpToPx(context, HourlyGraphDefaults.WATERMARK_ICON_SIZE_DP).toInt()
-            val windowSize = (points.size / 5).coerceIn(3, 6)
-            val iconGap = dpToPx(context, 2f)
+            val windowSize = (points.size / WATERMARK_WINDOW_DIVISOR).coerceIn(WATERMARK_WINDOW_MIN, WATERMARK_WINDOW_MAX)
+            val iconGap = dpToPx(context, WATERMARK_ICON_CURVE_GAP_DP)
             val candidateCenters =
                 (0..points.size - windowSize)
                     .map { start ->
@@ -577,7 +600,7 @@ object CloudCoverGraphRenderer {
             for (candidateCenter in candidateCenters) {
                 val curveX = points[candidateCenter].first
                 val curveY = points[candidateCenter].second
-                val verticalFractions = listOf(0.5f, 0.65f, 0.35f)
+                val verticalFractions = WATERMARK_VERT_FRACTIONS
 
                 for (fraction in verticalFractions) {
                     val centerY = graphTop + (curveY - graphTop) * fraction
@@ -593,7 +616,7 @@ object CloudCoverGraphRenderer {
                     val overlapsIcons = drawnIconBounds.any { RectF.intersects(it, bounds) }
                     if (!fitsAboveCurve || overlapsLabels || overlapsIcons) continue
 
-                    cloudDrawable.alpha = 96
+                    cloudDrawable.alpha = HourlyGraphDefaults.WATERMARK_ALPHA
                     cloudDrawable.setBounds(
                         bounds.left.toInt(),
                         bounds.top.toInt(),
@@ -648,17 +671,17 @@ object CloudCoverGraphRenderer {
         labelScale: Float,
     ) {
         val mainText = buildMissingDiagnosticText(missingHours, totalHours, missingDescription)
-        val effectiveScale = labelScale.coerceAtLeast(0.85f)
+        val effectiveScale = labelScale.coerceAtLeast(MISSING_DIAG_MIN_LABEL_SCALE)
         val mainPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#DDC8CFD8")
-            textSize = dpToPx(context, 9f * effectiveScale)
+            color = Color.parseColor(COLOR_MISSING_DIAG_TEXT)
+            textSize = dpToPx(context, MISSING_DIAG_TEXT_SIZE_DP * effectiveScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             setShadowLayer(
-                dpToPx(context, 3f),
+                dpToPx(context, MISSING_DIAG_SHADOW_RADIUS_DP),
                 0f,
-                dpToPx(context, 1f),
-                Color.parseColor("#CC000000"),
+                dpToPx(context, MISSING_DIAG_SHADOW_DY_DP),
+                Color.parseColor(COLOR_MISSING_DIAG_SHADOW),
             )
         }
         val mainY = heightPx / 2f + mainPaint.textSize / 2f
@@ -666,18 +689,18 @@ object CloudCoverGraphRenderer {
 
         if (!missingReason.isNullOrBlank()) {
             val reasonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#AAB0B6BE")
-                textSize = dpToPx(context, 7.5f * effectiveScale)
+                color = Color.parseColor(COLOR_MISSING_DIAG_REASON_TEXT)
+                textSize = dpToPx(context, MISSING_DIAG_REASON_TEXT_SIZE_DP * effectiveScale)
                 textAlign = Paint.Align.CENTER
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
                 setShadowLayer(
-                    dpToPx(context, 3f),
+                    dpToPx(context, MISSING_DIAG_SHADOW_RADIUS_DP),
                     0f,
-                    dpToPx(context, 1f),
-                    Color.parseColor("#CC000000"),
+                    dpToPx(context, MISSING_DIAG_SHADOW_DY_DP),
+                    Color.parseColor(COLOR_MISSING_DIAG_SHADOW),
                 )
             }
-            val reasonY = mainY + mainPaint.textSize * 1.15f
+            val reasonY = mainY + mainPaint.textSize * MISSING_DIAG_LINE_SPACING
             canvas.drawText("($missingReason)", widthPx / 2f, reasonY, reasonPaint)
         }
     }
