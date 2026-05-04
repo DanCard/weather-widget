@@ -269,10 +269,10 @@ object TemperatureGraphRenderer {
                     drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
                     if (!hour.isRainy && !hour.isMixed) {
                         drawable.setTint(when {
-                            hour.isNight -> Color.parseColor("#BBBBBB")
-                            hour.isTwilight -> Color.parseColor("#FFA726")
-                            hour.isSunny -> Color.parseColor("#FFD60A")
-                            else -> Color.parseColor("#BBBBBB")
+                            hour.isNight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_NIGHT)
+                            hour.isTwilight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_TWILIGHT)
+                            hour.isSunny -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_SUNNY)
+                            else -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_DEFAULT)
                         })
                     }
                     drawable.draw(ctx.canvas)

@@ -17,10 +17,8 @@ import kotlin.math.roundToInt
 object CloudCoverGraphRenderer {
 
     private const val TAG = "CloudCoverGraph"
-    private const val MIN_ICON_GRAPH_WIDTH_PX = 420
-    // Not sure yet whether 5 or 6 labels is the better cap here; start with 5 for now.
-    private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = 5
-    private val DENSE_LABEL_DIFF_THRESHOLDS = listOf(5, 10, 15)
+    private const val MAX_CLOUD_PERCENT_LABEL_CANDIDATES = HourlyGraphDefaults.MAX_LABEL_CANDIDATES
+    private val DENSE_LABEL_DIFF_THRESHOLDS = HourlyGraphDefaults.DENSE_LABEL_DIFF_THRESHOLDS
     private const val NEARBY_LABEL_WINDOW = 3
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
     private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
@@ -86,7 +84,7 @@ object CloudCoverGraphRenderer {
             return current
         }
 
-        val curveStrokeDp = if (tallGraph) 2.5f else 3f
+        val curveStrokeDp = if (tallGraph) HourlyGraphDefaults.CURVE_STROKE_TALL_DP else HourlyGraphDefaults.CURVE_STROKE_SHORT_DP
         val curvePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#AAAAAA")
             strokeWidth = dpToPx(context, curveStrokeDp * labelScale)
@@ -100,44 +98,44 @@ object CloudCoverGraphRenderer {
         }
 
         val currentTimePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FF9F0A")
-            strokeWidth = dpToPx(context, 1.0f * labelScale)
+            color = Color.parseColor(HourlyGraphDefaults.COLOR_CURRENT_TIME)
+            strokeWidth = dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_STROKE_DP * labelScale)
             style = Paint.Style.STROKE
-            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, 4f * labelScale), dpToPx(context, 3f * labelScale)), 0f)
+            pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP * labelScale), dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP * labelScale)), 0f)
         }
 
         val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#99FFFFFF")
-            textSize = dpToPx(context, 23.0f * labelScale)
+            color = Color.parseColor(HourlyGraphDefaults.COLOR_HOUR_LABEL)
+            textSize = dpToPx(context, HourlyGraphDefaults.HOUR_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
-            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#44000000"))
+            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
         }
 
         val percentLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#FFFFFF")
-            textSize = dpToPx(context, 23.0f * labelScale)
+            color = Color.parseColor(HourlyGraphDefaults.COLOR_PERCENT_LABEL)
+            textSize = dpToPx(context, HourlyGraphDefaults.PERCENT_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor("#88000000"))
+            setShadowLayer(dpToPx(context, 2f * labelScale), 0f, dpToPx(context, 0.5f * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
         }
 
         val nowLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#BBFF9F0A")
-            textSize = dpToPx(context, 15.5f * labelScale)
+            color = Color.parseColor(HourlyGraphDefaults.COLOR_NOW_LABEL)
+            textSize = dpToPx(context, HourlyGraphDefaults.NOW_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor("#44000000"))
+            setShadowLayer(dpToPx(context, 1f * labelScale), 0f, 0f, Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_LIGHT))
         }
 
         val dayLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#88FFFFFF")
-            textSize = dpToPx(context, 23.0f * labelScale)
+            color = Color.parseColor(HourlyGraphDefaults.COLOR_DAY_LABEL)
+            textSize = dpToPx(context, HourlyGraphDefaults.DAY_LABEL_TEXT_SIZE_DP * labelScale)
             textAlign = Paint.Align.CENTER
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
 
         val todayDayLabelPaint = Paint(dayLabelTextPaint).apply {
-            color = Color.parseColor("#BBFF9F0A")
+            color = Color.parseColor(HourlyGraphDefaults.COLOR_TODAY_LABEL)
         }
 
         val paints = PaintSet(
@@ -202,13 +200,13 @@ object CloudCoverGraphRenderer {
 
         val density = context.resources.displayMetrics.density
         val heightDp = heightPx / density
-        val tallGraph = heightDp >= 160
+        val tallGraph = heightDp >= HourlyGraphDefaults.TALL_GRAPH_HEIGHT_DP
         val labelScale = bitmapScale.coerceAtMost(1f)
 
         val topPadding = dpToPx(context, 34f * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
-        val showHourlyIcons = hasHourlyIcons && widthPx >= MIN_ICON_GRAPH_WIDTH_PX
-        val iconSize = dpToPx(context, 22.4f).toInt()
+        val showHourlyIcons = hasHourlyIcons && widthPx >= HourlyGraphDefaults.MIN_ICON_GRAPH_WIDTH_PX
+        val iconSize = dpToPx(context, HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
         val iconTopPad = dpToPx(context, 0f)
         val iconBottomPad = dpToPx(context, 0f)
         val labelHeight = dpToPx(context, 20f * labelScale)
@@ -292,10 +290,10 @@ object CloudCoverGraphRenderer {
 
             if (!hour.isRainy && !hour.isMixed) {
                 val iconTint = when {
-                    hour.isNight -> Color.parseColor("#BBBBBB")
-                    hour.isTwilight -> Color.parseColor("#FFA726")
-                    hour.isSunny -> Color.parseColor("#FFD60A")
-                    else -> Color.parseColor("#BBBBBB")
+                    hour.isNight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_NIGHT)
+                    hour.isTwilight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_TWILIGHT)
+                    hour.isSunny -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_SUNNY)
+                    else -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_DEFAULT)
                 }
                 drawable.setTint(iconTint)
             }
@@ -558,7 +556,7 @@ object CloudCoverGraphRenderer {
         // --- Cloud icon in emptiest region ---
         val cloudDrawable = androidx.core.content.ContextCompat.getDrawable(context, R.drawable.ic_weather_mostly_cloudy)
         if (cloudDrawable != null && points.size >= 3) {
-            val iconSizePx = dpToPx(context, 24f).toInt()
+            val iconSizePx = dpToPx(context, HourlyGraphDefaults.WATERMARK_ICON_SIZE_DP).toInt()
             val windowSize = (points.size / 5).coerceIn(3, 6)
             val iconGap = dpToPx(context, 2f)
             val candidateCenters =

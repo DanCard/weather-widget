@@ -1,38 +1,35 @@
-# Plan - Shrink and Reposition the "Today" Temperature Bulb
+# Plan - Shrink Header Touch Zones to Prevent Home Button Blockage
 
-The "Today" column in the daily forecast view uses a "triple bar" with a circular "bulb" at the bottom of the center bar. Even with a 1dp minimum bar height, the bulb's diameter (~5dp) makes the entire assembly look disproportionately tall when the temperature range is narrow. This occurs because the bulb is centered on the bottom of the temperature-driven "stem," causing it to overlap and obscure a significant portion of the stem.
+The home button in the hourly temperature graph header has stopped working on some widget sizes because the "near-miss" touch zones for the temperature and API source are too large (96dp height, up to 112dp width), causing them to overlap and intercept taps intended for the center icons (Home, History, Stations).
 
-## Objective
-Make the "Today" temperature indicator more compact and responsive to narrow temperature ranges by:
-1.  **Reducing the Bulb Size**: Shrinking the bulb's radius.
-2.  **Adjusting Vertical Alignment**: Shifting the bulb down so it doesn't overlap the stem as much.
+## Proposed Changes
 
-## Key Files & Context
-- `app/src/main/java/com/weatherwidget/widget/DailyForecastGraphRenderer.kt`: Contains the rendering logic for the triple-bar Today column.
+### 1. Layout Adjustments
+Modify `app/src/main/res/layout/widget_weather.xml` to shrink the header touch zones:
 
-## Implementation Steps
+- **Reduce Height**: Change height from `96dp` to `48dp` for all header touch zones:
+    - `current_temp_zone`
+    - `precip_touch_zone`
+    - `home_touch_zone`
+    - `history_touch_zone`
+    - `weather_stations_touch_zone`
+    - `api_touch_zone`
+    - `settings_touch_zone`
+- **Reduce Width**:
+    - `current_temp_zone`: Reduce from `96dp` to `84dp`.
+    - `api_touch_zone`: Reduce from `112dp` to `80dp`.
+- **Align Margins**: Ensure margins don't push zones into the center area.
 
-### 1. Reduce Bulb Radius Multiplier
-Update the `bulbRadius` calculation to use a smaller multiplier.
+## Verification Plan
 
-- **File:** `app/src/main/java/com/weatherwidget/widget/DailyForecastGraphRenderer.kt`
-- **Change:** Update line 164 from `val bulbRadius = tripleBarWidth * 1.8f` to `val bulbRadius = tripleBarWidth * 1.2f`.
-
-### 2. Reposition the Bulb (Vertical Shift)
-Adjust the `drawCircle` calls to shift the center of the bulb down by half its radius. This makes the bulb appear "attached" to the end of the stem rather than centered *over* it.
-
-- **File:** `app/src/main/java/com/weatherwidget/widget/DailyForecastGraphRenderer.kt`
-- **Changes:** Update all three `canvas.drawCircle` calls to use `effectiveLowY + (bulbRadius * 0.5f)` or the appropriate `lowY` variable:
-    - Line 346: `canvas.drawCircle(centerX, effectiveLowY + (bulbRadius * 0.5f), bulbRadius, todayTripleYellowBulbPaint)`
-    - Line 384: `canvas.drawCircle(centerX, (highY!! + minBarHeight) + (bulbRadius * 0.5f), bulbRadius, todayTripleYellowBulbPaint)`
-    - Line 417: `canvas.drawCircle(centerX, lowY!! + (bulbRadius * 0.5f), bulbRadius, todayTripleYellowBulbPaint)`
-
-## Verification & Testing
+### Automated Tests
+- No existing automated tests cover touch zone overlap in XML, but I will check if there are any related unit tests in `TemperatureTouchTargetsTest.kt` or similar.
 
 ### Manual Verification
-1.  **Visual Check**: Verify that the Today bulb appears smaller and is positioned at the bottom of the center bar.
-2.  **Narrow Range**: Check a day with a 1° or 0° temperature range. The total height of the stem and bulb should be noticeably shorter than before.
-3.  **Triple Line Alignment**: Ensure the snapshot (left) and forecast (right) lines of the triple-bar still align correctly with the stem of the center bar.
-
-### Regression Testing
-1.  **Rendering Quality**: Verify that the bulb still looks like a clean, filled circle and that it remains centered horizontally on the stem.
+1. **Visual Audit**: Check the layout in the Android Studio preview (if possible) or by running on the emulator.
+2. **Emulator Test**:
+    - Create a narrow widget (e.g., 2 or 3 columns).
+    - Switch to Hourly Temperature view.
+    - Verify that tapping the Home icon correctly switches back to the Daily view.
+    - Verify that tapping the API source still toggles the API.
+    - Verify that tapping the temperature still toggles the view mode.
