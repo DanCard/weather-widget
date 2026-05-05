@@ -175,6 +175,7 @@ object PrecipitationGraphRenderer {
         rainAmountWindowHours: Int = 0,
         showHourlyIcons: Boolean,
         textMeasurer: TextMeasurer,
+        onDebugLog: ((String) -> Unit)? = null,
     ): PrecipGraphLayout {
         val labelScale = bitmapScale.coerceAtMost(1f)
         val topPadding = textMeasurer.dpToPx(GRAPH_TOP_PADDING_DP * labelScale)
@@ -302,6 +303,12 @@ object PrecipitationGraphRenderer {
             logTag = TAG,
             protectedIndices = protectedIndices,
             nearbyWindow = HourlyGraphDefaults.LABEL_FILTER_NEARBY_WINDOW,
+            immovableIndices = buildSet {
+                if (hours.isNotEmpty()) {
+                    add(0)
+                    add(hours.lastIndex)
+                }
+            },
         )
 
         val suppressLeftEdgeLabel = GraphLabelPlacementUtils.shouldSuppressLeftEdgeLabel(
@@ -312,10 +319,26 @@ object PrecipitationGraphRenderer {
             valueFunction = { v -> v },
         )
 
-        val finalCandidates = if (filteredCandidates.size == 2 && filteredCandidates == listOf(0, hours.lastIndex)) {
-            val midIndex = hours.lastIndex / 2
-            if (midIndex != 0 && midIndex != hours.lastIndex && labelSignal[midIndex] > 0) (filteredCandidates + midIndex).sorted() else filteredCandidates
-        } else filteredCandidates
+        val finalCandidates =
+            if (filteredCandidates.size == 2 && filteredCandidates == listOf(0, hours.lastIndex)) {
+                val midIndex = hours.lastIndex / 2
+                val midValue = labelSignal.getOrNull(midIndex) ?: 0
+                val leftValue = labelSignal.firstOrNull()
+                val rightValue = labelSignal.lastOrNull()
+                if (
+                    midIndex != 0 &&
+                    midIndex != hours.lastIndex &&
+                    midValue > 0 &&
+                    midValue != leftValue &&
+                    midValue != rightValue
+                ) {
+                    (filteredCandidates + midIndex).sorted()
+                } else {
+                    filteredCandidates
+                }
+            } else {
+                filteredCandidates
+            }
 
         // Pre-calculate icon bounds for collision detection
         val drawnIconBounds = mutableListOf<PrecipRect>()
@@ -350,7 +373,8 @@ object PrecipitationGraphRenderer {
             drawnIconBounds = drawnIconBounds,
             measureText = textMeasurer.measureProbabilityText,
             getTextBounds = textMeasurer.getProbabilityTextBounds,
-            dpToPx = textMeasurer.dpToPx
+            dpToPx = textMeasurer.dpToPx,
+            onDebugLog = onDebugLog,
         )
 
         val rainPeriods = if (rainAmountWindowHours > 0) {
@@ -607,7 +631,8 @@ object PrecipitationGraphRenderer {
         drawnIconBounds: List<PrecipRect>,
         measureText: (String) -> Float,
         getTextBounds: (String) -> Pair<Float, Float>, // Returns Pair(ascent, descent)
-        dpToPx: (Float) -> Float
+        dpToPx: (Float) -> Float,
+        onDebugLog: ((String) -> Unit)? = null,
     ): List<ProbabilityLabelPlacement> {
         val placements = mutableListOf<ProbabilityLabelPlacement>()
         val drawnLabelBounds = mutableListOf<PrecipRect>()
@@ -673,8 +698,23 @@ object PrecipitationGraphRenderer {
                 if (exceedsTop || actualExceedsBottom) continue
                 
                 val overlapsLabel = drawnLabelBounds.any { it.intersects(bounds) }
-                val overlapsIcon = drawnIconBounds.any { it.intersects(bounds) }
-                val hasCollision = (overlapsLabel) || (overlapsIcon && !isLowPreferredBelow)
+                val iconClearancePx = 0f
+                val overlapsIcon =
+                    drawnIconBounds.any {
+                        val expandedIconBounds =
+                            if (iconClearancePx > 0f) {
+                                PrecipRect(
+                                    it.left - iconClearancePx,
+                                    it.top - iconClearancePx,
+                                    it.right + iconClearancePx,
+                                    it.bottom + iconClearancePx,
+                                )
+                            } else {
+                                it
+                            }
+                        expandedIconBounds.intersects(bounds)
+                    }
+                val hasCollision = overlapsLabel || overlapsIcon
 
                 if (hasCollision) continue
 
@@ -711,6 +751,11 @@ object PrecipitationGraphRenderer {
                     dipBelowRuleApplied = dipBelowRuleApplied
                 )
                 
+                val logMsg = "PLACED prob label: \"$labelText\" at x=$x baselineY=$baselineY " +
+                    "above=$placeAbove reason=$reason gapPx=$gapPx prob=$prob index=$index"
+                Log.d(TAG, logMsg)
+                onDebugLog?.invoke(logMsg)
+
                 placements.add(ProbabilityLabelPlacement(index, labelText, x, baselineY, bounds, debug))
                 drawnLabelBounds.add(bounds)
                 break
@@ -875,6 +920,7 @@ object PrecipitationGraphRenderer {
             rainAmountWindowHours = rainAmountWindowHours,
             showHourlyIcons = showHourlyIcons,
             textMeasurer = textMeasurer,
+            onDebugLog = onDebugLog,
         )
 
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)

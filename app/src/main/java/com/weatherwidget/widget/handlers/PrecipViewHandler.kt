@@ -252,6 +252,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
             val rainAmountWindowHours = hours.size
             val renderStartMs = SystemClock.elapsedRealtime()
+            val renderLogs = mutableListOf<String>()
             val bitmap = PrecipitationGraphRenderer.renderGraph(
                 context = context,
                 hours = hours,
@@ -263,7 +264,9 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 rainAmountWindowHours = rainAmountWindowHours,
                 job = coroutineContext[Job],
+                onDebugLog = { renderLogs.add(it) }
             )
+            renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)
 

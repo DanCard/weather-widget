@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
@@ -99,6 +100,188 @@ class PrecipitationGraphRendererTest {
 
         val intermediateZeroLabels = placedLabels.filter { it.probability == 0 && it.index != 0 && it.index != 10 }
         assertTrue("Intermediate zero baseline should NOT be labeled. Placed: $placedLabels", intermediateZeroLabels.isEmpty())
+    }
+
+    @Test
+    fun `renderGraph preserves right edge label through dense candidate filtering`() {
+        val start = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val signal = listOf(6, 3, 3, 1, 3)
+
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 700,
+            heightPx = 320,
+            currentTime = start,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        assertNotNull(
+            "Expected final right-edge precipitation label to survive filtering. Placed=${layout.probabilityPlacements.map { it.debug }}",
+            layout.probabilityPlacements.find { it.debug.index == signal.lastIndex },
+        )
+    }
+
+    @Test
+    fun `renderGraph adds midpoint label when only edge anchors survive`() {
+        val start = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val signal = listOf(60, 55, 50, 45, 40, 35, 30)
+
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 900,
+            heightPx = 360,
+            currentTime = start,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        assertEquals(
+            "Expected edge anchors plus one midpoint label when only edge candidates remain",
+            listOf(0, 3, signal.lastIndex),
+            layout.probabilityPlacements.map { it.debug.index },
+        )
+    }
+
+    @Test
+    fun `renderGraph skips midpoint backfill when center value matches edge label`() {
+        val start = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val signal = listOf(50, 50, 50, 50, 50, 50, 50)
+
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 900,
+            heightPx = 360,
+            currentTime = start,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        assertEquals(
+            "Expected no midpoint backfill when the center value duplicates an edge value",
+            listOf(0, signal.lastIndex),
+            layout.probabilityPlacements.map { it.debug.index },
+        )
+    }
+
+    @Test
+    fun `renderGraph rising end label prefers above`() {
+        val start = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val signal = listOf(60, 58, 40, 25, 15, 20, 28, 32)
+
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 900,
+            heightPx = 420,
+            currentTime = start,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        val endLabel = layout.probabilityPlacements.find { it.debug.index == signal.lastIndex }
+        assertNotNull("Expected final rising endpoint label to be drawn", endLabel)
+        assertTrue("Expected rising end label to prefer above", endLabel!!.debug.placedAbove)
+    }
+
+    @Test
+    fun `renderGraph falling end label prefers below`() {
+        val start = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val signal = listOf(20, 28, 35, 42, 40, 37, 34, 32)
+
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 900,
+            heightPx = 420,
+            currentTime = start,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        val endLabel = layout.probabilityPlacements.find { it.debug.index == signal.lastIndex }
+        assertNotNull("Expected final falling endpoint label to be drawn", endLabel)
+        assertFalse("Expected falling end label to prefer below", endLabel!!.debug.placedAbove)
+    }
+
+    @Test
+    fun `renderGraph low right edge label avoids weather icon by falling back above`() {
+        val start = LocalDateTime.of(2026, 5, 5, 12, 0)
+        val signal = listOf(22, 18, 12, 6, 3, 1)
+
+        val hours = signal.mapIndexed { i, prob ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = prob,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                iconRes = com.weatherwidget.R.drawable.ic_weather_partly_cloudy,
+                isSunny = true,
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 584,
+            heightPx = 385,
+            currentTime = start,
+            showHourlyIcons = true,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        val endLabel = layout.probabilityPlacements.find { it.debug.index == signal.lastIndex }
+        assertNotNull("Expected final low endpoint label to be drawn", endLabel)
+        assertTrue(
+            "Expected low right-edge label to avoid the icon by drawing above the curve. Placement=${endLabel!!.debug}",
+            endLabel.debug.placedAbove,
+        )
+        assertTrue(
+            "Expected low right-edge label to clear the icon band by a visible margin. bounds=${endLabel.bounds} graphBottom=${layout.graphBottom}",
+            endLabel.bounds.bottom < layout.graphBottom - 4f,
+        )
     }
 
     // --- Rain amount annotation tests ---
