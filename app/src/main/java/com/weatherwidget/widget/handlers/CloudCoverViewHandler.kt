@@ -319,6 +319,7 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 missingHours = missingHours,
                 totalHours = totalWindowHours,
+                numColumns = numColumns,
                 missingDescription = missingDescription,
                 missingReason = missingReason,
                 job = coroutineContext[Job],

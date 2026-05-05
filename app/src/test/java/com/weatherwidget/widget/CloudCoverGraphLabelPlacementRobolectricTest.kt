@@ -54,6 +54,69 @@ class CloudCoverGraphLabelPlacementRobolectricTest {
         )
     }
 
+    @Test
+    fun `wide widget injects middle label for monotone data`() {
+        val start = LocalDateTime.of(2026, 5, 5, 9, 0)
+        // 12 hours of 100% cloud cover (monotone)
+        val hours = (0 until 12).map { index ->
+            val dateTime = start.plusHours(index.toLong())
+            CloudCoverGraphRenderer.CloudHourData(
+                dateTime = dateTime,
+                cloudCover = 100,
+                label = "${index + 9}a",
+                showLabel = true,
+                isCurrentHour = index == 0,
+            )
+        }
+        val placements = mutableListOf<CloudCoverGraphRenderer.LabelPlacementDebug>()
+
+        // Wide widget (5 columns)
+        CloudCoverGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 800,
+            heightPx = 300,
+            currentTime = start,
+            numColumns = 5,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        // For monotone 100% data, it would normally only label start (0) and end (11).
+        // With numColumns=5, it should inject midpoint (5).
+        val indices = placements.map { it.index }.sorted()
+        assertEquals("Expected 3 labels for 5-column wide widget with monotone data", listOf(0, 5, 11), indices)
+    }
+
+    @Test
+    fun `narrow widget does not inject middle label for monotone data`() {
+        val start = LocalDateTime.of(2026, 5, 5, 9, 0)
+        val hours = (0 until 12).map { index ->
+            val dateTime = start.plusHours(index.toLong())
+            CloudCoverGraphRenderer.CloudHourData(
+                dateTime = dateTime,
+                cloudCover = 100,
+                label = "${index + 9}a",
+                showLabel = true,
+                isCurrentHour = index == 0,
+            )
+        }
+        val placements = mutableListOf<CloudCoverGraphRenderer.LabelPlacementDebug>()
+
+        // Narrow widget (4 columns)
+        CloudCoverGraphRenderer.renderGraph(
+            context = context,
+            hours = hours,
+            widthPx = 400,
+            heightPx = 300,
+            currentTime = start,
+            numColumns = 4,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val indices = placements.map { it.index }.sorted()
+        assertEquals("Expected only edge labels for 4-column widget with monotone data", listOf(0, 11), indices)
+    }
+
     private fun formatHour(hour24: Int): String {
         val h = when {
             hour24 == 0 -> 12

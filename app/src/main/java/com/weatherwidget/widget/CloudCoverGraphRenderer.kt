@@ -202,6 +202,9 @@ object CloudCoverGraphRenderer {
         // clear or the fetch failed. When totalHours is 0 these are ignored.
         missingHours: Int = 0,
         totalHours: Int = 0,
+        // Number of grid columns available in the widget. Used to inject a middle
+        // label on wide widgets when only edges are labeled.
+        numColumns: Int = 0,
         // Compact human description of which hours are missing, e.g., "7a–8p" or
         // "9a, 11p". Optional: when null, the diagnostic falls back to the count.
         missingDescription: String? = null,
@@ -435,7 +438,19 @@ object CloudCoverGraphRenderer {
             valueFunction = { it },
         )
 
-        for (index in filteredCandidates) {
+        val finalCandidates =
+            if (numColumns >= 5 && filteredCandidates.size == 2 && filteredCandidates.containsAll(listOf(0, hours.lastIndex))) {
+                val midIndex = hours.lastIndex / 2
+                if (midIndex != 0 && midIndex != hours.lastIndex) {
+                    (filteredCandidates + midIndex).sorted()
+                } else {
+                    filteredCandidates
+                }
+            } else {
+                filteredCandidates
+            }
+
+        for (index in finalCandidates) {
             if (index !in labelSignal.indices) continue
             if (index == 0 && suppressLeftEdgeLabel) {
                 Log.d(TAG, "labelSkipped: idx=0 reason=nearby_lower_valley")
