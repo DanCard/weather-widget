@@ -280,9 +280,18 @@ internal object DailyForecastRainLabelRenderer {
     ): Paint {
         val probFraction = (probability ?: 0).toFloat() / 100f
         val probScale = HeaderPrecipCalculator.getPrecipScaleFactor(probability ?: 0)
-        val distanceScale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - probFraction) * (day.daysFromToday / RAIN_FONT_SCALE_MAX_DAYS)
+        // Flatten the time scale: treat Today (0) as if it were 1.5 days out
+        // so it isn't disproportionately large compared to the rest of the week.
+        val effectiveDays = day.daysFromToday.toFloat().coerceAtLeast(1.5f)
+        val distanceScale = 1.0f - RAIN_FONT_SCALE_K * (1.0f - probFraction) * (effectiveDays / RAIN_FONT_SCALE_MAX_DAYS)
         val nightScale = if (labelType == RainLabelType.NIGHT) NIGHT_SCALE else 1.0f
+        // Calculate the final scaling factor combining precipitation probability and
+        // the distance-from-now time scale. This ensures more certain or more
+        // immediate events are larger and more legible.
         val combinedScale = probScale * distanceScale
+        // Determine final pixel text size by applying the combined scale factor,
+        // any manual adjustment (extraScale), and the specific multiplier for
+        // nighttime labels.
         val finalTextSize = paints.rainTextPaint.textSize * combinedScale * extraScale * nightScale
 
         return Paint(paints.rainTextPaint).apply {
