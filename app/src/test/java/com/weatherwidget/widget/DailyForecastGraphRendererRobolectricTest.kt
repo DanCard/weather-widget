@@ -47,6 +47,7 @@ class DailyForecastGraphRendererRobolectricTest {
     fun `mixed chance rain day draws blue lower segment`() {
         val paintColors = capturePrimaryBarPaintColors(
             iconRes = R.drawable.ic_weather_partly_cloudy_chance_rain,
+            isMixed = true,
             cloudCoverRatioOverride = 0.66f,
         )
 
@@ -56,8 +57,34 @@ class DailyForecastGraphRendererRobolectricTest {
         )
     }
 
+    @Test
+    fun `clear icon with cloud override draws grey lower segment`() {
+        val paintColors = capturePrimaryBarPaintColors(
+            iconRes = R.drawable.ic_weather_clear,
+            isMixed = false,
+            cloudCoverRatioOverride = 0.29f,
+        )
+
+        assertEquals(
+            listOf(WeatherConditionColors.FORECAST_CLOUDY, WeatherConditionColors.FORECAST_SUNNY),
+            paintColors,
+        )
+    }
+
+    @Test
+    fun `clear icon with zero cloud override draws solid sunny bar`() {
+        val paintColors = capturePrimaryBarPaintColors(
+            iconRes = R.drawable.ic_weather_clear,
+            isMixed = false,
+            cloudCoverRatioOverride = 0f,
+        )
+
+        assertEquals(listOf(WeatherConditionColors.FORECAST_SUNNY), paintColors)
+    }
+
     private fun capturePrimaryBarPaintColors(
         iconRes: Int,
+        isMixed: Boolean = true,
         cloudCoverRatioOverride: Float,
     ): List<Int> {
         val context = mockContext()
@@ -79,7 +106,7 @@ class DailyForecastGraphRendererRobolectricTest {
                         low = 46f,
                         iconRes = iconRes,
                         isSunny = true,
-                        isMixed = true,
+                        isMixed = isMixed,
                         cloudCoverRatioOverride = cloudCoverRatioOverride,
                     ),
                 ),

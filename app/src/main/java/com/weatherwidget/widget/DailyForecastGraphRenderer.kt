@@ -497,7 +497,7 @@ object DailyForecastGraphRenderer {
         logPrefix: String,
         allowAdaptiveSegments: Boolean = true,
     ) {
-        if (!allowAdaptiveSegments || !day.isMixed || day.iconRes == null) {
+        if (!allowAdaptiveSegments || !shouldUseAdaptiveSegments(day) || day.iconRes == null) {
             canvas.drawLine(centerX, topY, centerX, bottomY, paint)
             return
         }
@@ -534,6 +534,10 @@ object DailyForecastGraphRenderer {
                 " splitRatio=${split.ratio} topFraction=${split.topFraction} topEndY=$topSegmentEndY" +
                 " topColor=${String.format("#%08X", split.topColor)} bottomColor=${String.format("#%08X", split.bottomColor)}"
         }
+    }
+
+    private fun shouldUseAdaptiveSegments(day: DayData): Boolean {
+        return day.isMixed || (day.cloudCoverRatioOverride ?: 0f) > 0f
     }
 
     private fun drawDayColumn(
@@ -633,7 +637,7 @@ object DailyForecastGraphRenderer {
                     else -> paints.barForColor(condColor)
                 }
 
-                val usesAdaptiveSegments = !day.isPast && day.isMixed && day.iconRes != null
+                val usesAdaptiveSegments = !day.isPast && day.iconRes != null && shouldUseAdaptiveSegments(day)
                 debug {
                     "Bar color decision: date=${day.date}" +
                         " isPast=${day.isPast} isSunny=${day.isSunny} isRainy=${day.isRainy}" +
@@ -666,7 +670,7 @@ object DailyForecastGraphRenderer {
             } else {
                 paints.forecastForColor(condColor)
             }
-            val overlayGradient = day.isMixed && day.iconRes != null
+            val overlayGradient = day.iconRes != null && shouldUseAdaptiveSegments(day)
             debug {
                 "Overlay color decision: date=${day.date}" +
                     " isSunny=${day.isSunny} isRainy=${day.isRainy}" +
