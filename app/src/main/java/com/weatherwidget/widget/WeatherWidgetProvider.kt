@@ -169,8 +169,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 } else {
                     // We have some data, refresh all widgets from cache immediately
                     // Use a tighter window for startup snapshots to improve latency (13 columns displayed)
-                    val historyStart = LocalDate.now().minusDays(10).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    val thirtyDays = LocalDate.now().plusDays(15).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val historyStart = LocalDate.now().minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val thirtyDays = LocalDate.now().plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
                     coroutineScope {
                         // Run queries in parallel to minimize startup latency

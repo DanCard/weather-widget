@@ -79,6 +79,17 @@ class CloudCoverViewModeRoboTest {
     }
 
     @Test
+    fun handleSetView_temperatureToCloudCoverWithExplicitOffset_appliesOffset() = runBlocking {
+        stateManager.setViewMode(testWidgetId, ViewMode.TEMPERATURE)
+        stateManager.setHourlyOffset(testWidgetId, 21)
+
+        try { WidgetIntentRouter.handleSetView(context, testWidgetId, ViewMode.CLOUD_COVER, targetOffset = 17) } catch (_: Exception) {}
+
+        assertEquals(ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
+        assertEquals(17, stateManager.getHourlyOffset(testWidgetId))
+    }
+
+    @Test
     fun handleSetView_daily_resetsZoomToWide() = runBlocking {
         stateManager.setViewMode(testWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setZoomLevel(testWidgetId, ZoomLevel.NARROW)

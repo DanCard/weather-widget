@@ -199,8 +199,8 @@ class WeatherWidgetWorker
             lon: Double,
         ): Map<LocalDate, List<ForecastEntity>> {
             return try {
-                val startDate = LocalDate.now().minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                val endDate = LocalDate.now().plusDays(14).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val startDate = LocalDate.now().minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val endDate = LocalDate.now().plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
                 val snapshots = weatherRepository.getAllForecastsInRange(startDate, endDate, lat, lon)
                 snapshots.groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
             } catch (e: Exception) {

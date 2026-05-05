@@ -402,6 +402,11 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        Log.d(
+            TAG,
+            "buildCloudHourDataList: centerTime=$centerTime alignedCenter=$alignedCenter " +
+                "startHour=$startHour endHour=$endHour zoom=$zoom source=$displaySource",
+        )
 
         val labelInterval = zoom.labelInterval
         var currentHour = startHour

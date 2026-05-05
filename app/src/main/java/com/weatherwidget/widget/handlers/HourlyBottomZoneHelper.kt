@@ -23,6 +23,10 @@ private const val TAG = "HourlyBottomZone"
  * - Otherwise → navigate to the icon's home graph
  */
 object HourlyBottomZoneHelper {
+    internal data class ZoneAction(
+        val targetView: ViewMode?,
+        val zoneCenterOffset: Int,
+    )
 
     private val BOTTOM_HOUR_ZONE_IDS = listOf(
         R.id.graph_bottom_hour_zone_0, R.id.graph_bottom_hour_zone_1, R.id.graph_bottom_hour_zone_2,
@@ -110,6 +114,19 @@ object HourlyBottomZoneHelper {
         return null
     }
 
+    internal fun resolveZoneAction(
+        iconRes: Int?,
+        currentViewMode: ViewMode,
+        zoneIndex: Int,
+        hourlyOffset: Int,
+        zoom: ZoomLevel,
+    ): ZoneAction {
+        return ZoneAction(
+            targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode),
+            zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, hourlyOffset, zoom),
+        )
+    }
+
     /**
      * Sets up per-hour bottom zones with icon-dependent routing.
      *
@@ -135,20 +152,28 @@ object HourlyBottomZoneHelper {
         // clickable hour-icon band is overlaid inside the graph body.
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
+        Log.d(
+            TAG,
+            "setup: widget=$appWidgetId currentView=$currentViewMode zoom=$zoom hourlyOffset=$hourlyOffset " +
+                "showBodyOverlayZones=$showBodyOverlayZones footerZones=true icons=${hourIconResources.size}",
+        )
 
         BOTTOM_HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
             val iconRes = resolveZoneIcon(hourIconResources, i, BOTTOM_HOUR_ZONE_IDS.size)
             val iconName = iconRes?.let { runCatching { context.resources.getResourceEntryName(it) }.getOrNull() } ?: "null"
-            val targetView = DayClickHelper.resolveHourlyBottomRowAction(iconRes, currentViewMode)
-            Log.d(TAG, "zone=$i iconRes=$iconRes iconName=$iconName targetView=$targetView currentView=$currentViewMode listSize=${hourIconResources.size}")
+            val zoneAction = resolveZoneAction(iconRes, currentViewMode, i, hourlyOffset, zoom)
+            Log.d(
+                TAG,
+                "zone=$i iconRes=$iconRes iconName=$iconName targetView=${zoneAction.targetView} " +
+                    "centerOffset=${zoneAction.zoneCenterOffset} currentView=$currentViewMode listSize=${hourIconResources.size}",
+            )
 
-            val pendingIntent = if (targetView == null) {
+            val pendingIntent = if (zoneAction.targetView == null) {
                 // Zoom — same offset calculation as the body zoom zones
-                val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, hourlyOffset, zoom)
                 val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                     action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+                    putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneAction.zoneCenterOffset)
                 }
                 PendingIntent.getBroadcast(
                     context,
@@ -161,7 +186,8 @@ object HourlyBottomZoneHelper {
                 val navIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
                     action = WidgetIntentRouter.ACTION_SET_VIEW
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, targetView.name)
+                    putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, zoneAction.targetView.name)
+                    putExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, zoneAction.zoneCenterOffset)
                 }
                 PendingIntent.getBroadcast(
                     context,

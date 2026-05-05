@@ -5,6 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.experimental.categories.Category
+import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.ZoomLevel
 
 @Category(ShortDuration::class)
 class HourlyBottomZoneHelperTest {
@@ -110,5 +112,33 @@ class HourlyBottomZoneHelperTest {
 
         assertEquals(20, HourlyBottomZoneHelper.resolveZoneIcon(icons, 5, 13))
         assertEquals(20, HourlyBottomZoneHelper.resolveZoneIcon(icons, 6, 13))
+    }
+
+    @Test
+    fun `resolveZoneAction returns cloud cover target and centered offset for cloudy zone`() {
+        val action = HourlyBottomZoneHelper.resolveZoneAction(
+            iconRes = 2131165326,
+            currentViewMode = ViewMode.TEMPERATURE,
+            zoneIndex = 4,
+            hourlyOffset = 21,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertEquals(ViewMode.CLOUD_COVER, action.targetView)
+        assertEquals(17, action.zoneCenterOffset)
+    }
+
+    @Test
+    fun `resolveZoneAction keeps clear icon in temperature on zoom path`() {
+        val action = HourlyBottomZoneHelper.resolveZoneAction(
+            iconRes = 2131165310,
+            currentViewMode = ViewMode.TEMPERATURE,
+            zoneIndex = 8,
+            hourlyOffset = 21,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        assertNull(action.targetView)
+        assertEquals(25, action.zoneCenterOffset)
     }
 }

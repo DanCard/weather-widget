@@ -568,8 +568,13 @@ suspend fun handleSetView(
         val stateManager = WidgetStateManager(context)
         val previousMode = stateManager.getViewMode(appWidgetId)
         val previousZoom = stateManager.getZoomLevel(appWidgetId)
+        val previousOffset = stateManager.getHourlyOffset(appWidgetId)
         stateManager.setViewMode(appWidgetId, targetMode)
-        Log.d(TAG, "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom widget=$appWidgetId")
+        Log.d(
+            TAG,
+            "handleSetView: target=$targetMode previousMode=$previousMode previousZoom=$previousZoom " +
+                "previousOffset=$previousOffset widget=$appWidgetId",
+        )
         if (targetMode == ViewMode.DAILY) {
             stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
         } else if (targetMode.isGraphMode) {
@@ -584,7 +589,11 @@ suspend fun handleSetView(
                 Log.d(TAG, "handleSetView: set hourlyOffset=$targetOffset")
             }
         }
-        Log.d(TAG, "handleSetView: start mode=$targetMode offset=$targetOffset widget=$appWidgetId")
+        Log.d(
+            TAG,
+            "handleSetView: start mode=$targetMode offset=$targetOffset " +
+                "storedOffset=${stateManager.getHourlyOffset(appWidgetId)} widget=$appWidgetId",
+        )
 
         val ctx = resolveRefreshContext(context, "set_view")
 
@@ -791,6 +800,11 @@ suspend fun handleResize(
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
         val now = LocalDateTime.now()
         val centerTime = now.plusHours(hourlyOffset.toLong())
+        android.util.Log.d(
+            TAG,
+            "refreshGraphView: widget=$appWidgetId view=${stateManager.getViewMode(appWidgetId)} " +
+                "zoom=$zoom offset=$hourlyOffset now=$now centerTime=$centerTime source=${displaySource.id}",
+        )
 
         val hourlyForecasts =
             GraphDataLoader.loadGraphWindowHourlyForecasts(
