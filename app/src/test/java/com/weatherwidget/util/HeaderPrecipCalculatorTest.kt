@@ -58,6 +58,55 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
+    fun `smooths value through the hour instead of dropping at hour boundary`() {
+        val forecasts =
+            listOf(
+                hourly("2026-02-22T10:00", "NWS", 80),
+                hourly("2026-02-22T11:00", "NWS", 20),
+                hourly("2026-02-22T12:00", "NWS", 20),
+            )
+
+        val onTheHour =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = null,
+                referenceTime = LocalDateTime.of(2026, 2, 22, 10, 0),
+            )
+        val halfPast =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = null,
+                referenceTime = LocalDateTime.of(2026, 2, 22, 10, 30),
+            )
+
+        assertEquals(80, onTheHour)
+        assertEquals(50, halfPast)
+    }
+
+    @Test
+    fun `later peak still dominates when it remains inside the rolling window`() {
+        val forecasts =
+            listOf(
+                hourly("2026-02-22T10:00", "NWS", 80),
+                hourly("2026-02-22T11:00", "NWS", 20),
+                hourly("2026-02-22T13:00", "NWS", 90),
+                hourly("2026-02-22T14:00", "NWS", 90),
+            )
+
+        val result =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = null,
+                referenceTime = LocalDateTime.of(2026, 2, 22, 10, 30),
+            )
+
+        assertEquals(90, result)
+    }
+
+    @Test
     fun `falls back to generic gap when selected source is unavailable`() {
         val forecasts =
             listOf(
@@ -96,12 +145,12 @@ class HeaderPrecipCalculatorTest {
     }
 
     @Test
-    fun `ignores values beyond next 8 hours`() {
+    fun `smoothly includes rise approaching the end of the rolling window`() {
         val forecasts =
             listOf(
                 hourly("2026-02-22T10:00", "NWS", 10),
                 hourly("2026-02-22T17:00", "NWS", 20), // within 8h window
-                hourly("2026-02-22T18:00", "NWS", 99), // outside 8h window (end-exclusive)
+                hourly("2026-02-22T18:00", "NWS", 99), // enters via interpolation before the edge
                 hourly("2026-02-22T21:00", "NWS", 80),
             )
 
@@ -113,7 +162,7 @@ class HeaderPrecipCalculatorTest {
                 referenceTime = now,
             )
 
-        assertEquals(20, result)
+        assertEquals(98, result)
     }
 
     @Test
@@ -135,6 +184,43 @@ class HeaderPrecipCalculatorTest {
             )
 
         assertEquals(40, result)
+    }
+
+    @Test
+    fun `uses single available hourly point when interpolation neighbors are missing`() {
+        val forecasts =
+            listOf(
+                hourly("2026-02-22T14:00", "NWS", 37),
+            )
+
+        val result =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = 5,
+                referenceTime = LocalDateTime.of(2026, 2, 22, 13, 10),
+            )
+
+        assertEquals(37, result)
+    }
+
+    @Test
+    fun `uses fallback daily probability when hourly values are all null`() {
+        val forecasts =
+            listOf(
+                hourly("2026-02-22T10:00", "NWS", null),
+                hourly("2026-02-22T11:00", "NWS", null),
+            )
+
+        val result =
+            HeaderPrecipCalculator.getNext8HourPrecipProbability(
+                hourlyForecasts = forecasts,
+                displaySource = WeatherSource.NWS,
+                fallbackDailyProbability = 22,
+                referenceTime = now,
+            )
+
+        assertEquals(22, result)
     }
 
     @Test
