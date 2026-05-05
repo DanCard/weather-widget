@@ -22,8 +22,11 @@ object CloudCoverGraphRenderer {
     private const val LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT = 55
     private const val LOW_CLOUD_BELOW_OVERFLOW_DP = 10f
 
-    private const val GRAPH_TOP_PADDING_DP = 34f
+    private const val GRAPH_TOP_PADDING_DP = 38f
     private const val GRAPH_BOTTOM_PADDING_DP = 3f
+    private const val TOP_SCALE_HEADROOM_PERCENT = 12f
+    private const val MIN_DYNAMIC_TOP_SCALE_PERCENT = 85f
+    private const val MAX_DYNAMIC_TOP_SCALE_PERCENT = 100f
     private const val SOFT_DIP_MAX_PERCENT = 85
     private const val SOFT_DIP_MIN_DIFF = 15
     private const val WATERMARK_WINDOW_DIVISOR = 5
@@ -82,6 +85,12 @@ object CloudCoverGraphRenderer {
     data class WatermarkPlacementDebug(
         val placed: Boolean,
         val candidateCenterIndex: Int? = null,
+    )
+
+    @androidx.annotation.VisibleForTesting
+    internal data class VerticalScaleDebug(
+        val visibleMax: Float,
+        val topScale: Float,
     )
 
     private class PaintSet(
@@ -259,12 +268,31 @@ object CloudCoverGraphRenderer {
         val points = mutableListOf<Pair<Float, Float>>()
         val rawValues = hours.map { it.cloudCover.coerceIn(0, 100).toFloat() }
         val smoothedValues = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawValues, iterations = smoothIterations)
+        val verticalScale = computeVerticalScale(smoothedValues)
+        Log.d(
+            TAG,
+            "verticalScale: visibleMax=${verticalScale.visibleMax} topScale=${verticalScale.topScale} " +
+                "graphTop=$graphTop graphBottom=$graphBottom graphHeight=$graphHeight",
+        )
 
         hours.forEachIndexed { index, _ ->
             val x = hourWidth * index
             val v = smoothedValues[index]
-            val y = graphBottom - graphHeight * (v / 100f)
+            val y = mapCloudCoverToY(
+                cloudCover = v,
+                graphBottom = graphBottom,
+                graphHeight = graphHeight,
+                topScale = verticalScale.topScale,
+            )
             points.add(x to y)
+        }
+        val peakIndex = smoothedValues.indices.maxByOrNull { smoothedValues[it] } ?: -1
+        if (peakIndex >= 0) {
+            Log.d(
+                TAG,
+                "peakPoint: idx=$peakIndex value=${smoothedValues[peakIndex]} " +
+                    "x=${points[peakIndex].first} y=${points[peakIndex].second} topPaddingPx=$topPadding",
+            )
         }
 
         val (curvePath, fillPath) = GraphRenderUtils.buildSmoothCurveAndFillPaths(points, graphBottom)
@@ -722,6 +750,30 @@ object CloudCoverGraphRenderer {
         } else {
             "Cloud data missing $missingDescription ($missingHours of $totalHours hrs)"
         }
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun computeVerticalScale(values: List<Float>): VerticalScaleDebug {
+        val visibleMax = values.maxOrNull()?.coerceIn(0f, 100f) ?: 0f
+        val topScale =
+            (visibleMax + TOP_SCALE_HEADROOM_PERCENT)
+                .coerceIn(MIN_DYNAMIC_TOP_SCALE_PERCENT, MAX_DYNAMIC_TOP_SCALE_PERCENT)
+        return VerticalScaleDebug(
+            visibleMax = visibleMax,
+            topScale = topScale,
+        )
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun mapCloudCoverToY(
+        cloudCover: Float,
+        graphBottom: Float,
+        graphHeight: Float,
+        topScale: Float,
+    ): Float {
+        val clampedValue = cloudCover.coerceIn(0f, MAX_DYNAMIC_TOP_SCALE_PERCENT)
+        val safeTopScale = topScale.coerceIn(MIN_DYNAMIC_TOP_SCALE_PERCENT, MAX_DYNAMIC_TOP_SCALE_PERCENT)
+        return graphBottom - graphHeight * (clampedValue / safeTopScale)
     }
 
     private fun dpToPx(context: Context, dp: Float): Float =
