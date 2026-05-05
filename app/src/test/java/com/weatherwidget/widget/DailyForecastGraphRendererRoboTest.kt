@@ -492,7 +492,7 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
-    fun renderGraph_nightRainLabelIsSkippedWhenTooWide() {
+    fun renderGraph_nightRainLabelIsDrawnEvenWhenTooWide() {
         val labels = renderRainLabels(
             days = listOf(
                 DailyForecastGraphRenderer.DayData(
@@ -507,7 +507,27 @@ class DailyForecastGraphRendererRoboTest {
             heightPx = 500,
         )
 
-        assertTrue(labels.isEmpty())
+        assertFalse("Rain label should NOT be skipped anymore just because it is too wide for the column", labels.isEmpty())
+    }
+
+    @Test
+    fun renderGraph_dailyRainLabelIsDrawnEvenWhenTooWide() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    high = 70f,
+                    low = 50f,
+                    rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "1000000%"),
+                ),
+            ),
+            widthPx = 40,
+            heightPx = 500,
+        )
+
+        assertFalse("Daily rain label should NOT be skipped anymore even if it is too wide for the column", labels.isEmpty())
+        assertEquals("1000000%", labels.first().text)
     }
 
     @Test

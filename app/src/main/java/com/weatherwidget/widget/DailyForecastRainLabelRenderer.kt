@@ -14,7 +14,6 @@ internal object DailyForecastRainLabelRenderer {
     private const val TAG = "DailyRainLabelRenderer"
     private const val RAIN_FONT_SCALE_K = 0.6f
     private const val RAIN_FONT_SCALE_MAX_DAYS = 7f
-    private const val RAIN_TEXT_MARGIN_DP = 4f
     private const val RAIN_HIGH_TEMP_GAP_DP = -2f
     private const val RAIN_LABEL_EDGE_MARGIN_DP = 4f
     private const val NIGHT_SCALE = 0.72f
@@ -58,11 +57,6 @@ internal object DailyForecastRainLabelRenderer {
         val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
 
         val textWidth = localRainPaint.measureText(rainText)
-        val maxTextWidth = layout.dayWidth - (RAIN_TEXT_MARGIN_DP * layout.scaleFactor).toPx(layout.density)
-        if (textWidth > maxTextWidth) {
-            Log.d(TAG, "rainLabel skipped: text too wide: date=${day.date} textWidth=${textWidth}px maxWidth=${maxTextWidth}px dayWidth=${layout.dayWidth}px label=\"$rainText\"")
-            return
-        }
 
         val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout)
         if (highBaseline == null) {
@@ -271,14 +265,6 @@ internal object DailyForecastRainLabelRenderer {
 
         if (shiftedCenterX + reducedHalfWidth <= layout.widthPx - edgeMargin && shiftedCenterX - reducedHalfWidth >= edgeMargin) {
             return NightHorizontalFit(shiftedCenterX, reducedPaint, "NIGHT_SHIFTED_SCALED")
-        }
-
-        val maxTextWidth = layout.dayWidth - (RAIN_TEXT_MARGIN_DP * layout.scaleFactor).toPx(layout.density)
-        if (textWidth > maxTextWidth) {
-            if (reducedWidth <= maxTextWidth) {
-                return NightHorizontalFit(centerX, reducedPaint, "NIGHT_CENTERED_SCALED")
-            }
-            return null
         }
 
         return NightHorizontalFit(centerX, currentPaint, "NIGHT_CENTERED")
