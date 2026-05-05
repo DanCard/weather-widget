@@ -794,8 +794,5 @@ object CloudCoverGraphRenderer {
         cloudPct: Int,
         placeAbove: Boolean,
         isFallbackAttempt: Boolean,
-    ): Boolean =
-        !placeAbove &&
-            !isFallbackAttempt &&
-            cloudPct <= LOW_CLOUD_BELOW_OVERFLOW_MAX_PERCENT
+    ): Boolean = false
 }

@@ -238,9 +238,9 @@ class CloudCoverGraphRendererTest {
     }
 
     @Test
-    fun `low preferred below labels allow icon overlap`() {
+    fun `cloud cover labels do not allow icon overlap even for low preferred below placements`() {
         assertTrue(
-            CloudCoverGraphRenderer.shouldAllowIconOverlap(
+            !CloudCoverGraphRenderer.shouldAllowIconOverlap(
                 cloudPct = 10,
                 placeAbove = false,
                 isFallbackAttempt = false,
