@@ -459,8 +459,8 @@ object CloudCoverGraphRenderer {
             val cloudPct = labelSignal[index]
             val labelText = "$cloudPct%"
             val fontMetrics = paints.percentLabelPaint.fontMetrics
-            val textAscent = fontMetrics?.ascent ?: -paints.percentLabelPaint.textSize
-            val textDescent = fontMetrics?.descent ?: 0f
+            val textAscent = if (fontMetrics != null && fontMetrics.ascent != 0f) fontMetrics.ascent else -paints.percentLabelPaint.textSize
+            val textDescent = if (fontMetrics != null && fontMetrics.descent != 0f) fontMetrics.descent else paints.percentLabelPaint.textSize * 0.15f
             val textWidth = paints.percentLabelPaint.measureText(labelText)
             val centerX = points[index].first
             val y = points[index].second

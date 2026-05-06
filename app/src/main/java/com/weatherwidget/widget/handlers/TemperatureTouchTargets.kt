@@ -203,11 +203,11 @@ internal fun setupHistoryShortcut(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
-    views.setOnClickPendingIntent(R.id.history_touch_zone, pendingIntent)
-    views.setOnClickPendingIntent(R.id.history_touch_zone_inline, pendingIntent)
+    views.setOnClickPendingIntent(R.id.forecast_history_activity_touch_zone, pendingIntent)
+    views.setOnClickPendingIntent(R.id.forecast_history_activity_touch_zone_inline, pendingIntent)
     if (setVisibility) {
         views.setViewVisibility(R.id.history_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.history_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.VISIBLE)
     }
 }
 
@@ -294,10 +294,10 @@ internal fun positionCenterIcons(
     Log.d("TemperatureTouchTargets", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline")
     val floatingVis = if (useInline) View.GONE else View.VISIBLE
     val inlineVis = if (useInline) View.VISIBLE else View.GONE
-    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.history_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone)) {
+    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.forecast_history_activity_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone)) {
         views.setViewVisibility(id, floatingVis)
     }
-    for (id in listOf(R.id.home_touch_zone_inline, R.id.history_touch_zone_inline, R.id.weather_stations_touch_zone_inline)) {
+    for (id in listOf(R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline, R.id.weather_stations_touch_zone_inline)) {
         views.setViewVisibility(id, inlineVis)
     }
 }

@@ -77,12 +77,12 @@ class HistoryIconVisibilityRoboTest {
         val homeIcon = applied.findViewById<View>(R.id.home_icon)
         val homeTouchZone = applied.findViewById<View>(R.id.home_touch_zone)
         val historyIcon = applied.findViewById<View>(R.id.history_icon)
-        val historyTouchZone = applied.findViewById<View>(R.id.history_touch_zone)
+        val forecastHistoryActivityTouchZone = applied.findViewById<View>(R.id.forecast_history_activity_touch_zone)
 
         assertEquals("Home icon should be VISIBLE in hourly view", View.VISIBLE, homeIcon.visibility)
         assertEquals("Home touch zone should be VISIBLE in hourly view", View.VISIBLE, homeTouchZone.visibility)
         assertEquals("History icon should be VISIBLE in hourly view", View.VISIBLE, historyIcon.visibility)
-        assertEquals("History touch zone should be VISIBLE in hourly view", View.VISIBLE, historyTouchZone.visibility)
+        assertEquals("History touch zone should be VISIBLE in hourly view", View.VISIBLE, forecastHistoryActivityTouchZone.visibility)
     }
 
     @Test
@@ -118,11 +118,11 @@ class HistoryIconVisibilityRoboTest {
         val homeIcon = applied.findViewById<View>(R.id.home_icon)
         val homeTouchZone = applied.findViewById<View>(R.id.home_touch_zone)
         val historyIcon = applied.findViewById<View>(R.id.history_icon)
-        val historyTouchZone = applied.findViewById<View>(R.id.history_touch_zone)
+        val forecastHistoryActivityTouchZone = applied.findViewById<View>(R.id.forecast_history_activity_touch_zone)
 
         assertEquals("Home icon should be GONE in daily mode", View.GONE, homeIcon.visibility)
         assertEquals("Home touch zone should be GONE in daily mode", View.GONE, homeTouchZone.visibility)
         assertEquals("History icon should be GONE in daily mode", View.GONE, historyIcon.visibility)
-        assertEquals("History touch zone should be GONE in daily mode", View.GONE, historyTouchZone.visibility)
+        assertEquals("History touch zone should be GONE in daily mode", View.GONE, forecastHistoryActivityTouchZone.visibility)
     }
 }

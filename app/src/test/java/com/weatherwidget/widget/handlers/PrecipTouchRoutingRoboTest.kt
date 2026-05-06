@@ -135,7 +135,7 @@ class PrecipTouchRoutingRoboTest {
     }
 
     @Test
-    fun `precipitation graph bottom footer zones still route by icon type`() = runBlocking {
+    fun `precipitation graph bottom row zones still route by icon type`() = runBlocking {
         val views = renderPrecipWidget(
             options = graphOptions(),
             configureState = {
@@ -148,12 +148,12 @@ class PrecipTouchRoutingRoboTest {
         val applied = applyViews(views)
         val shadowApp = shadowOf(app)
 
-        val footerZoneIds = (0..12).map { i ->
-            context.resources.getIdentifier("graph_bottom_hour_footer_zone_$i", "id", context.packageName)
+        val zoneIds = (0..12).map { i ->
+            context.resources.getIdentifier("graph_bottom_hour_zone_$i", "id", context.packageName)
         }
 
         var foundSetView = false
-        for ((i, zoneId) in footerZoneIds.withIndex()) {
+        for ((i, zoneId) in zoneIds.withIndex()) {
             val zone = applied.findViewById<View>(zoneId)
             if (zone == null || zone.visibility != View.VISIBLE) continue
 
@@ -169,7 +169,7 @@ class PrecipTouchRoutingRoboTest {
             }
         }
         assertTrue(
-            "At least one bottom footer zone should navigate to another view (icon-dependent routing)",
+            "At least one bottom row zone should navigate to another view (icon-dependent routing)",
             foundSetView,
         )
     }

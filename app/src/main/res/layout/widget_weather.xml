@@ -585,7 +585,7 @@
                 android:id="@+id/graph_hour_zones"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginBottom="56dp"
+                android:layout_marginBottom="67dp"
                 android:layoutDirection="ltr"
                 android:orientation="horizontal"
                 android:visibility="gone">
@@ -698,7 +698,7 @@
         <FrameLayout
             android:id="@+id/graph_bottom_reserved_space"
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="67dp"
             android:background="@android:color/transparent"
             android:visibility="gone">
 
@@ -709,7 +709,7 @@
     <FrameLayout
         android:id="@+id/graph_bottom_zone"
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="67dp"
         android:layout_gravity="bottom"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
@@ -1075,7 +1075,7 @@
         </FrameLayout>
 
         <FrameLayout
-            android:id="@+id/history_touch_zone_inline"
+            android:id="@+id/forecast_history_activity_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
@@ -1468,7 +1468,7 @@
 
     <!-- History icon touch zone -->
     <FrameLayout
-        android:id="@+id/history_touch_zone"
+        android:id="@+id/forecast_history_activity_touch_zone"
         android:layout_width="48dp"
         android:layout_height="50dp"
         android:layout_gravity="top|center_horizontal"

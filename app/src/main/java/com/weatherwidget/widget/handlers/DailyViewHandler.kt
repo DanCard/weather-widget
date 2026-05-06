@@ -370,7 +370,7 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.home_icon, View.GONE)
         views.setViewVisibility(R.id.home_touch_zone, View.GONE)
         views.setViewVisibility(R.id.history_icon, View.GONE)
-        views.setViewVisibility(R.id.history_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
         views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
         views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
 

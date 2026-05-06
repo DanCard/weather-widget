@@ -68,13 +68,11 @@ class TemperatureTouchRoutingRoboTest {
         val bodyZone = applied.findViewById<View>(R.id.graph_hour_zone_0)
         val hourZones = applied.findViewById<View>(R.id.graph_hour_zones)
         val bottomHourZones = applied.findViewById<View>(R.id.graph_bottom_hour_zones)
-        val bottomHourFooterZones = applied.findViewById<View>(R.id.graph_bottom_hour_footer_zones)
         val bottomZone = applied.findViewById<View>(R.id.graph_bottom_zone)
         val graphBodyTapZone = applied.findViewById<View>(R.id.graph_body_tap_zone)
 
         assertEquals(View.VISIBLE, bodyZone.visibility)
         assertEquals(View.VISIBLE, bottomHourZones.visibility)
-        assertEquals(View.VISIBLE, bottomHourFooterZones.visibility)
         assertEquals(View.GONE, bottomZone.visibility)
         assertEquals(View.GONE, graphBodyTapZone.visibility)
 
@@ -97,34 +95,6 @@ class TemperatureTouchRoutingRoboTest {
         val clearZoomIntent = shadowApp.broadcastIntents.drop(beforeClearTap).lastOrNull()
         assertNotNull("Expected clear body zone tap to zoom", clearZoomIntent)
         assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, clearZoomIntent!!.action)
-
-        val footerZoneIds =
-            listOf(
-                R.id.graph_bottom_hour_footer_zone_0,
-                R.id.graph_bottom_hour_footer_zone_1,
-                R.id.graph_bottom_hour_footer_zone_2,
-                R.id.graph_bottom_hour_footer_zone_3,
-                R.id.graph_bottom_hour_footer_zone_4,
-                R.id.graph_bottom_hour_footer_zone_5,
-                R.id.graph_bottom_hour_footer_zone_6,
-            )
-        var cloudIntentFound = false
-        for (zoneId in footerZoneIds) {
-            val zone = applied.findViewById<View>(zoneId)
-            val beforeTap = shadowApp.broadcastIntents.size
-            zone.performClick()
-
-            val intent = shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
-            if (intent?.action == WidgetIntentRouter.ACTION_SET_VIEW) {
-                assertEquals(
-                    ViewMode.CLOUD_COVER.name,
-                    intent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW),
-                )
-                cloudIntentFound = true
-                break
-            }
-        }
-        assertTrue("Expected at least one footer zone to switch to cloud cover", cloudIntentFound)
 
         // Test bottom hour overlay zones (the icons themselves)
         val overlayZone0 = applied.findViewById<View>(R.id.graph_bottom_hour_zone_0)
@@ -150,14 +120,12 @@ class TemperatureTouchRoutingRoboTest {
         val graphBodyTapZone = applied.findViewById<View>(R.id.graph_body_tap_zone)
         val hourZones = applied.findViewById<View>(R.id.graph_hour_zones)
         val bottomHourZones = applied.findViewById<View>(R.id.graph_bottom_hour_zones)
-        val bottomHourFooterZones = applied.findViewById<View>(R.id.graph_bottom_hour_footer_zones)
         val bottomZone = applied.findViewById<View>(R.id.graph_bottom_zone)
         val hourZone0 = applied.findViewById<View>(R.id.graph_hour_zone_0)
 
         assertEquals(View.GONE, graphBodyTapZone.visibility)
         assertEquals(View.VISIBLE, hourZones.visibility)
         assertEquals(View.VISIBLE, bottomHourZones.visibility)
-        assertEquals(View.VISIBLE, bottomHourFooterZones.visibility)
         assertEquals(View.GONE, bottomZone.visibility)
 
         val shadowApp = shadowOf(app)
@@ -191,34 +159,6 @@ class TemperatureTouchRoutingRoboTest {
             }
         }
         assertTrue("Expected at least one non-cloud narrow body zone to zoom", zoomIntentFound)
-
-        val footerZoneIds =
-            listOf(
-                R.id.graph_bottom_hour_footer_zone_0,
-                R.id.graph_bottom_hour_footer_zone_1,
-                R.id.graph_bottom_hour_footer_zone_2,
-                R.id.graph_bottom_hour_footer_zone_3,
-                R.id.graph_bottom_hour_footer_zone_4,
-                R.id.graph_bottom_hour_footer_zone_5,
-                R.id.graph_bottom_hour_footer_zone_6,
-            )
-        var footerSetViewFound = false
-        for (zoneId in footerZoneIds) {
-            val zone = applied.findViewById<View>(zoneId)
-            val beforeTap = shadowApp.broadcastIntents.size
-            zone.performClick()
-
-            val intent = shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
-            if (intent?.action == WidgetIntentRouter.ACTION_SET_VIEW) {
-                assertEquals(
-                    ViewMode.CLOUD_COVER.name,
-                    intent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW),
-                )
-                footerSetViewFound = true
-                break
-            }
-        }
-        assertTrue("Expected at least one footer zone to switch to cloud cover", footerSetViewFound)
     }
 
     @Test
@@ -237,7 +177,6 @@ class TemperatureTouchRoutingRoboTest {
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_body_tap_zone).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_zone).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_zones).visibility)
-        assertEquals(View.GONE, applied.findViewById<View>(R.id.graph_bottom_hour_footer_zones).visibility)
     }
 
     private suspend fun renderTemperatureWidget(
