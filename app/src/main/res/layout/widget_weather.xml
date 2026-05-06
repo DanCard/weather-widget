@@ -692,109 +692,6 @@
                 android:focusable="true"
                 android:visibility="gone" />
 
-            <!-- Per-hour bottom tap zones (icon-dependent routing).
-                 Overlays the bottom icon row inside the graph body so taps on visible
-                 hourly icons do not fall through to the body zoom zones. -->
-            <LinearLayout
-                android:id="@+id/graph_bottom_hour_zones"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_gravity="bottom"
-                android:layoutDirection="ltr"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_0"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_1"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_2"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_3"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_4"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_5"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_6"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_7"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_8"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_9"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_10"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_11"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_zone_12"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-            </LinearLayout>
         </FrameLayout>
 
         <!-- Plain reserved space when bottom hour zones are hidden (e.g., text mode) -->
@@ -805,105 +702,6 @@
             android:background="@android:color/transparent"
             android:visibility="gone">
 
-            <LinearLayout
-                android:id="@+id/graph_bottom_hour_footer_zones"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layoutDirection="ltr"
-                android:orientation="horizontal"
-                android:visibility="gone">
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_0"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_1"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_2"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_3"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_4"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_5"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_6"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_7"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_8"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_9"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_10"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_11"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-
-                <FrameLayout
-                    android:id="@+id/graph_bottom_hour_footer_zone_12"
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:background="@android:color/transparent" />
-            </LinearLayout>
         </FrameLayout>
     </LinearLayout>
 
@@ -1436,6 +1234,138 @@
         android:src="@drawable/ic_thermometer"
         android:contentDescription="Current Stations"
         android:visibility="gone" />
+
+    <!-- Consolidated per-hour bottom tap zones (icon-dependent routing).
+         Declared at the root level to ensure highest touch priority and avoid container clipping.
+         Height is 67dp (reduced from 112dp) to cover both weather icons and hour labels. -->
+    <LinearLayout
+        android:id="@+id/graph_bottom_hour_zones"
+        android:layout_width="match_parent"
+        android:layout_height="67dp"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:layoutDirection="ltr"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_0"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_2"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_3"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_4"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_5"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_6"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_7"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_8"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_9"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_10"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_11"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+
+        <FrameLayout
+            android:id="@+id/graph_bottom_hour_zone_12"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="@android:color/transparent" />
+    </LinearLayout>
 
     <!-- Navigation touch zones - declared before header zones so header zones win taps in the top area -->
     <FrameLayout

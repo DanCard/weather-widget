@@ -35,13 +35,6 @@ object HourlyBottomZoneHelper {
         R.id.graph_bottom_hour_zone_9, R.id.graph_bottom_hour_zone_10, R.id.graph_bottom_hour_zone_11,
         R.id.graph_bottom_hour_zone_12,
     )
-    private val FOOTER_HOUR_ZONE_IDS = listOf(
-        R.id.graph_bottom_hour_footer_zone_0, R.id.graph_bottom_hour_footer_zone_1, R.id.graph_bottom_hour_footer_zone_2,
-        R.id.graph_bottom_hour_footer_zone_3, R.id.graph_bottom_hour_footer_zone_4, R.id.graph_bottom_hour_footer_zone_5,
-        R.id.graph_bottom_hour_footer_zone_6, R.id.graph_bottom_hour_footer_zone_7, R.id.graph_bottom_hour_footer_zone_8,
-        R.id.graph_bottom_hour_footer_zone_9, R.id.graph_bottom_hour_footer_zone_10, R.id.graph_bottom_hour_footer_zone_11,
-        R.id.graph_bottom_hour_footer_zone_12,
-    )
 
     /**
      * Searches outward from [centerIndex] for the nearest non-null icon.
@@ -146,16 +139,17 @@ object HourlyBottomZoneHelper {
         showBodyOverlayZones: Boolean = true,
     ) {
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_hour_zones, if (showBodyOverlayZones) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.VISIBLE)
-        // Preserve the footer row height in the vertical interaction container while the
-        // clickable hour-icon band is overlaid inside the graph body.
+        // Consolidate: use the root-level graph_bottom_hour_zones for all hourly views.
+        // It covers both icons and labels with its 112dp height.
+        views.setViewVisibility(R.id.graph_bottom_hour_zones, View.VISIBLE)
+        
+        // Preserve the footer row height in the vertical interaction container.
         views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
         views.setViewVisibility(R.id.graph_bottom_day_zones, View.GONE)
         Log.d(
             TAG,
             "setup: widget=$appWidgetId currentView=$currentViewMode zoom=$zoom hourlyOffset=$hourlyOffset " +
-                "showBodyOverlayZones=$showBodyOverlayZones footerZones=true icons=${hourIconResources.size}",
+                "showBodyOverlayZones=$showBodyOverlayZones icons=${hourIconResources.size}",
         )
 
         BOTTOM_HOUR_ZONE_IDS.forEachIndexed { i, zoneId ->
@@ -198,7 +192,6 @@ object HourlyBottomZoneHelper {
             }
 
             views.setOnClickPendingIntent(zoneId, pendingIntent)
-            views.setOnClickPendingIntent(FOOTER_HOUR_ZONE_IDS[i], pendingIntent)
         }
     }
 }

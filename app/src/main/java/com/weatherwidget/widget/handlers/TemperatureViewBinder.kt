@@ -102,7 +102,6 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
         if (state.graph.useGraph && state.graph.bitmap != null) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
-            views.setViewVisibility(R.id.graph_bottom_zone, View.VISIBLE)
             views.setImageViewBitmap(R.id.graph_view, state.graph.bitmap)
 
             HourlyBottomZoneHelper.setup(
@@ -126,7 +125,6 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
         views.setViewVisibility(R.id.graph_body_tap_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_zone, View.GONE)
         views.setViewVisibility(R.id.graph_bottom_hour_zones, View.GONE)
-        views.setViewVisibility(R.id.graph_bottom_hour_footer_zones, View.GONE)
  views.setViewVisibility(R.id.graph_bottom_reserved_space, View.VISIBLE)
     }
 }
