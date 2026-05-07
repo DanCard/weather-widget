@@ -36,7 +36,8 @@
                 android:layout_height="wrap_content"
                 android:text="Mon"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day1_icon"
@@ -54,7 +55,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day1_low"
@@ -62,7 +64,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day1_rain"
@@ -72,6 +75,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -90,7 +94,8 @@
                 android:layout_height="wrap_content"
                 android:text="Today"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day2_icon"
@@ -108,7 +113,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day2_low"
@@ -116,7 +122,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day2_rain"
@@ -126,6 +133,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -145,7 +153,8 @@
                 android:layout_height="wrap_content"
                 android:text="Wed"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day3_icon"
@@ -163,7 +172,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day3_low"
@@ -171,7 +181,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day3_rain"
@@ -181,6 +192,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -200,7 +212,8 @@
                 android:layout_height="wrap_content"
                 android:text="Day"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day4_icon"
@@ -218,7 +231,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day4_low"
@@ -226,7 +240,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day4_rain"
@@ -236,6 +251,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -255,7 +271,8 @@
                 android:layout_height="wrap_content"
                 android:text="Day"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day5_icon"
@@ -273,7 +290,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day5_low"
@@ -281,7 +299,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day5_rain"
@@ -291,6 +310,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -310,7 +330,8 @@
                 android:layout_height="wrap_content"
                 android:text="Day"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day6_icon"
@@ -328,7 +349,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day6_low"
@@ -336,7 +358,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day6_rain"
@@ -346,6 +369,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -365,7 +389,8 @@
                 android:layout_height="wrap_content"
                 android:text="Day"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day7_icon"
@@ -383,7 +408,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day7_low"
@@ -391,7 +417,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day7_rain"
@@ -401,6 +428,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -420,7 +448,8 @@
                 android:layout_height="wrap_content"
                 android:text="Day"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <ImageView
                 android:id="@+id/day8_icon"
@@ -438,7 +467,8 @@
                 android:text="--°"
                 android:textSize="22sp"
                 android:textColor="@color/widget_text_primary"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day8_low"
@@ -446,7 +476,8 @@
                 android:layout_height="wrap_content"
                 android:text="--°"
                 android:textSize="18sp"
-                android:textColor="@color/widget_text_secondary" />
+                android:textColor="@color/widget_text_secondary"
+                android:includeFontPadding="false" />
 
             <TextView
                 android:id="@+id/day8_rain"
@@ -456,6 +487,7 @@
                 android:text=""
                 android:textSize="11sp"
                 android:textColor="#5AC8FA"
+                android:includeFontPadding="false"
                 android:visibility="gone" />
         </LinearLayout>
 
