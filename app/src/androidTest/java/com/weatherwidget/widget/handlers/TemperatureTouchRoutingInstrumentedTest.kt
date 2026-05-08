@@ -30,6 +30,9 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+import android.view.LayoutInflater
+import android.widget.LinearLayout
+
 /**
  * Device-side regression for hourly temperature touch routing.
  *
@@ -48,6 +51,25 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(appWidgetId)
         insertHourlyRows()
+    }
+
+    @Test
+    fun verifyNoDeadZoneInLayout() {
+        val inflater = LayoutInflater.from(context)
+        val root = inflater.inflate(R.layout.widget_weather, null)
+
+        val hourZones = root.findViewById<LinearLayout>(R.id.graph_hour_zones)
+        val hourZonesParams = hourZones.layoutParams as ViewGroup.MarginLayoutParams
+
+        // The margin should be 0 because the parent container (graph_interaction_body)
+        // is already vertically separated from the bottom row by graph_interaction_container's weight logic.
+        // A non-zero bottom margin here creates an unclickable "dead zone" gap.
+        assertEquals("Redundant bottom margin detected on graph_hour_zones", 0, hourZonesParams.bottomMargin)
+
+        // Also verify the interaction body itself doesn't have a margin that would cause a gap
+        val interactionBody = root.findViewById<View>(R.id.graph_interaction_body)
+        val bodyParams = interactionBody.layoutParams as ViewGroup.MarginLayoutParams
+        assertEquals("Unexpected bottom margin on graph_interaction_body", 0, bodyParams.bottomMargin)
     }
 
     @After

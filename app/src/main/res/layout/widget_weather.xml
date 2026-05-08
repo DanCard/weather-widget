@@ -617,7 +617,6 @@
                 android:id="@+id/graph_hour_zones"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_marginBottom="67dp"
                 android:layoutDirection="ltr"
                 android:orientation="horizontal"
                 android:visibility="gone">

@@ -38,6 +38,9 @@ import org.junit.experimental.categories.Category
 
 
 
+import android.view.LayoutInflater
+import android.widget.LinearLayout
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @Category(MediumDuration::class)
@@ -51,6 +54,23 @@ class TemperatureTouchRoutingRoboTest {
         context = ApplicationProvider.getApplicationContext()
         app = RuntimeEnvironment.getApplication()
         WidgetStateManager(context).clearWidgetState(appWidgetId)
+    }
+
+    @Test
+    fun `verify no dead zone between graph body and bottom zones`() {
+        val inflater = LayoutInflater.from(context)
+        val root = inflater.inflate(R.layout.widget_weather, null)
+
+        val hourZones = root.findViewById<LinearLayout>(R.id.graph_hour_zones)
+        val hourZonesParams = hourZones.layoutParams as ViewGroup.MarginLayoutParams
+
+        // The margin should be 0 because the parent container already
+        // excludes the bottom row.
+        assertEquals(
+            "Redundant margin detected on graph_hour_zones, causing a touch dead zone",
+            0,
+            hourZonesParams.bottomMargin,
+        )
     }
 
     @Test
