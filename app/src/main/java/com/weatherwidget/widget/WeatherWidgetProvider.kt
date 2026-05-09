@@ -168,9 +168,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     triggerImmediateUpdate(context, reason = "on_update_no_data")
                 } else {
                     // We have some data, refresh all widgets from cache immediately
-                    // Use a tighter window for startup snapshots to improve latency (13 columns displayed)
-                    val historyStart = LocalDate.now().minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    val thirtyDays = LocalDate.now().plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val today = LocalDate.now()
+                    val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val thirtyDays = today.plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val pastSnapshotStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                    val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
                     coroutineScope {
                         // Run queries in parallel to minimize startup latency
@@ -186,13 +188,21 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
                         val forecastSnapshotsDeferred = async {
                             if (needsDailyData) {
-                                forecastDao.getAllForecastsInRangeForSources(
-                                    historyStart, 
-                                    thirtyDays, 
-                                    latestWeather.locationLat, 
+                                val pastSnapshots = forecastDao.getLatestForecastsInRangeForSources(
+                                    pastSnapshotStart,
+                                    pastSnapshotEnd,
+                                    latestWeather.locationLat,
                                     latestWeather.locationLon,
-                                    activeSourceList
+                                    activeSourceList,
                                 )
+                                val recentSnapshots = forecastDao.getAllForecastsInRangeForSources(
+                                    historyStart,
+                                    thirtyDays,
+                                    latestWeather.locationLat,
+                                    latestWeather.locationLon,
+                                    activeSourceList,
+                                )
+                                (pastSnapshots + recentSnapshots)
                                     .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
                             } else {
                                 emptyMap()

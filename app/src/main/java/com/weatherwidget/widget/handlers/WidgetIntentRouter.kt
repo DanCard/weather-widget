@@ -708,15 +708,20 @@ suspend fun handleResize(
         extraMetadata: String = "",
     ) {
         val appWidgetManager = AppWidgetManager.getInstance(context)
-        val historyStart = LocalDate.now().minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
-        val forecastEnd = LocalDate.now().plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val today = LocalDate.now()
+        val historyStart = today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val forecastEnd = today.plusDays(DAILY_FORECAST_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
+        val recentSnapshotStart = today.minusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
 
         val forecastDao = database.forecastDao()
         val hourlyDao = database.hourlyForecastDao()
 
         val finalWeatherList = weatherList ?: forecastDao.getForecastsInRange(historyStart, forecastEnd, lat, lon)
+        val pastSnapshots = forecastDao.getLatestForecastsInRange(historyStart, pastSnapshotEnd, lat, lon)
+        val recentSnapshots = forecastDao.getAllForecastsInRange(recentSnapshotStart, forecastEnd, lat, lon)
         val forecastSnapshots =
-            forecastDao.getAllForecastsInRange(historyStart, forecastEnd, lat, lon)
+            (pastSnapshots + recentSnapshots)
                 .groupBy { LocalDate.ofEpochDay(it.targetDate / WeatherTimeUtils.MILLIS_PER_DAY) }
 
         val now = LocalDateTime.now()

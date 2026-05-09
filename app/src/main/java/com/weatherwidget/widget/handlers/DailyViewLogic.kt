@@ -344,18 +344,9 @@ object DailyViewLogic {
                 if (showComparison) {
                     fHigh = forecast?.highTemp
                     fLow = forecast?.lowTemp
-                    
+
                     if (fHigh == null || fLow == null) {
-                        val normal = climateNormals[java.time.MonthDay.from(date)]
-                        if (normal != null) {
-                            fHigh = normal.first.toFloat()
-                            fLow = normal.second.toFloat()
-                            isClimateOverlay = true
-                        } else if (weather?.isClimateNormal == true) {
-                            fHigh = weather.highTemp
-                            fLow = weather.lowTemp
-                            isClimateOverlay = true
-                        }
+                        Log.d(TAG, "prepareGraphDays: past day $date has no forecast snapshot; skipping forecast overlay (no climate-normal fallback)")
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
