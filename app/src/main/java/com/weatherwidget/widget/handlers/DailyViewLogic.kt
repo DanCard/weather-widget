@@ -342,11 +342,21 @@ object DailyViewLogic {
                 finalLow = actual?.lowTemp
 
                 if (showComparison) {
-                    fHigh = forecast?.highTemp
-                    fLow = forecast?.lowTemp
+                    // For past-day forecast comparison, ONLY use real snapshots from the
+                    // displaySource — skip GENERIC_GAP (climate-normal fallback rows) and
+                    // any isClimateNormal=true row, and require both highTemp and lowTemp.
+                    // NWS evening batches drop lowTemp once the day's low has passed, so
+                    // we must look back at older NWS batches with both values populated.
+                    val pastForecast = forecasts
+                        .filter { it.source == displaySource.id }
+                        .filter { !it.isClimateNormal }
+                        .filter { it.highTemp != null && it.lowTemp != null }
+                        .maxByOrNull { it.fetchedAt }
+                    fHigh = pastForecast?.highTemp
+                    fLow = pastForecast?.lowTemp
 
                     if (fHigh == null || fLow == null) {
-                        Log.d(TAG, "prepareGraphDays: past day $date has no forecast snapshot; skipping forecast overlay (no climate-normal fallback)")
+                        Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {

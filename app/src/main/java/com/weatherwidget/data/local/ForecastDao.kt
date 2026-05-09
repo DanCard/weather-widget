@@ -171,12 +171,16 @@ interface ForecastDao {
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         AND targetDate >= :startDate
         AND targetDate <= :endDate
+        AND highTemp IS NOT NULL
+        AND lowTemp IS NOT NULL
         AND batchFetchedAt = (
             SELECT MAX(batchFetchedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
             AND f2.locationLon = f1.locationLon
+            AND f2.highTemp IS NOT NULL
+            AND f2.lowTemp IS NOT NULL
         )
         ORDER BY targetDate ASC
     """,
@@ -196,12 +200,16 @@ interface ForecastDao {
         AND locationLon BETWEEN :lon - 0.1 AND :lon + 0.1
         AND targetDate >= :startDate
         AND targetDate <= :endDate
+        AND highTemp IS NOT NULL
+        AND lowTemp IS NOT NULL
         AND batchFetchedAt = (
             SELECT MAX(batchFetchedAt) FROM forecasts f2
             WHERE f2.targetDate = f1.targetDate
             AND f2.source = f1.source
             AND f2.locationLat = f1.locationLat
             AND f2.locationLon = f1.locationLon
+            AND f2.highTemp IS NOT NULL
+            AND f2.lowTemp IS NOT NULL
         )
         ORDER BY targetDate ASC
     """,

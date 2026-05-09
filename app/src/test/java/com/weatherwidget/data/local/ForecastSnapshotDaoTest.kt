@@ -140,6 +140,40 @@ class ForecastSnapshotDaoTest {
     }
 
     @Test
+    fun `getLatestForecastsInRangeForSources skips latest batch with null lowTemp and returns older usable batch`() = runTest {
+        // Regression guard: NWS evening forecast batches drop lowTemp after the day's low
+        // has passed. The deduped query must skip null-pair rows so callers receive a
+        // usable row (rather than the most-recent-but-unusable one). On Samsung this bug
+        // caused past Wed/Thu yellow forecast bars to silently fall back to climate normals.
+        dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
+            batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = 72f, lowTemp = null))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
+            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 72f, lowTemp = 53f))
+
+        val rows = dao.getLatestForecastsInRangeForSources(
+            dateEpoch("2026-05-06"), dateEpoch("2026-05-06"),
+            LAT, LON, listOf("NWS"))
+
+        assertEquals(1, rows.size)
+        assertEquals("Must skip null-low latest batch and return older usable batch",
+            53f, rows[0].lowTemp)
+    }
+
+    @Test
+    fun `getLatestForecastsInRange skips latest batch with null highTemp or lowTemp`() = runTest {
+        dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
+            batchFetchedAt = 2000L, fetchedAt = 2000L, highTemp = null, lowTemp = 53f))
+        dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS",
+            batchFetchedAt = 1000L, fetchedAt = 1000L, highTemp = 72f, lowTemp = 53f))
+
+        val rows = dao.getLatestForecastsInRange(
+            dateEpoch("2026-05-06"), dateEpoch("2026-05-06"), LAT, LON)
+
+        assertEquals(1, rows.size)
+        assertEquals(72f, rows[0].highTemp)
+    }
+
+    @Test
     fun `getLatestForecastsInRangeForSources respects date range bounds`() = runTest {
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-05", source = "NWS"))
         dao.insertForecast(TestData.forecast(targetDate = "2026-05-06", source = "NWS"))

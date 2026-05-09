@@ -247,6 +247,99 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `past day skips NWS latest-batch with null lowTemp and uses older usable NWS batch`() {
+        // Regression guard: NWS evening forecast batches drop lowTemp once the day's low
+        // has passed. The deduped DAO query must skip null-pair rows (it does, via
+        // `highTemp IS NOT NULL AND lowTemp IS NOT NULL` in getLatestForecastsInRange),
+        // and the past-day filter in DailyViewLogic must not fall back to other sources.
+        // If the DAO ever loses the non-null filter, this test still guards prepareGraphDays:
+        // when the input contains both a null-low NWS row and an older usable NWS row,
+        // the older usable one must be picked.
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val pastWedStr = pastWed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
+        )
+        val dailyActuals = mapOf(
+            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+        )
+        val nwsLatestNullLow = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = null)
+            .copy(fetchedAt = 2000L)
+        val nwsOlderUsable = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = 53f)
+            .copy(fetchedAt = 1000L)
+        val forecastSnapshots = mapOf(pastWed to listOf(nwsLatestNullLow, nwsOlderUsable))
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }!!
+        assertEquals("Must use older NWS batch with non-null low, not the latest null-low row",
+            72f, past.forecastHigh)
+        assertEquals(53f, past.forecastLow)
+    }
+
+    @Test
+    fun `past day ignores GENERIC_GAP source rows even when displaySource has only null-low data`() {
+        // Regression guard: when NWS latest batch has null lowTemp AND no older usable
+        // NWS batch is in the map, the filter must NOT fall back to GENERIC_GAP / Generic
+        // source rows that contain climate-normal data. Better to draw no overlay than
+        // a wrong one synthesized from monthly averages. This is the bug that produced
+        // chosen=src=Generic h=58 l=48 on Samsung's NWS view of past Wed.
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val pastWedStr = pastWed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
+        )
+        val dailyActuals = mapOf(
+            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+        )
+        val nwsNullLow = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = null)
+        val genericClimateNormal = createWeather(
+            date = pastWedStr,
+            source = WeatherSource.GENERIC_GAP.id,
+            highTemp = 58f,
+            lowTemp = 48f,
+            isClimateNormal = true,
+        )
+        val forecastSnapshots = mapOf(pastWed to listOf(nwsNullLow, genericClimateNormal))
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val past = result.find { it.date == pastWed }!!
+        assertNull("Must NOT use GENERIC_GAP climate-normal row as a forecast bait", past.forecastHigh)
+        assertNull("Must NOT use GENERIC_GAP climate-normal row as a forecast bait", past.forecastLow)
+    }
+
+    @Test
     fun `future day with no data still renders as empty column`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
