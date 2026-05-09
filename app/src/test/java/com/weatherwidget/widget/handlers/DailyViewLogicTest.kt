@@ -165,6 +165,88 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `past day with no forecast snapshot leaves forecastHigh and forecastLow null`() {
+        // Regression guard: when forecastSnapshots is missing a past date, prepareGraphDays
+        // must NOT synthesize a forecast bar from climate normals — that's what caused
+        // yellow forecast bars on past Wed/Thu to render down at 45°F (May Bay-Area normals).
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val pastWedStr = pastWed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
+        )
+        val dailyActuals = mapOf(
+            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+        )
+        val climateNormals = mapOf(
+            java.time.MonthDay.from(pastWed) to Pair(58, 48),  // bait: would be the bad fallback
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+            climateNormals = climateNormals,
+        )
+
+        val past = result.find { it.date == pastWed }
+        assertNotNull("Past day should be present in result", past)
+        assertNull("Past day must NOT synthesize forecastHigh from climate normals", past!!.forecastHigh)
+        assertNull("Past day must NOT synthesize forecastLow from climate normals", past.forecastLow)
+        assertFalse("Past day should not be marked climate normal", past.isClimateNormal)
+    }
+
+    @Test
+    fun `past day with forecast snapshot uses snapshot values not climate normal`() {
+        val now = LocalDateTime.of(2026, 5, 9, 12, 0)
+        val today = now.toLocalDate()
+        val pastWed = today.minusDays(3)
+        val pastWedStr = pastWed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastWed to createWeather(pastWedStr, highTemp = 72.9f, lowTemp = 56.5f),
+        )
+        val dailyActuals = mapOf(
+            pastWed to com.weatherwidget.widget.ObservationResolver.DailyActual(pastWed, 72.9f, 56.5f, "Clear"),
+        )
+        val snapshot = createWeather(date = pastWedStr, highTemp = 72f, lowTemp = 53f)
+        val forecastSnapshots = mapOf(pastWed to listOf(snapshot))
+        val climateNormals = mapOf(
+            java.time.MonthDay.from(pastWed) to Pair(58, 48),  // bait: must NOT be used
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+            climateNormals = climateNormals,
+        )
+
+        val past = result.find { it.date == pastWed }
+        assertNotNull(past)
+        assertEquals("Past forecastHigh must come from snapshot, not climate normal", 72f, past!!.forecastHigh)
+        assertEquals("Past forecastLow must come from snapshot, not climate normal", 53f, past.forecastLow)
+    }
+
+    @Test
     fun `future day with no data still renders as empty column`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
