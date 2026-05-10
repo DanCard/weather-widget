@@ -151,7 +151,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val latestWeatherStartMs = SystemClock.elapsedRealtime()
             val latestWeather = forecastDao.getLatestWeather()
             val latestWeatherMs = SystemClock.elapsedRealtime() - latestWeatherStartMs
-            val stateManager = WidgetStateManager(context)
+            val stateManager = stateManager(context)
             val activeSources = filteredIds
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
                 .map { stateManager.getCurrentDisplaySource(it).id }
@@ -412,7 +412,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray,
     ) {
         super.onDeleted(context, appWidgetIds)
-        val stateManager = WidgetStateManager(context)
+        val stateManager = stateManager(context)
         for (appWidgetId in appWidgetIds) {
             stateManager.clearWidgetState(appWidgetId)
             lastUpdateByWidgetId.remove(appWidgetId)
@@ -443,6 +443,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    // Called from onReceive on the main thread; Toast requires main thread.
     private fun handleShowToastAction(context: Context, intent: Intent) {
         val message = intent.getStringExtra(WidgetActions.EXTRA_TOAST_MESSAGE) ?: "No additional data"
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -543,7 +544,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
             context.startActivity(settingsIntent)
         } else {
-            val stateManager = WidgetStateManager(context)
+            val stateManager = stateManager(context)
             Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
             if (targetMode == ViewMode.PRECIPITATION) {
                 stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
@@ -585,7 +586,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         if (hourlyForDay.isEmpty()) return false
 
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true
-        val displaySource = WidgetStateManager(context).getCurrentDisplaySource(appWidgetId).id
+        val displaySource = stateManager(context).getCurrentDisplaySource(appWidgetId).id
         return hourlyForDay.any { it.source == displaySource || it.source == WeatherSource.GENERIC_GAP.id }
     }
 
@@ -722,7 +723,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         } else {
             null
         }
-        val stateManager = WidgetStateManager(context)
+        val stateManager = stateManager(context)
         val currentMode = stateManager.getViewMode(appWidgetId)
         val currentZoom = stateManager.getZoomLevel(appWidgetId)
         Log.d(TAG, "handleCycleZoomAction: widget=$appWidgetId centerOffset=$zoomCenterOffset currentMode=$currentMode currentZoom=$currentZoom")
@@ -772,6 +773,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
     private fun getWidgetId(intent: Intent): Int =
         intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
 
+    private fun stateManager(context: Context) = WidgetStateManager(context)
+
     private fun launchAsync(block: suspend CoroutineScope.() -> Unit): Job {
         val pendingResult = goAsync()
         return CoroutineScope(Dispatchers.IO).launch {
@@ -811,14 +814,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest,
         )
-        CoroutineScope(Dispatchers.IO).launch {
-            val nextWindowStartMs = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
-            WeatherDatabase.getDatabase(context).appLogDao().log(
-                "PERIODIC_REFRESH_SCHEDULE",
-                "name=$WORK_NAME intervalMinutes=60 policy=keep nextWindowStartMs=$nextWindowStartMs",
-                "INFO",
-            )
-        }
+        val nextWindowStartMs = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
+        Log.d(TAG, "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME intervalMinutes=60 policy=keep nextWindowStartMs=$nextWindowStartMs")
     }
 
     private fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
