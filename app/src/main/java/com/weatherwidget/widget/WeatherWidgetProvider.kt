@@ -413,8 +413,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val dateStr = intent.getStringExtra("date") ?: ""
         val isHistory = intent.getBooleanExtra("isHistory", false)
         val index = intent.getIntExtra("index", -1)
-        val showHistory = intent.getBooleanExtra("showHistory", isHistory) // Default to isHistory for backward compat
-
+        val showHistory = intent.getBooleanExtra("showHistory", isHistory)
         val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
         val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
         val clickSource = intent.getStringExtra(EXTRA_CLICK_SOURCE) ?: "unknown"
@@ -427,65 +426,91 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             database.appLogDao().log("CLICK_DAILY", "index=$index, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, targetView=$targetViewName, offset=$targetOffset, clickSource=$clickSource")
 
             if (showHistory) {
-                val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
-                val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
-                val source = intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE) ?: ""
-
-                val historyIntent = Intent(context, ForecastHistoryActivity::class.java).apply {
-                    putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
-                    putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
-                    putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
-                    putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source)
-                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(historyIntent)
-                val totalMs = System.currentTimeMillis() - receiveTimeMs
-                val coroutineDelayMs = coroutineStartMs - receiveTimeMs
-                database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
-                if (totalMs > 500) {
-                    database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
-                }
+                navigateToHistory(context, intent, appWidgetId, dateStr, database, receiveTimeMs, coroutineStartMs)
             } else {
-                val targetMode =
-                    try {
-                        ViewMode.valueOf(targetViewName)
-                    } catch (_: Exception) {
-                        ViewMode.PRECIPITATION
-                    }
-                val hasHourlyData =
-                    hasHourlyDataForDate(
-                        context = context,
-                        database = database,
-                        appWidgetId = appWidgetId,
-                        dateStr = dateStr,
-                        intent = intent,
-                    )
-                Log.d(TAG, "handleDayClickAction branch: hasHourlyData=$hasHourlyData targetMode=$targetMode date=$dateStr offset=$targetOffset")
-                if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE || targetMode == ViewMode.CLOUD_COVER)) {
-                    Log.w(TAG, "handleDayClickAction: NO hourly data for date=$dateStr mode=$targetMode -> opening settings")
-                    database.appLogDao().log(
-                        "CLICK_DAILY_NO_HOURLY",
-                        "date=$dateStr mode=$targetMode -> settings",
-                    )
-                    val settingsIntent = Intent(context, SettingsActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(settingsIntent)
-                } else {
-                    val stateManager = WidgetStateManager(context)
-                    Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
-                    if (targetMode == ViewMode.PRECIPITATION) {
-                        stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
-                    }
-                    WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
-                    val totalMs = System.currentTimeMillis() - receiveTimeMs
-                    val coroutineDelayMs = coroutineStartMs - receiveTimeMs
-                    database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
-                    if (totalMs > 500) {
-                        database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
-                    }
-                }
+                navigateToHourlyView(context, intent, appWidgetId, dateStr, database, receiveTimeMs, coroutineStartMs, targetViewName, targetOffset)
+            }
+        }
+    }
+
+    private suspend fun navigateToHistory(
+        context: Context,
+        intent: Intent,
+        appWidgetId: Int,
+        dateStr: String,
+        database: WeatherDatabase,
+        receiveTimeMs: Long,
+        coroutineStartMs: Long,
+    ) {
+        val lat = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0)
+        val lon = intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0)
+        val source = intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE) ?: ""
+
+        val historyIntent = Intent(context, ForecastHistoryActivity::class.java).apply {
+            putExtra(ForecastHistoryActivity.EXTRA_TARGET_DATE, dateStr)
+            putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
+            putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
+            putExtra(ForecastHistoryActivity.EXTRA_SOURCE, source)
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(historyIntent)
+        val totalMs = System.currentTimeMillis() - receiveTimeMs
+        val coroutineDelayMs = coroutineStartMs - receiveTimeMs
+        database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
+        if (totalMs > 500) {
+            database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
+        }
+    }
+
+    private suspend fun navigateToHourlyView(
+        context: Context,
+        intent: Intent,
+        appWidgetId: Int,
+        dateStr: String,
+        database: WeatherDatabase,
+        receiveTimeMs: Long,
+        coroutineStartMs: Long,
+        targetViewName: String,
+        targetOffset: Int,
+    ) {
+        val targetMode =
+            try {
+                ViewMode.valueOf(targetViewName)
+            } catch (_: Exception) {
+                ViewMode.PRECIPITATION
+            }
+        val hasHourlyData =
+            hasHourlyDataForDate(
+                context = context,
+                database = database,
+                appWidgetId = appWidgetId,
+                dateStr = dateStr,
+                intent = intent,
+            )
+        Log.d(TAG, "handleDayClickAction branch: hasHourlyData=$hasHourlyData targetMode=$targetMode date=$dateStr offset=$targetOffset")
+        if (!hasHourlyData && (targetMode == ViewMode.PRECIPITATION || targetMode == ViewMode.TEMPERATURE || targetMode == ViewMode.CLOUD_COVER)) {
+            Log.w(TAG, "handleDayClickAction: NO hourly data for date=$dateStr mode=$targetMode -> opening settings")
+            database.appLogDao().log(
+                "CLICK_DAILY_NO_HOURLY",
+                "date=$dateStr mode=$targetMode -> settings",
+            )
+            val settingsIntent = Intent(context, SettingsActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(settingsIntent)
+        } else {
+            val stateManager = WidgetStateManager(context)
+            Log.d(TAG, "handleDayClickAction: about to handleSetView targetMode=$targetMode offset=$targetOffset currentStoredMode=${stateManager.getViewMode(appWidgetId)} currentStoredZoom=${stateManager.getZoomLevel(appWidgetId)}")
+            if (targetMode == ViewMode.PRECIPITATION) {
+                stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+            }
+            WidgetIntentRouter.handleSetView(context, appWidgetId, targetMode, targetOffset, repository)
+            val totalMs = System.currentTimeMillis() - receiveTimeMs
+            val coroutineDelayMs = coroutineStartMs - receiveTimeMs
+            database.appLogDao().log("CLICK_TIMING", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms")
+            if (totalMs > 500) {
+                database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=hourly total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
             }
         }
     }
