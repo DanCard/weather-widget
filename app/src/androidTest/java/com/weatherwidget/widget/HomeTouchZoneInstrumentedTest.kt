@@ -8,7 +8,8 @@ import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
-import com.weatherwidget.widget.WidgetActions.*
+import com.weatherwidget.widget.WidgetActions.ACTION_SET_VIEW
+import com.weatherwidget.widget.WidgetActions.EXTRA_TARGET_VIEW
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import org.junit.Assert.assertEquals
@@ -33,7 +34,7 @@ class HomeTouchZoneInstrumentedTest {
 
         val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
             action = ACTION_SET_VIEW
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
             putExtra(EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
         }
 

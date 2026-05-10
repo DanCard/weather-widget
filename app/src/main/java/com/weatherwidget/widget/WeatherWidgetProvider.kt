@@ -58,6 +58,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -85,6 +86,8 @@ import kotlin.math.roundToInt
  */
 @dagger.hilt.android.AndroidEntryPoint
 class WeatherWidgetProvider : AppWidgetProvider() {
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private data class StartupQueryResult(
         val weatherList: List<ForecastEntity>,
@@ -777,7 +780,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
     private fun launchAsync(block: suspend CoroutineScope.() -> Unit): Job {
         val pendingResult = goAsync()
-        return CoroutineScope(Dispatchers.IO).launch {
+        return scope.launch {
             try {
                 block()
             } catch (e: CancellationException) {
@@ -818,27 +821,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME intervalMinutes=60 policy=keep nextWindowStartMs=$nextWindowStartMs")
     }
 
-    private fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
-        Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker (reason=$reason)")
-        val workRequest =
-            OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
-                .setInputData(
-                    Data.Builder()
-                        .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
-                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
-                        .build(),
-                )
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                .build()
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            WORK_NAME_ONE_TIME + "_ui",
-            ExistingWorkPolicy.REPLACE,
-            workRequest,
-        )
-        Log.d(TAG, "triggerUiOnlyUpdate: Worker enqueued with id=${workRequest.id}")
-    }
-
     companion object {
         /** Hours of past hourly data to query — covers yesterday's actuals for rain analysis. */
         const val HOURLY_LOOKBACK_HOURS = 24L
@@ -865,6 +847,27 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         internal fun needsDailyStartupData(viewModes: Collection<ViewMode>): Boolean =
             viewModes.any { it == ViewMode.DAILY }
+
+        internal fun triggerUiOnlyUpdate(context: Context, reason: String = "unspecified") {
+            Log.d(TAG, "triggerUiOnlyUpdate: Enqueueing UI-only worker (reason=$reason)")
+            val workRequest =
+                OneTimeWorkRequestBuilder<WeatherWidgetWorker>()
+                    .setInputData(
+                        Data.Builder()
+                            .putBoolean(WeatherWidgetWorker.KEY_UI_ONLY_REFRESH, true)
+                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, reason)
+                            .build(),
+                    )
+                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME_ONE_TIME + "_ui",
+                ExistingWorkPolicy.REPLACE,
+                workRequest,
+            )
+            Log.d(TAG, "triggerUiOnlyUpdate: Worker enqueued with id=${workRequest.id}")
+        }
 
         internal fun triggerImmediateUpdate(
             context: Context,

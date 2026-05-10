@@ -16,7 +16,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
-import com.weatherwidget.widget.WidgetActions.*
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import kotlinx.coroutines.runBlocking
@@ -124,9 +124,9 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
 
             val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(i, 0, zoom)
             val zoomIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = ACTION_CYCLE_ZOOM
+                action = WidgetActions.ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+                putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
             val pendingIntent = PendingIntent.getBroadcast(
                 context,

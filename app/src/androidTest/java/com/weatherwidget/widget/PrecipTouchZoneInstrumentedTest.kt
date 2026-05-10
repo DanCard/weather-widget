@@ -8,7 +8,7 @@ import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
-import com.weatherwidget.widget.WidgetActions.*
+import com.weatherwidget.widget.WidgetActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before
@@ -43,7 +43,7 @@ class PrecipTouchZoneInstrumentedTest {
 
         // Create the precip toggle intent (same as used in handlers)
         val precipIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_TOGGLE_PRECIP
+            action = WidgetActions.ACTION_TOGGLE_PRECIP
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
         }
 
@@ -64,8 +64,8 @@ class PrecipTouchZoneInstrumentedTest {
 
         // Verify the intent action is correct
         assertEquals(
-            "Intent action should be ACTION_TOGGLE_PRECIP",
-            ACTION_TOGGLE_PRECIP,
+            "Intent action should be WidgetActions.ACTION_TOGGLE_PRECIP",
+            WidgetActions.ACTION_TOGGLE_PRECIP,
             precipIntent.action
         )
     }
@@ -129,13 +129,13 @@ class PrecipTouchZoneInstrumentedTest {
     fun navigationIntent_hasCorrectExtras() {
         // Verify the intent structure used for precipitation navigation
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_TOGGLE_PRECIP
+            action = WidgetActions.ACTION_TOGGLE_PRECIP
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
         }
 
         assertEquals(
-            "Intent should have ACTION_TOGGLE_PRECIP action",
-            ACTION_TOGGLE_PRECIP,
+            "Intent should have WidgetActions.ACTION_TOGGLE_PRECIP action",
+            WidgetActions.ACTION_TOGGLE_PRECIP,
             intent.action
         )
 
