@@ -109,223 +109,208 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         val startupToken = WidgetPerfLogger.newToken("startup")
         val onUpdateStartMs = SystemClock.elapsedRealtime()
-        val pendingResult = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
+        launchAsync {
             val dbOpenStartMs = SystemClock.elapsedRealtime()
             val database = WeatherDatabase.getDatabase(context)
             val dbOpenMs = SystemClock.elapsedRealtime() - dbOpenStartMs
-            try {
-                val forecastDao = database.forecastDao()
-                val hourlyDao = database.hourlyForecastDao()
-                val appLogDao = database.appLogDao()
-                val latestDbLifecycle = appLogDao.getLatestDatabaseLifecycleEvent()
-                WidgetPerfLogger.logIfSlow(
-                    appLogDao = appLogDao,
-                    thresholdMs = WidgetPerfLogger.DB_OPEN_SLOW_MS,
-                    totalMs = dbOpenMs,
-                    appLogTag = WidgetPerfLogger.TAG_DB_OPEN_PERF,
-                    message = WidgetPerfLogger.kv(
-                        "token" to startupToken,
-                        "phase" to "onUpdate",
-                        "dbOpenMs" to dbOpenMs,
-                        "dbEvent" to latestDbLifecycle?.tag,
-                        "dbEventTs" to latestDbLifecycle?.timestamp,
-                    ),
-                    debugTag = TAG,
-                )
+            val forecastDao = database.forecastDao()
+            val hourlyDao = database.hourlyForecastDao()
+            val appLogDao = database.appLogDao()
+            val latestDbLifecycle = appLogDao.getLatestDatabaseLifecycleEvent()
+            WidgetPerfLogger.logIfSlow(
+                appLogDao = appLogDao,
+                thresholdMs = WidgetPerfLogger.DB_OPEN_SLOW_MS,
+                totalMs = dbOpenMs,
+                appLogTag = WidgetPerfLogger.TAG_DB_OPEN_PERF,
+                message = WidgetPerfLogger.kv(
+                    "token" to startupToken,
+                    "phase" to "onUpdate",
+                    "dbOpenMs" to dbOpenMs,
+                    "dbEvent" to latestDbLifecycle?.tag,
+                    "dbEventTs" to latestDbLifecycle?.timestamp,
+                ),
+                debugTag = TAG,
+            )
 
-                // 1. Get latest data from DB to see if we can skip loading state
-                val latestWeatherStartMs = SystemClock.elapsedRealtime()
-                val latestWeather = forecastDao.getLatestWeather()
-                val latestWeatherMs = SystemClock.elapsedRealtime() - latestWeatherStartMs
-                var forecastQueryMs = 0L
-                var snapshotQueryMs = 0L
-                var hourlyQueryMs = 0L
-                var currentTempQueryMs = 0L
-                var extremesQueryMs = 0L
-                var staleCheckMs = 0L
-                val stateManager = WidgetStateManager(context)
-                val activeSources = filteredIds
+            val latestWeatherStartMs = SystemClock.elapsedRealtime()
+            val latestWeather = forecastDao.getLatestWeather()
+            val latestWeatherMs = SystemClock.elapsedRealtime() - latestWeatherStartMs
+            var forecastQueryMs = 0L
+            var snapshotQueryMs = 0L
+            var hourlyQueryMs = 0L
+            var currentTempQueryMs = 0L
+            var extremesQueryMs = 0L
+            var staleCheckMs = 0L
+            val stateManager = WidgetStateManager(context)
+            val activeSources = filteredIds
+                .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
+                .map { stateManager.getCurrentDisplaySource(it).id }
+                .toSet() + WeatherSource.GENERIC_GAP.id
+            val activeSourceList = activeSources.toList()
+
+            val widgetViewModes =
+                filteredIds
                     .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-                    .map { stateManager.getCurrentDisplaySource(it).id }
-                    .toSet() + WeatherSource.GENERIC_GAP.id
-                val activeSourceList = activeSources.toList()
+                    .associateWith { stateManager.getViewMode(it) }
+            val needsDailyData = needsDailyStartupData(widgetViewModes.values)
+            appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${filteredIds.size} thread=${Thread.currentThread().name} sources=$activeSources")
 
-                val widgetViewModes =
-                    filteredIds
-                        .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-                        .associateWith { stateManager.getViewMode(it) }
-                val needsDailyData = needsDailyStartupData(widgetViewModes.values)
-                appLogDao.log("WIDGET_LIFECYCLE", "phase=onUpdate_entry hasData=${latestWeather != null} count=${filteredIds.size} thread=${Thread.currentThread().name} sources=$activeSources")
+            if (latestWeather == null) {
+                for (appWidgetId in filteredIds) {
+                    WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                }
+                triggerImmediateUpdate(context, reason = "on_update_no_data")
+            } else {
+                val today = LocalDate.now()
+                val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val thirtyDays = today.plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val pastSnapshotStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
-                if (latestWeather == null) {
-                    // No data at all, show loading for all widgets
-                    for (appWidgetId in filteredIds) {
-                        WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                coroutineScope {
+                    val weatherListDeferred = async {
+                        forecastDao.getForecastsInRangeForSources(
+                            historyStart,
+                            thirtyDays,
+                            latestWeather.locationLat,
+                            latestWeather.locationLon,
+                            activeSourceList
+                        )
                     }
-                    triggerImmediateUpdate(context, reason = "on_update_no_data")
-                } else {
-                    // We have some data, refresh all widgets from cache immediately
-                    val today = LocalDate.now()
-                    val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    val thirtyDays = today.plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    val pastSnapshotStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                    val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
-                    coroutineScope {
-                        // Run queries in parallel to minimize startup latency
-                        val weatherListDeferred = async {
-                            forecastDao.getForecastsInRangeForSources(
+                    val forecastSnapshotsDeferred = async {
+                        if (needsDailyData) {
+                            val pastSnapshots = forecastDao.getLatestForecastsInRangeForSources(
+                                pastSnapshotStart,
+                                pastSnapshotEnd,
+                                latestWeather.locationLat,
+                                latestWeather.locationLon,
+                                activeSourceList,
+                            )
+                            val recentSnapshots = forecastDao.getAllForecastsInRangeForSources(
                                 historyStart,
                                 thirtyDays,
                                 latestWeather.locationLat,
                                 latestWeather.locationLon,
-                                activeSourceList
+                                activeSourceList,
                             )
-                        }
-
-                        val forecastSnapshotsDeferred = async {
-                            if (needsDailyData) {
-                                val pastSnapshots = forecastDao.getLatestForecastsInRangeForSources(
-                                    pastSnapshotStart,
-                                    pastSnapshotEnd,
-                                    latestWeather.locationLat,
-                                    latestWeather.locationLon,
-                                    activeSourceList,
-                                )
-                                val recentSnapshots = forecastDao.getAllForecastsInRangeForSources(
-                                    historyStart,
-                                    thirtyDays,
-                                    latestWeather.locationLat,
-                                    latestWeather.locationLon,
-                                    activeSourceList,
-                                )
-                                (pastSnapshots + recentSnapshots)
-                                    .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                            } else {
-                                emptyMap()
-                            }
-                        }
-
-                        val nowLocal = LocalDateTime.now()
-                        val zoneId = ZoneId.systemDefault()
-                        val hourlyStart = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-                        val hourlyEnd = nowLocal.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
-
-                        val hourlyForecastsDeferred = async {
-                            hourlyDao.getHourlyForecasts(
-                                hourlyStart,
-                                hourlyEnd,
-                                latestWeather.locationLat,
-                                latestWeather.locationLon,
-                            )
-                        }
-
-                        val currentTempsDeferred = async {
-                            val querySinceMs = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                            repository.getMainObservationsWithComputedNwsBlend(
-                                latestWeather.locationLat,
-                                latestWeather.locationLon,
-                                querySinceMs,
-                            )
-                        }
-
-                        val dailyActualsDeferred = async {
-                            if (needsDailyData) {
-                                repository.getDailyActualsWithLiveToday(
-                                    latestWeather.locationLat,
-                                    latestWeather.locationLon,
-                                )
-                            } else {
-                                emptyMap()
-                            }
-                        }
-
-                        // Await all queries
-                        val forecastQueryStartMs = SystemClock.elapsedRealtime()
-                        val weatherList = weatherListDeferred.await()
-                        forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
-
-                        val snapshotQueryStartMs = SystemClock.elapsedRealtime()
-                        val forecastSnapshots = forecastSnapshotsDeferred.await()
-                        snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
-
-                        val hourlyQueryStartMs = SystemClock.elapsedRealtime()
-                        val hourlyForecasts = hourlyForecastsDeferred.await()
-                        hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
-
-                        val currentTempQueryStartMs = SystemClock.elapsedRealtime()
-                        val currentTemps = currentTempsDeferred.await()
-                        currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
-
-                        val extremesQueryStartMs = SystemClock.elapsedRealtime()
-                        val dailyActualsBySource = dailyActualsDeferred.await()
-                        extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
-
-                        for (appWidgetId in filteredIds) {
-                            val job = launch {
-                                WidgetRenderer.updateWidgetWithData(
-                                    context = context,
-                                    appWidgetManager = appWidgetManager,
-                                    appWidgetId = appWidgetId,
-                                    weatherList = weatherList,
-                                    forecastSnapshots = forecastSnapshots,
-                                    hourlyForecasts = hourlyForecasts,
-                                    currentTemps = currentTemps,
-                                    dailyActualsBySource = dailyActualsBySource,
-                                    repository = repository,
-                                    startupToken = startupToken,
-                                )
-                            }
-                            WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.UI_PAINT)
+                            (pastSnapshots + recentSnapshots)
+                                .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+                        } else {
+                            emptyMap()
                         }
                     }
 
-                    // 2. Check if data is stale and needs background fetch
-                    val staleCheckStartMs = SystemClock.elapsedRealtime()
-                    if (DataFreshness.isDataStale(context)) {
-                        Log.d(TAG, "onUpdate: Data is stale, deferring background fetch until after startup paint")
-                        triggerImmediateUpdate(
-                            context,
-                            reason = "on_update_stale",
-                            initialDelayMs = STARTUP_STALE_REFRESH_DELAY_MS,
+                    val nowLocal = LocalDateTime.now()
+                    val zoneId = ZoneId.systemDefault()
+                    val hourlyStart = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+                    val hourlyEnd = nowLocal.plusHours(HOURLY_GRAPH_LOOKAHEAD_HOURS).truncatedTo(java.time.temporal.ChronoUnit.HOURS).atZone(zoneId).toInstant().toEpochMilli()
+
+                    val hourlyForecastsDeferred = async {
+                        hourlyDao.getHourlyForecasts(
+                            hourlyStart,
+                            hourlyEnd,
+                            latestWeather.locationLat,
+                            latestWeather.locationLon,
                         )
-                    } else {
-                        Log.d(TAG, "onUpdate: Data is fresh, skipped fetch")
                     }
-                    staleCheckMs = SystemClock.elapsedRealtime() - staleCheckStartMs
+
+                    val currentTempsDeferred = async {
+                        val querySinceMs = nowLocal.minusHours(HOURLY_LOOKBACK_HOURS).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        repository.getMainObservationsWithComputedNwsBlend(
+                            latestWeather.locationLat,
+                            latestWeather.locationLon,
+                            querySinceMs,
+                        )
+                    }
+
+                    val dailyActualsDeferred = async {
+                        if (needsDailyData) {
+                            repository.getDailyActualsWithLiveToday(
+                                latestWeather.locationLat,
+                                latestWeather.locationLon,
+                            )
+                        } else {
+                            emptyMap()
+                        }
+                    }
+
+                    val forecastQueryStartMs = SystemClock.elapsedRealtime()
+                    val weatherList = weatherListDeferred.await()
+                    forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
+
+                    val snapshotQueryStartMs = SystemClock.elapsedRealtime()
+                    val forecastSnapshots = forecastSnapshotsDeferred.await()
+                    snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
+
+                    val hourlyQueryStartMs = SystemClock.elapsedRealtime()
+                    val hourlyForecasts = hourlyForecastsDeferred.await()
+                    hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
+
+                    val currentTempQueryStartMs = SystemClock.elapsedRealtime()
+                    val currentTemps = currentTempsDeferred.await()
+                    currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
+
+                    val extremesQueryStartMs = SystemClock.elapsedRealtime()
+                    val dailyActualsBySource = dailyActualsDeferred.await()
+                    extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
+
+                    for (appWidgetId in filteredIds) {
+                        val job = launch {
+                            WidgetRenderer.updateWidgetWithData(
+                                context = context,
+                                appWidgetManager = appWidgetManager,
+                                appWidgetId = appWidgetId,
+                                weatherList = weatherList,
+                                forecastSnapshots = forecastSnapshots,
+                                hourlyForecasts = hourlyForecasts,
+                                currentTemps = currentTemps,
+                                dailyActualsBySource = dailyActualsBySource,
+                                repository = repository,
+                                startupToken = startupToken,
+                            )
+                        }
+                        WidgetUpdateTracker.trackJob(appWidgetId, job, WidgetUpdateTracker.JobType.UI_PAINT)
+                    }
                 }
 
-                schedulePeriodicUpdate(context)
-                val totalMs = SystemClock.elapsedRealtime() - onUpdateStartMs
-                WidgetPerfLogger.logIfSlow(
-                    appLogDao = appLogDao,
-                    thresholdMs = WidgetPerfLogger.STARTUP_SLOW_MS,
-                    totalMs = totalMs,
-                    appLogTag = WidgetPerfLogger.TAG_WIDGET_STARTUP_PERF,
-                    message = WidgetPerfLogger.kv(
-                        "token" to startupToken,
-                        "widgets" to filteredIds.size,
-                        "dbOpenMs" to dbOpenMs,
-                        "latestWeatherMs" to latestWeatherMs,
-                        "forecastMs" to forecastQueryMs,
-                        "snapshotsMs" to snapshotQueryMs,
-                        "hourlyMs" to hourlyQueryMs,
-                        "currentTempMs" to currentTempQueryMs,
-                        "extremesMs" to extremesQueryMs,
-                        "staleCheckMs" to staleCheckMs,
-                        "totalMs" to totalMs,
-                        "dbEvent" to latestDbLifecycle?.tag,
-                    ),
-                    debugTag = TAG,
-                )
-            } catch (e: CancellationException) {
-                database.appLogDao().log("WIDGET_LIFECYCLE", "phase=onUpdate_cancelled msg=${e.message}", "VERBOSE")
-            } catch (e: Exception) {
-                database.appLogDao().log("WIDGET_EXCEPTION", "${e.javaClass.simpleName}: ${e.message}", "ERROR")
-            } finally {
-                finishPendingResultSafely(pendingResult, "onUpdate")
+                val staleCheckStartMs = SystemClock.elapsedRealtime()
+                if (DataFreshness.isDataStale(context)) {
+                    Log.d(TAG, "onUpdate: Data is stale, deferring background fetch until after startup paint")
+                    triggerImmediateUpdate(
+                        context,
+                        reason = "on_update_stale",
+                        initialDelayMs = STARTUP_STALE_REFRESH_DELAY_MS,
+                    )
+                } else {
+                    Log.d(TAG, "onUpdate: Data is fresh, skipped fetch")
+                }
+                staleCheckMs = SystemClock.elapsedRealtime() - staleCheckStartMs
             }
+
+            schedulePeriodicUpdate(context)
+            val totalMs = SystemClock.elapsedRealtime() - onUpdateStartMs
+            WidgetPerfLogger.logIfSlow(
+                appLogDao = appLogDao,
+                thresholdMs = WidgetPerfLogger.STARTUP_SLOW_MS,
+                totalMs = totalMs,
+                appLogTag = WidgetPerfLogger.TAG_WIDGET_STARTUP_PERF,
+                message = WidgetPerfLogger.kv(
+                    "token" to startupToken,
+                    "widgets" to filteredIds.size,
+                    "dbOpenMs" to dbOpenMs,
+                    "latestWeatherMs" to latestWeatherMs,
+                    "forecastMs" to forecastQueryMs,
+                    "snapshotsMs" to snapshotQueryMs,
+                    "hourlyMs" to hourlyQueryMs,
+                    "currentTempMs" to currentTempQueryMs,
+                    "extremesMs" to extremesQueryMs,
+                    "staleCheckMs" to staleCheckMs,
+                    "totalMs" to totalMs,
+                    "dbEvent" to latestDbLifecycle?.tag,
+                ),
+                debugTag = TAG,
+            )
         }
     }
 
