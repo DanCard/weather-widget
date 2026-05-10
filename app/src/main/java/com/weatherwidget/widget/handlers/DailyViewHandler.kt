@@ -152,6 +152,14 @@ object DailyViewHandler : WidgetViewHandler {
                 "skipYesterday=$skipYesterday, weatherCount=${weatherList.size}, actualsCount=${dailyActuals.size}, source=${displaySource.id}",
         )
 
+        val yesterday = today.minusDays(1)
+        val yesterdayActual = dailyActuals[yesterday]
+        appLogDao.log("WIDGET_ACTUAL", 
+            "date=$yesterday src=${displaySource.id} low=${yesterdayActual?.lowTemp} " +
+            "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}", 
+            "DEBUG"
+        )
+
         val earlyRefreshDecisions = computeMissingDataRefreshes(
             today = today,
             displaySource = displaySource,

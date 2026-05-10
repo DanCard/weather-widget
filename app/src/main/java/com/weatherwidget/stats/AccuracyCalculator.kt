@@ -84,6 +84,8 @@ class AccuracyCalculator
             val openWeatherMapStats = calculateAccuracy(WeatherSource.OPEN_WEATHER_MAP, lat, lon, days)
             val meteoStats = calculateAccuracy(WeatherSource.OPEN_METEO, lat, lon, days)
             val weatherApiStats = calculateAccuracy(WeatherSource.WEATHER_API, lat, lon, days)
+            val tomorrowIoStats = calculateAccuracy(WeatherSource.TOMORROW_IO, lat, lon, days)
+            val silurianStats = calculateAccuracy(WeatherSource.SILURIAN, lat, lon, days)
 
             return ComparisonStatistics(
                 nwsStats = nwsStats,
@@ -91,6 +93,8 @@ class AccuracyCalculator
                 openWeatherMapStats = openWeatherMapStats,
                 meteoStats = meteoStats,
                 weatherApiStats = weatherApiStats,
+                tomorrowIoStats = tomorrowIoStats,
+                silurianStats = silurianStats,
                 periodStart = startDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 periodEnd = endDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
             )

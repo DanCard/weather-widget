@@ -10,6 +10,8 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
+import com.weatherwidget.stats.DailyAccuracy
+import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -20,11 +22,13 @@ class StatisticsActivity : AppCompatActivity() {
     lateinit var accuracyCalculator: AccuracyCalculator
 
     private lateinit var adapter: DailyAccuracyAdapter
+    private lateinit var widgetStateManager: WidgetStateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_statistics)
 
+        widgetStateManager = WidgetStateManager(this)
         setupViews()
         loadStatistics()
     }
@@ -57,16 +61,29 @@ class StatisticsActivity : AppCompatActivity() {
 
                 val lat = latestWeather.locationLat
                 val lon = latestWeather.locationLon
+                val enabledSources = widgetStateManager.getVisibleSourcesOrder().toSet()
 
                 // Calculate comparison statistics
                 val comparison = accuracyCalculator.calculateComparison(lat, lon, 30)
 
-                // Get daily breakdown for both sources and combine
-                val nwsDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.NWS, lat, lon, 30)
-                val visualCrossingDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.VISUAL_CROSSING, lat, lon, 30)
-                val meteoDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.OPEN_METEO, lat, lon, 30)
-                val weatherApiDaily = accuracyCalculator.getDailyAccuracyBreakdown(WeatherSource.WEATHER_API, lat, lon, 30)
-                val allDaily = (nwsDaily + visualCrossingDaily + meteoDaily + weatherApiDaily).sortedByDescending { it.date }
+                // Get daily breakdown for enabled sources and combine
+                val allDaily = mutableListOf<DailyAccuracy>()
+                val sourcesToQuery = listOf(
+                    WeatherSource.NWS,
+                    WeatherSource.VISUAL_CROSSING,
+                    WeatherSource.OPEN_WEATHER_MAP,
+                    WeatherSource.OPEN_METEO,
+                    WeatherSource.WEATHER_API,
+                    WeatherSource.TOMORROW_IO,
+                    WeatherSource.SILURIAN,
+                )
+
+                sourcesToQuery.forEach { source ->
+                    if (enabledSources.contains(source)) {
+                        allDaily.addAll(accuracyCalculator.getDailyAccuracyBreakdown(source, lat, lon, 30))
+                    }
+                }
+                allDaily.sortByDescending { it.date }
 
                 // Check if we have any data
                 val hasAnyData = allDaily.isNotEmpty()
@@ -78,60 +95,34 @@ class StatisticsActivity : AppCompatActivity() {
                             "Forecast snapshots are being saved daily. Check back tomorrow for your first accuracy comparison!"
                     } else {
                         buildString {
-                            if (comparison.nwsStats != null && comparison.nwsStats.totalForecasts > 0) {
-                                val stats = comparison.nwsStats
-                                append(
-                                    "NWS: High ±%.1f°%s, Low ±%.1f°%s\n".format(
-                                        stats.avgHighError,
-                                        formatBias(stats.highBias),
-                                        stats.avgLowError,
-                                        formatBias(stats.lowBias),
-                                    ),
-                                )
-                            } else {
-                                append("NWS: No data yet\n")
-                            }
+                            val sourcesToStats = listOf(
+                                WeatherSource.NWS to comparison.nwsStats,
+                                WeatherSource.VISUAL_CROSSING to comparison.visualCrossingStats,
+                                WeatherSource.OPEN_WEATHER_MAP to comparison.openWeatherMapStats,
+                                WeatherSource.OPEN_METEO to comparison.meteoStats,
+                                WeatherSource.WEATHER_API to comparison.weatherApiStats,
+                                WeatherSource.TOMORROW_IO to comparison.tomorrowIoStats,
+                                WeatherSource.SILURIAN to comparison.silurianStats,
+                            )
 
-                            if (comparison.visualCrossingStats != null && comparison.visualCrossingStats.totalForecasts > 0) {
-                                val stats = comparison.visualCrossingStats
-                                append(
-                                    "Visual Crossing: High ±%.1f°%s, Low ±%.1f°%s\n".format(
-                                        stats.avgHighError,
-                                        formatBias(stats.highBias),
-                                        stats.avgLowError,
-                                        formatBias(stats.lowBias),
-                                    ),
-                                )
-                            } else {
-                                append("Visual Crossing: No data yet\n")
-                            }
-
-                            if (comparison.meteoStats != null && comparison.meteoStats.totalForecasts > 0) {
-                                val stats = comparison.meteoStats
-                                append(
-                                    "Open-Meteo: High ±%.1f°%s, Low ±%.1f°%s\n".format(
-                                        stats.avgHighError,
-                                        formatBias(stats.highBias),
-                                        stats.avgLowError,
-                                        formatBias(stats.lowBias),
-                                    ),
-                                )
-                            } else {
-                                append("Open-Meteo: No data yet\n")
-                            }
-
-                            if (comparison.weatherApiStats != null && comparison.weatherApiStats.totalForecasts > 0) {
-                                val stats = comparison.weatherApiStats
-                                append(
-                                    "WeatherAPI: High ±%.1f°%s, Low ±%.1f°%s".format(
-                                        stats.avgHighError,
-                                        formatBias(stats.highBias),
-                                        stats.avgLowError,
-                                        formatBias(stats.lowBias),
-                                    ),
-                                )
-                            } else {
-                                append("WeatherAPI: No data yet")
+                            sourcesToStats.forEachIndexed { index, (source, stats) ->
+                                if (enabledSources.contains(source)) {
+                                    if (stats != null && stats.totalForecasts > 0) {
+                                        append(
+                                            "${source.displayName}: High ±%.1f°%s, Low ±%.1f°%s".format(
+                                                stats.avgHighError,
+                                                formatBias(stats.highBias),
+                                                stats.avgLowError,
+                                                formatBias(stats.lowBias),
+                                            ),
+                                        )
+                                    } else {
+                                        append("${source.displayName}: No data yet")
+                                    }
+                                    if (index < sourcesToStats.size - 1) {
+                                        append("\n")
+                                    }
+                                }
                             }
                         }
                     }

@@ -121,6 +121,9 @@ object ObservationResolver {
         val low = SpatialInterpolator.interpolateIDWValues(lowPairs)
             ?: obs.minOf { it.temperature }
             
+        // Use standard android Log for this deep utility to avoid passing DAOs everywhere
+        android.util.Log.d("ObsResolver", "blendExtremes: stations=${byStation.size} lowBlend=$low lowPairs=${lowPairs.joinToString { "(${it.first}km,${it.second})" }}")
+
         return high to low
     }
 
@@ -275,20 +278,30 @@ object ObservationResolver {
 
     /**
      * Maps a list of [DailyExtremeEntity] to a [DailyActualsBySource] map.
+     * Picks the extreme row closest to the provided [lat]/[lon] when multiple exist for one date/source.
      */
-    fun extremesToDailyActualsBySource(extremes: List<DailyExtremeEntity>): DailyActualsBySource =
+    fun extremesToDailyActualsBySource(
+        extremes: List<DailyExtremeEntity>,
+        lat: Double,
+        lon: Double,
+    ): DailyActualsBySource =
         extremes
             .groupBy { it.source }
             .mapValues { (_, sourceExtremes) ->
-                sourceExtremes.associate { entity ->
-                    val date = LocalDate.ofEpochDay(entity.date / WidgetConstants.MS_IN_A_DAY)
-                    date to DailyActual(
-                        date = date,
-                        highTemp = entity.highTemp,
-                        lowTemp = entity.lowTemp,
-                        condition = entity.condition,
-                    )
-                }
+                sourceExtremes
+                    .groupBy { LocalDate.ofEpochDay(it.date / WidgetConstants.MS_IN_A_DAY) }
+                    .mapValues { (_, dateExtremes) ->
+                        // If multiple locations exist for the same day/source, pick the closest one
+                        val closest = dateExtremes.minBy { 
+                            com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
+                        }
+                        DailyActual(
+                            date = LocalDate.ofEpochDay(closest.date / WidgetConstants.MS_IN_A_DAY),
+                            highTemp = closest.highTemp,
+                            lowTemp = closest.lowTemp,
+                            condition = closest.condition,
+                        )
+                    }
             }
 
     /**

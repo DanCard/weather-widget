@@ -18,7 +18,7 @@ data class AccuracyStatistics(
 )
 
 /**
- * Comparison of accuracy statistics between both API sources.
+ * Comparison of accuracy statistics between all API sources.
  */
 data class ComparisonStatistics(
     val nwsStats: AccuracyStatistics?,
@@ -26,6 +26,8 @@ data class ComparisonStatistics(
     val openWeatherMapStats: AccuracyStatistics?,
     val meteoStats: AccuracyStatistics?,
     val weatherApiStats: AccuracyStatistics?,
+    val tomorrowIoStats: AccuracyStatistics? = null,
+    val silurianStats: AccuracyStatistics? = null,
     val periodStart: String,
     val periodEnd: String,
 )

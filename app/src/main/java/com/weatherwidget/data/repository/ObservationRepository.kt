@@ -331,7 +331,7 @@ class ObservationRepository @Inject constructor(
         val startDate = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endDate = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val pastExtremes = dailyExtremeDao.getExtremesInRange(startDate, endDate, latitude, longitude)
-        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes)
+        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude)
 
         // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -379,7 +379,7 @@ class ObservationRepository @Inject constructor(
             "getDailyActualsWithLiveToday: date=$today lat=$latitude lon=$longitude " +
                 "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary] persistedToday=[$persistedSummary]",
         )
-        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes)
+        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes, latitude, longitude)
         val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
             primary = persistedTodayActuals,
             secondary = todayActuals,
@@ -454,11 +454,13 @@ class ObservationRepository @Inject constructor(
                     val updatedLow = minOf(existing.lowTemp, new.lowTemp)
                     
                     if (updatedHigh > existing.highTemp || updatedLow < existing.lowTemp) {
-                        appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow}")
+                        appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow}", "DEBUG")
                         toInsert.add(new.copy(highTemp = updatedHigh, lowTemp = updatedLow))
                     } else if (new.condition != existing.condition) {
                         // Keep condition up to date even if temps didn't change bounds
                         toInsert.add(new.copy(highTemp = existing.highTemp, lowTemp = existing.lowTemp))
+                    } else {
+                        appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${existing.highTemp} low=${existing.lowTemp}", "DEBUG")
                     }
                 }
             }

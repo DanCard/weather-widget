@@ -435,7 +435,7 @@ suspend fun handleToggleView(
         val startDate = today.minusDays(DAILY_LOOKBACK_DAYS).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val endDate = today.minusDays(1).toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val pastExtremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
-        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes)
+        val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, lat, lon)
 
         // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
@@ -450,7 +450,7 @@ suspend fun handleToggleView(
             lat,
             lon,
         )
-        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes)
+        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes, lat, lon)
         val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
             primary = persistedTodayActuals,
             secondary = todayActuals,

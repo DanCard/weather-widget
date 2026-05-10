@@ -156,7 +156,7 @@ object DailyViewLogic {
             
             // Round future days to integers to maintain UI consistency.
             // Today and historical days are permitted to show decimals for precision.
-            val formatTemp = if (isToday || isPast) { v: Float? -> formatTempLabel(v) } else { v: Float? -> 
+            val formatTemp = if (isToday || isPast) { v: Float? -> com.weatherwidget.util.TempUtils.formatTemp(v) } else { v: Float? -> 
                 v?.roundToInt()?.let { "$it°" } 
             }
             
@@ -167,8 +167,8 @@ object DailyViewLogic {
             if (isPast) {
                 val obsHigh = dailyActuals[date]?.highTemp
                 val obsLow = dailyActuals[date]?.lowTemp
-                highLabel = formatTempLabel(obsHigh)
-                lowLabel = formatTempLabel(obsLow)
+                highLabel = com.weatherwidget.util.TempUtils.formatTemp(obsHigh)
+                lowLabel = com.weatherwidget.util.TempUtils.formatTemp(obsLow)
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
                 val resolvedCurrentTemp = currentTemp ?: com.weatherwidget.widget.ObservationResolver.resolveObservedCurrentTemp(
                     currentTemps, displaySource
@@ -181,8 +181,8 @@ object DailyViewLogic {
 
                 val visibleHigh = listOfNotNull(tripleValues.observedHigh, tripleValues.forecastHigh, tripleValues.trueActualHigh).maxOrNull()
                 val visibleLow = tripleValues.observedLow ?: tripleValues.forecastLow
-                highLabel = formatTempLabel(visibleHigh)
-                lowLabel = formatTempLabel(visibleLow)
+                highLabel = com.weatherwidget.util.TempUtils.formatTemp(visibleHigh)
+                lowLabel = com.weatherwidget.util.TempUtils.formatTemp(visibleLow)
                 isTodayForecastFallback =
                     tripleValues.observedHigh == null &&
                         tripleValues.observedLow == null &&
@@ -560,12 +560,6 @@ forecastHigh = fHigh,
             ?.third
 
         return closestCloudCover?.coerceIn(0, 100)?.div(100f)
-    }
-
-    private fun formatTempLabel(v: Float?): String? {
-        if (v == null) return null
-        val rounded = v.roundToInt()
-        return if (kotlin.math.abs(v - rounded) < 0.01f) "$rounded°" else String.format("%.1f°", v)
     }
 
     private fun buildDailyRainLabel(

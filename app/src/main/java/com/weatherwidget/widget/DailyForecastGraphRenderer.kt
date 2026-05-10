@@ -928,7 +928,6 @@ object DailyForecastGraphRenderer {
 
     internal fun formatTempLabel(actual: Float, isActualData: Boolean): String {
         if (!isActualData) return "${actual.roundToInt()}°"
-        val rounded = actual.roundToInt()
-        return if (kotlin.math.abs(actual - rounded) < 0.01f) "$rounded°" else String.format(Locale.getDefault(), "%.1f°", actual)
+        return com.weatherwidget.util.TempUtils.formatTemp(actual) ?: ""
     }
 }

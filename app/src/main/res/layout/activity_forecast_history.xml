@@ -38,17 +38,6 @@
             android:layout_marginStart="4dp" />
 
         <TextView
-            android:id="@+id/actual_temps_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:textSize="18sp"
-            android:textColor="@color/widget_text_primary"
-            android:textStyle="bold"
-            android:gravity="end"
-            android:visibility="gone" />
-
-        <TextView
             android:id="@+id/api_source_button"
             android:layout_width="wrap_content"
             android:layout_height="32dp"
@@ -88,13 +77,15 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <LinearLayout
+            <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
+                app:flexDirection="row"
+                app:flexWrap="wrap"
+                app:alignItems="center"
+                app:justifyContent="flex_start"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
                 android:paddingStart="12dp"
                 android:paddingEnd="12dp"
                 android:background="@drawable/bg_surface_card"
@@ -106,17 +97,17 @@
                     android:id="@+id/snapshot_summary_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="16sp"
+                    android:textSize="14sp"
                     android:textColor="@color/widget_text_secondary"
-                    android:layout_marginEnd="16dp" />
+                    android:layout_marginEnd="12dp" />
 
                 <LinearLayout
                     android:id="@+id/legend_container"
-                    android:layout_width="0dp"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
                     android:orientation="horizontal"
-                    android:gravity="center">
+                    android:gravity="center_vertical"
+                    android:layout_marginEnd="12dp">
 
                     <LinearLayout
                         android:id="@+id/legend_nws_group"
@@ -124,7 +115,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginEnd="20dp">
+                        android:layout_marginEnd="12dp">
 
                         <View
                             android:layout_width="14dp"
@@ -135,7 +126,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="NWS"
-                            android:textSize="17sp"
+                            android:textSize="14sp"
                             android:textColor="#5AC8FA"
                             android:layout_marginStart="6dp" />
                     </LinearLayout>
@@ -146,7 +137,7 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:layout_marginEnd="20dp">
+                        android:layout_marginEnd="12dp">
 
                         <View
                             android:layout_width="14dp"
@@ -157,7 +148,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="OM"
-                            android:textSize="17sp"
+                            android:textSize="14sp"
                             android:textColor="#34C759"
                             android:layout_marginStart="6dp" />
                     </LinearLayout>
@@ -167,7 +158,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
-                        android:gravity="center_vertical">
+                        android:gravity="center_vertical"
+                        android:layout_marginEnd="12dp">
 
                         <View
                             android:layout_width="14dp"
@@ -178,9 +170,30 @@
                             android:id="@+id/legend_actual_text"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Act"
-                            android:textSize="17sp"
+                            android:text="API actual"
+                            android:textSize="14sp"
                             android:textColor="#FF9F0A"
+                            android:layout_marginStart="6dp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/legend_app_actual_group"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <View
+                            android:layout_width="14dp"
+                            android:layout_height="3dp"
+                            android:background="#FF3B30" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Location actual"
+                            android:textSize="14sp"
+                            android:textColor="#FF3B30"
                             android:layout_marginStart="6dp" />
                     </LinearLayout>
                 </LinearLayout>
@@ -196,11 +209,10 @@
                     android:text="@string/forecast_mode_evolution"
                     android:textAllCaps="false"
                     android:textColor="@color/widget_text_primary"
-                    android:textSize="15sp"
-                    android:textStyle="bold"
-                    android:layout_marginStart="16dp" />
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-            </LinearLayout>
+            </com.google.android.flexbox.FlexboxLayout>
 
             <TextView
                 android:id="@+id/no_data_text"
@@ -277,6 +289,61 @@
                     android:layout_marginStart="4dp"
                     android:layout_marginEnd="4dp"
                     android:scaleType="fitXY" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/actuals_legend_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:padding="12dp"
+                android:background="@drawable/bg_surface_card"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:layout_marginBottom="6dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/footer_api_actual_group"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginEnd="20dp">
+                    <View
+                        android:layout_width="14dp"
+                        android:layout_height="3dp"
+                        android:background="#FF9F0A" />
+                    <TextView
+                        android:id="@+id/footer_api_actual_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="API actual: --"
+                        android:textSize="15sp"
+                        android:textColor="#FF9F0A"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/footer_location_actual_group"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    <View
+                        android:layout_width="14dp"
+                        android:layout_height="3dp"
+                        android:background="#FF3B30" />
+                    <TextView
+                        android:id="@+id/footer_location_actual_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Location actual: --"
+                        android:textSize="15sp"
+                        android:textColor="#FF3B30"
+                        android:layout_marginStart="6dp" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout

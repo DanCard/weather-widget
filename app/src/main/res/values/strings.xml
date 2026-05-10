@@ -68,7 +68,7 @@
     <string name="forecast_hourly_legend">Now</string>
     <string name="forecast_history_no_data_for_source">No forecast history for this date (%1$s).</string>
     <string name="forecast_error_requires_actuals">Error view is available after actual temperatures are recorded for this day.</string>
-    <string name="legend_actual">Actual</string>
+    <string name="legend_actual">API actual</string>
     <string name="legend_zero_error">Zero Error</string>
     <string name="view_app_logs">View App Logs</string>
     <string name="clear_app_logs">Clear Logs</string>
