@@ -58,8 +58,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -374,6 +372,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val stateManager = WidgetStateManager(context)
         for (appWidgetId in appWidgetIds) {
             stateManager.clearWidgetState(appWidgetId)
+            lastUpdateByWidgetId.remove(appWidgetId)
         }
     }
 
@@ -663,6 +662,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "handleCycleZoomAction: widget=$appWidgetId centerOffset=$zoomCenterOffset currentMode=$currentMode currentZoom=$currentZoom")
         if (currentMode == ViewMode.DAILY) {
             Log.e(TAG, "BUG: CYCLE_ZOOM fired while in DAILY mode! This should be ACTION_DAY_CLICK. Extras: ${intent.extras}")
+            return
         }
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             launchAsync {
