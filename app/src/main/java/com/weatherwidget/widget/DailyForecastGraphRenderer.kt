@@ -48,7 +48,7 @@ object DailyForecastGraphRenderer {
     private const val FORECAST_BAR_WIDTH_DP = 9f
     private const val TODAY_TRIPLE_BAR_WIDTH_DP = 8f
 
-    private const val HIGH_LABEL_OFFSET_DP = 6f
+    private const val HIGH_LABEL_OFFSET_DP = 8f
     private const val ICON_BELOW_BAR_SPACING_DP = 3f
     private const val TEMP_LABEL_SPACING_DP = -1f
     private const val RAIN_TEXT_MARGIN_DP = 4f
@@ -69,6 +69,8 @@ object DailyForecastGraphRenderer {
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
     private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
     private const val PAST_TEMP_SCALE = 0.9f
+    private const val LABEL_SHADOW_RADIUS_DP = 1.5f
+    private const val LABEL_SHADOW_DY_DP = 1.0f
 
     private data class PaintCache(
         val scaleFactor: Float,
@@ -439,6 +441,8 @@ object DailyForecastGraphRenderer {
         val labelScale = layout.bitmapScale.coerceIn(0.5f, 1f)
         val barWidth = dailyBarStrokeWidthPx(layout.density, scaleFactor, layout.bitmapScale)
         val tripleBarWidth = todayTripleBarStrokeWidthPx(layout.density, scaleFactor, layout.bitmapScale)
+        val shadowRadius = (LABEL_SHADOW_RADIUS_DP * labelScale).dp(layout.density)
+        val shadowDy = (LABEL_SHADOW_DY_DP * labelScale).dp(layout.density)
 
         val set = PaintSet(
             barPaint = createBarPaint(COLOR_FORECAST, barWidth),
@@ -463,10 +467,10 @@ object DailyForecastGraphRenderer {
                 layout.dayLabelHeight / DAY_LABEL_SIZE_MULTIPLIER,
                 true
             ),
-            tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight),
-            pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE),
-            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight, true),
-            rainTextPaint = createTextPaint(COLOR_FORECAST, (RAIN_TEXT_SIZE_DP * scaleFactor * labelScale).dp(layout.density)),
+            tempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight, shadowRadius = shadowRadius, shadowDy = shadowDy),
+            pastTempTextPaint = createTextPaint(COLOR_WHITE, layout.tempLabelHeight * PAST_TEMP_SCALE, shadowRadius = shadowRadius, shadowDy = shadowDy),
+            todayTempTextPaint = createTextPaint(COLOR_TODAY_TEXT, layout.tempLabelHeight, true, shadowRadius = shadowRadius, shadowDy = shadowDy),
+            rainTextPaint = createTextPaint(COLOR_FORECAST, (RAIN_TEXT_SIZE_DP * scaleFactor * labelScale).dp(layout.density), shadowRadius = shadowRadius, shadowDy = shadowDy),
         )
 
         val newCache = PaintCache(scaleFactor, layout.dayLabelHeight, layout.tempLabelHeight, set)
@@ -480,11 +484,20 @@ object DailyForecastGraphRenderer {
         strokeCap = Paint.Cap.ROUND
     }
 
-    private fun createTextPaint(colorInt: Int, size: Float, bold: Boolean = false): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private fun createTextPaint(
+        colorInt: Int,
+        size: Float,
+        bold: Boolean = false,
+        shadowRadius: Float = 0f,
+        shadowDy: Float = 0f
+    ): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = colorInt
         textSize = size
         textAlign = Paint.Align.CENTER
         if (bold) typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        if (shadowRadius > 0f) {
+            setShadowLayer(shadowRadius, 0f, shadowDy, 0xFF000000.toInt())
+        }
     }
 
     private fun drawWeatherAdaptiveBar(
