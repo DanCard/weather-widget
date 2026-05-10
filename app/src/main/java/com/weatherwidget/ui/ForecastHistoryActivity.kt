@@ -227,7 +227,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.back_button).setOnClickListener { finish() }
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
-        findViewById<TextView>(R.id.date_subtitle).setOnClickListener { finish() }
         findViewById<View>(R.id.api_source_button).setOnClickListener {
             cycleApiSource()
         }
@@ -257,10 +256,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
         updateModeUi()
 
         val dateText =
-            targetLocalDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()) +
+            targetLocalDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
                 ", " + targetLocalDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
                 " " + targetLocalDate.dayOfMonth
-        findViewById<TextView>(R.id.date_subtitle).text = dateText
+        findViewById<TextView>(R.id.title).text =
+            getString(R.string.forecast_history) + " " + dateText
 
         loadData(
             targetDate = this.targetDate,
@@ -457,7 +457,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             actualTextView.text = "$sourceLabel actual: ${formatTemp(actualHigh)} / ${formatTemp(actualLow)}"
             actualTextView.visibility = View.VISIBLE
         } else {
-            findViewById<TextView>(R.id.actual_temps_text).visibility = View.INVISIBLE
+            findViewById<TextView>(R.id.actual_temps_text).visibility = View.GONE
         }
 
         val highGraphView = findViewById<ImageView>(R.id.high_temp_graph)

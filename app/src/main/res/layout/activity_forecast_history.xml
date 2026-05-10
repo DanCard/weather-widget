@@ -6,11 +6,12 @@
     android:orientation="vertical"
     android:background="@color/background">
 
-    <LinearLayout
+    <com.google.android.flexbox.FlexboxLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
+        app:flexDirection="row"
+        app:flexWrap="wrap"
+        app:alignItems="center"
         android:paddingTop="6dp"
         android:paddingBottom="6dp"
         android:paddingStart="12dp"
@@ -37,27 +38,15 @@
             android:layout_marginStart="4dp" />
 
         <TextView
-            android:id="@+id/date_subtitle"
+            android:id="@+id/actual_temps_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:textColor="@color/widget_text_primary" />
-
-        <TextView
-            android:id="@+id/actual_temps_text"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:layout_marginStart="8dp"
             android:textSize="18sp"
             android:textColor="@color/widget_text_primary"
             android:textStyle="bold"
             android:gravity="end"
-            android:visibility="invisible" />
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/api_source_button"
@@ -85,7 +74,7 @@
             android:contentDescription="@string/settings"
             android:src="@drawable/ic_settings_gear"
             app:tint="@color/widget_text_primary" />
-    </LinearLayout>
+    </com.google.android.flexbox.FlexboxLayout>
 
     <ScrollView
         android:layout_width="match_parent"
