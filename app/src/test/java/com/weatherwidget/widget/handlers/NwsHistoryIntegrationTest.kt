@@ -29,7 +29,7 @@ class NwsHistoryIntegrationTest {
             targetDate = dateEpoch(yesterdayStr),
             forecastDate = dateEpoch(yesterdayStr),
             highTemp = 77f,
-            lowTemp = null,
+            lowTemp = 50f,
             condition = "Sunny",
             source = WeatherSource.NWS.id,
             locationLat = 37.42,
@@ -64,7 +64,7 @@ class NwsHistoryIntegrationTest {
         assertEquals("Should use source-specific actual high for primary bar high", 78f, result!!.high)
         assertEquals("Should use source-specific actual low for primary bar low", 52f, result.low)
         assertEquals("Should still show the forecast high in the comparison overlay", 77f, result.forecastHigh)
-        assertNull("Forecast low should remain null as provided in the snapshot", result.forecastLow)
+        assertEquals("Should still show the forecast low in the comparison overlay", 50f, result.forecastLow)
     }
 
     @Test
