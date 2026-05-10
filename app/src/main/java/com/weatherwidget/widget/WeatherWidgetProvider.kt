@@ -415,8 +415,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val index = intent.getIntExtra("index", -1)
         val showHistory = intent.getBooleanExtra("showHistory", isHistory) // Default to isHistory for backward compat
 
-        val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "null"
-        val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
+        val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
+        val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
         val clickSource = intent.getStringExtra(EXTRA_CLICK_SOURCE) ?: "unknown"
         Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index, targetView=$targetViewName, hourlyOffset=$targetOffset, clickSource=$clickSource")
 
@@ -447,8 +447,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     database.appLogDao().log("CLICK_SLOW", "widget=$appWidgetId branch=history total=${totalMs}ms coroutineDelay=${coroutineDelayMs}ms date=$dateStr")
                 }
             } else {
-                val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
-                val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
                 val targetMode =
                     try {
                         ViewMode.valueOf(targetViewName)
