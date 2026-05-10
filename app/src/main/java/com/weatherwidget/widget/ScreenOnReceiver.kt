@@ -81,9 +81,9 @@ class ScreenOnReceiver : BroadcastReceiver() {
 
         val providerIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_REFRESH
+                action = WidgetActions.ACTION_REFRESH
                 if (uiOnly) {
-                    putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+                    putExtra(WidgetActions.EXTRA_UI_ONLY, true)
                 }
             }
         context.sendBroadcast(providerIntent)

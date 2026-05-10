@@ -36,6 +36,7 @@ import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
@@ -78,10 +79,7 @@ object DailyViewHandler : WidgetViewHandler {
         val rain: Int,
     )
 
-    // Intent actions from WeatherWidgetProvider
-    
-    private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
-    private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
+    // Intent actions from WidgetActions
 
     internal const val NIGHT_RAIN_GRID_ROWS = NightRainGridMapper.GRID_ROWS
     internal const val NIGHT_RAIN_GRID_COLS = NightRainGridMapper.GRID_COLS
@@ -757,7 +755,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         if (canLeft) {
             val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_NAV_LEFT
+                action = WidgetActions.ACTION_NAV_LEFT
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
             val leftPendingIntent = PendingIntent.getBroadcast(
@@ -768,8 +766,8 @@ object DailyViewHandler : WidgetViewHandler {
             views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
         } else {
             val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_SHOW_TOAST
-                putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "No additional history available")
+                action = WidgetActions.ACTION_SHOW_TOAST
+                putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No additional history available")
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
             val toastPendingIntent = PendingIntent.getBroadcast(
@@ -785,7 +783,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         if (canRight) {
             val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_NAV_RIGHT
+                action = WidgetActions.ACTION_NAV_RIGHT
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
             val rightPendingIntent = PendingIntent.getBroadcast(
@@ -796,8 +794,8 @@ object DailyViewHandler : WidgetViewHandler {
             views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
         } else {
             val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_SHOW_TOAST
-                putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, "No more forecast available")
+                action = WidgetActions.ACTION_SHOW_TOAST
+                putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No more forecast available")
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
             val toastPendingIntent = PendingIntent.getBroadcast(

@@ -11,7 +11,7 @@ import com.weatherwidget.stats.ComparisonStatistics
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.mockk
 import io.mockk.coEvery
@@ -109,12 +109,12 @@ class HistoryActivitySyncRoboTest {
         // 2. Verify broadcast was sent back to widget
         val broadcastIntents = shadowApp.broadcastIntents
         val refreshBroadcast = broadcastIntents.find {
-            it.action == WeatherWidgetProvider.ACTION_REFRESH &&
+            it.action == WidgetActions.ACTION_REFRESH &&
             it.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1) == testWidgetId
         }
 
         assertNotNull("Should have sent REFRESH broadcast back to widget", refreshBroadcast)
-        assertTrue("Broadcast should be UI_ONLY to avoid extra network calls", refreshBroadcast!!.getBooleanExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, false))
+        assertTrue("Broadcast should be UI_ONLY to avoid extra network calls", refreshBroadcast!!.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false))
     }
 
     @Test

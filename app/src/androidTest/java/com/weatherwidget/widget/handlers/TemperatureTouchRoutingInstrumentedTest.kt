@@ -16,6 +16,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions.*
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import kotlinx.coroutines.runBlocking
@@ -120,9 +121,9 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
     private fun buildBottomTapViews(): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
         val goCloudIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WidgetIntentRouter.ACTION_SET_VIEW
+            action = ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, ViewMode.CLOUD_COVER.name)
+            putExtra(EXTRA_TARGET_VIEW, ViewMode.CLOUD_COVER.name)
         }
         val pendingIntent = PendingIntent.getBroadcast(
             context,

@@ -16,6 +16,7 @@ import com.weatherwidget.widget.CurrentTemperatureResolution
 import com.weatherwidget.widget.CurrentTemperatureResolver
 import com.weatherwidget.widget.FetchDotDebug
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.LocalDateTime
@@ -288,9 +289,9 @@ object TemperatureViewHandler {
                 throw e
             }
             appContext.sendBroadcast(Intent(appContext, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_REFRESH
+                action = WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+                putExtra(WidgetActions.EXTRA_UI_ONLY, true)
             })
         }
     }

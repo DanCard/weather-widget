@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.mockk
@@ -53,7 +54,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
         val views = renderDailyWidget()
         val intent = clickPrecipProbabilityZone(views)
         assertNotNull("Expected precip probability touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_PRECIP, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_PRECIP, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -62,7 +63,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
         val views = renderTemperatureWidget()
         val intent = clickPrecipProbabilityZone(views)
         assertNotNull("Expected precip probability touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_PRECIP, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_PRECIP, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -85,7 +86,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
         val views = renderPrecipitationWidget()
         val intent = clickPrecipProbabilityZone(views)
         assertNotNull("Expected precip probability touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_PRECIP, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_PRECIP, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -94,7 +95,7 @@ class PrecipProbabilityTouchRoutingRoboTest {
         val views = renderCloudCoverWidget()
         val intent = clickPrecipProbabilityZone(views)
         assertNotNull("Expected precip probability touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_PRECIP, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_PRECIP, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 

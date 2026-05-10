@@ -23,6 +23,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import java.time.Instant
@@ -42,14 +43,7 @@ object PrecipViewHandler {
     private const val TAG = "PrecipViewHandler"
     private const val CELL_HEIGHT_DP = 90
 
-    // Intent actions
-    private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
-    private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
-    private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
-    private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
-    private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
-    private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
-    private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
+
 
     /**
      * Update widget with precipitation data.
@@ -146,9 +140,9 @@ object PrecipViewHandler {
 
         // Weather icon + bottom graph zone → cloud cover view
         val goCloudIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WidgetIntentRouter.ACTION_SET_VIEW
+            action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)
+            putExtra(WidgetActions.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.CLOUD_COVER.name)
         }
         val goCloudPending = PendingIntent.getBroadcast(
             context, WidgetRequestCodes.iconViewToggle(appWidgetId), goCloudIntent,

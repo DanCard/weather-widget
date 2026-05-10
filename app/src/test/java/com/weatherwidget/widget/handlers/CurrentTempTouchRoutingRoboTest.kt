@@ -18,6 +18,7 @@ import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
 import io.mockk.mockk
@@ -61,7 +62,7 @@ class CurrentTempTouchRoutingRoboTest {
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_VIEW, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -72,7 +73,7 @@ class CurrentTempTouchRoutingRoboTest {
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_VIEW, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -84,7 +85,7 @@ class CurrentTempTouchRoutingRoboTest {
         val intent = clickView(views, R.id.current_temp_zone)
 
         assertNotNull("Expected current temp zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_TOGGLE_VIEW, intent!!.action)
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -95,8 +96,8 @@ class CurrentTempTouchRoutingRoboTest {
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_SET_VIEW, intent!!.action)
-        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW))
+        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
+        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -107,8 +108,8 @@ class CurrentTempTouchRoutingRoboTest {
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetIntentRouter.ACTION_SET_VIEW, intent!!.action)
-        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW))
+        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
+        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 

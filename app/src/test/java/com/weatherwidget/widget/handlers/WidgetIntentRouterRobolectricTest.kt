@@ -3,7 +3,7 @@ package com.weatherwidget.widget.handlers
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.ZoomLevel
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
@@ -66,19 +66,19 @@ class WidgetIntentRouterRobolectricTest {
     )
 
     @Test
-    fun `router action constants match provider action constants`() {
-        assertEquals(WeatherWidgetProvider.ACTION_NAV_LEFT, WidgetIntentRouter.ACTION_NAV_LEFT)
-        assertEquals(WeatherWidgetProvider.ACTION_NAV_RIGHT, WidgetIntentRouter.ACTION_NAV_RIGHT)
-        assertEquals(WeatherWidgetProvider.ACTION_TOGGLE_API, WidgetIntentRouter.ACTION_TOGGLE_API)
-        assertEquals(WeatherWidgetProvider.ACTION_TOGGLE_VIEW, WidgetIntentRouter.ACTION_TOGGLE_VIEW)
-        assertEquals(WeatherWidgetProvider.ACTION_TOGGLE_PRECIP, WidgetIntentRouter.ACTION_TOGGLE_PRECIP)
-        assertEquals(WeatherWidgetProvider.ACTION_CYCLE_ZOOM, WidgetIntentRouter.ACTION_CYCLE_ZOOM)
-        assertEquals(WeatherWidgetProvider.ACTION_SET_VIEW, WidgetIntentRouter.ACTION_SET_VIEW)
+    fun `action constants have expected string values`() {
+        assertEquals(WidgetActions.ACTION_NAV_LEFT, "com.weatherwidget.ACTION_NAV_LEFT")
+        assertEquals(WidgetActions.ACTION_NAV_RIGHT, "com.weatherwidget.ACTION_NAV_RIGHT")
+        assertEquals(WidgetActions.ACTION_TOGGLE_API, "com.weatherwidget.ACTION_TOGGLE_API")
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, "com.weatherwidget.ACTION_TOGGLE_VIEW")
+        assertEquals(WidgetActions.ACTION_TOGGLE_PRECIP, "com.weatherwidget.ACTION_TOGGLE_PRECIP")
+        assertEquals(WidgetActions.ACTION_CYCLE_ZOOM, "com.weatherwidget.ACTION_CYCLE_ZOOM")
+        assertEquals(WidgetActions.ACTION_SET_VIEW, "com.weatherwidget.ACTION_SET_VIEW")
     }
 
     @Test
-    fun `router set-view extra key matches provider contract`() {
-        assertEquals(WeatherWidgetProvider.EXTRA_TARGET_VIEW, WidgetIntentRouter.EXTRA_TARGET_VIEW)
+    fun `extra constants have expected string values`() {
+        assertEquals(WidgetActions.EXTRA_TARGET_VIEW, "com.weatherwidget.EXTRA_TARGET_VIEW")
     }
 
     @Test

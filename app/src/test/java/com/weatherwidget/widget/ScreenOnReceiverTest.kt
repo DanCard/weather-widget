@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.testutil.TestDatabase
+import com.weatherwidget.widget.WidgetActions
 import io.mockk.coEvery
 import io.mockk.unmockkAll
 import kotlinx.coroutines.runBlocking
@@ -74,7 +75,7 @@ class ScreenOnReceiverTest {
         }
         
         assertNotNull("Expected broadcast to WeatherWidgetProvider", providerIntent)
-        assertEquals(WeatherWidgetProvider.ACTION_REFRESH, providerIntent?.action)
+        assertEquals(WidgetActions.ACTION_REFRESH, providerIntent?.action)
     }
 
     @Test
@@ -104,7 +105,7 @@ class ScreenOnReceiverTest {
         val providerIntent =
             shadowApplication.broadcastIntents.find {
                 it.component?.className == WeatherWidgetProvider::class.java.name &&
-                    it.action == WeatherWidgetProvider.ACTION_REFRESH
+                    it.action == WidgetActions.ACTION_REFRESH
             }
 
         assertTrue("Did not expect refresh broadcast on screen off", providerIntent == null)

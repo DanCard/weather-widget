@@ -6,7 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.ui.ForecastHistoryActivity
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -52,7 +52,7 @@ class DailyViewHandlerIntentContractTest {
                 now = now,
             )
 
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, intent.action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, intent.action)
         assertEquals(TEST_WIDGET_ID, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
         assertEquals(targetDate.toString(), intent.getStringExtra("date"))
         assertTrue(intent.getBooleanExtra("isHistory", false))
@@ -61,7 +61,7 @@ class DailyViewHandlerIntentContractTest {
         assertEquals(LAT, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.00001)
         assertEquals(LON, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0), 0.00001)
         assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
-        assertNull(intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
+        assertNull(intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
     }
 
     @Test
@@ -88,11 +88,11 @@ class DailyViewHandlerIntentContractTest {
                 targetDay = targetDate,
             )
 
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, intent.action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, intent.action)
         assertFalse(intent.getBooleanExtra("isHistory", true))
         assertFalse(intent.getBooleanExtra("showHistory", true))
-        assertEquals("PRECIPITATION", intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
-        assertEquals(expectedOffset, intent.getIntExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
+        assertEquals("PRECIPITATION", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(expectedOffset, intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
         assertEquals(LAT, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.00001)
         assertEquals(LON, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0), 0.00001)
         assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
@@ -118,8 +118,8 @@ class DailyViewHandlerIntentContractTest {
 
         assertFalse(intent.getBooleanExtra("isHistory", true))
         assertFalse(intent.getBooleanExtra("showHistory", true))
-        assertEquals("PRECIPITATION", intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
-        assertEquals(0, intent.getIntExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
+        assertEquals("PRECIPITATION", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(0, intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
     }
 
     @Test
@@ -142,8 +142,8 @@ class DailyViewHandlerIntentContractTest {
             )
 
         assertFalse(intent.getBooleanExtra("showHistory", true))
-        assertEquals("CLOUD_COVER", intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
-        assertEquals(0, intent.getIntExtra(WeatherWidgetProvider.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
+        assertEquals("CLOUD_COVER", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(0, intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE))
     }
 
     @Test
@@ -166,7 +166,7 @@ class DailyViewHandlerIntentContractTest {
             )
 
         assertFalse(intent.getBooleanExtra("showHistory", true))
-        assertEquals("TEMPERATURE", intent.getStringExtra(WeatherWidgetProvider.EXTRA_TARGET_VIEW))
+        assertEquals("TEMPERATURE", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
     }
 
     companion object {

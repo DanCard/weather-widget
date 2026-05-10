@@ -21,6 +21,7 @@ import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import java.time.Instant
@@ -41,17 +42,7 @@ object WidgetIntentRouter {
     private const val SLOW_THRESHOLD_MS = 200L
     private const val RESIZE_DEBOUNCE_MS = 250L
 
-    // Intent actions
-    const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
-    const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
-    const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
-    const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
-    const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
-    const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
-    const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
-    const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
-    const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
-    const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
+    // Intent actions — defined in WidgetActions
 
     @VisibleForTesting
     internal data class LocationResult(

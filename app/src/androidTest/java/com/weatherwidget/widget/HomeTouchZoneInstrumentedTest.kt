@@ -8,6 +8,7 @@ import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.weatherwidget.R
+import com.weatherwidget.widget.WidgetActions.*
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import org.junit.Assert.assertEquals
@@ -31,9 +32,9 @@ class HomeTouchZoneInstrumentedTest {
         val views = RemoteViews(context.packageName, R.layout.widget_weather)
 
         val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WidgetIntentRouter.ACTION_SET_VIEW
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, TEST_WIDGET_ID)
-            putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
+            action = ACTION_SET_VIEW
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            putExtra(EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
         }
 
         val homePendingIntent = PendingIntent.getBroadcast(
@@ -50,13 +51,13 @@ class HomeTouchZoneInstrumentedTest {
         assertNotNull("home_touch_zone view ID should exist", R.id.home_touch_zone)
         assertEquals(
             "Intent action should be ACTION_SET_VIEW",
-            WidgetIntentRouter.ACTION_SET_VIEW,
+            ACTION_SET_VIEW,
             homeIntent.action,
         )
         assertEquals(
             "Intent should target DAILY mode",
             ViewMode.DAILY.name,
-            homeIntent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW),
+            homeIntent.getStringExtra(EXTRA_TARGET_VIEW),
         )
     }
 

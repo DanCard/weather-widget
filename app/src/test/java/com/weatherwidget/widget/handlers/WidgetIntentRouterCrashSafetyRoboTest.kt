@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.RefreshScheduler
 import kotlinx.coroutines.runBlocking
@@ -84,23 +85,23 @@ class WidgetIntentRouterCrashSafetyRoboTest {
 
     @Test
     fun actionConstants_areDefined() {
-        assertNotNull(WidgetIntentRouter.ACTION_NAV_LEFT)
-        assertNotNull(WidgetIntentRouter.ACTION_NAV_RIGHT)
-        assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_API)
-        assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_VIEW)
-        assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_PRECIP)
-        assertNotNull(WidgetIntentRouter.ACTION_SET_VIEW)
-        assertNotNull(WidgetIntentRouter.EXTRA_TARGET_VIEW)
+        assertNotNull(WidgetActions.ACTION_NAV_LEFT)
+        assertNotNull(WidgetActions.ACTION_NAV_RIGHT)
+        assertNotNull(WidgetActions.ACTION_TOGGLE_API)
+        assertNotNull(WidgetActions.ACTION_TOGGLE_VIEW)
+        assertNotNull(WidgetActions.ACTION_TOGGLE_PRECIP)
+        assertNotNull(WidgetActions.ACTION_SET_VIEW)
+        assertNotNull(WidgetActions.EXTRA_TARGET_VIEW)
     }
 
     @Test
     fun actionConstants_haveCorrectValues() {
-        assertNotNull(WidgetIntentRouter.ACTION_NAV_LEFT)
-        assertNotNull(WidgetIntentRouter.ACTION_NAV_RIGHT)
-        assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_API)
-        assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_VIEW)
-        assertNotNull(WidgetIntentRouter.ACTION_TOGGLE_PRECIP)
-        assertNotNull(WidgetIntentRouter.ACTION_SET_VIEW)
-        assertNotNull(WidgetIntentRouter.EXTRA_TARGET_VIEW)
+        assertNotNull(WidgetActions.ACTION_NAV_LEFT)
+        assertNotNull(WidgetActions.ACTION_NAV_RIGHT)
+        assertNotNull(WidgetActions.ACTION_TOGGLE_API)
+        assertNotNull(WidgetActions.ACTION_TOGGLE_VIEW)
+        assertNotNull(WidgetActions.ACTION_TOGGLE_PRECIP)
+        assertNotNull(WidgetActions.ACTION_SET_VIEW)
+        assertNotNull(WidgetActions.EXTRA_TARGET_VIEW)
     }
 }

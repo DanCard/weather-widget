@@ -13,15 +13,13 @@ import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import java.time.LocalDate
 import java.time.LocalDateTime
 
 internal object DailyClickHandlerFactory {
 
-    private const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
-    private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
-    private const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
-    private const val EXTRA_CLICK_SOURCE = "com.weatherwidget.EXTRA_CLICK_SOURCE"
+
 
     @VisibleForTesting
     internal fun buildDayClickIntent(
@@ -37,7 +35,7 @@ internal object DailyClickHandlerFactory {
         val showHistory = DayClickHelper.shouldShowHistory(isHistory)
 
         return Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_DAY_CLICK
+            action = WidgetActions.ACTION_DAY_CLICK
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             putExtra("date", date.toString())
             putExtra("isHistory", isHistory)
@@ -46,13 +44,13 @@ internal object DailyClickHandlerFactory {
             putExtra(ForecastHistoryActivity.EXTRA_LAT, lat)
             putExtra(ForecastHistoryActivity.EXTRA_LON, lon)
             putExtra(ForecastHistoryActivity.EXTRA_SOURCE, displaySource.displayName)
-            clickSource?.let { putExtra(EXTRA_CLICK_SOURCE, it) }
+            clickSource?.let { putExtra(WidgetActions.EXTRA_CLICK_SOURCE, it) }
 
             if (!showHistory) {
                 val targetMode = targetModeOverride ?: DayClickHelper.resolveDailyTargetViewMode(iconRes)
                 val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
-                putExtra(EXTRA_TARGET_VIEW, targetMode.name)
-                putExtra(EXTRA_HOURLY_OFFSET, offset)
+                putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetMode.name)
+                putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, offset)
             }
         }
     }

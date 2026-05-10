@@ -13,7 +13,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import io.mockk.every
@@ -115,26 +115,26 @@ class DailyViewGraphClickAlignmentTest {
         val zone1 = applied.findViewById<View>(R.id.graph_day2_zone)
         zone1.performClick()
         val broadcasts = shadowOf(context as android.app.Application).broadcastIntents
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(todayStr, broadcasts.last().getStringExtra("date"))
         assertEquals(2, broadcasts.last().getIntExtra("index", -1)) // colIndex 1 + 1 = 2
 
         val bottomZone1 = applied.findViewById<View>(R.id.graph_bottom_day2_zone)
         assertEquals(View.VISIBLE, bottomZone1.visibility)
         bottomZone1.performClick()
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(todayStr, broadcasts.last().getStringExtra("date"))
 
         // Zone 0 = yesterday (colIndex 0) — click fires broadcast for yesterday
         val zone0 = applied.findViewById<View>(R.id.graph_day1_zone)
         zone0.performClick()
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
 
         val bottomZone0 = applied.findViewById<View>(R.id.graph_bottom_day1_zone)
         assertEquals(View.VISIBLE, bottomZone0.visibility)
         bottomZone0.performClick()
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
     }
 
@@ -190,7 +190,7 @@ class DailyViewGraphClickAlignmentTest {
         val countBefore = broadcasts.size
         zone7.performClick()
         assertEquals("Zone 7 click should fire a broadcast", countBefore + 1, broadcasts.size)
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(col7Str, broadcasts.last().getStringExtra("date"))
 
         // Zone 8 (graph_day9_zone) is empty — must still be VISIBLE for grid stability
@@ -254,12 +254,12 @@ class DailyViewGraphClickAlignmentTest {
 
         // Zone 0 = yesterday — click fires broadcast
         applied.findViewById<View>(R.id.graph_day1_zone).performClick()
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(yesterdayStr, broadcasts.last().getStringExtra("date"))
 
         // Zone 3 = today+2 (skippedStr) — click fires broadcast
         applied.findViewById<View>(R.id.graph_day4_zone).performClick()
-        assertEquals(WeatherWidgetProvider.ACTION_DAY_CLICK, broadcasts.last().action)
+        assertEquals(WidgetActions.ACTION_DAY_CLICK, broadcasts.last().action)
         assertEquals(skippedStr, broadcasts.last().getStringExtra("date"))
     }
 

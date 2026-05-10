@@ -23,6 +23,7 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WeatherWidgetWorker
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.Job
@@ -42,13 +43,7 @@ object CloudCoverViewHandler {
     private const val TAG = "CloudCoverViewHandler"
     private const val CELL_HEIGHT_DP = 90
 
-    private const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
-    private const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
-    private const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
-    private const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
-    private const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
-    private const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
-    private const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
+
 
     @androidx.annotation.VisibleForTesting
     internal fun smoothingIterationsFor(zoom: com.weatherwidget.widget.ZoomLevel): Int =
@@ -195,9 +190,9 @@ object CloudCoverViewHandler {
 
         // Weather icon + bottom zone → back to temperature view
         val goTempIconIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = ACTION_SET_VIEW
+            action = WidgetActions.ACTION_SET_VIEW
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putExtra(EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
+            putExtra(WidgetActions.EXTRA_TARGET_VIEW, com.weatherwidget.widget.ViewMode.TEMPERATURE.name)
         }
         val goTempIconPending = PendingIntent.getBroadcast(
             context, WidgetRequestCodes.iconViewToggle(appWidgetId), goTempIconIntent,

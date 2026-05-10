@@ -4,6 +4,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
 import org.junit.Test

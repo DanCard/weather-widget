@@ -14,6 +14,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import io.mockk.every
@@ -104,7 +105,7 @@ class TemperatureTouchRoutingRoboTest {
 
         val cloudyBodyIntent = shadowApp.broadcastIntents.drop(beforeBodyTap).lastOrNull()
         assertNotNull("Expected cloudy body zone tap to zoom", cloudyBodyIntent)
-        assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, cloudyBodyIntent!!.action)
+        assertEquals(WidgetActions.ACTION_CYCLE_ZOOM, cloudyBodyIntent!!.action)
         assertEquals(appWidgetId, cloudyBodyIntent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
 
         // Body zone 1 also zooms.
@@ -114,7 +115,7 @@ class TemperatureTouchRoutingRoboTest {
 
         val clearZoomIntent = shadowApp.broadcastIntents.drop(beforeClearTap).lastOrNull()
         assertNotNull("Expected clear body zone tap to zoom", clearZoomIntent)
-        assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, clearZoomIntent!!.action)
+        assertEquals(WidgetActions.ACTION_CYCLE_ZOOM, clearZoomIntent!!.action)
 
         // Test bottom hour overlay zones (the icons themselves)
         val overlayZone0 = applied.findViewById<View>(R.id.graph_bottom_hour_zone_0)
@@ -122,8 +123,8 @@ class TemperatureTouchRoutingRoboTest {
         overlayZone0.performClick()
         val overlayIntent = shadowApp.broadcastIntents.drop(beforeOverlayTap).lastOrNull()
         assertNotNull("Expected bottom hour overlay zone tap to trigger an intent", overlayIntent)
-        assertEquals(WidgetIntentRouter.ACTION_SET_VIEW, overlayIntent!!.action)
-        assertEquals(ViewMode.CLOUD_COVER.name, overlayIntent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW))
+        assertEquals(WidgetActions.ACTION_SET_VIEW, overlayIntent!!.action)
+        assertEquals(ViewMode.CLOUD_COVER.name, overlayIntent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
     }
 
     @Test
@@ -154,7 +155,7 @@ class TemperatureTouchRoutingRoboTest {
 
         val cloudyBodyIntent = shadowApp.broadcastIntents.drop(beforeBodyTap).lastOrNull()
         assertNotNull("Expected cloudy narrow hour zone tap to zoom", cloudyBodyIntent)
-        assertEquals(WidgetIntentRouter.ACTION_CYCLE_ZOOM, cloudyBodyIntent!!.action)
+        assertEquals(WidgetActions.ACTION_CYCLE_ZOOM, cloudyBodyIntent!!.action)
 
         val candidateZoneIds =
             listOf(
@@ -172,8 +173,8 @@ class TemperatureTouchRoutingRoboTest {
             zone.performClick()
 
             val intent = shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
-            if (intent?.action == WidgetIntentRouter.ACTION_CYCLE_ZOOM) {
-                assertTrue(intent.hasExtra(com.weatherwidget.widget.WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET))
+            if (intent?.action == WidgetActions.ACTION_CYCLE_ZOOM) {
+                assertTrue(intent.hasExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET))
                 zoomIntentFound = true
                 break
             }

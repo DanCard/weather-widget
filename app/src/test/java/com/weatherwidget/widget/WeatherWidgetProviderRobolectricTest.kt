@@ -52,7 +52,7 @@ class WeatherWidgetProviderRobolectricTest {
     fun `onReceive with invalid widget id navigation keeps state unchanged`() {
         stateManager.setDateOffset(widgetId, 2)
 
-        val intent = Intent(WeatherWidgetProvider.ACTION_NAV_LEFT).apply {
+        val intent = Intent(WidgetActions.ACTION_NAV_LEFT).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
         }
 

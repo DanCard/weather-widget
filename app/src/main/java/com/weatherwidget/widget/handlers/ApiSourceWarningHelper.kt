@@ -12,6 +12,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 
 object ApiSourceWarningHelper {
     @VisibleForTesting
@@ -143,8 +144,8 @@ object ApiSourceWarningHelper {
                 context,
                 WidgetRequestCodes.apiToggle(appWidgetId) + 7000,
                 Intent(context, WeatherWidgetProvider::class.java).apply {
-                    action = WeatherWidgetProvider.ACTION_SHOW_TOAST
-                    putExtra(WeatherWidgetProvider.EXTRA_TOAST_MESSAGE, warning.toastMessage)
+                    action = WidgetActions.ACTION_SHOW_TOAST
+                    putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, warning.toastMessage)
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,

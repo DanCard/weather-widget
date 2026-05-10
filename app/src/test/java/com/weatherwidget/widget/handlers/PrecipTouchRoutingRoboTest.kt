@@ -15,6 +15,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
 import io.mockk.every
@@ -82,7 +83,7 @@ class PrecipTouchRoutingRoboTest {
             assertNotNull("Body zone $i should fire an intent", intent)
             assertEquals(
                 "Body zone $i should zoom, not navigate",
-                WidgetIntentRouter.ACTION_CYCLE_ZOOM,
+                WidgetActions.ACTION_CYCLE_ZOOM,
                 intent!!.action,
             )
             assertEquals(
@@ -92,7 +93,7 @@ class PrecipTouchRoutingRoboTest {
             )
             assertTrue(
                 "Body zone $i should include zoom center offset",
-                intent.hasExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET),
+                intent.hasExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET),
             )
         }
     }
@@ -128,7 +129,7 @@ class PrecipTouchRoutingRoboTest {
             assertNotNull("Narrow body zone $i should fire an intent", intent)
             assertEquals(
                 "Narrow body zone $i should zoom",
-                WidgetIntentRouter.ACTION_CYCLE_ZOOM,
+                WidgetActions.ACTION_CYCLE_ZOOM,
                 intent!!.action,
             )
         }
@@ -161,8 +162,8 @@ class PrecipTouchRoutingRoboTest {
             zone.performClick()
 
             val intent = shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
-            if (intent?.action == WidgetIntentRouter.ACTION_SET_VIEW) {
-                val target = intent.getStringExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW)
+            if (intent?.action == WidgetActions.ACTION_SET_VIEW) {
+                val target = intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW)
                 assertNotNull("SET_VIEW should include target view", target)
                 foundSetView = true
                 break

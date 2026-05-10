@@ -6,6 +6,9 @@ import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
 import com.weatherwidget.widget.handlers.RefreshScheduler
+import com.weatherwidget.widget.WidgetActions
+import com.weatherwidget.widget.WidgetActions.ACTION_CYCLE_ZOOM
+import com.weatherwidget.widget.WidgetActions.EXTRA_ZOOM_CENTER_OFFSET
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -212,13 +215,13 @@ class ZoomCycleRoboTest {
 
             val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(zoneIndex, baseOffset, ZoomLevel.WIDE)
             val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
+                action = WidgetActions.ACTION_CYCLE_ZOOM
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
-                putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+                putExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
             }
 
-            val extractedOffset = if (intent.hasExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET)) {
-                intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
+            val extractedOffset = if (                intent.hasExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET)) {
+                intent.getIntExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, 0)
             } else {
                 null
             }
@@ -241,12 +244,12 @@ class ZoomCycleRoboTest {
 
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.WIDE)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
+            action = ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
-            putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+            putExtra(EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
         }
 
-        val extractedOffset = intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
+        val extractedOffset = intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
 
         runBlocking {
             try {
@@ -266,12 +269,12 @@ class ZoomCycleRoboTest {
 
         val zoneCenterOffset = WeatherWidgetProvider.zoneIndexToOffset(0, baseOffset, ZoomLevel.NARROW)
         val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
-            action = WeatherWidgetProvider.ACTION_CYCLE_ZOOM
+            action = ACTION_CYCLE_ZOOM
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, testWidgetId)
-            putExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
+            putExtra(EXTRA_ZOOM_CENTER_OFFSET, zoneCenterOffset)
         }
 
-        val extractedOffset = intent.getIntExtra(WeatherWidgetProvider.EXTRA_ZOOM_CENTER_OFFSET, 0)
+        val extractedOffset = intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
 
         runBlocking {
             try {

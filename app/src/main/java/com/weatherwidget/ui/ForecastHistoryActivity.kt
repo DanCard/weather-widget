@@ -767,9 +767,9 @@ class ForecastHistoryActivity : AppCompatActivity() {
             
             // Trigger UI update to reflect the new source
             val updateIntent = Intent(this, com.weatherwidget.widget.WeatherWidgetProvider::class.java).apply {
-                action = com.weatherwidget.widget.WeatherWidgetProvider.ACTION_REFRESH
+                action = com.weatherwidget.widget.WidgetActions.ACTION_REFRESH
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(com.weatherwidget.widget.WeatherWidgetProvider.EXTRA_UI_ONLY, true)
+                putExtra(com.weatherwidget.widget.WidgetActions.EXTRA_UI_ONLY, true)
             }
             sendBroadcast(updateIntent)
         }

@@ -9,6 +9,7 @@ import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
+import com.weatherwidget.widget.WidgetActions
 
 internal object HeaderTapTargetHelper {
     fun shouldShowPrecipTouchZone(headerPrecipProbability: Int?): Boolean =
@@ -22,10 +23,10 @@ internal object HeaderTapTargetHelper {
     ) {
         val toggleIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetIntentRouter.ACTION_TOGGLE_VIEW
+                action = WidgetActions.ACTION_TOGGLE_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 interactionSource?.let {
-                    putExtra(WeatherWidgetProvider.EXTRA_INTERACTION_SOURCE, it)
+                    putExtra(WidgetActions.EXTRA_INTERACTION_SOURCE, it)
                 }
             }
         val togglePendingIntent =
@@ -47,9 +48,9 @@ internal object HeaderTapTargetHelper {
     ) {
         val goTempIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetIntentRouter.ACTION_SET_VIEW
+                action = WidgetActions.ACTION_SET_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WidgetIntentRouter.EXTRA_TARGET_VIEW, ViewMode.TEMPERATURE.name)
+                putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.TEMPERATURE.name)
             }
         val goTempPending =
             PendingIntent.getBroadcast(
@@ -70,7 +71,7 @@ internal object HeaderTapTargetHelper {
     ) {
         val precipIntent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetIntentRouter.ACTION_TOGGLE_PRECIP
+                action = WidgetActions.ACTION_TOGGLE_PRECIP
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
         val precipPendingIntent =

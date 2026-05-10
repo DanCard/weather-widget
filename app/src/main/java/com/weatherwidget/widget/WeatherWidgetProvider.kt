@@ -427,24 +427,24 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         Log.d(TAG, "onReceive: action=${intent.action}")
 
         when (intent.action) {
-            ACTION_REFRESH -> handleRefreshAction(context, intent)
-            ACTION_NAV_LEFT, ACTION_NAV_RIGHT -> handleNavigationAction(context, intent)
-            ACTION_TOGGLE_API -> handleToggleApiAction(context, intent)
-            ACTION_TOGGLE_VIEW -> handleToggleViewAction(context, intent)
-            ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
-            ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
-            ACTION_SET_VIEW -> handleSetViewAction(context, intent)
-            ACTION_DAY_CLICK -> {
-                Log.d(TAG, "onReceive: ACTION_DAY_CLICK extras: date=${intent.getStringExtra("date")} index=${intent.getIntExtra("index", -1)} targetView=${intent.getStringExtra(EXTRA_TARGET_VIEW)} offset=${intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)} widget=${getWidgetId(intent)}")
+            WidgetActions.ACTION_REFRESH -> handleRefreshAction(context, intent)
+            WidgetActions.ACTION_NAV_LEFT, WidgetActions.ACTION_NAV_RIGHT -> handleNavigationAction(context, intent)
+            WidgetActions.ACTION_TOGGLE_API -> handleToggleApiAction(context, intent)
+            WidgetActions.ACTION_TOGGLE_VIEW -> handleToggleViewAction(context, intent)
+            WidgetActions.ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
+            WidgetActions.ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
+            WidgetActions.ACTION_SET_VIEW -> handleSetViewAction(context, intent)
+            WidgetActions.ACTION_DAY_CLICK -> {
+                Log.d(TAG, "onReceive: ACTION_DAY_CLICK extras: date=${intent.getStringExtra("date")} index=${intent.getIntExtra("index", -1)} targetView=${intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW)} offset=${intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)} widget=${getWidgetId(intent)}")
                 handleDayClickAction(context, intent)
             }
-            ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
+            WidgetActions.ACTION_SHOW_TOAST -> handleShowToastAction(context, intent)
             Intent.ACTION_MY_PACKAGE_REPLACED -> triggerUiOnlyUpdate(context, reason = "package_replaced")
         }
     }
 
     private fun handleShowToastAction(context: Context, intent: Intent) {
-        val message = intent.getStringExtra(EXTRA_TOAST_MESSAGE) ?: "No additional data"
+        val message = intent.getStringExtra(WidgetActions.EXTRA_TOAST_MESSAGE) ?: "No additional data"
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
@@ -457,9 +457,9 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val isHistory = intent.getBooleanExtra("isHistory", false)
         val index = intent.getIntExtra("index", -1)
         val showHistory = intent.getBooleanExtra("showHistory", isHistory)
-        val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
-        val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, 0)
-        val clickSource = intent.getStringExtra(EXTRA_CLICK_SOURCE) ?: "unknown"
+        val targetViewName = intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW) ?: "PRECIPITATION"
+        val targetOffset = intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, 0)
+        val clickSource = intent.getStringExtra(WidgetActions.EXTRA_CLICK_SOURCE) ?: "unknown"
         Log.d(TAG, "handleDayClickAction: widget=$appWidgetId, date=$dateStr, isHistory=$isHistory, showHistory=$showHistory, index=$index, targetView=$targetViewName, hourlyOffset=$targetOffset, clickSource=$clickSource")
 
         val receiveTimeMs = System.currentTimeMillis()
@@ -593,7 +593,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         context: Context,
         intent: Intent,
     ) {
-        val uiOnly = intent.getBooleanExtra(EXTRA_UI_ONLY, false)
+        val uiOnly = intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false)
         Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
 
         launchAsync {
@@ -645,7 +645,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Navigation action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val isLeft = intent.action == ACTION_NAV_LEFT
+            val isLeft = intent.action == WidgetActions.ACTION_NAV_LEFT
             launchAsync {
                 WidgetIntentRouter.handleNavigation(context, appWidgetId, isLeft, repository)
             }
@@ -673,7 +673,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val appWidgetId = getWidgetId(intent)
         Log.d(TAG, "onReceive: Toggle View action for widget $appWidgetId")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            val interactionSource = intent.getStringExtra(EXTRA_INTERACTION_SOURCE) ?: "unknown"
+            val interactionSource = intent.getStringExtra(WidgetActions.EXTRA_INTERACTION_SOURCE) ?: "unknown"
             val receiveTimeMs = System.currentTimeMillis()
             launchAsync {
                 val database = WeatherDatabase.getDatabase(context)
@@ -717,8 +717,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         intent: Intent,
     ) {
         val appWidgetId = getWidgetId(intent)
-        val zoomCenterOffset = if (intent.hasExtra(EXTRA_ZOOM_CENTER_OFFSET)) {
-            intent.getIntExtra(EXTRA_ZOOM_CENTER_OFFSET, 0)
+        val zoomCenterOffset = if (intent.hasExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET)) {
+            intent.getIntExtra(WidgetActions.EXTRA_ZOOM_CENTER_OFFSET, 0)
         } else {
             null
         }
@@ -743,8 +743,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         intent: Intent,
     ) {
         val appWidgetId = getWidgetId(intent)
-        val targetViewName = intent.getStringExtra(EXTRA_TARGET_VIEW) ?: ""
-        val targetOffset = intent.getIntExtra(EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
+        val targetViewName = intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW) ?: ""
+        val targetOffset = intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)
         Log.d(TAG, "onReceive: Set View action for widget $appWidgetId, target=$targetViewName, offset=$targetOffset")
         if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
             launchAsync {
@@ -862,22 +862,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L
 
-        const val ACTION_REFRESH = "com.weatherwidget.ACTION_REFRESH"
-        const val ACTION_NAV_LEFT = "com.weatherwidget.ACTION_NAV_LEFT"
-        const val ACTION_NAV_RIGHT = "com.weatherwidget.ACTION_NAV_RIGHT"
-        const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
-        const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
-        const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
-        const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
-        const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
-        const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"
-        const val ACTION_SHOW_TOAST = "com.weatherwidget.ACTION_SHOW_TOAST"
-        const val EXTRA_TARGET_VIEW = "com.weatherwidget.EXTRA_TARGET_VIEW"
-        const val EXTRA_HOURLY_OFFSET = "com.weatherwidget.EXTRA_HOURLY_OFFSET"
-        const val EXTRA_CLICK_SOURCE = "com.weatherwidget.EXTRA_CLICK_SOURCE"
-        const val EXTRA_UI_ONLY = "com.weatherwidget.EXTRA_UI_ONLY"
-        const val EXTRA_ZOOM_CENTER_OFFSET = "com.weatherwidget.EXTRA_ZOOM_CENTER_OFFSET"
-        const val EXTRA_TOAST_MESSAGE = "com.weatherwidget.EXTRA_TOAST_MESSAGE"
+
         const val HOUR_ZONE_COUNT = 13
         private const val STARTUP_STALE_REFRESH_DELAY_MS = 1_500L
 
@@ -940,7 +925,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             }
         }
         private const val TAG = "WeatherWidgetProvider"
-        const val EXTRA_INTERACTION_SOURCE = "com.weatherwidget.EXTRA_INTERACTION_SOURCE"
+
 
         @VisibleForTesting
         internal fun finishPendingResultSafely(
