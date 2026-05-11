@@ -158,6 +158,7 @@ object PrecipitationGraphRenderer {
         val graphTop: Float,
         val graphBottom: Float,
         val graphHeight: Float,
+        val hourWidth: Float,
         val nowX: Float?,
         val labelSignal: List<Int>,
         val nowLabelPlacement: NowLabelPlacementDebug? = null,
@@ -180,24 +181,21 @@ object PrecipitationGraphRenderer {
         val labelScale = bitmapScale.coerceAtMost(1f)
         val topPadding = textMeasurer.dpToPx(GRAPH_TOP_PADDING_DP * labelScale)
         val iconSize = textMeasurer.dpToPx(HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
-        val iconTopPad = textMeasurer.dpToPx(0f)
-        val iconBottomPad = textMeasurer.dpToPx(0f)
         val labelHeight = textMeasurer.dpToPx(HourlyGraphDefaults.BOTTOM_LABEL_HEIGHT_DP * labelScale)
-        val bottomPadding = textMeasurer.dpToPx(0f)
 
         val graphTop = topPadding
         val graphBottom =
             if (showHourlyIcons) {
-                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
+                heightPx - labelHeight - iconSize
             } else {
-                heightPx - labelHeight - bottomPadding
+                heightPx - labelHeight
             }
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
 
         val points = mutableListOf<Pair<Float, Float>>()
         val rawProbs = hours.map { it.precipProbability.coerceIn(0, 100).toFloat() }
-        val isFarOutData = hours.isNotEmpty() && kotlin.math.abs(
+        val isFarOutData = hours.isNotEmpty() && abs(
             java.time.Duration.between(
                 hours.first().dateTime.plusHours(hours.size.toLong() / 2),
                 currentTime,
@@ -347,7 +345,7 @@ object PrecipitationGraphRenderer {
                 if (hour.iconRes != null) {
                     val x = hourWidth * index
                     val clampedX = x.coerceIn(iconSize / 2f, widthPx - iconSize / 2f)
-                    val iconY = graphBottom + iconTopPad
+                    val iconY = graphBottom
                     val iconX = clampedX - iconSize / 2f
                     drawnIconBounds.add(PrecipRect(iconX, iconY, iconX + iconSize, iconY + iconSize))
                 }
@@ -358,11 +356,7 @@ object PrecipitationGraphRenderer {
             labelSignal = labelSignal,
             hours = hours,
             points = points,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            graphTop = graphTop,
-            graphBottom = graphBottom,
-            graphHeight = graphHeight,
+            geometry = GraphGeometry(widthPx, heightPx, graphTop, graphBottom, graphHeight),
             globalMaxIdx = globalMaxIdx,
             globalMinIdx = globalMinIdx,
             firstPositive = firstPositive,
@@ -408,11 +402,7 @@ object PrecipitationGraphRenderer {
 
         val rainPlacements = calculateRainAmountPlacements(
             rainPeriods = rainPeriods,
-            widthPx = widthPx,
-            heightPx = heightPx,
-            graphTop = graphTop,
-            graphBottom = graphBottom,
-            graphHeight = graphHeight,
+            geometry = GraphGeometry(widthPx, heightPx, graphTop, graphBottom, graphHeight),
             initialCollisionBounds = rainCollisionBounds,
             measureText = textMeasurer.measureRainAmountText,
             getTextBounds = textMeasurer.getRainAmountTextBounds,
@@ -491,6 +481,7 @@ object PrecipitationGraphRenderer {
             graphTop = graphTop,
             graphBottom = graphBottom,
             graphHeight = graphHeight,
+            hourWidth = hourWidth,
             nowX = nowX,
             labelSignal = labelSignal,
             nowLabelPlacement = nowLabelPlacement,
@@ -612,15 +603,19 @@ object PrecipitationGraphRenderer {
         }
     }
 
-    fun calculateProbabilityLabelPlacements(
+    data class GraphGeometry(
+        val widthPx: Int,
+        val heightPx: Int,
+        val graphTop: Float,
+        val graphBottom: Float,
+        val graphHeight: Float,
+    )
+
+    internal fun calculateProbabilityLabelPlacements(
         labelSignal: List<Int>,
         hours: List<PrecipHourData>,
         points: List<Pair<Float, Float>>,
-        widthPx: Int,
-        heightPx: Int,
-        graphTop: Float,
-        graphBottom: Float,
-        graphHeight: Float,
+        geometry: GraphGeometry,
         globalMaxIdx: Int,
         globalMinIdx: Int,
         firstPositive: Int,
@@ -653,8 +648,8 @@ object PrecipitationGraphRenderer {
             val isValley = kind == GraphLabelPlacementUtils.CandidateKind.VALLEY || kind == GraphLabelPlacementUtils.CandidateKind.GLOBAL_MIN
             val isSoftDip = index in softDipCandidates
             
-            val graphMidY = (graphTop + graphBottom) / 2f
-            val isNearGraphCenter = abs(y - graphMidY) <= graphHeight * NEAR_CENTER_FRACTION
+            val graphMidY = (geometry.graphTop + geometry.graphBottom) / 2f
+            val isNearGraphCenter = abs(y - graphMidY) <= geometry.graphHeight * NEAR_CENTER_FRACTION
             val isNearRightEdge = index >= labelSignal.lastIndex - 1
             val isTrendingDownAtRightEdge = index > 0 && points[index].second > points[index - 1].second + HourlyGraphDefaults.TRENDING_THRESHOLD_PX
             val isTrendingUpAtRightEdge = index > 0 && points[index].second < points[index - 1].second - HourlyGraphDefaults.TRENDING_THRESHOLD_PX
@@ -674,7 +669,7 @@ object PrecipitationGraphRenderer {
                 val isFallbackAttempt = attemptIndex > 0
                 val gapDp = GraphLabelPlacementUtils.getLabelGapDp(isFallback = isFallbackAttempt)
                 val gapPx = if (placeAbove) dpToPx(gapDp.aboveDp) else dpToPx(gapDp.belowDp)
-                val x = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
+                val x = centerX.coerceIn(textWidth / 2f, geometry.widthPx - textWidth / 2f)
                 val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
                     pointY = y,
                     placeAbove = placeAbove,
@@ -688,32 +683,17 @@ object PrecipitationGraphRenderer {
                     x + textWidth / 2f, verticalPlacement.bottom,
                 )
 
-                val safeBottom = graphBottom - dpToPx(HourlyGraphDefaults.LABEL_SAFE_BOTTOM_INSET_DP)
+                val safeBottom = geometry.graphBottom - dpToPx(HourlyGraphDefaults.LABEL_SAFE_BOTTOM_INSET_DP)
                 val exceedsTop = bounds.top < 0f
                 val exceedsBottom = bounds.bottom > safeBottom
                 
                 val isLowPreferredBelow = !placeAbove && prob <= LOW_PREFER_BELOW_MAX_PROBABILITY
-                val actualExceedsBottom = if (isLowPreferredBelow) bounds.bottom > heightPx else exceedsBottom
+                val actualExceedsBottom = if (isLowPreferredBelow) bounds.bottom > geometry.heightPx else exceedsBottom
 
                 if (exceedsTop || actualExceedsBottom) continue
                 
                 val overlapsLabel = drawnLabelBounds.any { it.intersects(bounds) }
-                val iconClearancePx = 0f
-                val overlapsIcon =
-                    drawnIconBounds.any {
-                        val expandedIconBounds =
-                            if (iconClearancePx > 0f) {
-                                PrecipRect(
-                                    it.left - iconClearancePx,
-                                    it.top - iconClearancePx,
-                                    it.right + iconClearancePx,
-                                    it.bottom + iconClearancePx,
-                                )
-                            } else {
-                                it
-                            }
-                        expandedIconBounds.intersects(bounds)
-                    }
+                val overlapsIcon = drawnIconBounds.any { it.intersects(bounds) }
                 val hasCollision = overlapsLabel || overlapsIcon
 
                 if (hasCollision) continue
@@ -764,13 +744,9 @@ object PrecipitationGraphRenderer {
         return placements
     }
 
-    fun calculateRainAmountPlacements(
+    internal fun calculateRainAmountPlacements(
         rainPeriods: List<RainPeriod>,
-        widthPx: Int,
-        heightPx: Int,
-        graphTop: Float,
-        graphBottom: Float,
-        graphHeight: Float,
+        geometry: GraphGeometry,
         initialCollisionBounds: List<PrecipRect>,
         measureText: (String) -> Float,
         getTextBounds: (String) -> Pair<Float, Float>,
@@ -794,15 +770,15 @@ object PrecipitationGraphRenderer {
 
             for (yFrac in yFractions) {
                 for (xFrac in xFractions) {
-                    val cx = (widthPx * xFrac).coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                    val cy = graphTop + graphHeight * yFrac
+                    val cx = (geometry.widthPx * xFrac).coerceIn(textWidth / 2f, geometry.widthPx - textWidth / 2f)
+                    val cy = geometry.graphTop + geometry.graphHeight * yFrac
                     val candidateBounds = PrecipRect(
                         cx - textWidth / 2f,
                         cy + textAscent,
                         cx + textWidth / 2f,
                         cy + textDescent,
                     )
-                    if (candidateBounds.top < graphTop || candidateBounds.bottom > graphBottom) continue
+                    if (candidateBounds.top < geometry.graphTop || candidateBounds.bottom > geometry.graphBottom) continue
 
                     val paddedBounds = PrecipRect(
                         candidateBounds.left - rainPadPx,
@@ -923,7 +899,6 @@ object PrecipitationGraphRenderer {
             onDebugLog = onDebugLog,
         )
 
-        val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
         paints.gradientPaint.shader = LinearGradient(
             0f, layout.graphTop, 0f, layout.graphBottom,
             Color.parseColor(COLOR_CURVE_FILL_TOP), Color.parseColor(COLOR_CURVE_FILL_BOTTOM), Shader.TileMode.CLAMP,
@@ -1004,8 +979,6 @@ object PrecipitationGraphRenderer {
             drawnLabelBounds.add(placement.bounds.toRectF())
         }
 
-        val leftDate = hours.first().dateTime.toLocalDate()
-        val rightDate = hours.last().dateTime.toLocalDate()
         for (placement in layout.dayLabelPlacements) {
             val paint = if (placement.isToday) paints.todayDayLabelPaint else paints.dayLabelTextPaint
             canvas.drawText(placement.dayText, placement.x, placement.y, paint)
@@ -1025,7 +998,7 @@ object PrecipitationGraphRenderer {
         return bitmap
     }
 
-    fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
+    internal fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
         if (hours.isEmpty()) return emptyList()
         val totalMm = hours.sumOf { (it.precipAmountMm ?: 0f).toDouble() }.toFloat()
         if (totalMm <= 0f) return emptyList()
@@ -1040,7 +1013,7 @@ object PrecipitationGraphRenderer {
         )
     }
 
-    fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
+    internal fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
         if (windowHours <= 0 || hours.size < windowHours) return emptyList()
         var bestPeriod: RainPeriod? = null
         var bestTotal = 0f
