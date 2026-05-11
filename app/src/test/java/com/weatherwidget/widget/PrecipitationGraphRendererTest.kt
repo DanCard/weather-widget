@@ -24,7 +24,11 @@ class PrecipitationGraphRendererTest {
         getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
         measureRainAmountText = ::mockMeasureRainAmountText,
         getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
-        dpToPx = ::mockDpToPx
+        dpToPx = ::mockDpToPx,
+        measureNowText = { 15f },
+        getNowTextBounds = { -12f to 3f },
+        measureDayText = { text, _ -> text.length * 8f },
+        getDayTextBounds = { -10f to 2f },
     )
 
     private val mockTextMeasurerWithNow = mockTextMeasurer.copy(
