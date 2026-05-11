@@ -56,7 +56,6 @@ class ForecastHistoryActualsVisibilityTest {
         val activity = controller.get()
         
         activity.forecastDao = mockk(relaxed = true)
-        activity.observationDao = mockk(relaxed = true)
         activity.dailyExtremeDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk(relaxed = true)
 

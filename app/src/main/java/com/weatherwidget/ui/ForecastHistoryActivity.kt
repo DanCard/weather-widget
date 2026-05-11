@@ -20,36 +20,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 import com.weatherwidget.R
-import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.DailyExtremeDao
-import com.weatherwidget.data.local.log
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
-import com.weatherwidget.data.local.ObservationDao
-import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.data.repository.FetchMetadata
 import com.weatherwidget.data.repository.WeatherRepository
 import com.weatherwidget.stats.AccuracyCalculator
-import com.weatherwidget.widget.ObservationResolver
 import com.weatherwidget.widget.ForecastEvolutionRenderer
 import com.weatherwidget.widget.ViewMode
+import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.handlers.DayClickHelper
 import com.weatherwidget.widget.handlers.WidgetIntentRouter
-import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.ZoneId
 import java.time.format.TextStyle
-import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
-import kotlin.math.abs
-import kotlin.math.roundToInt
-import com.weatherwidget.data.repository.FetchMetadata
-import com.weatherwidget.widget.BatteryFetchStrategy
-import com.weatherwidget.widget.WeatherWidgetProvider
 import android.content.Context
 import android.os.BatteryManager
 
@@ -59,12 +48,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
     lateinit var forecastDao: ForecastDao
 
     @Inject
-    lateinit var observationDao: ObservationDao
-
-    @Inject
     lateinit var dailyExtremeDao: DailyExtremeDao
-
-    // forecastDao is also used for actual weather lookups (previously weatherDao)
 
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
@@ -131,49 +115,6 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 .asSequence()
                 .filter { it.highTemp != null && it.lowTemp != null }
                 .maxByOrNull { it.fetchedAt }
-
-        internal fun isNwsObservationStation(stationId: String): Boolean =
-            !stationId.startsWith("OPEN_METEO_") &&
-                !stationId.startsWith("VISUAL_CROSSING_") &&
-                !stationId.startsWith("WEATHER_API_")
-
-        internal fun buildActualFromNwsObservations(
-            targetDate: String,
-            lat: Double,
-            lon: Double,
-            observations: List<ObservationEntity>,
-        ): ForecastEntity? {
-            val nwsObservations = observations.filter { isNwsObservationStation(it.stationId) }
-            if (nwsObservations.isEmpty()) {
-                return null
-            }
-
-            val highTemp = nwsObservations.maxOf { it.temperature }
-            val lowTemp = nwsObservations.minOf { it.temperature }
-            val condition =
-                nwsObservations
-                    .map { it.condition }
-                    .groupingBy { it }
-                    .eachCount()
-                    .maxByOrNull { it.value }
-                    ?.key ?: "Observed"
-            val fetchedAt = nwsObservations.maxOfOrNull { it.fetchedAt } ?: System.currentTimeMillis()
-
-            val targetDateEpoch = LocalDate.parse(targetDate).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-            return ForecastEntity(
-                targetDate = targetDateEpoch,
-                forecastDate = targetDateEpoch,
-                locationLat = lat,
-                locationLon = lon,
-                locationName = "",
-                highTemp = highTemp,
-                lowTemp = lowTemp,
-                condition = condition,
-                isClimateNormal = false,
-                source = WeatherSource.NWS.id,
-                fetchedAt = fetchedAt,
-            )
-        }
     }
 
     enum class GraphMode {
@@ -209,24 +150,23 @@ class ForecastHistoryActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_forecast_history)
 
-        val targetDate = intent.getStringExtra(EXTRA_TARGET_DATE)
+        val intentTargetDate = intent.getStringExtra(EXTRA_TARGET_DATE)
         val lat = intent.getDoubleExtra(EXTRA_LAT, 0.0)
         val lon = intent.getDoubleExtra(EXTRA_LON, 0.0)
         val requestedSource = normalizeSource(intent.getStringExtra(EXTRA_SOURCE))
 
-        if (!hasRequiredHistoryExtras(targetDate, intent.hasExtra(EXTRA_LAT), intent.hasExtra(EXTRA_LON))) {
+        if (!hasRequiredHistoryExtras(intentTargetDate, intent.hasExtra(EXTRA_LAT), intent.hasExtra(EXTRA_LON))) {
             Log.e(TAG, "Missing required extras")
             finish()
             return
         }
-        val safeTargetDate = checkNotNull(targetDate)
         widgetStateManager = WidgetStateManager(this)
-        this.targetDate = safeTargetDate
+        targetDate = checkNotNull(intentTargetDate)
         targetLat = lat
         targetLon = lon
-        targetLocalDate = LocalDate.parse(safeTargetDate)
+        targetLocalDate = LocalDate.parse(targetDate)
 
-        Log.d(TAG, "Loading forecast history for $safeTargetDate at $lat, $lon (source=$requestedSource)")
+        Log.d(TAG, "Loading forecast history for $targetDate at $lat, $lon (source=$requestedSource)")
 
         findViewById<ImageButton>(R.id.back_button).setOnClickListener { finish() }
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
@@ -237,7 +177,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
 
-        cachedRequestedSource = requestedSource?.takeIf { it in effectiveVisibleSources() } ?: firstVisibleSource()
+        val visibleSources = effectiveVisibleSources()
+        cachedRequestedSource = requestedSource?.takeIf { it in visibleSources } ?: visibleSources.firstOrNull()
         updateApiSourceButton()
 
         val graphModeButton = findViewById<Button>(R.id.graph_mode_button)
@@ -263,10 +204,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 ", " + targetLocalDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
                 " " + targetLocalDate.dayOfMonth
         findViewById<TextView>(R.id.title).text =
-            getString(R.string.forecast_history) + " " + dateText
+            getString(R.string.forecast_history_title_format, dateText)
 
         loadData(
-            targetDate = this.targetDate,
+            targetDate = targetDate,
             lat = targetLat,
             lon = targetLon,
             date = targetLocalDate,
@@ -309,24 +250,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
                     }
 
                 val appActuals = dailyExtremeDao.getExtremesInRange(targetDateEpoch, targetDateEpoch, lat, lon)
-                val sortedAppActuals = appActuals.sortedBy { 
+                val sortedAppActuals = appActuals.sortedBy {
                     com.weatherwidget.util.TempUtils.distanceSq(it.locationLat, it.locationLon, lat, lon)
                 }
                 // Strictly match the requested source, no fallback.
                 val appActual = sortedAppActuals.find { it.source == requestedSource?.id }
-
-                val appLogDao = WeatherDatabase.getDatabase(this@ForecastHistoryActivity).appLogDao()
-                val apiHigh = actualWeather?.highTemp
-                val apiLow = actualWeather?.lowTemp
-                val appHigh = appActual?.highTemp
-                val appLow = appActual?.lowTemp
-                
-                appLogDao.log("HISTORY_LOAD", 
-                    "date=$targetDate src=${requestedSource?.id} " +
-                    "api=[$apiHigh/$apiLow] loc=[$appHigh/$appLow] " +
-                    "locRows=${appActuals.size} locSources=${appActuals.map { it.source }}", 
-                    "DEBUG"
-                )
 
                 withContext(Dispatchers.Main) {
                     displayData(snapshots, actualWeather, appActual, date, requestedSource)
@@ -343,8 +271,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         lon: Double,
         requestedSource: WeatherSource,
     ): ForecastEntity? {
-        val targetLocalDate = LocalDate.parse(targetDate)
-        val targetDateEpoch = targetLocalDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val parsedLocalDate = LocalDate.parse(targetDate)
+        val targetDateEpoch = parsedLocalDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         if (requestedSource != WeatherSource.NWS) {
             return forecastDao
                 .getForecastsInRangeBySource(targetDateEpoch, targetDateEpoch, lat, lon, requestedSource.id)
@@ -400,29 +328,30 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val gapPoints = evolutionPoints.filter { it.source == WeatherSource.GENERIC_GAP }
 
         val snapshotSummaryView = findViewById<TextView>(R.id.snapshot_summary_text)
-        val summaryCount =
-            when (requestedSource) {
-                WeatherSource.NWS -> nwsPoints.size
-                WeatherSource.VISUAL_CROSSING -> visualCrossingPoints.size
-                WeatherSource.OPEN_METEO -> meteoPoints.size
-                WeatherSource.WEATHER_API -> weatherApiPoints.size
-                else -> nwsPoints.size + visualCrossingPoints.size + meteoPoints.size + weatherApiPoints.size
-            }
-        val summaryText =
+        val pointsBySource = mapOf(
+            WeatherSource.NWS to nwsPoints,
+            WeatherSource.VISUAL_CROSSING to visualCrossingPoints,
+            WeatherSource.OPEN_METEO to meteoPoints,
+            WeatherSource.WEATHER_API to weatherApiPoints,
+        )
+        val summaryCount = pointsBySource[requestedSource]?.size
+            ?: pointsBySource.values.sumOf { it.size }
+        val summaryText = if (requestedSource != null) {
+            getString(R.string.forecast_history_summary_single, summaryCount, requestedSource.displayName)
+        } else {
             buildString {
-                if (requestedSource == WeatherSource.NWS) {
-                    append("$summaryCount NWS forecast snapshots")
-                } else if (requestedSource == WeatherSource.VISUAL_CROSSING) {
-                    append("$summaryCount Visual Crossing forecast snapshots")
-                } else if (requestedSource == WeatherSource.OPEN_METEO) {
-                    append("$summaryCount Open-Meteo forecast snapshots")
-                } else if (requestedSource == WeatherSource.WEATHER_API) {
-                    append("$summaryCount WeatherAPI forecast snapshots")
-                } else {
-                    append("${nwsPoints.size} NWS + ${visualCrossingPoints.size} Visual Crossing + ${meteoPoints.size} Open-Meteo + ${weatherApiPoints.size} WeatherAPI snapshots")
-                    if (gapPoints.isNotEmpty()) append(" • ${gapPoints.size} climate-fill points")
+                append(getString(
+                    R.string.forecast_history_summary_combined,
+                    nwsPoints.size,
+                    visualCrossingPoints.size,
+                    meteoPoints.size,
+                    weatherApiPoints.size,
+                ))
+                if (gapPoints.isNotEmpty()) {
+                    append(getString(R.string.forecast_history_summary_climate_fill, gapPoints.size))
                 }
             }
+        }
         snapshotSummaryView.text = summaryText
         if (summaryCount == 0) {
             snapshotSummaryView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
@@ -455,14 +384,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
                 nwsLegend.visibility = View.VISIBLE
                 meteoLegend.visibility = View.GONE
             }
-            WeatherSource.VISUAL_CROSSING -> {
-                nwsLegend.visibility = View.GONE
-                meteoLegend.visibility = View.VISIBLE
-            }
-            WeatherSource.OPEN_METEO -> {
-                nwsLegend.visibility = View.GONE
-                meteoLegend.visibility = View.VISIBLE
-            }
+            WeatherSource.VISUAL_CROSSING,
+            WeatherSource.OPEN_METEO,
             WeatherSource.WEATHER_API -> {
                 nwsLegend.visibility = View.GONE
                 meteoLegend.visibility = View.VISIBLE
@@ -479,15 +402,20 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val appLow = if (isPastDate) appActual?.lowTemp else null
 
         val actualsLegendCard = findViewById<View>(R.id.actuals_legend_card)
-        if (apiHigh != null && apiLow != null || appHigh != null && appLow != null) {
+        if ((apiHigh != null && apiLow != null) || (appHigh != null && appLow != null)) {
             actualsLegendCard.visibility = View.VISIBLE
 
             val apiActualGroup = findViewById<View>(R.id.footer_api_actual_group)
             val apiActualText = findViewById<TextView>(R.id.footer_api_actual_text)
             if (apiHigh != null && apiLow != null) {
                 apiActualGroup.visibility = View.VISIBLE
-                val sourceLabel = requestedSource?.displayName ?: "API"
-                apiActualText.text = "$sourceLabel API actual: ${formatTemp(apiHigh)} / ${formatTemp(apiLow)}"
+                val sourceLabel = requestedSource?.displayName ?: getString(R.string.forecast_history_api_fallback_label)
+                apiActualText.text = getString(
+                    R.string.forecast_history_api_actual,
+                    sourceLabel,
+                    formatTemp(apiHigh),
+                    formatTemp(apiLow),
+                )
             } else {
                 apiActualGroup.visibility = View.GONE
             }
@@ -496,7 +424,11 @@ class ForecastHistoryActivity : AppCompatActivity() {
             val locationActualText = findViewById<TextView>(R.id.footer_location_actual_text)
             if (appHigh != null && appLow != null) {
                 locationActualGroup.visibility = View.VISIBLE
-                locationActualText.text = "Location actual: ${formatTemp(appHigh)} / ${formatTemp(appLow)}"
+                locationActualText.text = getString(
+                    R.string.forecast_history_location_actual,
+                    formatTemp(appHigh),
+                    formatTemp(appLow),
+                )
             } else {
                 locationActualGroup.visibility = View.GONE
             }
@@ -533,55 +465,25 @@ class ForecastHistoryActivity : AppCompatActivity() {
             highCard.visibility = View.VISIBLE
             lowCard.visibility = View.VISIBLE
 
-            val highBitmap =
+            fun render(actual: Float?, appActual: Float?, isHigh: Boolean) =
                 if (isErrorMode) {
-                    ForecastEvolutionRenderer.renderHighErrorGraph(
-                        context = this,
-                        nwsPoints = nwsPoints,
-                        meteoPoints = meteoLikePoints,
-                        actualHigh = apiHigh,
-                        appActualHigh = appHigh,
-                        widthPx = width,
-                        heightPx = height,
+                    if (isHigh) ForecastEvolutionRenderer.renderHighErrorGraph(
+                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
+                    ) else ForecastEvolutionRenderer.renderLowErrorGraph(
+                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
                     )
                 } else {
-                    ForecastEvolutionRenderer.renderHighGraph(
-                        context = this,
-                        nwsPoints = nwsPoints,
-                        meteoPoints = meteoLikePoints,
-                        actualHigh = apiHigh,
-                        appActualHigh = appHigh,
-                        widthPx = width,
-                        heightPx = height,
+                    if (isHigh) ForecastEvolutionRenderer.renderHighGraph(
+                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
+                    ) else ForecastEvolutionRenderer.renderLowGraph(
+                        this, nwsPoints, meteoLikePoints, actual, appActual, width, height,
                     )
                 }
-            highGraphView.setImageBitmap(highBitmap)
 
-            val lowBitmap =
-                if (isErrorMode) {
-                    ForecastEvolutionRenderer.renderLowErrorGraph(
-                        context = this,
-                        nwsPoints = nwsPoints,
-                        meteoPoints = meteoLikePoints,
-                        actualLow = apiLow,
-                        appActualLow = appLow,
-                        widthPx = width,
-                        heightPx = height,
-                    )
-                } else {
-                    ForecastEvolutionRenderer.renderLowGraph(
-                        context = this,
-                        nwsPoints = nwsPoints,
-                        meteoPoints = meteoLikePoints,
-                        actualLow = apiLow,
-                        appActualLow = appLow,
-                        widthPx = width,
-                        heightPx = height,
-                    )
-                }
-            lowGraphView.setImageBitmap(lowBitmap)
+            highGraphView.setImageBitmap(render(apiHigh, appHigh, isHigh = true))
+            lowGraphView.setImageBitmap(render(apiLow, appLow, isHigh = false))
         } else {
-            val sourceLabel = requestedSource?.displayName ?: "selected source"
+            val sourceLabel = requestedSource?.displayName ?: getString(R.string.forecast_history_no_data_fallback_source)
             noDataTextView.text = getString(R.string.forecast_history_no_data_for_source, sourceLabel)
             noDataTextView.visibility = View.VISIBLE
             highCard.visibility = View.GONE
@@ -615,6 +517,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         if (missingDates.isEmpty()) return
 
         Log.d(TAG, "Still missing NWS daily_extremes after local recompute for ${missingDates.size} date(s): $missingDates")
+        // Opening history surfaces gaps in stored actuals; trigger a widget refresh so the
+        // background fetch backfills them before the user looks at another day.
         WeatherWidgetProvider.triggerImmediateUpdate(
             context = this,
             forceRefresh = true,
@@ -645,8 +549,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
                 val summary =
                     if (!hasAnyData) {
-                        "No historical forecast data available yet.\n" +
-                            "Forecast snapshots are saved daily. Check back tomorrow for your first accuracy comparison."
+                        getString(R.string.forecast_history_no_history_yet)
                     } else {
                         buildString {
                             val sourcesToShow = listOf(
@@ -808,26 +711,32 @@ class ForecastHistoryActivity : AppCompatActivity() {
         return widgetStateManager.getEffectiveVisibleSourcesOrder(targetLat, targetLon)
     }
 
-        private fun updateFreshnessCard() {
-            val forecastFetchView = findViewById<TextView>(R.id.freshness_forecast_fetch)
-            val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
-            val nextUpdateView = findViewById<TextView>(R.id.freshness_next_update)
+    private fun updateFreshnessCard() {
+        val forecastFetchView = findViewById<TextView>(R.id.freshness_forecast_fetch)
+        val displayedDataView = findViewById<TextView>(R.id.freshness_displayed_data)
+        val nextUpdateView = findViewById<TextView>(R.id.freshness_next_update)
 
-            val nowMs = System.currentTimeMillis()
-            val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
-    
-            // Last full forecast fetch
-            if (lastFullFetchMs > 0L) {
-                forecastFetchView.text = "Forecast fetch: ${formatRelativeTime(nowMs - lastFullFetchMs)} ago"
-            } else {
-                forecastFetchView.text = "Forecast fetch: never"
-            }
-    
-            // Displayed data fetch age (from the actual weather entity being shown)
+        val nowMs = System.currentTimeMillis()
+        val lastFullFetchMs = FetchMetadata.getLastFullFetchTime(this)
+
+        // Last full forecast fetch
+        forecastFetchView.text = if (lastFullFetchMs > 0L) {
+            getString(R.string.freshness_forecast_fetch_ago, formatRelativeTime(nowMs - lastFullFetchMs))
+        } else {
+            getString(R.string.freshness_forecast_fetch_never)
+        }
+
+        // Displayed data fetch age (from the actual weather entity being shown)
         val displayedFetchedAt = cachedActualWeather?.fetchedAt
         if (displayedFetchedAt != null && displayedFetchedAt > 0L) {
-            val sourceName = cachedRequestedSource?.shortDisplayName ?: cachedActualWeather?.source ?: "?"
-            displayedDataView.text = "Displayed data ($sourceName): fetched ${formatRelativeTime(nowMs - displayedFetchedAt)} ago"
+            val sourceName = cachedRequestedSource?.shortDisplayName
+                ?: cachedActualWeather?.source
+                ?: getString(R.string.freshness_unknown_source)
+            displayedDataView.text = getString(
+                R.string.freshness_displayed_data,
+                sourceName,
+                formatRelativeTime(nowMs - displayedFetchedAt),
+            )
             displayedDataView.visibility = View.VISIBLE
         } else {
             displayedDataView.visibility = View.GONE

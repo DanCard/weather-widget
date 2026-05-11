@@ -9,7 +9,6 @@ import com.weatherwidget.R
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.ComparisonStatistics
 import com.weatherwidget.data.local.ForecastDao
-import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
@@ -76,7 +75,6 @@ class HistoryActivitySyncRoboTest {
         
         // Manual injection of required DAOs (mocked) to avoid Hilt @Inject failures during onCreate
         activity.forecastDao = mockk(relaxed = true)
-        activity.observationDao = mockk(relaxed = true)
         activity.dailyExtremeDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
@@ -134,7 +132,6 @@ class HistoryActivitySyncRoboTest {
         val controller = Robolectric.buildActivity(ForecastHistoryActivity::class.java, intent)
         val activity = controller.get()
         activity.forecastDao = mockk(relaxed = true)
-        activity.observationDao = mockk(relaxed = true)
         activity.dailyExtremeDao = mockk(relaxed = true)
         activity.accuracyCalculator = mockk<AccuracyCalculator>().also { calculator ->
             coEvery { calculator.calculateComparison(any(), any(), any()) } returns ComparisonStatistics(
