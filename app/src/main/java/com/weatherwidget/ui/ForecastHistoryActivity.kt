@@ -852,6 +852,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
             batteryLevel > 50 -> getString(R.string.forecast_policy_battery_mid, batteryLevel)
             else -> getString(R.string.forecast_policy_battery_low, batteryLevel)
         }
+        // Displayed at the very bottom of the activity.
         nextUpdateView.text = policyText
     }
 
