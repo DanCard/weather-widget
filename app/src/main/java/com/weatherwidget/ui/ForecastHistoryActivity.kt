@@ -436,8 +436,20 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         updateFreshnessCard()
 
+        val isPastDate = date.isBefore(LocalDate.now())
         val nwsLegend = findViewById<View>(R.id.legend_nws_group)
         val meteoLegend = findViewById<View>(R.id.legend_meteo_group)
+        val legendActualGroup = findViewById<View>(R.id.legend_actual_group)
+        val legendAppActualGroup = findViewById<View>(R.id.legend_app_actual_group)
+
+        if (isPastDate) {
+            legendActualGroup.visibility = View.VISIBLE
+            legendAppActualGroup.visibility = View.VISIBLE
+        } else {
+            legendActualGroup.visibility = View.GONE
+            legendAppActualGroup.visibility = View.GONE
+        }
+
         when (requestedSource) {
             WeatherSource.NWS -> {
                 nwsLegend.visibility = View.VISIBLE
@@ -461,10 +473,10 @@ class ForecastHistoryActivity : AppCompatActivity() {
             }
         }
 
-        val apiHigh = actualWeather?.highTemp
-        val apiLow = actualWeather?.lowTemp
-        val appHigh = appActual?.highTemp
-        val appLow = appActual?.lowTemp
+        val apiHigh = if (isPastDate) actualWeather?.highTemp else null
+        val apiLow = if (isPastDate) actualWeather?.lowTemp else null
+        val appHigh = if (isPastDate) appActual?.highTemp else null
+        val appLow = if (isPastDate) appActual?.lowTemp else null
 
         val actualsLegendCard = findViewById<View>(R.id.actuals_legend_card)
         if (apiHigh != null && apiLow != null || appHigh != null && appLow != null) {
