@@ -53,7 +53,7 @@
     <string name="forecast_policy_battery_low">Forecast refresh: Paused (battery %1$d%%)</string>
     <string name="freshness_just_now">just now</string>
     <string name="forecast_history">History of Forecasts for </string>
-    <string name="forecast_history_title_format">History of Forecasts for %1$s</string>
+    <string name="forecast_history_title_format">%1$s</string>
     <string name="forecast_history_summary_single">%1$d %2$s forecast snapshots</string>
     <string name="forecast_history_summary_combined">%1$d NWS + %2$d Visual Crossing + %3$d Open-Meteo + %4$d WeatherAPI snapshots</string>
     <string name="forecast_history_summary_climate_fill"> • %1$d climate-fill points</string>
@@ -62,6 +62,9 @@
     <string name="forecast_history_location_actual">Location actual: %1$s / %2$s</string>
     <string name="forecast_history_no_history_yet">No historical forecast data available yet.\nForecast snapshots are saved daily. Check back tomorrow for your first accuracy comparison.</string>
     <string name="forecast_history_no_data_fallback_source">selected source</string>
+    <string name="forecast_history_prev_day">Previous day</string>
+    <string name="forecast_history_next_day">Next day</string>
+    <string name="forecast_history_subtitle">History of Forecasts</string>
     <string name="freshness_forecast_fetch_ago">Forecast fetch: %1$s ago</string>
     <string name="freshness_forecast_fetch_never">Forecast fetch: never</string>
     <string name="freshness_displayed_data">Displayed data (%1$s): fetched %2$s ago</string>

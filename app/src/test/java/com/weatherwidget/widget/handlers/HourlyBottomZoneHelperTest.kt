@@ -1,5 +1,6 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.R
 import com.weatherwidget.test.category.ShortDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -117,7 +118,7 @@ class HourlyBottomZoneHelperTest {
     @Test
     fun `resolveZoneAction returns cloud cover target and centered offset for cloudy zone`() {
         val action = HourlyBottomZoneHelper.resolveZoneAction(
-            iconRes = 2131165326,
+            iconRes = R.drawable.ic_weather_cloudy,
             currentViewMode = ViewMode.TEMPERATURE,
             zoneIndex = 4,
             hourlyOffset = 21,
@@ -131,7 +132,7 @@ class HourlyBottomZoneHelperTest {
     @Test
     fun `resolveZoneAction keeps clear icon in temperature on zoom path`() {
         val action = HourlyBottomZoneHelper.resolveZoneAction(
-            iconRes = 2131165310,
+            iconRes = R.drawable.ic_weather_clear,
             currentViewMode = ViewMode.TEMPERATURE,
             zoneIndex = 8,
             hourlyOffset = 21,

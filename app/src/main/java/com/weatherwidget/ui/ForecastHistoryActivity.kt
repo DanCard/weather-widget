@@ -63,6 +63,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         const val EXTRA_SOURCE = "source"
         private const val TAG = "ForecastHistoryActivity"
 
+        private const val MAX_HISTORY_DAYS_BACK = 30L
+
         /**
          * Determines whether clicking the mode button should launch hourly view
          * (true) or toggle graph mode (false).
@@ -170,6 +172,12 @@ class ForecastHistoryActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.back_button).setOnClickListener { finish() }
         findViewById<TextView>(R.id.title).setOnClickListener { finish() }
+        findViewById<ImageButton>(R.id.prev_day_button).setOnClickListener {
+            navigateToDay(targetLocalDate.minusDays(1))
+        }
+        findViewById<ImageButton>(R.id.next_day_button).setOnClickListener {
+            navigateToDay(targetLocalDate.plusDays(1))
+        }
         findViewById<View>(R.id.api_source_button).setOnClickListener {
             cycleApiSource()
         }
@@ -199,12 +207,8 @@ class ForecastHistoryActivity : AppCompatActivity() {
         }
         updateModeUi()
 
-        val dateText =
-            targetLocalDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
-                ", " + targetLocalDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
-                " " + targetLocalDate.dayOfMonth
-        findViewById<TextView>(R.id.title).text =
-            getString(R.string.forecast_history_title_format, dateText)
+        updateTitle()
+        updatePrevButtonEnabled()
 
         loadData(
             targetDate = targetDate,
@@ -214,6 +218,37 @@ class ForecastHistoryActivity : AppCompatActivity() {
             requestedSource = checkNotNull(cachedRequestedSource),
         )
         loadAccuracySummary(targetLat, targetLon)
+    }
+
+    private fun navigateToDay(newDate: LocalDate) {
+        targetLocalDate = newDate
+        targetDate = newDate.toString()
+        updateTitle()
+        updatePrevButtonEnabled()
+        loadData(
+            targetDate = targetDate,
+            lat = targetLat,
+            lon = targetLon,
+            date = targetLocalDate,
+            requestedSource = cachedRequestedSource,
+        )
+    }
+
+    private fun updateTitle() {
+        val dateText =
+            targetLocalDate.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
+                ", " + targetLocalDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()) +
+                " " + targetLocalDate.dayOfMonth
+        findViewById<TextView>(R.id.title).text =
+            getString(R.string.forecast_history_title_format, dateText)
+    }
+
+    private fun updatePrevButtonEnabled() {
+        val earliest = LocalDate.now().minusDays(MAX_HISTORY_DAYS_BACK)
+        val prevButton = findViewById<ImageButton>(R.id.prev_day_button)
+        val canGoBack = targetLocalDate.isAfter(earliest)
+        prevButton.isEnabled = canGoBack
+        prevButton.alpha = if (canGoBack) 1.0f else 0.3f
     }
 
     private fun loadData(
