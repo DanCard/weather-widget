@@ -432,6 +432,18 @@ object DailyViewHandler : WidgetViewHandler {
             val days = prepareGraphDays(allowTodayRainChanceLabel = true)
             prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
+            days.find { it.isToday }?.let { todayDay ->
+                appLogDao.log(
+                    "TODAY_BAR_DEBUG",
+                    "widget=$appWidgetId mode=GRAPH obsHigh=${todayDay.high} obsLow=${todayDay.low} " +
+                        "fHigh=${todayDay.forecastHigh} fLow=${todayDay.forecastLow} " +
+                        "trueHigh=${todayDay.trueActualHigh} bStackLow=${todayDay.bottomStackLow} " +
+                        "sHigh=${todayDay.snapshotHigh} sLow=${todayDay.snapshotLow} " +
+                        "fallback=${todayDay.isTodayForecastFallback}",
+                    "DEBUG"
+                )
+            }
+
             // Stabilize column count: at offset 0 (home view), record days.size as the
             // baseline.  When navigating away, cap to that baseline so the grid doesn't
             // gain or lose a column as data availability shifts.
@@ -598,12 +610,21 @@ object DailyViewHandler : WidgetViewHandler {
 
             val visibleDaysInfo = updateTextMode(
                 context, views, now, centerDate, today, weatherByDate,
-                hourlyForecasts, textCols, displaySource, skipHistory,
+                forecastSnapshots, hourlyForecasts, textCols, displaySource, skipHistory,
                 stateManager, appWidgetId, precipProb, dailyActuals, climateNormals,
                 currentTemps,
                 currentTemp = currentTemp,
                 observedAt = observedAt
             )
+
+            visibleDaysInfo.find { it.isToday }?.let { todayDay ->
+                appLogDao.log(
+                    "TODAY_BAR_DEBUG",
+                    "widget=$appWidgetId mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
+                        "fallback=${todayDay.isTodayForecastFallback}",
+                    "DEBUG"
+                )
+            }
 
             logDailyRenderSummary(
                 context = context,
@@ -810,6 +831,7 @@ object DailyViewHandler : WidgetViewHandler {
     private fun updateTextMode(
         context: Context, views: RemoteViews, now: LocalDateTime, centerDate: LocalDate,
         today: LocalDate, weatherByDate: Map<LocalDate, ForecastEntity>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
         hourlyForecasts: List<HourlyForecastEntity>, numColumns: Int,
         displaySource: WeatherSource, skipHistory: Boolean,
         stateManager: WidgetStateManager, appWidgetId: Int,
@@ -821,7 +843,7 @@ object DailyViewHandler : WidgetViewHandler {
         observedAt: Long? = null
     ): List<DailyViewLogic.TextDayData> {
         val dayDataList = DailyViewLogic.prepareTextDays(
-            now, centerDate, today, weatherByDate, hourlyForecasts, numColumns,
+            now, centerDate, today, weatherByDate, forecastSnapshots, hourlyForecasts, numColumns,
             displaySource, skipHistory, stateManager, appWidgetId, todayNext8HourPrecipProbability, dailyActuals,
             climateNormals,
             currentTemps,

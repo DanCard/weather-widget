@@ -222,6 +222,63 @@ class DailyViewHandlerTodayDropIntegrationTest {
         assertEquals("Today text label should show the daily peak", "82°", todayHighText)
     }
 
+    @Test
+    fun `updateWidget handles NWS evening drop by using snapshots`() = runBlocking {
+        val now = LocalDateTime.of(2026, 3, 24, 20, 0) // 8 PM
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        // Latest NWS batch (weatherList) is missing the highTemp (evening drop)
+        val weatherList = listOf(
+            createWeather(todayStr, highTemp = null, lowTemp = 60f)
+        )
+
+        // But we have an older complete snapshot from earlier in the day
+        val completeSnapshot = createWeather(todayStr, highTemp = 85f, lowTemp = 60f)
+            .copy(fetchedAt = now.minusHours(10).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
+        
+        val forecastSnapshots = mapOf(
+            today to listOf(completeSnapshot)
+        )
+
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(103)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS))
+
+        val appWidgetManager = mockk<AppWidgetManager>()
+        val options = Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200)
+        }
+        every { appWidgetManager.getAppWidgetOptions(103) } returns options
+        every { appWidgetManager.updateAppWidget(103, any()) } just runs
+
+        val daysSlot = slot<List<DailyForecastGraphRenderer.DayData>>()
+        every {
+            DailyForecastGraphRenderer.renderGraph(any(), capture(daysSlot), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 103,
+            weatherList = weatherList,
+            forecastSnapshots = forecastSnapshots,
+            hourlyForecasts = emptyList(),
+            currentTemps = emptyList(),
+            dailyActualsBySource = emptyMap(),
+            repository = null,
+            now = now,
+            lastObservedTemp = 70f,
+            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        )
+
+        val todayData = daysSlot.captured.first { it.isToday }
+        
+        // Should have picked up 85f from the snapshot instead of falling back to hourly (which would be lower)
+        assertEquals("Should fall back to complete snapshot high", 85f, todayData.forecastHigh!!, 0.1f)
+    }
+
     private fun createWeather(
         date: String,
         precipProbability: Int? = 0,

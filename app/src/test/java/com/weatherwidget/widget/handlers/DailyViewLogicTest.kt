@@ -1287,6 +1287,78 @@ class DailyViewLogicTest {
         assertEquals(0.65f, futureDay.cloudCoverRatioOverride)
     }
 
+    @Test
+    fun `prepareGraphDays today uses complete snapshot when latest batch is missing high or low`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        // Latest weather is incomplete (e.g. NWS evening drop)
+        val weatherByDate = mapOf(
+            today to createWeather(todayStr, highTemp = null, lowTemp = 55f, source = WeatherSource.NWS.id)
+        )
+
+        // Older snapshot is complete
+        val completeSnapshot = createWeather(todayStr, highTemp = 80f, lowTemp = 55f, source = WeatherSource.NWS.id)
+            .copy(fetchedAt = 100L)
+        val incompleteSnapshot = createWeather(todayStr, highTemp = null, lowTemp = 55f, source = WeatherSource.NWS.id)
+            .copy(fetchedAt = 200L)
+
+        val forecastSnapshots = mapOf(
+            today to listOf(completeSnapshot, incompleteSnapshot)
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = true,
+            hourlyForecasts = emptyList()
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals("Today should use complete snapshot high", 80f, todayDay.high)
+    }
+
+    @Test
+    fun `prepareTextDays today uses complete snapshot when latest batch is missing high or low`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        // Latest weather is incomplete
+        val weatherByDate = mapOf(
+            today to createWeather(todayStr, highTemp = null, lowTemp = 55f, source = WeatherSource.NWS.id)
+        )
+
+        // Older snapshot is complete
+        val completeSnapshot = createWeather(todayStr, highTemp = 80f, lowTemp = 55f, source = WeatherSource.NWS.id)
+            .copy(fetchedAt = 100L)
+
+        val forecastSnapshots = mapOf(
+            today to listOf(completeSnapshot)
+        )
+
+        val result = DailyViewLogic.prepareTextDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            hourlyForecasts = emptyList(),
+            numColumns = 3,
+            displaySource = WeatherSource.NWS
+        )
+
+        val todayDay = result.first { it.date == today }
+        assertEquals("Today text label should use complete snapshot high", "80°", todayDay.highLabel)
+    }
+
     private fun createWeather(
         date: String,
         source: String = WeatherSource.NWS.id,

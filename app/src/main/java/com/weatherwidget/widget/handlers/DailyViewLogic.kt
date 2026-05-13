@@ -77,6 +77,7 @@ object DailyViewLogic {
         centerDate: LocalDate,
         today: LocalDate,
         weatherByDate: Map<LocalDate, ForecastEntity>,
+        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>? = null,
         hourlyForecasts: List<HourlyForecastEntity>,
         numColumns: Int,
         displaySource: WeatherSource,
@@ -148,8 +149,19 @@ object DailyViewLogic {
 
         return daySlots.mapIndexed { index, (dayIndex, date, isVisible) ->
             val dateStr = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
-            val weather = weatherByDate[date]
+            var weather = weatherByDate[date]
             val isToday = date == today
+            if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
+                // Latest batch for Today is incomplete (likely NWS evening drop).
+                // Search snapshots for the most recent complete forecast from the same source.
+                val completeSnapshot = (forecastSnapshots?.get(date) ?: emptyList()).filter {
+                    it.source == weather.source && it.highTemp != null && it.lowTemp != null
+                }.maxByOrNull { it.fetchedAt }
+                if (completeSnapshot != null) {
+                    Log.d(TAG, "prepareTextDays: today weather incomplete (high=${weather.highTemp} low=${weather.lowTemp}), using complete snapshot from ${Instant.ofEpochMilli(completeSnapshot.fetchedAt)}")
+                    weather = completeSnapshot
+                }
+            }
             val isPast = date.isBefore(today)
             val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
@@ -305,9 +317,21 @@ object DailyViewLogic {
 
         dayOffsets.forEachIndexed { index, offset ->
             val date = centerDate.plusDays(offset)
+            val isToday = date == today
 
             // Try preferred source first, then any available source for the given date.
-            val weather = weatherByDate[date] ?: forecastSnapshots[date]?.firstOrNull()
+            var weather = weatherByDate[date] ?: forecastSnapshots[date]?.firstOrNull()
+            if (isToday && weather != null && (weather.highTemp == null || weather.lowTemp == null)) {
+                // Latest batch for Today is incomplete (likely NWS evening drop).
+                // Search snapshots for the most recent complete forecast from the same source.
+                val completeSnapshot = forecastSnapshots[date]?.filter {
+                    it.source == weather.source && it.highTemp != null && it.lowTemp != null
+                }?.maxByOrNull { it.fetchedAt }
+                if (completeSnapshot != null) {
+                    Log.d(TAG, "prepareGraphDays: today weather incomplete (high=${weather.highTemp} low=${weather.lowTemp}), using complete snapshot from ${Instant.ofEpochMilli(completeSnapshot.fetchedAt)}")
+                    weather = completeSnapshot
+                }
+            }
             val actual = dailyActuals[date]
             val forecasts = forecastSnapshots[date] ?: emptyList()
             val forecast = forecasts
@@ -317,7 +341,6 @@ object DailyViewLogic {
                 ?: forecasts.filter { it.source == displaySource.id }.maxByOrNull { it.fetchedAt }
                 ?: forecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }.maxByOrNull { it.fetchedAt }
 
-            val isToday = date == today
             val isPastDate = date.isBefore(today)
             val isTerminalLowOnlyNwsFuture = isTerminalLowOnlyNwsFutureDay(weather, date, today, weatherByDate)
 
