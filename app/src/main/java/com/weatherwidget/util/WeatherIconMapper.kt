@@ -127,12 +127,14 @@ object WeatherIconMapper {
                 if (isSunBoundary) R.drawable.ic_weather_horizon_sun
                 else if (isNight && cloudCover != null && cloudCover > 25) getCloudCoverIcon(true, cloudCover)
                 else if (isNight) R.drawable.ic_weather_night
+                else if (cloudCover != null && cloudCover > 25) getCloudCoverIcon(false, cloudCover)
                 else R.drawable.ic_weather_clear
             }
             else -> {
                 if (isSunBoundary) R.drawable.ic_weather_horizon_sun
                 else if (isNight && cloudCover != null && cloudCover > 25) getCloudCoverIcon(true, cloudCover)
                 else if (isNight) R.drawable.ic_weather_night
+                else if (cloudCover != null && cloudCover > 25) getCloudCoverIcon(false, cloudCover)
                 else R.drawable.ic_weather_clear
             }
         }

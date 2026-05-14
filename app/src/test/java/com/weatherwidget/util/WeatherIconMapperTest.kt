@@ -19,6 +19,31 @@ class WeatherIconMapperTest {
     }
 
     @Test
+    fun testGetIconResource_ClearDay_HighCloudCover() {
+        // Saturday case: Clear text but 79% cloud cover
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = false, cloudCover = 79)
+        assertEquals(R.drawable.ic_weather_mostly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_ClearDay_MidCloudCover() {
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = false, cloudCover = 50)
+        assertEquals(R.drawable.ic_weather_partly_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_ClearDay_Overcast() {
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = false, cloudCover = 95)
+        assertEquals(R.drawable.ic_weather_cloudy, res)
+    }
+
+    @Test
+    fun testGetIconResource_ClearDay_MostlyClear() {
+        val res = WeatherIconMapper.getIconResource("Clear", isNight = false, cloudCover = 10)
+        assertEquals(R.drawable.ic_weather_clear, res)
+    }
+
+    @Test
     fun testGetIconResource_ClearNight() {
         val res = WeatherIconMapper.getIconResource("Clear", isNight = true)
         assertEquals(R.drawable.ic_weather_night, res)
