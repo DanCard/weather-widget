@@ -386,7 +386,18 @@ object DailyViewHandler : WidgetViewHandler {
         // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
         if (!isIconWidth) {
             setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
+            setupDualToggle(context, views, appWidgetId)
         }
+
+        // Dual-source toggle button: only meaningful when a distinct next source exists
+        // (otherwise tapping would be a no-op) and there's room in the header to render
+        // the glyph without crowding the date or API label.
+        val nextSourceForButton = stateManager.getNextDisplaySource(appWidgetId)
+        val hasDistinctSecondSource = nextSourceForButton != displaySource
+        val showDualButton =
+            useGraph &&
+            hasDistinctSecondSource &&
+            (disclosure == HeaderDisclosureLevel.FULL || disclosure == HeaderDisclosureLevel.NO_ICON)
         Log.d(
             TAG,
             DailyHeaderBinder.buildHeaderStateLog(
@@ -581,8 +592,15 @@ object DailyViewHandler : WidgetViewHandler {
                     showIcon = disclosure.showsIcon(),
                     showDelta = deltaVisible && disclosure.showsDelta(),
                     showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
+                    showDualButton = showDualButton && !isIconWidth,
+                    dualActive = showTwoBars,
                 )
             } else null
+
+            views.setViewVisibility(
+                R.id.dual_touch_zone,
+                if (showDualButton && !isIconWidth) View.VISIBLE else View.GONE,
+            )
 
             val nightRainLabelDraws = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
             val renderStartMs = SystemClock.elapsedRealtime()

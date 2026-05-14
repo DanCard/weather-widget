@@ -7,6 +7,7 @@ object WidgetActions {
     const val ACTION_TOGGLE_API = "com.weatherwidget.ACTION_TOGGLE_API"
     const val ACTION_TOGGLE_VIEW = "com.weatherwidget.ACTION_TOGGLE_VIEW"
     const val ACTION_TOGGLE_PRECIP = "com.weatherwidget.ACTION_TOGGLE_PRECIP"
+    const val ACTION_TOGGLE_DUAL_BARS = "com.weatherwidget.ACTION_TOGGLE_DUAL_BARS"
     const val ACTION_SET_VIEW = "com.weatherwidget.ACTION_SET_VIEW"
     const val ACTION_CYCLE_ZOOM = "com.weatherwidget.ACTION_CYCLE_ZOOM"
     const val ACTION_DAY_CLICK = "com.weatherwidget.ACTION_DAY_CLICK"

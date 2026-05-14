@@ -81,6 +81,7 @@ internal object HeaderRemoteViewsBinder {
         views.setViewVisibility(R.id.api_touch_zone, View.GONE)
         views.setViewVisibility(R.id.settings_icon, View.GONE)
         views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.dual_touch_zone, View.GONE)
         views.setViewVisibility(R.id.text_mode_api_source_container, View.GONE)
         views.setViewVisibility(R.id.text_mode_api_source, View.GONE)
         views.setViewVisibility(R.id.text_mode_api_touch_zone, View.GONE)

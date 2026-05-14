@@ -154,6 +154,8 @@ object DailyForecastGraphRenderer {
         val showIcon: Boolean = true,
         val showDelta: Boolean = true,
         val showPrecip: Boolean = true,
+        val showDualButton: Boolean = false,
+        val dualActive: Boolean = false,
     )
 
     data class DayData(

@@ -59,6 +59,7 @@ internal object DailyVisibilityManager {
         views.setViewVisibility(R.id.api_touch_zone, View.GONE)
         views.setViewVisibility(R.id.settings_icon, View.GONE)
         views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.dual_touch_zone, View.GONE)
         setSingleRowControlsVisible(views, true)
     }
 

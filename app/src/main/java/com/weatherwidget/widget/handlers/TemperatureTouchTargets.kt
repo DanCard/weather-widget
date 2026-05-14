@@ -170,6 +170,24 @@ internal fun setupApiToggle(
     }
 }
 
+internal fun setupDualToggle(
+    context: Context,
+    views: RemoteViews,
+    appWidgetId: Int,
+) {
+    val toggleIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+        action = WidgetActions.ACTION_TOGGLE_DUAL_BARS
+        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+    }
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        WidgetRequestCodes.dualToggle(appWidgetId),
+        toggleIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    views.setOnClickPendingIntent(R.id.dual_touch_zone, pendingIntent)
+}
+
 internal fun setupHistoryShortcut(
     context: Context,
     views: RemoteViews,

@@ -103,7 +103,7 @@
                 android:layout_marginBottom="16dp"
                 android:text="@string/show_two_bars_on_daily"
                 android:textColor="@color/widget_text_primary"
-                android:textSize="14sp" />
+                android:textSize="18sp" />
 
             <LinearLayout
                 android:id="@+id/api_sources_container"

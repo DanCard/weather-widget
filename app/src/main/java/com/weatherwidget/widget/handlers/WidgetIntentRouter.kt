@@ -492,6 +492,43 @@ suspend fun handleToggleView(
     }
 
     /**
+     * Handle dual-source bar toggle action.
+     */
+suspend fun handleToggleDualBars(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) {
+        try {
+            handleToggleDualBarsInternal(context, appWidgetId, repository)
+        } catch (e: Exception) {
+            Log.e(TAG, "handleToggleDualBars failed for widget $appWidgetId", e)
+        }
+    }
+
+    private suspend fun handleToggleDualBarsInternal(
+        context: Context,
+        appWidgetId: Int,
+        repository: WeatherRepository? = null,
+    ) {
+        val startMs = SystemClock.elapsedRealtime()
+        val stateManager = WidgetStateManager(context)
+        val newState = !stateManager.isShowTwoBarsEnabled()
+        stateManager.setShowTwoBarsEnabled(newState)
+        Log.d(TAG, "handleToggleDualBars: widget=$appWidgetId showTwoBars=$newState")
+
+        // Refresh every widget instance since the dual-bars preference is global,
+        // not per-widget. The tapped widget still updates fastest because its
+        // refresh runs synchronously below; others get a UI-only update.
+        val ctx = resolveRefreshContext(context, "toggle_dual_bars")
+        refreshDailyView(
+            context, appWidgetId, ctx.database, ctx.location.lat, ctx.location.lon, repository,
+            startTimeMs = startMs, actionTag = "TOGGLE_DUAL", extraMetadata = "showTwoBars=$newState",
+        )
+        WeatherWidgetProvider.triggerUiOnlyUpdate(context, reason = "dual_bars_toggle")
+    }
+
+    /**
      * Handle precipitation mode toggle action.
      */
 suspend fun handleTogglePrecip(

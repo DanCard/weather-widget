@@ -1547,6 +1547,23 @@
         android:clickable="true"
         android:focusable="true" />
 
+    <!-- Dual-source toggle touch target — overlay covers the ‖ glyph drawn into the
+         bitmap. The zone is intentionally much wider than the visible pill (~15dp wide)
+         because the bitmap is rendered into graph_view via fitCenter, which introduces
+         a small left/right offset between the pill's screen position and the marginEnd
+         anchor. A wide zone keeps the tap target forgiving on every device. -->
+    <FrameLayout
+        android:id="@+id/dual_touch_zone"
+        android:layout_width="80dp"
+        android:layout_height="50dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="150dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
     <!-- Single-row text mode API indicator, placed at the far right edge. -->
     <FrameLayout
         android:id="@+id/text_mode_api_source_container"

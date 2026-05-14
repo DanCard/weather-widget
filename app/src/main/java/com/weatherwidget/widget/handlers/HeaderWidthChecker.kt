@@ -121,7 +121,10 @@ object HeaderWidthChecker {
     ): Float {
         val apiContainerWidth = dpToPx(context, HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP) +
             textWidthPx(context, apiSourceText, apiTextSizeDp)
-        return widthPx - dpToPx(context, HeaderConstants.API_SOURCE_MARGIN_END_DP) - apiContainerWidth
+        val isDualApiText = apiSourceText.contains(" - ")
+        val marginEndDp = HeaderConstants.API_SOURCE_MARGIN_END_DP +
+            (if (isDualApiText) 0f else HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP)
+        return widthPx - dpToPx(context, marginEndDp) - apiContainerWidth
     }
 
     internal fun dpToPx(context: Context, dp: Float): Float {
