@@ -49,4 +49,19 @@ class GraphRenderUtilsTest {
         assertEquals(52.5f, result[1], 0.0001f)
         assertEquals(52.5f, result[3], 0.0001f)
     }
+
+    @Test
+    fun `smoothValuesPreservingAllExtrema preserves every local peak and valley`() {
+        // Dynamic data with two distinct peaks and a valley
+        val values = listOf(20f, 80f, 30f, 60f, 10f)
+
+        val result = GraphRenderUtils.smoothValuesPreservingAllExtrema(values, iterations = 3)
+
+        // All points are extrema or endpoints in this small set, so all should be preserved perfectly
+        assertEquals(20f, result[0], 0.0001f) // Start
+        assertEquals(80f, result[1], 0.0001f) // Local Peak 1
+        assertEquals(30f, result[2], 0.0001f) // Local Valley
+        assertEquals(60f, result[3], 0.0001f) // Local Peak 2
+        assertEquals(10f, result[4], 0.0001f) // End
+    }
 }

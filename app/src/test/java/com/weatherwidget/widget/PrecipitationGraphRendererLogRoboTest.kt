@@ -94,7 +94,7 @@ class PrecipitationGraphRendererLogRoboTest {
         val labelAt5 = placements.find { it.index == 5 }
 
         assertNotNull("Should have placed a label at index 5", labelAt5)
-        assertEquals("Label at index 5 should be approximately 37% (smoothed value)", 37, labelAt5!!.probability)
+        assertEquals("Label at index 5 should be exactly 46% (raw value preserved)", 46, labelAt5!!.probability)
         assertTrue("Label at index 5 should have 'firstLabelBelowRuleApplied' set", labelAt5.firstLabelBelowRuleApplied)
         assertFalse("Label at index 5 (first rising labeled) should be placed BELOW (placedAbove=false)", labelAt5.placedAbove)
     }

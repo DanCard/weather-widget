@@ -465,6 +465,30 @@ internal object GraphRenderUtils {
         return smoothValuesWithPreservedAnchors(values, iterations, preservedIndices)
     }
 
+    /**
+     * Applies smoothing while preserving ALL local maxima and minima, as well as the
+     * start and end points. This prevents "melting" local peaks/valleys into their
+     * neighbors, which is critical for highly dynamic data (like cloud cover or precip)
+     * where a local 80% peak shouldn't be averaged down just because it's not the
+     * global daily maximum.
+     */
+    fun smoothValuesPreservingAllExtrema(
+        values: List<Float>,
+        iterations: Int = 1,
+    ): List<Float> {
+        if (values.size < 3 || iterations <= 0) return values
+
+        val intValues = values.map { it.roundToInt() }
+        val maxima = findLocalExtremaIndices(intValues, isMax = true)
+        val minima = findLocalExtremaIndices(intValues, isMax = false)
+        
+        val preservedIndices = mutableSetOf(0, values.lastIndex)
+        preservedIndices.addAll(maxima)
+        preservedIndices.addAll(minima)
+
+        return smoothValuesWithPreservedAnchors(values, iterations, preservedIndices)
+    }
+
     private fun smoothValuesOnePass(values: List<Float>): List<Float> {
         val smoothed = MutableList(values.size) { 0f }
         for (i in values.indices) {

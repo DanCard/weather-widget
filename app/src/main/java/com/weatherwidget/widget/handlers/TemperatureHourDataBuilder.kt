@@ -34,7 +34,7 @@ internal fun computeSmoothedForecasts(
     val forecastsByTime = resolveForecastsByTime(hourlyForecasts, displaySource)
     val sortedTimes = forecastsByTime.keys.sorted()
     val rawTemps = sortedTimes.map { forecastsByTime[it]!!.temperature }
-    val smoothedTemps = GraphRenderUtils.smoothValuesPreservingGlobalExtrema(
+    val smoothedTemps = GraphRenderUtils.smoothValuesPreservingAllExtrema(
         rawTemps,
         iterations = smoothIterations,
     )

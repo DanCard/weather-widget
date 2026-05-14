@@ -207,7 +207,7 @@ object PrecipitationGraphRenderer {
                 preserveEnd = true,
             )
         } else {
-            GraphRenderUtils.smoothValuesPreservingGlobalExtrema(rawProbs, iterations = smoothIterations)
+            GraphRenderUtils.smoothValuesPreservingAllExtrema(rawProbs, iterations = smoothIterations)
         }
 
         val rawMax = probs.maxOrNull() ?: 0f
@@ -283,7 +283,12 @@ object PrecipitationGraphRenderer {
         if (firstPositive != -1 && firstPositive !in candidates) candidates.add(firstPositive)
         if (firstLabeledPositive != -1 && firstLabeledPositive !in candidates) candidates.add(firstLabeledPositive)
 
-        val protectedIndices = buildSet { addAll(softDipCandidates); addAll(zeroRunCandidates) }
+        val protectedIndices = buildSet { 
+            addAll(softDipCandidates)
+            addAll(zeroRunCandidates)
+            if (firstPositive != -1) add(firstPositive)
+            if (firstLabeledPositive != -1) add(firstLabeledPositive)
+        }
         candidates.sortBy { it }
         val filteredCandidates = GraphLabelPlacementUtils.filterDenseLabelCandidates(
             items = labelSignal,
