@@ -345,8 +345,10 @@ object DailyForecastGraphRenderer {
             val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
             val rightNeighbor = daysByColumn[columnIndex + 1]
 
-            drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
+            // Bars first, then column content (weather icon, low/day labels) so the icon
+            // and labels render on top of any bar geometry that might overlap them.
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
+            drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
         }
 
         return bitmap
@@ -441,7 +443,11 @@ object DailyForecastGraphRenderer {
             horizontalPadding = horizontalPadding,
             tripleBarOffset = (8f * scaleFactor * labelScale).dp(density),
             forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
-            nextSourceBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE + barWidth * FORECAST_OVERLAY_WIDTH_SCALE / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
+            // Position next-source 1dp from the primary's right edge. Primary uses
+            // PRIMARY_BAR_DUAL_SOURCE_WIDTH_SCALE (0.8) in dual-source mode, next-source uses
+            // NEXT_SOURCE_BAR_WIDTH_SCALE (0.6). The forecast overlay is suppressed in dual mode
+            // (see drawDayBars), so next-source occupies what was the overlay's slot.
+            nextSourceBarOffset = barWidth * PRIMARY_BAR_DUAL_SOURCE_WIDTH_SCALE / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
             nextSourceTodayBarOffset = (8f * scaleFactor * labelScale).dp(density) + tripleBarWidth / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
@@ -699,7 +705,10 @@ object DailyForecastGraphRenderer {
             }
         }
 
-        if (!day.isToday && day.forecastHigh != null && day.forecastLow != null) {
+        // In dual-source mode the next-source bar takes the slot the forecast overlay used to
+        // occupy, so suppress the overlay to avoid visual conflict beneath the next-source bar.
+        val suppressForecastOverlay = day.nextSourceHigh != null && day.nextSourceLow != null
+        if (!day.isToday && !suppressForecastOverlay && day.forecastHigh != null && day.forecastLow != null) {
             val fHighY = layout.tempToY(day.forecastHigh)
             val fLowY = layout.tempToY(day.forecastLow)
             val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
@@ -731,36 +740,10 @@ object DailyForecastGraphRenderer {
             onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
         }
 
-        if (day.nextSourceHigh != null && day.nextSourceLow != null) {
-            val nHighY = layout.tempToY(day.nextSourceHigh)
-            val nLowY = layout.tempToY(day.nextSourceLow)
-            val endpoints = resolveBarEndpoints(nHighY, nLowY, layout.minBarHeightPx)
-            if (endpoints != null) {
-                val (effectiveNHighY, effectiveNLowY) = endpoints
-                val nextX = centerX + if (day.isToday) layout.nextSourceTodayBarOffset else layout.nextSourceBarOffset
-                val condColor = WeatherConditionColors.forecastColor(
-                    day.nextSourceIsSunny, day.nextSourceIsRainy, day.nextSourceIsMixed, isNight = false,
-                )
-                val nextPaint = paints.nextSourceForColor(condColor)
-                val nextDayView = day.copy(
-                    iconRes = day.nextSourceIconRes,
-                    isSunny = day.nextSourceIsSunny,
-                    isRainy = day.nextSourceIsRainy,
-                    isMixed = day.nextSourceIsMixed,
-                    cloudCoverRatioOverride = day.nextSourceCloudCoverRatioOverride,
-                )
-                drawWeatherAdaptiveBar(
-                    canvas = canvas,
-                    centerX = nextX,
-                    topY = effectiveNHighY,
-                    bottomY = effectiveNLowY,
-                    paint = nextPaint,
-                    day = nextDayView,
-                    logPrefix = "next_source",
-                    allowAdaptiveSegments = !day.isPast,
-                )
-                onBarDrawn?.invoke(BarDrawnDebug(day.date, "NEXT_SOURCE", effectiveNHighY, effectiveNLowY, nextX, nextPaint.color))
-            }
+        // For non-today, draw the next-source bar here. For today, it is drawn earlier from
+        // drawTodayTripleBar so the thermostat (observed bar + bulb) can paint on top of it.
+        if (!day.isToday) {
+            drawNextSourceBar(canvas, day, centerX, layout, paints, onBarDrawn)
         }
 
         if (day.high != null) {
@@ -782,6 +765,51 @@ object DailyForecastGraphRenderer {
         }
     }
 
+    /**
+     * Draws the second API source's vertical bar. Always uses the thin [nextSourceBarPaint]
+     * stroke (0.6 × barWidth). Position depends on day type:
+     *  - today: RIGHT of thermostat at +tripleBarOffset
+     *  - non-today: at nextSourceBarOffset (past forecast overlay on the right)
+     * Pure no-op when next-source data is absent.
+     */
+    private fun drawNextSourceBar(
+        canvas: Canvas,
+        day: DayData,
+        centerX: Float,
+        layout: LayoutInfo,
+        paints: PaintSet,
+        onBarDrawn: ((BarDrawnDebug) -> Unit)?,
+    ) {
+        if (day.nextSourceHigh == null || day.nextSourceLow == null) return
+        val nHighY = layout.tempToY(day.nextSourceHigh)
+        val nLowY = layout.tempToY(day.nextSourceLow)
+        val endpoints = resolveBarEndpoints(nHighY, nLowY, layout.minBarHeightPx) ?: return
+        val (effectiveNHighY, effectiveNLowY) = endpoints
+        val nextX = centerX + if (day.isToday) layout.tripleBarOffset else layout.nextSourceBarOffset
+        val condColor = WeatherConditionColors.forecastColor(
+            day.nextSourceIsSunny, day.nextSourceIsRainy, day.nextSourceIsMixed, isNight = false,
+        )
+        val nextPaint = paints.nextSourceForColor(condColor)
+        val nextDayView = day.copy(
+            iconRes = day.nextSourceIconRes,
+            isSunny = day.nextSourceIsSunny,
+            isRainy = day.nextSourceIsRainy,
+            isMixed = day.nextSourceIsMixed,
+            cloudCoverRatioOverride = day.nextSourceCloudCoverRatioOverride,
+        )
+        drawWeatherAdaptiveBar(
+            canvas = canvas,
+            centerX = nextX,
+            topY = effectiveNHighY,
+            bottomY = effectiveNLowY,
+            paint = nextPaint,
+            day = nextDayView,
+            logPrefix = "next_source",
+            allowAdaptiveSegments = !day.isPast,
+        )
+        onBarDrawn?.invoke(BarDrawnDebug(day.date, "NEXT_SOURCE", effectiveNHighY, effectiveNLowY, nextX, nextPaint.color))
+    }
+
     private fun drawTodayTripleBar(
         canvas: Canvas,
         context: Context,
@@ -795,12 +823,18 @@ object DailyForecastGraphRenderer {
     ) {
         val (obsHighY, effectiveObsLowY) = resolveBarEndpoints(highY, lowY, layout.minBarHeightPx) ?: return
 
-        day.snapshotHigh?.let { sHigh ->
-            day.snapshotLow?.let { sLow ->
-                val sHighY = layout.tempToY(sHigh)
-                val sLowY = layout.tempToY(sLow)
-                val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
-                canvas.drawLine(centerX - layout.tripleBarOffset, sHighY, centerX - layout.tripleBarOffset, effectiveSLowY, paints.todaySnapshotYellowPaint)
+        val hasNextSourceBar = day.nextSourceHigh != null && day.nextSourceLow != null
+
+        // In dual-source mode the snapshot (yesterday's prediction for today) is dropped
+        // so the two API forecast bars can flank the observed thermostat symmetrically.
+        if (!hasNextSourceBar) {
+            day.snapshotHigh?.let { sHigh ->
+                day.snapshotLow?.let { sLow ->
+                    val sHighY = layout.tempToY(sHigh)
+                    val sLowY = layout.tempToY(sLow)
+                    val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
+                    canvas.drawLine(centerX - layout.tripleBarOffset, sHighY, centerX - layout.tripleBarOffset, effectiveSLowY, paints.todaySnapshotYellowPaint)
+                }
             }
         }
 
@@ -809,10 +843,12 @@ object DailyForecastGraphRenderer {
         val fHighY = layout.tempToY(fHigh)
         val fLowY = layout.tempToY(fLow)
         val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
-        
+
         val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
         val forecastPaint = paints.todayForecastForColor(condColor)
-        val todayForecastX = centerX + layout.tripleBarOffset
+        // In dual-source mode, primary's today-forecast occupies the snapshot's old LEFT slot;
+        // the next-source today-forecast (drawn in drawDayBars) takes the RIGHT slot.
+        val todayForecastX = centerX + if (hasNextSourceBar) -layout.tripleBarOffset else layout.tripleBarOffset
         drawWeatherAdaptiveBar(
             canvas = canvas,
             centerX = todayForecastX,
@@ -822,6 +858,10 @@ object DailyForecastGraphRenderer {
             day = day,
             logPrefix = "today_forecast",
         )
+
+        // Draw the next-source bar BEFORE the thermostat so the thermostat paints over both
+        // forecast bars at the center column. No-op when dual-source mode is off.
+        drawNextSourceBar(canvas, day, centerX, layout, paints, onBarDrawn)
 
         canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)
         canvas.drawCircle(centerX, effectiveObsLowY + (layout.bulbRadius * BULB_VERTICAL_CENTER_FRACTION), layout.bulbRadius, paints.todayObservedRedBulbPaint)
