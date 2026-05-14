@@ -16,48 +16,50 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="12dp">
 
             <com.google.android.flexbox.FlexboxLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="-8dp"
+                android:layout_marginEnd="-8dp"
                 android:layout_marginBottom="16dp"
-                app:flexWrap="wrap"
+                app:flexWrap="nowrap"
                 app:justifyContent="flex_start"
                 app:alignItems="center">
 
                 <ImageButton
                     android:id="@+id/back_button"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginEnd="8dp"
-                    android:layout_marginBottom="8dp"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="2dp"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:contentDescription="@string/back"
-                    android:src="@drawable/ic_chevron_left" />
+                    android:src="@drawable/ic_arrow_back"
+                    app:layout_flexShrink="0" />
 
                 <TextView
                     android:id="@+id/settings_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="12dp"
-                    android:layout_marginBottom="8dp"
+                    android:layout_marginEnd="6dp"
                     android:text="@string/settings"
                     android:textColor="@color/widget_text_primary"
-                    android:textSize="24sp"
-                    android:textStyle="bold" />
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    app:layout_flexShrink="0" />
 
                 <Button
                     android:id="@+id/refresh_data_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
-                    android:layout_marginBottom="8dp"
+                    android:layout_marginEnd="2dp"
                     android:background="@drawable/rounded_button_green"
-                    android:paddingStart="12dp"
-                    android:paddingTop="12dp"
-                    android:paddingEnd="12dp"
-                    android:paddingBottom="12dp"
+                    android:paddingStart="6dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="6dp"
+                    android:paddingBottom="10dp"
                     android:text="@string/refresh_now"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
@@ -66,13 +68,11 @@
                     android:id="@+id/view_app_logs_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="8dp"
-                    android:layout_marginBottom="8dp"
                     android:background="@drawable/rounded_button_blue"
-                    android:paddingStart="12dp"
-                    android:paddingTop="12dp"
-                    android:paddingEnd="12dp"
-                    android:paddingBottom="12dp"
+                    android:paddingStart="6dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="6dp"
+                    android:paddingBottom="10dp"
                     android:text="@string/view_app_logs"
                     android:textColor="#FFFFFF"
                     android:textSize="14sp" />
