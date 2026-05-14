@@ -6,11 +6,13 @@ import android.graphics.Paint
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
 import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.util.WeatherConditionColors
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -74,6 +76,62 @@ class DailyForecastGraphRendererRoboTest {
         }
         assertNotNull(bitmap)
         return results
+    }
+
+    @Test
+    fun nextSourceBar_usesNextSourceConditionColor() {
+        // Primary forecasts sunny / dry; next source forecasts rainy.
+        // The next-source bar must take its color from the nextSourceIs* flags
+        // (not from the primary flags), so the two bar colors must differ.
+        val date = LocalDate.of(2026, 2, 3)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = date,
+                label = "Tue",
+                high = 80f,
+                low = 60f,
+                isSunny = true,
+                isRainy = false,
+                isMixed = false,
+                cloudCoverRatioOverride = 0f,
+                nextSourceHigh = 78f,
+                nextSourceLow = 58f,
+                nextSourceIsSunny = false,
+                nextSourceIsRainy = true,
+                nextSourceIsMixed = false,
+                nextSourceCloudCoverRatioOverride = 0.8f,
+            )
+        )
+
+        val bars = render(days)
+
+        val nextBar = bars.first { it.barType == "NEXT_SOURCE" }
+        val primaryBar = bars.first { it.barType == "FUTURE" }
+
+        val expectedNextColor = WeatherConditionColors.forecastColor(
+            isSunny = false,
+            isRainy = true,
+            isMixed = false,
+            isNight = false,
+        )
+        val expectedPrimaryColor = WeatherConditionColors.forecastColor(
+            isSunny = true,
+            isRainy = false,
+            isMixed = false,
+            isNight = false,
+        )
+        assertEquals(
+            "next-source bar color must derive from nextSourceIs* flags",
+            expectedNextColor, nextBar.color,
+        )
+        assertEquals(
+            "primary bar color must derive from primary isSunny/isRainy flags",
+            expectedPrimaryColor, primaryBar.color,
+        )
+        assertNotEquals(
+            "next-source bar color must differ from primary when conditions differ",
+            primaryBar.color, nextBar.color,
+        )
     }
 
     @Test

@@ -308,6 +308,8 @@ object DailyViewLogic {
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
+        nextSourceWeatherByDate: Map<LocalDate, ForecastEntity> = emptyMap(),
+        nextSource: WeatherSource? = null,
     ): List<DailyForecastGraphRenderer.DayData> {
         Log.d(TAG, "prepareGraphDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, forecastSnapshotKeys=${forecastSnapshots.keys}")
 
@@ -512,6 +514,34 @@ object DailyViewLogic {
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
             )
 
+            // Next-source icon + cloud cover: mirror the primary computation but with the
+            // next source's hourly stream and forecast entity. Reuses existing helpers so the
+            // resolution rules stay identical.
+            val nextSourceWeather = nextSourceWeatherByDate[date]
+            val nextSourceCloudCoverRatioOverride =
+                if (nextSourceWeather != null && nextSource != null) {
+                    resolveNoonCloudCoverRatio(
+                        date = date,
+                        hourlyForecasts = hourlyForecasts,
+                        displaySource = nextSource,
+                        weatherSourceId = nextSourceWeather.source,
+                    )
+                } else null
+            val nextSourceCloudCoverPercent =
+                nextSourceCloudCoverRatioOverride?.let { (it * 100).toInt() }
+            val nextSourceIconRes = nextSourceWeather?.let { w ->
+                DailyForecastIconResolver.resolveIcon(
+                    weather = w,
+                    targetDate = date,
+                    now = now,
+                    latitude = w.locationLat,
+                    longitude = w.locationLon,
+                    dayPrecipProbability = w.daytimePrecipProbability ?: w.precipProbability,
+                    nightPrecipProbability = w.nighttimePrecipProbability,
+                    cloudCover = nextSourceCloudCoverPercent,
+                )
+            }
+
             days.add(
                 DailyForecastGraphRenderer.DayData(
                     date = date,
@@ -551,6 +581,13 @@ forecastHigh = fHigh,
                     trueActualHigh = trueActualHigh,
                     cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
+                    nextSourceHigh = nextSourceWeather?.highTemp,
+                    nextSourceLow = nextSourceWeather?.lowTemp,
+                    nextSourceIconRes = nextSourceIconRes,
+                    nextSourceIsSunny = nextSourceIconRes?.let(WeatherIconMapper::isSunny) ?: false,
+                    nextSourceIsRainy = nextSourceIconRes?.let(WeatherIconMapper::isPrecipitation) ?: false,
+                    nextSourceIsMixed = nextSourceIconRes?.let(WeatherIconMapper::isMixed) ?: false,
+                    nextSourceCloudCoverRatioOverride = nextSourceCloudCoverRatioOverride,
                 )
             )
         }

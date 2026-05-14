@@ -68,6 +68,9 @@ object DailyForecastGraphRenderer {
     private const val FORECAST_OVERLAY_WIDTH_SCALE = 0.7f
     private const val CLIMATE_OVERLAY_WIDTH_SCALE = 0.8f
     private const val FORECAST_BAR_OFFSET_SCALE = 0.7f
+    private const val NEXT_SOURCE_BAR_GAP_DP = 1f
+    private const val NEXT_SOURCE_BAR_WIDTH_SCALE = 0.6f
+    private const val PRIMARY_BAR_DUAL_SOURCE_WIDTH_SCALE = 0.8f
     private const val PAST_TEMP_SCALE = 0.9f
     private const val LABEL_SHADOW_RADIUS_DP = 1.5f
     private const val LABEL_SHADOW_DY_DP = 1.0f
@@ -177,6 +180,13 @@ object DailyForecastGraphRenderer {
         val trueActualHigh: Float? = null,
         val cloudCoverRatioOverride: Float? = null,
         val daysFromToday: Int = 0,
+        val nextSourceHigh: Float? = null,
+        val nextSourceLow: Float? = null,
+        val nextSourceIconRes: Int? = null,
+        val nextSourceIsSunny: Boolean = false,
+        val nextSourceIsRainy: Boolean = false,
+        val nextSourceIsMixed: Boolean = false,
+        val nextSourceCloudCoverRatioOverride: Float? = null,
     )
 
     private fun DayData.effectiveHigh(): Float? {
@@ -199,6 +209,8 @@ object DailyForecastGraphRenderer {
         val horizontalPadding: Float,
         val tripleBarOffset: Float,
         val forecastBarOffset: Float,
+        val nextSourceBarOffset: Float,
+        val nextSourceTodayBarOffset: Float,
         val iconSize: Int,
         val dayLabelHeight: Float,
         val tempLabelHeight: Float,
@@ -251,6 +263,8 @@ object DailyForecastGraphRenderer {
         val todayForecastBluePaint: Paint,
         val historyBarPaint: Paint,
         val forecastBarPaint: Paint,
+        val nextSourceBarPaint: Paint,
+        val primaryDualSourceBarPaint: Paint,
         val climateOverlayBarPaint: Paint,
         val gapFallbackBarPaint: Paint,
         val textPaint: Paint,
@@ -262,6 +276,8 @@ object DailyForecastGraphRenderer {
     ) {
         private val barByColor = ConcurrentHashMap<Int, Paint>()
         private val forecastByColor = ConcurrentHashMap<Int, Paint>()
+        private val nextSourceByColor = ConcurrentHashMap<Int, Paint>()
+        private val primaryDualSourceByColor = ConcurrentHashMap<Int, Paint>()
         private val climateOverlayByColor = ConcurrentHashMap<Int, Paint>()
         private val todayForecastByColor = ConcurrentHashMap<Int, Paint>()
 
@@ -270,6 +286,12 @@ object DailyForecastGraphRenderer {
         }
         fun forecastForColor(color: Int): Paint = forecastByColor.getOrPut(color) {
             Paint(forecastBarPaint).apply { this.color = color }
+        }
+        fun nextSourceForColor(color: Int): Paint = nextSourceByColor.getOrPut(color) {
+            Paint(nextSourceBarPaint).apply { this.color = color }
+        }
+        fun primaryDualSourceForColor(color: Int): Paint = primaryDualSourceByColor.getOrPut(color) {
+            Paint(primaryDualSourceBarPaint).apply { this.color = color }
         }
         fun climateOverlayForColor(color: Int): Paint = climateOverlayByColor.getOrPut(color) {
             // Paint.setColor overwrites alpha, so re-apply CLIMATE_OVERLAY_ALPHA after.
@@ -340,7 +362,7 @@ object DailyForecastGraphRenderer {
         job: Job? = null,
     ): LayoutInfo {
         job?.ensureActive()
-        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow, it.trueActualHigh) }
+        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow, it.trueActualHigh, it.nextSourceHigh, it.nextSourceLow) }
         val minTemp = allTemps.minOrNull() ?: 0f
         val maxTemp = allTemps.maxOrNull() ?: 100f
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
@@ -419,6 +441,8 @@ object DailyForecastGraphRenderer {
             horizontalPadding = horizontalPadding,
             tripleBarOffset = (8f * scaleFactor * labelScale).dp(density),
             forecastBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE,
+            nextSourceBarOffset = barWidth * FORECAST_BAR_OFFSET_SCALE + barWidth * FORECAST_OVERLAY_WIDTH_SCALE / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
+            nextSourceTodayBarOffset = (8f * scaleFactor * labelScale).dp(density) + tripleBarWidth / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
             tempLabelHeight = tempLabelHeight,
@@ -456,6 +480,8 @@ object DailyForecastGraphRenderer {
             todayForecastBluePaint = createBarPaint(COLOR_FORECAST, tripleBarWidth),
             historyBarPaint = createBarPaint(COLOR_OBSERVED_RED, barWidth * HISTORY_BAR_WIDTH_SCALE),
             forecastBarPaint = createBarPaint(COLOR_FORECAST, barWidth * FORECAST_OVERLAY_WIDTH_SCALE),
+            nextSourceBarPaint = createBarPaint(COLOR_FORECAST, barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE),
+            primaryDualSourceBarPaint = createBarPaint(COLOR_FORECAST, barWidth * PRIMARY_BAR_DUAL_SOURCE_WIDTH_SCALE),
             climateOverlayBarPaint = createBarPaint(COLOR_FORECAST, barWidth * CLIMATE_OVERLAY_WIDTH_SCALE).apply { alpha = CLIMATE_OVERLAY_ALPHA },
             gapFallbackBarPaint = createBarPaint(COLOR_GAP_FALLBACK, barWidth),
             textPaint = createTextPaint(
@@ -644,9 +670,11 @@ object DailyForecastGraphRenderer {
             } else {
                 val (hY, effectiveLowY) = endpoints
                 val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
+                val hasNextSourceBar = day.nextSourceHigh != null && day.nextSourceLow != null
                 val paint = when {
                     day.isPast -> paints.historyBarPaint
                     day.isSourceGapFallback -> paints.gapFallbackBarPaint
+                    hasNextSourceBar -> paints.primaryDualSourceForColor(condColor)
                     else -> paints.barForColor(condColor)
                 }
 
@@ -701,6 +729,38 @@ object DailyForecastGraphRenderer {
                 logPrefix = "overlay",
             )
             onBarDrawn?.invoke(BarDrawnDebug(day.date, "FORECAST_OVERLAY", fHighY, effectiveFLowY, forecastX, overlayPaint.color))
+        }
+
+        if (day.nextSourceHigh != null && day.nextSourceLow != null) {
+            val nHighY = layout.tempToY(day.nextSourceHigh)
+            val nLowY = layout.tempToY(day.nextSourceLow)
+            val endpoints = resolveBarEndpoints(nHighY, nLowY, layout.minBarHeightPx)
+            if (endpoints != null) {
+                val (effectiveNHighY, effectiveNLowY) = endpoints
+                val nextX = centerX + if (day.isToday) layout.nextSourceTodayBarOffset else layout.nextSourceBarOffset
+                val condColor = WeatherConditionColors.forecastColor(
+                    day.nextSourceIsSunny, day.nextSourceIsRainy, day.nextSourceIsMixed, isNight = false,
+                )
+                val nextPaint = paints.nextSourceForColor(condColor)
+                val nextDayView = day.copy(
+                    iconRes = day.nextSourceIconRes,
+                    isSunny = day.nextSourceIsSunny,
+                    isRainy = day.nextSourceIsRainy,
+                    isMixed = day.nextSourceIsMixed,
+                    cloudCoverRatioOverride = day.nextSourceCloudCoverRatioOverride,
+                )
+                drawWeatherAdaptiveBar(
+                    canvas = canvas,
+                    centerX = nextX,
+                    topY = effectiveNHighY,
+                    bottomY = effectiveNLowY,
+                    paint = nextPaint,
+                    day = nextDayView,
+                    logPrefix = "next_source",
+                    allowAdaptiveSegments = !day.isPast,
+                )
+                onBarDrawn?.invoke(BarDrawnDebug(day.date, "NEXT_SOURCE", effectiveNHighY, effectiveNLowY, nextX, nextPaint.color))
+            }
         }
 
         if (day.high != null) {

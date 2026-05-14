@@ -77,6 +77,7 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_DELTA_LON_PREFIX = "widget_current_temp_delta_lon_"
             private const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
             private const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
+            private const val KEY_SHOW_TWO_BARS = "show_two_bars_on_daily"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
@@ -134,6 +135,12 @@ class WidgetStateManager
 
         fun setDailyColumnCount(widgetId: Int, count: Int) {
             prefs.edit().putInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", count).apply()
+        }
+
+        fun isShowTwoBarsEnabled(): Boolean = prefs.getBoolean(KEY_SHOW_TWO_BARS, false)
+
+        fun setShowTwoBarsEnabled(enabled: Boolean) {
+            prefs.edit().putBoolean(KEY_SHOW_TWO_BARS, enabled).apply()
         }
 
         fun navigateLeft(widgetId: Int): Int {
@@ -548,6 +555,16 @@ class WidgetStateManager
             val visibleSources = getEffectiveVisibleSourcesOrder(widgetId)
             val toggleStep = getDisplaySourceToggleStep(widgetId)
             return sourceForStep(toggleStep, visibleSources)
+        }
+
+        /**
+         * Peeks at the next display source in the cycle without advancing state.
+         * If only one source is visible, returns the same source as getCurrentDisplaySource.
+         */
+        fun getNextDisplaySource(widgetId: Int): WeatherSource {
+            val visibleSources = getEffectiveVisibleSourcesOrder(widgetId)
+            val toggleStep = getDisplaySourceToggleStep(widgetId)
+            return sourceForStep(toggleStep + 1, visibleSources)
         }
 
         /**

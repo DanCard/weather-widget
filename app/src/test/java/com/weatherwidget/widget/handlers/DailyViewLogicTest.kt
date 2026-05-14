@@ -9,6 +9,7 @@ import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -1323,6 +1324,85 @@ class DailyViewLogicTest {
 
         val todayDay = result.first { it.date == today }
         assertEquals("Today should use complete snapshot high", 80f, todayDay.high)
+    }
+
+    @Test
+    fun `prepareGraphDays populates next-source cloud cover from next-source hourly`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        // Primary: NWS, sunny / dry forecast.
+        val weatherByDate = mapOf(
+            today to createWeather(
+                date = todayStr,
+                source = WeatherSource.NWS.id,
+                highTemp = 80f,
+                lowTemp = 60f,
+                condition = "Clear",
+                precipProbability = 0,
+            )
+        )
+        // Next source: Open-Meteo, cloudy / chance-of-rain forecast.
+        val nextSourceWeatherByDate = mapOf(
+            today to createWeather(
+                date = todayStr,
+                source = WeatherSource.OPEN_METEO.id,
+                highTemp = 78f,
+                lowTemp = 58f,
+                condition = "Cloudy",
+                precipProbability = 40,
+            )
+        )
+        // Two parallel hourly streams at noon — primary mostly clear, next source mostly cloudy.
+        val hourlyForecasts = listOf(
+            createHourlyForecast(today.atTime(12, 0), cloudCover = 10, source = WeatherSource.NWS.id),
+            createHourlyForecast(today.atTime(12, 0), cloudCover = 85, source = WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 1,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = true,
+            hourlyForecasts = hourlyForecasts,
+            nextSourceWeatherByDate = nextSourceWeatherByDate,
+            nextSource = WeatherSource.OPEN_METEO,
+        )
+
+        val day = result.first { it.date == today }
+
+        // Primary cloud cover ratio comes from NWS noon hourly (10%).
+        assertEquals(0.10f, day.cloudCoverRatioOverride!!, 0.01f)
+        // Next-source cloud cover ratio comes from Open-Meteo noon hourly (85%).
+        assertEquals(
+            "next-source cloud cover must reflect Open-Meteo noon hourly, not NWS",
+            0.85f, day.nextSourceCloudCoverRatioOverride!!, 0.01f,
+        )
+
+        // Temperatures on the next-source DayData fields come from the next-source entity.
+        assertEquals(78f, day.nextSourceHigh)
+        assertEquals(58f, day.nextSourceLow)
+
+        // Icon was resolved for the next source and is distinct from the primary's icon.
+        assertNotNull("next-source icon must be resolved", day.nextSourceIconRes)
+        assertNotEquals(
+            "primary (sunny) and next-source (cloudy/rainy) icons must differ",
+            day.iconRes, day.nextSourceIconRes,
+        )
+
+        // Primary condition flags reflect the primary source (sunny / not rainy).
+        assertFalse("primary should not be rainy", day.isRainy)
+        // Next-source condition flags reflect the next source (rainy or mixed).
+        assertTrue(
+            "next source should be rainy or mixed (40% precip + 85% clouds)",
+            day.nextSourceIsRainy || day.nextSourceIsMixed,
+        )
     }
 
     @Test

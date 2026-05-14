@@ -27,6 +27,7 @@
     <string name="api_prefer_weatherapi">Prefer WeatherAPI - Global coverage</string>
     <string name="api_sources_title">Weather Data Sources</string>
     <string name="api_sources_description">Enable/disable and reorder sources. Disabled sources are excluded from widget toggles and background fetches until re-enabled.</string>
+    <string name="show_two_bars_on_daily">Show two bars on daily forecast (current + next API)</string>
     <string name="must_keep_one_source">At least one source must remain enabled</string>
     <string name="api_source_silurian_desc">Silurian.ai — shown as Silur (global coverage)</string>
     <string name="api_source_nws_desc">National Weather Service (US only)</string>

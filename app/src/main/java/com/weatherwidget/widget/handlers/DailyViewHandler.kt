@@ -215,7 +215,7 @@ object DailyViewHandler : WidgetViewHandler {
             weatherList
                 .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
                 .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                .mapValues { (date, items) -> 
+                .mapValues { (date, items) ->
                     val preferred = items.find { it.source == displaySource.id }
                     val isToday = date == today
 
@@ -229,7 +229,18 @@ object DailyViewHandler : WidgetViewHandler {
                     }
                 }
 
-        // Set API source indicator
+        // Dual-source ("two bars") support: parallel per-date map for the NEXT API source.
+        // Empty when the setting is off or only one source is visible.
+        val showTwoBars = stateManager.isShowTwoBarsEnabled()
+        val nextSource = if (showTwoBars) stateManager.getNextDisplaySource(appWidgetId) else displaySource
+        val nextSourceWeatherByDate: Map<LocalDate, ForecastEntity> =
+            if (showTwoBars && nextSource != displaySource) {
+                weatherList.filter { it.source == nextSource.id }
+                    .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+                    .mapValues { (_, items) -> items.first() }
+            } else emptyMap()
+
+        // Set API source indicator (overwritten later once dual-source fit is decided)
         views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)
         views.setTextViewText(R.id.text_mode_api_source, displaySource.shortDisplayName)
 
@@ -326,16 +337,40 @@ object DailyViewHandler : WidgetViewHandler {
             deltaVisible,
         )
 
-        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+        // Pick API label: dual-source "<first> - <second>" if it fits at the same disclosure
+        // level as the single-source label; otherwise fall back to single source.
+        val singleApiText = displaySource.shortDisplayName
+        val candidateDualApiText = if (showTwoBars && nextSource != displaySource)
+            "$singleApiText - ${nextSource.shortDisplayName}" else null
+        val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
+        val deltaTextForFit = if (deltaVisible) String.format("%+.1f", delta) else null
+        val precipTextForFit = if (isPrecipVisible) "${precipProb}%" else null
+        val singleDisclosure = HeaderWidthChecker.resolveHeaderDisclosure(
             context = context,
             widthDp = dimensions.widthDp,
-            apiSourceText = displaySource.shortDisplayName,
-            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+            apiSourceText = singleApiText,
+            apiTextSizeDp = apiTextSizeDp,
             currentTempText = formattedTemp,
-            deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
-            precipText = if (isPrecipVisible) "${precipProb}%" else null,
+            deltaText = deltaTextForFit,
+            precipText = precipTextForFit,
             precipTextSizeDp = precipTextSizeDp,
         )
+        val (apiSourceText, disclosure) = if (candidateDualApiText != null) {
+            val dualLevel = HeaderWidthChecker.resolveHeaderDisclosure(
+                context = context,
+                widthDp = dimensions.widthDp,
+                apiSourceText = candidateDualApiText,
+                apiTextSizeDp = apiTextSizeDp,
+                currentTempText = formattedTemp,
+                deltaText = deltaTextForFit,
+                precipText = precipTextForFit,
+                precipTextSizeDp = precipTextSizeDp,
+            )
+            if (dualLevel == singleDisclosure) candidateDualApiText to dualLevel
+            else singleApiText to singleDisclosure
+        } else singleApiText to singleDisclosure
+        views.setTextViewText(R.id.api_source, apiSourceText)
+        views.setTextViewText(R.id.text_mode_api_source, apiSourceText)
 
         if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
             HeaderRemoteViewsBinder.applyDisclosure(
@@ -432,6 +467,8 @@ object DailyViewHandler : WidgetViewHandler {
                     currentTemp = currentTemp,
                     observedAt = observedAt,
                     allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+                    nextSourceWeatherByDate = nextSourceWeatherByDate,
+                    nextSource = if (showTwoBars && nextSource != displaySource) nextSource else null,
                 )
 
             val days = prepareGraphDays(allowTodayRainChanceLabel = true)
@@ -479,8 +516,8 @@ object DailyViewHandler : WidgetViewHandler {
                 deltaText = if (deltaVisible && disclosure.showsDelta()) String.format("%+.1f", delta) else null,
                 precipText = if (isPrecipVisible) "$precipProb%" else null,
                 precipTextSizeDp = precipTextSizeDp,
-                apiSourceText = displaySource.shortDisplayName,
-                apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+                apiSourceText = apiSourceText,
+                apiTextSizeDp = apiTextSizeDp,
                 dateText = dateText,
                 headerCanShowPrecip = disclosure.showsPrecip(),
                 includeIcon = disclosure.showsIcon(),
@@ -538,8 +575,8 @@ object DailyViewHandler : WidgetViewHandler {
                     precipText = if (isPrecipVisible) "$precipProb%" else null,
                     precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                     dateText = dateText,
-                    apiSourceText = if (isIconWidth) null else displaySource.shortDisplayName,
-                    apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+                    apiSourceText = if (isIconWidth) null else apiSourceText,
+                    apiTextSizeDp = apiTextSizeDp,
                     settingsIconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
                     showIcon = disclosure.showsIcon(),
                     showDelta = deltaVisible && disclosure.showsDelta(),

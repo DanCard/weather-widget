@@ -48,6 +48,14 @@ class SettingsActivity : AppCompatActivity() {
         // API Sources ordered checkable list
         setupApiSourcesList()
 
+        // "Show two bars" toggle
+        val twoBarsCheckbox = findViewById<CheckBox>(R.id.show_two_bars_checkbox)
+        twoBarsCheckbox.isChecked = widgetStateManager.isShowTwoBarsEnabled()
+        twoBarsCheckbox.setOnCheckedChangeListener { _, isChecked ->
+            widgetStateManager.setShowTwoBarsEnabled(isChecked)
+            WeatherWidgetProvider.triggerUiOnlyUpdate(this, reason = "show_two_bars_toggle")
+        }
+
         // Icon Gallery
         setupIconGallery()
 
