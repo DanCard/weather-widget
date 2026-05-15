@@ -131,6 +131,7 @@ object ApiSourceWarningHelper {
         views.setViewVisibility(R.id.nav_right, View.GONE)
         views.setViewVisibility(R.id.nav_left_zone, View.GONE)
         views.setViewVisibility(R.id.nav_right_zone, View.GONE)
+        android.util.Log.d("HomeShortcut", "ApiSourceWarningHelper.renderSourceWarningState: setting home_touch_zone=GONE (warning state shown)")
         views.setViewVisibility(R.id.home_icon, View.GONE)
         views.setViewVisibility(R.id.home_touch_zone, View.GONE)
         views.setViewVisibility(R.id.history_icon, View.GONE)

@@ -120,6 +120,9 @@ object PrecipViewHandler {
             widthDp = dimensions.widthDp
         )
         views.setTextViewText(R.id.api_source, sourceIndicator)
+        views.setViewVisibility(R.id.api_source, View.VISIBLE)
+        views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
+        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
 
         // Set weather icon
         val now = LocalDateTime.now()

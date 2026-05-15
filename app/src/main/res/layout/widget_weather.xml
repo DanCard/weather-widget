@@ -1485,11 +1485,13 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- Home icon touch zone -->
+    <!-- Home icon touch zone. Height intentionally 80dp (not 50dp) to extend the
+         clickable area below the top-center band that Pixel Launcher reserves for
+         its drag-handle gesture on the emulator. See emulator_widget_click_drops.md -->
     <FrameLayout
         android:id="@+id/home_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="50dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="-4dp"
         android:background="@android:color/transparent"
@@ -1497,11 +1499,11 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- History icon touch zone -->
+    <!-- History icon touch zone (80dp for same launcher-band reason as home_touch_zone) -->
     <FrameLayout
         android:id="@+id/forecast_history_activity_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="50dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginStart="44dp"
         android:layout_marginTop="-4dp"
@@ -1510,11 +1512,11 @@
         android:focusable="true"
         android:visibility="gone" />
 
-    <!-- Current stations icon touch zone -->
+    <!-- Current stations icon touch zone (80dp for same launcher-band reason) -->
     <FrameLayout
         android:id="@+id/weather_stations_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="50dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginEnd="44dp"
         android:layout_marginTop="-4dp"

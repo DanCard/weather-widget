@@ -238,12 +238,14 @@ internal fun setupHomeShortcut(
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
         putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.DAILY.name)
     }
+    val requestCode = WidgetRequestCodes.home(appWidgetId)
     val pendingIntent = PendingIntent.getBroadcast(
         context,
-        WidgetRequestCodes.home(appWidgetId),
+        requestCode,
         homeIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+    Log.d("HomeShortcut", "setupHomeShortcut: widget=$appWidgetId requestCode=$requestCode setVisibility=$setVisibility -> ACTION_SET_VIEW target=DAILY (bound to home_icon, home_touch_zone, home_touch_zone_inline)")
     views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
@@ -307,9 +309,9 @@ internal fun positionCenterIcons(
     isPrecipVisible: Boolean,
 ) {
     val useInline = widthDp < 420 && isPrecipVisible
-    Log.d("TemperatureTouchTargets", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline")
     val floatingVis = if (useInline) View.GONE else View.VISIBLE
     val inlineVis = if (useInline) View.VISIBLE else View.GONE
+    Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline -> home_touch_zone=${if (floatingVis == View.VISIBLE) "VISIBLE" else "GONE"} home_touch_zone_inline=${if (inlineVis == View.VISIBLE) "VISIBLE" else "GONE"}")
     for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.forecast_history_activity_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone)) {
         views.setViewVisibility(id, floatingVis)
     }

@@ -38,8 +38,14 @@ internal object TemperatureViewBinder {
         }
         ApiSourceWarningHelper.hideSourceWarning(views)
 
-        // 2. Header
+        // 2. Header.
+        // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
+        // when rendering the source label into the bitmap — RemoteViews updates are
+        // deltas, so the prior INVISIBLE state persists until restored here.
         views.setTextViewText(R.id.api_source, header.sourceIndicator)
+        views.setViewVisibility(R.id.api_source, View.VISIBLE)
+        views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
+        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
         views.setImageViewResource(R.id.weather_icon, header.iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
         
