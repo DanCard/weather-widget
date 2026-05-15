@@ -366,7 +366,7 @@ object TemperatureGraphRenderer {
                             drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role))
                             val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                             val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
-                            if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+                            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
                                 Log.d(TAG, "LabelPlacementDebug: $debug")
                             }
                             ctx.onLabelPlaced?.invoke(debug)
@@ -375,7 +375,7 @@ object TemperatureGraphRenderer {
                         }
                     }
 
-                    if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+                    if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
                         val rejectReason = when {
                             !onScreen -> "offscreen(top=${String.format("%.1f", bounds.top)}, bot=${String.format("%.1f", bounds.bottom)}, hPx=${ctx.heightPx})"
                             overlapsLabel && !allowMinorLabelOverlap -> "label-collision(overlap=${String.format("%.1f", labelOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", labelOverlap / labelHeight)})"
@@ -406,7 +406,7 @@ object TemperatureGraphRenderer {
                         val reasonBase = if (!placeAbove) "below" else "above"
                         val reason = if (step > 0) "$reasonBase+$step" else reasonBase
                         val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step)
-                        if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+                        if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
                             Log.d(TAG, "LabelPlacementDebug: $debug")
                         }
                         ctx.onLabelPlaced?.invoke(debug)
@@ -424,7 +424,7 @@ object TemperatureGraphRenderer {
                 drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role))
                 val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                 val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
-                if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+                if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
                     Log.d(TAG, "LabelPlacementDebug: $debugForced")
                 }
                 ctx.onLabelPlaced?.invoke(debugForced)
@@ -483,7 +483,7 @@ object TemperatureGraphRenderer {
 
         val overlapRatio = verticalOverlap / labelHeight
         if (overlapRatio <= GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO) {
-            if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option2-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO}")
             }
             return CascadeResult(
@@ -495,7 +495,7 @@ object TemperatureGraphRenderer {
         }
 
         if (collidingMeta.isValleyBelow && overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
-            if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
             }
             return CascadeResult(
@@ -506,7 +506,7 @@ object TemperatureGraphRenderer {
             )
         }
 
-        if (BuildConfig.DEBUG && (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW)) {
+        if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
             Log.d(TAG, "LabelCascade: role=${candidate.role} all-options-exhausted ratio=${String.format("%.2f", overlapRatio)} collidingIsValleyBelow=${collidingMeta.isValleyBelow}")
         }
 

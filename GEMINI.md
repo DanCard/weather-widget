@@ -56,7 +56,7 @@ When investigating bugs or data mismatches, follow this strict sequence:
     - **UI Update**: Frequent (15-60m), opportunistic (no wakeup), uses interpolated cached data.
     - **Data Fetch**: Infrequent (1-8h), battery-aware, fetches new API data.
 - **Naming**: PascalCase for Classes, camelCase for functions/properties, backtick-wrapped sentences for test functions.
-- **Logging**: Use `private const val TAG = "ClassName"` and standardized log levels.
+- **Logging**: Use `private const val TAG = "ClassName"` and standardized log levels. Do **NOT** remove debug logs during the cleanup phase or after verifying a fix unless explicitly requested by the user. Maintain consistent logging for critical paths (e.g., both High and Low temperature labels).
 - **Imports**: Grouped by (1) Android/Framework, (2) Libraries, (3) Project.
 
 ---

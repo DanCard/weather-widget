@@ -1,6 +1,7 @@
 package com.weatherwidget.widget
 
 import android.util.Log
+import com.weatherwidget.BuildConfig
 import java.time.LocalDateTime
 import kotlin.math.abs
 import kotlin.math.max
@@ -20,6 +21,7 @@ internal object TemperatureExtrema {
         val forecastLowIndex: Int,
         val pastForecastHighIndex: Int,
         val pastForecastLowIndex: Int,
+        val actualEndIndex: Int,
         val significantLocalExtrema: List<Int>,
         val fetchIdx: Int,
     )
@@ -46,6 +48,10 @@ internal object TemperatureExtrema {
         
         val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
         val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1
+
+        Log.d(TAG, "ACTUAL_EXTREMA highIdx=$actualHighIndex highTemp=${if (actualHighIndex >= 0) actualLabelTemps[actualHighIndex] else "N/A"} " +
+                "lowIdx=$actualLowIndex lowTemp=${if (actualLowIndex >= 0) actualLabelTemps[actualLowIndex] else "N/A"} " +
+                "actualIndicesRange=${actualIndices.firstOrNull()}..${actualIndices.lastOrNull()}")
 
         val forecastStartIndex = if (transitionX != null) effectiveActualEndIndex else 0
         val forecastIndices = (forecastStartIndex..hours.lastIndex).filter { it in labelTemps.indices }
@@ -84,6 +90,7 @@ internal object TemperatureExtrema {
             actualHighIndex, actualLowIndex,
             forecastHighIndex, forecastLowIndex,
             pastForecastHighIndex, pastForecastLowIndex,
+            actualEndIndex,
             significantLocalExtrema, fetchIdx
         )
     }
