@@ -851,7 +851,9 @@ object DailyForecastGraphRenderer {
                     val sHighY = layout.tempToY(sHigh)
                     val sLowY = layout.tempToY(sLow)
                     val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
-                    canvas.drawLine(centerX - layout.tripleBarOffset, sHighY, centerX - layout.tripleBarOffset, effectiveSLowY, paints.todaySnapshotYellowPaint)
+                    val snapshotX = centerX + layout.tripleBarOffset
+                    canvas.drawLine(snapshotX, sHighY, snapshotX, effectiveSLowY, paints.todaySnapshotYellowPaint)
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_SNAPSHOT", sHighY, effectiveSLowY, snapshotX, paints.todaySnapshotYellowPaint.color))
                 }
             }
         }
@@ -864,9 +866,10 @@ object DailyForecastGraphRenderer {
 
         val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
         val forecastPaint = paints.todayForecastForColor(condColor)
-        // In dual-source mode, primary's today-forecast occupies the snapshot's old LEFT slot;
-        // the next-source today-forecast (drawn in drawDayBars) takes the RIGHT slot.
-        val todayForecastX = centerX + if (hasNextSourceBar) -layout.tripleBarOffset else layout.tripleBarOffset
+        // Today's live forecast sits LEFT of the thermostat in both modes.
+        // Single-source: yellow snapshot takes the RIGHT slot.
+        // Dual-source: next-source forecast (drawn in drawNextSourceBar) takes the RIGHT slot.
+        val todayForecastX = centerX - layout.tripleBarOffset
         drawWeatherAdaptiveBar(
             canvas = canvas,
             centerX = todayForecastX,
@@ -876,6 +879,7 @@ object DailyForecastGraphRenderer {
             day = day,
             logPrefix = "today_forecast",
         )
+        onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_FORECAST", fHighY, effectiveFLowY, todayForecastX, forecastPaint.color))
 
         // Draw the next-source bar BEFORE the thermostat so the thermostat paints over both
         // forecast bars at the center column. No-op when dual-source mode is off.

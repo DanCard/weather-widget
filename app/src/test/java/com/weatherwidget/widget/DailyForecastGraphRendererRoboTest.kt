@@ -303,6 +303,74 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun today_singleMode_forecastLeftOfThermostat_snapshotRight() {
+        // Three-bar flip: in single-source mode, today's live forecast bar sits LEFT of
+        // the observed thermostat and the yesterday-snapshot sits RIGHT.
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                isToday = true,
+                high = 68f,
+                low = 48f,
+                forecastHigh = 70f,
+                forecastLow = 47f,
+                snapshotHigh = 72f,
+                snapshotLow = 46f,
+            ),
+        )
+
+        val bars = render(days).filter { it.date == today }
+        val thermostat = bars.single { it.barType == "TODAY" }
+        val forecast = bars.single { it.barType == "TODAY_FORECAST" }
+        val snapshot = bars.single { it.barType == "TODAY_SNAPSHOT" }
+
+        assertTrue(
+            "Today forecast must sit LEFT of thermostat (forecast.x=${forecast.centerX}, thermostat.x=${thermostat.centerX})",
+            forecast.centerX < thermostat.centerX,
+        )
+        assertTrue(
+            "Today yellow snapshot must sit RIGHT of thermostat (snapshot.x=${snapshot.centerX}, thermostat.x=${thermostat.centerX})",
+            snapshot.centerX > thermostat.centerX,
+        )
+    }
+
+    @Test
+    fun today_dualMode_layoutUnchanged_primaryLeft_nextSourceRight() {
+        // Regression guard: the flip is single-source only. In dual-source mode the
+        // primary forecast must still sit LEFT and the next-source forecast RIGHT.
+        val today = LocalDate.of(2026, 2, 2)
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = today,
+                label = "Today",
+                isToday = true,
+                high = 68f,
+                low = 48f,
+                forecastHigh = 70f,
+                forecastLow = 47f,
+                nextSourceHigh = 71f,
+                nextSourceLow = 46f,
+            ),
+        )
+
+        val bars = render(days).filter { it.date == today }
+        val thermostat = bars.single { it.barType == "TODAY" }
+        val forecast = bars.single { it.barType == "TODAY_FORECAST" }
+        val nextSource = bars.single { it.barType == "NEXT_SOURCE" }
+
+        assertTrue(
+            "Dual-mode: primary forecast must sit LEFT of thermostat (forecast.x=${forecast.centerX}, thermostat.x=${thermostat.centerX})",
+            forecast.centerX < thermostat.centerX,
+        )
+        assertTrue(
+            "Dual-mode: next-source forecast must sit RIGHT of thermostat (next.x=${nextSource.centerX}, thermostat.x=${thermostat.centerX})",
+            nextSource.centerX > thermostat.centerX,
+        )
+    }
+
+    @Test
     fun renderGraph_historyShowsBarTypeHISTORY() {
         val feb01 = LocalDate.of(2026, 2, 1)
         val days = listOf(
