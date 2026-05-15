@@ -355,6 +355,8 @@ object DailyViewLogic {
             var finalLow: Float? = weather?.lowTemp
             var fHigh: Float? = null
             var fLow: Float? = null
+            var pastNextSourceHigh: Float? = null
+            var pastNextSourceLow: Float? = null
             var snapshotHigh: Float? = null
             var snapshotLow: Float? = null
             var isClimateOverlay = false
@@ -382,6 +384,19 @@ object DailyViewLogic {
 
                     if (fHigh == null || fLow == null) {
                         Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
+                    }
+
+                    if (nextSource != null && nextSource != displaySource) {
+                        val pastNextSourceForecast = forecasts
+                            .filter { it.source == nextSource.id }
+                            .filter { !it.isClimateNormal }
+                            .filter { it.highTemp != null && it.lowTemp != null }
+                            .maxByOrNull { it.fetchedAt }
+                        pastNextSourceHigh = pastNextSourceForecast?.highTemp
+                        pastNextSourceLow = pastNextSourceForecast?.lowTemp
+                        if (pastNextSourceHigh == null || pastNextSourceLow == null) {
+                            Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from nextSource ${nextSource.id}; third bar will be skipped")
+                        }
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
@@ -581,8 +596,8 @@ forecastHigh = fHigh,
                     trueActualHigh = trueActualHigh,
                     cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
-                    nextSourceHigh = nextSourceWeather?.highTemp,
-                    nextSourceLow = nextSourceWeather?.lowTemp,
+                    nextSourceHigh = if (isPastDate) pastNextSourceHigh else nextSourceWeather?.highTemp,
+                    nextSourceLow = if (isPastDate) pastNextSourceLow else nextSourceWeather?.lowTemp,
                     nextSourceIconRes = nextSourceIconRes,
                     nextSourceIsSunny = nextSourceIconRes?.let(WeatherIconMapper::isSunny) ?: false,
                     nextSourceIsRainy = nextSourceIconRes?.let(WeatherIconMapper::isPrecipitation) ?: false,

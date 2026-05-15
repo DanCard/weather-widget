@@ -34,14 +34,14 @@ class TemperatureLabelSuppressionTest {
         // Setup: HIGH is at index 4 (70.0f)
         // ACTUAL_HIGH is at index 3 (70.2f)
         // Distance is 1, value diff is 0.2f. Should be suppressed.
-        val hours = (0 until 10).map { offset ->
+        val hours = (0 until 24).map { offset ->
             val dt = start.plusHours(offset.toLong())
             HourData(
                 dateTime = dt,
-                temperature = if (offset == 4) 70.0f else 60.0f + offset,
+                temperature = if (offset == 4) 70.0f else 60.0f,
                 label = "${dt.hour}h",
-                isActual = offset <= 5,
-                actualTemperature = if (offset == 3) 70.2f else 60.0f + offset
+                isActual = offset <= 10,
+                actualTemperature = if (offset == 3) 70.2f else 60.0f
             )
         }
 
@@ -51,7 +51,7 @@ class TemperatureLabelSuppressionTest {
             hours = hours,
             widthPx = 1000,
             heightPx = 500,
-            currentTime = start.plusHours(6),
+            currentTime = start.plusHours(12),
             onLabelPlaced = { placements.add(it) }
         )
 
@@ -68,14 +68,14 @@ class TemperatureLabelSuppressionTest {
         // Setup: ACTUAL_HIGH is at index 2 (75.0f)
         // FORECAST_HIGH is at index 3 (75.1f)
         // Distance is 1, value diff is 0.1f. Should be suppressed.
-        val hours = (0 until 10).map { offset ->
+        val hours = (0 until 24).map { offset ->
             val dt = start.plusHours(offset.toLong())
             HourData(
                 dateTime = dt,
-                temperature = if (offset == 3) 75.1f else 65.0f + offset,
+                temperature = if (offset == 3) 75.1f else 65.0f,
                 label = "${dt.hour}h",
-                isActual = offset <= 5,
-                actualTemperature = if (offset == 2) 75.0f else 65.0f + offset
+                isActual = offset <= 10,
+                actualTemperature = if (offset == 2) 75.0f else 65.0f
             )
         }
 
@@ -85,7 +85,7 @@ class TemperatureLabelSuppressionTest {
             hours = hours,
             widthPx = 1000,
             heightPx = 500,
-            currentTime = start.plusHours(6),
+            currentTime = start.plusHours(12),
             onLabelPlaced = { placements.add(it) }
         )
 

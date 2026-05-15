@@ -155,9 +155,18 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val latestWeather = forecastDao.getLatestWeather()
             val latestWeatherMs = SystemClock.elapsedRealtime() - latestWeatherStartMs
             val stateManager = stateManager(context)
+            val showTwoBars = stateManager.isShowTwoBarsEnabled()
             val activeSources = filteredIds
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-                .map { stateManager.getCurrentDisplaySource(it).id }
+                .flatMap { widgetId ->
+                    val primary = stateManager.getCurrentDisplaySource(widgetId).id
+                    if (showTwoBars) {
+                        val next = stateManager.getNextDisplaySource(widgetId).id
+                        listOf(primary, next)
+                    } else {
+                        listOf(primary)
+                    }
+                }
                 .toSet() + WeatherSource.GENERIC_GAP.id
             val activeSourceList = activeSources.toList()
 

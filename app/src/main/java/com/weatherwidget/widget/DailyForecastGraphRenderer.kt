@@ -709,13 +709,17 @@ object DailyForecastGraphRenderer {
 
         // In dual-source mode the next-source bar takes the slot the forecast overlay used to
         // occupy, so suppress the overlay to avoid visual conflict beneath the next-source bar.
-        val suppressForecastOverlay = day.nextSourceHigh != null && day.nextSourceLow != null
+        // Exception: on past days we want all three bars (actuals + both source snapshots);
+        // the displaySource overlay is mirrored to the LEFT of the actuals so it doesn't overlap
+        // the next-source bar on the right.
+        val suppressForecastOverlay =
+            !day.isPast && day.nextSourceHigh != null && day.nextSourceLow != null
         if (!day.isToday && !suppressForecastOverlay && day.forecastHigh != null && day.forecastLow != null) {
             val fHighY = layout.tempToY(day.forecastHigh)
             val fLowY = layout.tempToY(day.forecastLow)
             val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
             
-            val forecastX = centerX + layout.forecastBarOffset
+            val forecastX = centerX + if (day.isPast) -layout.forecastBarOffset else layout.forecastBarOffset
             val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
             val overlayPaint = if (day.isClimateNormal) {
                 paints.climateOverlayForColor(condColor)
@@ -771,7 +775,9 @@ object DailyForecastGraphRenderer {
      * Draws the second API source's vertical bar. Always uses the thin [nextSourceBarPaint]
      * stroke (0.6 × barWidth). Position depends on day type:
      *  - today: RIGHT of thermostat at +tripleBarOffset
-     *  - non-today: at nextSourceBarOffset (past forecast overlay on the right)
+     *  - non-today (past or future): RIGHT of primary at +nextSourceBarOffset. On past days
+     *    this sits opposite the displaySource forecast overlay, which is mirrored to the LEFT
+     *    of the actuals so all three bars are distinct.
      * Pure no-op when next-source data is absent.
      */
     private fun drawNextSourceBar(
