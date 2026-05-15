@@ -212,6 +212,7 @@ object DailyForecastGraphRenderer {
         val tripleBarOffset: Float,
         val forecastBarOffset: Float,
         val nextSourceBarOffset: Float,
+        val nextSourcePastBarOffset: Float,
         val nextSourceTodayBarOffset: Float,
         val iconSize: Int,
         val dayLabelHeight: Float,
@@ -450,6 +451,10 @@ object DailyForecastGraphRenderer {
             // NEXT_SOURCE_BAR_WIDTH_SCALE (0.6). The forecast overlay is suppressed in dual mode
             // (see drawDayBars), so next-source occupies what was the overlay's slot.
             nextSourceBarOffset = barWidth * PRIMARY_BAR_DUAL_SOURCE_WIDTH_SCALE / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
+            // Past days use historyBarPaint (HISTORY_BAR_WIDTH_SCALE) which is thinner than the
+            // dual-source primary, so place the next-source bar flush against the history bar
+            // with no gap (matches the visual where actuals and the second forecast touch).
+            nextSourcePastBarOffset = barWidth * HISTORY_BAR_WIDTH_SCALE / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f,
             nextSourceTodayBarOffset = (8f * scaleFactor * labelScale).dp(density) + tripleBarWidth / 2f + barWidth * NEXT_SOURCE_BAR_WIDTH_SCALE / 2f + NEXT_SOURCE_BAR_GAP_DP.dp(density),
             iconSize = iconSize,
             dayLabelHeight = dayLabelHeight,
@@ -775,9 +780,10 @@ object DailyForecastGraphRenderer {
      * Draws the second API source's vertical bar. Always uses the thin [nextSourceBarPaint]
      * stroke (0.6 × barWidth). Position depends on day type:
      *  - today: RIGHT of thermostat at +tripleBarOffset
-     *  - non-today (past or future): RIGHT of primary at +nextSourceBarOffset. On past days
-     *    this sits opposite the displaySource forecast overlay, which is mirrored to the LEFT
-     *    of the actuals so all three bars are distinct.
+     *  - past: RIGHT of history bar, flush against it (+nextSourcePastBarOffset). The
+     *    displaySource forecast overlay is mirrored to the LEFT of the actuals so all
+     *    three bars are visible and the second-API bar touches the actuals with no gap.
+     *  - future: RIGHT of primary at +nextSourceBarOffset (overlay slot is suppressed there).
      * Pure no-op when next-source data is absent.
      */
     private fun drawNextSourceBar(
@@ -793,7 +799,11 @@ object DailyForecastGraphRenderer {
         val nLowY = layout.tempToY(day.nextSourceLow)
         val endpoints = resolveBarEndpoints(nHighY, nLowY, layout.minBarHeightPx) ?: return
         val (effectiveNHighY, effectiveNLowY) = endpoints
-        val nextX = centerX + if (day.isToday) layout.tripleBarOffset else layout.nextSourceBarOffset
+        val nextX = centerX + when {
+            day.isToday -> layout.tripleBarOffset
+            day.isPast -> layout.nextSourcePastBarOffset
+            else -> layout.nextSourceBarOffset
+        }
         val condColor = WeatherConditionColors.forecastColor(
             day.nextSourceIsSunny, day.nextSourceIsRainy, day.nextSourceIsMixed, isNight = false,
         )

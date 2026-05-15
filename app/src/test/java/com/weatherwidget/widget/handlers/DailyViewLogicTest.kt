@@ -1406,6 +1406,88 @@ class DailyViewLogicTest {
     }
 
     @Test
+    fun `prepareGraphDays populates nextSourceHigh and Low from forecast snapshot for past day in dual mode`() {
+        // Past-day dual-mode three-bar fix: nextSourceHigh/Low for past days must come from
+        // the forecast_snapshots table (filtered by nextSource.id), NOT from nextSourceWeatherByDate
+        // (which holds current weather/actuals, not historical predictions).
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherByDate = mapOf(
+            today to createWeather(todayStr),
+            yesterday to createWeather(yesterdayStr, highTemp = 70f, lowTemp = 50f),
+        )
+        val dailyActuals = mapOf(
+            yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(yesterday, 70f, 50f, "Clear"),
+        )
+        val nwsSnap = createWeather(date = yesterdayStr, source = WeatherSource.NWS.id, highTemp = 72f, lowTemp = 48f)
+        val meteoSnap = createWeather(date = yesterdayStr, source = WeatherSource.OPEN_METEO.id, highTemp = 75f, lowTemp = 46f)
+        val forecastSnapshots = mapOf(yesterday to listOf(nwsSnap, meteoSnap))
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = yesterday,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = forecastSnapshots,
+            numColumns = 3,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+            nextSourceWeatherByDate = emptyMap(),
+            nextSource = WeatherSource.OPEN_METEO,
+        )
+
+        val day = result.first { it.date == yesterday }
+        assertEquals("Primary forecast overlay must come from displaySource (NWS) snapshot", 72f, day.forecastHigh)
+        assertEquals(48f, day.forecastLow)
+        assertEquals("Third bar must come from nextSource (Open-Meteo) snapshot, not nextSourceWeatherByDate", 75f, day.nextSourceHigh)
+        assertEquals(46f, day.nextSourceLow)
+        assertEquals("Red actuals bar must stay independent of forecast snapshots", 70f, day.high)
+        assertEquals(50f, day.low)
+    }
+
+    @Test
+    fun `prepareGraphDays leaves nextSourceHigh null for past day when nextSource has no snapshot`() {
+        // Negative path: if only displaySource has a snapshot for the past day, the renderer must
+        // skip the third bar — nextSourceHigh/Low must stay null so drawNextSourceBar() no-ops.
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val yesterdayStr = yesterday.format(DateTimeFormatter.ISO_LOCAL_DATE)
+
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            yesterday to createWeather(yesterdayStr, highTemp = 70f, lowTemp = 50f),
+        )
+        val dailyActuals = mapOf(
+            yesterday to com.weatherwidget.widget.ObservationResolver.DailyActual(yesterday, 70f, 50f, "Clear"),
+        )
+        val forecastSnapshots = mapOf(
+            yesterday to listOf(createWeather(date = yesterdayStr, source = WeatherSource.NWS.id, highTemp = 72f, lowTemp = 48f))
+        )
+
+        val day = DailyViewLogic.prepareGraphDays(
+            now = now, centerDate = yesterday, today = today,
+            weatherByDate = weatherByDate, forecastSnapshots = forecastSnapshots, numColumns = 3,
+            displaySource = WeatherSource.NWS, skipYesterday = false, skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+            nextSourceWeatherByDate = emptyMap(),
+            nextSource = WeatherSource.OPEN_METEO,
+        ).first { it.date == yesterday }
+
+        assertEquals("displaySource snapshot still drives forecast overlay", 72f, day.forecastHigh)
+        assertNull("No nextSource snapshot means no third bar", day.nextSourceHigh)
+        assertNull(day.nextSourceLow)
+    }
+
+    @Test
     fun `prepareTextDays today uses complete snapshot when latest batch is missing high or low`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val today = now.toLocalDate()
