@@ -128,6 +128,40 @@ class TemperatureTouchRoutingRoboTest {
     }
 
     @Test
+    fun `home icon broadcasts ACTION_SET_VIEW with target DAILY`() = runBlocking {
+        val views = renderTemperatureWidget(
+            options = graphOptions(),
+            configureState = {
+                it.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
+                it.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
+            },
+        )
+        val applied = applyViews(views)
+
+        val shadowApp = shadowOf(app)
+        for (viewId in listOf(R.id.home_icon, R.id.home_touch_zone)) {
+            val before = shadowApp.broadcastIntents.size
+            applied.findViewById<View>(viewId).performClick()
+            val intent = shadowApp.broadcastIntents.drop(before).lastOrNull()
+            assertNotNull("Expected tap on $viewId to broadcast an intent", intent)
+            assertEquals(
+                "Tap on $viewId must route to ACTION_SET_VIEW so the widget returns to daily mode",
+                WidgetActions.ACTION_SET_VIEW,
+                intent!!.action,
+            )
+            assertEquals(
+                "Tap on $viewId must request the DAILY view as the target",
+                ViewMode.DAILY.name,
+                intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW),
+            )
+            assertEquals(
+                appWidgetId,
+                intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1),
+            )
+        }
+    }
+
+    @Test
     fun `narrow hourly graph routes body taps to zoom and bottom row taps by icon type`() = runBlocking {
         val views = renderTemperatureWidget(
             options = graphOptions(),
