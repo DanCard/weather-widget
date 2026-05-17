@@ -128,7 +128,7 @@ object ObservationResolver {
     }
 
     /**
-     * Aggregates raw observations into daily highs and lows, grouped by inferred source.
+     * Aggregates raw observations into daily highs and lows, grouped by source.
      */
     fun aggregateObservationsToDailyBySource(
         observations: List<ObservationEntity>,
@@ -165,7 +165,7 @@ object ObservationResolver {
 
     /**
      * Computes [DailyExtremeEntity] rows from raw observations, ready for dao.insertAll().
-     * Groups by (date, inferred source), applies official 24h extremes with spot-reading fallback.
+     * Groups by (date, source), applies official 24h extremes with spot-reading fallback.
      *
      * @param observations raw observations for one or more days
      * @param locationLat widget location latitude (stored on the entity for range queries)
