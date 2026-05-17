@@ -2,9 +2,10 @@ package com.weatherwidget.widget
 
 import android.util.Log
 import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.util.SpatialInterpolator
+import com.weatherwidget.util.ObservationBlender
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -61,90 +62,75 @@ object ObservationResolver {
     }
 
     /**
-     * Aggregates raw timestamped observations into actual daily highs and lows.
+     * Runs [ObservationBlender.blendObservationSeries] for one (date, source) bucket and
+     * returns the time-aligned high/low. This is the shared core that replaces the legacy
+     * per-station-spot-max blend: each blended sample is an IDW combination of stations at
+     * a single instant, so taking max/min over the series produces a physically real value
+     * (one the live widget would have displayed at some point in the day).
      */
-    fun aggregateObservationsToDaily(
-        observations: List<ObservationEntity>
-    ): List<DailyActual> {
-        val local = ZoneId.systemDefault()
-
-        return observations
-            .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
-            .mapNotNull { (date, obs) ->
-                if (obs.isEmpty()) return@mapNotNull null
-
-                val (highTemp, lowTemp) = blendExtremes(obs)
-
-                val mostCommon = obs.map { it.condition }.groupingBy { it }.eachCount().maxByOrNull { it.value }
-
-                DailyActual(
-                    date = date,
-                    highTemp = highTemp,
-                    lowTemp = lowTemp,
-                    condition = mostCommon?.key ?: "Unknown"
-                )
-            }
-    }
-
-    /**
-     * IDW-blends daily high/low from a list of observations.
-     * Groups by stationId first so multiple readings from the same station are aggregated
-     * (max extreme / min extreme) before spatial blending across unique stations.
-     * Falls back to IDW of spot-temperature max/min, then raw max/min.
-     */
-    private fun blendExtremes(obs: List<ObservationEntity>): Pair<Float, Float> {
-        data class StationData(
-            val distanceKm: Float,
-            val high: Float,
-            val low: Float,
+    private fun blendDailyExtremesViaSeries(
+        dayObs: List<ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        sourceId: String,
+        locationLat: Double,
+        locationLon: Double,
+        dayStartMs: Long,
+        dayEndMs: Long,
+    ): Pair<Float, Float>? {
+        if (dayObs.isEmpty()) return null
+        val source = WeatherSource.fromId(sourceId)
+        val result = ObservationBlender.blendObservationSeries(
+            observations = dayObs,
+            hourlyForecasts = hourlyForecasts,
+            displaySource = source,
+            userLat = locationLat,
+            userLon = locationLon,
+            startMs = dayStartMs,
+            endMs = dayEndMs,
         )
-        val byStation = obs.groupBy { it.stationId }.values.map { stObs ->
-            val maxExtreme = stObs.mapNotNull { it.maxTempLast24h }.maxOrNull()
-            val minExtreme = stObs.mapNotNull { it.minTempLast24h }.minOrNull()
-            val maxSpot = stObs.maxOf { it.temperature }
-            val minSpot = stObs.minOf { it.temperature }
-            
-            StationData(
-                distanceKm = stObs.first().distanceKm,
-                // For each station, the "high" is the max of its official 24h extreme 
-                // and any spot readings we've seen today.
-                high = maxOf(maxExtreme ?: maxSpot, maxSpot),
-                low = minOf(minExtreme ?: minSpot, minSpot),
-            )
-        }
-
-        val highPairs = byStation.map { it.distanceKm to it.high }
-        val lowPairs  = byStation.map { it.distanceKm to it.low }
-
-        val high = SpatialInterpolator.interpolateIDWValues(highPairs)
-            ?: obs.maxOf { it.temperature }
-        val low = SpatialInterpolator.interpolateIDWValues(lowPairs)
-            ?: obs.minOf { it.temperature }
-            
-        // Use standard android Log for this deep utility to avoid passing DAOs everywhere
-        android.util.Log.d("ObsResolver", "blendExtremes: stations=${byStation.size} lowBlend=$low lowPairs=${lowPairs.joinToString { "(${it.first}km,${it.second})" }}")
-
+        val series = result.observations
+        if (series.isEmpty()) return null
+        val high = series.maxOf { it.temperature }
+        val low = series.minOf { it.temperature }
+        Log.d(
+            "ObsResolver",
+            "blendDailyExtremesViaSeries: source=$sourceId stations=${result.stats.stationCount} " +
+                "emittedPoints=${result.stats.emittedPointCount} high=$high low=$low",
+        )
         return high to low
     }
 
     /**
      * Aggregates raw observations into daily highs and lows, grouped by source.
+     * Uses time-aligned IDW blending to match what the live widget displayed during the day.
      */
     fun aggregateObservationsToDailyBySource(
         observations: List<ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        locationLat: Double,
+        locationLon: Double,
     ): DailyActualsBySource {
         val local = ZoneId.systemDefault()
 
         return observations
+            .filter { it.stationId != "NWS_BLEND" }
             .groupBy { it.api }
-            .mapValues { (source, obsList) ->
+            .mapValues { (sourceId, obsList) ->
                 obsList
                     .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
-
                     .mapNotNull { (date, dayObs) ->
-                        if (dayObs.isEmpty()) return@mapNotNull null
+                        val dayStartMs = date.atStartOfDay(local).toInstant().toEpochMilli()
+                        val dayEndMs = date.plusDays(1).atStartOfDay(local).toInstant().toEpochMilli()
+                        val (highTemp, lowTemp) = blendDailyExtremesViaSeries(
+                            dayObs = dayObs,
+                            hourlyForecasts = hourlyForecasts,
+                            sourceId = sourceId,
+                            locationLat = locationLat,
+                            locationLon = locationLon,
+                            dayStartMs = dayStartMs,
+                            dayEndMs = dayEndMs,
+                        ) ?: return@mapNotNull null
 
-                        val (highTemp, lowTemp) = blendExtremes(dayObs)
                         val mostCommonCondition = dayObs
                             .map { it.condition }
                             .groupingBy { it }
@@ -165,14 +151,12 @@ object ObservationResolver {
 
     /**
      * Computes [DailyExtremeEntity] rows from raw observations, ready for dao.insertAll().
-     * Groups by (date, source), applies official 24h extremes with spot-reading fallback.
-     *
-     * @param observations raw observations for one or more days
-     * @param locationLat widget location latitude (stored on the entity for range queries)
-     * @param locationLon widget location longitude
+     * Groups by (date, source) and uses time-aligned IDW blending so the stored value matches
+     * what the live widget displayed during that day.
      */
     fun computeDailyExtremes(
         observations: List<ObservationEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
         locationLat: Double,
         locationLon: Double,
     ): List<DailyExtremeEntity> {
@@ -183,17 +167,23 @@ object ObservationResolver {
 
         return filteredObs
             .groupBy { obs ->
-                val date = Instant.ofEpochMilli(obs.timestamp)
-                    .atZone(local)
-                    .toLocalDate()
-                    .toEpochDay() * WidgetConstants.MS_IN_A_DAY
+                val date = Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate()
                 date to obs.api
             }
             .mapNotNull { (key, dayObs) ->
-                if (dayObs.isEmpty()) return@mapNotNull null
-                val (date, source) = key
+                val (date, sourceId) = key
+                val dayStartMs = date.atStartOfDay(local).toInstant().toEpochMilli()
+                val dayEndMs = date.plusDays(1).atStartOfDay(local).toInstant().toEpochMilli()
+                val (highTemp, lowTemp) = blendDailyExtremesViaSeries(
+                    dayObs = dayObs,
+                    hourlyForecasts = hourlyForecasts,
+                    sourceId = sourceId,
+                    locationLat = locationLat,
+                    locationLon = locationLon,
+                    dayStartMs = dayStartMs,
+                    dayEndMs = dayEndMs,
+                ) ?: return@mapNotNull null
 
-                val (highTemp, lowTemp) = blendExtremes(dayObs)
                 val condition = dayObs
                     .map { it.condition }
                     .groupingBy { it }
@@ -203,8 +193,8 @@ object ObservationResolver {
                     ?: "Unknown"
 
                 DailyExtremeEntity(
-                    date = date,
-                    source = source,
+                    date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                    source = sourceId,
                     locationLat = locationLat,
                     locationLon = locationLon,
                     highTemp = highTemp,

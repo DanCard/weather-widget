@@ -47,7 +47,9 @@ internal object DailyClickHandlerFactory {
             clickSource?.let { putExtra(WidgetActions.EXTRA_CLICK_SOURCE, it) }
 
             if (!showHistory) {
-                val targetMode = targetModeOverride ?: DayClickHelper.resolveDailyTargetViewMode(iconRes)
+                val targetMode = targetModeOverride
+                    ?: if (isHistory) ViewMode.TEMPERATURE
+                    else DayClickHelper.resolveDailyTargetViewMode(iconRes)
                 val offset = offsetOverride ?: DayClickHelper.calculatePrecipitationOffset(now, date)
                 putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetMode.name)
                 putExtra(WidgetActions.EXTRA_HOURLY_OFFSET, offset)

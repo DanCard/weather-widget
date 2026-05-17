@@ -119,7 +119,8 @@ class ObservationRepository @Inject constructor(
         }
         val obsEntity = buildObservationEntity(observation, stationInfo, latitude, longitude)
         observationDao.insertAll(listOf(obsEntity))
-        recomputeDailyExtremesForDay(latitude, longitude, obsEntity.timestamp)
+        val obsDate = java.time.Instant.ofEpochMilli(obsEntity.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
+        recomputeDailyExtremesForDay(latitude, longitude, obsDate, emptyList())
         return obsEntity
     }
 
@@ -203,7 +204,7 @@ class ObservationRepository @Inject constructor(
                         java.time.Instant.ofEpochMilli(e.timestamp).atZone(localZone).toLocalDate()
                     }.distinct()
                     for (day in distinctDays) {
-                        recomputeDailyExtremesForDay(latitude, longitude, day)
+                        recomputeDailyExtremesForDay(latitude, longitude, day, emptyList())
                     }
                     val refreshedDates =
                         dailyExtremeDao.getExtremesInRange(yesterdayEpoch, todayEpoch, latitude, longitude)
@@ -303,6 +304,7 @@ class ObservationRepository @Inject constructor(
                 longitude = longitude,
                 startDate = affectedDates.min(),
                 endDateInclusive = affectedDates.max(),
+                hourlyForecasts = emptyList(),
             )
         }
 
@@ -405,10 +407,11 @@ class ObservationRepository @Inject constructor(
         longitude: Double,
         startDate: LocalDate,
         endDateInclusive: LocalDate,
+        hourlyForecasts: List<HourlyForecastEntity>,
     ) {
         var current = startDate
         while (!current.isAfter(endDateInclusive)) {
-            recomputeDailyExtremesForDay(latitude, longitude, current)
+            recomputeDailyExtremesForDay(latitude, longitude, current, hourlyForecasts)
             current = current.plusDays(1)
         }
     }
@@ -416,57 +419,83 @@ class ObservationRepository @Inject constructor(
     private suspend fun recomputeDailyExtremesForDay(
         latitude: Double,
         longitude: Double,
-        referenceTimestamp: Long,
-    ) {
-        val zone = ZoneId.systemDefault()
-        val date = java.time.Instant.ofEpochMilli(referenceTimestamp).atZone(zone).toLocalDate()
-        recomputeDailyExtremesForDay(latitude, longitude, date)
-    }
-
-    private suspend fun recomputeDailyExtremesForDay(
-        latitude: Double,
-        longitude: Double,
         date: LocalDate,
+        hourlyForecasts: List<HourlyForecastEntity>,
     ) {
         val zone = ZoneId.systemDefault()
         val dateMillis = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val startTs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val endTs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
-        
-        if (dayObs.isNotEmpty()) {
-            val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, latitude, longitude)
-            val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
-                .associateBy { it.source }
+        if (dayObs.isEmpty()) return
 
-            val toInsert = mutableListOf<com.weatherwidget.data.local.DailyExtremeEntity>()
-            
-            newExtremes.forEach { new ->
-                val existing = existingExtremes[new.source]
-                if (existing == null) {
-                    toInsert.add(new)
-                } else {
-                    // Persistence guard: only update if high is higher OR low is lower.
-                    // This prevents a sliding window or temporary drop in current temp 
-                    // from shrinking the daily bar's true bounds.
+        val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, hourlyForecasts, latitude, longitude)
+        val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
+            .associateBy { it.source }
+
+        // Per-station breakdown — survives in app_logs so "why did the high jump?" investigations
+        // don't need a live logcat capture.
+        val perSourceBreakdown = dayObs
+            .groupBy { it.api }
+            .mapValues { (_, srcObs) ->
+                srcObs.groupBy { it.stationId }.entries.joinToString(",") { (sid, obs) ->
+                    val d = obs.first().distanceKm
+                    val hi = obs.maxOf { it.temperature }
+                    val lo = obs.minOf { it.temperature }
+                    "$sid(d=${"%.2f".format(d)}km,hi=$hi,lo=$lo,n=${obs.size})"
+                }
+            }
+        newExtremes.forEach { new ->
+            val stationsStr = perSourceBreakdown[new.source] ?: "n/a"
+            appLogDao.log(
+                "DAILY_EXTREME_BLEND",
+                "date=$date src=${new.source} computed_hi=${new.highTemp} computed_lo=${new.lowTemp} stations=[$stationsStr]",
+                "DEBUG",
+            )
+        }
+
+        val isToday = date == LocalDate.now()
+        val toInsert = mutableListOf<com.weatherwidget.data.local.DailyExtremeEntity>()
+
+        newExtremes.forEach { new ->
+            val existing = existingExtremes[new.source]
+            when {
+                existing == null -> toInsert.add(new)
+
+                isToday -> {
+                    // Today: ratchet up to protect against transient drops in current readings.
                     val updatedHigh = maxOf(existing.highTemp, new.highTemp)
                     val updatedLow = minOf(existing.lowTemp, new.lowTemp)
-                    
                     if (updatedHigh > existing.highTemp || updatedLow < existing.lowTemp) {
                         appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow}", "DEBUG")
                         toInsert.add(new.copy(highTemp = updatedHigh, lowTemp = updatedLow))
                     } else if (new.condition != existing.condition) {
-                        // Keep condition up to date even if temps didn't change bounds
                         toInsert.add(new.copy(highTemp = existing.highTemp, lowTemp = existing.lowTemp))
                     } else {
                         appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${existing.highTemp} low=${existing.lowTemp}", "DEBUG")
                     }
                 }
-            }
 
-            if (toInsert.isNotEmpty()) {
-                dailyExtremeDao.insertAll(toInsert)
+                else -> {
+                    // Past day: overwrite. Observations are complete, the time-aligned blend is
+                    // idempotent, and self-healing migration relies on overwriting stale rows
+                    // left by the old per-station-spot-max algorithm.
+                    if (new.highTemp != existing.highTemp || new.lowTemp != existing.lowTemp || new.condition != existing.condition) {
+                        appLogDao.log(
+                            "DAILY_EXTREME_OVERWRITE",
+                            "date=$date src=${new.source} high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp}",
+                            "DEBUG",
+                        )
+                        toInsert.add(new)
+                    } else {
+                        appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${new.highTemp} low=${new.lowTemp}", "DEBUG")
+                    }
+                }
             }
+        }
+
+        if (toInsert.isNotEmpty()) {
+            dailyExtremeDao.insertAll(toInsert)
         }
     }
 

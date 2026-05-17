@@ -720,7 +720,7 @@ class DailyViewHandlerTest {
     }
 
     @Test
-    fun `buildDayClickIntent past day navigates to history`() {
+    fun `buildDayClickIntent past day navigates to temperature graph`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val date = LocalDate.of(2030, 6, 14) // Yesterday
 
@@ -737,7 +737,9 @@ class DailyViewHandlerTest {
         )
 
         assertEquals("com.weatherwidget.ACTION_DAY_CLICK", intent.action)
-        assertTrue(intent.getBooleanExtra("showHistory", false))
+        assertTrue(intent.getBooleanExtra("isHistory", false))
+        assertFalse(intent.getBooleanExtra("showHistory", true))
+        assertEquals("TEMPERATURE", intent.getStringExtra(com.weatherwidget.widget.WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(37.0, intent.getDoubleExtra(com.weatherwidget.ui.ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.1)
     }
 

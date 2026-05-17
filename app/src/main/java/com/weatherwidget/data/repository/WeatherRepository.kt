@@ -134,11 +134,13 @@ class WeatherRepository
             longitude: Double,
             startDate: LocalDate,
             endDateInclusive: LocalDate,
+            hourlyForecasts: List<HourlyForecastEntity>,
         ) = observationRepository.recomputeDailyExtremesFromStoredObservations(
             latitude,
             longitude,
             startDate,
             endDateInclusive,
+            hourlyForecasts,
         )
         suspend fun getObservationsInRange(
             startTimestamp: Long,

@@ -428,13 +428,18 @@ suspend fun handleToggleView(
         val pastExtremes = database.dailyExtremeDao().getExtremesInRange(startDate, endDate, lat, lon)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, lat, lon)
 
-        // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
+        // Today: compute live from raw station observations (exclude synthetic NWS_BLEND).
+        // Uses time-aligned IDW so the value matches what the live widget displayed.
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val todayDateMillis = today.toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val todayObs = database.observationDao().getObservationsInRange(todayStartMs, tomorrowMs, lat, lon)
             .filter { it.stationId != "NWS_BLEND" }
-        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs)
+        val now = LocalDateTime.now()
+        val hourlyLookbackStart = now.minusHours(WeatherWidgetProvider.HOURLY_LOOKBACK_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val hourlyLookaheadEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
+        val hourlyForecasts = database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon)
+        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs, hourlyForecasts, lat, lon)
         val persistedTodayExtremes = database.dailyExtremeDao().getExtremesInRange(
             todayDateMillis,
             todayDateMillis,

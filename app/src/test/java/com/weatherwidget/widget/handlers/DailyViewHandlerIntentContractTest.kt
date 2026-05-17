@@ -9,7 +9,6 @@ import com.weatherwidget.ui.ForecastHistoryActivity
 import com.weatherwidget.widget.WidgetActions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -35,7 +34,7 @@ class DailyViewHandlerIntentContractTest {
     }
 
     @Test
-    fun pastDayClick_buildsHistoryIntentContract() {
+    fun pastDayClick_buildsTemperatureGraphIntentContract() {
         val now = LocalDateTime.of(2030, 6, 15, 9, 0)
         val targetDate = LocalDate.of(2030, 6, 14)
 
@@ -56,12 +55,13 @@ class DailyViewHandlerIntentContractTest {
         assertEquals(TEST_WIDGET_ID, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
         assertEquals(targetDate.toString(), intent.getStringExtra("date"))
         assertTrue(intent.getBooleanExtra("isHistory", false))
-        assertTrue(intent.getBooleanExtra("showHistory", false))
+        assertFalse(intent.getBooleanExtra("showHistory", true))
         assertEquals(1, intent.getIntExtra("index", -1))
         assertEquals(LAT, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LAT, 0.0), 0.00001)
         assertEquals(LON, intent.getDoubleExtra(ForecastHistoryActivity.EXTRA_LON, 0.0), 0.00001)
         assertEquals(WeatherSource.NWS.displayName, intent.getStringExtra(ForecastHistoryActivity.EXTRA_SOURCE))
-        assertNull(intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        // History days always force TEMPERATURE — the icon is irrelevant since we're looking at past data
+        assertEquals("TEMPERATURE", intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
     }
 
     @Test

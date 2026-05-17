@@ -540,7 +540,7 @@ class ForecastHistoryActivity : AppCompatActivity() {
         val startDate = endDate.minusDays(30)
         val startEpoch = startDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val endEpoch = endDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate)
+        weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, startDate, endDate, emptyList())
         val existingExtremes = dailyExtremeDao.getExtremesInRange(startEpoch, endEpoch, lat, lon)
         val existingDates = existingExtremes.filter { it.source == WeatherSource.NWS.id }.map { it.date }.toSet()
         val nwsForecastDates =

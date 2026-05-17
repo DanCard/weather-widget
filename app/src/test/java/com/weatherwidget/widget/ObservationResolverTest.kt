@@ -160,71 +160,25 @@ class ObservationResolverTest {
         assertEquals(72.5f, resolved.temperature)
     }
 
-    // --- aggregateObservationsToDaily tests ---
+    // --- computeDailyExtremes tests (time-aligned IDW algorithm) ---
 
     @Test
-    fun `aggregateObservationsToDaily uses official 24h extremes when present`() {
-        val dayMillis = 1_700_000_000_000L // arbitrary fixed epoch in a single calendar day
-        val obs = listOf(
-            observation(timestamp = dayMillis,       temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f),
-            observation(timestamp = dayMillis + 3600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f),
-        )
-
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
-
-        assertEquals(1, result.size)
-        assertEquals(74f, result[0].highTemp)
-        assertEquals(38f, result[0].lowTemp)
-    }
-
-    @Test
-    fun `aggregateObservationsToDaily falls back to spot readings when official extremes are null`() {
-        val dayMillis = 1_700_000_000_000L
-        val obs = listOf(
-            observation(timestamp = dayMillis,       temperature = 55f, maxTempLast24h = null, minTempLast24h = null),
-            observation(timestamp = dayMillis + 3600_000, temperature = 62f, maxTempLast24h = null, minTempLast24h = null),
-        )
-
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
-
-        assertEquals(1, result.size)
-        assertEquals(62f, result[0].highTemp)
-        assertEquals(55f, result[0].lowTemp)
-    }
-
-    @Test
-    fun `aggregateObservationsToDaily handles mixed null and non-null official extremes`() {
-        val dayMillis = 1_700_000_000_000L
-        val obs = listOf(
-            observation(timestamp = dayMillis,       temperature = 55f, maxTempLast24h = 70f, minTempLast24h = null),
-            observation(timestamp = dayMillis + 3600_000, temperature = 62f, maxTempLast24h = null, minTempLast24h = 39f),
-        )
-
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
-
-        assertEquals(1, result.size)
-        // officialHighs = [70f] -> max = 70f; officialLows = [39f] -> min = 39f
-        assertEquals(70f, result[0].highTemp)
-        assertEquals(39f, result[0].lowTemp)
-    }
-
-    // --- computeDailyExtremes tests ---
-
-    @Test
-    fun `computeDailyExtremes prefers official extremes when present`() {
+    fun `computeDailyExtremes uses spot temperatures, not official 24h extremes`() {
+        // Time-aligned blender: high/low come from the per-timestamp IDW series, NOT from
+        // maxTempLast24h. The user's evening view (spot-based) must match tomorrow's history.
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f, stationId = "KTEST"),
             observation(timestamp = dayMillis + 3_600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f, stationId = "KTEST"),
         )
 
-        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
         val entity = result[0]
-        assertEquals(74f, entity.highTemp)
-        assertEquals(38f, entity.lowTemp)
-        assertEquals(com.weatherwidget.data.model.WeatherSource.NWS.id, entity.source)
+        assertEquals(58f, entity.highTemp, 0.01f)
+        assertEquals(55f, entity.lowTemp, 0.01f)
+        assertEquals(WeatherSource.NWS.id, entity.source)
         assertEquals(37.42, entity.locationLat, 0.001)
     }
 
@@ -236,11 +190,11 @@ class ObservationResolverTest {
             observation(timestamp = dayMillis + 3_600_000, temperature = 63f, maxTempLast24h = null, minTempLast24h = null, stationId = "KTEST"),
         )
 
-        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertEquals(63f, result[0].highTemp)
-        assertEquals(55f, result[0].lowTemp)
+        assertEquals(63f, result[0].highTemp, 0.01f)
+        assertEquals(55f, result[0].lowTemp, 0.01f)
     }
 
     @Test
@@ -251,13 +205,14 @@ class ObservationResolverTest {
             observation(timestamp = dayMillis + 1_800_000, temperature = 60f, maxTempLast24h = 68f, minTempLast24h = 42f, stationId = "OPEN_METEO_MAIN", api = WeatherSource.OPEN_METEO.id),
         )
 
-        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(2, result.size)
-        val nwsEntity = result.first { it.source == com.weatherwidget.data.model.WeatherSource.NWS.id }
-        val meteoEntity = result.first { it.source == com.weatherwidget.data.model.WeatherSource.OPEN_METEO.id }
-        assertEquals(70f, nwsEntity.highTemp)
-        assertEquals(68f, meteoEntity.highTemp)
+        val nwsEntity = result.first { it.source == WeatherSource.NWS.id }
+        val meteoEntity = result.first { it.source == WeatherSource.OPEN_METEO.id }
+        // Time-aligned: each source's high = max over its own per-timestamp series, using spot temps
+        assertEquals(55f, nwsEntity.highTemp, 0.01f)
+        assertEquals(60f, meteoEntity.highTemp, 0.01f)
     }
 
     @Test
@@ -317,55 +272,80 @@ class ObservationResolverTest {
         api = api,
     )
 
-    // --- multi-station IDW blending tests ---
+    // --- multi-station IDW blending tests (time-aligned algorithm) ---
 
     @Test
-    fun `blendExtremes IDW near station dominates over far station`() {
-        // Station NEAR at 1 km with max=80°, KFAR at 10 km with max=90°.
-        // Old raw-max behavior would return 90°. IDW should return ~80° (1km has 100x the weight).
+    fun `computeDailyExtremes IDW near station dominates over far station`() {
+        // KNEAR at 1km spot=78°, KFAR at 10km spot=88°.
+        // Time-aligned IDW at the shared timestamp: w_near=1, w_far=0.01 → ~(78 + 0.88)/1.01 ≈ 78.1°
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis, temperature = 78f, maxTempLast24h = 80f, minTempLast24h = 50f, stationId = "KNEAR", distanceKm = 1f),
             observation(timestamp = dayMillis, temperature = 88f, maxTempLast24h = 90f, minTempLast24h = 60f, stationId = "KFAR",  distanceKm = 10f),
         )
 
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        // w_near = 1/1² = 1.0, w_far = 1/100 = 0.01 → blend ≈ (80*1 + 90*0.01) / 1.01 ≈ 80.1°
-        assertTrue("Near station should dominate; expected ~80° got ${result[0].highTemp}", result[0].highTemp < 81f)
-        assertTrue("Result should be above 80°", result[0].highTemp >= 80f)
+        assertTrue("Near station should dominate; expected ~78° got ${result[0].highTemp}", result[0].highTemp < 79f)
+        assertTrue("Result should be above 78°", result[0].highTemp >= 78f)
     }
 
     @Test
-    fun `blendExtremes IDW two equidistant stations average their extremes`() {
+    fun `computeDailyExtremes IDW two equidistant stations average their spot temps`() {
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis, temperature = 70f, maxTempLast24h = 72f, minTempLast24h = 50f, stationId = "KA", distanceKm = 5f),
             observation(timestamp = dayMillis, temperature = 76f, maxTempLast24h = 80f, minTempLast24h = 44f, stationId = "KB", distanceKm = 5f),
         )
 
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertEquals(76f, result[0].highTemp, 0.1f) // (72+80)/2
-        assertEquals(47f, result[0].lowTemp,  0.1f) // (50+44)/2
+        // Equidistant IDW at the single shared timestamp = average of spot temps
+        assertEquals(73f, result[0].highTemp, 0.1f) // (70+76)/2
+        assertEquals(73f, result[0].lowTemp,  0.1f) // same — only one timestamp in the series
     }
 
     @Test
-    fun `blendExtremes per-station aggregation same station multiple readings uses max extreme`() {
-        // Two readings from the same station at different times — only one IDW entry should result.
-        // The station's extreme is max(72, 74) = 74°, not 72° (first) or an average.
+    fun `computeDailyExtremes time-aligned max comes from highest single-station reading over time`() {
+        // Two readings from the same station at different times. Distance=0 means the IDW at each
+        // timestamp returns that station's reading verbatim. Series max = max(55, 58) = 58.
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
-            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f, stationId = "KTEST", distanceKm = 2f),
-            observation(timestamp = dayMillis + 3_600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f, stationId = "KTEST", distanceKm = 2f),
+            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 72f, minTempLast24h = 40f, stationId = "KTEST", distanceKm = 0f),
+            observation(timestamp = dayMillis + 3_600_000, temperature = 58f, maxTempLast24h = 74f, minTempLast24h = 38f, stationId = "KTEST", distanceKm = 0f),
         )
 
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
-        assertEquals(74f, result[0].highTemp, 0.01f)
-        assertEquals(38f, result[0].lowTemp,  0.01f)
+        assertEquals(58f, result[0].highTemp, 0.01f)
+        assertEquals(55f, result[0].lowTemp,  0.01f)
+    }
+
+    @Test
+    fun `computeDailyExtremes async peaks across stations do not over-count`() {
+        // Bug regression: when stations peak at DIFFERENT times, the old per-station-spot-max
+        // algorithm blended those independent peaks as if synchronous, producing an inflated
+        // high. The time-aligned blender computes IDW at each candidate timestamp, so the max
+        // over the series reflects an instant that actually existed.
+        val t0 = 1_700_000_000_000L
+        val obs = listOf(
+            // Station A (close) peaks at t0
+            observation(timestamp = t0,             temperature = 75f, maxTempLast24h = null, minTempLast24h = null, stationId = "KA", distanceKm = 2f),
+            observation(timestamp = t0 + 7_200_000, temperature = 70f, maxTempLast24h = null, minTempLast24h = null, stationId = "KA", distanceKm = 2f),
+            // Station B (close) peaks 2 hours later at t0+2h
+            observation(timestamp = t0,             temperature = 70f, maxTempLast24h = null, minTempLast24h = null, stationId = "KB", distanceKm = 2f),
+            observation(timestamp = t0 + 7_200_000, temperature = 75f, maxTempLast24h = null, minTempLast24h = null, stationId = "KB", distanceKm = 2f),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
+
+        // Per-station-spot-max (old) would give IDW(75, 75) ≈ 75° — non-existent in reality.
+        // Time-aligned (new): each timestamp blends to (75+70)/2 ≈ 72.5°. Max over series ≈ 72.5°.
+        assertEquals(1, result.size)
+        assertTrue("Blended high should be ~72.5 (the actual instant), not 75 (sync-peak artifact). Got ${result[0].highTemp}", result[0].highTemp < 73f)
+        assertTrue("Blended high should be above 72°", result[0].highTemp >= 72f)
     }
 
     @Test
@@ -376,26 +356,25 @@ class ObservationResolverTest {
             observation(timestamp = dayMillis, temperature = 99f, maxTempLast24h = 99f, minTempLast24h = 10f, stationId = "NWS_BLEND"),
         )
 
-        val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
         assertEquals(72f, result[0].highTemp, 0.01f) // NWS_BLEND excluded
     }
 
     @Test
-    fun `blendExtremes spot-temp fallback also uses IDW when no official extremes`() {
-        // Near station has spot temp 70°, far station has spot temp 90°. No official extremes.
-        // IDW should weight near station heavily → result near 70°, not 90°.
+    fun `computeDailyExtremes spot-temp IDW with no official extremes`() {
+        // Near station spot=70°, far station spot=90°. IDW should weight near heavily → ~70.2°.
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
             observation(timestamp = dayMillis, temperature = 70f, maxTempLast24h = null, minTempLast24h = null, stationId = "KNEAR", distanceKm = 1f),
             observation(timestamp = dayMillis, temperature = 90f, maxTempLast24h = null, minTempLast24h = null, stationId = "KFAR",  distanceKm = 10f),
         )
 
-        val result = ObservationResolver.aggregateObservationsToDaily(obs)
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
 
         assertEquals(1, result.size)
-        assertTrue("Spot-temp fallback should weight near station; expected <71° got ${result[0].highTemp}", result[0].highTemp < 71f)
+        assertTrue("Near station should dominate; expected <71° got ${result[0].highTemp}", result[0].highTemp < 71f)
     }
 
     private fun currentTempObservation(

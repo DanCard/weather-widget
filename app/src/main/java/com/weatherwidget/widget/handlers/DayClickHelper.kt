@@ -37,14 +37,11 @@ object DayClickHelper {
     }
 
     /**
-     * Determines whether clicking a day should open the ForecastHistoryActivity.
-     *
-     * @param isPastDay true if the target day is before today
-     * @return true if the click should launch the history activity
+     * Past-day taps now open the temperature hourly graph rather than the forecast-history
+     * comparison activity, so the value the user saw at end-of-day is visible on the curve
+     * (instead of a daily_extreme number that can ratchet upward post-hoc).
      */
-    fun shouldShowHistory(isPastDay: Boolean): Boolean {
-        return isPastDay
-    }
+    fun shouldShowHistory(@Suppress("UNUSED_PARAMETER") isPastDay: Boolean): Boolean = false
 
     fun resolveDailyTargetViewMode(iconRes: Int?): ViewMode {
         if (iconRes == null) return ViewMode.TEMPERATURE

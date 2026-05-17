@@ -69,11 +69,11 @@ class DayClickHelperTest {
         assertFalse(DayClickHelper.hasRainForecast(rainSummary = "", dailyPrecipProbability = 0))
     }
 
-    // ── shouldShowHistory: basic decision truth table ──
+    // ── shouldShowHistory: history routing is disabled; past days now go to temperature graph ──
 
     @Test
-    fun `past day shows history`() {
-        assertTrue(DayClickHelper.shouldShowHistory(isPastDay = true))
+    fun `past day does not show history`() {
+        assertFalse(DayClickHelper.shouldShowHistory(isPastDay = true))
     }
 
     @Test
@@ -285,10 +285,10 @@ class DayClickHelperTest {
     }
 
     @Test
-    fun `past day with daily precip shows history regardless of rain`() {
+    fun `past day with daily precip no longer routes to history`() {
         val hasRain = DayClickHelper.hasRainForecast(rainSummary = null, dailyPrecipProbability = 80)
         assertTrue(hasRain)
-        assertTrue("Past days ALWAYS show history", DayClickHelper.shouldShowHistory(isPastDay = true))
+        assertFalse("Past days route to temperature graph, not history", DayClickHelper.shouldShowHistory(isPastDay = true))
     }
 
     @Test
