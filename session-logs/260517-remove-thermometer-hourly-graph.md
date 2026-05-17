@@ -68,5 +68,22 @@ Ran `./gradlew testDebugUnitTest --tests com.weatherwidget.widget.handlers.Weath
 
 ---
 
-## 6. Technical Rationale
-Checking both the start and end of the graph data ensures that if a user is looking at a "transition" view (e.g., spanning midnight from yesterday into today), the shortcut to current observations remains available. The icon is only removed when the entire visible graph range is completely disconnected from "Today".
+## 6. Samsung Device: Hourly Graph Scale Fix
+
+### Issue
+On Samsung devices (SM-F936U1), viewing yesterday's hourly graph resulted in a distorted horizontal scale and missing icons. This occurred because historical forecasts were sparse or purged, and the graph builder only created data points for hours where forecasts existed.
+
+### Fix
+- **Consistent Scale**: Refactored `TemperatureHourDataBuilder.kt` to always create a top-of-hour `HourData` entry for every hour in the window, ensuring the x-axis always represents a correct 24-hour span.
+- **Icon Fallback**: Implemented logic to use weather conditions from **actual observations** to provide icons when forecasts are missing, restoring visual richness to historical views.
+- **Enhanced Diagnostics**: Added detailed logging in `TemperatureViewBinder.kt` to track the `isToday` state and time boundaries during rendering.
+
+### Verification
+- Verified on-device that yesterday's graph now renders with correct proportions, properly aligned icons, and functional tap zones.
+
+---
+
+## 7. Technical Rationale
+Checking both the start and end of the graph data ensures that if a user is looking at a "transition" view (e.g., spanning midnight from yesterday into today), the shortcut to current observations remains available. The icon is only removed when the entire visible graph range is completely disconnected from "Today". 
+
+For historical views, maintaining a fixed 24-hour grid is essential for the spatial consistency of the Bezier curves and the relative positioning of sub-hourly actuals. By filling gaps with observation-driven icons, we maintain UI utility even after forecast data has expired.
