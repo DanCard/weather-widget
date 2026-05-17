@@ -85,7 +85,12 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
 HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = header.isDeltaVisible, isPrecipVisible = header.isPrecipVisible)
 
 // 3. Center Icons & Navigation
-positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip())
+val today = LocalDateTime.now().toLocalDate()
+val isToday = state.graph.hourData.firstOrNull()?.dateTime?.toLocalDate() == today ||
+        state.graph.hourData.lastOrNull()?.dateTime?.toLocalDate() == today ||
+        (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
+
+positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
 
         // 4. Setup Intent Listeners
         setupZoomTapZones(

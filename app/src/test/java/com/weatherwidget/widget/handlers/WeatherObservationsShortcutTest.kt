@@ -92,21 +92,49 @@ class WeatherObservationsShortcutTest {
         )
     }
 
-    private suspend fun renderTemperatureWidget(): RemoteViews {
+    @Test
+    fun `TemperatureViewHandler thermometer icon hidden when viewing future day`() = runBlocking {
+        val future = LocalDateTime.now().plusDays(2)
+        val views = renderTemperatureWidget(centerTime = future)
+        val applied = applyViews(views)
+        
+        val stationsIcon = applied.findViewById<View>(R.id.weather_stations_icon)
+        // If not null, visibility should be GONE. 
+        // positionCenterIcons sets visibility to GONE explicitly.
+        if (stationsIcon != null) {
+            assertEquals("Thermometer icon should be GONE when viewing future day", View.GONE, stationsIcon.visibility)
+        }
+    }
+
+    @Test
+    fun `TemperatureViewHandler thermometer icon remains visible when graph spans midnight into today`() = runBlocking {
+        // Create a situation where the graph starts yesterday but ends today
+        val now = LocalDateTime.now()
+        val midnight = now.toLocalDate().atStartOfDay()
+        
+        // If we center at midnight, graph will span several hours before and after
+        val views = renderTemperatureWidget(centerTime = midnight)
+        val applied = applyViews(views)
+
+        val stationsIcon = applied.findViewById<View>(R.id.weather_stations_icon)
+        assertNotNull("Thermometer icon should be present", stationsIcon)
+        assertEquals("Thermometer icon should be VISIBLE when spanning today", View.VISIBLE, stationsIcon.visibility)
+    }
+
+    private suspend fun renderTemperatureWidget(centerTime: LocalDateTime = LocalDateTime.now()): RemoteViews {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns graphOptions()
 
         val viewsSlot = slot<RemoteViews>()
         every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
 
-        val now = LocalDateTime.now()
         TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
-            currentTempHourlyForecasts = sampleHourlyForecasts(now),
-            centerTime = now,
+            hourlyForecasts = sampleHourlyForecasts(centerTime),
+            currentTempHourlyForecasts = sampleHourlyForecasts(centerTime),
+            centerTime = centerTime,
             displaySource = WeatherSource.NWS,
         )
         return viewsSlot.captured
