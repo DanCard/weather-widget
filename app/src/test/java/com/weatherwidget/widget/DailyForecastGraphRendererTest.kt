@@ -33,10 +33,10 @@ class DailyForecastGraphRendererTest {
         val day = DailyForecastGraphRenderer.DayData(
             date = LocalDate.of(2030, 6, 15),
             label = "Today",
-            high = 74f,
-            low = 67f,
+            solidLineHigh = 74f,
+            solidLineLow = 67f,
             bottomStackLow = 65f,
-            forecastLow = 65f,
+            dashedLineLow = 65f,
             isToday = true,
         )
 
@@ -48,8 +48,8 @@ class DailyForecastGraphRendererTest {
         val day = DailyForecastGraphRenderer.DayData(
             date = LocalDate.of(2030, 6, 16),
             label = "Sun",
-            high = 76f,
-            low = 58f,
+            solidLineHigh = 76f,
+            solidLineLow = 58f,
         )
 
         assertEquals(58f, DailyForecastGraphRenderer.resolveBottomStackLow(day)!!, 0.1f)

@@ -61,9 +61,13 @@ object DailyActualsEstimator {
 
         // 1. Observed so far (history/current)
         val actual = dailyActuals[today]
-        // solidLineHigh should represent the current 'mercury level' of the thermometer.
-        // It follows currentTemp if available, otherwise falls back to the peak reached so far.
+        // solidLineHigh represents the current 'mercury level'. 
+        // It shows the real-time temp if available, otherwise falls back to the peak reached so far.
         val solidLineHigh = currentTemp ?: actual?.highTemp
+        
+        // ghostLineHigh represents the faint high-water mark peak reached so far today.
+        val ghostLineHigh = actual?.highTemp
+
         // solidLineLow should be the minimum of the stored daily low and the current reading.
         val solidLineLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
         val solidLineHighSource =
@@ -106,7 +110,7 @@ object DailyActualsEstimator {
             dashedLineLow = dashedLineLow,
             snapshotHigh = snapshotHigh,
             snapshotLow = snapshotLow,
-            ghostLineHigh = actual?.highTemp,
+            ghostLineHigh = ghostLineHigh,
         )
     }
 

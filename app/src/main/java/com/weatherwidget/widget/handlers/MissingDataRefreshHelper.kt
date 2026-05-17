@@ -34,8 +34,8 @@ internal fun computeMissingDataRefreshes(
 
     val missingTodaySnapshot = displayDays.firstOrNull { day ->
         day.isToday &&
-            day.forecastHigh != null &&
-            day.forecastLow != null &&
+            day.dashedLineHigh != null &&
+            day.dashedLineLow != null &&
             day.snapshotHigh == null &&
             day.snapshotLow == null
     }
@@ -52,8 +52,8 @@ internal fun computeMissingDataRefreshes(
     val missingVisiblePastActuals = displayDays.firstOrNull { day ->
         day.isPast &&
             dailyActuals[day.date] == null &&
-            day.forecastHigh != null &&
-            day.forecastLow != null
+            day.dashedLineHigh != null &&
+            day.dashedLineLow != null
     }
     if (missingVisiblePastActuals != null) {
         decisions.add(

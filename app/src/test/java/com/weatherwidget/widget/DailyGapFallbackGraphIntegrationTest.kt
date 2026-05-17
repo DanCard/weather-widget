@@ -126,10 +126,10 @@ class DailyGapFallbackGraphIntegrationTest {
         )
 
         val yesterdayDay = days.single { it.date == yesterday }
-        assertEquals(null, yesterdayDay.high)
-        assertEquals(null, yesterdayDay.low)
-        assertEquals(68f, yesterdayDay.forecastHigh)
-        assertEquals(54f, yesterdayDay.forecastLow)
+        assertEquals(null, yesterdayDay.solidLineHigh)
+        assertEquals(null, yesterdayDay.solidLineLow)
+        assertEquals(68f, yesterdayDay.dashedLineHigh)
+        assertEquals(54f, yesterdayDay.dashedLineLow)
 
         val drawnBars = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()
         runBlocking {
@@ -162,11 +162,11 @@ class DailyGapFallbackGraphIntegrationTest {
         val day = DailyForecastGraphRenderer.DayData(
             date = today,
             label = "Today",
-            high = 74f,
-            low = 65f,
+            solidLineHigh = 74f,
+            solidLineLow = 65f,
             isToday = true,
-            forecastHigh = 80f,
-            forecastLow = 60f,
+            dashedLineHigh = 80f,
+            dashedLineLow = 60f,
             snapshotHigh = 82f,
             snapshotLow = 62f,
         )

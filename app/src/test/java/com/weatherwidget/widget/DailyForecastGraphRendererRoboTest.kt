@@ -88,8 +88,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = date,
                 label = "Tue",
-                high = 80f,
-                low = 60f,
+                solidLineHigh = 80f,
+                solidLineLow = 60f,
                 isSunny = true,
                 isRainy = false,
                 isMixed = false,
@@ -143,24 +143,24 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = feb01,
                 label = "Sat",
-                high = 65f,
-                low = 45f,
+                solidLineHigh = 65f,
+                solidLineLow = 45f,
                 isPast = true,
-                forecastHigh = 67f,
-                forecastLow = 44f,
+                dashedLineHigh = 67f,
+                dashedLineLow = 44f,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = feb02,
                 label = "Today",
-                high = 68f,
-                low = 48f,
+                solidLineHigh = 68f,
+                solidLineLow = 48f,
                 isToday = true,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = feb03,
                 label = "Mon",
-                high = 70f,
-                low = 50f,
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
             ),
         )
 
@@ -180,17 +180,17 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = feb01,
                 label = "Sat",
-                high = 65f,
-                low = 45f,
+                solidLineHigh = 65f,
+                solidLineLow = 45f,
                 isPast = true,
-                forecastHigh = null,
-                forecastLow = null,
+                dashedLineHigh = null,
+                dashedLineLow = null,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = feb02,
                 label = "Today",
-                high = 68f,
-                low = 48f,
+                solidLineHigh = 68f,
+                solidLineLow = 48f,
                 isToday = true,
             ),
         )
@@ -218,21 +218,21 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = pastDate,
                 label = "Sat",
-                high = 65f,
-                low = 45f,
+                solidLineHigh = 65f,
+                solidLineLow = 45f,
                 isPast = true,
-                forecastHigh = 67f,
-                forecastLow = 44f,
+                dashedLineHigh = 67f,
+                dashedLineLow = 44f,
                 nextSourceHigh = 70f,
                 nextSourceLow = 42f,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = pastDate.plusDays(1), label = "Today",
-                high = 68f, low = 48f, isToday = true,
+                solidLineHigh = 68f, solidLineLow = 48f, isToday = true,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = pastDate.plusDays(2), label = "Mon",
-                high = 70f, low = 50f,
+                solidLineHigh = 70f, solidLineLow = 50f,
             ),
         )
 
@@ -261,13 +261,13 @@ class DailyForecastGraphRendererRoboTest {
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
                 date = pastDate, label = "Sat",
-                high = 65f, low = 45f,
+                solidLineHigh = 65f, solidLineLow = 45f,
                 isPast = true,
-                forecastHigh = 67f, forecastLow = 44f,
+                dashedLineHigh = 67f, dashedLineLow = 44f,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = pastDate.plusDays(1), label = "Today",
-                isToday = true, high = 68f, low = 48f,
+                isToday = true, solidLineHigh = 68f, solidLineLow = 48f,
             ),
         )
 
@@ -288,8 +288,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = feb02,
                 label = "Today",
-                high = 68f,
-                low = 48f,
+                solidLineHigh = 68f,
+                solidLineLow = 48f,
                 isToday = true,
             ),
         )
@@ -312,10 +312,10 @@ class DailyForecastGraphRendererRoboTest {
                 date = today,
                 label = "Today",
                 isToday = true,
-                high = 68f,
-                low = 48f,
-                forecastHigh = 70f,
-                forecastLow = 47f,
+                solidLineHigh = 68f,
+                solidLineLow = 48f,
+                dashedLineHigh = 70f,
+                dashedLineLow = 47f,
                 snapshotHigh = 72f,
                 snapshotLow = 46f,
             ),
@@ -346,10 +346,10 @@ class DailyForecastGraphRendererRoboTest {
                 date = today,
                 label = "Today",
                 isToday = true,
-                high = 68f,
-                low = 48f,
-                forecastHigh = 70f,
-                forecastLow = 47f,
+                solidLineHigh = 68f,
+                solidLineLow = 48f,
+                dashedLineHigh = 70f,
+                dashedLineLow = 47f,
                 nextSourceHigh = 71f,
                 nextSourceLow = 46f,
             ),
@@ -377,8 +377,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = feb01,
                 label = "Sat",
-                high = 65f,
-                low = 45f,
+                solidLineHigh = 65f,
+                solidLineLow = 45f,
                 isPast = true,
             ),
         )
@@ -398,8 +398,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = feb03,
                 label = "Mon",
-                high = 70f,
-                low = 50f,
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
             ),
         )
 
@@ -418,11 +418,11 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = pastDay,
                 label = "Sat",
-                high = 65f,
-                low = 45f,
+                solidLineHigh = 65f,
+                solidLineLow = 45f,
                 isPast = true,
-                forecastHigh = 70f,
-                forecastLow = 40f,
+                dashedLineHigh = 70f,
+                dashedLineLow = 40f,
             ),
         )
 
@@ -450,14 +450,14 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 2),
                     label = "Sun",
-                    high = 100f,
-                    low = 80f,
+                    solidLineHigh = 100f,
+                    solidLineLow = 80f,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
                 ),
             ),
@@ -480,8 +480,8 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 100f,
-                    low = 50f,
+                    solidLineHigh = 100f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
                 ),
             ),
@@ -500,14 +500,14 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 2),
                     label = "Sun",
-                    high = 150f,
-                    low = 32f,
+                    solidLineHigh = 150f,
+                    solidLineLow = 32f,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
                 ),
             ),
@@ -531,15 +531,15 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 100f,
-                    low = 72f,
+                    solidLineHigh = 100f,
+                    solidLineLow = 72f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
-                    high = 78f,
-                    low = 22f,
+                    solidLineHigh = 78f,
+                    solidLineLow = 22f,
                 ),
             ),
             widthPx = 500,
@@ -561,8 +561,8 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 100f,
-                    low = 72f,
+                    solidLineHigh = 100f,
+                    solidLineLow = 72f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "65%"),
                 ),
             ),
@@ -584,15 +584,15 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
-                    high = 65f,
-                    low = 20f,
+                    solidLineHigh = 65f,
+                    solidLineLow = 20f,
                 ),
             ),
             widthPx = 800,
@@ -611,21 +611,21 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 2),
                     label = "Sun",
-                    high = 150f,
-                    low = 32f,
+                    solidLineHigh = 150f,
+                    solidLineLow = 32f,
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "30%", nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
-                    high = 65f,
-                    low = 45f,
+                    solidLineHigh = 65f,
+                    solidLineLow = 45f,
                 ),
             ),
             widthPx = 800,
@@ -644,15 +644,15 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
-                    high = 65f,
-                    low = 50f,
+                    solidLineHigh = 65f,
+                    solidLineLow = 50f,
                 ),
             ),
             widthPx = 800,
@@ -670,15 +670,15 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 30f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 30f,
                     rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 65, nightRainLabelText = "65%"),
                 ),
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 4),
                     label = "Tue",
-                    high = 65f,
-                    low = 55f,
+                    solidLineHigh = 65f,
+                    solidLineLow = 55f,
                 ),
             ),
             widthPx = 800,
@@ -698,8 +698,8 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(nighttimePrecipProbability = 100, nightRainLabelText = "100000000000000000000000000000000000000000000000000000%"),
                 ),
             ),
@@ -717,8 +717,8 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = LocalDate.of(2026, 2, 3),
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                     rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "1000000%"),
                 ),
             ),
@@ -739,15 +739,15 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Today",
-                high = 150f,
-                low = 48f,
+                solidLineHigh = 150f,
+                solidLineLow = 48f,
                 isToday = true,
             ),
             DailyForecastGraphRenderer.DayData(
                 date = targetDay,
                 label = "Mon",
-                high = 70f,
-                low = 50f,
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
                 rainData = DailyForecastGraphRenderer.RainData(dailyRainLabelText = "39%", dailyPrecipProbability = 39),
                 daysFromToday = 5
             ),
@@ -760,7 +760,7 @@ class DailyForecastGraphRendererRoboTest {
         val width = 1000
         val height = 1000
         runBlocking {
-            DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 0f, low = 0f)), width, height)
+            DailyForecastGraphRenderer.renderGraph(context, listOf(DailyForecastGraphRenderer.DayData(date = today, label = "X", solidLineHigh = 0f, solidLineLow = 0f)), width, height)
         }
         @Suppress("UNCHECKED_CAST")
         val caches = paintCachesField.get(null) as List<Any>
@@ -817,8 +817,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = LocalDate.now(),
                 label = "Mon",
-                high = null,
-                low = null,
+                solidLineHigh = null,
+                solidLineLow = null,
             ),
         )
         runBlocking {
@@ -834,8 +834,8 @@ class DailyForecastGraphRendererRoboTest {
                 DailyForecastGraphRenderer.DayData(
                     date = day,
                     label = "Mon",
-                    high = 70f,
-                    low = 50f,
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
                 ),
             ),
             widthPx = 500,
@@ -855,8 +855,8 @@ class DailyForecastGraphRendererRoboTest {
         val day = DailyForecastGraphRenderer.DayData(
             date = feb01,
             label = "Sat",
-            high = 65f,
-            low = 45f,
+            solidLineHigh = 65f,
+            solidLineLow = 45f,
             isPast = true,
             isMixed = true,
         )
@@ -871,9 +871,9 @@ class DailyForecastGraphRendererRoboTest {
         val feb02 = LocalDate.of(2026, 2, 2)
         val feb03 = LocalDate.of(2026, 2, 3)
         val days = listOf(
-            DailyForecastGraphRenderer.DayData(date = feb01, label = "Sat", high = 60f, low = 40f, isPast = true),
-            DailyForecastGraphRenderer.DayData(date = feb02, label = "Today", high = 65f, low = 45f, isToday = true),
-            DailyForecastGraphRenderer.DayData(date = feb03, label = "Mon", high = 70f, low = 50f),
+            DailyForecastGraphRenderer.DayData(date = feb01, label = "Sat", solidLineHigh = 60f, solidLineLow = 40f, isPast = true),
+            DailyForecastGraphRenderer.DayData(date = feb02, label = "Today", solidLineHigh = 65f, solidLineLow = 45f, isToday = true),
+            DailyForecastGraphRenderer.DayData(date = feb03, label = "Mon", solidLineHigh = 70f, solidLineLow = 50f),
         )
 
         val bars = render(days)
@@ -889,8 +889,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Far",
-                high = 70f,
-                low = 50f,
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
                 columnIndex = 99,
             ),
         )
@@ -919,7 +919,7 @@ class DailyForecastGraphRendererRoboTest {
     fun renderGraph_paintCacheLruRetainsPriorEntries() {
         val today = LocalDate.of(2026, 2, 2)
         val days = listOf(
-            DailyForecastGraphRenderer.DayData(date = today, label = "X", high = 70f, low = 50f),
+            DailyForecastGraphRenderer.DayData(date = today, label = "X", solidLineHigh = 70f, solidLineLow = 50f),
         )
         val width = 400
         val height = 200
@@ -961,8 +961,8 @@ class DailyForecastGraphRendererRoboTest {
             DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Mix",
-                high = 50f,
-                low = 50f,
+                solidLineHigh = 50f,
+                solidLineLow = 50f,
                 isMixed = true,
                 iconRes = R.drawable.ic_weather_partly_cloudy,
             ),

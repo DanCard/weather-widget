@@ -82,7 +82,7 @@ class DailyViewLogicTest {
 
         val phantomDay = result.find { it.date == future }
         assertTrue("Future day with null high should now be present as empty column", phantomDay != null)
-        assertEquals("Should have null high", null, phantomDay!!.high)
+        assertEquals("Should have null high", null, phantomDay!!.solidLineHigh)
     }
 
     @Test
@@ -124,7 +124,7 @@ class DailyViewLogicTest {
         val gapDay = result.find { it.date == gapDate }
         assertTrue("Gap day 7 should be present", gapDay != null)
         assertTrue("Gap day should be marked as gap fallback", gapDay!!.isSourceGapFallback)
-        val nwsDays = result.filter { !it.isSourceGapFallback && it.high != null }
+        val nwsDays = result.filter { !it.isSourceGapFallback && it.solidLineHigh != null }
         assertEquals("Should have 7 NWS days", 7, nwsDays.size)
     }
 
@@ -160,8 +160,8 @@ class DailyViewLogicTest {
 
         val normalDay = result.find { it.date == future }
         assertTrue("Future day with normals should be present", normalDay != null)
-        assertEquals("Should use climate high", 75f, normalDay!!.high)
-        assertEquals("Should use climate low", 60f, normalDay.low)
+        assertEquals("Should use climate high", 75f, normalDay!!.solidLineHigh)
+        assertEquals("Should use climate low", 60f, normalDay.solidLineLow)
         assertTrue("Should be marked as climate overlay", normalDay.isClimateNormal)
     }
 
@@ -202,8 +202,8 @@ class DailyViewLogicTest {
 
         val past = result.find { it.date == pastWed }
         assertNotNull("Past day should be present in result", past)
-        assertNull("Past day must NOT synthesize forecastHigh from climate normals", past!!.forecastHigh)
-        assertNull("Past day must NOT synthesize forecastLow from climate normals", past.forecastLow)
+        assertNull("Past day must NOT synthesize forecastHigh from climate normals", past!!.dashedLineHigh)
+        assertNull("Past day must NOT synthesize forecastLow from climate normals", past.dashedLineLow)
         assertFalse("Past day should not be marked climate normal", past.isClimateNormal)
     }
 
@@ -243,8 +243,8 @@ class DailyViewLogicTest {
 
         val past = result.find { it.date == pastWed }
         assertNotNull(past)
-        assertEquals("Past forecastHigh must come from snapshot, not climate normal", 72f, past!!.forecastHigh)
-        assertEquals("Past forecastLow must come from snapshot, not climate normal", 53f, past.forecastLow)
+        assertEquals("Past forecastHigh must come from snapshot, not climate normal", 72f, past!!.dashedLineHigh)
+        assertEquals("Past forecastLow must come from snapshot, not climate normal", 53f, past.dashedLineLow)
     }
 
     @Test
@@ -289,8 +289,8 @@ class DailyViewLogicTest {
 
         val past = result.find { it.date == pastWed }!!
         assertEquals("Must use older NWS batch with non-null low, not the latest null-low row",
-            72f, past.forecastHigh)
-        assertEquals(53f, past.forecastLow)
+            72f, past.dashedLineHigh)
+        assertEquals(53f, past.dashedLineLow)
     }
 
     @Test
@@ -336,8 +336,8 @@ class DailyViewLogicTest {
         )
 
         val past = result.find { it.date == pastWed }!!
-        assertNull("Must NOT use GENERIC_GAP climate-normal row as a forecast bait", past.forecastHigh)
-        assertNull("Must NOT use GENERIC_GAP climate-normal row as a forecast bait", past.forecastLow)
+        assertNull("Must NOT use GENERIC_GAP climate-normal row as a forecast bait", past.dashedLineHigh)
+        assertNull("Must NOT use GENERIC_GAP climate-normal row as a forecast bait", past.dashedLineLow)
     }
 
     @Test
@@ -368,8 +368,8 @@ class DailyViewLogicTest {
         // NavigationUtils.getDayOffsets(9, false) starts from -1, so it should go -1 to 7
         val emptyDay = result.find { it.date == future }
         assertTrue("Future day with no data should still be present in result list", emptyDay != null)
-        assertEquals("Empty column should have null high", null, emptyDay!!.high)
-        assertEquals("Empty column should have null low", null, emptyDay.low)
+        assertEquals("Empty column should have null high", null, emptyDay!!.solidLineHigh)
+        assertEquals("Empty column should have null low", null, emptyDay.solidLineLow)
         assertEquals("Label should still be set", "Sat", emptyDay.label)
     }
 
@@ -590,8 +590,8 @@ class DailyViewLogicTest {
 
         val partialDay = result.find { it.date == future }
         assertNotNull("Terminal NWS low-only future graph day should be present", partialDay)
-        assertNull("Missing high should remain null", partialDay!!.high)
-        assertEquals("Low should come from NWS data", 39f, partialDay.low)
+        assertNull("Missing high should remain null", partialDay!!.solidLineHigh)
+        assertEquals("Low should come from NWS data", 39f, partialDay.solidLineLow)
         assertFalse("Terminal low-only day should not become climate overlay", partialDay.isClimateNormal)
     }
 
@@ -1323,7 +1323,7 @@ class DailyViewLogicTest {
         )
 
         val todayDay = result.first { it.date == today }
-        assertEquals("Today should use complete snapshot high", 80f, todayDay.high)
+        assertEquals("Today should use complete snapshot high", 80f, todayDay.solidLineHigh)
     }
 
     @Test
@@ -1444,12 +1444,12 @@ class DailyViewLogicTest {
         )
 
         val day = result.first { it.date == yesterday }
-        assertEquals("Primary forecast overlay must come from displaySource (NWS) snapshot", 72f, day.forecastHigh)
-        assertEquals(48f, day.forecastLow)
+        assertEquals("Primary forecast overlay must come from displaySource (NWS) snapshot", 72f, day.dashedLineHigh)
+        assertEquals(48f, day.dashedLineLow)
         assertEquals("Third bar must come from nextSource (Open-Meteo) snapshot, not nextSourceWeatherByDate", 75f, day.nextSourceHigh)
         assertEquals(46f, day.nextSourceLow)
-        assertEquals("Red actuals bar must stay independent of forecast snapshots", 70f, day.high)
-        assertEquals(50f, day.low)
+        assertEquals("Red actuals bar must stay independent of forecast snapshots", 70f, day.solidLineHigh)
+        assertEquals(50f, day.solidLineLow)
     }
 
     @Test
@@ -1482,7 +1482,7 @@ class DailyViewLogicTest {
             nextSource = WeatherSource.OPEN_METEO,
         ).first { it.date == yesterday }
 
-        assertEquals("displaySource snapshot still drives forecast overlay", 72f, day.forecastHigh)
+        assertEquals("displaySource snapshot still drives forecast overlay", 72f, day.dashedLineHigh)
         assertNull("No nextSource snapshot means no third bar", day.nextSourceHigh)
         assertNull(day.nextSourceLow)
     }

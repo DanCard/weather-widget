@@ -405,8 +405,8 @@ class ObservationRepository @Inject constructor(
         )
         val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes, latitude, longitude)
         val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
-            primary = persistedTodayActuals,
-            secondary = todayBlendedActuals,
+            primary = todayBlendedActuals, // Prefer live blended results
+            secondary = persistedTodayActuals, // Fall back to persisted extremes only if live blending failed
         )
         val mergedTodaySummary =
             mergedTodayActuals

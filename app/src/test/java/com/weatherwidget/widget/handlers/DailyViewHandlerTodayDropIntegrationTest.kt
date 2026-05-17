@@ -138,14 +138,14 @@ class DailyViewHandlerTodayDropIntegrationTest {
 
         val todayData = daysSlot.captured.first { it.isToday }
         
-        // 1. Mercury level (high) should be the CURRENT temp (75), not the peak (82)
-        assertEquals("Thermometer high should be current temp", 75f, todayData.high!!, 0.1f)
+        // 1. Mercury level (solidLineHigh) should be the CURRENT temp (75), not the peak (82)
+        assertEquals("Thermometer high should be current temp", 75f, todayData.solidLineHigh!!, 0.1f)
         
-        // 2. True actual high should still be 82 (for the ghost bar)
-        assertEquals("True actual high should be preserved", 82f, todayData.trueActualHigh!!, 0.1f)
+        // 2. Ghost line high should still be 82 (for the ghost bar)
+        assertEquals("True actual high should be preserved", 82f, todayData.ghostLineHigh!!, 0.1f)
         
         // 3. Forecast high should still be 80
-        assertEquals("Forecast high should be preserved", 80f, todayData.forecastHigh!!, 0.1f)
+        assertEquals("Forecast high should be preserved", 80f, todayData.dashedLineHigh!!, 0.1f)
     }
 
     @Test
@@ -276,7 +276,7 @@ class DailyViewHandlerTodayDropIntegrationTest {
         val todayData = daysSlot.captured.first { it.isToday }
         
         // Should have picked up 85f from the snapshot instead of falling back to hourly (which would be lower)
-        assertEquals("Should fall back to complete snapshot high", 85f, todayData.forecastHigh!!, 0.1f)
+        assertEquals("Should fall back to complete snapshot high", 85f, todayData.dashedLineHigh!!, 0.1f)
     }
 
     private fun createWeather(

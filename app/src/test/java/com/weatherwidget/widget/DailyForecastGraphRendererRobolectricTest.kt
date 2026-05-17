@@ -102,8 +102,8 @@ class DailyForecastGraphRendererRobolectricTest {
                     DailyForecastGraphRenderer.DayData(
                         date = LocalDate.of(2026, 4, 19),
                         label = "Sat",
-                        high = 76f,
-                        low = 46f,
+                        solidLineHigh = 76f,
+                        solidLineLow = 46f,
                         iconRes = iconRes,
                         isSunny = true,
                         isMixed = isMixed,

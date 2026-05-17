@@ -147,9 +147,9 @@ class DailyForecastGraphRendererSizingTest {
             DailyForecastGraphRenderer.renderGraph(
                 context = context,
                 days = listOf(
-                    DailyForecastGraphRenderer.DayData(today, "Today", high = 69f, low = 54f, isToday = true),
-                    DailyForecastGraphRenderer.DayData(today.plusDays(1), "Wed", high = 65f, low = 48f),
-                    DailyForecastGraphRenderer.DayData(today.plusDays(2), "Thu", high = 68f, low = 50f),
+                    DailyForecastGraphRenderer.DayData(today, "Today", solidLineHigh = 69f, solidLineLow = 54f, isToday = true),
+                    DailyForecastGraphRenderer.DayData(today.plusDays(1), "Wed", solidLineHigh = 65f, solidLineLow = 48f),
+                    DailyForecastGraphRenderer.DayData(today.plusDays(2), "Thu", solidLineHigh = 68f, solidLineLow = 50f),
                 ),
                 widthPx = 430,
                 heightPx = 518,

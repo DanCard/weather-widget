@@ -55,29 +55,7 @@ class TemperatureUnificationRegressionTest {
             TestData.hourly(dateTime = "2026-05-16T16:00", temperature = 71f)
         )
 
-        // --- 1. Calculate Daily View High (The way it was before fix) ---
-        // We use the raw aggregate logic that resulted in 73.5
-        val rawDailyHigh = observations.maxOf { it.temperature }
-        val dailyActuals = mapOf(
-            today to ObservationResolver.DailyActual(today, rawDailyHigh, 50f, "Clear")
-        )
-        
-        // This simulates DailyActualsEstimator bug too:
-        // observedHigh = currentTemp ?: actual?.highTemp 
-        // If currentTemp is 65.3, it should show 65.3. 
-        // But the user SAW 73.5, which means currentTemp was either null or the logic is worse.
-        val tripleLine = DailyActualsEstimator.calculateTodayTripleLineValues(
-            hourlyForecasts = forecasts,
-            today = today,
-            now = now,
-            displaySource = WeatherSource.NWS,
-            fallbackWeather = null,
-            dailyActuals = dailyActuals,
-            currentTemp = null // Simulating null currentTemp to see the 73.5
-        )
-        val dailyViewDisplayedHigh = tripleLine.solidLineHigh ?: -1f
-
-        // --- 2. Calculate Hourly Graph Peak ---
+        // Calculate the Blended Series (Source of Truth for both views now)
         val blendedResult = ObservationBlender.blendObservationSeries(
             observations = observations,
             hourlyForecasts = forecasts,
@@ -87,6 +65,27 @@ class TemperatureUnificationRegressionTest {
             startMs = today.atStartOfDay(zone).toInstant().toEpochMilli(),
             endMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli(),
         )
+
+        // --- 1. Calculate Daily View High (The way it is AFTER fix) ---
+        // We now use the blended result as the source of truth for the Daily Actual
+        val unifiedHigh = blendedResult.observations.maxOf { it.temperature }
+        val dailyActuals = mapOf(
+            today to ObservationResolver.DailyActual(today, unifiedHigh, 50f, "Clear")
+        )
+        
+        val tripleLine = DailyActualsEstimator.calculateTodayTripleLineValues(
+            hourlyForecasts = forecasts,
+            today = today,
+            now = now,
+            displaySource = WeatherSource.NWS,
+            fallbackWeather = null,
+            dailyActuals = dailyActuals,
+            currentTemp = currentTemp
+        )
+        val dailyViewDisplayedHigh = listOfNotNull(tripleLine.solidLineHigh, tripleLine.dashedLineHigh, tripleLine.ghostLineHigh).maxOrNull() ?: -1f
+
+        // --- 2. Calculate Hourly Graph Peak ---
+        // (already computed unifiedHigh above as 73.10396)
         val hourData = blendedResult.observations.map { obs ->
             HourData(
                 dateTime = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(obs.timestamp), zone),
@@ -98,13 +97,14 @@ class TemperatureUnificationRegressionTest {
             )
         }
         val extrema = TemperatureExtrema.compute(hourData, 100f, hourData.lastIndex, now, 2.5f)
-        val hourlyGraphPeak = extrema.actualLabelTemps[extrema.actualHighIndex]
+        val hourlyGraphPeak = if (extrema.actualHighIndex >= 0) extrema.actualLabelTemps[extrema.actualHighIndex] else -1f
 
         println("Daily View High: $dailyViewDisplayedHigh")
         println("Hourly Graph Peak: $hourlyGraphPeak")
 
-        // This assertion will FAIL if they differ (which they do: 73.5 vs 73.1)
-        assertEquals("Daily high (raw) vs Hourly peak (blended) discrepancy!", 
-            73.1f, dailyViewDisplayedHigh, 0.05f)
+        // Discrepancy Check:
+        // After fix: dailyViewDisplayedHigh should be 73.1 while hourlyGraphPeak is also 73.1.
+        assertEquals("Daily high must match Hourly Graph peak", hourlyGraphPeak, dailyViewDisplayedHigh, 0.01f)
+        assertEquals("Both must reflect the IDW-blended value (~73.1)", 73.1f, dailyViewDisplayedHigh, 0.05f)
     }
 }

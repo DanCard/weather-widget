@@ -24,8 +24,8 @@ class DailyForecastGraphRendererColumnCountTest {
         val day = DailyForecastGraphRenderer.DayData(
             date = LocalDate.of(2026, 3, 26),
             label = "Thu",
-            high = 70f,
-            low = 50f,
+            solidLineHigh = 70f,
+            solidLineLow = 50f,
             columnIndex = 7,
         )
         val draws = mutableListOf<DailyForecastGraphRenderer.BarDrawnDebug>()

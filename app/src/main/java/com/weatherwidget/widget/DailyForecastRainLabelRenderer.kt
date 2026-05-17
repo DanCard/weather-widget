@@ -60,7 +60,7 @@ internal object DailyForecastRainLabelRenderer {
 
         val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout)
         if (highBaseline == null) {
-            Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} high=${day.high}")
+            Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} solidLineHigh=${day.solidLineHigh}")
             return
         }
 

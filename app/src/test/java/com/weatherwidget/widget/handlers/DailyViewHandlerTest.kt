@@ -221,10 +221,10 @@ class DailyViewHandlerTest {
 
         val todayData = days.first { it.date == today }
         // Observed uses source-specific actuals; forecast stays API-specific.
-        assertEquals(74f, todayData.high!!, 0.1f)
-        assertEquals(65f, todayData.low!!, 0.1f)
-        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
-        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(74f, todayData.solidLineHigh!!, 0.1f)
+        assertEquals(65f, todayData.solidLineLow!!, 0.1f)
+        assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
+        assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
         assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
@@ -282,10 +282,10 @@ class DailyViewHandlerTest {
         assertEquals(82f, todayData.snapshotHigh!!, 0.1f)
         assertEquals(62f, todayData.snapshotLow!!, 0.1f)
         // Observed High should include currentTemp (75) even if dailyActuals is empty
-        assertEquals(75f, todayData.high!!, 0.1f)
-        assertEquals(75f, todayData.low!!, 0.1f)
-        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
-        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(75f, todayData.solidLineHigh!!, 0.1f)
+        assertEquals(75f, todayData.solidLineLow!!, 0.1f)
+        assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
+        assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
         assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
@@ -325,8 +325,8 @@ class DailyViewHandlerTest {
         val todayData = days.first { it.date == today }
         assertEquals(null, todayData.snapshotHigh)
         assertEquals(null, todayData.snapshotLow)
-        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
-        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
+        assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
         assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
     }
 
@@ -376,10 +376,10 @@ class DailyViewHandlerTest {
         )
 
         val todayData = days.first { it.date == today }
-        assertEquals(80f, todayData.high!!, 0.1f)
-        assertEquals(60f, todayData.low!!, 0.1f)
-        assertEquals(80f, todayData.forecastHigh!!, 0.1f)
-        assertEquals(60f, todayData.forecastLow!!, 0.1f)
+        assertEquals(80f, todayData.solidLineHigh!!, 0.1f)
+        assertEquals(60f, todayData.solidLineLow!!, 0.1f)
+        assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
+        assertEquals(60f, todayData.dashedLineLow!!, 0.1f)
         assertEquals(60f, todayData.bottomStackLow!!, 0.1f)
         assertTrue(todayData.isTodayForecastFallback)
     }
@@ -428,8 +428,11 @@ class DailyViewHandlerTest {
         )
 
         val todayData = days.first { it.date == today }
-        assertEquals(67f, todayData.low!!, 0.1f)
-        assertEquals(65f, todayData.forecastLow!!, 0.1f)
+        assertEquals(74f, todayData.solidLineHigh!!, 0.1f)
+        assertEquals(67f, todayData.solidLineLow!!, 0.1f)
+        assertEquals(80f, todayData.dashedLineHigh!!, 0.1f)
+        assertEquals(65f, todayData.dashedLineLow!!, 0.1f)
+
         assertEquals(65f, todayData.bottomStackLow!!, 0.1f)
     }
 
@@ -528,8 +531,8 @@ class DailyViewHandlerTest {
         )
 
         val yesterdayData = days.first { it.date == yesterday }
-        assertEquals(80.9f, yesterdayData.high!!, 0.1f)
-        assertEquals(55f, yesterdayData.low!!, 0.1f)
+        assertEquals(80.9f, yesterdayData.solidLineHigh!!, 0.1f)
+        assertEquals(55f, yesterdayData.solidLineLow!!, 0.1f)
     }
 
     @Test
@@ -1105,10 +1108,10 @@ class DailyViewHandlerTest {
             DailyForecastGraphRenderer.DayData(
                 date = yesterday,
                 label = "Sat",
-                high = 68f,
-                low = 54f,
-                forecastHigh = 68f,
-                forecastLow = 54f,
+                solidLineHigh = 68f,
+                solidLineLow = 54f,
+                dashedLineHigh = 68f,
+                dashedLineLow = 54f,
                 isPast = true,
                 isToday = false,
                 iconRes = 0,
@@ -1136,10 +1139,10 @@ class DailyViewHandlerTest {
             DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Sun",
-                high = 70f,
-                low = 55f,
-                forecastHigh = 70f,
-                forecastLow = 55f,
+                solidLineHigh = 70f,
+                solidLineLow = 55f,
+                dashedLineHigh = 70f,
+                dashedLineLow = 55f,
                 snapshotHigh = null,
                 snapshotLow = null,
                 isPast = false,
@@ -1169,10 +1172,10 @@ class DailyViewHandlerTest {
             DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Sun",
-                high = 70f,
-                low = 55f,
-                forecastHigh = 70f,
-                forecastLow = 55f,
+                solidLineHigh = 70f,
+                solidLineLow = 55f,
+                dashedLineHigh = 70f,
+                dashedLineLow = 55f,
                 snapshotHigh = 68f,
                 snapshotLow = 52f,
                 isPast = false,
