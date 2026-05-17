@@ -121,6 +121,31 @@ class WeatherObservationsShortcutTest {
         assertEquals("Thermometer icon should be VISIBLE when spanning today", View.VISIBLE, stationsIcon.visibility)
     }
 
+    @Test
+    fun `TemperatureViewHandler thermometer icon hidden when graph for yesterday ends at midnight today`() = runBlocking {
+        // Create a situation where the graph ends exactly at midnight today
+        val now = LocalDateTime.now()
+        val midnight = now.toLocalDate().atStartOfDay()
+        
+        // We need to render specifically so the last hour is midnight
+        // sampleHourlyForecasts(centerTime) centers the 25-hour window.
+        // If centerTime is midnight minus 12 hours, the window is [mid-20h, mid+4h].
+        // To have it end at midnight, we need to center at midnight minus 12 hours?
+        // Let's check sampleHourlyForecasts:
+        // val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(8)
+        // (0..24).map ... start.plusHours(index)
+        // If now is midnight-16h, start is midnight-24h. index 24 is midnight.
+        val yesterdayEndAtMidnight = midnight.minusHours(16)
+        
+        val views = renderTemperatureWidget(centerTime = yesterdayEndAtMidnight)
+        val applied = applyViews(views)
+
+        val stationsIcon = applied.findViewById<View>(R.id.weather_stations_icon)
+        if (stationsIcon != null) {
+            assertEquals("Thermometer icon should be GONE when graph ends at midnight", View.GONE, stationsIcon.visibility)
+        }
+    }
+
     private suspend fun renderTemperatureWidget(centerTime: LocalDateTime = LocalDateTime.now()): RemoteViews {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns graphOptions()

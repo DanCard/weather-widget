@@ -87,7 +87,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = head
 // 3. Center Icons & Navigation
 val today = LocalDateTime.now().toLocalDate()
 val isToday = state.graph.hourData.firstOrNull()?.dateTime?.toLocalDate() == today ||
-        state.graph.hourData.lastOrNull()?.dateTime?.toLocalDate() == today ||
+        state.graph.hourData.lastOrNull()?.dateTime?.minusHours(1)?.toLocalDate() == today ||
         (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
 
 positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip(), isToday)

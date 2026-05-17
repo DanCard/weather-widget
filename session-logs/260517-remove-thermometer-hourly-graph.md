@@ -12,13 +12,14 @@
 2.  "Instead of looking at centerTime , look at both graph start time and end time. If either is today than keep the icon"
 3.  "yes" (Approval of plan)
 4.  "write very detailed session log to session-logs/ dir , include all prompts"
+5.  "When viewing yesterday's data I see the thermometer icon. Lets subtract 1 from the end hour when considering if today."
 
 ---
 
 ## 2. Research & Discovery
 
 ### Files Identified
-- `app/src/main/res/layout/widget_weather.xml`: Defined the icon ID as `weather_stations_icon`.
+- `app/src/res/layout/widget_weather.xml`: Defined the icon ID as `weather_stations_icon`.
 - `app/src/main/java/com/weatherwidget/widget/handlers/TemperatureTouchTargets.kt`: Contained `positionCenterIcons` which manages visibility of top-row icons.
 - `app/src/main/java/com/weatherwidget/widget/handlers/TemperatureViewBinder.kt`: Orchestrates the binding of the temperature view and calls `positionCenterIcons`.
 - `app/src/main/java/com/weatherwidget/widget/handlers/TemperatureWidgetState.kt`: Defined the state structure including `graph.hourData`.
@@ -27,6 +28,7 @@
 - The thermometer icon is part of a group of center-aligned icons (Home, History, Stations).
 - `positionCenterIcons` handles both floating and inline layouts (for narrow widgets).
 - `TemperatureViewBinder.bind` has access to `centerTime` and `state.graph.hourData`, allowing for precise date comparison.
+- **Boundary Case**: If a graph for yesterday ends exactly at midnight (00:00) today, the previous logic identified it as "today". Subtracting 1 hour from the end hour correctly shifts this boundary to yesterday.
 
 ---
 
@@ -34,8 +36,9 @@
 
 The plan focused on calculating an `isToday` flag and propagating it to the visibility logic:
 1.  **Calculate `isToday`**: Check if `hourData.first().dateTime` or `hourData.last().dateTime` matches `LocalDate.now()`.
-2.  **Propagate**: Update `positionCenterIcons` signature to accept `isToday`.
-3.  **Enforce**: Add a final override in `positionCenterIcons` to hide the icon if `!isToday`.
+2.  **Refine Boundary**: Subtract 1 hour from `hourData.last().dateTime` before the check to handle midnight-aligned graphs.
+3.  **Propagate**: Update `positionCenterIcons` signature to accept `isToday`.
+4.  **Enforce**: Add a final override in `positionCenterIcons` to hide the icon if `!isToday`.
 
 ---
 
@@ -48,6 +51,7 @@ The plan focused on calculating an `isToday` flag and propagating it to the visi
 ### `app/src/main/java/com/weatherwidget/widget/handlers/TemperatureViewBinder.kt`
 - Added calculation for `isToday` using `LocalDateTime.now().toLocalDate()`.
 - Implemented the requirement to check both start and end of `hourData`.
+- **Refinement**: Subtracted 1 hour from the end time to handle the midnight boundary correctly.
 - Passed `isToday` to `positionCenterIcons`.
 
 ---
@@ -59,6 +63,7 @@ Ran `./gradlew testDebugUnitTest --tests com.weatherwidget.widget.handlers.Weath
 
 - **`TemperatureViewHandler thermometer icon hidden when viewing future day`**: PASSED (Confirmed icon is GONE when viewing day +2).
 - **`TemperatureViewHandler thermometer icon remains visible when graph spans midnight into today`**: PASSED (Confirmed icon is VISIBLE when graph starts yesterday but ends today).
+- **`TemperatureViewHandler thermometer icon hidden when graph for yesterday ends at midnight today`**: PASSED (Confirmed boundary refinement works).
 - Existing tests for today's view remained passing.
 
 ---
