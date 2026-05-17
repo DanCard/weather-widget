@@ -151,17 +151,20 @@ class ObservationRepository @Inject constructor(
         val localZone = ZoneId.systemDefault()
         val now = ZonedDateTime.now(localZone)
 
+        val dayMinus2 = now.minusDays(2).toLocalDate()
         val yesterday = now.minusDays(1).toLocalDate()
         val today = now.toLocalDate()
         val currentHour = now.hour
+        val dayMinus2Epoch = dayMinus2.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val yesterdayEpoch = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayEpoch = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val requiredDates = buildSet {
+            add(dayMinus2Epoch)
             add(yesterdayEpoch)
             if (currentHour >= 2) add(todayEpoch)
         }
         val existingDates =
-            dailyExtremeDao.getExtremesInRange(yesterdayEpoch, todayEpoch, latitude, longitude)
+            dailyExtremeDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
                 .filter { it.source == WeatherSource.NWS.id }
                 .map { it.date }
                 .toSet()
@@ -174,7 +177,7 @@ class ObservationRepository @Inject constructor(
             return
         }
 
-        Log.i(TAG, "Missing NWS daily_extremes for ${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }}, backfilling last 48 hours")
+        Log.i(TAG, "Missing NWS daily_extremes for ${missingDates.map { java.time.LocalDate.ofEpochDay(it / WidgetConstants.MS_IN_A_DAY) }}, backfilling last ${WeatherConfig.NWS_BACKFILL_DAYS * 24} hours")
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
         if (gridPoint == null) {
             Log.e(TAG, "Failed to get grid point for ($latitude, $longitude)")
@@ -207,7 +210,7 @@ class ObservationRepository @Inject constructor(
                         recomputeDailyExtremesForDay(latitude, longitude, day, emptyList())
                     }
                     val refreshedDates =
-                        dailyExtremeDao.getExtremesInRange(yesterdayEpoch, todayEpoch, latitude, longitude)
+                        dailyExtremeDao.getExtremesInRange(dayMinus2Epoch, todayEpoch, latitude, longitude)
                             .filter { it.source == WeatherSource.NWS.id }
                             .map { it.date }
                             .toSet()

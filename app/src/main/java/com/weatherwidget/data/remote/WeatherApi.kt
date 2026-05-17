@@ -37,13 +37,15 @@ class WeatherApi
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
             }
 
-            // Fetch history for the previous day to backfill actuals
-            val yesterday = java.time.LocalDate.now().minusDays(1).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
-            val historyHourly = try {
-                getHistory(lat, lon, yesterday)
-            } catch (e: Exception) {
-                Log.e(TAG, "History fetch failed for $yesterday: ${e.message}")
-                emptyList()
+            // Fetch history for the previous 3 days to backfill actuals
+            val historyHourly = mutableListOf<HourlyForecast>()
+            for (i in 1..3) {
+                val date = java.time.LocalDate.now().minusDays(i.toLong()).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE)
+                try {
+                    historyHourly.addAll(getHistory(lat, lon, date))
+                } catch (e: Exception) {
+                    Log.e(TAG, "History fetch failed for $date: ${e.message}")
+                }
             }
 
             val response: String =

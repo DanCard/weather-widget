@@ -64,19 +64,23 @@ suspend fun getForecast(
 
         val hourlyDeferred = async {
             try {
-                // Fetch yesterday's history
-                val yesterday = java.time.LocalDate.now().minusDays(1).toString()
-                val historyResponse = try {
-                    httpClient.get("$BASE_URL/history/hourly") {
-                        header("X-API-Key", apiKey)
-                        parameter("latitude", lat)
-                        parameter("longitude", lon)
-                        parameter("start_date", yesterday)
-                        parameter("end_date", yesterday)
-                        parameter("units", "imperial")
-                    }.body<String>()
-                } catch (e: Exception) {
-                    null
+                // Fetch last 3 days of history
+                val historyData = mutableListOf<kotlinx.serialization.json.JsonObject>()
+                for (i in 1..3) {
+                    val date = java.time.LocalDate.now().minusDays(i.toLong()).toString()
+                    try {
+                        val historyResponse = httpClient.get("$BASE_URL/history/hourly") {
+                            header("X-API-Key", apiKey)
+                            parameter("latitude", lat)
+                            parameter("longitude", lon)
+                            parameter("start_date", date)
+                            parameter("end_date", date)
+                            parameter("units", "imperial")
+                        }.body<String>()
+                        historyData.addAll(parseTimeseries(historyResponse, "hourly"))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "History fetch failed for $date: ${e.message}")
+                    }
                 }
 
                 val forecastResponse = httpClient.get("$BASE_URL/forecast/hourly") {
@@ -86,7 +90,6 @@ suspend fun getForecast(
                     parameter("units", "imperial")
                 }.body<String>()
 
-                val historyData = historyResponse?.let { parseTimeseries(it, "hourly") } ?: emptyList()
                 val forecastData = parseTimeseries(forecastResponse, "hourly")
                 
                 (historyData + forecastData)

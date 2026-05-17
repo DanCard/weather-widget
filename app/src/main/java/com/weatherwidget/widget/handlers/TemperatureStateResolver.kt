@@ -83,6 +83,13 @@ internal object TemperatureStateResolver {
         val zoom = stateManager.getZoomLevel(appWidgetId)
         val hourlyOffset = stateManager.getHourlyOffset(appWidgetId)
 
+        val hourlyRangeStr = if (hourlyForecasts.isEmpty()) "empty" else {
+            val start = java.time.Instant.ofEpochMilli(hourlyForecasts.minOf { it.dateTime }).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+            val end = java.time.Instant.ofEpochMilli(hourlyForecasts.maxOf { it.dateTime }).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+            "$start to $end"
+        }
+        Log.d(TAG, "resolve: widget=$appWidgetId centerTime=$centerTime offset=$hourlyOffset hourlyForecastsRange=$hourlyRangeStr count=${hourlyForecasts.size}")
+
         // 1. Source Warning
         val warning = ApiSourceWarningHelper.resolveBlockingSourceWarning(
             appLogDao = effectiveAppLogDao,

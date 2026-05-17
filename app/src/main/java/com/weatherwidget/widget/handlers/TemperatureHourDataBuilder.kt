@@ -228,6 +228,10 @@ internal fun buildHourDataResult(
         val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
         val forecast = forecastsByTime[hourMs]
 
+        if (forecast == null) {
+            Log.w(TAG, "buildHourDataList: Missing forecast for $currentHour (ms=$hourMs) source=${displaySource.id}")
+        }
+
         val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
         val showLabel =
             when (zoom) {

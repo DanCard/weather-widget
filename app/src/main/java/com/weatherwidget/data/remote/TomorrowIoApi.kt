@@ -35,7 +35,7 @@ class TomorrowIoApi
                 throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
             }
 
-            val startTime = OffsetDateTime.now().minusHours(24).truncatedTo(ChronoUnit.HOURS).toString()
+            val startTime = OffsetDateTime.now().minusHours(72).truncatedTo(ChronoUnit.HOURS).toString()
 
             val hourlyResponse: String = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")

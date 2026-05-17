@@ -47,7 +47,7 @@ class VisualCrossingApi
         ): ForecastResult {
             requireApiKey()
 
-            val startDate = LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE)
+            val startDate = LocalDate.now().minusDays(3).format(DateTimeFormatter.ISO_LOCAL_DATE)
             val endDate = LocalDate.now().plusDays(days.toLong() - 1).format(DateTimeFormatter.ISO_LOCAL_DATE)
 
             val response: String =
