@@ -45,16 +45,16 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             DailyForecastGraphRenderer.DayData(
                 date = today,
                 label = "Today",
-                high = 70f,
-                low = 50f,
+                solidLineHigh = 70f,
+                solidLineLow = 50f,
                 isToday = true,
                 columnIndex = 1 // Today is the second column
             ),
             DailyForecastGraphRenderer.DayData(
                 date = tomorrow,
                 label = "Sat",
-                high = 72f,
-                low = 52f,
+                solidLineHigh = 72f,
+                solidLineLow = 52f,
                 columnIndex = 2 // Tomorrow is the third column
             )
         )
@@ -117,7 +117,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             DailyForecastGraphRenderer.DayData(
                 date = today.plusDays(i.toLong()),
                 label = if (i == 0) "Today" else today.plusDays(i.toLong()).dayOfWeek.name.take(3),
-                high = 70f + i, low = 50f + i,
+                solidLineHigh = 70f + i, solidLineLow = 50f + i,
                 isToday = i == 0,
                 columnIndex = i,
             )
@@ -132,7 +132,7 @@ class DailyGraphTouchZoneAlignmentInstrumentedTest {
             DailyForecastGraphRenderer.DayData(
                 date = today.plusDays(i.toLong() - 2),
                 label = today.plusDays(i.toLong() - 2).dayOfWeek.name.take(3),
-                high = 68f + i, low = 48f + i,
+                solidLineHigh = 68f + i, solidLineLow = 48f + i,
                 columnIndex = i,
             )
         }
