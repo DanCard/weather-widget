@@ -340,7 +340,6 @@ class ObservationRepository @Inject constructor(
         // Today: compute live from station observations using IDW blending (matches Hourly Graph)
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val todayDateMillis = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayObs = observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude)
             .filter { it.stationId != "NWS_BLEND" }
 
@@ -364,13 +363,6 @@ class ObservationRepository @Inject constructor(
             }
         }
 
-        val persistedTodayExtremes = dailyExtremeDao.getExtremesInRange(
-            todayDateMillis,
-            todayDateMillis,
-            latitude,
-            longitude,
-        )
-
         val obsSpanSummary =
             if (todayObs.isEmpty()) {
                 "none"
@@ -382,12 +374,6 @@ class ObservationRepository @Inject constructor(
                 val lastLocal = java.time.Instant.ofEpochMilli(lastTs).atZone(zone).toLocalDateTime().format(formatter)
                 "$firstLocal..$lastLocal"
             }
-        val persistedSummary =
-            persistedTodayExtremes
-                .sortedBy { it.source }
-                .joinToString("; ")
-                { extreme -> "${extreme.source}[high=${extreme.highTemp},low=${extreme.lowTemp},updatedAt=${extreme.updatedAt}]" }
-                .ifEmpty { "none" }
         val liveSummary =
             todayBlendedActuals
                 .toSortedMap()
@@ -401,27 +387,16 @@ class ObservationRepository @Inject constructor(
         Log.d(
             TAG,
             "getDailyActualsWithLiveToday: date=$today lat=$latitude lon=$longitude " +
-                "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary] persistedToday=[$persistedSummary]",
+                "todayObsRows=${todayObs.size} span=$obsSpanSummary live=[$liveSummary]",
         )
-        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes, latitude, longitude)
-        val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
-            primary = todayBlendedActuals, // Prefer live blended results
-            secondary = persistedTodayActuals, // Fall back to persisted extremes only if live blending failed
-        )
-        val mergedTodaySummary =
-            mergedTodayActuals
-                .toSortedMap()
-                .entries
-                .joinToString("; ") { (source, actualsByDate) ->
-                    val actual = actualsByDate[today]
-                    "$source[mergedHigh=${actual?.highTemp},mergedLow=${actual?.lowTemp}]"
-                }
-                .ifEmpty { "none" }
-        Log.d(TAG, "getDailyActualsWithLiveToday: mergedToday=[$mergedTodaySummary]")
 
+        // Today: use live blender result directly. Do NOT merge with persisted daily_extremes —
+        // the persisted row is computed via IDW-of-per-station-max, which is a different algorithm
+        // and routinely produces a different (higher) value than the IDW-by-hour blender used by
+        // the Hourly Graph. Merging would re-introduce the 73.5° vs 73.1° discrepancy.
         return ObservationResolver.mergeDailyActualsBySource(
             primary = pastActuals,
-            secondary = mergedTodayActuals,
+            secondary = todayBlendedActuals,
         )
     }
 
