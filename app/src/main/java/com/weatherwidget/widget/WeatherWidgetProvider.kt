@@ -303,6 +303,8 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 repository.getDailyActualsWithLiveToday(
                     latestWeather.locationLat,
                     latestWeather.locationLon,
+                    hourlyForecasts = hourlyForecastsDeferred.await(),
+                    activeSourceList = activeSourceList
                 )
             } else {
                 emptyMap()

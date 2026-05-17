@@ -24,18 +24,21 @@ class ObservationResolverTest {
                     temperature = 53.0f,
                     fetchedAt = 1_000L,
                     timestamp = 900L,
+                    api = WeatherSource.NWS.id,
                 ),
                 currentTempObservation(
                     stationId = "NWS_BLEND",
                     temperature = 54.0f,
                     fetchedAt = 2_000L,
                     timestamp = 1_800L,
+                    api = WeatherSource.NWS.id,
                 ),
                 currentTempObservation(
                     stationId = "OPEN_METEO_MAIN",
                     temperature = 60.0f,
                     fetchedAt = 3_000L,
                     timestamp = 3_000L,
+                    api = WeatherSource.OPEN_METEO.id,
                 ),
             )
 
@@ -61,6 +64,7 @@ class ObservationResolverTest {
                     temperature = 51.0f,
                     fetchedAt = 7_000L,
                     timestamp = 5_000L,
+                    api = WeatherSource.NWS.id,
                 ),
             )
 
@@ -86,6 +90,7 @@ class ObservationResolverTest {
                     temperature = 60.0f,
                     fetchedAt = 3_000L,
                     timestamp = 3_000L,
+                    api = WeatherSource.OPEN_METEO.id,
                 ),
             )
 
@@ -102,8 +107,8 @@ class ObservationResolverTest {
     fun `resolveObservedCurrentTemp prefers NWS_BLEND over single station for NWS source`() {
         val nowMs = 1_000_000L
         val observations = listOf(
-            currentTempObservation(stationId = "AW020",     temperature = 81.0f, fetchedAt = nowMs, timestamp = nowMs),
-            currentTempObservation(stationId = "NWS_BLEND", temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "AW020",     temperature = 81.0f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.NWS.id),
+            currentTempObservation(stationId = "NWS_BLEND", temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.NWS.id),
         )
 
         val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
@@ -116,8 +121,8 @@ class ObservationResolverTest {
     fun `resolveObservedCurrentTemp falls back to single station when no NWS_BLEND present`() {
         val nowMs = 1_000_000L
         val observations = listOf(
-            currentTempObservation(stationId = "AW020", temperature = 81.0f, fetchedAt = nowMs, timestamp = nowMs),
-            currentTempObservation(stationId = "KNUQ",  temperature = 73.0f, fetchedAt = nowMs, timestamp = nowMs - 100),
+            currentTempObservation(stationId = "AW020", temperature = 81.0f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.NWS.id),
+            currentTempObservation(stationId = "KNUQ",  temperature = 73.0f, fetchedAt = nowMs, timestamp = nowMs - 100, api = WeatherSource.NWS.id),
         )
 
         val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.NWS)
@@ -130,8 +135,8 @@ class ObservationResolverTest {
     fun `resolveObservedCurrentTemp ignores NWS_BLEND when display source is Open-Meteo`() {
         val nowMs = 1_000_000L
         val observations = listOf(
-            currentTempObservation(stationId = "OPEN_METEO_MAIN", temperature = 74.0f, fetchedAt = nowMs, timestamp = nowMs),
-            currentTempObservation(stationId = "NWS_BLEND",       temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "OPEN_METEO_MAIN", temperature = 74.0f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.OPEN_METEO.id),
+            currentTempObservation(stationId = "NWS_BLEND",       temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.NWS.id),
         )
 
         val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.OPEN_METEO)
@@ -144,8 +149,8 @@ class ObservationResolverTest {
     fun `resolveObservedCurrentTemp correctly resolves Tomorrow-io observations`() {
         val nowMs = 1_000_000L
         val observations = listOf(
-            currentTempObservation(stationId = "TOMORROW_IO_MAIN", temperature = 72.5f, fetchedAt = nowMs, timestamp = nowMs),
-            currentTempObservation(stationId = "NWS_BLEND",        temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs),
+            currentTempObservation(stationId = "TOMORROW_IO_MAIN", temperature = 72.5f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.TOMORROW_IO.id),
+            currentTempObservation(stationId = "NWS_BLEND",        temperature = 77.8f, fetchedAt = nowMs, timestamp = nowMs, api = WeatherSource.NWS.id),
         )
 
         val resolved = ObservationResolver.resolveObservedCurrentTemp(observations, WeatherSource.TOMORROW_IO)
@@ -242,8 +247,8 @@ class ObservationResolverTest {
     fun `computeDailyExtremes groups NWS and Open-Meteo observations into separate entities`() {
         val dayMillis = 1_700_000_000_000L
         val obs = listOf(
-            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 70f, minTempLast24h = 40f, stationId = "KTEST"),
-            observation(timestamp = dayMillis + 1_800_000, temperature = 60f, maxTempLast24h = 68f, minTempLast24h = 42f, stationId = "OPEN_METEO_MAIN"),
+            observation(timestamp = dayMillis,             temperature = 55f, maxTempLast24h = 70f, minTempLast24h = 40f, stationId = "KTEST", api = WeatherSource.NWS.id),
+            observation(timestamp = dayMillis + 1_800_000, temperature = 60f, maxTempLast24h = 68f, minTempLast24h = 42f, stationId = "OPEN_METEO_MAIN", api = WeatherSource.OPEN_METEO.id),
         )
 
         val result = ObservationResolver.computeDailyExtremes(obs, 37.42, -122.08)
@@ -297,6 +302,7 @@ class ObservationResolverTest {
         minTempLast24h: Float?,
         stationId: String = "KTEST",
         distanceKm: Float = 0f,
+        api: String = WeatherSource.NWS.id,
     ): ObservationEntity = ObservationEntity(
         stationId = stationId,
         stationName = "Test Station",
@@ -308,7 +314,7 @@ class ObservationResolverTest {
         distanceKm = distanceKm,
         maxTempLast24h = maxTempLast24h,
         minTempLast24h = minTempLast24h,
-        api = "NWS",
+        api = api,
     )
 
     // --- multi-station IDW blending tests ---
@@ -397,6 +403,7 @@ class ObservationResolverTest {
         temperature: Float,
         fetchedAt: Long,
         timestamp: Long,
+        api: String = WeatherSource.NWS.id,
     ): ObservationEntity {
         return ObservationEntity(
             stationId = stationId,
@@ -407,7 +414,7 @@ class ObservationResolverTest {
             locationLat = 37.42,
             locationLon = -122.08,
             fetchedAt = fetchedAt,
-            api = "NWS",
+            api = api,
         )
     }
 }

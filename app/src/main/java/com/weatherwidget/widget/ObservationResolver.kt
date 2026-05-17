@@ -42,7 +42,7 @@ object ObservationResolver {
         displaySource: WeatherSource,
     ): ObservedCurrentTemperature? {
         val filtered = observations.filter {
-            inferSource(it.stationId) == displaySource.id || inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
+            it.api == displaySource.id || it.api == WeatherSource.GENERIC_GAP.id
         }
         val maxTs = filtered.maxOfOrNull { it.timestamp }
         val selected = if (maxTs != null) {
@@ -54,7 +54,7 @@ object ObservationResolver {
             ObservedCurrentTemperature(
                 temperature = obs.temperature,
                 observedAt = obs.timestamp,
-                source = inferSource(obs.stationId),
+                source = obs.api,
                 rowFetchedAt = obs.fetchedAt,
             )
         }
@@ -128,20 +128,6 @@ object ObservationResolver {
     }
 
     /**
-     * Infers the WeatherSource id from a stationId prefix.
-     * Mirrors TemperatureViewHandler.matchesObservationSource.
-     */
-    fun inferSource(stationId: String): String = when {
-        stationId.startsWith("VISUAL_CROSSING") -> WeatherSource.VISUAL_CROSSING.id
-        stationId.startsWith("OPEN_WEATHER_MAP") -> WeatherSource.OPEN_WEATHER_MAP.id
-        stationId.startsWith("OPEN_METEO") -> WeatherSource.OPEN_METEO.id
-        stationId.startsWith("WEATHER_API") -> WeatherSource.WEATHER_API.id
-        stationId.startsWith("SILURIAN") -> WeatherSource.SILURIAN.id
-        stationId.startsWith("TOMORROW_IO") -> WeatherSource.TOMORROW_IO.id
-        else -> WeatherSource.NWS.id
-    }
-
-    /**
      * Aggregates raw observations into daily highs and lows, grouped by inferred source.
      */
     fun aggregateObservationsToDailyBySource(
@@ -150,10 +136,11 @@ object ObservationResolver {
         val local = ZoneId.systemDefault()
 
         return observations
-            .groupBy { inferSource(it.stationId) }
-            .mapValues { (_, sourceObs) ->
-                sourceObs
+            .groupBy { it.api }
+            .mapValues { (source, obsList) ->
+                obsList
                     .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
+
                     .mapNotNull { (date, dayObs) ->
                         if (dayObs.isEmpty()) return@mapNotNull null
 
@@ -200,7 +187,7 @@ object ObservationResolver {
                     .atZone(local)
                     .toLocalDate()
                     .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                date to inferSource(obs.stationId)
+                date to obs.api
             }
             .mapNotNull { (key, dayObs) ->
                 if (dayObs.isEmpty()) return@mapNotNull null
@@ -244,7 +231,7 @@ object ObservationResolver {
                     .atZone(ZoneId.systemDefault())
                     .toLocalDate()
                     .toEpochDay() * WidgetConstants.MS_IN_A_DAY
-                date to inferSource(obs.stationId)
+                date to obs.api
             }
             .mapNotNull { (key, dayObs) ->
                 val (date, source) = key

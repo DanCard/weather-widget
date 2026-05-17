@@ -252,7 +252,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                                 latest.locationLon,
                                 todayStartMs,
                             )
-                            val sourceObs = mainObs.firstOrNull { com.weatherwidget.widget.ObservationResolver.inferSource(it.stationId) == currentSource.id }
+                            val sourceObs = mainObs.firstOrNull { it.api == currentSource.id }
                             if (sourceObs != null) {
                                 listOf(sourceObs)
                             } else {

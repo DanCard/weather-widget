@@ -665,9 +665,9 @@ class TemperatureViewHandlerActualsTest {
             it.copy(source = WeatherSource.OPEN_METEO.id)
         }
         val actuals = listOf(
-            observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
-            observationAt("2026-02-20T11:05", 71f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f),
-            observationAt("2026-02-20T10:25", 55f, stationId = "OPEN_METEO_1", distanceKm = 8f),
+            observationAt("2026-02-20T10:05", 70f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f, api = WeatherSource.OPEN_METEO.id),
+            observationAt("2026-02-20T11:05", 71f, stationId = "OPEN_METEO_MAIN", distanceKm = 1f, api = WeatherSource.OPEN_METEO.id),
+            observationAt("2026-02-20T10:25", 55f, stationId = "OPEN_METEO_1", distanceKm = 8f, api = WeatherSource.OPEN_METEO.id),
         )
 
         val hours = buildHourDataList(
@@ -709,11 +709,13 @@ class TemperatureViewHandlerActualsTest {
         temperature: Float,
         stationId: String,
         distanceKm: Float,
+        api: String = WeatherSource.NWS.id,
     ) = TestData.observation(
         stationId = stationId,
         timestamp = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
         temperature = temperature,
         distanceKm = distanceKm,
+        api = api,
     )
 
     private fun idlePeriodNwsActuals() = listOf(

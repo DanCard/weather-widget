@@ -447,8 +447,8 @@ object DailyViewHandler : WidgetViewHandler {
             val prepareStartMs = SystemClock.elapsedRealtime()
             val todayActual = dailyActuals[today]
             val sourceCurrentTemps = currentTemps.filter {
-                ObservationResolver.inferSource(it.stationId) == displaySource.id ||
-                    ObservationResolver.inferSource(it.stationId) == WeatherSource.GENERIC_GAP.id
+                it.api == displaySource.id ||
+                    it.api == WeatherSource.GENERIC_GAP.id
             }
             val currentTempSpan =
                 if (sourceCurrentTemps.isEmpty()) {
@@ -488,9 +488,9 @@ object DailyViewHandler : WidgetViewHandler {
             days.find { it.isToday }?.let { todayDay ->
                 appLogDao.log(
                     "TODAY_BAR_DEBUG",
-                    "widget=$appWidgetId mode=GRAPH obsHigh=${todayDay.high} obsLow=${todayDay.low} " +
-                        "fHigh=${todayDay.forecastHigh} fLow=${todayDay.forecastLow} " +
-                        "trueHigh=${todayDay.trueActualHigh} bStackLow=${todayDay.bottomStackLow} " +
+                    "widget=$appWidgetId mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
+                        "fHigh=${todayDay.dashedLineHigh} fLow=${todayDay.dashedLineLow} " +
+                        "trueHigh=${todayDay.ghostLineHigh} bStackLow=${todayDay.bottomStackLow} " +
                         "sHigh=${todayDay.snapshotHigh} sLow=${todayDay.snapshotLow} " +
                         "fallback=${todayDay.isTodayForecastFallback}",
                     "DEBUG"

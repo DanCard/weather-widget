@@ -61,10 +61,10 @@ class NwsHistoryIntegrationTest {
 
         val result = days.find { it.date == yesterday }
         assertNotNull("Yesterday should be present in the graph data", result)
-        assertEquals("Should use source-specific actual high for primary bar high", 78f, result!!.high)
-        assertEquals("Should use source-specific actual low for primary bar low", 52f, result.low)
-        assertEquals("Should still show the forecast high in the comparison overlay", 77f, result.forecastHigh)
-        assertEquals("Should still show the forecast low in the comparison overlay", 50f, result.forecastLow)
+        assertEquals("Should use source-specific actual high for primary bar high", 78f, result!!.solidLineHigh)
+        assertEquals("Should use source-specific actual low for primary bar low", 52f, result.solidLineLow)
+        assertEquals("Should still show the forecast high in the comparison overlay", 77f, result.dashedLineHigh)
+        assertEquals("Should still show the forecast low in the comparison overlay", 50f, result.dashedLineLow)
     }
 
     @Test
@@ -109,8 +109,8 @@ class NwsHistoryIntegrationTest {
 
         val result = days.find { it.date == yesterday }
         assertNotNull(result)
-        assertEquals("Comparison should pick the snapshot with BOTH high and low", 75f, result!!.forecastHigh)
-        assertEquals("Comparison should pick the snapshot with BOTH high and low", 50f, result.forecastLow)
+        assertEquals("Comparison should pick the snapshot with BOTH high and low", 75f, result!!.dashedLineHigh)
+        assertEquals("Comparison should pick the snapshot with BOTH high and low", 50f, result.dashedLineLow)
     }
 
     @Test
@@ -157,7 +157,7 @@ class NwsHistoryIntegrationTest {
 
         val result = days.find { it.date == today }
         assertNotNull(result)
-        assertEquals("Observed low should be 52", 52f, result!!.low)
-        assertEquals("Forecast low falls back to the selected provider's hourly forecast low", 62f, result.forecastLow)
+        assertEquals("Observed low should be 52", 52f, result!!.solidLineLow)
+        assertEquals("Forecast low falls back to the selected provider's hourly forecast low", 62f, result.dashedLineLow)
     }
 }

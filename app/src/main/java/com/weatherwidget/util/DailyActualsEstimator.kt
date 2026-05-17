@@ -20,13 +20,13 @@ object DailyActualsEstimator {
      * Values for rendering the "Today" triple-line representation.
      */
     data class TodayTripleLineValues(
-        val observedHigh: Float?,
-        val observedLow: Float?,
-        val forecastHigh: Float?,
-        val forecastLow: Float?,
+        val solidLineHigh: Float?,
+        val solidLineLow: Float?,
+        val dashedLineHigh: Float?,
+        val dashedLineLow: Float?,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
-        val trueActualHigh: Float? = null,
+        val ghostLineHigh: Float? = null,
     )
 
     /**
@@ -61,18 +61,18 @@ object DailyActualsEstimator {
 
         // 1. Observed so far (history/current)
         val actual = dailyActuals[today]
-        // observedHigh should represent the current 'mercury level' of the thermometer.
+        // solidLineHigh should represent the current 'mercury level' of the thermometer.
         // It follows currentTemp if available, otherwise falls back to the peak reached so far.
-        val observedHigh = currentTemp ?: actual?.highTemp
-        // observedLow should be the minimum of the stored daily low and the current reading.
-        val observedLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
-        val observedHighSource =
+        val solidLineHigh = currentTemp ?: actual?.highTemp
+        // solidLineLow should be the minimum of the stored daily low and the current reading.
+        val solidLineLow = listOfNotNull(actual?.lowTemp, currentTemp).minOrNull()
+        val solidLineHighSource =
             when {
                 currentTemp != null -> "current_temp"
                 actual?.highTemp != null -> "daily_actual_high"
                 else -> "none"
             }
-        val observedLowSource =
+        val solidLineLowSource =
             when {
                 actual?.lowTemp != null && currentTemp != null ->
                     if (actual.lowTemp <= currentTemp) "daily_actual_low" else "current_temp"
@@ -85,28 +85,28 @@ object DailyActualsEstimator {
         val hourlyMax = todayHourly.maxOfOrNull { it.temperature }
         val hourlyMin = todayHourly.minOfOrNull { it.temperature }
 
-        // Prefer the official daily high/low from the API for the forecast line.
-        val forecastHigh = fallbackWeather?.highTemp ?: hourlyMax
-        val forecastLow = listOfNotNull(
+        // Prefer the official daily high/low from the API for the dashed line.
+        val dashedLineHigh = fallbackWeather?.highTemp ?: hourlyMax
+        val dashedLineLow = listOfNotNull(
             fallbackWeather?.lowTemp,
             hourlyMin
         ).minOrNull()
 
         Log.d("DailyEstimator", "today: actual.high=${actual?.highTemp} actual.low=${actual?.lowTemp} currentTemp=$currentTemp " +
-            "observedHigh=$observedHigh observedHighSource=$observedHighSource " +
-            "observedLow=$observedLow observedLowSource=$observedLowSource " +
+            "solidLineHigh=$solidLineHigh solidLineHighSource=$solidLineHighSource " +
+            "solidLineLow=$solidLineLow solidLineLowSource=$solidLineLowSource " +
             "fallbackWeather.high=${fallbackWeather?.highTemp} fallbackWeather.low=${fallbackWeather?.lowTemp} " +
-            "hourlyMax=$hourlyMax hourlyMin=$hourlyMin forecastHigh=$forecastHigh forecastLow=$forecastLow " +
+            "hourlyMax=$hourlyMax hourlyMin=$hourlyMin dashedLineHigh=$dashedLineHigh dashedLineLow=$dashedLineLow " +
             "todayHourlyCount=${todayHourly.size} source=${displaySource.id}")
 
         return TodayTripleLineValues(
-            observedHigh = observedHigh,
-            observedLow = observedLow,
-            forecastHigh = forecastHigh,
-            forecastLow = forecastLow,
+            solidLineHigh = solidLineHigh,
+            solidLineLow = solidLineLow,
+            dashedLineHigh = dashedLineHigh,
+            dashedLineLow = dashedLineLow,
             snapshotHigh = snapshotHigh,
             snapshotLow = snapshotLow,
-            trueActualHigh = actual?.highTemp,
+            ghostLineHigh = actual?.highTemp,
         )
     }
 

@@ -67,16 +67,16 @@ class TripleLinePrecisionTest {
         
         // Forecast line (the blue line in the graph) should match the snapshot EXACTLY
         assertEquals("Forecast high should retain decimal precision from snapshot", 
-            72.4f, result.forecastHigh!!, 0.001f)
+            72.4f, result.dashedLineHigh!!, 0.001f)
         assertEquals("Forecast low should retain decimal precision from snapshot", 
-            50.6f, result.forecastLow!!, 0.001f)
+            50.6f, result.dashedLineLow!!, 0.001f)
 
         // Observed values come from source-specific actuals, not forecast-hourly peaks.
         assertEquals("Observed high should retain hourly precision", 
-            71.5f, result.observedHigh!!, 0.001f)
+            71.5f, result.solidLineHigh!!, 0.001f)
             
         // Observed low (so far at 12pm, the lowest is 70.0)
         assertEquals("Observed low should retain hourly precision", 
-            70.0f, result.observedLow!!, 0.001f)
+            70.0f, result.solidLineLow!!, 0.001f)
     }
 }

@@ -127,9 +127,17 @@ class WeatherWidgetWorker
 
                         // Fetch forecast snapshots for comparison
                         val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-                        // Fetch hourly forecasts for interpolation
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
                         val afterHourlyMs = SystemClock.elapsedRealtime()
+
+                        // Get active sources across all widgets to optimize daily actuals computation
+                        val appWidgetManager = AppWidgetManager.getInstance(context)
+                        val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+                        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                        val stateManager = WidgetStateManager(context)
+                        val activeSourceList = appWidgetIds.map { id ->
+                            stateManager.getCurrentDisplaySource(id).id
+                        }.distinct()
 
                         // Backfill NWS history if this is a new location or no history exists
                         // ONLY perform if not a UI-only refresh to avoid blocking during frequent updates
@@ -148,7 +156,13 @@ class WeatherWidgetWorker
 
                         appLogDao.log("SYNC_SUCCESS", "Weather=${weatherList.size}, Snapshots=${forecastSnapshots.size}, Hourly=${hourlyForecasts.size}", "INFO")
 
-                        val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = !uiOnlyRefresh)
+                        val dailyActuals = fetchDailyActuals(
+                            lat = location.first,
+                            lon = location.second,
+                            hourlyForecasts = hourlyForecasts,
+                            activeSourceList = activeSourceList,
+                            recompute = !uiOnlyRefresh
+                        )
                         val afterActualsMs = SystemClock.elapsedRealtime()
 
                         appLogDao.log("WIDGET_LIFECYCLE", "phase=worker_paint_start uiOnly=$uiOnlyRefresh thread=${Thread.currentThread().name}")
@@ -217,6 +231,8 @@ class WeatherWidgetWorker
         private suspend fun fetchDailyActuals(
             lat: Double,
             lon: Double,
+            hourlyForecasts: List<HourlyForecastEntity>,
+            activeSourceList: List<String>,
             recompute: Boolean = true,
         ): DailyActualsBySource {
             return try {
@@ -225,7 +241,7 @@ class WeatherWidgetWorker
                     val yesterday = LocalDate.now().minusDays(1)
                     weatherRepository.recomputeDailyExtremesFromStoredObservations(lat, lon, start, yesterday)
                 }
-                weatherRepository.getDailyActualsWithLiveToday(lat, lon)
+                weatherRepository.getDailyActualsWithLiveToday(lat, lon, hourlyForecasts, activeSourceList)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to fetch daily actuals", e)
                 emptyMap()
@@ -385,8 +401,23 @@ class WeatherWidgetWorker
                     networkAllowed = false,
                 ).getOrDefault(emptyList())
             val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
-            val dailyActuals = fetchDailyActuals(location.first, location.second, recompute = false)
             val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
+
+            val appWidgetManager = AppWidgetManager.getInstance(context)
+            val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+            val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+            val stateManager = WidgetStateManager(context)
+            val activeSourceList = appWidgetIds.map { id ->
+                stateManager.getCurrentDisplaySource(id).id
+            }.distinct()
+
+            val dailyActuals = fetchDailyActuals(
+                lat = location.first,
+                lon = location.second,
+                hourlyForecasts = hourlyForecasts,
+                activeSourceList = activeSourceList,
+                recompute = false
+            )
             val todayStartMs2 = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
             val currentTemps = weatherRepository.getMainObservationsWithComputedNwsBlend(
                 location.first,

@@ -432,8 +432,7 @@ internal fun matchesObservationSource(
     observation: ObservationEntity,
     displaySource: WeatherSource,
 ): Boolean {
-    val inferred = ObservationResolver.inferSource(observation.stationId)
-    return inferred == displaySource.id || inferred == WeatherSource.GENERIC_GAP.id
+    return observation.api == displaySource.id || observation.api == WeatherSource.GENERIC_GAP.id
 }
 
 private fun observationHour(observation: ObservationEntity): LocalDateTime =

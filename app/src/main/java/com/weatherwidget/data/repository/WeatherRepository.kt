@@ -5,6 +5,7 @@ import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
@@ -145,8 +146,12 @@ class WeatherRepository
             latitude: Double,
             longitude: Double,
         ): List<ObservationEntity> = forecastRepository.getObservationsInRange(startTimestamp, endTimestamp, latitude, longitude)
-        suspend fun getDailyActualsWithLiveToday(latitude: Double, longitude: Double) =
-            observationRepository.getDailyActualsWithLiveToday(latitude, longitude)
+        suspend fun getDailyActualsWithLiveToday(
+            latitude: Double,
+            longitude: Double,
+            hourlyForecasts: List<HourlyForecastEntity>,
+            activeSourceList: List<String>,
+        ) = observationRepository.getDailyActualsWithLiveToday(latitude, longitude, hourlyForecasts, activeSourceList)
         suspend fun getMainObservationsWithComputedNwsBlend(
             latitude: Double,
             longitude: Double,

@@ -6,10 +6,12 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.remote.NwsApi
+import com.weatherwidget.util.ObservationBlender
 import com.weatherwidget.util.SpatialInterpolator
 import com.weatherwidget.widget.DailyActualsBySource
 import com.weatherwidget.widget.ObservationResolver
@@ -323,6 +325,8 @@ class ObservationRepository @Inject constructor(
     suspend fun getDailyActualsWithLiveToday(
         latitude: Double,
         longitude: Double,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        activeSourceList: List<String>,
     ): DailyActualsBySource {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
@@ -333,13 +337,33 @@ class ObservationRepository @Inject constructor(
         val pastExtremes = dailyExtremeDao.getExtremesInRange(startDate, endDate, latitude, longitude)
         val pastActuals = ObservationResolver.extremesToDailyActualsBySource(pastExtremes, latitude, longitude)
 
-        // Today: compute live from raw station observations (exclude synthetic NWS_BLEND)
+        // Today: compute live from station observations using IDW blending (matches Hourly Graph)
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val todayDateMillis = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val todayObs = observationDao.getObservationsInRange(todayStartMs, tomorrowMs, latitude, longitude)
             .filter { it.stationId != "NWS_BLEND" }
-        val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs)
+
+        val todayBlendedActuals = mutableMapOf<String, Map<LocalDate, ObservationResolver.DailyActual>>()
+        activeSourceList.forEach { sourceId ->
+            val source = WeatherSource.fromId(sourceId)
+            val blendedResult = ObservationBlender.blendObservationSeries(
+                observations = todayObs.filter { it.api == sourceId },
+                hourlyForecasts = hourlyForecasts,
+                displaySource = source,
+                userLat = latitude,
+                userLon = longitude,
+                startMs = todayStartMs,
+                endMs = tomorrowMs,
+            )
+            val blendedObs = blendedResult.observations
+            if (blendedObs.isNotEmpty()) {
+                val high = blendedObs.maxOf { obs -> obs.temperature }
+                val low = blendedObs.minOf { obs -> obs.temperature }
+                todayBlendedActuals[sourceId] = mapOf(today to ObservationResolver.DailyActual(today, high, low, "blended"))
+            }
+        }
+
         val persistedTodayExtremes = dailyExtremeDao.getExtremesInRange(
             todayDateMillis,
             todayDateMillis,
@@ -365,13 +389,13 @@ class ObservationRepository @Inject constructor(
                 { extreme -> "${extreme.source}[high=${extreme.highTemp},low=${extreme.lowTemp},updatedAt=${extreme.updatedAt}]" }
                 .ifEmpty { "none" }
         val liveSummary =
-            todayActuals
+            todayBlendedActuals
                 .toSortedMap()
                 .entries
                 .joinToString("; ") { (source, actualsByDate) ->
                     val actual = actualsByDate[today]
-                    val stationCount = todayObs.count { ObservationResolver.inferSource(it.stationId) == source }
-                    "$source[liveHigh=${actual?.highTemp},liveLow=${actual?.lowTemp},rows=$stationCount]"
+                    val stationCount = todayObs.count { it.api == source }
+                    "$source[blendedHigh=${actual?.highTemp},blendedLow=${actual?.lowTemp},rows=$stationCount]"
                 }
                 .ifEmpty { "none" }
         Log.d(
@@ -382,7 +406,7 @@ class ObservationRepository @Inject constructor(
         val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes, latitude, longitude)
         val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
             primary = persistedTodayActuals,
-            secondary = todayActuals,
+            secondary = todayBlendedActuals,
         )
         val mergedTodaySummary =
             mergedTodayActuals

@@ -191,13 +191,13 @@ object DailyViewLogic {
                     currentTemp = resolvedCurrentTemp
                 )
 
-                val visibleHigh = listOfNotNull(tripleValues.observedHigh, tripleValues.forecastHigh, tripleValues.trueActualHigh).maxOrNull()
-                val visibleLow = tripleValues.observedLow ?: tripleValues.forecastLow
+                val visibleHigh = listOfNotNull(tripleValues.solidLineHigh, tripleValues.dashedLineHigh, tripleValues.ghostLineHigh).maxOrNull()
+                val visibleLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
                 highLabel = com.weatherwidget.util.TempUtils.formatTemp(visibleHigh)
                 lowLabel = com.weatherwidget.util.TempUtils.formatTemp(visibleLow)
                 isTodayForecastFallback =
-                    tripleValues.observedHigh == null &&
-                        tripleValues.observedLow == null &&
+                    tripleValues.solidLineHigh == null &&
+                        tripleValues.solidLineLow == null &&
                         (visibleHigh != null || visibleLow != null)
             } else {
                 // Future day fallback to climate normals if missing
@@ -416,17 +416,17 @@ object DailyViewLogic {
                     snapshotLow = snapshot?.lowTemp
                 )
 
-                finalHigh = tripleValues.observedHigh ?: tripleValues.forecastHigh
-                finalLow = tripleValues.observedLow ?: tripleValues.forecastLow
-                fHigh = tripleValues.forecastHigh
-                fLow = tripleValues.forecastLow
-                bottomStackLow = listOfNotNull(tripleValues.observedLow, tripleValues.forecastLow).minOrNull()
+                finalHigh = tripleValues.solidLineHigh ?: tripleValues.dashedLineHigh
+                finalLow = tripleValues.solidLineLow ?: tripleValues.dashedLineLow
+                fHigh = tripleValues.dashedLineHigh
+                fLow = tripleValues.dashedLineLow
+                bottomStackLow = listOfNotNull(tripleValues.solidLineLow, tripleValues.dashedLineLow).minOrNull()
                 snapshotHigh = tripleValues.snapshotHigh
                 snapshotLow = tripleValues.snapshotLow
-                trueActualHigh = tripleValues.trueActualHigh
+                trueActualHigh = tripleValues.ghostLineHigh
                 isTodayForecastFallback =
-                    tripleValues.observedHigh == null &&
-                        tripleValues.observedLow == null &&
+                    tripleValues.solidLineHigh == null &&
+                        tripleValues.solidLineLow == null &&
                         (finalHigh != null || finalLow != null)
             } else {
                 // Future day
@@ -561,8 +561,8 @@ object DailyViewLogic {
                 DailyForecastGraphRenderer.DayData(
                     date = date,
                     label = label,
-                    high = finalHigh,
-                    low = finalLow,
+                    solidLineHigh = finalHigh,
+                    solidLineLow = finalLow,
                     bottomStackLow = bottomStackLow ?: finalLow,
                     iconRes = iconRes,
                     isSunny = WeatherIconMapper.isSunny(iconRes),
@@ -572,28 +572,28 @@ object DailyViewLogic {
                     isPast = isPastDate,
                     isClimateNormal = isClimateOverlay,
                     isSourceGapFallback = weather?.source == WeatherSource.GENERIC_GAP.id,
-forecastHigh = fHigh,
-    forecastLow = fLow,
-    rainData = DailyForecastGraphRenderer.RainData(
-        rainSummary = rainSummary,
-        dailyPrecipProbability = precip,
-        nighttimePrecipProbability = weather?.nighttimePrecipProbability,
-        dailyPrecipAmountMm = weather?.precipAmountMm,
-        dailyRainLabelText = dailyRainLabelText,
-        nightRainLabelText = buildNightRainLabel(
-            date = date,
-            today = today,
-            isPastDate = isPastDate,
-            dailyRainLabelText = dailyRainLabelText,
-            nightPrecipProbability = weather?.nighttimePrecipProbability,
-        ),
-        hasRainForecast = hasRainForecast,
-    ),
-    columnIndex = days.size,
+                    dashedLineHigh = fHigh,
+                    dashedLineLow = fLow,
+                    rainData = DailyForecastGraphRenderer.RainData(
+                        rainSummary = rainSummary,
+                        dailyPrecipProbability = precip,
+                        nighttimePrecipProbability = weather?.nighttimePrecipProbability,
+                        dailyPrecipAmountMm = weather?.precipAmountMm,
+                        dailyRainLabelText = dailyRainLabelText,
+                        nightRainLabelText = buildNightRainLabel(
+                            date = date,
+                            today = today,
+                            isPastDate = isPastDate,
+                            dailyRainLabelText = dailyRainLabelText,
+                            nightPrecipProbability = weather?.nighttimePrecipProbability,
+                        ),
+                        hasRainForecast = hasRainForecast,
+                    ),
+                    columnIndex = days.size,
                     isTodayForecastFallback = isTodayForecastFallback,
                     snapshotHigh = snapshotHigh,
                     snapshotLow = snapshotLow,
-                    trueActualHigh = trueActualHigh,
+                    ghostLineHigh = trueActualHigh,
                     cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
                     nextSourceHigh = if (isPastDate) pastNextSourceHigh else nextSourceWeather?.highTemp,

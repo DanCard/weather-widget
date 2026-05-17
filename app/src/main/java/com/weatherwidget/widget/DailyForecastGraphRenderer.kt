@@ -161,8 +161,8 @@ object DailyForecastGraphRenderer {
     data class DayData(
         val date: LocalDate,
         val label: String,
-        val high: Float?,
-        val low: Float?,
+        val solidLineHigh: Float?,
+        val solidLineLow: Float?,
         val bottomStackLow: Float? = null,
         val iconRes: Int? = null,
         val isSunny: Boolean = false,
@@ -172,14 +172,14 @@ object DailyForecastGraphRenderer {
         val isPast: Boolean = false,
         val isClimateNormal: Boolean = false,
         val isSourceGapFallback: Boolean = false,
-        val forecastHigh: Float? = null,
-        val forecastLow: Float? = null,
+        val dashedLineHigh: Float? = null,
+        val dashedLineLow: Float? = null,
         val rainData: RainData = RainData(),
         val columnIndex: Int? = null,
         val isTodayForecastFallback: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
-        val trueActualHigh: Float? = null,
+        val ghostLineHigh: Float? = null,
         val cloudCoverRatioOverride: Float? = null,
         val daysFromToday: Int = 0,
         val nextSourceHigh: Float? = null,
@@ -192,8 +192,8 @@ object DailyForecastGraphRenderer {
     )
 
     private fun DayData.effectiveHigh(): Float? {
-        if (!isToday) return high
-        return listOfNotNull(high, forecastHigh, trueActualHigh).maxOrNull()
+        if (!isToday) return solidLineHigh
+        return listOfNotNull(solidLineHigh, dashedLineHigh, ghostLineHigh).maxOrNull()
     }
 
     data class LayoutInfo(
@@ -367,7 +367,7 @@ object DailyForecastGraphRenderer {
         job: Job? = null,
     ): LayoutInfo {
         job?.ensureActive()
-        val allTemps = days.flatMap { listOfNotNull(it.high, it.low, it.forecastHigh, it.forecastLow, it.snapshotHigh, it.snapshotLow, it.trueActualHigh, it.nextSourceHigh, it.nextSourceLow) }
+        val allTemps = days.flatMap { listOfNotNull(it.solidLineHigh, it.solidLineLow, it.dashedLineHigh, it.dashedLineLow, it.snapshotHigh, it.snapshotLow, it.ghostLineHigh, it.nextSourceHigh, it.nextSourceLow) }
         val minTemp = allTemps.minOrNull() ?: 0f
         val maxTemp = allTemps.maxOrNull() ?: 100f
         val tempRange = (maxTemp - minTemp).coerceAtLeast(1f)
@@ -671,8 +671,8 @@ object DailyForecastGraphRenderer {
         paints: PaintSet,
         onBarDrawn: ((BarDrawnDebug) -> Unit)?
     ) {
-        val highY = day.high?.let { layout.tempToY(it) }
-        val lowY = day.low?.let { layout.tempToY(it) }
+        val highY = day.solidLineHigh?.let { layout.tempToY(it) }
+        val lowY = day.solidLineLow?.let { layout.tempToY(it) }
 
         if (day.isToday) {
             drawTodayTripleBar(canvas, context, day, centerX, highY, lowY, layout, paints, onBarDrawn)
@@ -719,9 +719,9 @@ object DailyForecastGraphRenderer {
         // the next-source bar on the right.
         val suppressForecastOverlay =
             !day.isPast && day.nextSourceHigh != null && day.nextSourceLow != null
-        if (!day.isToday && !suppressForecastOverlay && day.forecastHigh != null && day.forecastLow != null) {
-            val fHighY = layout.tempToY(day.forecastHigh)
-            val fLowY = layout.tempToY(day.forecastLow)
+        if (!day.isToday && !suppressForecastOverlay && day.dashedLineHigh != null && day.dashedLineLow != null) {
+            val fHighY = layout.tempToY(day.dashedLineHigh)
+            val fLowY = layout.tempToY(day.dashedLineLow)
             val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
             
             val forecastX = centerX + if (day.isPast) -layout.forecastBarOffset else layout.forecastBarOffset
@@ -757,15 +757,15 @@ object DailyForecastGraphRenderer {
             drawNextSourceBar(canvas, day, centerX, layout, paints, onBarDrawn)
         }
 
-        if (day.high != null) {
-            val displayHigh = day.effectiveHigh() ?: day.high
+        if (day.solidLineHigh != null) {
+            val displayHigh = day.effectiveHigh() ?: day.solidLineHigh
             val highLabel = formatTempLabel(displayHigh, day.isToday || day.isPast)
             val y = highY ?: lowY?.let { it - layout.minBarHeightPx } ?: run {
                 Log.w(TAG, "drawDayBars: both highY and lowY null for high label date=${day.date}; falling back to graphTop")
                 layout.graphTop
             }
             val labelY = if (day.isToday) {
-                layout.tempToY(day.effectiveHigh() ?: day.high)
+                layout.tempToY(day.effectiveHigh() ?: day.solidLineHigh)
             } else y
             val tempPaint = when {
                 day.isToday -> paints.todayTempTextPaint
@@ -858,8 +858,8 @@ object DailyForecastGraphRenderer {
             }
         }
 
-        val fHigh = day.forecastHigh ?: day.high ?: return
-        val fLow = day.forecastLow ?: day.low ?: return
+        val fHigh = day.dashedLineHigh ?: day.solidLineHigh ?: return
+        val fLow = day.dashedLineLow ?: day.solidLineLow ?: return
         val fHighY = layout.tempToY(fHigh)
         val fLowY = layout.tempToY(fLow)
         val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
@@ -888,8 +888,8 @@ object DailyForecastGraphRenderer {
         canvas.drawLine(centerX, obsHighY, centerX, effectiveObsLowY, paints.todayObservedRedPaint)
         canvas.drawCircle(centerX, effectiveObsLowY + (layout.bulbRadius * BULB_VERTICAL_CENTER_FRACTION), layout.bulbRadius, paints.todayObservedRedBulbPaint)
         
-        day.trueActualHigh?.let { trueHigh ->
-            val obsHighTemp = day.high ?: 0f
+        day.ghostLineHigh?.let { trueHigh ->
+            val obsHighTemp = day.solidLineHigh ?: 0f
             if (trueHigh > obsHighTemp) {
                 val ghostHighY = layout.tempToY(trueHigh)
                 canvas.drawLine(centerX, ghostHighY, centerX, obsHighY, paints.todayObservedGhostPaint)
@@ -906,7 +906,7 @@ object DailyForecastGraphRenderer {
         day: DayData,
         layout: LayoutInfo,
     ): Float? {
-        day.high ?: return null
+        day.solidLineHigh ?: return null
         val absoluteHigh = day.effectiveHigh() ?: return null
         val labelY = layout.tempToY(absoluteHigh)
         return labelY - (HIGH_LABEL_OFFSET_DP * layout.bitmapScale.coerceAtMost(1f)).dp(layout.density)
@@ -924,7 +924,7 @@ object DailyForecastGraphRenderer {
 
     // ── Utility ───────────────────────────────────────────────────────────
 
-    internal fun resolveBottomStackLow(day: DayData): Float? = day.bottomStackLow ?: day.low
+    internal fun resolveBottomStackLow(day: DayData): Float? = day.bottomStackLow ?: day.solidLineLow
 
     private fun Float.dp(density: Float): Float = this * density
     private fun Int.dp(density: Float): Float = this.toFloat() * density

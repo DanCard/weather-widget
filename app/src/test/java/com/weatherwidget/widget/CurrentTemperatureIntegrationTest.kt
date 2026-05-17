@@ -175,8 +175,8 @@ class CurrentTemperatureIntegrationTest {
         val now = LocalDateTime.of(2026, 2, 25, 10, 0)
         val nowMs = toEpochMs(now)
 
-        insertObservation(stationId = "OPEN_METEO_MAIN", timestamp = nowMs, temperature = 68f, fetchedAt = nowMs)
-        insertObservation(stationId = "AW020", timestamp = nowMs - 10_000, temperature = 65f, fetchedAt = nowMs - 10_000)
+        insertObservation(stationId = "OPEN_METEO_MAIN", timestamp = nowMs, temperature = 68f, fetchedAt = nowMs, api = WeatherSource.OPEN_METEO.id)
+        insertObservation(stationId = "AW020", timestamp = nowMs - 10_000, temperature = 65f, fetchedAt = nowMs - 10_000, api = WeatherSource.NWS.id)
 
         val observations = db.observationDao().getRecentObservations(nowMs - 86_400_000)
 
@@ -462,31 +462,33 @@ class CurrentTemperatureIntegrationTest {
             )
         )
     }
-
-    private suspend fun insertObservation(
-        stationId: String,
-        timestamp: Long,
-        temperature: Float,
-        fetchedAt: Long,
-    ) {
-        db.observationDao().insertAll(
-            listOf(
-                ObservationEntity(
-                    stationId = stationId,
-                    stationName = "Test $stationId",
-                    timestamp = timestamp,
-                    temperature = temperature,
-                    condition = "Clear",
-                    locationLat = lat,
-                    locationLon = lon,
-                    distanceKm = 5f,
-                    stationType = "OFFICIAL",
-                    fetchedAt = fetchedAt,
-                    api = ObservationResolver.inferSource(stationId),
-                )
+private suspend fun insertObservation(
+    stationId: String,
+    timestamp: Long,
+    temperature: Float,
+    api: String = WeatherSource.NWS.id,
+    lat: Double = 37.422,
+    lon: Double = -122.084,
+    fetchedAt: Long = System.currentTimeMillis(),
+) {
+    db.observationDao().insertAll(
+        listOf(
+            ObservationEntity(
+                stationId = stationId,
+                stationName = "Test $stationId",
+                timestamp = timestamp,
+                temperature = temperature,
+                condition = "Clear",
+                locationLat = lat,
+                locationLon = lon,
+                distanceKm = 5f,
+                stationType = "OFFICIAL",
+                fetchedAt = fetchedAt,
+                api = api,
             )
         )
-    }
+    )
+}
 
     private fun toEpochMs(dateTime: LocalDateTime): Long {
         return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
