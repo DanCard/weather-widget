@@ -2,6 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
@@ -86,12 +87,15 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isDeltaVisible = head
 
 // 3. Center Icons & Navigation
 val today = LocalDateTime.now().toLocalDate()
-val isToday = state.graph.hourData.firstOrNull()?.dateTime?.toLocalDate() == today ||
-        state.graph.hourData.lastOrNull()?.dateTime?.minusHours(1)?.toLocalDate() == today ||
+val firstHour = state.graph.hourData.firstOrNull()?.dateTime
+val lastHour = state.graph.hourData.lastOrNull()?.dateTime
+val isToday = firstHour?.toLocalDate() == today ||
+        lastHour?.minusHours(1)?.toLocalDate() == today ||
         (state.graph.hourData.isEmpty() && centerTime.toLocalDate() == today)
 
-positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
+Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
 
+positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
         // 4. Setup Intent Listeners
         setupZoomTapZones(
             context, views, appWidgetId, state.zoom, state.hourlyOffset,

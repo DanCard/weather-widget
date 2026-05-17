@@ -228,54 +228,54 @@ internal fun buildHourDataResult(
         val hourMs = currentHour.atZone(zoneId).toInstant().toEpochMilli()
         val forecast = forecastsByTime[hourMs]
 
-        if (forecast != null) {
-            val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-            val showLabel =
-                when (zoom) {
-                    ZoomLevel.WIDE -> hourIndex % labelInterval == 0
-                    ZoomLevel.NARROW -> true
-                }
-
-            val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
-            val isNight = sunInfo.isNight
-            val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
-            val isSunBoundary = sunInfo.isSunBoundary
-            if (isTwilight || isSunBoundary) {
-                Log.d(TAG, "phase=${sunInfo.phase} boundary=$isSunBoundary hour=$currentHour condition=${forecast.condition} lat=$lat lon=$lon")
+        val isCurrentHour = currentHour == now.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val showLabel =
+            when (zoom) {
+                ZoomLevel.WIDE -> hourIndex % labelInterval == 0
+                ZoomLevel.NARROW -> true
             }
-            val iconRes = WeatherIconMapper.getIconResource(
-                condition = forecast.condition,
+
+        val sunInfo = SunPositionUtils.getSunInfo(currentHour, lat, lon)
+        val isNight = sunInfo.isNight
+        val isTwilight = sunInfo.phase == SunPhase.TWILIGHT
+        val isSunBoundary = sunInfo.isSunBoundary
+        if (isTwilight || isSunBoundary) {
+            Log.d(TAG, "phase=${sunInfo.phase} boundary=$isSunBoundary hour=$currentHour condition=${forecast?.condition ?: "null"} lat=$lat lon=$lon")
+        }
+        val iconRes = forecast?.let {
+            WeatherIconMapper.getIconResource(
+                condition = it.condition,
                 isNight = isNight,
-                cloudCover = forecast.cloudCover,
-                precipProbability = forecast.precipProbability,
+                cloudCover = it.cloudCover,
+                precipProbability = it.precipProbability,
                 isTwilight = isTwilight,
                 isSunBoundary = isSunBoundary,
             )
-            val isSunny = WeatherIconMapper.isSunny(iconRes)
-            val isRainy = WeatherIconMapper.isPrecipitation(iconRes)
-            val isMixed = WeatherIconMapper.isMixed(iconRes)
-
-            hours.add(
-                HourData(
-                    dateTime = currentHour,
-                    temperature = smoothedForecasts?.get(hourMs) ?: forecast.temperature,
-                    label = formatHourLabel(currentHour),
-                    iconRes = iconRes,
-                    isNight = isNight,
-                    isTwilight = isTwilight,
-                    isSunBoundary = isSunBoundary,
-                    isSunny = isSunny,
-                    isRainy = isRainy,
-                    isMixed = isMixed,
-                    isCurrentHour = isCurrentHour,
-                    showLabel = showLabel,
-                    isActual = false,
-                    actualTemperature = null,
-                    isObservedActual = false,
-                ),
-            )
-            hourIndex++
         }
+        val isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
+        val isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
+        val isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
+
+        hours.add(
+            HourData(
+                dateTime = currentHour,
+                temperature = smoothedForecasts?.get(hourMs) ?: forecast?.temperature ?: 0f,
+                label = formatHourLabel(currentHour),
+                iconRes = iconRes,
+                isNight = isNight,
+                isTwilight = isTwilight,
+                isSunBoundary = isSunBoundary,
+                isSunny = isSunny,
+                isRainy = isRainy,
+                isMixed = isMixed,
+                isCurrentHour = isCurrentHour,
+                showLabel = showLabel,
+                isActual = false,
+                actualTemperature = null,
+                isObservedActual = false,
+            ),
+        )
+        hourIndex++
         currentHour = currentHour.plusHours(1)
     }
 
@@ -312,8 +312,24 @@ internal fun buildHourDataResult(
         if (isTopHour) {
             val topHourData = hours.find { it.dateTime == time }
             if (topHourData != null) {
+                val iconRes = topHourData.iconRes ?: actualObservation?.condition?.let { cond ->
+                    if (cond != "observed" && cond != "interpolated" && cond != "forecast_extrapolated") {
+                        WeatherIconMapper.getIconResource(
+                            condition = cond,
+                            isNight = topHourData.isNight,
+                            cloudCover = null,
+                            precipProbability = null,
+                            isTwilight = topHourData.isTwilight,
+                            isSunBoundary = topHourData.isSunBoundary,
+                        )
+                    } else null
+                }
                 finalHours.add(
                     topHourData.copy(
+                        iconRes = iconRes,
+                        isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: topHourData.isSunny,
+                        isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: topHourData.isRainy,
+                        isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: topHourData.isMixed,
                         isActual = isPast && actualTemp != null,
                         actualTemperature = actualTemp,
                         isObservedActual = isPast && isRawObservedActual,
@@ -334,17 +350,31 @@ internal fun buildHourDataResult(
             }
 
             val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)
+            val iconRes = actualObservation?.condition?.let { cond ->
+                if (cond != "observed" && cond != "interpolated" && cond != "forecast_extrapolated") {
+                    WeatherIconMapper.getIconResource(
+                        condition = cond,
+                        isNight = subSunInfo.isNight,
+                        cloudCover = null, // Observations usually don't have this parsed separately here
+                        precipProbability = null,
+                        isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,
+                        isSunBoundary = subSunInfo.isSunBoundary,
+                    )
+                } else null
+            }
+
             finalHours.add(
                 HourData(
                     dateTime = time,
                     temperature = forecastTemp,
                     label = formatHourLabel(time),
-                    iconRes = null,
+                    iconRes = iconRes,
                     isNight = subSunInfo.isNight,
                     isTwilight = subSunInfo.phase == SunPhase.TWILIGHT,
                     isSunBoundary = subSunInfo.isSunBoundary,
-                    isRainy = false,
-                    isMixed = false,
+                    isSunny = iconRes?.let { WeatherIconMapper.isSunny(it) } ?: false,
+                    isRainy = iconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false,
+                    isMixed = iconRes?.let { WeatherIconMapper.isMixed(it) } ?: false,
                     isCurrentHour = false,
                     showLabel = false,
                     isActual = true,
