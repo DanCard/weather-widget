@@ -81,10 +81,10 @@ class WidgetStateManager
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
-            const val MIN_HOURLY_OFFSET = -24 // Allow scrolling to see history (12h default + 12h scroll)
+            const val MIN_HOURLY_OFFSET = -720 // 30 days lookback
             // Keep this aligned with daily navigation horizon so day-click to precip can
-            // preserve the intended target day (up to +14 days).
-            const val MAX_HOURLY_OFFSET = 336 // 14 days into the future
+            // preserve the intended target day (up to +30 days).
+            const val MAX_HOURLY_OFFSET = 720 // 30 days into the future
             const val HOURLY_NAV_JUMP = 6 // Navigate in 6-hour chunks (default, use getNavJump for zoom-aware)
 
             @Deprecated("Use WeatherSource.NWS.displayName instead", ReplaceWith("WeatherSource.NWS.displayName"))

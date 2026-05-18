@@ -598,11 +598,24 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val endMs = targetDate.atTime(23, 59).atZone(zoneId).toInstant().toEpochMilli()
         val hourlyForDay = database.hourlyForecastDao().getHourlyForecasts(startMs, endMs, effectiveLat, effectiveLon)
-        if (hourlyForDay.isEmpty()) return false
+        
+        val hasForecasts = if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+            hourlyForDay.isNotEmpty()
+        } else {
+            val displaySource = stateManager(context).getCurrentDisplaySource(appWidgetId).id
+            hourlyForDay.any { it.source == displaySource || it.source == WeatherSource.GENERIC_GAP.id }
+        }
 
-        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return true
-        val displaySource = stateManager(context).getCurrentDisplaySource(appWidgetId).id
-        return hourlyForDay.any { it.source == displaySource || it.source == WeatherSource.GENERIC_GAP.id }
+        if (hasForecasts) return true
+
+        // If no hourly forecasts exist, check for observations if the date is in the past.
+        // The hourly graph can render a curve from observations alone.
+        if (targetDate.isBefore(LocalDate.now())) {
+            val observations = database.observationDao().getObservationsInRange(startMs, endMs, effectiveLat, effectiveLon)
+            return observations.isNotEmpty()
+        }
+
+        return false
     }
 
     private fun handleRefreshAction(

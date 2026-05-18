@@ -197,6 +197,31 @@ class DayClickHelperTest {
         assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
     }
 
+    @Test
+    fun `offset is negative for past days`() {
+        val now = LocalDateTime.of(2024, 6, 15, 14, 0)
+        val yesterday = LocalDate.of(2024, 6, 14)
+        // Yesterday noon is -26 hours from today 2pm.
+        assertEquals(-26, DayClickHelper.calculatePrecipitationOffset(now, yesterday))
+        
+        val threeDaysAgo = LocalDate.of(2024, 6, 12)
+        // 12th noon is -74 hours from 15th 2pm.
+        assertEquals(-74, DayClickHelper.calculatePrecipitationOffset(now, threeDaysAgo))
+    }
+
+    @Test
+    fun `offset keeps past day wide view aligned to midnight boundaries`() {
+        val now = LocalDateTime.of(2024, 6, 15, 14, 0)
+        val targetDay = LocalDate.of(2024, 6, 12)
+
+        val offset = DayClickHelper.calculatePrecipitationOffset(now, targetDay)
+        val alignedCenter = WeatherTimeUtils.alignToNearestHourHalfUp(now.plusHours(offset.toLong()))
+
+        // A wide-view hourly graph (±12h) centered on noon should cover the full calendar day.
+        assertEquals(targetDay.atStartOfDay(), alignedCenter.minusHours(12))
+        assertEquals(targetDay.plusDays(1).atStartOfDay(), alignedCenter.plusHours(12))
+    }
+
     // ── End-to-end: daily precip + hourly data drive click decision ──
     // These tests reproduce the real-world bug: widget shows "16%" daily precip
     // but no individual hour exceeds the 40% RainAnalyzer threshold.

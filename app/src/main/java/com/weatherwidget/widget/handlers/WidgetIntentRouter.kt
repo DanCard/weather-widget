@@ -619,13 +619,14 @@ suspend fun handleSetView(
             }
             if (targetOffset != Int.MIN_VALUE) {
                 stateManager.setHourlyOffset(appWidgetId, targetOffset)
-                Log.d(TAG, "handleSetView: set hourlyOffset=$targetOffset")
+                Log.d(TAG, "handleSetView: set hourlyOffset=$targetOffset (was $previousOffset)")
             }
         }
+        val finalOffset = stateManager.getHourlyOffset(appWidgetId)
         Log.d(
             TAG,
-            "handleSetView: start mode=$targetMode offset=$targetOffset " +
-                "storedOffset=${stateManager.getHourlyOffset(appWidgetId)} widget=$appWidgetId",
+            "handleSetView: FINISHED mode=$targetMode targetOffset=$targetOffset " +
+                "finalStoredOffset=$finalOffset widget=$appWidgetId",
         )
 
         val ctx = resolveRefreshContext(context, "set_view")
