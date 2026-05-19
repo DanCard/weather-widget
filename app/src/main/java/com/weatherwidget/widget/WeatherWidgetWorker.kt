@@ -308,7 +308,14 @@ class WeatherWidgetWorker
             targetSource: WeatherSource? = null,
         ): Result {
             return try {
+                appLogDao.log(
+                    "CURR_FETCH_WORK_START",
+                    "id=$id reason=$reason force=$force opportunistic=$isOpportunisticContext " +
+                        "charging=$isPlugged interactive=$isScreenInteractive attempt=$runAttemptCount",
+                    "INFO",
+                )
                 val isManual = reason.contains("manual") || reason.contains("force") || force
+                var resultMessage = "success"
                 if (
                     !CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = isPlugged,
@@ -322,6 +329,7 @@ class WeatherWidgetWorker
                         "reason=$reason policy_blocked charging=$isPlugged interactive=$isScreenInteractive opportunistic=$isOpportunisticContext",
                         "INFO",
                     )
+                    resultMessage = "skipped_policy_blocked"
                 } else {
                     val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
                     val refreshResult =
@@ -337,15 +345,22 @@ class WeatherWidgetWorker
                     refreshResult.fold(
                         onSuccess = { _ ->
                             // Done log is handled by repository now
+                            resultMessage = "success"
                         },
                         onFailure = { e ->
                             appLogDao.log("CURR_FETCH_FAIL", "reason=$reason ${e.message}", "ERROR")
+                            resultMessage = "fetch_failure:${e.message}"
                         },
                     )
                 }
 
                 refreshWidgetsFromCache()
-                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
+                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
+                appLogDao.log(
+                    "CURR_FETCH_WORK_RESULT",
+                    "id=$id reason=$reason result=$resultMessage",
+                    "INFO",
+                )
                 Result.success()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 val reasonMsg = "CurrentTemp fetch cancelled. reason=$reason stopReason=$stopReason msg=${e.message}"
@@ -353,7 +368,7 @@ class WeatherWidgetWorker
                 throw e
             } catch (e: Exception) {
                 appLogDao.log("CURR_FETCH_EXCEPTION", "reason=$reason ${e.javaClass.simpleName}: ${e.message}", "ERROR")
-                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive)
+                manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
                 Result.retry()
             }
         }
@@ -431,9 +446,15 @@ class WeatherWidgetWorker
         private suspend fun manageCurrentTempLoopAfterRun(
             isPlugged: Boolean,
             isScreenInteractive: Boolean,
+            ignoreRunningWorkId: java.util.UUID? = null,
         ) {
             if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isPlugged, isScreenInteractive)) {
-                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                    context = context,
+                    workManager = WorkManager.getInstance(context),
+                    nowMs = System.currentTimeMillis(),
+                    ignoreRunningWorkId = ignoreRunningWorkId,
+                )
             } else {
                 appLogDao.log(
                     "CURR_FETCH_LOOP_STOP",
