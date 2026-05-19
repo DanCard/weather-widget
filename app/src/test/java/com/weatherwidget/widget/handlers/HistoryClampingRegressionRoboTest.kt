@@ -7,6 +7,7 @@ import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -32,6 +33,14 @@ class HistoryClampingRegressionRoboTest {
         WeatherDatabase.setIsTesting(true)
         stateManager = WidgetStateManager(context)
         stateManager.clearWidgetState(testWidgetId)
+    }
+
+    @After
+    fun resetGlobalTestingFlag() {
+        // WeatherDatabase.isTesting is a JVM-wide static. Restore to false so it
+        // does not leak into later tests that rely on the default (e.g. those
+        // whose prefs paths branch on SharedPreferencesUtil's _test_default suffix).
+        WeatherDatabase.setIsTesting(false)
     }
 
     @Test

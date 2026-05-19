@@ -36,6 +36,10 @@ class ScreenOnReceiverTest {
     @org.junit.After
     fun tearDown() {
         unmockkAll()
+        // WeatherDatabase.isTesting (flipped on by setDatabaseForTesting in @Before)
+        // is a JVM-wide static. Restore to false so it does not leak into later
+        // tests that rely on the default.
+        WeatherDatabase.setIsTesting(false)
     }
 
     @Before

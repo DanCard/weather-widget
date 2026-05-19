@@ -3,6 +3,7 @@ package com.weatherwidget.widget
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.util.SharedPreferencesUtil
 import org.junit.Assert.*
 import org.junit.After
 import org.junit.Before
@@ -388,9 +389,9 @@ class WidgetStateManagerTest {
     fun `get current temp delta state migrates matching legacy widget scoped state`() {
         val w = 9
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val migrationPrefs = context.getSharedPreferences("delta_migration_prefs", Context.MODE_PRIVATE)
-        migrationPrefs.edit().clear().apply()
         WidgetStateManager.setPrefsNameOverrideForTesting("delta_migration_prefs")
+        val migrationPrefs = SharedPreferencesUtil.getPrefs(context, "delta_migration_prefs")
+        migrationPrefs.edit().clear().apply()
         val migrationManager = WidgetStateManager(context)
 
         migrationPrefs.edit()

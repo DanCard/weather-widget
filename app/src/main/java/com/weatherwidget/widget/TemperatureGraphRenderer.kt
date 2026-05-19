@@ -30,6 +30,95 @@ object TemperatureGraphRenderer {
     private const val X_COORDINATE_MATCH_TOLERANCE = 0.5f
     private const val TRANSITION_CLIP_EXTRA_DP = 1f
     private const val MIN_INTERPOLATION_SPAN = 0.0001f
+    private const val CURVE_AVOIDANCE_MARGIN_PX = 0.5f
+    private const val CURVE_AVOIDANCE_CLEAR_PX = 1.5f
+
+    private val CURVE_AVOIDANCE_ROLES: Set<TemperatureRole> = setOf(
+        TemperatureRole.ACTUAL_END,
+        TemperatureRole.ACTUAL_HIGH,
+        TemperatureRole.ACTUAL_LOW,
+        TemperatureRole.HIGH,
+        TemperatureRole.LOW,
+        TemperatureRole.LOCAL,
+    )
+
+    private const val VALUE_NEIGHBOR_WINDOW = 5
+    private const val SIGNIFICANT_MAX_GAP = 1.0f
+
+    private fun prefersAbovePlacement(candidate: TempLabelCandidate): Boolean {
+        val temps = candidate.labelTemps
+        val i = candidate.index
+        if (i !in temps.indices) return true
+        val v = temps[i]
+        val lo = kotlin.math.max(0, i - VALUE_NEIGHBOR_WINDOW)
+        val hi = min(temps.lastIndex, i + VALUE_NEIGHBOR_WINDOW)
+        var nearMax = v
+        for (k in lo..hi) {
+            val t = temps[k]
+            if (t > nearMax) nearMax = t
+        }
+        return (nearMax - v) < SIGNIFICANT_MAX_GAP
+    }
+
+    private data class CurveIntrusion(val minY: Float, val maxY: Float) {
+        val isEmpty: Boolean get() = minY.isNaN()
+        companion object {
+            val NONE = CurveIntrusion(Float.NaN, Float.NaN)
+            fun merge(a: CurveIntrusion, b: CurveIntrusion): CurveIntrusion = when {
+                a.isEmpty -> b
+                b.isEmpty -> a
+                else -> CurveIntrusion(min(a.minY, b.minY), kotlin.math.max(a.maxY, b.maxY))
+            }
+        }
+    }
+
+    private fun curveIntrusionInLabel(
+        points: List<Pair<Float, Float>>,
+        bounds: RectF,
+    ): CurveIntrusion {
+        if (points.size < 2) return CurveIntrusion.NONE
+        val left = bounds.left - CURVE_AVOIDANCE_MARGIN_PX
+        val right = bounds.right + CURVE_AVOIDANCE_MARGIN_PX
+        val top = bounds.top - CURVE_AVOIDANCE_MARGIN_PX
+        val bottom = bounds.bottom + CURVE_AVOIDANCE_MARGIN_PX
+        var minY = Float.NaN
+        var maxY = Float.NaN
+        for (i in 1 until points.size) {
+            val a = points[i - 1]
+            val b = points[i]
+            val segMinX = min(a.first, b.first)
+            val segMaxX = kotlin.math.max(a.first, b.first)
+            if (segMaxX < left || segMinX > right) continue
+            val span = (b.first - a.first)
+            val ySegMin: Float
+            val ySegMax: Float
+            if (abs(span) < MIN_INTERPOLATION_SPAN) {
+                ySegMin = a.second
+                ySegMax = a.second
+            } else {
+                val xL = kotlin.math.max(segMinX, left)
+                val xR = min(segMaxX, right)
+                val tL = ((xL - a.first) / span).coerceIn(0f, 1f)
+                val tR = ((xR - a.first) / span).coerceIn(0f, 1f)
+                val yL = a.second + (b.second - a.second) * tL
+                val yR = a.second + (b.second - a.second) * tR
+                ySegMin = min(yL, yR)
+                ySegMax = kotlin.math.max(yL, yR)
+            }
+            if (ySegMax < top || ySegMin > bottom) continue
+            val clipMin = kotlin.math.max(ySegMin, top)
+            val clipMax = min(ySegMax, bottom)
+            if (minY.isNaN() || clipMin < minY) minY = clipMin
+            if (maxY.isNaN() || clipMax > maxY) maxY = clipMax
+        }
+        return if (minY.isNaN()) CurveIntrusion.NONE else CurveIntrusion(minY, maxY)
+    }
+
+    private fun combinedCurveIntrusion(ctx: RenderContext, bounds: RectF): CurveIntrusion {
+        val a = curveIntrusionInLabel(ctx.actualVisiblePoints, bounds)
+        val f = curveIntrusionInLabel(ctx.forecastPoints, bounds)
+        return CurveIntrusion.merge(a, f)
+    }
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -312,14 +401,33 @@ object TemperatureGraphRenderer {
             val placement = TemperatureLabelResolver.resolveCandidatePlacement(ctx, hours, candidate)
             if (placement == null) continue
 
-            val directions = if (placement.isValley) listOf(false, true) else listOf(true, false)
+            val valueBasedRoles = candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL
+            val preferAbove = if (valueBasedRoles) prefersAbovePlacement(candidate) else !placement.isValley
+            val directions = if (preferAbove) listOf(true, false) else listOf(false, true)
             var placed = false
             var forceBaselineY = Float.NaN
             var forceBounds: RectF? = null
             var forceX = placement.clampedX
             var forceDrawBelow = false
             var forceStep = 0
-            
+
+            if (candidate.role in CURVE_AVOIDANCE_ROLES) {
+                placed = tryExactFitCurveAvoidance(
+                    ctx = ctx,
+                    candidate = candidate,
+                    placement = placement,
+                    directions = directions,
+                    gapDp = gapDp,
+                    labelAscent = labelAscent,
+                    labelDescent = labelDescent,
+                    drawnLabelMetas = drawnLabelMetas,
+                    drawnIconBounds = drawnIconBounds,
+                    idx = idx,
+                    temps = temps,
+                )
+                if (placed) continue
+            }
+
             outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
                 for (placeAbove in directions) {
                     val currentGapPx = if (placeAbove) dpToPx(ctx.context, gapDp.aboveDp) else dpToPx(ctx.context, gapDp.belowDp)
@@ -344,12 +452,16 @@ object TemperatureGraphRenderer {
                     val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
                     val labelOverlap = if (overlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnBoundsList) else 0f
                     val iconOverlap = if (overlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnIconBounds) else 0f
-                    
+
                     val currentIconRatio = if (!placeAbove && placement.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
-                    
+
                     val allowMinorLabelOverlap = overlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
                     val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
-                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap)
+
+                    val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
+                    val overlapsCurve = curveAvoidanceEligible && !combinedCurveIntrusion(ctx, bounds).isEmpty
+
+                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
 
                     if (hasCollision && !placeAbove && placement.isValley && step == 0) {
                         val cascadeResult = tryValleyBelowCascade(
@@ -366,7 +478,7 @@ object TemperatureGraphRenderer {
                             drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role))
                             val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                             val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
-                            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+                            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
                                 Log.d(TAG, "LabelPlacementDebug: $debug")
                             }
                             ctx.onLabelPlaced?.invoke(debug)
@@ -375,11 +487,12 @@ object TemperatureGraphRenderer {
                         }
                     }
 
-                    if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+                    if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
                         val rejectReason = when {
                             !onScreen -> "offscreen(top=${String.format("%.1f", bounds.top)}, bot=${String.format("%.1f", bounds.bottom)}, hPx=${ctx.heightPx})"
                             overlapsLabel && !allowMinorLabelOverlap -> "label-collision(overlap=${String.format("%.1f", labelOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", labelOverlap / labelHeight)})"
                             overlapsIcon && !allowMinorIconOverlap -> "icon-collision(overlap=${String.format("%.1f", iconOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", iconOverlap / labelHeight)}, iconRatio=${String.format("%.2f", currentIconRatio)})"
+                            overlapsCurve -> "curve-collision(bounds=${String.format("%.1f,%.1f,%.1f,%.1f", bounds.left, bounds.top, bounds.right, bounds.bottom)})"
                             else -> null
                         }
                         if (rejectReason != null) {
@@ -406,7 +519,7 @@ object TemperatureGraphRenderer {
                         val reasonBase = if (!placeAbove) "below" else "above"
                         val reason = if (step > 0) "$reasonBase+$step" else reasonBase
                         val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step)
-                        if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+                        if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
                             Log.d(TAG, "LabelPlacementDebug: $debug")
                         }
                         ctx.onLabelPlaced?.invoke(debug)
@@ -424,13 +537,85 @@ object TemperatureGraphRenderer {
                 drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role))
                 val seriesLabel = if (placement.isFuture) "forecast" else "actual"
                 val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
-                if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+                if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
                     Log.d(TAG, "LabelPlacementDebug: $debugForced")
                 }
                 ctx.onLabelPlaced?.invoke(debugForced)
             }
         }
         ctx.drawnLabelBounds.addAll(drawnLabelMetas.map { it.bounds })
+    }
+
+    private fun tryExactFitCurveAvoidance(
+        ctx: RenderContext,
+        candidate: TempLabelCandidate,
+        placement: TemperatureLabelResolver.CandidatePlacement,
+        directions: List<Boolean>,
+        gapDp: GraphLabelPlacementUtils.LabelGapDp,
+        labelAscent: Float,
+        labelDescent: Float,
+        drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        drawnIconBounds: List<RectF>,
+        idx: Int,
+        temps: List<Float>,
+    ): Boolean {
+        val placeAbove = directions.first()
+        val baseGapPx = if (placeAbove) dpToPx(ctx.context, gapDp.aboveDp) else dpToPx(ctx.context, gapDp.belowDp)
+        val baseV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+            pointY = placement.sy, placeAbove = placeAbove,
+            gapPx = baseGapPx, textAscent = labelAscent, textDescent = labelDescent
+        )
+        val baseBounds = RectF(
+            placement.clampedX - placement.textWidth / 2f, baseV.top,
+            placement.clampedX + placement.textWidth / 2f, baseV.bottom
+        )
+        val intrusion = combinedCurveIntrusion(ctx, baseBounds)
+        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx preferAbove=$placeAbove anchorY=${String.format("%.1f", placement.sy)} baseBounds=${baseBounds.toShortString()} intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"}")
+        if (intrusion.isEmpty) return false
+
+        val extra = if (placeAbove) {
+            baseBounds.bottom - intrusion.minY + CURVE_AVOIDANCE_CLEAR_PX
+        } else {
+            intrusion.maxY + CURVE_AVOIDANCE_CLEAR_PX - baseBounds.top
+        }
+        if (extra <= 0f) return false
+
+        val newGapPx = baseGapPx + extra
+        val newV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+            pointY = placement.sy, placeAbove = placeAbove,
+            gapPx = newGapPx, textAscent = labelAscent, textDescent = labelDescent
+        )
+        val newBounds = RectF(
+            placement.clampedX - placement.textWidth / 2f, newV.top,
+            placement.clampedX + placement.textWidth / 2f, newV.bottom
+        )
+        if (newBounds.top < 0f || newBounds.bottom > ctx.heightPx) {
+            Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED offscreen newBounds=${newBounds.toShortString()}")
+            return false
+        }
+        val overlapsLabel = drawnLabelMetas.any { RectF.intersects(it.bounds, newBounds) }
+        val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, newBounds) }
+        if (overlapsLabel || overlapsIcon) {
+            Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon")
+            return false
+        }
+        if (!combinedCurveIntrusion(ctx, newBounds).isEmpty) {
+            Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion at newBounds=${newBounds.toShortString()}")
+            return false
+        }
+
+        val lineEndY = if (placeAbove) newBounds.bottom else newBounds.top
+        ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
+        ctx.canvas.drawText(placement.label, placement.clampedX, newV.baselineY, placement.labelPaint)
+        drawnLabelMetas.add(PlacedLabelMeta(newBounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
+
+        val seriesLabel = if (placement.isFuture) "forecast" else "actual"
+        val reasonBase = if (placeAbove) "above" else "below"
+        val reason = "$reasonBase+curveFit(${String.format("%.1f", extra)}px)"
+        val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, newV.baselineY, placeAbove, seriesLabel, seriesLabel, reason, 1)
+        Log.d(TAG, "LabelPlacementDebug: $debug")
+        ctx.onLabelPlaced?.invoke(debug)
+        return true
     }
 
     private data class CascadeResult(
@@ -483,7 +668,7 @@ object TemperatureGraphRenderer {
 
         val overlapRatio = verticalOverlap / labelHeight
         if (overlapRatio <= GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO) {
-            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option2-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_BELOW_LABEL_OVERLAP_RATIO}")
             }
             return CascadeResult(
@@ -495,7 +680,7 @@ object TemperatureGraphRenderer {
         }
 
         if (collidingMeta.isValleyBelow && overlapRatio <= GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO) {
-            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+            if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
                 Log.d(TAG, "LabelCascade: role=${candidate.role} option1-accepted ratio=${String.format("%.2f", overlapRatio)} threshold=${GraphLabelPlacementUtils.VALLEY_VS_VALLEY_OVERLAP_RATIO} collidingRole=${collidingMeta.role}")
             }
             return CascadeResult(
@@ -506,7 +691,7 @@ object TemperatureGraphRenderer {
             )
         }
 
-        if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH) {
+        if (candidate.role == TemperatureRole.ACTUAL_LOW || candidate.role == TemperatureRole.LOW || candidate.role == TemperatureRole.ACTUAL_HIGH || candidate.role == TemperatureRole.HIGH || candidate.role == TemperatureRole.ACTUAL_END || candidate.role == TemperatureRole.LOCAL) {
             Log.d(TAG, "LabelCascade: role=${candidate.role} all-options-exhausted ratio=${String.format("%.2f", overlapRatio)} collidingIsValleyBelow=${collidingMeta.isValleyBelow}")
         }
 
