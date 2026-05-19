@@ -275,6 +275,36 @@ class TemperatureGraphLabelPlacementRobolectricTest {
     }
 
     @Test
+    fun `end label drops below forecast curve when descending peak intrudes above`() {
+        val placements = mutableListOf<LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        val hours = listOf(
+            HourData(dateTime = start.plusHours(0), temperature = 70.0f, label = "10a"),
+            HourData(dateTime = start.plusHours(1), temperature = 75.0f, label = "11a"),
+            HourData(dateTime = start.plusHours(2), temperature = 80.0f, label = "12p"),
+            HourData(dateTime = start.plusHours(3), temperature = 84.0f, label = "1p"),
+            HourData(dateTime = start.plusHours(4), temperature = 82.0f, label = "2p"),
+            HourData(dateTime = start.plusHours(5), temperature = 79.0f, label = "3p"),
+        )
+
+        runBlocking {
+            TemperatureGraphRenderer.renderGraph(
+                context = context,
+                hours = hours,
+                widthPx = 500,
+                heightPx = 450,
+                currentTime = start,
+                onLabelPlaced = { placements.add(it) },
+            )
+        }
+
+        val endPlacement = placements.find { it.role == TemperatureRole.END }
+        assertNotNull("Expected END label to be drawn. placements=$placements", endPlacement)
+        assertFalse("END should land below to clear the descending forecast peak. placements=$placements", endPlacement!!.placedAbove)
+        assertEquals("forecast", endPlacement.series)
+    }
+
+    @Test
     fun `end label is suppressed when same-index high already labels final point`() {
         val placements = mutableListOf<LabelPlacementDebug>()
 
