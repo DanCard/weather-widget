@@ -905,59 +905,35 @@ object TemperatureGraphRenderer {
         return StalenessInitialLayout(baselineY, bounds, placeAbove)
     }
 
-    private fun computeFetchDotBounds(ctx: RenderContext, hours: List<HourData>): List<RectF> {
-        val bounds = mutableListOf<RectF>()
-        val observedAt = ctx.observedAt
-        val fetchDotX = ctx.fetchDotX
-        val lastObservedTemp = ctx.lastObservedTemp
-        if (observedAt == null || fetchDotX == null || lastObservedTemp == null) return bounds
+    private data class StalenessPrecompute(
+        val ageLabel: String,
+        val ageWidth: Float,
+        val sAscent: Float,
+        val sDescent: Float,
+        val padding: Float,
+        val minorOverlapThreshold: Float,
+    )
+
+    private data class FetchDotLayout(
+        val observedAt: Long,
+        val clampedX: Float,
+        val fetchY: Float,
+        val dotRadius: Float,
+        val outerRadius: Float,
+        val lastObservedTemp: Float,
+        val valueLabel: String,
+        val valueLayout: ValueLabelLayout?,
+        val staleness: StalenessPrecompute?,
+    )
+
+    private fun resolveFetchDotLayout(ctx: RenderContext, hours: List<HourData>): FetchDotLayout? {
+        val observedAt = ctx.observedAt ?: return null
+        val fetchDotX = ctx.fetchDotX ?: return null
+        val lastObservedTemp = ctx.lastObservedTemp ?: return null
         val fetchY = ctx.tempToY(lastObservedTemp)
         val dotRadius = dpToPx(ctx.context, TemperatureGraphStyle.DOT_RADIUS_DP * ctx.labelScale)
         val clampedX = fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
-
         val outerRadius = dotRadius + ctx.paints.ringPaint.strokeWidth / 2f
-        bounds.add(RectF(clampedX - outerRadius, fetchY - outerRadius, clampedX + outerRadius, fetchY + outerRadius))
-
-        val valueLabel = TemperatureGraphStyle.formatTemp(lastObservedTemp) + "°"
-        val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
-        val sideGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-        val aboveGap = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
-        val baselineOffset = ctx.paints.valueTextPaint.textSize / VALUE_LABEL_BASELINE_DIVISOR
-        val vAscent = fontAscent(ctx.paints.valueTextPaint)
-        val vDescent = fontDescent(ctx.paints.valueTextPaint)
-
-        resolveValueLabelLayout(clampedX, fetchY, dotRadius, valueWidth, sideGap, aboveGap, ctx.widthPx, baselineOffset, vAscent, vDescent)?.let {
-            bounds.add(it.bounds)
-        }
-
-        val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
-        val ageLabel = formatAgeLabel(ageMinutes, Duration.between(hours.first().dateTime, hours.last().dateTime).toHours())
-        if (ageLabel != null) {
-            val sAscent = fontAscent(ctx.paints.stalenessTextPaint)
-            val sDescent = fontDescent(ctx.paints.stalenessTextPaint)
-            val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
-            val padding = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * STALENESS_MINOR_OVERLAP_RATIO
-            bounds.add(resolveStalenessInitialLayout(clampedX, fetchY, dotRadius, padding, ageWidth, sAscent, sDescent, ctx.heightPx, bounds, minorOverlapThreshold).bounds)
-        }
-
-        return bounds
-    }
-
-    private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
-        val drawnBounds = mutableListOf<RectF>()
-        val observedAt = ctx.observedAt
-        val fetchDotX = ctx.fetchDotX
-        val lastObservedTemp = ctx.lastObservedTemp
-        if (observedAt == null || fetchDotX == null || lastObservedTemp == null) return drawnBounds
-        val fetchY = ctx.tempToY(lastObservedTemp)
-        val dotRadius = dpToPx(ctx.context, TemperatureGraphStyle.DOT_RADIUS_DP * ctx.labelScale)
-        val clampedX = fetchDotX.coerceIn(dotRadius, ctx.widthPx - dotRadius)
-
-        val localDotPaint = Paint(ctx.paints.dotPaint).apply { color = TemperatureGraphStyle.tempToColor(lastObservedTemp) }
-        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, localDotPaint)
-        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius, ctx.paints.ringPaint)
-        ctx.canvas.drawCircle(clampedX, fetchY, dotRadius + ctx.paints.ringPaint.strokeWidth / 2f, ctx.paints.outerRingPaint)
 
         val valueLabel = TemperatureGraphStyle.formatTemp(lastObservedTemp) + "°"
         val valueWidth = ctx.paints.valueTextPaint.measureText(valueLabel)
@@ -968,52 +944,78 @@ object TemperatureGraphRenderer {
         val vDescent = fontDescent(ctx.paints.valueTextPaint)
         val valueLayout = resolveValueLabelLayout(clampedX, fetchY, dotRadius, valueWidth, sideGap, aboveGap, ctx.widthPx, baselineOffset, vAscent, vDescent)
 
-        if (valueLayout != null) {
-            val localValuePaint = Paint(ctx.paints.valueTextPaint).apply { textAlign = valueLayout.align }
-            ctx.canvas.drawText(valueLabel, valueLayout.x, valueLayout.y, localValuePaint)
-            drawnBounds.add(valueLayout.bounds)
-        }
-
         val ageMinutes = ctx.fetchTime?.let { Duration.between(it, ctx.currentTime).toMinutes() } ?: 0L
         val ageLabel = formatAgeLabel(ageMinutes, Duration.between(hours.first().dateTime, hours.last().dateTime).toHours())
+        val staleness = if (ageLabel != null) {
+            StalenessPrecompute(
+                ageLabel = ageLabel,
+                ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel),
+                sAscent = fontAscent(ctx.paints.stalenessTextPaint),
+                sDescent = fontDescent(ctx.paints.stalenessTextPaint),
+                padding = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale),
+                minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * STALENESS_MINOR_OVERLAP_RATIO,
+            )
+        } else null
+
+        return FetchDotLayout(observedAt, clampedX, fetchY, dotRadius, outerRadius, lastObservedTemp, valueLabel, valueLayout, staleness)
+    }
+
+    private fun computeFetchDotBounds(ctx: RenderContext, hours: List<HourData>): List<RectF> {
+        val layout = resolveFetchDotLayout(ctx, hours) ?: return emptyList()
+        val bounds = mutableListOf<RectF>()
+        bounds.add(RectF(layout.clampedX - layout.outerRadius, layout.fetchY - layout.outerRadius, layout.clampedX + layout.outerRadius, layout.fetchY + layout.outerRadius))
+        layout.valueLayout?.let { bounds.add(it.bounds) }
+        layout.staleness?.let { s ->
+            bounds.add(resolveStalenessInitialLayout(layout.clampedX, layout.fetchY, layout.dotRadius, s.padding, s.ageWidth, s.sAscent, s.sDescent, ctx.heightPx, bounds, s.minorOverlapThreshold).bounds)
+        }
+        return bounds
+    }
+
+    private fun drawFetchDot(ctx: RenderContext, hours: List<HourData>): List<RectF> {
+        val layout = resolveFetchDotLayout(ctx, hours) ?: return emptyList()
+        val drawnBounds = mutableListOf<RectF>()
+
+        val localDotPaint = Paint(ctx.paints.dotPaint).apply { color = TemperatureGraphStyle.tempToColor(layout.lastObservedTemp) }
+        ctx.canvas.drawCircle(layout.clampedX, layout.fetchY, layout.dotRadius, localDotPaint)
+        ctx.canvas.drawCircle(layout.clampedX, layout.fetchY, layout.dotRadius, ctx.paints.ringPaint)
+        ctx.canvas.drawCircle(layout.clampedX, layout.fetchY, layout.outerRadius, ctx.paints.outerRingPaint)
+
+        if (layout.valueLayout != null) {
+            val localValuePaint = Paint(ctx.paints.valueTextPaint).apply { textAlign = layout.valueLayout.align }
+            ctx.canvas.drawText(layout.valueLabel, layout.valueLayout.x, layout.valueLayout.y, localValuePaint)
+            drawnBounds.add(layout.valueLayout.bounds)
+        }
 
         var finalAgeY: Float? = null
-        if (ageLabel != null) {
-            val sAscent = fontAscent(ctx.paints.stalenessTextPaint)
-            val sDescent = fontDescent(ctx.paints.stalenessTextPaint)
-            val ageWidth = ctx.paints.stalenessTextPaint.measureText(ageLabel)
-            val padding = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_SIDE_GAP_DP * ctx.labelScale)
-            val leaderLinePaint = ctx.paints.actualLeaderLinePaint
+        layout.staleness?.let { s ->
             val allBounds = ctx.drawnLabelBounds + drawnBounds
-            val minorOverlapThreshold = ctx.paints.stalenessTextPaint.textSize * STALENESS_MINOR_OVERLAP_RATIO
-
-            val initial = resolveStalenessInitialLayout(clampedX, fetchY, dotRadius, padding, ageWidth, sAscent, sDescent, ctx.heightPx, allBounds, minorOverlapThreshold)
+            val initial = resolveStalenessInitialLayout(layout.clampedX, layout.fetchY, layout.dotRadius, s.padding, s.ageWidth, s.sAscent, s.sDescent, ctx.heightPx, allBounds, s.minorOverlapThreshold)
             var placeAbove = initial.placeAbove
             var ageBaselineY = initial.baselineY
             var bounds = initial.bounds
-            var collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > minorOverlapThreshold
+            var collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > s.minorOverlapThreshold
 
             var step = 0
             while (collision && step < MAX_STALENESS_DISPLACEMENT_STEPS) {
                 step++
                 val bump = dpToPx(ctx.context, TemperatureGraphStyle.FETCH_DOT_ABOVE_GAP_DP * ctx.labelScale)
                 ageBaselineY += if (placeAbove) -bump else bump
-                bounds.offsetTo(clampedX - ageWidth / 2f, ageBaselineY + sAscent)
-                collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > minorOverlapThreshold
+                bounds.offsetTo(layout.clampedX - s.ageWidth / 2f, ageBaselineY + s.sAscent)
+                collision = GraphLabelPlacementUtils.maxVerticalOverlap(bounds, allBounds) > s.minorOverlapThreshold
             }
 
             if (step > STALENESS_LEADER_LINE_MIN_STEPS) {
                 val lineEndY = if (placeAbove) bounds.bottom else bounds.top
-                val lineStartY = if (placeAbove) fetchY - dotRadius else fetchY + dotRadius
-                ctx.canvas.drawLine(clampedX, lineStartY, clampedX, lineEndY, leaderLinePaint)
+                val lineStartY = if (placeAbove) layout.fetchY - layout.dotRadius else layout.fetchY + layout.dotRadius
+                ctx.canvas.drawLine(layout.clampedX, lineStartY, layout.clampedX, lineEndY, ctx.paints.actualLeaderLinePaint)
             }
 
-            ctx.canvas.drawText(ageLabel, clampedX, ageBaselineY, ctx.paints.stalenessTextPaint)
+            ctx.canvas.drawText(s.ageLabel, layout.clampedX, ageBaselineY, ctx.paints.stalenessTextPaint)
             drawnBounds.add(bounds)
             finalAgeY = ageBaselineY
         }
 
-        ctx.onFetchDotResolved?.invoke(FetchDotDebug(observedAt, clampedX, fetchY, true, if (ageLabel != null) "$valueLabel ($ageLabel)" else valueLabel, ctx.paints.valueTextPaint.color, if (ageLabel != null) ctx.paints.stalenessTextPaint.color else null, finalAgeY))
+        ctx.onFetchDotResolved?.invoke(FetchDotDebug(layout.observedAt, layout.clampedX, layout.fetchY, true, if (layout.staleness != null) "${layout.valueLabel} (${layout.staleness.ageLabel})" else layout.valueLabel, ctx.paints.valueTextPaint.color, if (layout.staleness != null) ctx.paints.stalenessTextPaint.color else null, finalAgeY))
         return drawnBounds
     }
 
