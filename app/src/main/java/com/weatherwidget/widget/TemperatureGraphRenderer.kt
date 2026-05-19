@@ -22,7 +22,7 @@ object TemperatureGraphRenderer {
     private const val TAG = "TempGraphRenderer"
 
     private inline fun debug(msg: () -> String) {
-        if (BuildConfig.DEBUG) Log.d(TAG, msg())
+        Log.d(TAG, msg())
     }
 
     private const val MIN_GHOST_LINE_DELTA = 0.1f
@@ -45,11 +45,13 @@ object TemperatureGraphRenderer {
         TemperatureRole.END,
     )
 
-    private fun shouldLogPlacement(role: TemperatureRole): Boolean =
-        role == TemperatureRole.ACTUAL_LOW || role == TemperatureRole.LOW ||
-            role == TemperatureRole.ACTUAL_HIGH || role == TemperatureRole.HIGH ||
-            role == TemperatureRole.ACTUAL_END || role == TemperatureRole.LOCAL ||
-            role == TemperatureRole.START || role == TemperatureRole.END
+    private val LOGGED_ROLES: Set<TemperatureRole> = setOf(
+        TemperatureRole.ACTUAL_LOW, TemperatureRole.LOW,
+        TemperatureRole.ACTUAL_HIGH, TemperatureRole.HIGH,
+        TemperatureRole.ACTUAL_END, TemperatureRole.LOCAL,
+        TemperatureRole.START, TemperatureRole.END,
+    )
+    private fun shouldLogPlacement(role: TemperatureRole): Boolean = role in LOGGED_ROLES
 
     private const val VALUE_NEIGHBOR_WINDOW = 5
     private const val SIGNIFICANT_MAX_GAP = 1.0f
@@ -70,9 +72,9 @@ object TemperatureGraphRenderer {
     }
 
     private data class CurveIntrusion(val minY: Float, val maxY: Float) {
-        val isEmpty: Boolean get() = minY.isNaN()
+        val isEmpty: Boolean get() = minY > maxY
         companion object {
-            val NONE = CurveIntrusion(Float.NaN, Float.NaN)
+            val NONE = CurveIntrusion(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)
             fun merge(a: CurveIntrusion, b: CurveIntrusion): CurveIntrusion = when {
                 a.isEmpty -> b
                 b.isEmpty -> a
@@ -90,8 +92,8 @@ object TemperatureGraphRenderer {
         val right = bounds.right + CURVE_AVOIDANCE_MARGIN_PX
         val top = bounds.top - CURVE_AVOIDANCE_MARGIN_PX
         val bottom = bounds.bottom + CURVE_AVOIDANCE_MARGIN_PX
-        var minY = Float.NaN
-        var maxY = Float.NaN
+        var minY = Float.POSITIVE_INFINITY
+        var maxY = Float.NEGATIVE_INFINITY
         for (i in 1 until points.size) {
             val a = points[i - 1]
             val b = points[i]
@@ -117,10 +119,10 @@ object TemperatureGraphRenderer {
             if (ySegMax < top || ySegMin > bottom) continue
             val clipMin = kotlin.math.max(ySegMin, top)
             val clipMax = min(ySegMax, bottom)
-            if (minY.isNaN() || clipMin < minY) minY = clipMin
-            if (maxY.isNaN() || clipMax > maxY) maxY = clipMax
+            if (clipMin < minY) minY = clipMin
+            if (clipMax > maxY) maxY = clipMax
         }
-        return if (minY.isNaN()) CurveIntrusion.NONE else CurveIntrusion(minY, maxY)
+        return CurveIntrusion(minY, maxY)
     }
 
     private fun combinedCurveIntrusion(ctx: RenderContext, bounds: RectF): CurveIntrusion {
@@ -128,6 +130,7 @@ object TemperatureGraphRenderer {
         val f = curveIntrusionInLabel(ctx.forecastPoints, bounds)
         return CurveIntrusion.merge(a, f)
     }
+
     private const val STALENESS_MINOR_OVERLAP_RATIO = 0.40f
     private const val MAX_STALENESS_DISPLACEMENT_STEPS = 15
     private const val STALENESS_LEADER_LINE_MIN_STEPS = 2
@@ -441,9 +444,12 @@ object TemperatureGraphRenderer {
                 if (placed) continue
             }
 
+            val gapAbovePx = dpToPx(ctx.context, gapDp.aboveDp)
+            val gapBelowPx = dpToPx(ctx.context, gapDp.belowDp)
+
             outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
                 for (placeAbove in directions) {
-                    val currentGapPx = if (placeAbove) dpToPx(ctx.context, gapDp.aboveDp) else dpToPx(ctx.context, gapDp.belowDp)
+                    val currentGapPx = if (placeAbove) gapAbovePx else gapBelowPx
                     val displacement = step * labelHeight
                     
                     val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
