@@ -381,10 +381,11 @@ object TemperatureGraphRenderer {
     private fun placeTemperatureLabels(
         ctx: RenderContext,
         hours: List<HourData>,
-        drawnIconBounds: List<RectF>
+        drawnIconBounds: List<RectF>,
+        numColumns: Int,
     ) {
         val extrema = TemperatureLabelResolver.computeExtremaIndices(hours, ctx.transitionX, ctx.effectiveActualEndIndex, ctx.fetchTime)
-        val specialCandidates = TemperatureLabelResolver.collectLabelCandidates(hours, extrema, ctx.effectiveActualEndIndex, ctx.transitionX, ctx.observedAt).toMutableList()
+        val specialCandidates = TemperatureLabelResolver.collectLabelCandidates(hours, extrema, ctx.effectiveActualEndIndex, ctx.transitionX, ctx.observedAt, numColumns).toMutableList()
 
         val drawnLabelMetas = mutableListOf<PlacedLabelMeta>()
         val labelAscent = fontAscent(ctx.paints.actualTempLabelTextPaint)
@@ -932,6 +933,7 @@ object TemperatureGraphRenderer {
         appliedDelta: Float? = null,
         observedAt: Long? = null,
         lastObservedTemp: Float? = null,
+        numColumns: Int = 0,
         job: Job? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onFetchDotResolved: ((FetchDotDebug) -> Unit)? = null,
@@ -998,7 +1000,7 @@ object TemperatureGraphRenderer {
 
         val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)
         ctx.drawnLabelBounds.addAll(fetchDotPreBounds)
-        placeTemperatureLabels(ctx, hours, drawnIconBounds)
+        placeTemperatureLabels(ctx, hours, drawnIconBounds, numColumns)
         placeDayLabels(ctx, hours, drawnIconBounds)
         timings.mark("labels")
 

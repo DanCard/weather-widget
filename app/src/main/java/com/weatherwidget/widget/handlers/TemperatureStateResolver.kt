@@ -241,6 +241,7 @@ internal object TemperatureStateResolver {
                     appliedDelta = if (isNowLineVisible) currentTempResolution.appliedDelta else null,
                     observedAt = observedAt,
                     lastObservedTemp = lastObservedTemp,
+                    numColumns = dimensions.cols,
                     job = coroutineContext[Job],
                     onFetchDotResolved = onFetchDotResolved,
                 )

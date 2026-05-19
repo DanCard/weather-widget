@@ -69,6 +69,7 @@ internal object TemperatureLabelResolver {
         effectiveActualEndIndex: Int,
         transitionX: Float?,
         observedAt: Long?,
+        numColumns: Int = 0,
     ): List<TempLabelCandidate> {
         val labelTemps = extrema.labelTemps
         val actualLabelTemps = extrema.actualLabelTemps
@@ -103,9 +104,21 @@ internal object TemperatureLabelResolver {
             nearbyWindow = min(5, (hours.lastIndex / 3).coerceAtLeast(1))
         )
 
+        val finalIndices =
+            if (numColumns >= 5 && filteredIndices.size == 2 && filteredIndices.containsAll(listOf(0, hours.lastIndex))) {
+                val midIndex = hours.lastIndex / 2
+                if (midIndex != 0 && midIndex != hours.lastIndex) {
+                    (filteredIndices + midIndex).sorted()
+                } else {
+                    filteredIndices
+                }
+            } else {
+                filteredIndices
+            }
+
         val specialCandidates = mutableListOf<TempLabelCandidate>()
         val suppressedIndices = mutableSetOf<Int>()
-        for (idx in filteredIndices.distinct()) {
+        for (idx in finalIndices.distinct()) {
             var role = resolveExtremaRole(idx, extrema, hours)
 
             val leftEdgeResult = checkLeftEdgeSuppression(idx, role, suppressLeftEdgeLabel)

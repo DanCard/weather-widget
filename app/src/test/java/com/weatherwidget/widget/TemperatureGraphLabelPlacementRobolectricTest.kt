@@ -44,6 +44,67 @@ class TemperatureGraphLabelPlacementRobolectricTest {
         }
 
     @Test
+    fun `wide widget injects middle label when only edge temperature labels are present`() {
+        val placements = mutableListOf<LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        val temps = (50..61).map { it.toFloat() }
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(temps, start),
+            widthPx = 800,
+            heightPx = 400,
+            currentTime = start,
+            numColumns = 5,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val indices = placements.map { it.index }.sorted()
+        assertEquals("Expected start, midpoint, and end labels on a wide sparse graph. placements=$placements", listOf(0, 5, 11), indices)
+        assertTrue("Expected injected midpoint to be a LOCAL label. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.LOCAL })
+    }
+
+    @Test
+    fun `narrow widget does not inject middle label when only edge temperature labels are present`() {
+        val placements = mutableListOf<LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        val temps = (50..61).map { it.toFloat() }
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(temps, start),
+            widthPx = 400,
+            heightPx = 400,
+            currentTime = start,
+            numColumns = 4,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        val indices = placements.map { it.index }.sorted()
+        assertEquals("Expected only edge labels on a narrow sparse graph. placements=$placements", listOf(0, 11), indices)
+    }
+
+    @Test
+    fun `wide widget does not inject middle label when temperature graph already has interior labels`() {
+        val placements = mutableListOf<LabelPlacementDebug>()
+        val start = LocalDateTime.of(2026, 3, 19, 10, 0)
+        val temps = listOf(50f, 55f, 61f, 55f, 49f, 52f, 54f, 56f, 58f, 60f, 62f, 64f)
+
+        TemperatureGraphRenderer.renderGraph(
+            context = context,
+            hours = buildHours(temps, start),
+            widthPx = 800,
+            heightPx = 400,
+            currentTime = start,
+            numColumns = 5,
+            onLabelPlaced = { placements.add(it) },
+        )
+
+        assertFalse("Midpoint should not be injected when interior extrema are already labeled. placements=$placements", placements.any { it.index == 5 && it.role == TemperatureRole.LOCAL })
+        assertTrue("Expected at least one real interior extrema label. placements=$placements", placements.any { it.index !in listOf(0, temps.lastIndex) })
+    }
+
+    @Test
     fun `peak falls back below when above placement would leave the screen`() {
         val placements = mutableListOf<LabelPlacementDebug>()
 
