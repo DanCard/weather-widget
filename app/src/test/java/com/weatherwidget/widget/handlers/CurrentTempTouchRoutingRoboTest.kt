@@ -4,6 +4,8 @@ import android.app.Application
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.MotionEvent
 import android.view.View
 import android.view.View.MeasureSpec
 import android.view.ViewGroup
@@ -97,6 +99,18 @@ class CurrentTempTouchRoutingRoboTest {
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
+        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
+        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+    }
+
+    @Test
+    fun `precipitation thermometer click at 95dp routes to temperature view`() = runBlocking {
+        val views = renderPrecipitationWidget()
+
+        val intent = clickAtCoordinate(views, 103f, 20f)
+
+        assertNotNull("Expected thermometer click to send a broadcast", intent)
         assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
         assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
@@ -249,6 +263,41 @@ class CurrentTempTouchRoutingRoboTest {
 
     private fun clickCurrentTempZone(views: RemoteViews): android.content.Intent? {
         return clickView(views, R.id.current_temp_zone)
+    }
+
+    private fun clickAtCoordinate(views: RemoteViews, dpX: Float, dpY: Float): android.content.Intent? {
+        val applied = applyViews(views)
+        val density = context.resources.displayMetrics.density
+        val x = dpX * density
+        val y = dpY * density
+
+        val target = findTouchTarget(applied, x, y)
+        assertNotNull("Expected to find a touch target at ($dpX, $dpY) dp", target)
+
+        val shadowApp = shadowOf(app)
+        val beforeTap = shadowApp.broadcastIntents.size
+        target!!.performClick()
+        return shadowApp.broadcastIntents.drop(beforeTap).lastOrNull()
+    }
+
+    private fun findTouchTarget(view: View, x: Float, y: Float): View? {
+        if (view.visibility != View.VISIBLE) return null
+
+        if (view is ViewGroup) {
+            for (i in view.childCount - 1 downTo 0) {
+                val child = view.getChildAt(i)
+                if (child.visibility == View.VISIBLE) {
+                    val childX = x - child.left
+                    val childY = y - child.top
+                    if (childX >= 0 && childX <= child.width && childY >= 0 && childY <= child.height) {
+                        val target = findTouchTarget(child, childX, childY)
+                        if (target != null) return target
+                    }
+                }
+            }
+        }
+
+        return if (view.isClickable) view else null
     }
 
     private suspend fun assertDailyDateHeaderClearedByReapply(views: RemoteViews) {

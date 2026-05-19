@@ -1461,17 +1461,6 @@
 
     <!-- Header Touch Targets - Declared last for highest touch priority -->
 
-    <!-- Current temperature touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/current_temp_zone"
-        android:layout_width="96dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
     <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/precip_touch_zone"
@@ -1484,6 +1473,17 @@
         android:clickable="true"
         android:focusable="true"
         android:visibility="gone" />
+
+    <!-- Current temperature touch zone - invisible overlay for larger touch target -->
+    <FrameLayout
+        android:id="@+id/current_temp_zone"
+        android:layout_width="96dp"
+        android:layout_height="50dp"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true" />
 
     <!-- Home icon touch zone. Height intentionally 80dp (not 50dp) to extend the
          clickable area below the top-center band that Pixel Launcher reserves for
