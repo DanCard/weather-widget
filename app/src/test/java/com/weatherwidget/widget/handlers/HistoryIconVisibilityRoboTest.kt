@@ -53,7 +53,7 @@ class HistoryIconVisibilityRoboTest {
     fun `hourly temperature mode shows home and history icons`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 440)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
         }
         
@@ -89,7 +89,7 @@ class HistoryIconVisibilityRoboTest {
     fun `daily mode hides home and history icons`() = runBlocking {
         val appWidgetManager = mockk<AppWidgetManager>()
         every { appWidgetManager.getAppWidgetOptions(appWidgetId) } returns Bundle().apply {
-            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 440)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
             putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
         }
         

@@ -1027,20 +1027,19 @@
 
         <ImageView
             android:id="@+id/weather_icon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
             android:src="@drawable/ic_weather_unknown"
             android:contentDescription="@string/weather_icon_desc"
             android:visibility="gone"
-            android:layout_marginStart="-1dp"
-            android:layout_marginEnd="-1dp" />
+            android:layout_marginEnd="2dp" />
 
         <TextView
             android:id="@+id/current_temp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="72°"
-            android:textSize="22dp"
+            android:textSize="26dp"
             android:textColor="#AAFFFFFF"
             android:includeFontPadding="false"
             android:visibility="visible" />
@@ -1049,7 +1048,7 @@
             android:id="@+id/current_temp_delta"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="3dp"
+            android:layout_marginStart="4dp"
             android:text="+1.2"
             android:textSize="14sp"
             android:textColor="#AAFF6B35"
@@ -1072,7 +1071,7 @@
             android:id="@+id/graph_selector_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginStart="1dp"
+            android:layout_marginStart="2dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
@@ -1091,7 +1090,7 @@
             android:id="@+id/weather_stations_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginStart="3dp"
+            android:layout_marginStart="4dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
@@ -1110,7 +1109,7 @@
             android:id="@+id/home_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginStart="3dp"
+            android:layout_marginStart="4dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
@@ -1129,7 +1128,7 @@
             android:id="@+id/forecast_history_activity_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_marginStart="3dp"
+            android:layout_marginStart="4dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
@@ -1524,7 +1523,7 @@
     <FrameLayout
         android:id="@+id/home_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="-4dp"
         android:background="@android:color/transparent"
@@ -1536,7 +1535,7 @@
     <FrameLayout
         android:id="@+id/forecast_history_activity_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginStart="44dp"
         android:layout_marginTop="-4dp"
@@ -1549,7 +1548,7 @@
     <FrameLayout
         android:id="@+id/weather_stations_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginEnd="44dp"
         android:layout_marginTop="-4dp"
@@ -1562,7 +1561,7 @@
     <FrameLayout
         android:id="@+id/graph_selector_touch_zone"
         android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginEnd="88dp"
         android:layout_marginTop="-4dp"

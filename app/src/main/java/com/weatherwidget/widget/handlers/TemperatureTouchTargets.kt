@@ -309,7 +309,7 @@ internal fun positionCenterIcons(
     isPrecipVisible: Boolean,
     isToday: Boolean = true,
 ) {
-    val useInline = widthDp < 420
+    val useInline = widthDp < 420 && isPrecipVisible
     val floatingVis = if (useInline) View.GONE else View.VISIBLE
     val inlineVis = if (useInline) View.VISIBLE else View.GONE
     Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline isToday=$isToday -> home_touch_zone=${if (floatingVis == View.VISIBLE) "VISIBLE" else "GONE"} home_touch_zone_inline=${if (inlineVis == View.VISIBLE) "VISIBLE" else "GONE"}")
@@ -351,7 +351,7 @@ internal fun setupGraphSelectorShortcut(
     views.setTextViewText(R.id.graph_selector_icon, emoji)
     views.setTextViewText(R.id.graph_selector_icon_inline, emoji)
 
-    val useInline = widthDp < 420
+    val useInline = widthDp < 420 && isPrecipVisible
     if (useInline) {
         views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
         views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
