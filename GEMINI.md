@@ -1,11 +1,11 @@
 # GEMINI.md - Weather Widget Project Context
 
 ## Project Overview
-**Weather Widget** is a home screen widget (no launcher activity). It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, weapther api, and silurian.ai.
+**Weather Widget** is a home screen widget (no launcher activity). It provides high-accuracy weather forecasts by aggregating data from multiple sources: the **National Weather Service (NWS)**, **Open-Meteo**, weapther api, silurian.ai, and more.
 
 ### Key Features
 - **Multiple API Support**: Comparison and toggling between NWS (US-only), Open-Meteo (Global), weather api, and silurian.ai.
-- **Two-Tier Update System**: Separates lightweight UI updates (temperature interpolation) from battery-heavy network fetches.
+- **Adaptive, State-Aware Update System**: Dynamically reschedules lightweight UI updates and forecast fetches based on battery levels, charging state, and screen interactivity (screen-on vs. screen-off). Includes work-stall recovery to bypass background worker freezes on OEM devices like Samsung.
 - **Dynamic Rendering**: Custom-drawn graphs for Daily (forecast bars) and Hourly (Bezier temperature curves) views.
 - **Accuracy Tracking**: Compares historical forecasts against actual observations to provide reliability scores.
 - **Widget-Only UI**: All interactions (navigation, API switching, refresh) occur directly on the home screen.
@@ -53,8 +53,10 @@ When investigating bugs or data mismatches, follow this strict sequence:
 ## Development Conventions
 - **Widget Lifecycle**: Always use `goAsync()` within `BroadcastReceiver` to handle async operations without blocking.
 - **Update Logic**:
-    - **UI Update**: Frequent (15-60m), opportunistic (no wakeup), uses interpolated cached data.
-    - **Data Fetch**: Infrequent (1-8h), battery-aware, fetches new API data.
+    - **UI / Current Temp Update**: Highly responsive. While charging, schedules dynamically based on screen state: every 10 min when screen is interactive (screen-on), and every 16 min when screen is off. Bypasses stalls via state-aware scheduling that inspects and replaces overdue or far-future WorkManager jobs.
+    - **Forecast Data Fetch (WorkManager)**: Battery, charging, and screen-state aware.
+        - **On Charger**: Scaled per-source based on screen activity. Active source updates every 60 min (screen interactive) or 120 min (screen off). Non-active sources update every 120 min (screen interactive) or 240 min (screen off).
+        - **Off Charger**: Leverages `BatteryFetchStrategy` (>70% battery: 240 min, >50% battery: 480 min, <=50% battery: suspends background updates; opportunistic fetches allowed down to 30% battery).
 - **Naming**: PascalCase for Classes, camelCase for functions/properties, backtick-wrapped sentences for test functions.
 - **Logging**: Use `private const val TAG = "ClassName"` and standardized log levels. Do **NOT** remove debug logs during the cleanup phase or after verifying a fix unless explicitly requested by the user. Maintain consistent logging for critical paths (e.g., both High and Low temperature labels).
 - **Imports**: Grouped by (1) Android/Framework, (2) Libraries, (3) Project.
@@ -109,6 +111,22 @@ The project follows a **pure function extraction** philosophy to maximize testab
     - **Job Tracking**: Implemented `WidgetUpdateTracker` to automatically cancel stale update coroutines when a new update or resize event arrives.
     - **Scheduling**: Eliminated the redundant manual `OneTimeWorkRequest` loop in `WeatherWidgetWorker` and implemented a 5-minute sync cooldown.
     - **UI Responsiveness**: Added a 250ms debounce to `handleResize` to stabilize UI updates on foldable devices.
+- **Hourly Graph Time-Scale & Lookback (2026-04-18)**: Extended hourly graph lookback to 72 hours to prevent missing historical observations. Resolved time-scale distortion and missing icons in historical forecast views.
+- **Advanced Temperature Graph Label Placement & Curve Avoidance (2026-04-20)**:
+    - Implemented curve avoidance algorithms to prevent labels from overlapping the Bezier temperature curves.
+    - Added value-based placement for START/END labels and injected midpoint labels on wide widgets with sparse extrema to maximize readability.
+    - Deduplicated the placement engine and fetch-dot layout pipelines (`resolveFetchDotLayout` / `tryExactFitForDirection`).
+- **Touch Routing & Daily History Blending (2026-04-22)**: Fixed a touch routing regression in widget navigation, stabilized history day navigation/clamping, and unified the blending of historical actuals with forecasts.
+- **Current Temp Charging Loop Recovery (2026-05-19)**:
+    - Prevented scheduling stalls by making WorkManager unique work scheduling state-aware, inspecting the active job before enqueuing the next task.
+    - Intelligently replaces overdue or mis-scheduled tasks while keeping active/due-soon work, adding persistent debug logs for scheduler actions.
+- **Charging-Aware Screen-Off Current Temp Loop (2026-05-19)**:
+    - Enabled background fetches during active charging even when the screen is off (interval of 16 minutes), while screen-on charging remains at 10 minutes.
+- **Charging/Screen/Active-Aware Forecast Fetch Policy (2026-05-19)**:
+    - Implemented a dynamic `ForecastFetchPolicy` using charging/screen-state context to reschedule periodic updates, scaling intervals based on screen state and source activity (60m to 240m), reducing battery wear.
+- **Flow-Based Live Observation Reload & Diagnostic Split (2026-05-19)**:
+    - Isolated observation-specific fetch diagnostics from high-volume layout/render diagnostics using a dedicated log query.
+    - Wired a debounced Room Flow combination (`observeLatestFetchedAt` + `observeLatestCurrentObservationFetchLogAt`) to automatically refresh the Observations activity when fresh data is fetched.
 
 ### API & Data Characteristics
 - **Data Types**: NWS returns integer temperatures; Open-Meteo returns decimals.
