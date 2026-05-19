@@ -79,6 +79,16 @@ object TemperatureGraphRenderer {
 
     private data class CurveIntrusion(val minY: Float, val maxY: Float) {
         val isEmpty: Boolean get() = minY > maxY
+
+        fun isWithinDip(allowedDipPx: Float, placeAbove: Boolean, bounds: RectF): Boolean {
+            if (isEmpty) return true
+            return if (placeAbove) {
+                (bounds.bottom - minY) <= allowedDipPx
+            } else {
+                (maxY - bounds.top) <= allowedDipPx
+            }
+        }
+
         companion object {
             val NONE = CurveIntrusion(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY)
             fun merge(a: CurveIntrusion, b: CurveIntrusion): CurveIntrusion = when {
@@ -140,10 +150,6 @@ object TemperatureGraphRenderer {
             val clipMin = kotlin.math.max(ySegMin, top)
             val clipMax = min(ySegMax, bottom)
             
-            if (shouldLogPlacement(role)) {
-                Log.d(TAG, "CurveCollisionDetail: role=$role idx=$labelIdx curve=$curveName segment=[(${String.format("%.1f,%.1f", a.first, a.second)}), (${String.format("%.1f,%.1f", b.first, b.second)})] bounds=${bounds.toShortString()} clipY=[${String.format("%.1f,%.1f", clipMin, clipMax)}]")
-            }
-
             if (clipMin < minY) minY = clipMin
             if (clipMax > maxY) maxY = clipMax
         }
@@ -487,6 +493,7 @@ object TemperatureGraphRenderer {
 
         val gapAbovePx = dpToPx(ctx.context, gapDp.aboveDp)
         val gapBelowPx = dpToPx(ctx.context, gapDp.belowDp)
+        val allowedDipPx = dpToPx(ctx.context, CURVE_AVOIDANCE_ALLOWED_DIP_DP)
 
         if (shouldLogPlacement(candidate.role)) {
             Log.d(TAG, "LabelLoopEntry: role=${candidate.role} idx=$idx pointY=${String.format("%.1f", placement.sy)} labelHeight=${String.format("%.1f", labelHeight)} directions=$directions overlapThreshold=${GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO} drawnLabelCount=${drawnLabelMetas.size}")
@@ -522,7 +529,8 @@ object TemperatureGraphRenderer {
                 val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
 
                 val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
-                val overlapsCurve = curveAvoidanceEligible && !combinedCurveIntrusion(ctx, bounds, candidate.role, idx).isEmpty
+                val intrusion = if (curveAvoidanceEligible) combinedCurveIntrusion(ctx, bounds, candidate.role, idx) else CurveIntrusion.NONE
+                val overlapsCurve = curveAvoidanceEligible && !intrusion.isEmpty && !intrusion.isWithinDip(allowedDipPx, placeAbove, bounds)
 
                 val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
 
@@ -728,7 +736,7 @@ object TemperatureGraphRenderer {
                 } else {
                     blockerResult.intrusion.maxY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx - blockerResult.baseBounds.top
                 }
-                if (extra <= 0f) return ExactFitOutcome.GAVE_UP
+                if (extra <= 0f) return ExactFitOutcome.NATURAL_FITS
 
                 val newGapPx = blockerResult.baseGapPx + extra
                 val newV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
