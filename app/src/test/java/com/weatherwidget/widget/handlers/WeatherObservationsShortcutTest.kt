@@ -171,8 +171,8 @@ class WeatherObservationsShortcutTest {
     }
 
     private fun graphOptions(): Bundle = Bundle().apply {
-        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 200)
-        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 200)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 440)
+        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 440)
         putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 150)
         putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 150)
     }
