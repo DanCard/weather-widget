@@ -454,6 +454,7 @@ class WeatherWidgetWorker
                     workManager = WorkManager.getInstance(context),
                     nowMs = System.currentTimeMillis(),
                     ignoreRunningWorkId = ignoreRunningWorkId,
+                    isScreenInteractive = isScreenInteractive,
                 )
             } else {
                 appLogDao.log(

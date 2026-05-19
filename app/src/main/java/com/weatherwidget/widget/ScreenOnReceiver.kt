@@ -117,8 +117,13 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     private fun handleScreenOff(context: Context) {
-        Log.d(TAG, "Screen turned off - canceling charging current-temp loop")
-        CurrentTempUpdateScheduler.cancel(context)
+        val battery = getBatteryState(context)
+        if (battery.isCharging) {
+            Log.d(TAG, "Screen turned off while charging - keeping current-temp loop running")
+        } else {
+            Log.d(TAG, "Screen turned off on battery - canceling current-temp loop")
+            CurrentTempUpdateScheduler.cancel(context)
+        }
     }
 
     private fun logPowerConnectedEvent(

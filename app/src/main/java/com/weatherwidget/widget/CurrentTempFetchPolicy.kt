@@ -5,12 +5,17 @@ package com.weatherwidget.widget
  */
 object CurrentTempFetchPolicy {
     const val CHARGING_INTERVAL_MINUTES = 10L
+    const val CHARGING_SCREEN_OFF_INTERVAL_MINUTES = 16L
 
     /**
-     * Fetch is allowed while charging if the screen is interactive OR if it's an
-     * opportunistic background sync (e.g. 30-minute system job).
-     * On battery, fetch is only allowed for opportunistic contexts.
-     * Manual triggers always bypass these checks.
+     * Returns the appropriate charging loop interval based on screen state.
+     */
+    fun chargingIntervalMinutes(isScreenInteractive: Boolean): Long =
+        if (isScreenInteractive) CHARGING_INTERVAL_MINUTES else CHARGING_SCREEN_OFF_INTERVAL_MINUTES
+
+    /**
+     * Fetch is allowed while charging (regardless of screen state) or on battery
+     * in opportunistic contexts. Manual triggers always bypass these checks.
      */
     fun shouldFetchNow(
         isCharging: Boolean,
@@ -21,17 +26,18 @@ object CurrentTempFetchPolicy {
         if (isManual) return true
 
         return if (isCharging) {
-            isScreenInteractive || isOpportunisticContext
+            true
         } else {
             isOpportunisticContext
         }
     }
 
     /**
-     * Background 10-minute loop should only run while charging and interactive.
+     * Background charging loop should run whenever the device is charging,
+     * regardless of screen state.
      */
     fun shouldScheduleChargingLoop(
         isCharging: Boolean,
         isScreenInteractive: Boolean,
-    ): Boolean = isCharging && isScreenInteractive
+    ): Boolean = isCharging
 }

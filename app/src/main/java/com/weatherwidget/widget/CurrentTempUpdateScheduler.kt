@@ -75,13 +75,14 @@ object CurrentTempUpdateScheduler {
         }
     }
 
-    fun scheduleNextChargingUpdate(context: Context) {
+    fun scheduleNextChargingUpdate(context: Context, isScreenInteractive: Boolean = true) {
         CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 scheduleNextChargingUpdate(
                     context = context,
                     workManager = WorkManager.getInstance(context),
                     nowMs = System.currentTimeMillis(),
+                    isScreenInteractive = isScreenInteractive,
                 )
             }.onFailure { e ->
                 Log.e(TAG, "scheduleNextChargingUpdate failed: ${e.message}", e)
@@ -100,20 +101,24 @@ object CurrentTempUpdateScheduler {
         workManager: WorkManager,
         nowMs: Long,
         ignoreRunningWorkId: UUID? = null,
+        isScreenInteractive: Boolean = true,
     ) {
+        val intervalMinutes = CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive)
+
         val existingWork =
             withContext(Dispatchers.IO) {
                 workManager.getWorkInfosForUniqueWork(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP).get()
             }
                 .map(ChargingWorkInfo::fromWorkInfo)
-        val decision = decideChargingLoopWork(existingWork, nowMs, ignoreRunningWorkId)
+        val decision = decideChargingLoopWork(existingWork, nowMs, ignoreRunningWorkId, intervalMinutes)
 
         logSchedulerEvent(
             context = context,
             tag = "CURR_FETCH_WORK_STATE",
             message =
                 "type=charging_loop decision=${decision.action.logValue} reason=${decision.reason} " +
-                    "active=${decision.active?.toLogString() ?: "none"} now=${formatTime(nowMs)}",
+                    "active=${decision.active?.toLogString() ?: "none"} now=${formatTime(nowMs)} " +
+                    "intervalMinutes=$intervalMinutes interactive=$isScreenInteractive",
         )
 
         when (decision.action) {
@@ -126,7 +131,7 @@ object CurrentTempUpdateScheduler {
             -> {
                 val immediate = decision.action == ChargingLoopAction.REPLACE_IMMEDIATE
                 val reason = if (immediate) "charging_loop_overdue" else "charging_loop"
-                val workRequest = buildCurrentTempRequest(reason = reason, delayMinutes = if (immediate) 0 else CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES)
+                val workRequest = buildCurrentTempRequest(reason = reason, delayMinutes = if (immediate) 0 else intervalMinutes)
                 val policy =
                     when (decision.action) {
                         ChargingLoopAction.ENQUEUE_DELAYED -> ExistingWorkPolicy.KEEP
@@ -141,13 +146,13 @@ object CurrentTempUpdateScheduler {
                     workRequest,
                 )
                 val dueAtMs =
-                    nowMs + TimeUnit.MINUTES.toMillis(if (immediate) 0 else CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES)
+                    nowMs + TimeUnit.MINUTES.toMillis(if (immediate) 0 else intervalMinutes)
                 logSchedulerEvent(
                     context = context,
                     tag = "CURR_FETCH_WORK_REQUESTED",
                     message =
                         "type=charging_loop reason=$reason decision=${decision.action.logValue} " +
-                            "policy=${policy.name.lowercase()} delayMinutes=${if (immediate) 0 else CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES} " +
+                            "policy=${policy.name.lowercase()} delayMinutes=${if (immediate) 0 else intervalMinutes} " +
                             "requestedDueAt=${formatTime(dueAtMs)} workId=${workRequest.id}",
                 )
                 if (decision.action == ChargingLoopAction.REPLACE_DELAYED || decision.action == ChargingLoopAction.REPLACE_IMMEDIATE) {
@@ -193,6 +198,7 @@ object CurrentTempUpdateScheduler {
         workInfos: List<ChargingWorkInfo>,
         nowMs: Long,
         ignoreRunningWorkId: UUID? = null,
+        intervalMinutes: Long = CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES,
     ): ChargingLoopDecision {
         val active = workInfos.activeCurrentTempWork(ignoreRunningWorkId)
             ?: return ChargingLoopDecision(ChargingLoopAction.ENQUEUE_DELAYED, "no_active_work", null)
@@ -210,7 +216,7 @@ object CurrentTempUpdateScheduler {
             return ChargingLoopDecision(ChargingLoopAction.REPLACE_DELAYED, "missing_due_time", active)
         }
 
-        val intervalMs = TimeUnit.MINUTES.toMillis(CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES)
+        val intervalMs = TimeUnit.MINUTES.toMillis(intervalMinutes)
         val graceMs = TimeUnit.MINUTES.toMillis(OVERDUE_GRACE_MINUTES)
         return when {
             dueAtMs < nowMs - graceMs ->

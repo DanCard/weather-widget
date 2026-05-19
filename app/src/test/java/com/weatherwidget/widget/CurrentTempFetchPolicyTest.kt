@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,8 +13,7 @@ import org.junit.experimental.categories.Category
 class CurrentTempFetchPolicyTest {
 
     @Test
-    fun `charging allows fetch if interactive or opportunistic`() {
-        // Interactive + non-opportunistic (10-min loop) = OK
+    fun `charging always allows fetch regardless of screen state`() {
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = true,
@@ -21,20 +21,18 @@ class CurrentTempFetchPolicyTest {
                 isOpportunisticContext = false,
             ),
         )
-        // Non-interactive + opportunistic (30-min system job) = OK (Relaxed)
+        assertTrue(
+            CurrentTempFetchPolicy.shouldFetchNow(
+                isCharging = true,
+                isScreenInteractive = false,
+                isOpportunisticContext = false,
+            ),
+        )
         assertTrue(
             CurrentTempFetchPolicy.shouldFetchNow(
                 isCharging = true,
                 isScreenInteractive = false,
                 isOpportunisticContext = true,
-            ),
-        )
-        // Non-interactive + non-opportunistic (10-min loop) = FAIL
-        assertFalse(
-            CurrentTempFetchPolicy.shouldFetchNow(
-                isCharging = true,
-                isScreenInteractive = false,
-                isOpportunisticContext = false,
             ),
         )
     }
@@ -70,9 +68,20 @@ class CurrentTempFetchPolicyTest {
     }
 
     @Test
-    fun `charging loop only runs while charging and interactive`() {
+    fun `charging loop runs whenever charging regardless of screen state`() {
         assertTrue(CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging = true, isScreenInteractive = true))
-        assertFalse(CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging = true, isScreenInteractive = false))
+        assertTrue(CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging = true, isScreenInteractive = false))
         assertFalse(CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging = false, isScreenInteractive = true))
+        assertFalse(CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging = false, isScreenInteractive = false))
+    }
+
+    @Test
+    fun `charging interval is 10 minutes when screen is on`() {
+        assertEquals(10L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = true))
+    }
+
+    @Test
+    fun `charging interval is 16 minutes when screen is off`() {
+        assertEquals(16L, CurrentTempFetchPolicy.chargingIntervalMinutes(isScreenInteractive = false))
     }
 }

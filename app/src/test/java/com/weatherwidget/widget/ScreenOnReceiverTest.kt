@@ -9,7 +9,12 @@ import com.weatherwidget.test.category.MediumDuration
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetActions
 import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockkObject
+import io.mockk.Runs
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -113,6 +118,28 @@ class ScreenOnReceiverTest {
             }
 
         assertTrue("Did not expect refresh broadcast on screen off", providerIntent == null)
+    }
+
+    @Test
+    fun `onReceive with SCREEN_OFF on battery cancels current-temp loop`() {
+        mockkObject(CurrentTempUpdateScheduler)
+        every { CurrentTempUpdateScheduler.cancel(any()) } just Runs
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_OFF))
+
+        verify { CurrentTempUpdateScheduler.cancel(context) }
+    }
+
+    @Test
+    fun `onReceive with SCREEN_OFF while charging does not cancel current-temp loop`() {
+        mockkObject(CurrentTempUpdateScheduler)
+        mockkObject(BatteryStatePolicy)
+        every { CurrentTempUpdateScheduler.cancel(any()) } just Runs
+        every { BatteryStatePolicy.isEffectivelyCharging(any()) } returns true
+
+        receiver.onReceive(context, Intent(Intent.ACTION_SCREEN_OFF))
+
+        verify(exactly = 0) { CurrentTempUpdateScheduler.cancel(any()) }
     }
 
     @Test

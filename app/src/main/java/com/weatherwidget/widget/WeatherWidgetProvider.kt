@@ -632,7 +632,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
             val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
             if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+                CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context, isScreenInteractive = powerManager.isInteractive)
             }
 
             val isDataStale = DataFreshness.isDataStale(context)
@@ -808,7 +808,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
         val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         if (CurrentTempFetchPolicy.shouldScheduleChargingLoop(isCharging, powerManager.isInteractive)) {
-            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context)
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context, isScreenInteractive = powerManager.isInteractive)
         }
     }
 
