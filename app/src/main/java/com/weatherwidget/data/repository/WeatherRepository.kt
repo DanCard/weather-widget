@@ -12,6 +12,7 @@ import com.weatherwidget.data.remote.NwsApi
 import com.weatherwidget.data.remote.OpenMeteoApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.util.TemperatureInterpolator
+import com.weatherwidget.widget.ForecastFetchContext
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
@@ -37,9 +38,10 @@ class WeatherRepository
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
+            fetchContext: ForecastFetchContext? = null,
         ): Result<List<ForecastEntity>> {
             return forecastRepository.getWeatherData(
-                latitude, longitude, locationName, forceRefresh, networkAllowed, targetSourceId
+                latitude, longitude, locationName, forceRefresh, networkAllowed, targetSourceId, fetchContext
             )
         }
 

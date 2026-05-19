@@ -24,6 +24,8 @@ import com.weatherwidget.data.remote.VisualCrossingApi
 import com.weatherwidget.data.remote.WeatherApi
 import com.weatherwidget.data.remote.SilurianApi
 import com.weatherwidget.data.remote.TomorrowIoApi
+import com.weatherwidget.widget.ForecastFetchContext
+import com.weatherwidget.widget.ForecastFetchPolicy
 import com.weatherwidget.widget.ForecastStalenessPolicy
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetStateManager
@@ -126,11 +128,12 @@ class ForecastRepository
             forceRefresh: Boolean = false,
             networkAllowed: Boolean = true,
             targetSourceId: String? = null,
+            fetchContext: ForecastFetchContext? = null,
         ): Result<List<ForecastEntity>> {
             try {
                 // Initial check without locking
                 var cachedForecasts = getCachedData(latitude, longitude)
-                if (!forceRefresh && !requiresNetworkFetch(latitude, longitude, cachedForecasts)) {
+                if (!forceRefresh && !requiresNetworkFetch(latitude, longitude, cachedForecasts, fetchContext)) {
                     return Result.success(cachedForecasts)
                 }
 
@@ -139,7 +142,7 @@ class ForecastRepository
                 syncMutex.withLock {
                     // Re-read data after acquiring lock to ensure another thread didn't just update it
                     cachedForecasts = getCachedData(latitude, longitude)
-                    if (!forceRefresh && !requiresNetworkFetch(latitude, longitude, cachedForecasts)) {
+                    if (!forceRefresh && !requiresNetworkFetch(latitude, longitude, cachedForecasts, fetchContext)) {
                         return Result.success(cachedForecasts)
                     }
 
@@ -149,13 +152,13 @@ class ForecastRepository
                         return Result.success(cachedForecasts)
                     }
 
-                    appLogDao.log("NET_FETCH_START", "force=$forceRefresh target=$targetSourceId")
+                    appLogDao.log("NET_FETCH_START", "force=$forceRefresh target=$targetSourceId ctx=${fetchContext?.let { "charging=${it.isCharging},screen=${it.isScreenInteractive},batt=${it.batteryLevel},active=${it.activeSourceIds}" } ?: "none"}")
                     val enabledSources = widgetStateManager.getVisibleSourcesOrder().toSet()
                     if (forceRefresh && targetSourceId != null && enabledSources.none { it.id == targetSourceId }) {
                         appLogDao.log("NET_FETCH_SKIP_DISABLED", "target=$targetSourceId")
                         return Result.success(cachedForecasts)
                     }
-                    
+
                     fun shouldForceSource(source: WeatherSource): Boolean {
                         if (!forceRefresh) return false
                         if (targetSourceId == null) return true // Force all if no target specified
@@ -164,7 +167,7 @@ class ForecastRepository
 
                    // Perform parallel fetches from all APIs
                     val sourcesToFetch = enabledSources.filter { source ->
-                        shouldForceSource(source) || isStale(source, cachedForecasts)
+                        shouldForceSource(source) || isStale(source, cachedForecasts, fetchContext)
                     }.toSet() - WeatherSource.GENERIC_GAP
 
                     val (nwsForecasts, owmForecasts, visualCrossingForecasts, meteoForecasts, wapiForecasts, silurianForecasts, tomorrowIoForecasts) = fetchFromAllApis(
@@ -216,6 +219,7 @@ class ForecastRepository
             latitude: Double,
             longitude: Double,
             forecasts: List<ForecastEntity>,
+            fetchContext: ForecastFetchContext? = null,
         ): Boolean {
             val sourcesToCheck = listOf(
                 WeatherSource.NWS,
@@ -228,18 +232,32 @@ class ForecastRepository
             )
             return sourcesToCheck.any { source ->
                 val isNeeded = widgetStateManager.isSourceVisible(source)
-                isNeeded && isStale(source, forecasts)
+                isNeeded && isStale(source, forecasts, fetchContext)
             }
         }
 
-        private fun isStale(source: WeatherSource, forecasts: List<ForecastEntity>): Boolean {
+        private fun isStale(
+            source: WeatherSource,
+            forecasts: List<ForecastEntity>,
+            fetchContext: ForecastFetchContext? = null,
+        ): Boolean {
             val lastSourceFetchTime = forecasts.filter { it.source == source.id }.maxOfOrNull { it.batchFetchedAt } ?: 0L
+            val now = System.currentTimeMillis()
+
+            if (fetchContext != null) {
+                val intervalMinutes = ForecastFetchPolicy.intervalMinutes(
+                    isCharging = fetchContext.isCharging,
+                    isScreenInteractive = fetchContext.isScreenInteractive,
+                    isActiveSource = source.id in fetchContext.activeSourceIds,
+                    batteryLevel = fetchContext.batteryLevel,
+                ) ?: return false
+                return ForecastFetchPolicy.isDue(lastSourceFetchTime, intervalMinutes, now)
+            }
+
             val visibleSources = widgetStateManager.getVisibleSourcesOrder()
             val position = visibleSources.indexOf(source)
-            
-            // If not visible, use the longest threshold (position = -1 maps to 120m)
             val threshold = ForecastStalenessPolicy.getStalenessThresholdMs(position)
-            return System.currentTimeMillis() - lastSourceFetchTime >= threshold
+            return now - lastSourceFetchTime >= threshold
         }
 
         private data class FetchResult(

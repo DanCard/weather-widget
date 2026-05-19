@@ -110,6 +110,24 @@ class WeatherWidgetWorker
                         ?: (DEFAULT_LAT to DEFAULT_LON)
                 Log.d(TAG, "doWork: Location = $location")
 
+                // Build per-source fetch context up front so the repository can decide which
+                // sources are due according to ForecastFetchPolicy (charging/screen/active-aware).
+                val appWidgetManager = AppWidgetManager.getInstance(context)
+                val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
+                val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
+                val stateManager = WidgetStateManager(context)
+                val activeSourceList = appWidgetIds.map { id ->
+                    stateManager.getCurrentDisplaySource(id).id
+                }.distinct()
+                val fetchContext = if (!forceRefresh && !uiOnlyRefresh) {
+                    ForecastFetchContext(
+                        isCharging = isPlugged,
+                        isScreenInteractive = isScreenInteractive,
+                        batteryLevel = batteryLevel,
+                        activeSourceIds = activeSourceList.toSet(),
+                    )
+                } else null
+
                 val result =
                     weatherRepository.getWeatherData(
                         latitude = location.first,
@@ -117,7 +135,8 @@ class WeatherWidgetWorker
                         locationName = getLocationName(location.first, location.second),
                         forceRefresh = forceRefresh && !uiOnlyRefresh,
                         networkAllowed = WidgetRefreshPolicy.isNetworkAllowedForWorker(uiOnlyRefresh),
-                        targetSourceId = targetSourceId
+                        targetSourceId = targetSourceId,
+                        fetchContext = fetchContext,
                     )
 
                 result.fold(
@@ -129,15 +148,6 @@ class WeatherWidgetWorker
                         val forecastSnapshots = fetchForecastSnapshots(location.first, location.second)
                         val hourlyForecasts = fetchHourlyForecasts(location.first, location.second)
                         val afterHourlyMs = SystemClock.elapsedRealtime()
-
-                        // Get active sources across all widgets to optimize daily actuals computation
-                        val appWidgetManager = AppWidgetManager.getInstance(context)
-                        val componentName = ComponentName(context, WeatherWidgetProvider::class.java)
-                        val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
-                        val stateManager = WidgetStateManager(context)
-                        val activeSourceList = appWidgetIds.map { id ->
-                            stateManager.getCurrentDisplaySource(id).id
-                        }.distinct()
 
                         // Backfill NWS history if this is a new location or no history exists
                         // ONLY perform if not a UI-only refresh to avoid blocking during frequent updates

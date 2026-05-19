@@ -1,0 +1,62 @@
+package com.weatherwidget.widget
+
+/**
+ * Caller-supplied state used by [ForecastFetchPolicy] to decide which sources are due.
+ * The repository is Android-coupled but this context lets it stay decision-free.
+ */
+data class ForecastFetchContext(
+    val isCharging: Boolean,
+    val isScreenInteractive: Boolean,
+    val batteryLevel: Int,
+    val activeSourceIds: Set<String>,
+)
+
+/**
+ * Pure decision functions for scheduling per-source forecast fetches.
+ *
+ * While charging, fetch cadence scales with screen state and whether a source
+ * is the one currently displayed (active) vs. one of the others (non-active).
+ * Off-charger, fall back to [BatteryFetchStrategy] tiers with no per-source distinction.
+ */
+object ForecastFetchPolicy {
+    const val CHARGING_SCREEN_ON_ACTIVE_MINUTES = 60L
+    const val CHARGING_SCREEN_ON_NONACTIVE_MINUTES = 120L
+    const val CHARGING_SCREEN_OFF_ACTIVE_MINUTES = 120L
+    const val CHARGING_SCREEN_OFF_NONACTIVE_MINUTES = 240L
+
+    private const val OFF_CHARGER_LOW_BATTERY_TICK_MINUTES = 24 * 60L
+
+    private const val DEFAULT_GRACE_MS = 120_000L
+
+    fun intervalMinutes(
+        isCharging: Boolean,
+        isScreenInteractive: Boolean,
+        isActiveSource: Boolean,
+        batteryLevel: Int,
+    ): Long? {
+        if (!isCharging) {
+            return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
+        }
+        return when {
+            isScreenInteractive && isActiveSource -> CHARGING_SCREEN_ON_ACTIVE_MINUTES
+            isScreenInteractive && !isActiveSource -> CHARGING_SCREEN_ON_NONACTIVE_MINUTES
+            !isScreenInteractive && isActiveSource -> CHARGING_SCREEN_OFF_ACTIVE_MINUTES
+            else -> CHARGING_SCREEN_OFF_NONACTIVE_MINUTES
+        }
+    }
+
+    fun periodicTickMinutes(isCharging: Boolean, batteryLevel: Int): Long {
+        if (isCharging) return CHARGING_SCREEN_ON_ACTIVE_MINUTES
+        return BatteryFetchStrategy.computeFetchInterval(isCharging = false, batteryLevel = batteryLevel)
+            ?: OFF_CHARGER_LOW_BATTERY_TICK_MINUTES
+    }
+
+    fun isDue(
+        lastFetchTimeMs: Long,
+        intervalMinutes: Long,
+        nowMs: Long,
+        graceMs: Long = DEFAULT_GRACE_MS,
+    ): Boolean {
+        return nowMs - lastFetchTimeMs >= (intervalMinutes * 60_000L) - graceMs
+    }
+}

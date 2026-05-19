@@ -31,6 +31,7 @@ class ScreenOnReceiver : BroadcastReceiver() {
     ) {
         when (intent.action) {
             Intent.ACTION_POWER_CONNECTED -> handlePowerConnected(context)
+            Intent.ACTION_POWER_DISCONNECTED -> handlePowerDisconnected(context)
             Intent.ACTION_USER_PRESENT -> handleUserPresent(context)
             Intent.ACTION_SCREEN_OFF -> handleScreenOff(context)
             else -> return
@@ -38,6 +39,9 @@ class ScreenOnReceiver : BroadcastReceiver() {
     }
 
     private fun handlePowerConnected(context: Context) {
+        // Re-enqueue the periodic forecast worker with the charging-cadence interval (60 min).
+        WeatherWidgetProvider.schedulePeriodicUpdate(context)
+
         val now = System.currentTimeMillis()
         val prefs = com.weatherwidget.util.SharedPreferencesUtil.getPrefs(context, PREFS_NAME)
         val lastRefreshMs = prefs.getLong(KEY_LAST_POWER_CONNECTED_REFRESH_MS, 0L)
@@ -69,6 +73,12 @@ class ScreenOnReceiver : BroadcastReceiver() {
             lastRefreshMs = lastRefreshMs,
             elapsedMs = elapsedMs,
         )
+    }
+
+    private fun handlePowerDisconnected(context: Context) {
+        // Re-enqueue with the off-charger interval (BatteryFetchStrategy tiers).
+        Log.d(TAG, "Power disconnected - rescheduling periodic forecast worker")
+        WeatherWidgetProvider.schedulePeriodicUpdate(context)
     }
 
     private fun handleUserPresent(context: Context) {

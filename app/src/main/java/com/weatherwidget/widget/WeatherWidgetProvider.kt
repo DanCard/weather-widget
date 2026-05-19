@@ -832,33 +832,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    private fun schedulePeriodicUpdate(context: Context) {
-        val constraints =
-            Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-
-        val workRequest =
-            PeriodicWorkRequestBuilder<WeatherWidgetWorker>(
-                1,
-                TimeUnit.HOURS,
-            )
-                .setInputData(
-                    Data.Builder()
-                        .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "periodic_one_hour")
-                        .build()
-                )
-                .setConstraints(constraints)
-                .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            workRequest,
-        )
-        val nextWindowStartMs = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
-        Log.d(TAG, "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME intervalMinutes=60 policy=keep nextWindowStartMs=$nextWindowStartMs")
-    }
 
     companion object {
         /** Hours of past hourly data to query — covers yesterday's actuals for rain analysis. */
@@ -879,6 +852,45 @@ class WeatherWidgetProvider : AppWidgetProvider() {
 
         private val lastUpdateByWidgetId = java.util.concurrent.ConcurrentHashMap<Int, Long>()
         private const val STARTUP_DEBOUNCE_MS = 500L
+
+        /**
+         * Enqueue the periodic forecast worker. Interval is charging/battery-aware via
+         * [ForecastFetchPolicy.periodicTickMinutes]. Safe to call repeatedly — uses
+         * ExistingPeriodicWorkPolicy.UPDATE so the interval refreshes on each call.
+         */
+        @JvmStatic
+        internal fun schedulePeriodicUpdate(context: Context) {
+            val batteryStatus: Intent? = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val batteryLevel = batteryStatus?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val isCharging = BatteryStatePolicy.isEffectivelyCharging(batteryStatus)
+            val tickMinutes = ForecastFetchPolicy.periodicTickMinutes(isCharging, batteryLevel)
+
+            val constraints =
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+
+            val workRequest =
+                PeriodicWorkRequestBuilder<WeatherWidgetWorker>(
+                    tickMinutes,
+                    TimeUnit.MINUTES,
+                )
+                    .setInputData(
+                        Data.Builder()
+                            .putString(WeatherWidgetWorker.KEY_CURRENT_TEMP_REASON, "periodic_${tickMinutes}m")
+                            .build()
+                    )
+                    .setConstraints(constraints)
+                    .build()
+
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                workRequest,
+            )
+            val nextWindowStartMs = System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(tickMinutes)
+            Log.d(TAG, "PERIODIC_REFRESH_SCHEDULE: name=$WORK_NAME intervalMinutes=$tickMinutes charging=$isCharging battery=$batteryLevel policy=update nextWindowStartMs=$nextWindowStartMs")
+        }
 
 
         const val HOUR_ZONE_COUNT = 13
