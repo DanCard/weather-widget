@@ -353,8 +353,8 @@ object TemperatureGraphRenderer {
     private fun drawHourLabelsAndIcons(
         ctx: RenderContext,
         hours: List<HourData>,
-        drawnIconBounds: MutableList<RectF>
-    ) {
+    ): List<RectF> {
+        val drawnIconBounds = mutableListOf<RectF>()
         val minHourLabelSpacing = dpToPx(ctx.context, TemperatureGraphStyle.HOUR_LABEL_SPACING_DP * ctx.labelScale)
         GraphRenderUtils.drawHourLabels(
             canvas = ctx.canvas,
@@ -388,6 +388,7 @@ object TemperatureGraphRenderer {
                 }
             }
         }
+        return drawnIconBounds
     }
 
     private fun placeTemperatureLabels(
@@ -921,6 +922,7 @@ object TemperatureGraphRenderer {
         existingBounds: List<RectF>,
         minorOverlapThreshold: Float,
     ): StalenessInitialLayout {
+        // clampedX is already screen-clamped by the caller, so horizontal bounds checks are not needed
         var placeAbove = false
         var baselineY = fetchY + dotRadius + padding - ascent
         var bounds = RectF(
@@ -1123,8 +1125,7 @@ object TemperatureGraphRenderer {
         drawFillAndCurves(ctx, update.expectedFillPath, hours)
         timings.mark("curves")
 
-        val drawnIconBounds = mutableListOf<RectF>()
-        drawHourLabelsAndIcons(ctx, hours, drawnIconBounds)
+        val drawnIconBounds = drawHourLabelsAndIcons(ctx, hours)
         timings.mark("icons")
 
         val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)
