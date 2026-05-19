@@ -414,7 +414,8 @@ suspend fun handleToggleView(
         }
     }
 
-    private suspend fun getDailyActuals(
+    @VisibleForTesting
+    internal suspend fun getDailyActuals(
         database: WeatherDatabase,
         lat: Double,
         lon: Double,
@@ -432,7 +433,6 @@ suspend fun handleToggleView(
         // Uses time-aligned IDW so the value matches what the live widget displayed.
         val todayStartMs = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val tomorrowMs = today.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val todayDateMillis = today.toEpochDay() * WeatherTimeUtils.MILLIS_PER_DAY
         val todayObs = database.observationDao().getObservationsInRange(todayStartMs, tomorrowMs, lat, lon)
             .filter { it.stationId != "NWS_BLEND" }
         val now = LocalDateTime.now()
@@ -440,21 +440,13 @@ suspend fun handleToggleView(
         val hourlyLookaheadEnd = now.plusHours(WeatherWidgetProvider.HOURLY_GRAPH_LOOKAHEAD_HOURS).atZone(zone).toInstant().toEpochMilli()
         val hourlyForecasts = database.hourlyForecastDao().getHourlyForecasts(hourlyLookbackStart, hourlyLookaheadEnd, lat, lon)
         val todayActuals = ObservationResolver.aggregateObservationsToDailyBySource(todayObs, hourlyForecasts, lat, lon)
-        val persistedTodayExtremes = database.dailyExtremeDao().getExtremesInRange(
-            todayDateMillis,
-            todayDateMillis,
-            lat,
-            lon,
-        )
-        val persistedTodayActuals = ObservationResolver.extremesToDailyActualsBySource(persistedTodayExtremes, lat, lon)
-        val mergedTodayActuals = ObservationResolver.mergeDailyActualsBySource(
-            primary = persistedTodayActuals,
-            secondary = todayActuals,
-        )
 
+        // Today must stay live-only. Persisted daily_extremes can contain a different high
+        // than the time-aligned live blender, which makes SET_VIEW renders disagree with
+        // worker refreshes after returning from the temperature graph.
         return ObservationResolver.mergeDailyActualsBySource(
             primary = pastActuals,
-            secondary = mergedTodayActuals,
+            secondary = todayActuals,
         )
     }
 

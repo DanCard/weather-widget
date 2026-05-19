@@ -1,13 +1,17 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
+import com.weatherwidget.testutil.TestDatabase
+import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.ZoomLevel
 import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.RefreshScheduler
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -17,6 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.LocalDate
 import java.time.LocalDateTime
 import com.weatherwidget.test.category.MediumDuration
 import org.junit.experimental.categories.Category
@@ -249,5 +254,60 @@ class WidgetIntentRouterRobolectricTest {
         assertNotNull(truncatedResult)
         assertTrue(fullResult!!.temperature < truncatedResult!!.temperature)
         assertEquals(epochMs(now.minusHours(1)), fullResult.observedAt)
+    }
+
+    @Test
+    fun `getDailyActuals uses live today actuals instead of persisted today extremes`() = runTest {
+        val db = TestDatabase.create()
+        try {
+            val today = LocalDate.now()
+            val obsTime = today.atTime(16, 55)
+            val obsTimeMs = epochMs(obsTime)
+
+            db.observationDao().insertAll(
+                listOf(
+                    ObservationEntity(
+                        stationId = "KNEAR",
+                        stationName = "Near Station",
+                        timestamp = obsTimeMs,
+                        temperature = 82.56303f,
+                        condition = "Clear",
+                        locationLat = lat,
+                        locationLon = lon,
+                        distanceKm = 1f,
+                        stationType = "station",
+                        api = WeatherSource.NWS.id,
+                        fetchedAt = obsTimeMs,
+                    ),
+                ),
+            )
+            db.dailyExtremeDao().insertAll(
+                listOf(
+                    DailyExtremeEntity(
+                        date = today.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                        source = WeatherSource.NWS.id,
+                        locationLat = lat,
+                        locationLon = lon,
+                        highTemp = 83.40072f,
+                        lowTemp = 62.6f,
+                        condition = "Clear",
+                        updatedAt = obsTimeMs,
+                    ),
+                ),
+            )
+
+            val result = WidgetIntentRouter.getDailyActuals(db, lat, lon)
+            val actual = result[WeatherSource.NWS.id]?.get(today)
+
+            assertNotNull("Expected live NWS actual for today", actual)
+            assertEquals(
+                "SET_VIEW daily actuals must ignore persisted daily_extremes for today",
+                82.56303f,
+                actual!!.highTemp,
+                0.001f,
+            )
+        } finally {
+            db.close()
+        }
     }
 }
