@@ -119,9 +119,22 @@ class ObservationRepository @Inject constructor(
         }
         val obsEntity = buildObservationEntity(observation, stationInfo, latitude, longitude)
         observationDao.insertAll(listOf(obsEntity))
+        logCurrentObservationInsert(obsEntity)
         val obsDate = java.time.Instant.ofEpochMilli(obsEntity.timestamp).atZone(ZoneId.systemDefault()).toLocalDate()
         recomputeDailyExtremesForDay(latitude, longitude, obsDate, emptyList())
         return obsEntity
+    }
+
+    private suspend fun logCurrentObservationInsert(obsEntity: ObservationEntity) {
+        val nowMs = System.currentTimeMillis()
+        appLogDao.log(
+            "OBS_CURRENT_INSERT",
+            "source=${obsEntity.api} station=${obsEntity.stationId} timestamp=${obsEntity.timestamp} " +
+                "fetchedAt=${obsEntity.fetchedAt} temp=${obsEntity.temperature} " +
+                "timestampAgeMin=${(nowMs - obsEntity.timestamp) / 60_000L} " +
+                "fetchAgeMin=${(nowMs - obsEntity.fetchedAt) / 60_000L}",
+            "INFO",
+        )
     }
 
     private suspend fun getSortedObservationStations(stationsUrl: String): List<NwsApi.StationInfo> {

@@ -92,7 +92,7 @@ object CurrentTempUpdateScheduler {
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP,
-                ExistingWorkPolicy.REPLACE,
+                ExistingWorkPolicy.KEEP,
                 workRequest,
             )
             val dueAtMs =
@@ -102,12 +102,13 @@ object CurrentTempUpdateScheduler {
                 tag = "CURR_FETCH_WORK_ENQUEUED",
                 message =
                     "type=charging_loop reason=charging_loop opportunistic=false force=false " +
+                        "policy=keep " +
                         "policyDelayMinutes=${CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES} " +
-                        "dueAt=${formatTime(dueAtMs)} workId=${workRequest.id}",
+                        "requestedDueAt=${formatTime(dueAtMs)} workId=${workRequest.id}",
             )
             Log.d(
                 TAG,
-                "scheduleNextChargingUpdate: delay=${CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES}m id=${workRequest.id}",
+                "scheduleNextChargingUpdate: delay=${CurrentTempFetchPolicy.CHARGING_INTERVAL_MINUTES}m policy=KEEP id=${workRequest.id}",
             )
         }.onFailure { e ->
             Log.e(TAG, "scheduleNextChargingUpdate failed: ${e.message}", e)

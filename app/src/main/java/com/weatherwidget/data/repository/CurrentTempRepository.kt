@@ -104,6 +104,11 @@ class CurrentTempRepository
                 syncMutex.withLock {
                     val currentTime = System.currentTimeMillis()
                     if (!forceRefresh && currentTime - lastFetchTime < CURRENT_TEMP_FRESHNESS_MS) {
+                        appLogDao.log(
+                            "CURR_FETCH_FRESH_SKIP",
+                            "reason=$reason ageMs=${currentTime - lastFetchTime} freshnessMs=$CURRENT_TEMP_FRESHNESS_MS lastFetchMs=$lastFetchTime",
+                            "INFO",
+                        )
                         return Result.success(0)
                     }
                     
@@ -117,21 +122,26 @@ class CurrentTempRepository
                         
                     appLogDao.log("CURR_FETCH_START", "reason=$reason targets=${targetSources.joinToString { it.id }}")
                     
+                    var successfulSourceCount = 0
                     targetSources.forEach { targetSource ->
                         try {
-                            fetchFromSource(targetSource, latitude, longitude) ?: return@forEach
+                            val reading = fetchFromSource(targetSource, latitude, longitude)
+                            if (reading != null) successfulSourceCount += 1
+                            logCurrentSourceResult(reason, targetSource, reading)
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (exception: ApiAccessException) {
                             logCurrentFetchFailure(targetSource, exception)
+                            logCurrentSourceResult(reason, targetSource, null, exception)
                         } catch (exception: Exception) {
                             logCurrentFetchFailure(targetSource, exception)
+                            logCurrentSourceResult(reason, targetSource, null, exception)
                         }
                     }
                     
                     lastFetchTime = System.currentTimeMillis()
                     val targetIds = targetSources.joinToString(",") { it.id }
-                    appLogDao.log("CURR_FETCH_DONE", "reason=$reason targets=$targetIds updated=${targetSources.size}")
+                    appLogDao.log("CURR_FETCH_DONE", "reason=$reason targets=$targetIds updated=$successfulSourceCount attempted=${targetSources.size}")
                     Result.success(targetSources.size)
                 }
             } catch (exception: Exception) { 
@@ -179,7 +189,7 @@ class CurrentTempRepository
                             "OFFICIAL",
                             api = WeatherSource.OPEN_WEATHER_MAP.id,
                         )
-                        observationDao.insertAll(listOf(obsEntity))
+                        insertCurrentObservation(obsEntity)
                     }
                     reading
                 }
@@ -217,7 +227,7 @@ class CurrentTempRepository
                             "OFFICIAL",
                             api = WeatherSource.VISUAL_CROSSING.id,
                         )
-                        observationDao.insertAll(listOf(obsEntity))
+                        insertCurrentObservation(obsEntity)
                     }
                     reading
                 }
@@ -255,7 +265,7 @@ class CurrentTempRepository
                             locationLon = longitude,
                             api = WeatherSource.SILURIAN.id,
                         )
-                        observationDao.insertAll(listOf(obsEntity))
+                        insertCurrentObservation(obsEntity)
                     }
                     reading
                 }
@@ -293,7 +303,7 @@ class CurrentTempRepository
                             "OFFICIAL",
                             api = WeatherSource.OPEN_METEO.id,
                         )
-                        observationDao.insertAll(listOf(obsEntity))
+                        insertCurrentObservation(obsEntity)
                     }
                     reading
                 }
@@ -337,7 +347,7 @@ class CurrentTempRepository
                             "OFFICIAL",
                             api = WeatherSource.WEATHER_API.id,
                         )
-                        observationDao.insertAll(listOf(obsEntity))
+                        insertCurrentObservation(obsEntity)
                     }
                     reading
                 }
@@ -378,7 +388,7 @@ class CurrentTempRepository
                             "OFFICIAL",
                             api = WeatherSource.TOMORROW_IO.id,
                         )
-                        observationDao.insertAll(listOf(obsEntity))
+                        insertCurrentObservation(obsEntity)
                     }
                     result
                 }
@@ -429,6 +439,41 @@ class CurrentTempRepository
                 }
                 else -> appLogDao.log("CURR_FETCH_ERROR", "source=${source.id} error=${exception.message}", "WARN")
             }
+        }
+
+        private suspend fun logCurrentSourceResult(
+            reason: String,
+            source: WeatherSource,
+            reading: CurrentReadingPayload?,
+            exception: Exception? = null,
+        ) {
+            val nowMs = System.currentTimeMillis()
+            val observedAgeMin = reading?.observedAt?.let { (nowMs - it) / 60_000L }
+            val errorSummary = exception?.let { " error=${it.javaClass.simpleName}:${it.message ?: "no_message"}" }.orEmpty()
+            appLogDao.log(
+                "CURR_FETCH_SOURCE_RESULT",
+                "reason=$reason source=${source.id} success=${reading != null} " +
+                    "temp=${reading?.temperature ?: "none"} observedAt=${reading?.observedAt ?: "none"} " +
+                    "observedAgeMin=${observedAgeMin ?: "none"} condition=${reading?.condition ?: "none"}$errorSummary",
+                if (reading != null) "INFO" else "WARN",
+            )
+        }
+
+        private suspend fun insertCurrentObservation(obsEntity: ObservationEntity) {
+            observationDao.insertAll(listOf(obsEntity))
+            logCurrentObservationInsert(obsEntity)
+        }
+
+        private suspend fun logCurrentObservationInsert(obsEntity: ObservationEntity) {
+            val nowMs = System.currentTimeMillis()
+            appLogDao.log(
+                "OBS_CURRENT_INSERT",
+                "source=${obsEntity.api} station=${obsEntity.stationId} timestamp=${obsEntity.timestamp} " +
+                    "fetchedAt=${obsEntity.fetchedAt} temp=${obsEntity.temperature} " +
+                    "timestampAgeMin=${(nowMs - obsEntity.timestamp) / 60_000L} " +
+                    "fetchAgeMin=${(nowMs - obsEntity.fetchedAt) / 60_000L}",
+                "INFO",
+            )
         }
 
         private suspend fun rethrowIfAuthFailure(source: WeatherSource, exception: ClientRequestException) {

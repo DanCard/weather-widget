@@ -56,6 +56,17 @@ object CurrentTemperatureResolver {
         }
     }
 
+    private fun appLog(
+        tag: String,
+        message: String,
+        level: String = "DEBUG",
+    ) {
+        val dao = defaultAppLogDao ?: return
+        logScope.launch {
+            dao.log(tag, message, level)
+        }
+    }
+
     private fun formatTemp(value: Float?): String =
         value?.let { String.format("%.2f", it) } ?: "none"
 
@@ -191,6 +202,17 @@ object CurrentTemperatureResolver {
                 "displayTemp=${formatTemp(displayTemp)} " +
                 "observedAt=${observedAt ?: "none"}",
         )
+        logDisplaySelection(
+            source = displaySource,
+            nowMs = nowMs,
+            displayTemp = displayTemp,
+            estimatedTemp = estimatedTemp,
+            observedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            appliedDelta = appliedDelta,
+            estimatedAtObservationTime = estimatedAtObservationTime,
+            isStaleEstimate = isStaleEstimate,
+        )
 
         return CurrentTemperatureResolution(
             displayTemp = displayTemp,
@@ -200,6 +222,38 @@ object CurrentTemperatureResolver {
             appliedDelta = appliedDelta,
             updatedDeltaState = updatedDeltaState,
             shouldClearStoredDelta = storedDeltaState != null && !scopeMatch,
+        )
+    }
+
+    private fun logDisplaySelection(
+        source: WeatherSource,
+        nowMs: Long,
+        displayTemp: Float?,
+        estimatedTemp: Float?,
+        observedTemp: Float?,
+        observedAt: Long?,
+        appliedDelta: Float?,
+        estimatedAtObservationTime: Float?,
+        isStaleEstimate: Boolean,
+    ) {
+        val anchorType =
+            when {
+                observedTemp != null && observedAt != null && estimatedTemp != null &&
+                    estimatedAtObservationTime != null && appliedDelta != null -> "observed_delta"
+                observedTemp != null && observedAt != null -> "observed"
+                estimatedTemp != null && appliedDelta != null -> "forecast_delta"
+                estimatedTemp != null -> "forecast"
+                observedTemp != null -> "observed_no_timestamp"
+                else -> "none"
+            }
+        val displayedAgeMin = observedAt?.let { (nowMs - it) / 60_000L }
+        appLog(
+            "CURRENT_TEMP_DISPLAY",
+            "source=${source.id} anchorType=$anchorType displayTemp=${displayTemp ?: "none"} " +
+                "estimatedTemp=${estimatedTemp ?: "none"} observedTemp=${observedTemp ?: "none"} " +
+                "observedAt=${observedAt ?: "none"} displayedAgeMin=${displayedAgeMin ?: "none"} " +
+                "appliedDelta=${appliedDelta ?: "none"} isStaleEstimate=$isStaleEstimate",
+            "INFO",
         )
     }
 
