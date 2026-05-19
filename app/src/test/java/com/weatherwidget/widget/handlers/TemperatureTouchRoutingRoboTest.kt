@@ -49,6 +49,7 @@ class TemperatureTouchRoutingRoboTest {
     private lateinit var context: Context
     private lateinit var app: Application
     private val appWidgetId = 314
+    private val fixedNow = LocalDateTime.of(2026, 1, 15, 12, 0)
 
     @Before
     fun setup() {
@@ -247,14 +248,13 @@ class TemperatureTouchRoutingRoboTest {
         val viewsSlot = slot<RemoteViews>()
         every { appWidgetManager.updateAppWidget(appWidgetId, capture(viewsSlot)) } returns Unit
 
-        val now = LocalDateTime.now()
         TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
-            hourlyForecasts = sampleHourlyForecasts(now),
-            currentTempHourlyForecasts = sampleHourlyForecasts(now),
-            centerTime = now,
+            hourlyForecasts = sampleHourlyForecasts(fixedNow),
+            currentTempHourlyForecasts = sampleHourlyForecasts(fixedNow),
+            centerTime = fixedNow,
             displaySource = WeatherSource.NWS,
             precipProbability = 20,
         )
@@ -290,6 +290,7 @@ class TemperatureTouchRoutingRoboTest {
 
     private fun sampleHourlyForecasts(now: LocalDateTime): List<HourlyForecastEntity> {
         val start = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS).minusHours(12)
+        val fetchedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         return (0..48).map { index ->
             val time = start.plusHours(index.toLong())
             HourlyForecastEntity(
@@ -300,7 +301,7 @@ class TemperatureTouchRoutingRoboTest {
                 condition = if (index % 3 == 0) "Cloudy" else "Clear",
                 source = WeatherSource.NWS.id,
                 precipProbability = if (index % 4 == 0) 20 else 0,
-                fetchedAt = System.currentTimeMillis(),
+                fetchedAt = fetchedAt,
             )
         }
     }
