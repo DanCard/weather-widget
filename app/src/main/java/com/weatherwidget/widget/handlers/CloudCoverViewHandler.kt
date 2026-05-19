@@ -140,13 +140,9 @@ object CloudCoverViewHandler {
         setupZoomTapZones(context, views, appWidgetId, zoom, hourlyOffset)
 
         setupNavigationButtons(context, views, appWidgetId, stateManager)
-        setupHomeShortcut(context, views, appWidgetId, setVisibility = true)
-        if (!isIconWidth) {
-            setupSettingsShortcut(context, views, appWidgetId)
-        }
 
-        // Current temp → hourly precip graph
-        HeaderTapTargetHelper.bindSetPrecipitationHeader(context, views, appWidgetId)
+        // Temperature header taps toggle back to DAILY view
+        HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
         if (
@@ -208,10 +204,6 @@ object CloudCoverViewHandler {
         if (!isIconWidth) {
             setupApiToggle(context, views, appWidgetId, numRows)
         }
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, setVisibility = true)
-
-        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         val (currentTempResolution, resolveMs) =
@@ -234,7 +226,7 @@ object CloudCoverViewHandler {
                 isStaleEstimate = currentTempResolution.isStaleEstimate,
             )
         } else null
-        val formattedTemp = if (formatted != null) "$formatted \uD83C\uDF27\uFE0F" else null
+        val formattedTemp = formatted
         HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp)
 
         val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
@@ -264,6 +256,26 @@ val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
     precipTextSizeDp = precipTextSizeDp,
 )
 HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isPrecipVisible)
+
+        val today = LocalDateTime.now().toLocalDate()
+        val isToday = centerTime.toLocalDate() == today
+        positionCenterIcons(views, dimensions.widthDp, isPrecipVisible && disclosure.showsPrecip(), isToday)
+
+        setupHomeShortcut(context, views, appWidgetId)
+        if (!isIconWidth) {
+            setupSettingsShortcut(context, views, appWidgetId)
+        }
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
+        setupWeatherStationsShortcut(context, views, appWidgetId)
+
+        setupGraphSelectorShortcut(
+            context = context,
+            views = views,
+            appWidgetId = appWidgetId,
+            currentViewMode = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
+            widthDp = dimensions.widthDp,
+            isPrecipVisible = isPrecipVisible && disclosure.showsPrecip()
+        )
 
 val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f

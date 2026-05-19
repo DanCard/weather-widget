@@ -313,10 +313,10 @@ internal fun positionCenterIcons(
     val floatingVis = if (useInline) View.GONE else View.VISIBLE
     val inlineVis = if (useInline) View.VISIBLE else View.GONE
     Log.d("HomeShortcut", "positionCenterIcons: widthDp=$widthDp isPrecipVisible=$isPrecipVisible useInline=$useInline isToday=$isToday -> home_touch_zone=${if (floatingVis == View.VISIBLE) "VISIBLE" else "GONE"} home_touch_zone_inline=${if (inlineVis == View.VISIBLE) "VISIBLE" else "GONE"}")
-    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.forecast_history_activity_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone)) {
+    for (id in listOf(R.id.home_icon, R.id.home_touch_zone, R.id.history_icon, R.id.forecast_history_activity_touch_zone, R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.graph_selector_icon, R.id.graph_selector_touch_zone)) {
         views.setViewVisibility(id, floatingVis)
     }
-    for (id in listOf(R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline, R.id.weather_stations_touch_zone_inline)) {
+    for (id in listOf(R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.graph_selector_touch_zone_inline)) {
         views.setViewVisibility(id, inlineVis)
     }
 
@@ -324,5 +324,41 @@ internal fun positionCenterIcons(
         for (id in listOf(R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.weather_stations_touch_zone_inline)) {
             views.setViewVisibility(id, View.GONE)
         }
+    }
+}
+
+internal fun setupGraphSelectorShortcut(
+    context: Context,
+    views: RemoteViews,
+    appWidgetId: Int,
+    currentViewMode: ViewMode,
+    widthDp: Int,
+    isPrecipVisible: Boolean,
+) {
+    val nextView = when (currentViewMode) {
+        ViewMode.TEMPERATURE -> ViewMode.CLOUD_COVER
+        ViewMode.CLOUD_COVER -> ViewMode.PRECIPITATION
+        ViewMode.PRECIPITATION -> ViewMode.TEMPERATURE
+        else -> ViewMode.TEMPERATURE
+    }
+    val emoji = when (currentViewMode) {
+        ViewMode.TEMPERATURE -> "\u2601\uFE0F" // Cloud Cover next ☁️
+        ViewMode.CLOUD_COVER -> "\uD83C\uDF27\uFE0F" // Precipitation next 🌧️
+        ViewMode.PRECIPITATION -> "\uD83C\uDF21\uFE0F" // Temperature next 🌡️
+        else -> ""
+    }
+    HeaderTapTargetHelper.bindGraphSelector(context, views, appWidgetId, nextView)
+    views.setTextViewText(R.id.graph_selector_icon, emoji)
+    views.setTextViewText(R.id.graph_selector_icon_inline, emoji)
+
+    val useInline = widthDp < 420 && isPrecipVisible
+    if (useInline) {
+        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.VISIBLE)
+    } else {
+        views.setViewVisibility(R.id.graph_selector_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
     }
 }

@@ -213,7 +213,7 @@ internal object TemperatureStateResolver {
             iconRes = iconRes,
             currentTemp = if (currentTemp != null) {
                 val formatted = CurrentTemperatureResolver.formatDisplayTemperature(currentTemp, dimensions.cols, currentTempResolution.isStaleEstimate)
-                if (formatted != null) "$formatted \u2601\uFE0F" else null
+                if (formatted != null) formatted else null
             } else null,
             currentTempSizeDp = HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP,
             deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,

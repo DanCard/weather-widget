@@ -1068,10 +1068,29 @@
         <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
              replacing the floating center_horizontal icons. Order: stations | home | history. -->
         <FrameLayout
-            android:id="@+id/weather_stations_touch_zone_inline"
+            android:id="@+id/graph_selector_touch_zone_inline"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="2dp"
+            android:background="@android:color/transparent"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/graph_selector_icon_inline"
+                android:layout_width="26dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center"
+                android:textColor="#AAFFFFFF"
+                android:textSize="20sp"
+                android:gravity="center" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/weather_stations_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
             android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
@@ -1264,6 +1283,19 @@
         android:layout_marginEnd="44dp"
         android:src="@drawable/ic_thermometer"
         android:contentDescription="Current Stations"
+        android:visibility="gone" />
+
+    <!-- Graph Selector icon (first in the middle header row) - Only visible in hourly views -->
+    <TextView
+        android:id="@+id/graph_selector_icon"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="88dp"
+        android:textColor="#AAFFFFFF"
+        android:textSize="20sp"
+        android:gravity="center"
         android:visibility="gone" />
 
     <!-- Consolidated per-hour bottom tap zones (icon-dependent routing).
@@ -1464,10 +1496,10 @@
     <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/precip_touch_zone"
-        android:layout_width="52dp"
+        android:layout_width="44dp"
         android:layout_height="50dp"
         android:layout_gravity="top|start"
-        android:layout_marginStart="92dp"
+        android:layout_marginStart="124dp"
         android:layout_marginTop="-4dp"
         android:background="@android:color/transparent"
         android:clickable="true"
@@ -1477,7 +1509,7 @@
     <!-- Current temperature touch zone - invisible overlay for larger touch target -->
     <FrameLayout
         android:id="@+id/current_temp_zone"
-        android:layout_width="96dp"
+        android:layout_width="124dp"
         android:layout_height="50dp"
         android:layout_gravity="top|start"
         android:layout_marginTop="-4dp"
@@ -1519,6 +1551,19 @@
         android:layout_height="80dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginEnd="44dp"
+        android:layout_marginTop="-4dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Graph Selector icon touch zone (first in middle row, 80dp high for launcher-band reasons) -->
+    <FrameLayout
+        android:id="@+id/graph_selector_touch_zone"
+        android:layout_width="48dp"
+        android:layout_height="80dp"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginEnd="88dp"
         android:layout_marginTop="-4dp"
         android:background="@android:color/transparent"
         android:clickable="true"

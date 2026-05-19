@@ -431,6 +431,9 @@ object DailyViewHandler : WidgetViewHandler {
         views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
         views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
         views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
 
         // Set up navigation click handlers
         val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys

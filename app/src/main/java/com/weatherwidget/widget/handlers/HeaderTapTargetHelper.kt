@@ -41,73 +41,28 @@ internal object HeaderTapTargetHelper {
         views.setOnClickPendingIntent(R.id.current_temp_zone, togglePendingIntent)
     }
 
-    fun bindSetTemperatureHeader(
+    fun bindGraphSelector(
         context: Context,
         views: RemoteViews,
         appWidgetId: Int,
+        targetViewMode: ViewMode,
     ) {
-        val goTempIntent =
+        val intent =
             Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WidgetActions.ACTION_SET_VIEW
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.TEMPERATURE.name)
+                putExtra(WidgetActions.EXTRA_TARGET_VIEW, targetViewMode.name)
             }
-        val goTempPending =
+        val pendingIntent =
             PendingIntent.getBroadcast(
                 context,
-                WidgetRequestCodes.setTemperature(appWidgetId),
-                goTempIntent,
+                WidgetRequestCodes.graphSelector(appWidgetId, targetViewMode),
+                intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-        views.setOnClickPendingIntent(R.id.current_temp, goTempPending)
-        views.setOnClickPendingIntent(R.id.current_temp_delta, goTempPending)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, goTempPending)
-    }
-
-    fun bindSetCloudCoverHeader(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-    ) {
-        val goCloudIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetActions.ACTION_SET_VIEW
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.CLOUD_COVER.name)
-            }
-        val goCloudPending =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.setCloudCover(appWidgetId),
-                goCloudIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.current_temp, goCloudPending)
-        views.setOnClickPendingIntent(R.id.current_temp_delta, goCloudPending)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, goCloudPending)
-    }
-
-    fun bindSetPrecipitationHeader(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-    ) {
-        val goPrecipIntent =
-            Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetActions.ACTION_SET_VIEW
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                putExtra(WidgetActions.EXTRA_TARGET_VIEW, ViewMode.PRECIPITATION.name)
-            }
-        val goPrecipPending =
-            PendingIntent.getBroadcast(
-                context,
-                WidgetRequestCodes.setPrecipitation(appWidgetId),
-                goPrecipIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-        views.setOnClickPendingIntent(R.id.current_temp, goPrecipPending)
-        views.setOnClickPendingIntent(R.id.current_temp_delta, goPrecipPending)
-        views.setOnClickPendingIntent(R.id.current_temp_zone, goPrecipPending)
+        views.setOnClickPendingIntent(R.id.graph_selector_icon, pendingIntent)
+        views.setOnClickPendingIntent(R.id.graph_selector_touch_zone, pendingIntent)
+        views.setOnClickPendingIntent(R.id.graph_selector_touch_zone_inline, pendingIntent)
     }
 
     fun bindPrecipitationHeader(

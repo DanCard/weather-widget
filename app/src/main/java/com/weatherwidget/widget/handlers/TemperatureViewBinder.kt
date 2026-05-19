@@ -106,12 +106,17 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
         setupSettingsShortcut(context, views, appWidgetId)
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource)
         setupWeatherStationsShortcut(context, views, appWidgetId)
-        
-        HeaderTapTargetHelper.bindSetCloudCoverHeader(
+
+        setupGraphSelectorShortcut(
             context = context,
             views = views,
             appWidgetId = appWidgetId,
+            currentViewMode = ViewMode.TEMPERATURE,
+            widthDp = state.widthDp,
+            isPrecipVisible = header.isPrecipVisible && disclosure.showsPrecip()
         )
+        
+        HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
         // 5. Graph

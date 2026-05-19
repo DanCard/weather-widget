@@ -1,5 +1,7 @@
 package com.weatherwidget.widget.handlers
 
+import com.weatherwidget.widget.ViewMode
+
 /**
  * Centrally manages request codes for PendingIntents to ensure they are unique
  * across different widgets and actions.
@@ -42,6 +44,12 @@ object WidgetRequestCodes {
     fun iconViewToggle(id: Int) = id * 10000 + BASE_ICON_VIEW_TOGGLE
     fun home(id: Int) = id * 10000 + BASE_HOME
     fun settings(id: Int) = id * 10000 + BASE_SETTINGS
+    fun graphSelector(id: Int, targetViewMode: ViewMode) = when (targetViewMode) {
+        ViewMode.TEMPERATURE -> setTemperature(id)
+        ViewMode.CLOUD_COVER -> setCloudCover(id)
+        ViewMode.PRECIPITATION -> setPrecipitation(id)
+        else -> id * 10000 + 630
+    }
     fun dayClick(id: Int, dayIndex: Int) = id * 10000 + BASE_DAY_CLICK + dayIndex
     fun graphClick(id: Int, index: Int) = id * 10000 + BASE_GRAPH_CLICK + index
     fun bottomHourClick(id: Int, index: Int) = id * 10000 + BASE_BOTTOM_HOUR_CLICK + index

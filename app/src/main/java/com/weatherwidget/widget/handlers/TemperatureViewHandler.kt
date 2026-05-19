@@ -229,7 +229,7 @@ object TemperatureViewHandler {
             val formatted = CurrentTemperatureResolver.formatDisplayTemperature(
                 refined.displayTemp!!, params.numColumns, refined.isStaleEstimate
             )
-            val formattedTemp = if (formatted != null) "$formatted \u2601\uFE0F" else null
+            val formattedTemp = if (formatted != null) formatted else null
             partialViews.setTextViewText(com.weatherwidget.R.id.current_temp, formattedTemp)
             partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp, android.view.View.VISIBLE)
             val currentTempPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, appContext.resources.displayMetrics)

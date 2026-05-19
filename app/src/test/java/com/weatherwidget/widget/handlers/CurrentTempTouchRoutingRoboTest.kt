@@ -69,14 +69,13 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     @Test
-    fun `temperature current temp touch zone routes to cloud cover view`() = runBlocking {
+    fun `temperature current temp touch zone toggles to daily view`() = runBlocking {
         val views = renderTemperatureWidget()
 
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
-        assertEquals(ViewMode.CLOUD_COVER.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -93,38 +92,60 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     @Test
-    fun `precipitation current temp touch zone routes to temperature view`() = runBlocking {
+    fun `precipitation current temp touch zone toggles to daily view`() = runBlocking {
         val views = renderPrecipitationWidget()
 
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
-        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
     @Test
-    fun `precipitation thermometer click at 95dp routes to temperature view`() = runBlocking {
+    fun `precipitation graph selector routes to temperature view`() = runBlocking {
         val views = renderPrecipitationWidget()
 
-        val intent = clickAtCoordinate(views, 103f, 20f)
+        val intent = clickGraphSelector(views)
 
-        assertNotNull("Expected thermometer click to send a broadcast", intent)
+        assertNotNull("Expected graph selector to send a broadcast", intent)
         assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
         assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
     @Test
-    fun `cloud cover current temp touch zone routes to precipitation view`() = runBlocking {
+    fun `temperature graph selector routes to cloud cover view`() = runBlocking {
+        val views = renderTemperatureWidget()
+
+        val intent = clickGraphSelector(views)
+
+        assertNotNull("Expected graph selector to send a broadcast", intent)
+        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
+        assertEquals(ViewMode.CLOUD_COVER.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+    }
+
+    @Test
+    fun `cloud cover graph selector routes to precipitation view`() = runBlocking {
+        val views = renderCloudCoverWidget()
+
+        val intent = clickGraphSelector(views)
+
+        assertNotNull("Expected graph selector to send a broadcast", intent)
+        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
+        assertEquals(ViewMode.PRECIPITATION.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
+    }
+
+    @Test
+    fun `cloud cover current temp touch zone toggles to daily view`() = runBlocking {
         val views = renderCloudCoverWidget()
 
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
-        assertEquals(ViewMode.PRECIPITATION.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -263,6 +284,17 @@ class CurrentTempTouchRoutingRoboTest {
 
     private fun clickCurrentTempZone(views: RemoteViews): android.content.Intent? {
         return clickView(views, R.id.current_temp_zone)
+    }
+
+    private fun clickGraphSelector(views: RemoteViews): android.content.Intent? {
+        val applied = applyViews(views)
+        val floatingZone = applied.findViewById<View>(R.id.graph_selector_touch_zone)
+        val targetId = if (floatingZone != null && floatingZone.visibility == View.VISIBLE) {
+            R.id.graph_selector_touch_zone
+        } else {
+            R.id.graph_selector_touch_zone_inline
+        }
+        return clickView(views, targetId)
     }
 
     private fun clickAtCoordinate(views: RemoteViews, dpX: Float, dpY: Float): android.content.Intent? {
