@@ -94,7 +94,7 @@ class TemperatureViewHandlerCenterTimeTest {
         val currentTempText = applied.findViewById<TextView>(R.id.current_temp).text.toString()
         val sourceText = applied.findViewById<TextView>(R.id.api_source).text.toString()
 
-        assertEquals("66.0°", currentTempText)
+        assertEquals("66.0° ☁️", currentTempText)
         val expectedDay = centerTime.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
         assertEquals("$expectedDay • NWS", sourceText)
         assertTrue(sourceText.contains("NWS"))

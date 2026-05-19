@@ -13,6 +13,9 @@ object WidgetRequestCodes {
     private const val BASE_DUAL_TOGGLE = 350
     private const val BASE_CYCLE_ZOOM = 400
     private const val BASE_ZOOM_ZONE = 500
+    private const val BASE_SET_TEMP = 600
+    private const val BASE_SET_CLOUD_COVER = 610
+    private const val BASE_SET_PRECIP = 620
     private const val BASE_HISTORY = 700
     private const val BASE_WEATHER_STATIONS = 800
     private const val BASE_ICON_VIEW_TOGGLE = 900
@@ -31,6 +34,9 @@ object WidgetRequestCodes {
     fun dualToggle(id: Int) = id * 10000 + BASE_DUAL_TOGGLE
     fun cycleZoom(id: Int) = id * 10000 + BASE_CYCLE_ZOOM
     fun cycleZoomZone(id: Int, index: Int) = id * 10000 + BASE_ZOOM_ZONE + index
+    fun setTemperature(id: Int) = id * 10000 + BASE_SET_TEMP
+    fun setCloudCover(id: Int) = id * 10000 + BASE_SET_CLOUD_COVER
+    fun setPrecipitation(id: Int) = id * 10000 + BASE_SET_PRECIP
     fun history(id: Int) = id * 10000 + BASE_HISTORY
     fun weatherStations(id: Int) = id * 10000 + BASE_WEATHER_STATIONS
     fun iconViewToggle(id: Int) = id * 10000 + BASE_ICON_VIEW_TOGGLE

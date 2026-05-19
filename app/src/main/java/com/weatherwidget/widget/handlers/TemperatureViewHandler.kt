@@ -226,9 +226,10 @@ object TemperatureViewHandler {
 
             val partialViews = RemoteViews(appContext.packageName, com.weatherwidget.R.layout.widget_weather)
             // Re-bind just the header parts for partial update
-            val formattedTemp = CurrentTemperatureResolver.formatDisplayTemperature(
+            val formatted = CurrentTemperatureResolver.formatDisplayTemperature(
                 refined.displayTemp!!, params.numColumns, refined.isStaleEstimate
             )
+            val formattedTemp = if (formatted != null) "$formatted \u2601\uFE0F" else null
             partialViews.setTextViewText(com.weatherwidget.R.id.current_temp, formattedTemp)
             partialViews.setViewVisibility(com.weatherwidget.R.id.current_temp, android.view.View.VISIBLE)
             val currentTempPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, HeaderConstants.CURRENT_TEMP_TEXT_SIZE_DP, appContext.resources.displayMetrics)

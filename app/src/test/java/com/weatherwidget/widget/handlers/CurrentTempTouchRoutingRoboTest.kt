@@ -67,13 +67,14 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     @Test
-    fun `temperature current temp touch zone toggles back to daily view`() = runBlocking {
+    fun `temperature current temp touch zone routes to cloud cover view`() = runBlocking {
         val views = renderTemperatureWidget()
 
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
-        assertEquals(WidgetActions.ACTION_TOGGLE_VIEW, intent!!.action)
+        assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
+        assertEquals(ViewMode.CLOUD_COVER.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
@@ -102,14 +103,14 @@ class CurrentTempTouchRoutingRoboTest {
     }
 
     @Test
-    fun `cloud cover current temp touch zone routes to temperature view`() = runBlocking {
+    fun `cloud cover current temp touch zone routes to precipitation view`() = runBlocking {
         val views = renderCloudCoverWidget()
 
         val intent = clickCurrentTempZone(views)
 
         assertNotNull("Expected current temp touch zone to send a broadcast", intent)
         assertEquals(WidgetActions.ACTION_SET_VIEW, intent!!.action)
-        assertEquals(ViewMode.TEMPERATURE.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
+        assertEquals(ViewMode.PRECIPITATION.name, intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW))
         assertEquals(appWidgetId, intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 

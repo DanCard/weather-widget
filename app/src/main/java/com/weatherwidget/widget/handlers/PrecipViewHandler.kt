@@ -181,13 +181,14 @@ object PrecipViewHandler {
                 lon = lon,
             )
         val currentTemp = currentTempResolution.displayTemp
-        val formattedTemp = if (currentTemp != null) {
+        val formatted = if (currentTemp != null) {
             CurrentTemperatureResolver.formatDisplayTemperature(
                 temp = currentTemp,
                 numColumns = numColumns,
                 isStaleEstimate = currentTempResolution.isStaleEstimate,
             )
         } else null
+        val formattedTemp = if (formatted != null) "$formatted \uD83C\uDF21\uFE0F" else null
         HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp)
 
         val headerPrecipProbability =

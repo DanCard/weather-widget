@@ -107,11 +107,10 @@ positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.s
         setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource)
         setupWeatherStationsShortcut(context, views, appWidgetId)
         
-        HeaderTapTargetHelper.bindToggleTemperatureHeader(
+        HeaderTapTargetHelper.bindSetCloudCoverHeader(
             context = context,
             views = views,
             appWidgetId = appWidgetId,
-            interactionSource = "current_temp_header",
         )
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 

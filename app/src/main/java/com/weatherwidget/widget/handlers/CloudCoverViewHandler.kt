@@ -145,8 +145,8 @@ object CloudCoverViewHandler {
             setupSettingsShortcut(context, views, appWidgetId)
         }
 
-        // Current temp → hourly temp graph
-        HeaderTapTargetHelper.bindSetTemperatureHeader(context, views, appWidgetId)
+        // Current temp → hourly precip graph
+        HeaderTapTargetHelper.bindSetPrecipitationHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
 
         if (
@@ -227,13 +227,14 @@ object CloudCoverViewHandler {
                 lon = lon,
             )
         val currentTemp = currentTempResolution.displayTemp
-        val formattedTemp = if (currentTemp != null) {
+        val formatted = if (currentTemp != null) {
             CurrentTemperatureResolver.formatDisplayTemperature(
                 temp = currentTemp,
                 numColumns = numColumns,
                 isStaleEstimate = currentTempResolution.isStaleEstimate,
             )
         } else null
+        val formattedTemp = if (formatted != null) "$formatted \uD83C\uDF27\uFE0F" else null
         HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp)
 
         val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
