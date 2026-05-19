@@ -11,11 +11,14 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.weatherwidget.R
 import com.weatherwidget.data.local.AppLogEntity
+import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
@@ -23,6 +26,9 @@ import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -51,6 +57,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
     @Inject
     lateinit var appLogDao: com.weatherwidget.data.local.AppLogDao
+
+    @Inject
+    lateinit var observationDao: ObservationDao
 
     @Inject
     lateinit var forecastDao: com.weatherwidget.data.local.ForecastDao
@@ -107,6 +116,27 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         loadObservations()
         loadFetchLogs()
+        observeCurrentObservationUpdates()
+    }
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class)
+    private fun observeCurrentObservationUpdates() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(
+                    observationDao.observeLatestFetchedAt(),
+                    appLogDao.observeLatestCurrentObservationFetchLogAt(),
+                ) { latestObservationFetchAt, latestFetchLogAt ->
+                    latestObservationFetchAt to latestFetchLogAt
+                }
+                    .distinctUntilChanged()
+                    .debounce(autoRefreshDebounceMs)
+                    .collect {
+                        loadObservations()
+                        loadFetchLogs()
+                    }
+            }
+        }
     }
 
     private fun refreshData() {
@@ -344,6 +374,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 "CURR_FETCH_CANCELLED",
                 "CURR_FETCH_FRESH_SKIP",
                 "CURR_FETCH_WORK_ENQUEUED",
+                "CURR_FETCH_WORK_REQUESTED",
+                "CURR_FETCH_WORK_STATE",
+                "CURR_FETCH_WORK_RECOVERED",
+                "CURR_FETCH_WORK_START",
+                "CURR_FETCH_WORK_RESULT",
                 "CURR_FETCH_WORK_CANCELLED",
                 "CURR_FETCH_LOOP_STOP",
                 -> true
@@ -377,6 +412,11 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 "CURR_FETCH_CANCELLED" -> "cancelled $message"
                 "CURR_FETCH_FRESH_SKIP" -> "fresh skip $message"
                 "CURR_FETCH_WORK_ENQUEUED" -> "enqueued $message"
+                "CURR_FETCH_WORK_REQUESTED" -> "requested $message"
+                "CURR_FETCH_WORK_STATE" -> "work state $message"
+                "CURR_FETCH_WORK_RECOVERED" -> "recovered $message"
+                "CURR_FETCH_WORK_START" -> "work start $message"
+                "CURR_FETCH_WORK_RESULT" -> "work result $message"
                 "CURR_FETCH_WORK_CANCELLED" -> "work cancelled $message"
                 "CURR_FETCH_LOOP_STOP" -> "loop stop $message"
                 else -> message
@@ -441,5 +481,10 @@ class WeatherObservationsActivity : AppCompatActivity() {
             val temperature: TextView = view.findViewById(R.id.temperature)
             val condition: TextView = view.findViewById(R.id.condition)
         }
+    }
+
+    internal companion object {
+        @VisibleForTesting
+        internal var autoRefreshDebounceMs: Long = 500L
     }
 }

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ObservationDao {
@@ -12,6 +13,9 @@ interface ObservationDao {
 
     @Query("SELECT * FROM observations WHERE timestamp >= :sinceMs ORDER BY timestamp DESC")
     suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity>
+
+    @Query("SELECT MAX(fetchedAt) FROM observations")
+    fun observeLatestFetchedAt(): Flow<Long?>
 
     @Query(
         """

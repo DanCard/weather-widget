@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -49,6 +50,16 @@ interface AppLogDao {
         """,
     )
     suspend fun getCurrentObservationFetchLogs(limit: Int): List<AppLogEntity>
+
+    @Query(
+        """
+        SELECT MAX(timestamp) FROM app_logs
+        WHERE tag LIKE 'CURR_FETCH%'
+            OR tag LIKE 'OBS_CURRENT%'
+            OR tag LIKE 'OBS_HOURLY_BACKFILL%'
+        """,
+    )
+    fun observeLatestCurrentObservationFetchLogAt(): Flow<Long?>
 
     @Query("SELECT * FROM app_logs WHERE tag IN ('DB_CREATE', 'DB_DESTRUCTIVE_MIGRATION') ORDER BY timestamp DESC, id DESC LIMIT 1")
     suspend fun getLatestDatabaseLifecycleEvent(): AppLogEntity?

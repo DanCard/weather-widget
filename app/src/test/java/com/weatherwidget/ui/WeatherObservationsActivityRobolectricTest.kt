@@ -64,6 +64,7 @@ class WeatherObservationsActivityRobolectricTest {
         now = System.currentTimeMillis()
 
         stateManager = WidgetStateManager(context, database.appLogDao())
+        WeatherObservationsActivity.autoRefreshDebounceMs = 0L
 
         val widgetPrefs = SharedPreferencesUtil.getPrefs(context, ConfigActivity.PREFS_NAME)
         widgetPrefs.edit()
@@ -135,6 +136,7 @@ class WeatherObservationsActivityRobolectricTest {
         WeatherDatabase.resetInstanceForTesting()
         WeatherDatabase.setIsTesting(false)
         WidgetStateManager.setPrefsNameOverrideForTesting(null)
+        WeatherObservationsActivity.autoRefreshDebounceMs = 500L
         clearTestPrefs("weather_widget_prefs")
         clearTestPrefs("widget_state_prefs")
         clearTestPrefs("weather_prefs")
@@ -172,6 +174,58 @@ class WeatherObservationsActivityRobolectricTest {
 
             assertFalse("Tomorrow.io observations should be excluded from NWS view", stationIds.contains("TOMORROW_IO_MAIN"))
             assertEquals(listOf("AW020", "KNUQ"), stationIds)
+        }
+    }
+
+    @Test
+    fun `visible activity reloads observations when new current observations are inserted`() {
+        val scenario = launchActivity()
+        val newerFetchAt = now + 3_600_000L
+
+        runBlocking {
+            database.observationDao().insertAll(
+                listOf(
+                    observation(
+                        stationId = "AW020",
+                        stationName = "AE6EO MOUNTAIN VIEW",
+                        timestamp = newerFetchAt,
+                        temperature = 74.5f,
+                        distanceKm = 2.9f,
+                        stationType = "PERSONAL",
+                    ),
+                ),
+            )
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<RecyclerView>(R.id.observations_list).adapter as WeatherObservationsActivity.ObservationAdapter
+            val updated = adapter.items.first { it.stationId == "AW020" }
+
+            assertEquals(newerFetchAt, updated.fetchedAt)
+            assertEquals(74.5f, updated.temperature, 0.01f)
+        }
+    }
+
+    @Test
+    fun `visible activity reloads fetch logs when current observation diagnostics are inserted`() {
+        val scenario = launchActivity()
+
+        runBlocking {
+            database.appLogDao().insert(
+                AppLogEntity(
+                    timestamp = now + 7_000L,
+                    tag = "CURR_FETCH_WORK_REQUESTED",
+                    message = "type=charging_loop reason=charging_loop decision=enqueue_delayed",
+                ),
+            )
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        scenario.onActivity { activity ->
+            val logs = activity.findViewById<TextView>(R.id.fetch_logs).text.toString()
+
+            assertTrue(logs.contains("requested type=charging_loop reason=charging_loop decision=enqueue_delayed"))
         }
     }
 
