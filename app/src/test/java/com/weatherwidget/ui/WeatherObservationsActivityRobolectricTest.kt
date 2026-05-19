@@ -104,6 +104,29 @@ class WeatherObservationsActivityRobolectricTest {
                     level = "WARN",
                 ),
             )
+            repeat(1_100) { index ->
+                database.appLogDao().insert(
+                    AppLogEntity(
+                        timestamp = now + 3_000L + index,
+                        tag = "CURRENT_TEMP_DISPLAY",
+                        message = "widget=4201 source=NWS displayTemp=68 index=$index",
+                    ),
+                )
+            }
+            database.appLogDao().insert(
+                AppLogEntity(
+                    timestamp = now + 5_000L,
+                    tag = "CURR_FETCH_WORK_ENQUEUED",
+                    message = "type=charging_loop reason=charging_loop opportunistic=false force=false policyDelayMinutes=10",
+                ),
+            )
+            database.appLogDao().insert(
+                AppLogEntity(
+                    timestamp = now + 6_000L,
+                    tag = "CURR_FETCH_SOURCE_RESULT",
+                    message = "reason=charging_loop source=NWS success=true temp=70.0",
+                ),
+            )
         }
     }
 
@@ -131,6 +154,9 @@ class WeatherObservationsActivityRobolectricTest {
             assertEquals("Real-time data from nearby stations", subtitle)
             assertEquals("PERSONAL", adapter.items[0].stationType)
             assertFalse(logs.contains("No recent fetch logs for NWS"))
+            assertFalse(logs.contains("No current observation fetch logs found for NWS"))
+            assertTrue(logs.contains("enqueued type=charging_loop reason=charging_loop"))
+            assertTrue(logs.contains("source reason=charging_loop source=NWS success=true temp=70.0"))
             assertTrue(logs.contains("start reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API"))
             assertTrue(logs.contains("done reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3"))
         }

@@ -66,6 +66,10 @@ class WeatherObservationsSupportTest {
         val startLog = AppLogEntity(tag = "CURR_FETCH_START", message = "reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API")
         val doneLog = AppLogEntity(tag = "CURR_FETCH_DONE", message = "reason=opportunistic_job targets=NWS,SILURIAN,WEATHER_API updated=3")
         val errorLog = AppLogEntity(tag = "CURR_FETCH_ERROR", message = "source=SILURIAN error=timeout")
+        val enqueuedLog = AppLogEntity(tag = "CURR_FETCH_WORK_ENQUEUED", message = "type=charging_loop reason=charging_loop")
+        val sourceResultLog = AppLogEntity(tag = "CURR_FETCH_SOURCE_RESULT", message = "reason=charging_loop source=NWS success=true temp=70.0")
+        val insertLog = AppLogEntity(tag = "OBS_CURRENT_INSERT", message = "source=NWS station=KNUQ temp=68.0")
+        val hourlyRequestLog = AppLogEntity(tag = "OBS_HOURLY_BACKFILL_REQ", message = "widget=4 source=NWS reason=missing_actuals")
 
         assertTrue(
             WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
@@ -89,6 +93,36 @@ class WeatherObservationsSupportTest {
             WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
                 log = errorLog,
                 source = WeatherSource.SILURIAN,
+            ),
+        )
+        assertTrue(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
+                log = enqueuedLog,
+                source = WeatherSource.NWS,
+            ),
+        )
+        assertTrue(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
+                log = sourceResultLog,
+                source = WeatherSource.NWS,
+            ),
+        )
+        assertFalse(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
+                log = sourceResultLog,
+                source = WeatherSource.SILURIAN,
+            ),
+        )
+        assertTrue(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
+                log = insertLog,
+                source = WeatherSource.NWS,
+            ),
+        )
+        assertTrue(
+            WeatherObservationsActivity.WeatherObservationsSupport.matchesFetchLog(
+                log = hourlyRequestLog,
+                source = WeatherSource.NWS,
             ),
         )
     }

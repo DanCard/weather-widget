@@ -287,7 +287,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
         loadFetchLogsJob?.cancel()
         loadFetchLogsJob = lifecycleScope.launch(ioDispatcher) {
             try {
-                val filteredLogs = appLogDao.getRecentLogs(1000)
+                val filteredLogs = appLogDao.getCurrentObservationFetchLogs(200)
                     .filter { WeatherObservationsSupport.matchesFetchLog(it, currentSource) }
 
                 val logText = filteredLogs.joinToString("\n") { log ->
@@ -295,7 +295,7 @@ class WeatherObservationsActivity : AppCompatActivity() {
                     "[$time] ${WeatherObservationsSupport.formatFetchLog(log, currentSource)}"
                 }
                 withContext(Dispatchers.Main) {
-                    findViewById<TextView>(R.id.fetch_logs).text = if (logText.isEmpty()) "No fetch logs found for ${currentSource.shortDisplayName} in last 1000 logs." else logText
+                    findViewById<TextView>(R.id.fetch_logs).text = if (logText.isEmpty()) "No current observation fetch logs found for ${currentSource.shortDisplayName}." else logText
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading fetch logs", e)
@@ -322,9 +322,31 @@ class WeatherObservationsActivity : AppCompatActivity() {
 
         fun matchesFetchLog(log: AppLogEntity, source: WeatherSource): Boolean =
             when (log.tag) {
-                "CURR_FETCH_START", "CURR_FETCH_DONE", "CURR_FETCH_SKIP" -> log.message.containsTargetSource(source)
-                "CURR_FETCH_ERROR" -> log.message.contains("source=${source.id}")
-                "CURR_FETCH_EXCEPTION", "CURR_FETCH_FAIL" -> true
+                "CURR_FETCH_START",
+                "CURR_FETCH_DONE",
+                "CURR_FETCH_SKIP",
+                -> log.message.containsTargetSource(source)
+                "CURR_FETCH_ERROR",
+                "CURR_FETCH_SOURCE_RESULT",
+                "OBS_CURRENT_INSERT",
+                -> log.message.containsSource(source)
+                "OBS_HOURLY_BACKFILL_SKIP",
+                "OBS_HOURLY_BACKFILL_REQ",
+                -> log.message.containsSource(source)
+                "OBS_HOURLY_BACKFILL_START",
+                "OBS_HOURLY_BACKFILL_FAIL",
+                "OBS_HOURLY_BACKFILL_STATION",
+                "OBS_HOURLY_BACKFILL_STATION_FAIL",
+                "OBS_HOURLY_BACKFILL_DONE",
+                -> source == WeatherSource.NWS
+                "CURR_FETCH_EXCEPTION",
+                "CURR_FETCH_FAIL",
+                "CURR_FETCH_CANCELLED",
+                "CURR_FETCH_FRESH_SKIP",
+                "CURR_FETCH_WORK_ENQUEUED",
+                "CURR_FETCH_WORK_CANCELLED",
+                "CURR_FETCH_LOOP_STOP",
+                -> true
                 else -> false
             }
 
@@ -341,8 +363,22 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 "CURR_FETCH_DONE" -> "done $message"
                 "CURR_FETCH_SKIP" -> "skip $message"
                 "CURR_FETCH_ERROR" -> "error $message"
+                "CURR_FETCH_SOURCE_RESULT" -> "source $message"
+                "OBS_CURRENT_INSERT" -> "insert $message"
+                "OBS_HOURLY_BACKFILL_START" -> "hourly start $message"
+                "OBS_HOURLY_BACKFILL_SKIP" -> "hourly skip $message"
+                "OBS_HOURLY_BACKFILL_REQ" -> "hourly request $message"
+                "OBS_HOURLY_BACKFILL_FAIL" -> "hourly fail $message"
+                "OBS_HOURLY_BACKFILL_STATION" -> "hourly station $message"
+                "OBS_HOURLY_BACKFILL_STATION_FAIL" -> "hourly station fail $message"
+                "OBS_HOURLY_BACKFILL_DONE" -> "hourly done $message"
                 "CURR_FETCH_EXCEPTION" -> "exception $message"
                 "CURR_FETCH_FAIL" -> "fail $message"
+                "CURR_FETCH_CANCELLED" -> "cancelled $message"
+                "CURR_FETCH_FRESH_SKIP" -> "fresh skip $message"
+                "CURR_FETCH_WORK_ENQUEUED" -> "enqueued $message"
+                "CURR_FETCH_WORK_CANCELLED" -> "work cancelled $message"
+                "CURR_FETCH_LOOP_STOP" -> "loop stop $message"
                 else -> message
             }
         }
@@ -354,6 +390,9 @@ class WeatherObservationsActivity : AppCompatActivity() {
                 .map { it.trim() }
                 .any { it == source.id }
         }
+
+        private fun String.containsSource(source: WeatherSource): Boolean =
+            contains("source=${source.id}")
     }
 
     internal class ObservationAdapter(private val onItemClick: (ObservationEntity) -> Unit) : RecyclerView.Adapter<ObservationAdapter.ViewHolder>() {
