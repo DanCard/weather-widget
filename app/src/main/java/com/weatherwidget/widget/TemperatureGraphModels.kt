@@ -338,7 +338,7 @@ class RenderTimings {
     private val marks = mutableListOf<Pair<String, Long>>()
     fun mark(label: String) { marks.add(label to SystemClock.elapsedRealtime()) }
     fun log(widthPx: Int, heightPx: Int, hoursSize: Int, tag: String) {
-        if (!BuildConfig.DEBUG || marks.size < 2) return
+        if (marks.size < 2) return
         val parts = marks.zipWithNext().map { (a, b) -> "${a.first}=${b.second - a.second}ms" }
         android.util.Log.d(tag, "RENDER_BREAKDOWN size=${widthPx}x${heightPx} hours=$hoursSize ${parts.joinToString(" ")} total=${marks.last().second - marks.first().second}ms")
     }

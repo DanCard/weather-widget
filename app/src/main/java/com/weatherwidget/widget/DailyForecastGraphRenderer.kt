@@ -20,7 +20,7 @@ object DailyForecastGraphRenderer {
     private const val TAG = "DailyGraphRenderer"
 
     private inline fun debug(msg: () -> String) {
-        if (BuildConfig.DEBUG) Log.d(TAG, msg())
+        Log.d(TAG, msg())
     }
 
     private const val DAY_LABEL_SIZE_MULTIPLIER = 1.15f

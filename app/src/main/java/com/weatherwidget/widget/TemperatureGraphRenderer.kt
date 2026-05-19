@@ -409,135 +409,110 @@ object TemperatureGraphRenderer {
         TemperatureLabelResolver.sortLabelCandidates(specialCandidates)
 
         for (candidate in specialCandidates) {
-            val idx = candidate.index
-            val temps = candidate.labelTemps
-            val placement = TemperatureLabelResolver.resolveCandidatePlacement(ctx, hours, candidate)
-            if (placement == null) continue
+            placeSingleLabel(ctx, candidate, hours, drawnLabelMetas, drawnIconBounds, gapDp, labelAscent, labelDescent, labelHeight)
+        }
+        ctx.drawnLabelBounds.addAll(drawnLabelMetas.map { it.bounds })
+    }
 
-            val valueBasedRoles = candidate.role == TemperatureRole.ACTUAL_END ||
-                candidate.role == TemperatureRole.LOCAL ||
-                candidate.role == TemperatureRole.START ||
-                candidate.role == TemperatureRole.END
-            val preferAbove = if (valueBasedRoles) prefersAbovePlacement(candidate) else !placement.isValley
-            val directions = if (preferAbove) listOf(true, false) else listOf(false, true)
-            var placed = false
-            var forceBaselineY = Float.NaN
-            var forceBounds: RectF? = null
-            var forceX = placement.clampedX
-            var forceDrawBelow = false
-            var forceStep = 0
+    private fun placeSingleLabel(
+        ctx: RenderContext,
+        candidate: TempLabelCandidate,
+        hours: List<HourData>,
+        drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        drawnIconBounds: List<RectF>,
+        gapDp: GraphLabelPlacementUtils.LabelGapDp,
+        labelAscent: Float,
+        labelDescent: Float,
+        labelHeight: Float,
+    ) {
+        val idx = candidate.index
+        val temps = candidate.labelTemps
+        val placement = TemperatureLabelResolver.resolveCandidatePlacement(ctx, hours, candidate)
+        if (placement == null) return
 
-            if (candidate.role in CURVE_AVOIDANCE_ROLES) {
-                placed = tryExactFitCurveAvoidance(
-                    ctx = ctx,
-                    candidate = candidate,
-                    placement = placement,
-                    directions = directions,
-                    gapDp = gapDp,
-                    labelAscent = labelAscent,
-                    labelDescent = labelDescent,
-                    drawnLabelMetas = drawnLabelMetas,
-                    drawnIconBounds = drawnIconBounds,
-                    idx = idx,
-                    temps = temps,
+        val valueBasedRoles = candidate.role == TemperatureRole.ACTUAL_END ||
+            candidate.role == TemperatureRole.LOCAL ||
+            candidate.role == TemperatureRole.START ||
+            candidate.role == TemperatureRole.END
+        val preferAbove = if (valueBasedRoles) prefersAbovePlacement(candidate) else !placement.isValley
+        val directions = if (preferAbove) listOf(true, false) else listOf(false, true)
+        var placed = false
+        var forceBaselineY = Float.NaN
+        var forceBounds: RectF? = null
+        var forceX = placement.clampedX
+        var forceDrawBelow = false
+        var forceStep = 0
+
+        if (candidate.role in CURVE_AVOIDANCE_ROLES) {
+            placed = tryExactFitCurveAvoidance(
+                ctx = ctx,
+                candidate = candidate,
+                placement = placement,
+                directions = directions,
+                gapDp = gapDp,
+                labelAscent = labelAscent,
+                labelDescent = labelDescent,
+                drawnLabelMetas = drawnLabelMetas,
+                drawnIconBounds = drawnIconBounds,
+                idx = idx,
+                temps = temps,
+            )
+            if (placed) return
+        }
+
+        val gapAbovePx = dpToPx(ctx.context, gapDp.aboveDp)
+        val gapBelowPx = dpToPx(ctx.context, gapDp.belowDp)
+
+        outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
+            for (placeAbove in directions) {
+                val currentGapPx = if (placeAbove) gapAbovePx else gapBelowPx
+                val displacement = step * labelHeight
+                
+                val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+                    pointY = placement.sy,
+                    placeAbove = placeAbove,
+                    gapPx = currentGapPx + displacement,
+                    textAscent = labelAscent,
+                    textDescent = labelDescent
                 )
-                if (placed) continue
-            }
+                
+                val baselineY = verticalPlacement.baselineY
+                val bounds = RectF(placement.clampedX - placement.textWidth / 2f, verticalPlacement.top, placement.clampedX + placement.textWidth / 2f, verticalPlacement.bottom)
+                
+                val onScreen = bounds.top >= 0f && bounds.bottom <= ctx.heightPx
+                if (!onScreen) continue
 
-            val gapAbovePx = dpToPx(ctx.context, gapDp.aboveDp)
-            val gapBelowPx = dpToPx(ctx.context, gapDp.belowDp)
+                val drawnBoundsList = drawnLabelMetas.map { it.bounds }
+                val overlapsLabel = drawnBoundsList.any { RectF.intersects(it, bounds) }
+                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                val labelOverlap = if (overlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnBoundsList) else 0f
+                val iconOverlap = if (overlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnIconBounds) else 0f
 
-            outer@ for (step in 0..MAX_LEADER_DISPLACEMENT_STEPS) {
-                for (placeAbove in directions) {
-                    val currentGapPx = if (placeAbove) gapAbovePx else gapBelowPx
-                    val displacement = step * labelHeight
-                    
-                    val verticalPlacement = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-                        pointY = placement.sy,
-                        placeAbove = placeAbove,
-                        gapPx = currentGapPx + displacement,
-                        textAscent = labelAscent,
-                        textDescent = labelDescent
+                val currentIconRatio = if (!placeAbove && placement.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
+
+                val allowMinorLabelOverlap = overlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
+                val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
+
+                val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
+                val overlapsCurve = curveAvoidanceEligible && !combinedCurveIntrusion(ctx, bounds).isEmpty
+
+                val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
+
+                if (hasCollision && !placeAbove && placement.isValley && step == 0) {
+                    val cascadeResult = tryValleyBelowCascade(
+                        ctx = ctx,
+                        candidate = candidate,
+                        placement = placement,
+                        verticalPlacement = verticalPlacement,
+                        drawnLabelMetas = drawnLabelMetas,
+                        drawnIconBounds = drawnIconBounds,
+                        labelHeight = labelHeight,
                     )
-                    
-                    val baselineY = verticalPlacement.baselineY
-                    val bounds = RectF(placement.clampedX - placement.textWidth / 2f, verticalPlacement.top, placement.clampedX + placement.textWidth / 2f, verticalPlacement.bottom)
-                    
-                    val onScreen = bounds.top >= 0f && bounds.bottom <= ctx.heightPx
-                    if (!onScreen) continue
-
-                    val drawnBoundsList = drawnLabelMetas.map { it.bounds }
-                    val overlapsLabel = drawnBoundsList.any { RectF.intersects(it, bounds) }
-                    val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
-                    val labelOverlap = if (overlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnBoundsList) else 0f
-                    val iconOverlap = if (overlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(bounds, drawnIconBounds) else 0f
-
-                    val currentIconRatio = if (!placeAbove && placement.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
-
-                    val allowMinorLabelOverlap = overlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlap, labelHeight)
-                    val allowMinorIconOverlap = overlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlap <= labelHeight * currentIconRatio
-
-                    val curveAvoidanceEligible = candidate.role in CURVE_AVOIDANCE_ROLES
-                    val overlapsCurve = curveAvoidanceEligible && !combinedCurveIntrusion(ctx, bounds).isEmpty
-
-                    val hasCollision = (overlapsLabel && !allowMinorLabelOverlap) || (overlapsIcon && !allowMinorIconOverlap) || overlapsCurve
-
-                    if (hasCollision && !placeAbove && placement.isValley && step == 0) {
-                        val cascadeResult = tryValleyBelowCascade(
-                            ctx = ctx,
-                            candidate = candidate,
-                            placement = placement,
-                            verticalPlacement = verticalPlacement,
-                            drawnLabelMetas = drawnLabelMetas,
-                            drawnIconBounds = drawnIconBounds,
-                            labelHeight = labelHeight,
-                        )
-                        if (cascadeResult != null) {
-                            ctx.canvas.drawText(placement.label, cascadeResult.x, cascadeResult.baselineY, placement.labelPaint)
-                            drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role))
-                            val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-                            val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
-                            if (shouldLogPlacement(candidate.role)) {
-                                Log.d(TAG, "LabelPlacementDebug: $debug")
-                            }
-                            ctx.onLabelPlaced?.invoke(debug)
-                            placed = true
-                            break@outer
-                        }
-                    }
-
-                    if (shouldLogPlacement(candidate.role)) {
-                        val rejectReason = when {
-                            !onScreen -> "offscreen(top=${String.format("%.1f", bounds.top)}, bot=${String.format("%.1f", bounds.bottom)}, hPx=${ctx.heightPx})"
-                            overlapsLabel && !allowMinorLabelOverlap -> "label-collision(overlap=${String.format("%.1f", labelOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", labelOverlap / labelHeight)})"
-                            overlapsIcon && !allowMinorIconOverlap -> "icon-collision(overlap=${String.format("%.1f", iconOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", iconOverlap / labelHeight)}, iconRatio=${String.format("%.2f", currentIconRatio)})"
-                            overlapsCurve -> "curve-collision(bounds=${String.format("%.1f,%.1f,%.1f,%.1f", bounds.left, bounds.top, bounds.right, bounds.bottom)})"
-                            else -> null
-                        }
-                        if (rejectReason != null) {
-                            Log.d(TAG, "LabelRejected: role=${candidate.role} idx=$idx above=$placeAbove step=$step pointY=${String.format("%.1f", placement.sy)} reason=$rejectReason")
-                        }
-                    }
-
-                    if (placement.isEssential && forceBounds == null) { 
-                        forceBaselineY = baselineY
-                        forceBounds = bounds
-                        forceX = placement.clampedX
-                        forceDrawBelow = !placeAbove
-                        forceStep = step 
-                    }
-                    
-                    if (!hasCollision) {
-                        if (step > 0) {
-                            val lineEndY = if (!placeAbove) bounds.top else bounds.bottom
-                            ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
-                        }
-                        ctx.canvas.drawText(placement.label, placement.clampedX, baselineY, placement.labelPaint)
-                        drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
+                    if (cascadeResult != null) {
+                        ctx.canvas.drawText(placement.label, cascadeResult.x, cascadeResult.baselineY, placement.labelPaint)
+                        drawnLabelMetas.add(PlacedLabelMeta(cascadeResult.bounds, isValleyBelow = true, role = candidate.role))
                         val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-                        val reasonBase = if (!placeAbove) "below" else "above"
-                        val reason = if (step > 0) "$reasonBase+$step" else reasonBase
-                        val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step)
+                        val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, cascadeResult.x, cascadeResult.baselineY, false, seriesLabel, seriesLabel, cascadeResult.reason, 0)
                         if (shouldLogPlacement(candidate.role)) {
                             Log.d(TAG, "LabelPlacementDebug: $debug")
                         }
@@ -546,23 +521,62 @@ object TemperatureGraphRenderer {
                         break@outer
                     }
                 }
-            }
-            if (!placed && placement.isEssential && forceBounds != null) {
-                if (forceStep > 0) {
-                    val lineEndY = if (forceDrawBelow) forceBounds.top else forceBounds.bottom
-                    ctx.canvas.drawLine(forceX, placement.sy, forceX, lineEndY, placement.leaderLinePaint)
-                }
-                ctx.canvas.drawText(placement.label, forceX, forceBaselineY, placement.labelPaint)
-                drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role))
-                val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-                val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
+
                 if (shouldLogPlacement(candidate.role)) {
-                    Log.d(TAG, "LabelPlacementDebug: $debugForced")
+                    val rejectReason = when {
+                        !onScreen -> "offscreen(top=${String.format("%.1f", bounds.top)}, bot=${String.format("%.1f", bounds.bottom)}, hPx=${ctx.heightPx})"
+                        overlapsLabel && !allowMinorLabelOverlap -> "label-collision(overlap=${String.format("%.1f", labelOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", labelOverlap / labelHeight)})"
+                        overlapsIcon && !allowMinorIconOverlap -> "icon-collision(overlap=${String.format("%.1f", iconOverlap)}, h=${String.format("%.1f", labelHeight)}, ratio=${String.format("%.2f", iconOverlap / labelHeight)}, iconRatio=${String.format("%.2f", currentIconRatio)})"
+                        overlapsCurve -> "curve-collision(bounds=${String.format("%.1f,%.1f,%.1f,%.1f", bounds.left, bounds.top, bounds.right, bounds.bottom)})"
+                        else -> null
+                    }
+                    if (rejectReason != null) {
+                        Log.d(TAG, "LabelRejected: role=${candidate.role} idx=$idx above=$placeAbove step=$step pointY=${String.format("%.1f", placement.sy)} reason=$rejectReason")
+                    }
                 }
-                ctx.onLabelPlaced?.invoke(debugForced)
+
+                if (placement.isEssential && forceBounds == null) { 
+                    forceBaselineY = baselineY
+                    forceBounds = bounds
+                    forceX = placement.clampedX
+                    forceDrawBelow = !placeAbove
+                    forceStep = step 
+                }
+                
+                if (!hasCollision) {
+                    if (step > 0) {
+                        val lineEndY = if (!placeAbove) bounds.top else bounds.bottom
+                        ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
+                    }
+                    ctx.canvas.drawText(placement.label, placement.clampedX, baselineY, placement.labelPaint)
+                    drawnLabelMetas.add(PlacedLabelMeta(bounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
+                    val seriesLabel = if (placement.isFuture) "forecast" else "actual"
+                    val reasonBase = if (!placeAbove) "below" else "above"
+                    val reason = if (step > 0) "$reasonBase+$step" else reasonBase
+                    val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, baselineY, placeAbove, seriesLabel, seriesLabel, reason, step)
+                    if (shouldLogPlacement(candidate.role)) {
+                        Log.d(TAG, "LabelPlacementDebug: $debug")
+                    }
+                    ctx.onLabelPlaced?.invoke(debug)
+                    placed = true
+                    break@outer
+                }
             }
         }
-        ctx.drawnLabelBounds.addAll(drawnLabelMetas.map { it.bounds })
+        if (!placed && placement.isEssential && forceBounds != null) {
+            if (forceStep > 0) {
+                val lineEndY = if (forceDrawBelow) forceBounds.top else forceBounds.bottom
+                ctx.canvas.drawLine(forceX, placement.sy, forceX, lineEndY, placement.leaderLinePaint)
+            }
+            ctx.canvas.drawText(placement.label, forceX, forceBaselineY, placement.labelPaint)
+            drawnLabelMetas.add(PlacedLabelMeta(forceBounds, isValleyBelow = forceDrawBelow, role = candidate.role))
+            val seriesLabel = if (placement.isFuture) "forecast" else "actual"
+            val debugForced = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, forceX, forceBaselineY, !forceDrawBelow, seriesLabel, seriesLabel, "FORCED", forceStep)
+            if (shouldLogPlacement(candidate.role)) {
+                Log.d(TAG, "LabelPlacementDebug: $debugForced")
+            }
+            ctx.onLabelPlaced?.invoke(debugForced)
+        }
     }
 
     private fun tryExactFitCurveAvoidance(
@@ -610,6 +624,58 @@ object TemperatureGraphRenderer {
 
     private enum class ExactFitOutcome { NATURAL_FITS, PLACED, LABEL_OR_ICON_BLOCKED, GAVE_UP }
 
+    private sealed class ExactFitBlockerResult {
+        object NaturalFits : ExactFitBlockerResult()
+        object LabelOrIconBlocked : ExactFitBlockerResult()
+        data class CurveOnly(val intrusion: CurveIntrusion, val baseBounds: RectF, val baseGapPx: Float) : ExactFitBlockerResult()
+    }
+
+    private fun checkExactFitBlockers(
+        ctx: RenderContext,
+        candidate: TempLabelCandidate,
+        placement: TemperatureLabelResolver.CandidatePlacement,
+        placeAbove: Boolean,
+        gapDp: GraphLabelPlacementUtils.LabelGapDp,
+        labelAscent: Float,
+        labelDescent: Float,
+        drawnLabelMetas: MutableList<PlacedLabelMeta>,
+        drawnIconBounds: List<RectF>,
+        idx: Int,
+    ): ExactFitBlockerResult {
+        val baseGapPx = if (placeAbove) dpToPx(ctx.context, gapDp.aboveDp) else dpToPx(ctx.context, gapDp.belowDp)
+        val baseV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+            pointY = placement.sy, placeAbove = placeAbove,
+            gapPx = baseGapPx, textAscent = labelAscent, textDescent = labelDescent
+        )
+        val baseBounds = RectF(
+            placement.clampedX - placement.textWidth / 2f, baseV.top,
+            placement.clampedX + placement.textWidth / 2f, baseV.bottom
+        )
+        val intrusion = combinedCurveIntrusion(ctx, baseBounds)
+        val baseOverlapsLabel = drawnLabelMetas.any { RectF.intersects(it.bounds, baseBounds) }
+        val baseOverlapsIcon = drawnIconBounds.any { RectF.intersects(it, baseBounds) }
+
+        val labelHeight = labelDescent - labelAscent
+        val drawnLabelBoundsList = drawnLabelMetas.map { it.bounds }
+        val labelOverlapPx = if (baseOverlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnLabelBoundsList) else 0f
+        val iconOverlapPx = if (baseOverlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnIconBounds) else 0f
+        val iconOverlapRatio = if (!placeAbove && placement.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
+        val allowMinorLabelOverlap = baseOverlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlapPx, labelHeight)
+        val allowMinorIconOverlap = baseOverlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlapPx <= labelHeight * iconOverlapRatio
+        val effectiveLabelBlocker = baseOverlapsLabel && !allowMinorLabelOverlap
+        val effectiveIconBlocker = baseOverlapsIcon && !allowMinorIconOverlap
+
+        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", placement.sy)} baseBounds=${baseBounds.toShortString()} intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"} labelBlocker=$effectiveLabelBlocker iconBlocker=$effectiveIconBlocker allowedDip=${String.format("%.1f", dpToPx(ctx.context, CURVE_AVOIDANCE_ALLOWED_DIP_DP))}")
+
+        if (intrusion.isEmpty && !effectiveLabelBlocker && !effectiveIconBlocker) {
+            return ExactFitBlockerResult.NaturalFits
+        }
+        if (effectiveLabelBlocker || effectiveIconBlocker) {
+            return ExactFitBlockerResult.LabelOrIconBlocked
+        }
+        return ExactFitBlockerResult.CurveOnly(intrusion, baseBounds, baseGapPx)
+    }
+
     private fun tryExactFitForDirection(
         ctx: RenderContext,
         candidate: TempLabelCandidate,
@@ -624,93 +690,60 @@ object TemperatureGraphRenderer {
         temps: List<Float>,
         allowedDipPx: Float,
     ): ExactFitOutcome {
-        val baseGapPx = if (placeAbove) dpToPx(ctx.context, gapDp.aboveDp) else dpToPx(ctx.context, gapDp.belowDp)
-        val baseV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-            pointY = placement.sy, placeAbove = placeAbove,
-            gapPx = baseGapPx, textAscent = labelAscent, textDescent = labelDescent
-        )
-        val baseBounds = RectF(
-            placement.clampedX - placement.textWidth / 2f, baseV.top,
-            placement.clampedX + placement.textWidth / 2f, baseV.bottom
-        )
-        val intrusion = combinedCurveIntrusion(ctx, baseBounds)
-        val baseOverlapsLabel = drawnLabelMetas.any { RectF.intersects(it.bounds, baseBounds) }
-        val baseOverlapsIcon = drawnIconBounds.any { RectF.intersects(it, baseBounds) }
+        val blockerResult = checkExactFitBlockers(ctx, candidate, placement, placeAbove, gapDp, labelAscent, labelDescent, drawnLabelMetas, drawnIconBounds, idx)
+        when (blockerResult) {
+            is ExactFitBlockerResult.NaturalFits -> return ExactFitOutcome.NATURAL_FITS
+            is ExactFitBlockerResult.LabelOrIconBlocked -> return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
+            is ExactFitBlockerResult.CurveOnly -> {
+                val extra = if (placeAbove) {
+                    blockerResult.baseBounds.bottom - blockerResult.intrusion.minY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx
+                } else {
+                    blockerResult.intrusion.maxY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx - blockerResult.baseBounds.top
+                }
+                if (extra <= 0f) return ExactFitOutcome.GAVE_UP
 
-        // Mirror the main step loop's minor-overlap policy so we don't switch directions for
-        // overlaps the main loop would tolerate (notably icon overlap for valleys placed below).
-        val labelHeight = labelDescent - labelAscent
-        val drawnLabelBoundsList = drawnLabelMetas.map { it.bounds }
-        val labelOverlapPx = if (baseOverlapsLabel) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnLabelBoundsList) else 0f
-        val iconOverlapPx = if (baseOverlapsIcon) GraphLabelPlacementUtils.maxVerticalOverlap(baseBounds, drawnIconBounds) else 0f
-        val iconOverlapRatio = if (!placeAbove && placement.isValley) GraphLabelPlacementUtils.MINOR_OVERLAP_ICON_RATIO else GraphLabelPlacementUtils.MINOR_OVERLAP_HEIGHT_RATIO
-        val allowMinorLabelOverlap = baseOverlapsLabel && GraphLabelPlacementUtils.shouldAllowMinorOverlap(candidate.role, labelOverlapPx, labelHeight)
-        val allowMinorIconOverlap = baseOverlapsIcon && GraphLabelPlacementUtils.isMinorOverlapEligible(candidate.role) && iconOverlapPx <= labelHeight * iconOverlapRatio
-        val effectiveLabelBlocker = baseOverlapsLabel && !allowMinorLabelOverlap
-        val effectiveIconBlocker = baseOverlapsIcon && !allowMinorIconOverlap
+                val newGapPx = blockerResult.baseGapPx + extra
+                val newV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
+                    pointY = placement.sy, placeAbove = placeAbove,
+                    gapPx = newGapPx, textAscent = labelAscent, textDescent = labelDescent
+                )
+                val newBounds = RectF(
+                    placement.clampedX - placement.textWidth / 2f, newV.top,
+                    placement.clampedX + placement.textWidth / 2f, newV.bottom
+                )
+                if (newBounds.top < 0f || newBounds.bottom > ctx.heightPx) {
+                    Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED offscreen newBounds=${newBounds.toShortString()}")
+                    return ExactFitOutcome.GAVE_UP
+                }
+                val overlapsLabel = drawnLabelMetas.any { RectF.intersects(it.bounds, newBounds) }
+                val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, newBounds) }
+                if (overlapsLabel || overlapsIcon) {
+                    Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon")
+                    return ExactFitOutcome.GAVE_UP
+                }
+                val residual = combinedCurveIntrusion(ctx, newBounds)
+                if (!residual.isEmpty) {
+                    val residualDepth = if (placeAbove) newBounds.bottom - residual.maxY else residual.minY - newBounds.top
+                    if (residualDepth > allowedDipPx + 1f) {
+                        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion depth=${String.format("%.1f", residualDepth)} allowedDip=${String.format("%.1f", allowedDipPx)}")
+                        return ExactFitOutcome.GAVE_UP
+                    }
+                }
 
-        Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx placeAbove=$placeAbove anchorY=${String.format("%.1f", placement.sy)} baseBounds=${baseBounds.toShortString()} intrusion=${if (intrusion.isEmpty) "none" else "minY=${String.format("%.1f", intrusion.minY)} maxY=${String.format("%.1f", intrusion.maxY)}"} labelBlocker=$effectiveLabelBlocker iconBlocker=$effectiveIconBlocker allowedDip=${String.format("%.1f", allowedDipPx)}")
+                val lineEndY = if (placeAbove) newBounds.bottom else newBounds.top
+                ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
+                ctx.canvas.drawText(placement.label, placement.clampedX, newV.baselineY, placement.labelPaint)
+                drawnLabelMetas.add(PlacedLabelMeta(newBounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
 
-        if (intrusion.isEmpty && !effectiveLabelBlocker && !effectiveIconBlocker) {
-            return ExactFitOutcome.NATURAL_FITS
-        }
-        if (effectiveLabelBlocker || effectiveIconBlocker) {
-            return ExactFitOutcome.LABEL_OR_ICON_BLOCKED
-        }
-        // intrusion is non-empty and no label/icon blocker → exact-fit this direction.
-        // Allow the curve to graze the label's near edge by allowedDipPx — same spirit as
-        // MINOR_OVERLAP_HEIGHT_RATIO for label-label overlap. Shortens the leader for cases
-        // where the curve only clips the label's corner (e.g. ACTUAL_END on a steep slope).
-        val extra = if (placeAbove) {
-            baseBounds.bottom - intrusion.minY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx
-        } else {
-            intrusion.maxY + CURVE_AVOIDANCE_CLEAR_PX - allowedDipPx - baseBounds.top
-        }
-        if (extra <= 0f) return ExactFitOutcome.GAVE_UP
-
-        val newGapPx = baseGapPx + extra
-        val newV = GraphLabelPlacementUtils.computeLabelVerticalPlacement(
-            pointY = placement.sy, placeAbove = placeAbove,
-            gapPx = newGapPx, textAscent = labelAscent, textDescent = labelDescent
-        )
-        val newBounds = RectF(
-            placement.clampedX - placement.textWidth / 2f, newV.top,
-            placement.clampedX + placement.textWidth / 2f, newV.bottom
-        )
-        if (newBounds.top < 0f || newBounds.bottom > ctx.heightPx) {
-            Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED offscreen newBounds=${newBounds.toShortString()}")
-            return ExactFitOutcome.GAVE_UP
-        }
-        val overlapsLabel = drawnLabelMetas.any { RectF.intersects(it.bounds, newBounds) }
-        val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, newBounds) }
-        if (overlapsLabel || overlapsIcon) {
-            Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED overlapsLabel=$overlapsLabel overlapsIcon=$overlapsIcon")
-            return ExactFitOutcome.GAVE_UP
-        }
-        val residual = combinedCurveIntrusion(ctx, newBounds)
-        if (!residual.isEmpty) {
-            val residualDepth = if (placeAbove) newBounds.bottom - residual.maxY else residual.minY - newBounds.top
-            // newBounds was sized to leave allowedDipPx of expected residual; tolerate it
-            // plus a small slack for floating-point error. Anything deeper means our
-            // displacement math undershot and we shouldn't claim this placement.
-            if (residualDepth > allowedDipPx + 1f) {
-                Log.d(TAG, "ExactFitPreCheck: role=${candidate.role} idx=$idx FAILED residualCurveIntrusion depth=${String.format("%.1f", residualDepth)} allowedDip=${String.format("%.1f", allowedDipPx)}")
-                return ExactFitOutcome.GAVE_UP
+                val seriesLabel = if (placement.isFuture) "forecast" else "actual"
+                val reasonBase = if (placeAbove) "above" else "below"
+                val reason = "$reasonBase+curveFit(${String.format("%.1f", extra)}px)"
+                val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, newV.baselineY, placeAbove, seriesLabel, seriesLabel, reason, 1)
+                Log.d(TAG, "LabelPlacementDebug: $debug")
+                ctx.onLabelPlaced?.invoke(debug)
+                return ExactFitOutcome.PLACED
             }
         }
-
-        val lineEndY = if (placeAbove) newBounds.bottom else newBounds.top
-        ctx.canvas.drawLine(placement.clampedX, placement.sy, placement.clampedX, lineEndY, placement.leaderLinePaint)
-        ctx.canvas.drawText(placement.label, placement.clampedX, newV.baselineY, placement.labelPaint)
-        drawnLabelMetas.add(PlacedLabelMeta(newBounds, isValleyBelow = !placeAbove && placement.isValley, role = candidate.role))
-
-        val seriesLabel = if (placement.isFuture) "forecast" else "actual"
-        val reasonBase = if (placeAbove) "above" else "below"
-        val reason = "$reasonBase+curveFit(${String.format("%.1f", extra)}px)"
-        val debug = LabelPlacementDebug(idx, candidate.role, temps[idx], candidate.rawTemperature, placement.clampedX, newV.baselineY, placeAbove, seriesLabel, seriesLabel, reason, 1)
-        Log.d(TAG, "LabelPlacementDebug: $debug")
-        ctx.onLabelPlaced?.invoke(debug)
-        return ExactFitOutcome.PLACED
     }
 
     private data class CascadeResult(
