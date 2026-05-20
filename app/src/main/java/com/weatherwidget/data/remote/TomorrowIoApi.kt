@@ -104,7 +104,12 @@ class TomorrowIoApi
                 )
             }
 
-            val currentInterval = hourlyIntervals.firstOrNull()?.jsonObject
+            val nowMs = System.currentTimeMillis()
+            val currentInterval = hourlyIntervals.minByOrNull { element ->
+                val startTimeStr = element.jsonObject["startTime"]?.jsonPrimitive?.content ?: ""
+                val epochMs = runCatching { OffsetDateTime.parse(startTimeStr).toInstant().toEpochMilli() }.getOrDefault(0L)
+                kotlin.math.abs(epochMs - nowMs)
+            }?.jsonObject
             val currentValues = currentInterval?.get("values")?.jsonObject
             val currentTemp = currentValues?.get("temperature")?.jsonPrimitive?.floatOrNull
             val currentWeatherCode = currentValues?.get("weatherCode")?.jsonPrimitive?.intOrNull
