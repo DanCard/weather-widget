@@ -105,15 +105,15 @@ suspend fun getForecast(
         val daily = if (dailyResponse != null) {
             parseTimeseries(dailyResponse, "daily").mapNotNull { entry ->
                 val time = entry["timestamp"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val high = entry["max_temperature"]?.jsonPrimitive?.doubleOrNull?.toInt() ?: 0
-                val low = entry["min_temperature"]?.jsonPrimitive?.doubleOrNull?.toInt() ?: 0
+                val high = entry["max_temperature"]?.jsonPrimitive?.doubleOrNull?.toFloat() ?: Float.NaN
+                val low = entry["min_temperature"]?.jsonPrimitive?.doubleOrNull?.toFloat() ?: Float.NaN
                 val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
                 val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
 
 DailyForecast(
       date = time.take(10),
-      highTemp = high.toFloat(),
-      lowTemp = low.toFloat(),
+      highTemp = high,
+      lowTemp = low,
       condition = condition,
       precipProbability = precip,
       precipAmountMm = parsePrecipAmountMm(entry),
@@ -124,7 +124,7 @@ DailyForecast(
         val hourly = if (hourlyDataList != null) {
             hourlyDataList.mapNotNull { entry ->
                 val time = entry["timestamp"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val temp = entry["temperature"]?.jsonPrimitive?.floatOrNull ?: 0f
+                val temp = entry["temperature"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
                 val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
                 val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
                 val cloudCover = entry["cloud_cover"]?.jsonPrimitive?.doubleOrNull?.toInt()

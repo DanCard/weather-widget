@@ -263,7 +263,7 @@ internal fun buildHourDataResult(
         hours.add(
             HourData(
                 dateTime = currentHour,
-                temperature = smoothedForecasts?.get(hourMs) ?: forecast?.temperature ?: 0f,
+                temperature = smoothedForecasts?.get(hourMs) ?: forecast?.temperature ?: Float.NaN,
                 label = formatHourLabel(currentHour),
                 iconRes = iconRes,
                 isNight = isNight,
@@ -345,12 +345,22 @@ internal fun buildHourDataResult(
             val nextTopHour = hours.firstOrNull { it.dateTime.isAfter(time) }
             
             val forecastTemp = if (prevTopHour != null && nextTopHour != null) {
-                val totalSecs = java.time.Duration.between(prevTopHour.dateTime, nextTopHour.dateTime).seconds
-                val elapsedSecs = java.time.Duration.between(prevTopHour.dateTime, time).seconds
-                val fraction = elapsedSecs.toFloat() / totalSecs.toFloat()
-                prevTopHour.temperature + (nextTopHour.temperature - prevTopHour.temperature) * fraction
+                val prevT = prevTopHour.temperature
+                val nextT = nextTopHour.temperature
+                if (prevT.isNaN() || nextT.isNaN()) Float.NaN else {
+                    val totalSecs = java.time.Duration.between(prevTopHour.dateTime, nextTopHour.dateTime).seconds
+                    val elapsedSecs = java.time.Duration.between(prevTopHour.dateTime, time).seconds
+                    val fraction = elapsedSecs.toFloat() / totalSecs.toFloat()
+                    prevT + (nextT - prevT) * fraction
+                }
             } else {
-                prevTopHour?.temperature ?: nextTopHour?.temperature ?: 0f
+                val prevT = prevTopHour?.temperature
+                val nextT = nextTopHour?.temperature
+                when {
+                    prevT != null && !prevT.isNaN() -> prevT
+                    nextT != null && !nextT.isNaN() -> nextT
+                    else -> Float.NaN
+                }
             }
 
             val subSunInfo = SunPositionUtils.getSunInfo(time, lat, lon)

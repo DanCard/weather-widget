@@ -82,7 +82,7 @@ object GraphLayout {
     )
 
     fun computeScaling(hours: List<HourData>): Triple<Float, Float, Float> {
-        val allTemps = hours.map { it.temperature } + hours.mapNotNull { it.actualTemperature }
+        val allTemps = hours.map { it.temperature }.filter { !it.isNaN() } + hours.mapNotNull { it.actualTemperature }
         val rawMin = allTemps.minOrNull() ?: DEFAULT_FALLBACK_MIN_TEMP
         val rawMax = allTemps.maxOrNull() ?: DEFAULT_FALLBACK_MAX_TEMP
         val rawRange = (rawMax - rawMin).coerceAtLeast(MIN_TEMP_RANGE)

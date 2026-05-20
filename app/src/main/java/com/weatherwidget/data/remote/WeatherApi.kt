@@ -71,8 +71,8 @@ class WeatherApi
 
                     DailyForecast(
                         date = date,
-                        highTemp = dayData["maxtemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
-                        lowTemp = dayData["mintemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: 0f,
+                        highTemp = dayData["maxtemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: Float.NaN,
+                        lowTemp = dayData["mintemp_f"]?.jsonPrimitive?.content?.toFloatOrNull() ?: Float.NaN,
                         condition = dayData["condition"]?.jsonObject?.get("text")?.jsonPrimitive?.content ?: "Unknown",
                         iconToken = dayData["condition"]?.jsonObject?.get("icon")?.jsonPrimitive?.content,
                         precipProbability = dayData["daily_chance_of_rain"]?.jsonPrimitive?.content?.toIntOrNull(),

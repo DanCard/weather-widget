@@ -61,11 +61,11 @@ class OpenMeteoApi
             Log.d(TAG, "getForecast: parsed ${dates.size} dates: $dates")
             val maxTemps =
                 daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
+                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
                 } ?: emptyList()
             val minTemps =
                 daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
+                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
                 } ?: emptyList()
             val weatherCodes =
                 daily?.get("weather_code")?.jsonArray?.map {
@@ -85,8 +85,8 @@ dates.mapIndexed { index, date ->
 val code = weatherCodes.getOrNull(index) ?: 0
 DailyForecast(
 date = date,
-highTemp = maxTemps.getOrNull(index) ?: 0f,
-lowTemp = minTemps.getOrNull(index) ?: 0f,
+highTemp = maxTemps.getOrNull(index) ?: Float.NaN,
+lowTemp = minTemps.getOrNull(index) ?: Float.NaN,
 condition = weatherCodeToCondition(code),
 iconToken = code.toString(),
 precipProbability = precipProbs.getOrNull(index),
@@ -226,18 +226,18 @@ hourly = hourlyForecasts,
             val dates = daily?.get("time")?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
             val maxTemps =
                 daily?.get("temperature_2m_max")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
+                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
                 } ?: emptyList()
             val minTemps =
                 daily?.get("temperature_2m_min")?.jsonArray?.map {
-                    it.jsonPrimitive.content.toFloatOrNull() ?: 0f
+                    it.jsonPrimitive.content.toFloatOrNull() ?: Float.NaN
                 } ?: emptyList()
 
 return dates.mapIndexed { index, date ->
 DailyForecast(
 date = date,
-highTemp = maxTemps.getOrNull(index) ?: 0f,
-lowTemp = minTemps.getOrNull(index) ?: 0f,
+highTemp = maxTemps.getOrNull(index) ?: Float.NaN,
+lowTemp = minTemps.getOrNull(index) ?: Float.NaN,
 condition = weatherCodeToCondition(0),
 )
 }

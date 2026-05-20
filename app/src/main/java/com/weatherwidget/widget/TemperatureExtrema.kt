@@ -44,7 +44,11 @@ internal object TemperatureExtrema {
         val actualIndices = (0..actualEndIndex).filter { it in actualLabelTemps.indices }
         
         Log.d(TAG, "ACTUAL_END_INDEX: $actualEndIndex transitionX=$transitionX")
-        Log.d(TAG, "ACTUAL_LABEL_TEMPS: $actualLabelTemps")
+        Log.d(TAG, "LABEL_TEMPS: $labelTemps")
+        val nanIndices = labelTemps.mapIndexedNotNull { i, t -> if (t.isNaN()) i else null }
+        if (nanIndices.isNotEmpty()) {
+            Log.w(TAG, "NAN_TEMP_INDICES: $nanIndices hours=${nanIndices.map { hours[it].dateTime }}")
+        }
         
         val actualHighIndex = actualIndices.maxByOrNull { actualLabelTemps[it] } ?: -1
         val actualLowIndex = actualIndices.minByOrNull { actualLabelTemps[it] } ?: -1

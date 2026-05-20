@@ -23,25 +23,27 @@ internal object GraphRenderUtils {
         val curvePath = Path()
         val fillPath = Path()
 
-        if (points.isNotEmpty()) {
-            curvePath.moveTo(points[0].first, points[0].second)
-            fillPath.moveTo(points[0].first, points[0].second)
+        val segments = splitContiguousSegments(points)
+        for (segment in segments) {
+            if (segment.isEmpty()) continue
+            curvePath.moveTo(segment[0].first, segment[0].second)
+            fillPath.moveTo(segment[0].first, segment[0].second)
 
-            if (points.size > 1) {
-                val tangents = computeTangents(points)
+            if (segment.size > 1) {
+                val tangents = computeTangents(segment)
 
-                for (i in 0 until points.size - 1) {
-                    val cp1x = points[i].first + tangents[i].first / 3f
-                    val cp1y = points[i].second + tangents[i].second / 3f
-                    val cp2x = points[i + 1].first - tangents[i + 1].first / 3f
-                    val cp2y = points[i + 1].second - tangents[i + 1].second / 3f
-                    curvePath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
-                    fillPath.cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
+                for (i in 0 until segment.size - 1) {
+                    val cp1x = segment[i].first + tangents[i].first / 3f
+                    val cp1y = segment[i].second + tangents[i].second / 3f
+                    val cp2x = segment[i + 1].first - tangents[i + 1].first / 3f
+                    val cp2y = segment[i + 1].second - tangents[i + 1].second / 3f
+                    curvePath.cubicTo(cp1x, cp1y, cp2x, cp2y, segment[i + 1].first, segment[i + 1].second)
+                    fillPath.cubicTo(cp1x, cp1y, cp2x, cp2y, segment[i + 1].first, segment[i + 1].second)
                 }
             }
 
-            fillPath.lineTo(points.last().first, graphBottom)
-            fillPath.lineTo(points.first().first, graphBottom)
+            fillPath.lineTo(segment.last().first, graphBottom)
+            fillPath.lineTo(segment.first().first, graphBottom)
             fillPath.close()
         }
 
@@ -55,17 +57,41 @@ internal object GraphRenderUtils {
      */
     fun buildPerSegmentPaths(points: List<Pair<Float, Float>>): List<Path> {
         if (points.size < 2) return emptyList()
-        val tangents = computeTangents(points)
-        return (0 until points.size - 1).map { i ->
-            Path().apply {
-                moveTo(points[i].first, points[i].second)
-                val cp1x = points[i].first + tangents[i].first / 3f
-                val cp1y = points[i].second + tangents[i].second / 3f
-                val cp2x = points[i + 1].first - tangents[i + 1].first / 3f
-                val cp2y = points[i + 1].second - tangents[i + 1].second / 3f
-                cubicTo(cp1x, cp1y, cp2x, cp2y, points[i + 1].first, points[i + 1].second)
+        val result = mutableListOf<Path>()
+        val segments = splitContiguousSegments(points)
+        for (segment in segments) {
+            if (segment.size < 2) continue
+            val tangents = computeTangents(segment)
+            for (i in 0 until segment.size - 1) {
+                result.add(Path().apply {
+                    moveTo(segment[i].first, segment[i].second)
+                    val cp1x = segment[i].first + tangents[i].first / 3f
+                    val cp1y = segment[i].second + tangents[i].second / 3f
+                    val cp2x = segment[i + 1].first - tangents[i + 1].first / 3f
+                    val cp2y = segment[i + 1].second - tangents[i + 1].second / 3f
+                    cubicTo(cp1x, cp1y, cp2x, cp2y, segment[i + 1].first, segment[i + 1].second)
+                })
             }
         }
+        return result
+    }
+
+    fun splitContiguousSegments(points: List<Pair<Float, Float>>): List<List<Pair<Float, Float>>> {
+        if (points.isEmpty()) return emptyList()
+        val segments = mutableListOf<List<Pair<Float, Float>>>()
+        var current = mutableListOf<Pair<Float, Float>>()
+        for (p in points) {
+            if (p.first.isNaN() || p.second.isNaN()) {
+                if (current.isNotEmpty()) {
+                    segments.add(current)
+                    current = mutableListOf()
+                }
+            } else {
+                current.add(p)
+            }
+        }
+        if (current.isNotEmpty()) segments.add(current)
+        return segments
     }
 
     /**

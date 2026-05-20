@@ -66,7 +66,7 @@ class TomorrowIoApi
                 val values = obj["values"]?.jsonObject ?: return@mapIndexedNotNull null
 
                 val epochMs = OffsetDateTime.parse(startTime).toInstant().toEpochMilli()
-                val temp = values["temperature"]?.jsonPrimitive?.floatOrNull ?: 0f
+                val temp = values["temperature"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
                 val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
                 val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
                 val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull
@@ -87,8 +87,8 @@ class TomorrowIoApi
                 val values = obj["values"]?.jsonObject ?: return@mapIndexedNotNull null
 
                 val date = startTime.substring(0, 10)
-                val high = values["temperatureMax"]?.jsonPrimitive?.floatOrNull ?: 0f
-                val low = values["temperatureMin"]?.jsonPrimitive?.floatOrNull ?: 0f
+                val high = values["temperatureMax"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
+                val low = values["temperatureMin"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
                 val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
                 val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
                 val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull
