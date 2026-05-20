@@ -4,7 +4,7 @@ package com.weatherwidget.widget.handlers
  * Shared constants for the widget header to ensure consistency across all views.
  */
 object HeaderConstants {
-    const val CURRENT_TEMP_TEXT_SIZE_DP = 24f
+    const val CURRENT_TEMP_TEXT_SIZE_DP = 21f
     const val WEATHER_ICON_SIZE_DP = 26f
     const val DELTA_TEXT_SIZE_DP = 14f
     const val WEATHER_ICON_END_MARGIN_DP = 2f
