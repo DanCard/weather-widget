@@ -317,6 +317,7 @@ object DailyForecastGraphRenderer {
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)? = null,
         onDayLabelDrawn: ((DayLabelDrawnDebug) -> Unit)? = null,
         headerData: HeaderRenderData? = null,
+        isRateLimited: Boolean = false,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -324,6 +325,10 @@ object DailyForecastGraphRenderer {
 
         if (days.isEmpty()) {
             Log.w(TAG, "renderGraph: empty days list, returning blank bitmap (${widthPx}x${heightPx})")
+            if (isRateLimited) {
+                val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
+                GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+            }
             return bitmap
         }
 
@@ -352,6 +357,11 @@ object DailyForecastGraphRenderer {
             // and labels render on top of any bar geometry that might overlap them.
             drawDayBars(canvas, context, day, centerX, layout, paints, onBarDrawn)
             drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
+        }
+
+        if (isRateLimited) {
+            val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
+            GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
         }
 
         return bitmap

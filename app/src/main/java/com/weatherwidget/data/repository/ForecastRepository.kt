@@ -439,10 +439,30 @@ class ForecastRepository
             block: suspend () -> T,
         ): T? {
             return try {
-                block()
+                val result = block()
+                if (result != null) {
+                    widgetStateManager.setSourceRateLimited(source, false)
+                }
+                result
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (exception: Exception) {
+                var curr: Throwable? = exception
+                var is429 = false
+                while (curr != null) {
+                    if (curr is ClientRequestException && curr.response.status.value == 429) {
+                        is429 = true
+                        break
+                    }
+                    if (curr is ApiAccessException && curr.statusCode == 429) {
+                        is429 = true
+                        break
+                    }
+                    curr = curr.cause
+                }
+                if (is429) {
+                    widgetStateManager.setSourceRateLimited(source, true)
+                }
                 logFetchFailure(tag, source, exception)
                 null
             }

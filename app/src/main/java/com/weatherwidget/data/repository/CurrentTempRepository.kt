@@ -126,14 +126,36 @@ class CurrentTempRepository
                     targetSources.forEach { targetSource ->
                         try {
                             val reading = fetchFromSource(targetSource, latitude, longitude)
-                            if (reading != null) successfulSourceCount += 1
+                            if (reading != null) {
+                                successfulSourceCount += 1
+                                widgetStateManager.setSourceRateLimited(targetSource, false)
+                            }
                             logCurrentSourceResult(reason, targetSource, reading)
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (exception: ApiAccessException) {
+                            if (exception.statusCode == 429) {
+                                widgetStateManager.setSourceRateLimited(targetSource, true)
+                            }
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception)
                         } catch (exception: Exception) {
+                            var curr: Throwable? = exception
+                            var is429 = false
+                            while (curr != null) {
+                                if (curr is ClientRequestException && curr.response.status.value == 429) {
+                                    is429 = true
+                                    break
+                                }
+                                if (curr is ApiAccessException && curr.statusCode == 429) {
+                                    is429 = true
+                                    break
+                                }
+                                curr = curr.cause
+                            }
+                            if (is429) {
+                                widgetStateManager.setSourceRateLimited(targetSource, true)
+                            }
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception)
                         }
@@ -245,7 +267,7 @@ class CurrentTempRepository
                     val reading = try {
                         silurianApi.getForecast(point.first, point.second, 1)
                     } catch (e: ClientRequestException) {
-                        rethrowIfAuthFailure(WeatherSource.SILURIAN, e)
+                        checkAndRethrowFailure(WeatherSource.SILURIAN, e)
                         null
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
@@ -326,7 +348,7 @@ class CurrentTempRepository
                     val reading = try {
                         weatherApi.getCurrent(point.first, point.second)
                     } catch (e: ClientRequestException) {
-                        rethrowIfAuthFailure(WeatherSource.WEATHER_API, e)
+                        checkAndRethrowFailure(WeatherSource.WEATHER_API, e)
                         null
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
@@ -360,13 +382,13 @@ class CurrentTempRepository
 
         private suspend fun fetchTomorrowIoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {
             val api = tomorrowIoApi ?: return@coroutineScope null
-            val pointsOfInterest = getPointsOfInterest(latitude, longitude)
+            val pointsOfInterest = listOf(Triple(latitude, longitude, "Current"))
             val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
                 async {
                     val result = try {
                         api.getForecast(point.first, point.second)
                     } catch (e: ClientRequestException) {
-                        rethrowIfAuthFailure(WeatherSource.TOMORROW_IO, e)
+                        checkAndRethrowFailure(WeatherSource.TOMORROW_IO, e)
                         null
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
@@ -476,19 +498,35 @@ class CurrentTempRepository
             )
         }
 
-        private suspend fun rethrowIfAuthFailure(source: WeatherSource, exception: ClientRequestException) {
-            if (exception.response.status.value != 401) return
-            val detail = extractHttpErrorDetail(
-                runCatching { exception.response.bodyAsText() }.getOrNull(),
-                exception.message,
-            )
-            throw ApiAccessException(
-                source = source,
-                statusCode = 401,
-                detail = detail,
-                message = "${source.displayName} 401 error. $detail",
-            )
+        private suspend fun checkAndRethrowFailure(source: WeatherSource, exception: ClientRequestException) {
+            val status = exception.response.status.value
+            if (status == 429) {
+                widgetStateManager.setSourceRateLimited(source, true)
+                val detail = extractHttpErrorDetail(
+                    runCatching { exception.response.bodyAsText() }.getOrNull(),
+                    exception.message,
+                )
+                throw ApiAccessException(
+                    source = source,
+                    statusCode = 429,
+                    detail = detail,
+                    message = "${source.displayName} 429 rate limit. $detail",
+                )
+            }
+            if (status == 401) {
+                val detail = extractHttpErrorDetail(
+                    runCatching { exception.response.bodyAsText() }.getOrNull(),
+                    exception.message,
+                )
+                throw ApiAccessException(
+                    source = source,
+                    statusCode = 401,
+                    detail = detail,
+                    message = "${source.displayName} 401 error. $detail",
+                )
+            }
         }
+
 
         private fun extractHttpErrorDetail(body: String?, fallbackMessage: String?): String {
             val bodyText = body?.trim().orEmpty()

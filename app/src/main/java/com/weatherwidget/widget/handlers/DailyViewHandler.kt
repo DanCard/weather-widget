@@ -644,6 +644,7 @@ object DailyViewHandler : WidgetViewHandler {
                     }
                 },
                 headerData = headerRenderData,
+                isRateLimited = stateManager.isSourceRateLimited(displaySource),
             )
             renderMs = SystemClock.elapsedRealtime() - renderStartMs
             views.setImageViewBitmap(R.id.graph_view, bitmap)

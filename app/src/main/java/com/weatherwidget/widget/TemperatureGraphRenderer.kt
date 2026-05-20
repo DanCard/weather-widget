@@ -1072,12 +1072,17 @@ object TemperatureGraphRenderer {
         onGhostLineDebug: ((GhostLineDebug) -> Unit)? = null,
         onPointsResolved: ((PointsDebug) -> Unit)? = null,
         onActualLineResolved: ((ActualLineDebug) -> Unit)? = null,
+        isRateLimited: Boolean = false,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         if (hours.isEmpty()) {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
+            if (isRateLimited) {
+                val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
+                GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+            }
             return bitmap
         }
 
@@ -1144,6 +1149,11 @@ object TemperatureGraphRenderer {
         timings.mark("decorations")
 
         timings.log(widthPx, heightPx, hours.size, TAG)
+
+        if (isRateLimited) {
+            val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
+            GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+        }
 
         return bitmap
     }

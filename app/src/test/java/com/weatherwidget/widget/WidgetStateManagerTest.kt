@@ -412,4 +412,18 @@ class WidgetStateManagerTest {
         assertFalse(migrationPrefs.contains("widget_current_temp_delta_$w"))
         WidgetStateManager.setPrefsNameOverrideForTesting("test_widget_state_prefs")
     }
+
+    @Test
+    fun `isSourceRateLimited and setSourceRateLimited stores and retrieves rate limited state per source`() {
+        assertFalse(stateManager.isSourceRateLimited(WeatherSource.NWS))
+        assertFalse(stateManager.isSourceRateLimited(WeatherSource.TOMORROW_IO))
+
+        stateManager.setSourceRateLimited(WeatherSource.TOMORROW_IO, true)
+
+        assertFalse(stateManager.isSourceRateLimited(WeatherSource.NWS))
+        assertTrue(stateManager.isSourceRateLimited(WeatherSource.TOMORROW_IO))
+
+        stateManager.setSourceRateLimited(WeatherSource.TOMORROW_IO, false)
+        assertFalse(stateManager.isSourceRateLimited(WeatherSource.TOMORROW_IO))
+    }
 }

@@ -760,4 +760,27 @@ internal object GraphRenderUtils {
         }
         return extrema
     }
+
+    fun drawRateLimitedWatermark(
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        density: Float,
+    ) {
+        val paint = Paint().apply {
+            isAntiAlias = true
+            color = Color.parseColor("#33FF5252") // semi-transparent premium rose/coral-red
+            textSize = 14f * density
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                letterSpacing = 0.15f
+            }
+        }
+        val text = "BEING RATE LIMITED"
+        val x = width / 2f
+        val y = height / 2f - (paint.descent() + paint.ascent()) / 2f
+        canvas.drawText(text, x, y, paint)
+    }
 }
+

@@ -706,6 +706,15 @@ class WidgetStateManager
                 .apply()
         }
 
+        fun isSourceRateLimited(source: WeatherSource): Boolean {
+            return prefs.getBoolean("source_rate_limited_${source.id}", false)
+        }
+
+        fun setSourceRateLimited(source: WeatherSource, isRateLimited: Boolean) {
+            prefs.edit().putBoolean("source_rate_limited_${source.id}", isRateLimited).apply()
+        }
+
+
         private fun deltaStateSuffix(
             widgetId: Int,
             source: WeatherSource,
