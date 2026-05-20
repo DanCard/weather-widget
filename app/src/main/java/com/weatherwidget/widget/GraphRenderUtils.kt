@@ -761,7 +761,7 @@ internal object GraphRenderUtils {
         return extrema
     }
 
-    fun drawRateLimitedWatermark(
+    fun drawErrorWatermark(
         canvas: Canvas,
         width: Float,
         height: Float,
@@ -777,7 +777,7 @@ internal object GraphRenderUtils {
                 letterSpacing = 0.15f
             }
         }
-        val text = "BEING RATE LIMITED"
+        val text = "UPDATES FAILING"
         val x = width / 2f
         val y = height / 2f - (paint.descent() + paint.ascent()) / 2f
         canvas.drawText(text, x, y, paint)

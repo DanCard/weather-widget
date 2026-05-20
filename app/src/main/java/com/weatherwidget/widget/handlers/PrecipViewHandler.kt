@@ -275,7 +275,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                 rainAmountWindowHours = rainAmountWindowHours,
                 job = coroutineContext[Job],
                 onDebugLog = { renderLogs.add(it) },
-                isRateLimited = stateManager.isSourceRateLimited(displaySource),
+                showErrorWatermark = stateManager.isSourceErrored(displaySource),
             )
             renderLogs.forEach { appLogDao.log("PrecipGraph", it) }
             renderMs = SystemClock.elapsedRealtime() - renderStartMs

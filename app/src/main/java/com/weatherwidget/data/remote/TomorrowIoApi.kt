@@ -5,9 +5,12 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.*
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
@@ -35,24 +38,46 @@ class TomorrowIoApi
                 throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
             }
 
-            val startTime = OffsetDateTime.now().minusHours(72).truncatedTo(ChronoUnit.HOURS).toString()
+            // Tomorrow.io's plan rejects startTime more than 24h in the past (HTTP 403, code 403003).
+            // truncatedTo(HOURS) rounds downward, so request 23h back to stay safely inside the window.
+            val startTime = OffsetDateTime.now().minusHours(23).truncatedTo(ChronoUnit.HOURS).toString()
 
-            val hourlyResponse: String = httpClient.get(BASE_URL) {
+            val hourlyHttpResponse = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")
                 parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationIntensity,cloudCover")
                 parameter("timesteps", "1h")
                 parameter("units", "imperial")
                 parameter("apikey", apiKey)
                 parameter("startTime", startTime)
-            }.body()
+            }
+            if (hourlyHttpResponse.status.value !in 200..299) {
+                val errorBody = runCatching { hourlyHttpResponse.bodyAsText() }.getOrDefault("No error body")
+                throw ApiAccessException(
+                    source = WeatherSource.TOMORROW_IO,
+                    statusCode = hourlyHttpResponse.status.value,
+                    detail = errorBody,
+                    message = "Tomorrow.io hourly fetch failed: status ${hourlyHttpResponse.status.value}. Detail: $errorBody"
+                )
+            }
+            val hourlyResponse: String = hourlyHttpResponse.body()
 
-            val dailyResponse: String = httpClient.get(BASE_URL) {
+            val dailyHttpResponse = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")
                 parameter("fields", "temperatureMax,temperatureMin,weatherCode,precipitationProbability,precipitationIntensity")
                 parameter("timesteps", "1d")
                 parameter("units", "imperial")
                 parameter("apikey", apiKey)
-            }.body()
+            }
+            if (dailyHttpResponse.status.value !in 200..299) {
+                val errorBody = runCatching { dailyHttpResponse.bodyAsText() }.getOrDefault("No error body")
+                throw ApiAccessException(
+                    source = WeatherSource.TOMORROW_IO,
+                    statusCode = dailyHttpResponse.status.value,
+                    detail = errorBody,
+                    message = "Tomorrow.io daily fetch failed: status ${dailyHttpResponse.status.value}. Detail: $errorBody"
+                )
+            }
+            val dailyResponse: String = dailyHttpResponse.body()
 
             val hourlyJson = json.parseToJsonElement(hourlyResponse).jsonObject
             val dailyJson = json.parseToJsonElement(dailyResponse).jsonObject

@@ -122,7 +122,7 @@ object CloudCoverGraphRenderer {
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
-        isRateLimited: Boolean = false,
+        showErrorWatermark: Boolean = false,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -138,9 +138,9 @@ object CloudCoverGraphRenderer {
                     labelScale = 1f,
                 )
             }
-            if (isRateLimited) {
+            if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
             }
             return bitmap
         }
@@ -604,9 +604,9 @@ object CloudCoverGraphRenderer {
             )
         }
 
-        if (isRateLimited) {
+        if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
         }
 
         return bitmap

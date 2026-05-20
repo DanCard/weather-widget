@@ -53,9 +53,9 @@ class RateLimitedWatermarkRobolectricTest {
             days = emptyList(),
             widthPx = 300,
             heightPx = 200,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
@@ -73,13 +73,13 @@ class RateLimitedWatermarkRobolectricTest {
             ),
             widthPx = 300,
             heightPx = 200,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
-        // Test isRateLimited = false does not draw watermark
+        // Test showErrorWatermark = false does not draw watermark
         DailyForecastGraphRenderer.renderGraph(
             context = context,
             days = listOf(
@@ -93,9 +93,9 @@ class RateLimitedWatermarkRobolectricTest {
             ),
             widthPx = 300,
             heightPx = 200,
-            isRateLimited = false
+            showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
     }
 
     @Test
@@ -108,9 +108,9 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
@@ -127,13 +127,13 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
-        // Test isRateLimited = false does not draw watermark
+        // Test showErrorWatermark = false does not draw watermark
         TemperatureGraphRenderer.renderGraph(
             context = context,
             hours = listOf(
@@ -146,9 +146,9 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = false
+            showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
     }
 
     @Test
@@ -161,9 +161,9 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
@@ -180,13 +180,13 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
-        // Test isRateLimited = false does not draw watermark
+        // Test showErrorWatermark = false does not draw watermark
         PrecipitationGraphRenderer.renderGraph(
             context = context,
             hours = listOf(
@@ -199,9 +199,9 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = false
+            showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
     }
 
     @Test
@@ -214,9 +214,9 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
@@ -233,13 +233,13 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = true
+            showErrorWatermark = true
         )
-        assertTrue(drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(drawnTexts.contains("UPDATES FAILING"))
 
         drawnTexts.clear()
 
-        // Test isRateLimited = false does not draw watermark
+        // Test showErrorWatermark = false does not draw watermark
         CloudCoverGraphRenderer.renderGraph(
             context = context,
             hours = listOf(
@@ -252,8 +252,8 @@ class RateLimitedWatermarkRobolectricTest {
             widthPx = 300,
             heightPx = 200,
             currentTime = now,
-            isRateLimited = false
+            showErrorWatermark = false
         )
-        assertTrue(!drawnTexts.contains("BEING RATE LIMITED"))
+        assertTrue(!drawnTexts.contains("UPDATES FAILING"))
     }
 }

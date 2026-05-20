@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.experimental.categories.Category
 
@@ -104,6 +105,60 @@ class TomorrowIoApiTest {
         assertEquals(70.0f, result.daily[0].highTemp, 0.1f)
         assertEquals(55.0f, result.daily[0].lowTemp, 0.1f)
         assertEquals("2026-04-14", result.daily[0].date)
+    }
+
+    @Test
+    fun `getForecast throws ApiAccessException when remote returns 429`() = runBlocking {
+        val engine = MockEngine { request ->
+            respond(
+                content = """{"code":429001,"type":"Too Many Calls","message":"The request limit... has been reached..."}""",
+                status = HttpStatusCode.TooManyRequests,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val mockClient = HttpClient(engine) {
+            install(ContentNegotiation) {
+                json(json)
+            }
+        }
+        val api = TomorrowIoApi(mockClient, json)
+
+        try {
+            api.getForecast(37.4220, -122.0841)
+            org.junit.Assert.fail("Expected ApiAccessException to be thrown")
+        } catch (e: ApiAccessException) {
+            assertEquals(HttpStatusCode.TooManyRequests.value, e.statusCode)
+            assertEquals(com.weatherwidget.data.model.WeatherSource.TOMORROW_IO, e.source)
+        }
+    }
+
+    @Test
+    fun `hourly request startTime stays within the 24h plan limit`() = runBlocking {
+        var capturedStartTime: String? = null
+        val emptyTimeline = """{"data":{"timelines":[{"intervals":[]}]}}"""
+        val engine = MockEngine { request ->
+            if (request.url.parameters["timesteps"] == "1h") {
+                capturedStartTime = request.url.parameters["startTime"]
+            }
+            respond(
+                content = emptyTimeline,
+                status = HttpStatusCode.OK,
+                headers = headersOf(HttpHeaders.ContentType, "application/json")
+            )
+        }
+        val mockClient = HttpClient(engine) {
+            install(ContentNegotiation) { json(json) }
+        }
+        val api = TomorrowIoApi(mockClient, json)
+
+        api.getForecast(37.4220, -122.0841)
+
+        assertNotNull(capturedStartTime)
+        val start = java.time.OffsetDateTime.parse(capturedStartTime)
+        val hoursInPast = java.time.Duration.between(start, java.time.OffsetDateTime.now()).toMinutes() / 60.0
+        // Must be in the past but never beyond Tomorrow.io's 24h plan ceiling.
+        assertTrue("startTime should be in the past", hoursInPast > 0)
+        assertTrue("startTime must stay within 24h (was ${hoursInPast}h)", hoursInPast < 24.0)
     }
 
     @Test

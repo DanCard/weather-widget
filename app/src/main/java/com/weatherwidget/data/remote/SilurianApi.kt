@@ -5,11 +5,14 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
@@ -50,12 +53,24 @@ suspend fun getForecast(
 
         val dailyDeferred = async {
             try {
-                httpClient.get("$BASE_URL/forecast/daily") {
+                val response = httpClient.get("$BASE_URL/forecast/daily") {
                     header("X-API-Key", apiKey)
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("units", "imperial")
-                }.body<String>()
+                }
+                if (response.status.value !in 200..299) {
+                    val errorBody = runCatching { response.bodyAsText() }.getOrDefault("No error body")
+                    throw ApiAccessException(
+                        source = WeatherSource.SILURIAN,
+                        statusCode = response.status.value,
+                        detail = errorBody,
+                        message = "Silurian daily fetch failed: status ${response.status.value}."
+                    )
+                }
+                response.body<String>()
+            } catch (e: ApiAccessException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Daily forecast fetch failed: ${e.message}")
                 null
@@ -69,30 +84,47 @@ suspend fun getForecast(
                 for (i in 1..3) {
                     val date = java.time.LocalDate.now().minusDays(i.toLong()).toString()
                     try {
-                        val historyResponse = httpClient.get("$BASE_URL/history/hourly") {
+                        val historyHttpResponse = httpClient.get("$BASE_URL/history/hourly") {
                             header("X-API-Key", apiKey)
                             parameter("latitude", lat)
                             parameter("longitude", lon)
                             parameter("start_date", date)
                             parameter("end_date", date)
                             parameter("units", "imperial")
-                        }.body<String>()
-                        historyData.addAll(parseTimeseries(historyResponse, "hourly"))
+                        }
+                        if (historyHttpResponse.status.value in 200..299) {
+                            val historyResponse = historyHttpResponse.body<String>()
+                            historyData.addAll(parseTimeseries(historyResponse, "hourly"))
+                        } else {
+                            Log.w(TAG, "History fetch returned status ${historyHttpResponse.status.value} for $date")
+                        }
                     } catch (e: Exception) {
                         Log.w(TAG, "History fetch failed for $date: ${e.message}")
                     }
                 }
 
-                val forecastResponse = httpClient.get("$BASE_URL/forecast/hourly") {
+                val forecastHttpResponse = httpClient.get("$BASE_URL/forecast/hourly") {
                     header("X-API-Key", apiKey)
                     parameter("latitude", lat)
                     parameter("longitude", lon)
                     parameter("units", "imperial")
-                }.body<String>()
+                }
+                if (forecastHttpResponse.status.value !in 200..299) {
+                    val errorBody = runCatching { forecastHttpResponse.bodyAsText() }.getOrDefault("No error body")
+                    throw ApiAccessException(
+                        source = WeatherSource.SILURIAN,
+                        statusCode = forecastHttpResponse.status.value,
+                        detail = errorBody,
+                        message = "Silurian hourly fetch failed: status ${forecastHttpResponse.status.value}."
+                    )
+                }
+                val forecastResponse = forecastHttpResponse.body<String>()
 
                 val forecastData = parseTimeseries(forecastResponse, "hourly")
                 
                 (historyData + forecastData)
+            } catch (e: ApiAccessException) {
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Hourly data fetch failed: ${e.message}")
                 null

@@ -5,10 +5,13 @@ import com.weatherwidget.BuildConfig
 import com.weatherwidget.data.model.DailyForecast
 import com.weatherwidget.data.model.ForecastResult
 import com.weatherwidget.data.model.HourlyForecast
+import com.weatherwidget.data.model.WeatherSource
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -48,14 +51,24 @@ class WeatherApi
                 }
             }
 
-            val response: String =
+            val httpResponse =
                 httpClient.get("$BASE_URL/forecast.json") {
                     parameter("key", apiKey)
                     parameter("q", "$lat,$lon")
                     parameter("days", days)
                     parameter("aqi", "no")
                     parameter("alerts", "no")
-                }.body()
+                }
+            if (httpResponse.status.value !in 200..299) {
+                val errorBody = runCatching { httpResponse.bodyAsText() }.getOrDefault("No error body")
+                throw ApiAccessException(
+                    source = WeatherSource.WEATHER_API,
+                    statusCode = httpResponse.status.value,
+                    detail = errorBody,
+                    message = "WeatherAPI forecast fetch failed: status ${httpResponse.status.value}. Detail: $errorBody"
+                )
+            }
+            val response: String = httpResponse.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
 
@@ -125,14 +138,24 @@ class WeatherApi
             val apiKey = BuildConfig.WEATHER_API_KEY
             if (apiKey.isBlank()) return emptyList()
 
-            val response: String =
+            val httpResponse =
                 httpClient.get("$BASE_URL/history.json") {
                     parameter("key", apiKey)
                     parameter("q", "$lat,$lon")
                     parameter("dt", date)
                     parameter("aqi", "no")
                     parameter("alerts", "no")
-                }.body()
+                }
+            if (httpResponse.status.value !in 200..299) {
+                val errorBody = runCatching { httpResponse.bodyAsText() }.getOrDefault("No error body")
+                throw ApiAccessException(
+                    source = WeatherSource.WEATHER_API,
+                    statusCode = httpResponse.status.value,
+                    detail = errorBody,
+                    message = "WeatherAPI history fetch failed: status ${httpResponse.status.value}. Detail: $errorBody"
+                )
+            }
+            val response: String = httpResponse.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
             val forecastDays =
@@ -172,11 +195,21 @@ class WeatherApi
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
             }
 
-            val response: String =
+            val httpResponse =
                 httpClient.get("$BASE_URL/current.json") {
                     parameter("key", apiKey)
                     parameter("q", "$lat,$lon")
-                }.body()
+                }
+            if (httpResponse.status.value !in 200..299) {
+                val errorBody = runCatching { httpResponse.bodyAsText() }.getOrDefault("No error body")
+                throw ApiAccessException(
+                    source = WeatherSource.WEATHER_API,
+                    statusCode = httpResponse.status.value,
+                    detail = errorBody,
+                    message = "WeatherAPI current fetch failed: status ${httpResponse.status.value}. Detail: $errorBody"
+                )
+            }
+            val response: String = httpResponse.body()
 
             val jsonObj = json.parseToJsonElement(response).jsonObject
             val current = jsonObj["current"]?.jsonObject ?: return null

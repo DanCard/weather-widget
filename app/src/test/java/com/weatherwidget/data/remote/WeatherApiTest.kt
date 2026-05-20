@@ -204,4 +204,30 @@ class WeatherApiTest {
             assertEquals(58.2f, current!!.temperature, 0.001f)
             assertEquals("Cloudy", current?.condition)
         }
+
+    @Test
+    fun `getForecast throws ApiAccessException when remote returns 401`() = runTest {
+        val client = HttpClient(MockEngine) {
+            engine {
+                addHandler {
+                    respond(
+                        content = """{"error":{"code":1002,"message":"API key is invalid or not provided."}}""",
+                        status = HttpStatusCode.Unauthorized,
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+            }
+            install(ContentNegotiation) {
+                json(json)
+            }
+        }
+        val api = WeatherApi(client, json)
+        try {
+            api.getForecast(37.42, -122.08, days = 1)
+            org.junit.Assert.fail("Expected ApiAccessException to be thrown")
+        } catch (e: ApiAccessException) {
+            assertEquals(HttpStatusCode.Unauthorized.value, e.statusCode)
+            assertEquals(com.weatherwidget.data.model.WeatherSource.WEATHER_API, e.source)
+        }
+    }
 }

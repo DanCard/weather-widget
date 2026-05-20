@@ -247,7 +247,7 @@ internal object TemperatureStateResolver {
                     numColumns = dimensions.cols,
                     job = coroutineContext[Job],
                     onFetchDotResolved = onFetchDotResolved,
-                    isRateLimited = stateManager.isSourceRateLimited(displaySource),
+                    showErrorWatermark = stateManager.isSourceErrored(displaySource),
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "renderGraph failed", e)

@@ -744,7 +744,7 @@ object PrecipitationGraphRenderer {
         onHourIconDrawn: ((index: Int) -> Unit)? = null,
         onDayLabelPlaced: ((DayLabelPlacementDebug) -> Unit)? = null,
         onWatermarkPlaced: ((WatermarkPlacementDebug) -> Unit)? = null,
-        isRateLimited: Boolean = false,
+        showErrorWatermark: Boolean = false,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -752,9 +752,9 @@ object PrecipitationGraphRenderer {
 
         if (hours.isEmpty()) {
             Log.w(TAG, "renderGraph: empty hours list, returning blank bitmap (${widthPx}x${heightPx})")
-            if (isRateLimited) {
+            if (showErrorWatermark) {
                 val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-                GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+                GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
             }
             return bitmap
         }
@@ -898,9 +898,9 @@ object PrecipitationGraphRenderer {
             rainDrawable.draw(canvas)
             onWatermarkPlaced?.invoke(placement)
         }
-        if (isRateLimited) {
+        if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
-            GraphRenderUtils.drawRateLimitedWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
+            GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
         }
         return bitmap
     }

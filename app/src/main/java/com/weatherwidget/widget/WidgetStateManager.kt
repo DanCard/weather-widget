@@ -54,6 +54,11 @@ class WidgetStateManager
         companion object {
             private const val PREFS_NAME = "widget_state_prefs"
             const val DEFAULT_TEST_PREFS_NAME = "widget_state_prefs_android_test"
+
+            // Show the error watermark only after a source fails this many times in a row,
+            // so a single transient blip never triggers it. Reset to 0 on any success.
+            const val SOURCE_FAILURE_WATERMARK_THRESHOLD = 3
+            private const val KEY_SOURCE_FAILURE_COUNT_PREFIX = "source_fail_count_"
             @Volatile
             private var prefsNameOverride: String? = null
             private const val KEY_DATE_OFFSET_PREFIX = "widget_date_offset_"
@@ -706,12 +711,23 @@ class WidgetStateManager
                 .apply()
         }
 
-        fun isSourceRateLimited(source: WeatherSource): Boolean {
-            return prefs.getBoolean("source_rate_limited_${source.id}", false)
+        fun getSourceFailureCount(source: WeatherSource): Int {
+            return prefs.getInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", 0)
         }
 
-        fun setSourceRateLimited(source: WeatherSource, isRateLimited: Boolean) {
-            prefs.edit().putBoolean("source_rate_limited_${source.id}", isRateLimited).apply()
+        // True once a source has failed SOURCE_FAILURE_WATERMARK_THRESHOLD times in a row.
+        // Drives the error watermark on every graph for the active display source.
+        fun isSourceErrored(source: WeatherSource): Boolean {
+            return getSourceFailureCount(source) >= SOURCE_FAILURE_WATERMARK_THRESHOLD
+        }
+
+        fun recordSourceFetchSuccess(source: WeatherSource) {
+            prefs.edit().putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", 0).apply()
+        }
+
+        fun recordSourceFetchFailure(source: WeatherSource) {
+            val next = getSourceFailureCount(source) + 1
+            prefs.edit().putInt("$KEY_SOURCE_FAILURE_COUNT_PREFIX${source.id}", next).apply()
         }
 
 

@@ -128,34 +128,17 @@ class CurrentTempRepository
                             val reading = fetchFromSource(targetSource, latitude, longitude)
                             if (reading != null) {
                                 successfulSourceCount += 1
-                                widgetStateManager.setSourceRateLimited(targetSource, false)
+                                widgetStateManager.recordSourceFetchSuccess(targetSource)
                             }
                             logCurrentSourceResult(reason, targetSource, reading)
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (exception: ApiAccessException) {
-                            if (exception.statusCode == 429) {
-                                widgetStateManager.setSourceRateLimited(targetSource, true)
-                            }
+                            widgetStateManager.recordSourceFetchFailure(targetSource)
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception)
                         } catch (exception: Exception) {
-                            var curr: Throwable? = exception
-                            var is429 = false
-                            while (curr != null) {
-                                if (curr is ClientRequestException && curr.response.status.value == 429) {
-                                    is429 = true
-                                    break
-                                }
-                                if (curr is ApiAccessException && curr.statusCode == 429) {
-                                    is429 = true
-                                    break
-                                }
-                                curr = curr.cause
-                            }
-                            if (is429) {
-                                widgetStateManager.setSourceRateLimited(targetSource, true)
-                            }
+                            widgetStateManager.recordSourceFetchFailure(targetSource)
                             logCurrentFetchFailure(targetSource, exception)
                             logCurrentSourceResult(reason, targetSource, null, exception)
                         }
@@ -266,6 +249,8 @@ class CurrentTempRepository
                 async {
                     val reading = try {
                         silurianApi.getForecast(point.first, point.second, 1)
+                    } catch (e: ApiAccessException) {
+                        throw e
                     } catch (e: ClientRequestException) {
                         checkAndRethrowFailure(WeatherSource.SILURIAN, e)
                         null
@@ -347,6 +332,8 @@ class CurrentTempRepository
                 async {
                     val reading = try {
                         weatherApi.getCurrent(point.first, point.second)
+                    } catch (e: ApiAccessException) {
+                        throw e
                     } catch (e: ClientRequestException) {
                         checkAndRethrowFailure(WeatherSource.WEATHER_API, e)
                         null
@@ -387,6 +374,8 @@ class CurrentTempRepository
                 async {
                     val result = try {
                         api.getForecast(point.first, point.second)
+                    } catch (e: ApiAccessException) {
+                        throw e
                     } catch (e: ClientRequestException) {
                         checkAndRethrowFailure(WeatherSource.TOMORROW_IO, e)
                         null
@@ -501,7 +490,6 @@ class CurrentTempRepository
         private suspend fun checkAndRethrowFailure(source: WeatherSource, exception: ClientRequestException) {
             val status = exception.response.status.value
             if (status == 429) {
-                widgetStateManager.setSourceRateLimited(source, true)
                 val detail = extractHttpErrorDetail(
                     runCatching { exception.response.bodyAsText() }.getOrNull(),
                     exception.message,

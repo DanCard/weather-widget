@@ -414,16 +414,39 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `isSourceRateLimited and setSourceRateLimited stores and retrieves rate limited state per source`() {
-        assertFalse(stateManager.isSourceRateLimited(WeatherSource.NWS))
-        assertFalse(stateManager.isSourceRateLimited(WeatherSource.TOMORROW_IO))
+    fun `isSourceErrored becomes true only after threshold consecutive failures`() {
+        assertFalse(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
 
-        stateManager.setSourceRateLimited(WeatherSource.TOMORROW_IO, true)
+        repeat(WidgetStateManager.SOURCE_FAILURE_WATERMARK_THRESHOLD - 1) {
+            stateManager.recordSourceFetchFailure(WeatherSource.TOMORROW_IO)
+        }
+        // One short of the threshold: no watermark yet.
+        assertFalse(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
 
-        assertFalse(stateManager.isSourceRateLimited(WeatherSource.NWS))
-        assertTrue(stateManager.isSourceRateLimited(WeatherSource.TOMORROW_IO))
+        stateManager.recordSourceFetchFailure(WeatherSource.TOMORROW_IO)
+        assertTrue(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
+    }
 
-        stateManager.setSourceRateLimited(WeatherSource.TOMORROW_IO, false)
-        assertFalse(stateManager.isSourceRateLimited(WeatherSource.TOMORROW_IO))
+    @Test
+    fun `recordSourceFetchSuccess resets the failure count`() {
+        repeat(WidgetStateManager.SOURCE_FAILURE_WATERMARK_THRESHOLD + 2) {
+            stateManager.recordSourceFetchFailure(WeatherSource.TOMORROW_IO)
+        }
+        assertTrue(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
+
+        stateManager.recordSourceFetchSuccess(WeatherSource.TOMORROW_IO)
+
+        assertEquals(0, stateManager.getSourceFailureCount(WeatherSource.TOMORROW_IO))
+        assertFalse(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
+    }
+
+    @Test
+    fun `source failure counts are tracked independently per source`() {
+        repeat(WidgetStateManager.SOURCE_FAILURE_WATERMARK_THRESHOLD) {
+            stateManager.recordSourceFetchFailure(WeatherSource.TOMORROW_IO)
+        }
+
+        assertTrue(stateManager.isSourceErrored(WeatherSource.TOMORROW_IO))
+        assertFalse(stateManager.isSourceErrored(WeatherSource.NWS))
     }
 }
