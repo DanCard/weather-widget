@@ -50,13 +50,13 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
     fun buildHourDataList_isConsistentAcrossZoomLevels_onAndroidRuntime() = runBlocking {
         val forecasts: List<com.weatherwidget.data.local.HourlyForecastEntity> = wideForecasts()
         
-        // S1 at T-4h (Outside NARROW 2h window, inside WIDE 8h window)
+        // S1 at T-3h (Outside NARROW 2h window, inside WIDE 8h window)
         // S2 at T-1h (Inside both)
-        val tMinus4h = center.minusHours(4)
+        val tMinus3h = center.minusHours(3)
         val tMinus1h = center.minusHours(1)
         
         val actuals = listOf(
-            AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus4h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f),
+            AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus3h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f),
             AndroidTestData.createObservation(stationId = "S2", timestamp = tMinus1h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 70f, distanceKm = 10f)
         )
 
@@ -103,12 +103,12 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
     fun observationWindowConsistency_withFutureObservation() = runBlocking {
         val forecasts: List<com.weatherwidget.data.local.HourlyForecastEntity> = wideForecasts()
         
-        val tMinus4h = center.minusHours(4)
+        val tMinus3h = center.minusHours(3)
         val tMinus1h = center.minusHours(1)
         val tPlus4h = center.plusHours(4)
         
         val baseActuals = listOf(
-            AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus4h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f),
+            AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus3h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f),
             AndroidTestData.createObservation(stationId = "S2", timestamp = tMinus1h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 70f, distanceKm = 10f)
         )
         
@@ -170,10 +170,10 @@ class TemperatureZoomConsistencyTest : IsolatedIntegrationTest("zoom_consistency
     @Test
     fun observationContextIsConsistentAcrossZoomLevels() = runBlocking {
         // Seed observations
-        val tMinus4h = center.minusHours(4)
+        val tMinus3h = center.minusHours(3)
         val tMinus1h = center.minusHours(1)
         
-        val obs1 = AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus4h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f)
+        val obs1 = AndroidTestData.createObservation(stationId = "S1", timestamp = tMinus3h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 60f, distanceKm = 2f)
         val obs2 = AndroidTestData.createObservation(stationId = "S2", timestamp = tMinus1h.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(), temperature = 70f, distanceKm = 10f)
         
         db.observationDao().insertAll(listOf(obs1, obs2))

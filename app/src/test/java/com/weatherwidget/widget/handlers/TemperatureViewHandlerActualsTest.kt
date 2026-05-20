@@ -275,14 +275,14 @@ class TemperatureViewHandlerActualsTest {
     @Test
     fun `buildHourDataList is consistent across zoom levels`() {
         val forecasts = wideForecasts()
-        // Observation at T-4h (08:00)
+        // Observation at T-3h (09:00)
         // Observation at T-1h (11:00)
         // NARROW window starts at T-2h (10:00)
-        val tMinus4h = center.minusHours(4)
+        val tMinus3h = center.minusHours(3)
         val tMinus1h = center.minusHours(1)
         
         val actuals = listOf(
-            observationAt(tMinus4h.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), 60f, stationId = "S1", distanceKm = 2f),
+            observationAt(tMinus3h.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), 60f, stationId = "S1", distanceKm = 2f),
             observationAt(tMinus1h.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME), 70f, stationId = "S2", distanceKm = 10f)
         )
 

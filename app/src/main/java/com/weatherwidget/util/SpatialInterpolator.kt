@@ -4,8 +4,14 @@ import com.weatherwidget.data.local.ObservationEntity
 
 object SpatialInterpolator {
     private const val NEAR_ZERO_KM = 0.1f        // treat as "at station" to avoid division by near-zero
-    private const val MAX_STALENESS_MS = 2 * 60 * 60 * 1000L  // 2 hours
+    private const val MAX_STALENESS_MS = 3 * 60 * 60 * 1000L  // 3 hours
     private const val MAX_SPREAD_MS = 60 * 60 * 1000L          // observations must be within 1 hour of each other
+
+    private fun timeDecayFactor(ageMs: Long): Double {
+        if (ageMs <= 0L) return 1.0
+        if (ageMs >= MAX_STALENESS_MS) return 0.0
+        return 1.0 - (ageMs.toDouble() / MAX_STALENESS_MS.toDouble())
+    }
 
     /**
      * Blends temperatures from multiple station observations using Inverse Distance Weighting.
@@ -29,23 +35,29 @@ object SpatialInterpolator {
         if (cohort.isEmpty()) return null
 
         // If any station is within NEAR_ZERO_KM, snap to it (closest wins)
-        val veryClose = cohort.filter { it.distanceKm <= NEAR_ZERO_KM }
+        val veryClose = cohort.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(nowMs - it.timestamp) > 0.0 }
         if (veryClose.isNotEmpty()) {
             return veryClose.minBy { it.distanceKm }.temperature
         }
 
-        // Single observation — no blending needed
-        if (cohort.size == 1) return cohort[0].temperature
+        // Single observation — no blending needed, but still check decay
+        if (cohort.size == 1) {
+            val decay = timeDecayFactor(nowMs - cohort[0].timestamp)
+            return if (decay > 0.0) cohort[0].temperature else null
+        }
 
-        // IDW: w_i = 1/d_i²,  T = Σ(w_i * T_i) / Σ(w_i)
         var weightedTempSum = 0.0
         var weightSum = 0.0
         for (obs in cohort) {
+            val ageMs = nowMs - obs.timestamp
+            val decay = timeDecayFactor(ageMs)
+            if (decay <= 0.0) continue
             val d = obs.distanceKm.toDouble()
-            val w = 1.0 / (d * d)
+            val w = decay / (d * d)
             weightedTempSum += w * obs.temperature
             weightSum += w
         }
+        if (weightSum <= 0.0) return null
         return (weightedTempSum / weightSum).toFloat()
     }
 

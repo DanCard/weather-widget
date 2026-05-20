@@ -144,18 +144,18 @@ class ObservationBlenderTest {
         val now = center
         val nowMs = now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         
-        // S1 is close (2km), reports at T-4h
+        // S1 is close (2km), reports at T-3h
         // S2 is further (10km), reports at T-1h
         // We want to check the blend at T-1h.
-        val tMinus4h = nowMs - 4 * 60 * 60 * 1000L
+        val tMinus3h = nowMs - 3 * 60 * 60 * 1000L
         val tMinus1h = nowMs - 1 * 60 * 60 * 1000L
         
         val observations = listOf(
-            TestData.observation(stationId = "S1", timestamp = tMinus4h, temperature = 60f, distanceKm = 2f),
+            TestData.observation(stationId = "S1", timestamp = tMinus3h, temperature = 60f, distanceKm = 2f),
             TestData.observation(stationId = "S2", timestamp = tMinus1h, temperature = 70f, distanceKm = 10f)
         )
 
-        // Wide window (8h back) includes S1 (T-4h)
+        // Wide window (8h back) includes S1 (T-3h)
         val wideStartMs = nowMs - 8 * 60 * 60 * 1000L
         val wideResult = ObservationBlender.blendObservationSeries(
             observations = observations,
@@ -167,7 +167,7 @@ class ObservationBlenderTest {
             endMs = nowMs
         )
         
-        // Narrow window (2h back) excludes S1 (T-4h) from the emitted result, 
+        // Narrow window (2h back) excludes S1 (T-3h) from the emitted result, 
         // but it should still be used for blending the point at T-1h!
         val narrowStartMs = nowMs - 2 * 60 * 60 * 1000L
         val narrowResult = ObservationBlender.blendObservationSeries(

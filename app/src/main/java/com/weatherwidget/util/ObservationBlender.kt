@@ -21,6 +21,21 @@ import java.time.format.DateTimeFormatter
  */
 object ObservationBlender {
 
+    private const val TIME_DECAY_MAX_AGE_MS = 3 * 60 * 60 * 1000L
+    private const val NEAR_ZERO_KM = 0.1f
+
+    private fun timeDecayFactor(ageMs: Long): Float {
+        if (ageMs <= 0L) return 1.0f
+        if (ageMs >= TIME_DECAY_MAX_AGE_MS) return 0.0f
+        return 1.0f - (ageMs.toFloat() / TIME_DECAY_MAX_AGE_MS.toFloat())
+    }
+
+    private data class DecayBlendInput(
+        val distanceKm: Float,
+        val temperature: Float,
+        val ageMs: Long,
+    )
+
     data class BlendObservationStats(
         val rawObservationCount: Int,
         val filteredObservationCount: Int,
@@ -134,7 +149,7 @@ object ObservationBlender {
 
         val zoneId = if (onBlendDebug != null) ZoneId.systemDefault() else null
         val timePattern = if (onBlendDebug != null) DateTimeFormatter.ofPattern("HH:mm") else null
-        val idwPairs = mutableListOf<Pair<Float, Float>>()
+        val candidates = mutableListOf<DecayBlendInput>()
 
         for (targetTs in candidateTimes) {
             if (targetTs - lastEmittedMs < dedupMs) {
@@ -142,7 +157,7 @@ object ObservationBlender {
                 continue
             }
 
-            idwPairs.clear()
+            candidates.clear()
             var hasObserved = false
             var hasInterpolated = false
             var bestAnchorTs = -1L
@@ -157,7 +172,8 @@ object ObservationBlender {
                     forecastSeries = forecastSeries,
                 )
                 if (resolved != null) {
-                    idwPairs.add(resolved.distanceKm to resolved.temperature)
+                    val ageMs = maxOf(0L, targetTs - resolved.anchorTs)
+                    candidates.add(DecayBlendInput(resolved.distanceKm, resolved.temperature, ageMs))
                     if (resolved.anchorTs > bestAnchorTs) bestAnchorTs = resolved.anchorTs
                     if (anchorStation == null) anchorStation = stationObs.minByOrNull { it.distanceKm }
                     when (resolved.sourceKind) {
@@ -167,15 +183,28 @@ object ObservationBlender {
                 }
             }
 
-            if (idwPairs.isEmpty()) continue
+            if (candidates.isEmpty()) continue
 
             val anchor = anchorStation ?: continue
 
-            val blendedTemp = if (idwPairs.size == 1) {
-                idwPairs[0].second
-            } else {
-                SpatialInterpolator.interpolateIDWValues(idwPairs) ?: idwPairs[0].second
+            val veryClose = candidates.filter { it.distanceKm <= NEAR_ZERO_KM && timeDecayFactor(it.ageMs) > 0f }
+            val blendedTemp: Float? = when {
+                veryClose.isNotEmpty() -> veryClose.minBy { it.distanceKm }.temperature
+                else -> {
+                    var wSum = 0.0
+                    var tSum = 0.0
+                    for (c in candidates) {
+                        val decay = timeDecayFactor(c.ageMs)
+                        if (decay <= 0f) continue
+                        val w = decay.toDouble() / (c.distanceKm.toDouble() * c.distanceKm.toDouble())
+                        tSum += w * c.temperature
+                        wSum += w
+                    }
+                    if (wSum > 0.0) (tSum / wSum).toFloat() else null
+                }
             }
+
+            if (blendedTemp == null) continue
 
             val bestSourceKind = when {
                 hasObserved -> "observed"
@@ -185,14 +214,14 @@ object ObservationBlender {
 
             if (onBlendDebug != null && zoneId != null && timePattern != null) {
                 val loopTs = targetTs
-                val loopPairs = idwPairs.toList()
+                val loopCandidates = candidates.toList()
                 val loopTemp = blendedTemp
                 onBlendDebug.invoke {
                     val timeStr = Instant.ofEpochMilli(loopTs).atZone(zoneId).format(timePattern)
-                    if (loopPairs.size == 1) {
+                    if (loopCandidates.size == 1) {
                         "emit t=$timeStr single_station temp=${String.format("%.1f", loopTemp)} source=$bestSourceKind"
                     } else {
-                        "emit t=$timeStr blended=${String.format("%.1f", loopTemp)} stationCount=${loopPairs.size} source=$bestSourceKind"
+                        "emit t=$timeStr blended=${String.format("%.1f", loopTemp)} stationCount=${loopCandidates.size} source=$bestSourceKind"
                     }
                 }
             }
