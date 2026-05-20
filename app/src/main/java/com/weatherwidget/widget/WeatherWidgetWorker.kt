@@ -97,11 +97,7 @@ class WeatherWidgetWorker
                 )
             }
 
-            // Reset toggle states only on scheduled refreshes (not UI-only or forced refreshes)
-            // Forced refreshes are triggered by user toggle actions, so preserve the user's choice
-            if (!uiOnlyRefresh && !forceRefresh) {
-                widgetStateManager.resetAllToggleStates()
-            }
+
 
             return try {
                 val startMs = SystemClock.elapsedRealtime()
