@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
@@ -370,8 +371,76 @@ object DailyViewHandler : WidgetViewHandler {
             if (dualLevel == singleDisclosure) candidateDualApiText to dualLevel
             else singleApiText to singleDisclosure
         } else singleApiText to singleDisclosure
-        views.setTextViewText(R.id.api_source, apiSourceText)
+
+        val headerScale = HeaderWidthChecker.computeHeaderScale(
+            context = context,
+            widthDp = dimensions.widthDp,
+            apiSourceText = apiSourceText,
+            apiTextSizeDp = apiTextSizeDp,
+            currentTempText = formattedTemp,
+            deltaText = deltaTextForFit,
+            precipText = precipTextForFit,
+            precipTextSizeDp = precipTextSizeDp,
+        )
+
+        // Re-bind header elements with proper scale
+        HeaderRemoteViewsBinder.bindApiSource(
+            context = context,
+            views = views,
+            sourceText = apiSourceText,
+            textSizeDp = apiTextSizeDp,
+            scale = headerScale,
+        )
+        // Also bind text mode version
         views.setTextViewText(R.id.text_mode_api_source, apiSourceText)
+
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.weather_icon,
+            iconRes = iconRes,
+            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
+            scale = headerScale,
+        )
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.settings_icon,
+            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
+            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
+            scale = headerScale,
+            tintColor = 0xAAFFFFFF.toInt()
+        )
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.text_mode_settings_icon,
+            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
+            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
+            scale = headerScale,
+            tintColor = 0xAAFFFFFF.toInt()
+        )
+        HeaderRemoteViewsBinder.bindCurrentTemp(
+            context = context,
+            views = views,
+            formattedTemp = formattedTemp,
+            hideDeltaOnNull = true,
+            scale = headerScale
+        )
+        HeaderRemoteViewsBinder.bindPrecipProbability(
+            context = context,
+            views = views,
+            precipText = if (isPrecipVisible) "${precipProb ?: 0}%" else null,
+            textSizeDp = precipTextSizeDp ?: 0f,
+            scale = headerScale,
+        )
+        HeaderRemoteViewsBinder.bindDelta(
+            context = context,
+            views = views,
+            deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
+            deltaVisible = deltaVisible,
+            scale = headerScale,
+        )
 
         if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
             HeaderRemoteViewsBinder.applyDisclosure(
@@ -386,7 +455,7 @@ object DailyViewHandler : WidgetViewHandler {
 
         // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
         if (!isIconWidth) {
-            setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true)
+            setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true, scale = headerScale)
             setupDualToggle(context, views, appWidgetId)
         }
 
@@ -623,6 +692,7 @@ object DailyViewHandler : WidgetViewHandler {
                     showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
                     showDualButton = showDualButton && !isIconWidth,
                     dualActive = showTwoBars,
+                    headerScale = headerScale,
                 )
             } else null
 

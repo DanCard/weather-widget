@@ -168,11 +168,6 @@ object CloudCoverViewHandler {
             sourceName = effectiveDisplaySource.shortDisplayName,
             widthDp = dimensions.widthDp
         )
-        views.setTextViewText(R.id.api_source, sourceIndicator)
-        views.setViewVisibility(R.id.api_source, View.VISIBLE)
-        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
-        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
 
         val now = LocalDateTime.now()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -187,8 +182,6 @@ object CloudCoverViewHandler {
             isTwilight = sunInfo.phase == SunPhase.TWILIGHT,
             isSunBoundary = sunInfo.isSunBoundary,
         )
-        views.setImageViewResource(R.id.weather_icon, iconRes)
-        views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
 
         // Weather icon + bottom zone → back to temperature view
         val goTempIconIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -202,9 +195,6 @@ object CloudCoverViewHandler {
         )
         views.setOnClickPendingIntent(R.id.weather_icon, goTempIconPending)
 
-        if (!isIconWidth) {
-            setupApiToggle(context, views, appWidgetId, numRows)
-        }
         views.setViewVisibility(R.id.current_temp_delta, View.GONE)
 
         val (currentTempResolution, resolveMs) =
@@ -220,15 +210,13 @@ object CloudCoverViewHandler {
                 lon = lon,
             )
         val currentTemp = currentTempResolution.displayTemp
-        val formatted = if (currentTemp != null) {
+        val formattedTemp = if (currentTemp != null) {
             CurrentTemperatureResolver.formatDisplayTemperature(
                 temp = currentTemp,
                 numColumns = numColumns,
                 isStaleEstimate = currentTempResolution.isStaleEstimate,
             )
         } else null
-        val formattedTemp = formatted
-        HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp)
 
         val headerPrecipProbability = HeaderPrecipCalculator.getNext8HourPrecipProbability(
             hourlyForecasts = hourlyForecasts,
@@ -238,10 +226,59 @@ object CloudCoverViewHandler {
         )
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(headerPrecipProbability)
         val precipTextSizeDp = if (headerPrecipProbability != null) HeaderPrecipCalculator.getPrecipTextSize(headerPrecipProbability) else null
+
+        val headerScale = HeaderWidthChecker.computeHeaderScale(
+            context = context,
+            widthDp = dimensions.widthDp,
+            apiSourceText = sourceIndicator,
+            apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+            currentTempText = formattedTemp,
+            deltaText = null,
+            precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
+            precipTextSizeDp = precipTextSizeDp,
+        )
+
+        HeaderRemoteViewsBinder.bindApiSource(
+            context = context,
+            views = views,
+            sourceText = sourceIndicator,
+            textSizeDp = HeaderConstants.apiTextSizeDp(numRows),
+            scale = headerScale,
+        )
+        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.settings_icon,
+            iconRes = R.drawable.ic_settings_gear,
+            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
+            scale = headerScale,
+            tintColor = 0xAAFFFFFF.toInt()
+        )
+        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
+
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.weather_icon,
+            iconRes = iconRes,
+            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
+            scale = headerScale,
+        )
+
+        HeaderRemoteViewsBinder.bindCurrentTemp(
+            context = context,
+            views = views,
+            formattedTemp = formattedTemp,
+            scale = headerScale,
+        )
+
         HeaderRemoteViewsBinder.bindPrecipProbability(
-            context, views,
-            if (isPrecipVisible) "$headerPrecipProbability%" else null,
-            precipTextSizeDp ?: 0f,
+            context = context,
+            views = views,
+            precipText = if (isPrecipVisible) "$headerPrecipProbability%" else null,
+            textSizeDp = precipTextSizeDp ?: 0f,
+            scale = headerScale,
         )
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
@@ -260,14 +297,13 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
         val today = LocalDateTime.now().toLocalDate()
         val isToday = centerTime.toLocalDate() == today
-        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday)
 
-        setupHomeShortcut(context, views, appWidgetId)
+        setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
         if (!isIconWidth) {
             setupSettingsShortcut(context, views, appWidgetId)
         }
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource)
-        setupWeatherStationsShortcut(context, views, appWidgetId)
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, displaySource, scale = headerScale)
+        setupWeatherStationsShortcut(context, views, appWidgetId, scale = headerScale)
 
         setupGraphSelectorShortcut(
             context = context,
@@ -275,8 +311,16 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             appWidgetId = appWidgetId,
             currentViewMode = com.weatherwidget.widget.ViewMode.CLOUD_COVER,
             widthDp = dimensions.widthDp,
-            isPrecipVisible = isPrecipVisible && disclosure.showsPrecip()
+            isPrecipVisible = isPrecipVisible && disclosure.showsPrecip(),
+            scale = headerScale,
         )
+
+        // Setup API toggle (skipped at 1 icon wide — target is hidden)
+        if (!isIconWidth) {
+            setupApiToggle(context, views, appWidgetId, numRows, scale = headerScale)
+        }
+
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday)
 
 val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         val useGraph = rawRows >= 1.4f

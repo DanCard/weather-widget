@@ -21,6 +21,50 @@ fun HeaderDisclosureLevel.showsPrecip(): Boolean = this == HeaderDisclosureLevel
 object HeaderWidthChecker {
     internal val measurePaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+    /**
+     * Scale factor applied to header icons and fonts when the header row has plenty
+     * of empty space (e.g. Samsung full-width widgets).
+     *
+     * Returns 1.35 when occupied header content fills less than 50% of the widget width
+     * AND the widget is at least 450dp wide; 1.0 otherwise.
+     */
+    private const val WIDE_HEADER_SCALE = 1.35f
+    private const val WIDE_HEADER_OCCUPANCY_THRESHOLD = 0.50f
+    private const val WIDE_HEADER_MIN_WIDTH_DP = 450
+
+    fun computeHeaderScale(
+        context: Context,
+        widthDp: Int,
+        apiSourceText: String,
+        apiTextSizeDp: Float,
+        currentTempText: String?,
+        deltaText: String?,
+        precipText: String?,
+        precipTextSizeDp: Float?,
+    ): Float {
+        val widthPx = dpToPx(context, widthDp.toFloat())
+        if (widthPx <= 0f) return 1f
+
+        if (widthDp < WIDE_HEADER_MIN_WIDTH_DP) return 1f
+
+        val leftClusterRight = resolveLeftClusterRightPx(
+            context = context,
+            currentTempText = currentTempText,
+            deltaText = deltaText,
+            precipText = precipText,
+            precipTextSizeDp = precipTextSizeDp,
+            includeIcon = true,
+        )
+        val apiLeft = resolveApiLeftPx(context, widthPx, apiSourceText, apiTextSizeDp)
+
+        // Occupied = left cluster + (widthPx - apiLeft), i.e. the right cluster width
+        val rightClusterWidth = (widthPx - apiLeft).coerceAtLeast(0f)
+        val occupiedWidth = leftClusterRight + rightClusterWidth
+        val occupancy = occupiedWidth / widthPx
+
+        return if (occupancy < WIDE_HEADER_OCCUPANCY_THRESHOLD) WIDE_HEADER_SCALE else 1f
+    }
+
     fun resolveHeaderDisclosure(
         context: Context,
         widthDp: Int,

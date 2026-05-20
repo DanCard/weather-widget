@@ -44,7 +44,7 @@ internal object DailyForecastHeaderRenderer {
         widthPx: Int,
         layout: LayoutInfo,
     ) {
-        val labelScale = layout.bitmapScale.coerceAtMost(1f)
+        val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
         val headerPaints = getHeaderPaintSet(header, labelScale, layout.density)
 
         var cursorX = -(3f * labelScale).dp(layout.density)

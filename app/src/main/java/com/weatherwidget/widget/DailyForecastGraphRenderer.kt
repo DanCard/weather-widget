@@ -149,13 +149,15 @@ object DailyForecastGraphRenderer {
         val precipTextSizeDp: Float = HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
         val dateText: String? = null,
         val apiSourceText: String? = null,
-        val apiTextSizeDp: Float = 16f,
+        val apiTextSizeDp: Float = 12.6f,
         val settingsIconRes: Int = 0,
         val showIcon: Boolean = true,
         val showDelta: Boolean = true,
         val showPrecip: Boolean = true,
         val showDualButton: Boolean = false,
         val dualActive: Boolean = false,
+        /** Scale applied to header icons and fonts on wide widgets (1.0 = normal, 1.35 = wide). */
+        val headerScale: Float = 1f,
     )
 
     data class DayData(

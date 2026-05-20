@@ -186,6 +186,7 @@ object ApiSourceWarningHelper {
             appWidgetId = appWidgetId,
             numRows = numRows,
             includeTextMode = includeTextMode,
+            scale = 1.0f,
         )
         appLogDao.log(
             "${callerTag}_SOURCE_BLOCKED",

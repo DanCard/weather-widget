@@ -142,6 +142,7 @@ internal fun setupApiToggle(
     appWidgetId: Int,
     numRows: Int,
     includeTextMode: Boolean = false,
+    scale: Float = 1.0f,
 ) {
     val toggleIntent =
         Intent(context, WeatherWidgetProvider::class.java).apply {
@@ -163,7 +164,7 @@ internal fun setupApiToggle(
     }
 
     val textSizeDp = HeaderConstants.apiTextSizeDp(numRows)
-    val apiPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, textSizeDp, context.resources.displayMetrics)
+    val apiPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, textSizeDp * scale, context.resources.displayMetrics)
     views.setTextViewTextSize(R.id.api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
     if (includeTextMode) {
         views.setTextViewTextSize(R.id.text_mode_api_source, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
@@ -196,6 +197,7 @@ internal fun setupHistoryShortcut(
     hourlyForecasts: List<HourlyForecastEntity>,
     displaySource: WeatherSource,
     setVisibility: Boolean = false,
+    scale: Float = 1.0f,
 ) {
     val dateStr = centerTime.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
     val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
@@ -218,6 +220,24 @@ internal fun setupHistoryShortcut(
         historyIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.history_icon,
+        iconRes = R.drawable.ic_forecast_history_line,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt()
+    )
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.history_icon_inline,
+        iconRes = R.drawable.ic_forecast_history_line,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt()
+    )
     views.setOnClickPendingIntent(R.id.history_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.forecast_history_activity_touch_zone, pendingIntent)
     views.setOnClickPendingIntent(R.id.forecast_history_activity_touch_zone_inline, pendingIntent)
@@ -232,6 +252,7 @@ internal fun setupHomeShortcut(
     views: RemoteViews,
     appWidgetId: Int,
     setVisibility: Boolean = false,
+    scale: Float = 1.0f,
 ) {
     val homeIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
         action = WidgetActions.ACTION_SET_VIEW
@@ -246,6 +267,24 @@ internal fun setupHomeShortcut(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
     Log.d("HomeShortcut", "setupHomeShortcut: widget=$appWidgetId requestCode=$requestCode setVisibility=$setVisibility -> ACTION_SET_VIEW target=DAILY (bound to home_icon, home_touch_zone, home_touch_zone_inline)")
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.home_icon,
+        iconRes = R.drawable.ic_home,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt()
+    )
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.home_icon_inline,
+        iconRes = R.drawable.ic_home,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt()
+    )
     views.setOnClickPendingIntent(R.id.home_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone, pendingIntent)
     views.setOnClickPendingIntent(R.id.home_touch_zone_inline, pendingIntent)
@@ -260,6 +299,7 @@ internal fun setupWeatherStationsShortcut(
     views: RemoteViews,
     appWidgetId: Int,
     setVisibility: Boolean = false,
+    scale: Float = 1.0f,
 ) {
     val obsIntent = Intent(context, WeatherObservationsActivity::class.java).apply {
         putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -271,6 +311,24 @@ internal fun setupWeatherStationsShortcut(
         WidgetRequestCodes.weatherStations(appWidgetId),
         obsIntent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.weather_stations_icon,
+        iconRes = R.drawable.ic_thermometer,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt()
+    )
+    HeaderRemoteViewsBinder.bindScaledIcon(
+        context = context,
+        views = views,
+        viewId = R.id.weather_stations_icon_inline,
+        iconRes = R.drawable.ic_thermometer,
+        sizeDp = HeaderConstants.CENTER_ICON_SIZE_DP,
+        scale = scale,
+        tintColor = 0xAAFFFFFF.toInt()
     )
     views.setOnClickPendingIntent(R.id.weather_stations_icon, pendingIntent)
     views.setOnClickPendingIntent(R.id.weather_stations_touch_zone, pendingIntent)
@@ -335,7 +393,7 @@ internal fun positionCenterIcons(
     }
 
     if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val touchWidthDp = if (widthDp >= 500) 56 else 24
+        val touchWidthDp = if (widthDp >= 450) 56 else 24
         val touchWidthPx = (touchWidthDp * density).toInt()
         for (id in listOf(R.id.graph_selector_touch_zone, R.id.weather_stations_touch_zone, R.id.home_touch_zone, R.id.forecast_history_activity_touch_zone)) {
             views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
@@ -357,6 +415,7 @@ internal fun setupGraphSelectorShortcut(
     currentViewMode: ViewMode,
     widthDp: Int,
     isPrecipVisible: Boolean,
+    scale: Float = 1.0f,
 ) {
     val nextView = when (currentViewMode) {
         ViewMode.TEMPERATURE -> ViewMode.CLOUD_COVER
@@ -373,6 +432,14 @@ internal fun setupGraphSelectorShortcut(
     HeaderTapTargetHelper.bindGraphSelector(context, views, appWidgetId, nextView)
     views.setTextViewText(R.id.graph_selector_icon, emoji)
     views.setTextViewText(R.id.graph_selector_icon_inline, emoji)
+
+    val apiPx = android.util.TypedValue.applyDimension(
+        android.util.TypedValue.COMPLEX_UNIT_DIP,
+        HeaderConstants.GRAPH_SELECTOR_TEXT_SIZE_DP * scale,
+        context.resources.displayMetrics
+    )
+    views.setTextViewTextSize(R.id.graph_selector_icon, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
+    views.setTextViewTextSize(R.id.graph_selector_icon_inline, android.util.TypedValue.COMPLEX_UNIT_PX, apiPx)
 
     val useInline = widthDp < 420
     if (useInline) {

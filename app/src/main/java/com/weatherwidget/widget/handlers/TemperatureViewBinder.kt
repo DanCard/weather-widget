@@ -42,34 +42,69 @@ internal object TemperatureViewBinder {
         ApiSourceWarningHelper.hideSourceWarning(views)
 
         // 2. Header.
+        val headerScale = HeaderWidthChecker.computeHeaderScale(
+            context = context,
+            widthDp = state.widthDp,
+            apiSourceText = header.sourceIndicator,
+            apiTextSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
+            currentTempText = header.currentTemp,
+            deltaText = header.deltaText,
+            precipText = header.precipProbability,
+            precipTextSizeDp = header.precipTextSizeDp,
+        )
+
         // Explicitly set VISIBLE because DailyViewHandler sets these to INVISIBLE
         // when rendering the source label into the bitmap — RemoteViews updates are
         // deltas, so the prior INVISIBLE state persists until restored here.
-        views.setTextViewText(R.id.api_source, header.sourceIndicator)
-        views.setViewVisibility(R.id.api_source, View.VISIBLE)
+        HeaderRemoteViewsBinder.bindApiSource(
+            context = context,
+            views = views,
+            sourceText = header.sourceIndicator,
+            textSizeDp = HeaderConstants.apiTextSizeDp(state.numRows),
+            scale = headerScale,
+        )
         views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
-        views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.settings_icon,
+            iconRes = R.drawable.ic_settings_gear,
+            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
+            scale = headerScale,
+            tintColor = 0xAAFFFFFF.toInt()
+        )
         views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
-        views.setImageViewResource(R.id.weather_icon, header.iconRes)
-        views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.weather_icon,
+            iconRes = header.iconRes,
+            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
+            scale = headerScale,
+        )
         
         HeaderRemoteViewsBinder.bindCurrentTemp(
             context = context,
             views = views,
             formattedTemp = header.currentTemp,
             textSizeDp = header.currentTempSizeDp,
+            scale = headerScale,
         )
 
         HeaderRemoteViewsBinder.bindDelta(
-            context, views,
-            header.deltaText,
-            header.isDeltaVisible,
+            context = context,
+            views = views,
+            deltaText = header.deltaText,
+            deltaVisible = header.isDeltaVisible,
+            scale = headerScale,
         )
 
         HeaderRemoteViewsBinder.bindPrecipProbability(
-            context, views,
-            if (header.isPrecipVisible) header.precipProbability else null,
-            header.precipTextSizeDp,
+            context = context,
+            views = views,
+            precipText = if (header.isPrecipVisible) header.precipProbability else null,
+            textSizeDp = header.precipTextSizeDp,
+            scale = headerScale,
         )
 HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, header.isPrecipVisible)
 
@@ -96,26 +131,29 @@ val isToday = firstHour?.toLocalDate() == today ||
 
 Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
 
-positionCenterIcons(views, state.widthDp, context.resources.displayMetrics.density, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
         // 4. Setup Intent Listeners
         setupZoomTapZones(
             context, views, appWidgetId, state.zoom, state.hourlyOffset,
         )
         setupNavigationButtons(context, views, appWidgetId, stateManager)
-        setupApiToggle(context, views, appWidgetId, state.numRows)
-        setupHomeShortcut(context, views, appWidgetId)
+        setupApiToggle(context, views, appWidgetId, state.numRows, scale = headerScale)
+        setupHomeShortcut(context, views, appWidgetId, scale = headerScale)
         setupSettingsShortcut(context, views, appWidgetId)
-        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource)
-        setupWeatherStationsShortcut(context, views, appWidgetId)
+        setupHistoryShortcut(context, views, appWidgetId, centerTime, hourlyForecasts, state.displaySource, scale = headerScale)
+        setupWeatherStationsShortcut(context, views, appWidgetId, scale = headerScale)
 
         setupGraphSelectorShortcut(
             context = context,
             views = views,
             appWidgetId = appWidgetId,
-            currentViewMode = ViewMode.TEMPERATURE,
+            currentViewMode = com.weatherwidget.widget.ViewMode.TEMPERATURE,
             widthDp = state.widthDp,
-            isPrecipVisible = header.isPrecipVisible && disclosure.showsPrecip()
+            isPrecipVisible = header.isPrecipVisible && disclosure.showsPrecip(),
+            scale = headerScale,
         )
+
+        positionCenterIcons(views, state.widthDp, context.resources.displayMetrics.density, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
+
         
         HeaderTapTargetHelper.bindToggleTemperatureHeader(context, views, appWidgetId)
         HeaderTapTargetHelper.bindPrecipitationHeader(context, views, appWidgetId)
