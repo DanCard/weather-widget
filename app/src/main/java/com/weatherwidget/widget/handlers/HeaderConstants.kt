@@ -23,9 +23,9 @@ object HeaderConstants {
     const val SETTINGS_ICON_SIZE_DP = 18f
     const val SETTINGS_ICON_MARGIN_END_DP = 0f
     const val PRECIP_TEXT_BASE_SIZE_DP = 26f
-    const val API_TEXT_SIZE_LARGE_DP = 18f
-    const val API_TEXT_SIZE_MEDIUM_DP = 16f
-    const val API_TEXT_SIZE_SMALL_DP = 14f
+    const val API_TEXT_SIZE_LARGE_DP = 12.6f
+    const val API_TEXT_SIZE_MEDIUM_DP = 11.2f
+    const val API_TEXT_SIZE_SMALL_DP = 9.8f
 
     fun apiTextSizeDp(numRows: Int): Float = when {
         numRows >= 3 -> API_TEXT_SIZE_LARGE_DP
