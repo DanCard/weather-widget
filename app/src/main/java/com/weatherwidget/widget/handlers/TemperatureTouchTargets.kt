@@ -334,6 +334,24 @@ internal fun positionCenterIcons(
         Log.d("HomeShortcut", "positionCenterIcons: inline touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
     }
 
+    if (floatingVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val isEmulator = Build.FINGERPRINT.startsWith("generic")
+                || Build.FINGERPRINT.startsWith("unknown")
+                || Build.MODEL.contains("google_sdk")
+                || Build.MODEL.contains("Emulator")
+                || Build.MODEL.contains("Android SDK built for x86")
+                || Build.MANUFACTURER.contains("Genymotion")
+                || Build.PRODUCT.contains("sdk_gphone64")
+                || Build.PRODUCT.contains("emulator")
+                || Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")
+
+        val touchWidthDp = if (isEmulator) 56 else 24
+        val touchWidthPx = (touchWidthDp * density).toInt()
+        for (id in listOf(R.id.graph_selector_touch_zone, R.id.weather_stations_touch_zone, R.id.home_touch_zone, R.id.forecast_history_activity_touch_zone)) {
+            views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
+        }
+        Log.d("HomeShortcut", "positionCenterIcons: floating touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp (isEmulator=$isEmulator)")
+    }
 
     if (!isToday) {
         for (id in listOf(R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.weather_stations_touch_zone_inline)) {
