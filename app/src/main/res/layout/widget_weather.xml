@@ -1327,7 +1327,7 @@
         <!-- Graph Selector -->
         <FrameLayout
             android:id="@+id/graph_selector_touch_zone"
-            android:layout_width="26dp"
+            android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
             android:clickable="true"
@@ -1348,7 +1348,7 @@
         <!-- Current Stations -->
         <FrameLayout
             android:id="@+id/weather_stations_touch_zone"
-            android:layout_width="37dp"
+            android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
             android:clickable="true"
@@ -1368,7 +1368,7 @@
         <!-- Home -->
         <FrameLayout
             android:id="@+id/home_touch_zone"
-            android:layout_width="37dp"
+            android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
             android:clickable="true"
@@ -1389,7 +1389,7 @@
         <!-- History -->
         <FrameLayout
             android:id="@+id/forecast_history_activity_touch_zone"
-            android:layout_width="37dp"
+            android:layout_width="24dp"
             android:layout_height="48dp"
             android:background="@android:color/transparent"
             android:clickable="true"
@@ -1559,7 +1559,7 @@
              replacing the floating center_horizontal icons. Order: stations | home | history. -->
         <FrameLayout
             android:id="@+id/graph_selector_touch_zone_inline"
-            android:layout_width="40dp"
+            android:layout_width="32dp"
             android:layout_height="40dp"
             android:layout_marginStart="1dp"
             android:background="@android:color/transparent"
@@ -1578,7 +1578,7 @@
 
         <FrameLayout
             android:id="@+id/weather_stations_touch_zone_inline"
-            android:layout_width="40dp"
+            android:layout_width="32dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
             android:background="@android:color/transparent"
@@ -1597,7 +1597,7 @@
 
         <FrameLayout
             android:id="@+id/home_touch_zone_inline"
-            android:layout_width="40dp"
+            android:layout_width="32dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
             android:background="@android:color/transparent"
@@ -1616,7 +1616,7 @@
 
         <FrameLayout
             android:id="@+id/forecast_history_activity_touch_zone_inline"
-            android:layout_width="40dp"
+            android:layout_width="32dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
             android:background="@android:color/transparent"
