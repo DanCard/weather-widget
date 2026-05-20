@@ -1013,140 +1013,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Current temperature and weather icon - positioned in top-left corner -->
-    <LinearLayout
-        android:id="@+id/current_weather_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="-6dp"
-        android:layout_marginStart="-4dp"
-        android:clipToPadding="false"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <ImageView
-            android:id="@+id/weather_icon"
-            android:layout_width="28dp"
-            android:layout_height="28dp"
-            android:src="@drawable/ic_weather_unknown"
-            android:contentDescription="@string/weather_icon_desc"
-            android:visibility="gone"
-            android:layout_marginStart="-1dp"
-            android:layout_marginEnd="-1dp" />
-
-        <TextView
-            android:id="@+id/current_temp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="72°"
-            android:textSize="20dp"
-            android:textColor="#AAFFFFFF"
-            android:includeFontPadding="false"
-            android:visibility="visible" />
-
-        <TextView
-            android:id="@+id/current_temp_delta"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="0dp"
-            android:layout_marginTop="-1dp"
-            android:text="+1.2"
-            android:textSize="14sp"
-            android:textColor="#AAFF6B35"
-            android:visibility="gone" />
-
-        <TextView
-            android:id="@+id/precip_probability"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:paddingEnd="0dp"
-            android:text=""
-            android:textSize="26sp"
-            android:textColor="#AA5AC8FA"
-            android:visibility="gone" />
-
-        <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
-             replacing the floating center_horizontal icons. Order: stations | home | history. -->
-        <FrameLayout
-            android:id="@+id/graph_selector_touch_zone_inline"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="1dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <TextView
-                android:id="@+id/graph_selector_icon_inline"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:textColor="#AAFFFFFF"
-                android:textSize="17sp"
-                android:gravity="center" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/weather_stations_touch_zone_inline"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/weather_stations_icon_inline"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_thermometer"
-                android:contentDescription="Current Stations"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/home_touch_zone_inline"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/home_icon_inline"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_home"
-                android:contentDescription="@string/home_forecast"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/forecast_history_activity_touch_zone_inline"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="0dp"
-            android:background="@android:color/transparent"
-            android:clickable="true"
-            android:focusable="true"
-            android:visibility="gone">
-            <ImageView
-                android:id="@+id/history_icon_inline"
-                android:layout_width="22dp"
-                android:layout_height="22dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_forecast_history_line"
-                android:contentDescription="@string/forecast_history"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-
-    </LinearLayout>
-
     <TextView
         android:id="@+id/header_date_center"
         android:layout_width="wrap_content"
@@ -1170,32 +1036,50 @@
         android:textColor="#AAFFFFFF"
         android:visibility="gone" />
 
-    <!-- API Source indicator - rendered last for touch priority, positioned in top-right corner -->
-    <FrameLayout
-        android:id="@+id/api_source_container"
+    <!-- Top-right header container for API and Settings -->
+    <LinearLayout
+        android:id="@+id/top_right_header_container"
         android:layout_width="wrap_content"
-        android:layout_height="48dp"
+        android:layout_height="wrap_content"
         android:layout_gravity="top|end"
         android:layout_marginTop="-4dp"
-        android:layout_marginEnd="32dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:paddingStart="8dp"
-        android:paddingEnd="6dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-        <TextView
-            android:id="@+id/api_source"
+        <FrameLayout
+            android:id="@+id/api_touch_zone"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="top|end"
-            android:layout_marginTop="0dp"
-            android:text="NWS"
-            android:textSize="11sp"
-            android:textColor="#AAFFFFFF"
-            android:visibility="visible" />
+            android:layout_height="50dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingStart="8dp"
+            android:paddingEnd="4dp">
+            <TextView
+                android:id="@+id/api_source"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:text="NWS"
+                android:textSize="11sp"
+                android:textColor="#AAFFFFFF" />
+        </FrameLayout>
 
-    </FrameLayout>
+        <FrameLayout
+            android:id="@+id/settings_touch_zone"
+            android:layout_width="44dp"
+            android:layout_height="50dp"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView
+                android:id="@+id/settings_icon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_settings_gear"
+                android:contentDescription="@string/settings"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/widget_warning_container"
@@ -1247,66 +1131,8 @@
             android:text="Tap for details"
             android:textColor="#F3E8E8"
             android:textSize="11sp" />
-
     </LinearLayout>
 
-    <!-- Home icon (top-middle) - Only visible in hourly views -->
-    <ImageView
-        android:id="@+id/home_icon"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-4dp"
-        android:paddingTop="-4dp"
-        android:src="@drawable/ic_home"
-        android:contentDescription="@string/home_forecast"
-        android:tint="#AAFFFFFF"
-        android:visibility="gone" />
-
-    <!-- History icon (top-right of home) - Only visible in hourly views -->
-    <ImageView
-        android:id="@+id/history_icon"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-4dp"
-        android:paddingTop="-4dp"
-        android:layout_marginStart="43dp"
-        android:src="@drawable/ic_forecast_history_line"
-        android:contentDescription="@string/forecast_history"
-        android:tint="#AAFFFFFF"
-        android:visibility="gone" />
-
-    <!-- Current stations icon (to the left of home) -->
-    <ImageView
-        android:id="@+id/weather_stations_icon"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-4dp"
-        android:paddingTop="-4dp"
-        android:layout_marginEnd="43dp"
-        android:src="@drawable/ic_thermometer"
-        android:contentDescription="Current Stations"
-        android:visibility="gone" />
-
-    <!-- Graph Selector icon (first in the middle header row) - Only visible in hourly views -->
-    <TextView
-        android:id="@+id/graph_selector_icon"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-4dp"
-        android:paddingTop="-4dp"
-        android:layout_marginEnd="86dp"
-        android:textColor="#AAFFFFFF"
-        android:textSize="17sp"
-        android:gravity="center"
-        android:visibility="gone" />
-
-    <!-- Consolidated per-hour bottom tap zones (icon-dependent routing).
-         Declared at the root level to ensure highest touch priority and avoid container clipping.
-         Height is 67dp (reduced from 112dp) to cover both weather icons and hour labels. -->
     <LinearLayout
         android:id="@+id/graph_bottom_hour_zones"
         android:layout_width="match_parent"
@@ -1484,138 +1310,102 @@
         android:contentDescription="@string/nav_next"
         android:visibility="visible" />
 
-    <!-- Settings icon (top-right corner) -->
-    <ImageView
-        android:id="@+id/settings_icon"
-        android:layout_width="18dp"
-        android:layout_height="18dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="0dp"
-        android:layout_marginEnd="0dp"
-        android:src="@drawable/ic_settings_gear"
-        android:contentDescription="@string/settings"
-        android:tint="#AAFFFFFF"
-        android:visibility="visible" />
-
-    <!-- Header Touch Targets - Declared last for highest touch priority -->
-
-    <!-- Precipitation probability touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/precip_touch_zone"
-        android:layout_width="44dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|start"
-        android:layout_marginStart="124dp"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
-
-    <!-- Current temperature touch zone - invisible overlay for larger touch target -->
-    <FrameLayout
-        android:id="@+id/current_temp_zone"
-        android:layout_width="124dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|start"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <!-- Home icon touch zone. Height intentionally 80dp (not 50dp) to extend the
-         clickable area below the top-center band that Pixel Launcher reserves for
-         its drag-handle gesture on the emulator. See emulator_widget_click_drops.md -->
-    <FrameLayout
-        android:id="@+id/home_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+    <!-- Hourly center header icons and touch zones - positioned in top-middle.
+         Declared after navigation zones to ensure touch priority in the top area. -->
+    <LinearLayout
+        android:id="@+id/hourly_center_header_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
+        android:layout_marginTop="-10dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
 
-    <!-- History icon touch zone (80dp for same launcher-band reason as home_touch_zone) -->
-    <FrameLayout
-        android:id="@+id/forecast_history_activity_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginStart="43dp"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
+        <!-- Graph Selector -->
+        <FrameLayout
+            android:id="@+id/graph_selector_touch_zone"
+            android:layout_width="38dp"
+            android:layout_height="48dp"
+            android:background="#660000FF"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/graph_selector_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="-4dp"
+                android:paddingTop="-4dp"
+                android:textColor="#AAFFFFFF"
+                android:textSize="16sp"
+                android:gravity="center" />
+        </FrameLayout>
 
-    <!-- Current stations icon touch zone (80dp for same launcher-band reason) -->
-    <FrameLayout
-        android:id="@+id/weather_stations_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginEnd="43dp"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
+        <!-- Current Stations -->
+        <FrameLayout
+            android:id="@+id/weather_stations_touch_zone"
+            android:layout_width="38dp"
+            android:layout_height="48dp"
+            android:background="#66999999"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/weather_stations_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="-4dp"
+                android:paddingTop="-4dp"
+                android:src="@drawable/ic_thermometer"
+                android:contentDescription="Current Stations" />
+        </FrameLayout>
 
-    <!-- Graph Selector icon touch zone (first in middle row, 80dp high for launcher-band reasons) -->
-    <FrameLayout
-        android:id="@+id/graph_selector_touch_zone"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginEnd="86dp"
-        android:layout_marginTop="-4dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
+        <!-- Home -->
+        <FrameLayout
+            android:id="@+id/home_touch_zone"
+            android:layout_width="38dp"
+            android:layout_height="48dp"
+            android:background="#6600FFFF"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/home_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="-4dp"
+                android:paddingTop="-4dp"
+                android:src="@drawable/ic_home"
+                android:contentDescription="@string/home_forecast"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
 
-    <!-- Enlarged API touch zone to catch near-miss taps below the header label -->
-    <FrameLayout
-        android:id="@+id/api_touch_zone"
-        android:layout_width="90dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-4dp"
-        android:layout_marginEnd="20dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
+        <!-- History -->
+        <FrameLayout
+            android:id="@+id/forecast_history_activity_touch_zone"
+            android:layout_width="38dp"
+            android:layout_height="48dp"
+            android:background="#66FF00FF"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/history_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="-4dp"
+                android:paddingTop="-4dp"
+                android:src="@drawable/ic_forecast_history_line"
+                android:contentDescription="@string/forecast_history"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
 
-    <!-- Larger settings touch target -->
-    <FrameLayout
-        android:id="@+id/settings_touch_zone"
-        android:layout_width="36dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="0dp"
-        android:layout_marginEnd="0dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true" />
+    </LinearLayout>
 
-    <!-- Dual-source toggle touch target — overlay covers the ‖ glyph drawn into the
-         bitmap. The zone is intentionally much wider than the visible pill (~15dp wide)
-         because the bitmap is rendered into graph_view via fitCenter, which introduces
-         a small left/right offset between the pill's screen position and the marginEnd
-         anchor. A wide zone keeps the tap target forgiving on every device. -->
-    <FrameLayout
-        android:id="@+id/dual_touch_zone"
-        android:layout_width="80dp"
-        android:layout_height="50dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-4dp"
-        android:layout_marginEnd="150dp"
-        android:background="@android:color/transparent"
-        android:clickable="true"
-        android:focusable="true"
-        android:visibility="gone" />
 
     <!-- Single-row text mode API indicator, placed at the far right edge. -->
     <FrameLayout
@@ -1679,6 +1469,181 @@
         android:layout_gravity="bottom|end"
         android:layout_marginEnd="0dp"
         android:layout_marginBottom="0dp"
+        android:background="@android:color/transparent"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- Current temperature and weather icon - positioned in top-left corner.
+         Declared last to ensure highest touch priority over navigation zones. -->
+    <LinearLayout
+        android:id="@+id/current_weather_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginTop="-6dp"
+        android:layout_marginStart="-4dp"
+        android:clipToPadding="false"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:id="@+id/current_temp_zone"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:background="#6600FF00"
+            android:clickable="true"
+            android:focusable="true">
+
+            <ImageView
+                android:id="@+id/weather_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_weather_unknown"
+                android:contentDescription="@string/weather_icon_desc"
+                android:visibility="gone"
+                android:layout_marginStart="-1dp"
+                android:layout_marginEnd="-1dp" />
+
+            <TextView
+                android:id="@+id/current_temp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="72°"
+                android:textSize="18dp"
+                android:textColor="#AAFFFFFF"
+                android:includeFontPadding="false"
+                android:visibility="visible" />
+
+            <TextView
+                android:id="@+id/current_temp_delta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="0dp"
+                android:layout_marginTop="-1dp"
+                android:text="+1.2"
+                android:textSize="14sp"
+                android:textColor="#AAFF6B35"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/precip_touch_zone"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:background="#66FF0000"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/precip_probability"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:paddingEnd="0dp"
+                android:text=""
+                android:textSize="26sp"
+                android:textColor="#AA5AC8FA" />
+        </FrameLayout>
+
+        <!-- Inline nav icons: shown on narrow widgets when precip % is visible,
+             replacing the floating center_horizontal icons. Order: stations | home | history. -->
+        <FrameLayout
+            android:id="@+id/graph_selector_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="1dp"
+            android:background="#66FFFF00"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <TextView
+                android:id="@+id/graph_selector_icon_inline"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:textColor="#AAFFFFFF"
+                android:textSize="17sp"
+                android:gravity="center" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/weather_stations_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="0dp"
+            android:background="#66999999"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/weather_stations_icon_inline"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_thermometer"
+                android:contentDescription="Current Stations"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/home_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="0dp"
+            android:background="#6600FFFF"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/home_icon_inline"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_home"
+                android:contentDescription="@string/home_forecast"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/forecast_history_activity_touch_zone_inline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="0dp"
+            android:background="#66FF00FF"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/history_icon_inline"
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ic_forecast_history_line"
+                android:contentDescription="@string/forecast_history"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+
+    </LinearLayout>
+
+    <!-- Dual-source toggle touch target — overlay covers the ‖ glyph drawn into the
+         bitmap. The zone is intentionally much wider than the visible pill (~15dp wide)
+         because the bitmap is rendered into graph_view via fitCenter, which introduces
+         a small left/right offset between the pill's screen position and the marginEnd
+         anchor. A wide zone keeps the tap target forgiving on every device. -->
+    <FrameLayout
+        android:id="@+id/dual_touch_zone"
+        android:layout_width="80dp"
+        android:layout_height="50dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:layout_marginEnd="150dp"
         android:background="@android:color/transparent"
         android:clickable="true"
         android:focusable="true"

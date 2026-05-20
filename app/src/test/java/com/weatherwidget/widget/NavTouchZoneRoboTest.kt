@@ -64,12 +64,12 @@ class NavTouchZoneRoboTest {
         val root = rootView as ViewGroup
         val navLeftIndex = indexOfChild(root, R.id.nav_left)
         val navRightIndex = indexOfChild(root, R.id.nav_right)
-        val tempZoneIndex = indexOfChild(root, R.id.current_temp_zone)
+        val tempContainerIndex = indexOfChild(root, R.id.current_weather_container)
 
-        assertTrue("current_temp_zone must be after nav_left in z-order",
-            tempZoneIndex > navLeftIndex)
-        assertTrue("current_temp_zone must be after nav_right in z-order",
-            tempZoneIndex > navRightIndex)
+        assertTrue("current_temp_container must be after nav_left in z-order",
+            tempContainerIndex > navLeftIndex)
+        assertTrue("current_temp_container must be after nav_right in z-order",
+            tempContainerIndex > navRightIndex)
     }
 
     private fun indexOfChild(parent: ViewGroup, childId: Int): Int {

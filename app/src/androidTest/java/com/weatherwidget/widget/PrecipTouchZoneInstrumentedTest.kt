@@ -78,13 +78,13 @@ class PrecipTouchZoneInstrumentedTest {
         val precipTouchZoneId = R.id.precip_touch_zone
         val precipProbabilityId = R.id.precip_probability
         val currentTempZoneId = R.id.current_temp_zone
-        val apiSourceContainerId = R.id.api_source_container
+        val topRightHeaderContainerId = R.id.top_right_header_container
 
         // All these IDs should exist and be unique
         assertNotNull("precip_touch_zone ID should exist", precipTouchZoneId)
         assertNotNull("precip_probability ID should exist", precipProbabilityId)
         assertNotNull("current_temp_zone ID should exist", currentTempZoneId)
-        assertNotNull("api_source_container ID should exist", apiSourceContainerId)
+        assertNotNull("top_right_header_container ID should exist", topRightHeaderContainerId)
 
         // They should all be different IDs
         assertEquals(
@@ -100,9 +100,9 @@ class PrecipTouchZoneInstrumentedTest {
         )
 
         assertEquals(
-            "precip_touch_zone and api_source_container should be different IDs",
+            "precip_touch_zone and top_right_header_container should be different IDs",
             false,
-            precipTouchZoneId == apiSourceContainerId
+            precipTouchZoneId == topRightHeaderContainerId
         )
     }
 

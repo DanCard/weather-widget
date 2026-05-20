@@ -810,7 +810,7 @@ class DailyViewHandlerTest {
         assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_settings_icon).visibility)
         assertEquals(View.VISIBLE, applied.findViewById<View>(R.id.text_mode_settings_touch_zone).visibility)
 
-        assertEquals(View.GONE, applied.findViewById<View>(R.id.api_source_container).visibility)
+        assertEquals(View.GONE, applied.findViewById<View>(R.id.top_right_header_container).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.api_touch_zone).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.settings_icon).visibility)
         assertEquals(View.GONE, applied.findViewById<View>(R.id.settings_touch_zone).visibility)

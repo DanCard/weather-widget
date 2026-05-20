@@ -35,31 +35,31 @@ class SettingsTouchZoneRoboTest {
     @Test
     fun `settings_touch_zone is declared after nav_right_zone for touch priority`() {
         val root = rootView as ViewGroup
-        val settingsZoneIndex = indexOfChild(root, R.id.settings_touch_zone)
+        val settingsContainerIndex = indexOfChild(root, R.id.top_right_header_container)
         val navRightZoneIndex = indexOfChild(root, R.id.nav_right_zone)
 
-        assertTrue("settings_touch_zone must be after nav_right_zone in z-order to prevent interception",
-            settingsZoneIndex > navRightZoneIndex)
+        assertTrue("top_right_header_container must be after nav_right_zone in z-order to prevent interception",
+            settingsContainerIndex > navRightZoneIndex)
     }
 
     @Test
     fun `settings_touch_zone is declared after nav_right image button for touch priority`() {
         val root = rootView as ViewGroup
-        val settingsZoneIndex = indexOfChild(root, R.id.settings_touch_zone)
+        val settingsContainerIndex = indexOfChild(root, R.id.top_right_header_container)
         val navRightIndex = indexOfChild(root, R.id.nav_right)
 
-        assertTrue("settings_touch_zone must be after nav_right in z-order",
-            settingsZoneIndex > navRightIndex)
+        assertTrue("top_right_header_container must be after nav_right in z-order",
+            settingsContainerIndex > navRightIndex)
     }
 
     @Test
     fun `settings_icon is declared after navigation elements`() {
         val root = rootView as ViewGroup
-        val settingsIconIndex = indexOfChild(root, R.id.settings_icon)
+        val settingsContainerIndex = indexOfChild(root, R.id.top_right_header_container)
         val navRightIndex = indexOfChild(root, R.id.nav_right)
 
-        assertTrue("settings_icon must be after nav_right in z-order",
-            settingsIconIndex > navRightIndex)
+        assertTrue("top_right_header_container must be after nav_right in z-order",
+            settingsContainerIndex > navRightIndex)
     }
 
     @Test

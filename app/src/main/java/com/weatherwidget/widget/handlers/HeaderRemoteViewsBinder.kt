@@ -25,8 +25,10 @@ internal object HeaderRemoteViewsBinder {
             )
             views.setTextViewTextSize(R.id.current_temp, TypedValue.COMPLEX_UNIT_PX, tempPx)
             views.setViewVisibility(R.id.current_temp, View.VISIBLE)
+            views.setViewVisibility(R.id.current_temp_zone, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.current_temp, View.GONE)
+            views.setViewVisibility(R.id.current_temp_zone, View.GONE)
             if (hideDeltaOnNull) {
                 views.setViewVisibility(R.id.current_temp_delta, View.GONE)
             }
@@ -48,8 +50,10 @@ internal object HeaderRemoteViewsBinder {
             )
             views.setTextViewTextSize(R.id.precip_probability, TypedValue.COMPLEX_UNIT_PX, precipPx)
             views.setViewVisibility(R.id.precip_probability, View.VISIBLE)
+            views.setViewVisibility(R.id.precip_touch_zone, View.VISIBLE)
         } else {
             views.setViewVisibility(R.id.precip_probability, View.GONE)
+            views.setViewVisibility(R.id.precip_touch_zone, View.GONE)
         }
     }
 
@@ -76,7 +80,7 @@ internal object HeaderRemoteViewsBinder {
     }
 
     fun hideIconWidthControls(views: RemoteViews) {
-        views.setViewVisibility(R.id.api_source_container, View.GONE)
+        views.setViewVisibility(R.id.top_right_header_container, View.GONE)
         views.setViewVisibility(R.id.api_source, View.GONE)
         views.setViewVisibility(R.id.api_touch_zone, View.GONE)
         views.setViewVisibility(R.id.settings_icon, View.GONE)
@@ -97,8 +101,9 @@ internal object HeaderRemoteViewsBinder {
     ) {
         views.setViewVisibility(R.id.weather_icon, if (disclosure.showsIcon()) View.VISIBLE else View.GONE)
         views.setViewVisibility(R.id.current_temp_delta, if (isDeltaVisible && disclosure.showsDelta()) View.VISIBLE else View.GONE)
-        views.setViewVisibility(R.id.precip_probability, if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE)
-        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible && disclosure.showsPrecip())
+        val precipVis = if (isPrecipVisible && disclosure.showsPrecip()) View.VISIBLE else View.GONE
+        views.setViewVisibility(R.id.precip_probability, precipVis)
+        views.setViewVisibility(R.id.precip_touch_zone, precipVis)
         if (disclosure == HeaderDisclosureLevel.NONE) {
             views.setViewVisibility(R.id.current_weather_container, View.GONE)
         }

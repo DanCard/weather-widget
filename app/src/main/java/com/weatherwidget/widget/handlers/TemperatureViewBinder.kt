@@ -47,8 +47,9 @@ internal object TemperatureViewBinder {
         // deltas, so the prior INVISIBLE state persists until restored here.
         views.setTextViewText(R.id.api_source, header.sourceIndicator)
         views.setViewVisibility(R.id.api_source, View.VISIBLE)
-        views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
+        views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
         views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
+        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
         views.setImageViewResource(R.id.weather_icon, header.iconRes)
         views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
         

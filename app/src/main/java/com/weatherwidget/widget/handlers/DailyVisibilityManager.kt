@@ -19,10 +19,10 @@ internal object DailyVisibilityManager {
         views.setViewVisibility(R.id.graph_night_rain_zones, View.VISIBLE)
         Log.d("DailyViewHandler", "setGraphModeViews: graph_night_rain_zones set VISIBLE")
         setSingleRowControlsVisible(views, false)
-        views.setViewVisibility(R.id.api_source_container, View.VISIBLE)
         views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
         views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
         views.setViewVisibility(R.id.settings_touch_zone, View.VISIBLE)
+        views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
 
         // Hide floating and inline hourly header controls/icons in daily mode
         views.setViewVisibility(R.id.home_icon, View.GONE)
@@ -73,10 +73,10 @@ internal object DailyVisibilityManager {
 
         views.setViewVisibility(R.id.current_temp_zone, View.GONE)
         views.setViewVisibility(R.id.precip_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.api_source_container, View.GONE)
         views.setViewVisibility(R.id.api_touch_zone, View.GONE)
         views.setViewVisibility(R.id.settings_icon, View.GONE)
         views.setViewVisibility(R.id.settings_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.top_right_header_container, View.GONE)
         views.setViewVisibility(R.id.dual_touch_zone, View.GONE)
         setSingleRowControlsVisible(views, true)
     }
