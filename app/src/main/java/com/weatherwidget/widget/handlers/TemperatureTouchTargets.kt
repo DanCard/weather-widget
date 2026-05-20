@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -305,6 +306,7 @@ internal fun setupSettingsShortcut(
 internal fun positionCenterIcons(
     views: RemoteViews,
     widthDp: Int,
+    density: Float,
     isPrecipVisible: Boolean,
     isToday: Boolean = true,
 ) {
@@ -318,6 +320,20 @@ internal fun positionCenterIcons(
     for (id in listOf(R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.graph_selector_touch_zone_inline)) {
         views.setViewVisibility(id, inlineVis)
     }
+
+    if (inlineVis == View.VISIBLE && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val touchWidthDp = when {
+            widthDp < 350 -> 32
+            widthDp < 400 -> 40
+            else -> 48
+        }
+        val touchWidthPx = (touchWidthDp * density).toInt()
+        for (id in listOf(R.id.graph_selector_touch_zone_inline, R.id.weather_stations_touch_zone_inline, R.id.home_touch_zone_inline, R.id.forecast_history_activity_touch_zone_inline)) {
+            views.setViewLayoutWidth(id, touchWidthPx.toFloat(), android.util.TypedValue.COMPLEX_UNIT_PX)
+        }
+        Log.d("HomeShortcut", "positionCenterIcons: inline touch zones resized to ${touchWidthDp}dp for widthDp=$widthDp")
+    }
+
 
     if (!isToday) {
         for (id in listOf(R.id.weather_stations_icon, R.id.weather_stations_touch_zone, R.id.weather_stations_touch_zone_inline)) {

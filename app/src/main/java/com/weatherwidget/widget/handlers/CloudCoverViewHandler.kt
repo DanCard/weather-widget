@@ -260,7 +260,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
         val today = LocalDateTime.now().toLocalDate()
         val isToday = centerTime.toLocalDate() == today
-        positionCenterIcons(views, dimensions.widthDp, isPrecipVisible && disclosure.showsPrecip(), isToday)
+        positionCenterIcons(views, dimensions.widthDp, context.resources.displayMetrics.density, isPrecipVisible && disclosure.showsPrecip(), isToday)
 
         setupHomeShortcut(context, views, appWidgetId)
         if (!isIconWidth) {

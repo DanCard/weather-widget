@@ -96,7 +96,7 @@ val isToday = firstHour?.toLocalDate() == today ||
 
 Log.d("TemperatureViewBinder", "isToday check: today=$today firstHour=$firstHour lastHour=$lastHour centerTime=$centerTime -> isToday=$isToday")
 
-positionCenterIcons(views, state.widthDp, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
+positionCenterIcons(views, state.widthDp, context.resources.displayMetrics.density, header.isPrecipVisible && disclosure.showsPrecip(), isToday)
         // 4. Setup Intent Listeners
         setupZoomTapZones(
             context, views, appWidgetId, state.zoom, state.hourlyOffset,
