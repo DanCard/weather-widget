@@ -12,7 +12,6 @@ In this session, we investigated and resolved a visual bug affecting the home sc
 2. `Changing subject: How often should I expect attached pixel 7 pro to update current temperature observations?`
 3. `How often should I expect attached pixel 7 pro to update current temperature observations from api?`
 4. `Query the pixel, what state is it in? How often should I expect attached pixel 7 pro to update current temperature observations from api in current state?`
-5. `Write above answers and session log to session-logs/ dir`
 
 ---
 
@@ -72,7 +71,7 @@ Actual network requests to pull fresh observations and forecast files from the w
 
 ## Attached Pixel 7 Pro State Query Results
 
-We queried the attached Pixel 7 Pro (`2A191FDH300PPW`) at `2026-05-20T08:10:03-07:00` using `adb dumpsys battery` and `adb dumpsys power` to analyze its live status:
+Queried the attached Pixel 7 Pro (`2A191FDH300PPW`) using `adb dumpsys battery` and `adb dumpsys power` to analyze its live status:
 
 1. **Power Status**: **Charging / Plugged In** (`AC powered: true`, `status: 4`)
 2. **Screen Activity**: **Screen Interactive / On** (`mIsInteractive: true`)
