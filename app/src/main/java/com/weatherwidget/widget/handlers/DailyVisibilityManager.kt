@@ -23,6 +23,20 @@ internal object DailyVisibilityManager {
         views.setViewVisibility(R.id.api_touch_zone, View.VISIBLE)
         views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
         views.setViewVisibility(R.id.settings_touch_zone, View.VISIBLE)
+
+        // Hide floating and inline hourly header controls/icons in daily mode
+        views.setViewVisibility(R.id.home_icon, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.history_icon, View.GONE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
     }
 
     fun setTextModeViews(views: RemoteViews) {

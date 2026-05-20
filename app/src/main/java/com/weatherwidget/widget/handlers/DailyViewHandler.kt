@@ -427,10 +427,13 @@ object DailyViewHandler : WidgetViewHandler {
         // Hide history icon and delta badge in daily mode
         views.setViewVisibility(R.id.home_icon, View.GONE)
         views.setViewVisibility(R.id.home_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
         views.setViewVisibility(R.id.history_icon, View.GONE)
         views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, View.GONE)
         views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
         views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
         views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
         views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
         views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
