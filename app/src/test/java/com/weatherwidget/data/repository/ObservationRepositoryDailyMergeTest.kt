@@ -3,7 +3,7 @@ package com.weatherwidget.data.repository
 import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestData
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetConstants
@@ -36,7 +36,7 @@ import java.time.ZoneId
  * value is what reaches the caller.
  */
 @RunWith(RobolectricTestRunner::class)
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class ObservationRepositoryDailyMergeTest {
     private lateinit var db: WeatherDatabase
     private lateinit var repository: ObservationRepository

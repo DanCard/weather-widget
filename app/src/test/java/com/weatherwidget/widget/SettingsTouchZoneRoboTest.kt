@@ -8,7 +8,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class SettingsTouchZoneRoboTest {
 
     private lateinit var context: Context

@@ -179,7 +179,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
         val appWidgetManager = mockWidgetManager(graphOptions())
-        val now = LocalDateTime.of(2026, 3, 27, 12, 0)
+        val now = fixtureNow()
         DailyViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager.first,
@@ -203,7 +203,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
         val appWidgetManager = mockWidgetManager(wideGraphOptions())
-        val now = LocalDateTime.of(2026, 3, 27, 12, 0)
+        val now = fixtureNow()
         DailyViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager.first,
@@ -229,7 +229,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
         val appWidgetManager = mockWidgetManager(graphOptions())
-        val now = LocalDateTime.of(2026, 3, 27, 12, 0)
+        val now = fixtureNow()
         TemperatureViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager.first,
@@ -251,7 +251,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
         val appWidgetManager = mockWidgetManager(graphOptions())
-        val now = LocalDateTime.of(2026, 3, 27, 12, 0)
+        val now = fixtureNow()
         PrecipViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager.first,
@@ -269,7 +269,7 @@ class CurrentTempTouchRoutingRoboTest {
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.NWS)
 
         val appWidgetManager = mockWidgetManager(graphOptions())
-        val now = LocalDateTime.of(2026, 3, 27, 12, 0)
+        val now = fixtureNow()
         CloudCoverViewHandler.updateWidget(
             context = context,
             appWidgetManager = appWidgetManager.first,
@@ -370,6 +370,9 @@ class CurrentTempTouchRoutingRoboTest {
         applied.layout(0, 0, applied.measuredWidth, applied.measuredHeight)
         return applied
     }
+
+    private fun fixtureNow(): LocalDateTime =
+        LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
 
     private fun textOptions(): Bundle =
         Bundle().apply {

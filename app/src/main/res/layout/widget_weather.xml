@@ -1036,51 +1036,6 @@
         android:textColor="#AAFFFFFF"
         android:visibility="gone" />
 
-    <!-- Top-right header container for API and Settings -->
-    <LinearLayout
-        android:id="@+id/top_right_header_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="-4dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <FrameLayout
-            android:id="@+id/api_touch_zone"
-            android:layout_width="wrap_content"
-            android:layout_height="50dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:paddingStart="8dp"
-            android:paddingEnd="4dp">
-            <TextView
-                android:id="@+id/api_source"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center_vertical"
-                android:text="NWS"
-                android:textSize="11sp"
-                android:textColor="#AAFFFFFF" />
-        </FrameLayout>
-
-        <FrameLayout
-            android:id="@+id/settings_touch_zone"
-            android:layout_width="44dp"
-            android:layout_height="50dp"
-            android:clickable="true"
-            android:focusable="true">
-            <ImageView
-                android:id="@+id/settings_icon"
-                android:layout_width="18dp"
-                android:layout_height="18dp"
-                android:layout_gravity="center"
-                android:src="@drawable/ic_settings_gear"
-                android:contentDescription="@string/settings"
-                android:tint="#AAFFFFFF" />
-        </FrameLayout>
-    </LinearLayout>
-
     <LinearLayout
         android:id="@+id/widget_warning_container"
         android:layout_width="match_parent"
@@ -1310,6 +1265,54 @@
         android:contentDescription="@string/nav_next"
         android:visibility="visible" />
 
+    <!-- Top-right header container for API and Settings.
+         Declared after navigation zones for touch priority. -->
+    <LinearLayout
+        android:id="@+id/top_right_header_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="-4dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <FrameLayout
+            android:id="@+id/api_touch_zone"
+            android:layout_width="wrap_content"
+            android:layout_height="50dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingStart="8dp"
+            android:paddingEnd="4dp">
+            <TextView
+                android:id="@+id/api_source"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_marginTop="-6dp"
+                android:text="NWS"
+                android:textSize="9sp"
+                android:textColor="#AAFFFFFF" />
+        </FrameLayout>
+
+        <FrameLayout
+            android:id="@+id/settings_touch_zone"
+            android:layout_width="44dp"
+            android:layout_height="50dp"
+            android:clickable="true"
+            android:focusable="true">
+            <ImageView
+                android:id="@+id/settings_icon"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="center"
+                android:layout_marginTop="-4dp"
+                android:src="@drawable/ic_settings_gear"
+                android:contentDescription="@string/settings"
+                android:tint="#AAFFFFFF" />
+        </FrameLayout>
+    </LinearLayout>
+
     <!-- Hourly center header icons and touch zones - positioned in top-middle.
          Declared after navigation zones to ensure touch priority in the top area. -->
     <LinearLayout
@@ -1317,16 +1320,16 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="-10dp"
+        android:layout_marginTop="-14dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
         <!-- Graph Selector -->
         <FrameLayout
             android:id="@+id/graph_selector_touch_zone"
-            android:layout_width="38dp"
+            android:layout_width="26dp"
             android:layout_height="48dp"
-            android:background="#660000FF"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1345,9 +1348,9 @@
         <!-- Current Stations -->
         <FrameLayout
             android:id="@+id/weather_stations_touch_zone"
-            android:layout_width="38dp"
+            android:layout_width="37dp"
             android:layout_height="48dp"
-            android:background="#66999999"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1365,9 +1368,9 @@
         <!-- Home -->
         <FrameLayout
             android:id="@+id/home_touch_zone"
-            android:layout_width="38dp"
+            android:layout_width="37dp"
             android:layout_height="48dp"
-            android:background="#6600FFFF"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1386,9 +1389,9 @@
         <!-- History -->
         <FrameLayout
             android:id="@+id/forecast_history_activity_touch_zone"
-            android:layout_width="38dp"
+            android:layout_width="37dp"
             android:layout_height="48dp"
-            android:background="#66FF00FF"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1495,7 +1498,7 @@
             android:gravity="center_vertical"
             android:paddingStart="4dp"
             android:paddingEnd="4dp"
-            android:background="#6600FF00"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true">
 
@@ -1537,7 +1540,7 @@
             android:layout_height="50dp"
             android:paddingStart="4dp"
             android:paddingEnd="4dp"
-            android:background="#66FF0000"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1559,7 +1562,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="1dp"
-            android:background="#66FFFF00"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1578,7 +1581,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
-            android:background="#66999999"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1597,7 +1600,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
-            android:background="#6600FFFF"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">
@@ -1616,7 +1619,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="0dp"
-            android:background="#66FF00FF"
+            android:background="@android:color/transparent"
             android:clickable="true"
             android:focusable="true"
             android:visibility="gone">

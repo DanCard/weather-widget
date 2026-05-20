@@ -12,14 +12,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.LocalDate
 import java.time.LocalDateTime
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 /**
  * Robolectric test to verify the intent building logic for daily forecast clicks,
  * specifically for historical days.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
 class DailyHistoryClickIntentRoboTest {
 

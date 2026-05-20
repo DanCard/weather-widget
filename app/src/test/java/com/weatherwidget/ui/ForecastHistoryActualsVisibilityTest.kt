@@ -22,13 +22,13 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 import org.robolectric.shadows.ShadowLooper
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class ForecastHistoryActualsVisibilityTest {
 
     private lateinit var context: Context

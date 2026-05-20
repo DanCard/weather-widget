@@ -12,7 +12,7 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import com.weatherwidget.widget.handlers.setupDualToggle
 import org.junit.Assert.assertEquals
@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 class DualToggleTouchZoneRoboTest {
 
     private lateinit var context: Context
@@ -155,23 +155,17 @@ class DualToggleTouchZoneRoboTest {
 
     @Test
     fun `dual_touch_zone does not overlap api_touch_zone`() {
-        // If the two zones overlap, taps in the overlap could go to whichever is declared
-        // last (dual wins by z-order) — but a too-wide dual zone could steal taps that
-        // users intend for the api toggle. Verify there's no overlap so each visible
-        // element owns its own tap region.
         val root = rootView as ViewGroup
         val dualParams = root.findViewById<View>(R.id.dual_touch_zone).layoutParams as FrameLayout.LayoutParams
-        val apiParams = root.findViewById<View>(R.id.api_touch_zone).layoutParams as FrameLayout.LayoutParams
+        val containerParams = root.findViewById<View>(R.id.top_right_header_container).layoutParams as FrameLayout.LayoutParams
 
-        // Both are top|end anchored, so rightMargin + width gives the "left edge"
-        // measured from the parent's right edge.
         val dualLeftFromRight = dualParams.rightMargin + dualParams.width
-        val apiRightFromRight = apiParams.rightMargin
+        val containerRightFromRight = containerParams.rightMargin
         assertTrue(
             "dual_touch_zone's left edge (${dualLeftFromRight}px from right) must be at or " +
-                "beyond api_touch_zone's right edge (${apiRightFromRight}px from right) to avoid " +
+                "beyond top_right_header_container's right edge (${containerRightFromRight}px from right) to avoid " +
                 "stealing taps from the api source toggle",
-            dualLeftFromRight >= apiRightFromRight,
+            dualLeftFromRight >= containerRightFromRight,
         )
     }
 

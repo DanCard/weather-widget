@@ -13,14 +13,14 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import com.weatherwidget.test.category.ShortDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 /**
  * Regression test to ensure that historical navigation offsets (e.g., -72h for 3 days ago)
  * are not arbitrarily clamped by the state manager or router.
  */
-@Category(ShortDuration::class)
+@Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
 class HistoryClampingRegressionRoboTest {
 
