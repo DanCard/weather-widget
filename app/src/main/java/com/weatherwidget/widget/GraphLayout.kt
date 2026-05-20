@@ -62,7 +62,7 @@ object GraphLayout {
     private const val BOTTOM_TEMP_BUFFER_RATIO = 0.03f
     private const val MIN_TOP_TEMP_BUFFER_DEGREES = 3f
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 2.5f
-    private const val GRAPH_TOP_PADDING_DP = 8f
+    private const val GRAPH_TOP_PADDING_DP = 16f
     private const val GRAPH_TO_FOOTER_GAP_DP = -1f
     private const val FOOTER_LABEL_HEIGHT_DP = 10f
     private const val ICON_TOP_PAD_DP = -1f
