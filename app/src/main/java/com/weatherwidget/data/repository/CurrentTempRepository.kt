@@ -2,6 +2,7 @@ package com.weatherwidget.data.repository
 
 import android.content.Context
 import android.location.Location
+import android.os.SystemClock
 import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyExtremeDao
@@ -100,8 +101,15 @@ class CurrentTempRepository
             reason: String = "unspecified", 
             forceRefresh: Boolean = false
         ): Result<Int> {
+            val mutexRequestMs = SystemClock.elapsedRealtime()
             return try {
                 syncMutex.withLock {
+                    val mutexAcquiredMs = SystemClock.elapsedRealtime()
+                    val mutexWaitMs = mutexAcquiredMs - mutexRequestMs
+                    if (mutexWaitMs > 100) {
+                        appLogDao.log("CURR_FETCH_MUTEX", "reason=$reason waitMs=$mutexWaitMs", "WARN")
+                    }
+
                     val currentTime = System.currentTimeMillis()
                     if (!forceRefresh && currentTime - lastFetchTime < CURRENT_TEMP_FRESHNESS_MS) {
                         appLogDao.log(
@@ -124,23 +132,27 @@ class CurrentTempRepository
                     
                     var successfulSourceCount = 0
                     targetSources.forEach { targetSource ->
+                        val sourceStartMs = SystemClock.elapsedRealtime()
                         try {
                             val reading = fetchFromSource(targetSource, latitude, longitude)
+                            val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
                             if (reading != null) {
                                 successfulSourceCount += 1
                                 widgetStateManager.recordSourceFetchSuccess(targetSource)
                             }
-                            logCurrentSourceResult(reason, targetSource, reading)
+                            logCurrentSourceResult(reason, targetSource, reading, durationMs = sourceDurationMs)
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (exception: ApiAccessException) {
+                            val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
                             widgetStateManager.recordSourceFetchFailure(targetSource)
                             logCurrentFetchFailure(targetSource, exception)
-                            logCurrentSourceResult(reason, targetSource, null, exception)
+                            logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)
                         } catch (exception: Exception) {
+                            val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs
                             widgetStateManager.recordSourceFetchFailure(targetSource)
                             logCurrentFetchFailure(targetSource, exception)
-                            logCurrentSourceResult(reason, targetSource, null, exception)
+                            logCurrentSourceResult(reason, targetSource, null, exception, durationMs = sourceDurationMs)
                         }
                     }
                     
@@ -457,6 +469,7 @@ class CurrentTempRepository
             source: WeatherSource,
             reading: CurrentReadingPayload?,
             exception: Exception? = null,
+            durationMs: Long = 0,
         ) {
             val nowMs = System.currentTimeMillis()
             val observedAgeMin = reading?.observedAt?.let { (nowMs - it) / 60_000L }
@@ -465,7 +478,8 @@ class CurrentTempRepository
                 "CURR_FETCH_SOURCE_RESULT",
                 "reason=$reason source=${source.id} success=${reading != null} " +
                     "temp=${reading?.temperature ?: "none"} observedAt=${reading?.observedAt ?: "none"} " +
-                    "observedAgeMin=${observedAgeMin ?: "none"} condition=${reading?.condition ?: "none"}$errorSummary",
+                    "observedAgeMin=${observedAgeMin ?: "none"} condition=${reading?.condition ?: "none"} " +
+                    "durationMs=$durationMs$errorSummary",
                 if (reading != null) "INFO" else "WARN",
             )
         }

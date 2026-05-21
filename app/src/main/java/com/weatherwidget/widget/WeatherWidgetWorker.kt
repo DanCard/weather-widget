@@ -313,6 +313,7 @@ class WeatherWidgetWorker
             force: Boolean = false,
             targetSource: WeatherSource? = null,
         ): Result {
+            val startMs = SystemClock.elapsedRealtime()
             return try {
                 appLogDao.log(
                     "CURR_FETCH_WORK_START",
@@ -322,6 +323,7 @@ class WeatherWidgetWorker
                 )
                 val isManual = reason.contains("manual") || reason.contains("force") || force
                 var resultMessage = "success"
+                var fetchDurationMs = 0L
                 if (
                     !CurrentTempFetchPolicy.shouldFetchNow(
                         isCharging = isPlugged,
@@ -338,6 +340,7 @@ class WeatherWidgetWorker
                     resultMessage = "skipped_policy_blocked"
                 } else {
                     val location = weatherRepository.getLatestLocation() ?: (DEFAULT_LAT to DEFAULT_LON)
+                    val fetchStartMs = SystemClock.elapsedRealtime()
                     val refreshResult =
                         weatherRepository.refreshCurrentTemperature(
                             latitude = location.first,
@@ -347,6 +350,7 @@ class WeatherWidgetWorker
                             reason = reason,
                             forceRefresh = force,
                         )
+                    fetchDurationMs = SystemClock.elapsedRealtime() - fetchStartMs
 
                     refreshResult.fold(
                         onSuccess = { _ ->
@@ -360,8 +364,21 @@ class WeatherWidgetWorker
                     )
                 }
 
+                val cacheRefreshStartMs = SystemClock.elapsedRealtime()
                 refreshWidgetsFromCache()
+                val cacheRefreshDurationMs = SystemClock.elapsedRealtime() - cacheRefreshStartMs
+                
                 manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
+                
+                val totalDurationMs = SystemClock.elapsedRealtime() - startMs
+                if (totalDurationMs > 500) {
+                    appLogDao.log(
+                        "SYNC_PERF_CURRENT",
+                        "reason=$reason total=${totalDurationMs}ms fetch=${fetchDurationMs}ms widgets=${cacheRefreshDurationMs}ms",
+                        "INFO"
+                    )
+                }
+
                 appLogDao.log(
                     "CURR_FETCH_WORK_RESULT",
                     "id=$id reason=$reason result=$resultMessage",
@@ -369,11 +386,13 @@ class WeatherWidgetWorker
                 )
                 Result.success()
             } catch (e: kotlinx.coroutines.CancellationException) {
-                val reasonMsg = "CurrentTemp fetch cancelled. reason=$reason stopReason=$stopReason msg=${e.message}"
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                val reasonMsg = "CurrentTemp fetch cancelled. reason=$reason stopReason=$stopReason durationMs=$durationMs msg=${e.message}"
                 appLogDao.log("CURR_FETCH_CANCELLED", reasonMsg, "INFO")
                 throw e
             } catch (e: Exception) {
-                appLogDao.log("CURR_FETCH_EXCEPTION", "reason=$reason ${e.javaClass.simpleName}: ${e.message}", "ERROR")
+                val durationMs = SystemClock.elapsedRealtime() - startMs
+                appLogDao.log("CURR_FETCH_EXCEPTION", "reason=$reason durationMs=$durationMs ${e.javaClass.simpleName}: ${e.message}", "ERROR")
                 manageCurrentTempLoopAfterRun(isPlugged, isScreenInteractive, ignoreRunningWorkId = id)
                 Result.retry()
             }
