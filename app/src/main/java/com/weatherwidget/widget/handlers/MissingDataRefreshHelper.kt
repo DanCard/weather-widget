@@ -11,7 +11,12 @@ internal data class MissingDataRefreshDecision(
     val refreshType: String,
     val forceRefresh: Boolean,
     val reason: String,
-)
+) {
+    val cooldownMs: Long get() = MISSING_DATA_REFRESH_COOLDOWN_MS
+    val logTag: String get() = if (forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH"
+}
+
+private const val MISSING_DATA_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
 
 @VisibleForTesting
 internal fun computeMissingDataRefreshes(

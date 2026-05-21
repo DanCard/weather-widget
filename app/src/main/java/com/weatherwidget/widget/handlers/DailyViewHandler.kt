@@ -58,7 +58,6 @@ import kotlin.math.floor
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
     private const val CELL_HEIGHT_DP = 90
-    private const val MISSING_DATA_REFRESH_COOLDOWN_MS = 5 * 60 * 1000L
     private const val DELTA_VISIBILITY_THRESHOLD = DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
     private const val DELTA_COLOR_HEX = "#FF6B35"
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
@@ -376,8 +375,8 @@ object DailyViewHandler : WidgetViewHandler {
                     appWidgetId = appWidgetId,
                     displaySource = displaySource,
                     refreshType = decision.refreshType,
-                    cooldownMs = MISSING_DATA_REFRESH_COOLDOWN_MS,
-                    logTag = if (decision.forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH",
+                    cooldownMs = decision.cooldownMs,
+                    logTag = decision.logTag,
                     forceRefresh = decision.forceRefresh,
                     reason = decision.reason,
                     message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
@@ -1058,8 +1057,8 @@ object DailyViewHandler : WidgetViewHandler {
                 appWidgetId = appWidgetId,
                 displaySource = displaySource,
                 refreshType = decision.refreshType,
-                cooldownMs = MISSING_DATA_REFRESH_COOLDOWN_MS,
-                logTag = if (decision.forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH",
+                cooldownMs = decision.cooldownMs,
+                logTag = decision.logTag,
                 forceRefresh = decision.forceRefresh,
                 reason = decision.reason,
                 message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
