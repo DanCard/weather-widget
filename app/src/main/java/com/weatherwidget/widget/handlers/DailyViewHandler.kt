@@ -108,7 +108,7 @@ object DailyViewHandler : WidgetViewHandler {
         now: LocalDateTime,
         startupToken: String?,
         smoothedForecasts: Map<Long, Float>?,
-        stateManager: WidgetStateManager?,
+        stateManagerNullable: WidgetStateManager?,
     ) {
         Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
         val handlerStartMs = SystemClock.elapsedRealtime()
@@ -122,7 +122,7 @@ object DailyViewHandler : WidgetViewHandler {
         val rawRows = (dimensions.heightDp + GRAPH_HEIGHT_PADDING_DP) / CELL_HEIGHT_DP
         val useGraph = rawRows >= GRAPH_ROW_THRESHOLD
 
-        val stateManager = stateManager ?: WidgetStateManager(context)
+        val stateManager = stateManagerNullable ?: WidgetStateManager(context)
         val dateOffset = stateManager.getDateOffset(appWidgetId)
 
         val skipYesterday = NavigationUtils.shouldSkipYesterday(now.toLocalTime(), numColumns)
@@ -164,26 +164,6 @@ object DailyViewHandler : WidgetViewHandler {
             "allDates=${dailyActuals.keys} allSources=${dailyActualsBySource.keys}", 
             "DEBUG"
         )
-
-        val earlyRefreshDecisions = computeMissingDataRefreshes(
-            today = today,
-            displaySource = displaySource,
-            dailyActuals = dailyActuals,
-        )
-        for (decision in earlyRefreshDecisions) {
-            requestMissingDataRefresh(
-                context = context,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                displaySource = displaySource,
-                refreshType = decision.refreshType,
-                cooldownMs = MISSING_DATA_REFRESH_COOLDOWN_MS,
-                logTag = if (decision.forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH",
-                forceRefresh = decision.forceRefresh,
-                reason = decision.reason,
-                message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
-            )
-        }
 
         if (
             ApiSourceWarningHelper.checkAndRenderBlockingWarning(
@@ -379,10 +359,30 @@ object DailyViewHandler : WidgetViewHandler {
                 resolveMs = resolveMs,
                 lat = lat,
                 lon = lon,
+                stateManager = stateManager,
             )
             prepareMs = metrics.prepareMs
             renderMs = metrics.renderMs
         } else {
+            val textRefreshDecisions = computeMissingDataRefreshes(
+                today = today,
+                displaySource = displaySource,
+                dailyActuals = dailyActuals,
+            )
+            for (decision in textRefreshDecisions) {
+                requestMissingDataRefresh(
+                    context = context,
+                    stateManager = stateManager,
+                    appWidgetId = appWidgetId,
+                    displaySource = displaySource,
+                    refreshType = decision.refreshType,
+                    cooldownMs = MISSING_DATA_REFRESH_COOLDOWN_MS,
+                    logTag = if (decision.forceRefresh) "MISSING_ACTUALS_FETCH" else "MISSING_TODAY_SNAPSHOT_FETCH",
+                    forceRefresh = decision.forceRefresh,
+                    reason = decision.reason,
+                    message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
+                )
+            }
             renderTextMode(
                 context = context,
                 views = views,
@@ -937,8 +937,8 @@ object DailyViewHandler : WidgetViewHandler {
         resolveMs: Long,
         lat: Double,
         lon: Double,
+        stateManager: WidgetStateManager,
     ): RenderMetrics {
-        val stateManager = WidgetStateManager(context)
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val isIconWidth = dimensions.isIconWidth
         val formattedTemp = headerState.formattedTemp

@@ -41,7 +41,7 @@ interface WidgetViewHandler {
         now: LocalDateTime = LocalDateTime.now(),
         startupToken: String? = null,
         smoothedForecasts: Map<Long, Float>? = null,
-        stateManager: WidgetStateManager? = null,
+        stateManagerNullable: WidgetStateManager? = null,
     )
 
     /**

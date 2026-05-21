@@ -799,7 +799,7 @@ suspend fun handleResize(
             observedAt = graphStyleObs?.observedAt,
             now = LocalDateTime.now(),
             smoothedForecasts = smoothedForecasts,
-            stateManager = stateManager,
+            stateManagerNullable = stateManager,
         )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs

@@ -72,7 +72,7 @@ class DailyViewHandlerFallbackTest {
             dailyActualsBySource = emptyMap(),
             repository = mockk(relaxed = true),
             now = now,
-            stateManager = stateManager
+            stateManagerNullable = stateManager
         )
 
         val logs = db.appLogDao().getLogsByTag("TODAY_BAR_DEBUG", limit = 100)

@@ -216,7 +216,7 @@ object WidgetRenderer {
                     observedAt = observation?.observedAt,
                     now = LocalDateTime.now(),
                     startupToken = startupToken,
-                    stateManager = stateManager,
+                    stateManagerNullable = stateManager,
                 )
             }
         }
