@@ -244,7 +244,6 @@ object DailyViewHandler : WidgetViewHandler {
             numRows = numRows,
             useGraph = useGraph,
             smoothedForecasts = smoothedForecasts,
-            configuredLocation = stateManager.getWidgetLocation(appWidgetId)?.let { "${it.first},${it.second}" },
         )
 
         val currentTemp = headerState.currentTemp
@@ -1179,39 +1178,86 @@ object DailyViewHandler : WidgetViewHandler {
         val isPrecipVisible: Boolean,
         val precipTextSizeDp: Float?,
         val apiSourceText: String,
+        val apiTextSizeDp: Float,
         val disclosure: HeaderDisclosureLevel,
         val headerScale: Float,
         val resolveMs: Long,
     )
 
     private fun resolveAndBindHeader(
-    context: Context,
-    views: RemoteViews,
-    displaySource: WeatherSource,
-    nextSource: WeatherSource,
-    showTwoBars: Boolean,
-    now: LocalDateTime,
-    lat: Double,
-    lon: Double,
-    weatherByDate: Map<LocalDate, ForecastEntity>,
-    hourlyForecasts: List<HourlyForecastEntity>,
-    lastObservedTemp: Float?,
-    observedAt: Long?,
-    dimensions: WidgetDimensions,
-    stateManager: WidgetStateManager,
-    appWidgetId: Int,
-    numColumns: Int,
-    numRows: Int,
-    useGraph: Boolean,
-    smoothedForecasts: Map<Long, Float>?,
-        configuredLocation: String?,
+        context: Context,
+        views: RemoteViews,
+        displaySource: WeatherSource,
+        nextSource: WeatherSource,
+        showTwoBars: Boolean,
+        now: LocalDateTime,
+        lat: Double,
+        lon: Double,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dimensions: WidgetDimensions,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        numColumns: Int,
+        numRows: Int,
+        useGraph: Boolean,
+        smoothedForecasts: Map<Long, Float>?,
+    ): Pair<HeaderState, DailyHeaderBinder.HeaderPrecipPlacement> {
+        val (headerState, headerPrecipPlacement) = resolveHeaderState(
+            context = context,
+            displaySource = displaySource,
+            nextSource = nextSource,
+            showTwoBars = showTwoBars,
+            now = now,
+            lat = lat,
+            lon = lon,
+            weatherByDate = weatherByDate,
+            hourlyForecasts = hourlyForecasts,
+            lastObservedTemp = lastObservedTemp,
+            observedAt = observedAt,
+            dimensions = dimensions,
+            stateManager = stateManager,
+            appWidgetId = appWidgetId,
+            numColumns = numColumns,
+            numRows = numRows,
+            useGraph = useGraph,
+            smoothedForecasts = smoothedForecasts,
+        )
+        bindHeaderState(
+            context = context,
+            views = views,
+            state = headerState,
+            precipPlacement = headerPrecipPlacement,
+            useGraph = useGraph,
+            isIconWidth = dimensions.isIconWidth,
+        )
+        return headerState to headerPrecipPlacement
+    }
+
+    private fun resolveHeaderState(
+        context: Context,
+        displaySource: WeatherSource,
+        nextSource: WeatherSource,
+        showTwoBars: Boolean,
+        now: LocalDateTime,
+        lat: Double,
+        lon: Double,
+        weatherByDate: Map<LocalDate, ForecastEntity>,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        lastObservedTemp: Float?,
+        observedAt: Long?,
+        dimensions: WidgetDimensions,
+        stateManager: WidgetStateManager,
+        appWidgetId: Int,
+        numColumns: Int,
+        numRows: Int,
+        useGraph: Boolean,
+        smoothedForecasts: Map<Long, Float>?,
     ): Pair<HeaderState, DailyHeaderBinder.HeaderPrecipPlacement> {
         val today = now.toLocalDate()
         val isIconWidth = dimensions.isIconWidth
-
-        // Set initial API source indicator (overwritten later once dual-source fit is decided)
-        views.setTextViewText(R.id.api_source, displaySource.shortDisplayName)
-        views.setTextViewText(R.id.text_mode_api_source, displaySource.shortDisplayName)
 
         val todayHeaderForecast = DailyHeaderBinder.resolveTodayHeaderForecast(
             now = now,
@@ -1235,15 +1281,6 @@ object DailyViewHandler : WidgetViewHandler {
                     longitude = lon,
                 )
             }
-
-        if (useGraph) {
-            views.setImageViewResource(R.id.weather_icon, iconRes)
-            views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
-            views.setViewVisibility(R.id.current_weather_container, View.VISIBLE)
-        } else {
-            views.setViewVisibility(R.id.weather_icon, View.GONE)
-            views.setViewVisibility(R.id.current_weather_container, View.GONE)
-        }
 
         val (currentTempResolution, resolveMs) =
             CurrentTempResolutionHelper.resolveAndPersistDelta(
@@ -1269,11 +1306,6 @@ object DailyViewHandler : WidgetViewHandler {
                 )
             }
 
-        HeaderRemoteViewsBinder.bindCurrentTemp(context, views, formattedTemp, hideDeltaOnNull = true)
-        views.setViewVisibility(R.id.header_date_center, View.GONE)
-        views.setViewVisibility(R.id.header_date_right, View.GONE)
-
-        // Show precipitation probability next to current temp when rain is expected
         val todayWeather = weatherByDate[today]
         val precipProb =
             HeaderPrecipCalculator.getNext8HourPrecipProbability(
@@ -1284,23 +1316,12 @@ object DailyViewHandler : WidgetViewHandler {
             )
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
         val precipTextSizeDp = if (precipProb != null) HeaderPrecipCalculator.getPrecipTextSize(precipProb) else null
-        HeaderRemoteViewsBinder.bindPrecipProbability(
-            context, views,
-            if (isPrecipVisible) "${precipProb ?: 0}%" else null,
-            precipTextSizeDp ?: 0f,
-        )
-        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, isPrecipVisible)
 
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =
             currentTemp != null &&
             delta != null &&
             abs(delta) >= DELTA_VISIBILITY_THRESHOLD
-        HeaderRemoteViewsBinder.bindDelta(
-            context, views,
-            if (deltaVisible) String.format("%+.1f", delta) else null,
-            deltaVisible,
-        )
 
         // Pick API label: dual-source "<first> - <second>" if it fits at the same disclosure
         // level as the single-source label; otherwise fall back to single source.
@@ -1346,76 +1367,6 @@ object DailyViewHandler : WidgetViewHandler {
             precipTextSizeDp = precipTextSizeDp,
         )
 
-        // Re-bind header elements with proper scale
-        HeaderRemoteViewsBinder.bindApiSource(
-            context = context,
-            views = views,
-            sourceText = apiSourceText,
-            textSizeDp = apiTextSizeDp,
-            scale = headerScale,
-        )
-        // Also bind text mode version
-        views.setTextViewText(R.id.text_mode_api_source, apiSourceText)
-
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.weather_icon,
-            iconRes = iconRes,
-            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
-            scale = headerScale,
-        )
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.settings_icon,
-            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
-            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
-            scale = headerScale,
-            tintColor = HEADER_ICON_TINT
-        )
-        HeaderRemoteViewsBinder.bindScaledIcon(
-            context = context,
-            views = views,
-            viewId = R.id.text_mode_settings_icon,
-            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
-            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
-            scale = headerScale,
-            tintColor = HEADER_ICON_TINT
-        )
-        HeaderRemoteViewsBinder.bindCurrentTemp(
-            context = context,
-            views = views,
-            formattedTemp = formattedTemp,
-            hideDeltaOnNull = true,
-            scale = headerScale
-        )
-        HeaderRemoteViewsBinder.bindPrecipProbability(
-            context = context,
-            views = views,
-            precipText = if (isPrecipVisible) "${precipProb ?: 0}%" else null,
-            textSizeDp = precipTextSizeDp ?: 0f,
-            scale = headerScale,
-        )
-        HeaderRemoteViewsBinder.bindDelta(
-            context = context,
-            views = views,
-            deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
-            deltaVisible = deltaVisible,
-            scale = headerScale,
-        )
-
-        if (useGraph && disclosure != HeaderDisclosureLevel.NONE) {
-            HeaderRemoteViewsBinder.applyDisclosure(
-                views,
-                disclosure,
-                isDeltaVisible = deltaVisible,
-                isPrecipVisible = isPrecipVisible,
-            )
-        } else if (useGraph) {
-            views.setViewVisibility(R.id.current_weather_container, View.GONE)
-        }
-
         val widthDpForPrecip = dimensions.widthDp - GRAPH_CONTENT_PADDING_DP
         val dateText = if (numColumns >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
         val headerPrecipPlacement = DailyHeaderBinder.resolveHeaderPrecipPlacement(
@@ -1433,7 +1384,7 @@ object DailyViewHandler : WidgetViewHandler {
             includeIcon = disclosure.showsIcon(),
         )
 
-        return HeaderState(
+        val headerState = HeaderState(
             iconRes = iconRes,
             currentTemp = currentTemp,
             formattedTemp = formattedTemp,
@@ -1445,9 +1396,119 @@ object DailyViewHandler : WidgetViewHandler {
             isPrecipVisible = isPrecipVisible,
             precipTextSizeDp = precipTextSizeDp,
             apiSourceText = apiSourceText,
+            apiTextSizeDp = apiTextSizeDp,
             disclosure = disclosure,
             headerScale = headerScale,
             resolveMs = resolveMs,
-        ) to headerPrecipPlacement
+        )
+        return headerState to headerPrecipPlacement
+    }
+
+    private fun bindHeaderState(
+        context: Context,
+        views: RemoteViews,
+        state: HeaderState,
+        precipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
+        useGraph: Boolean,
+        isIconWidth: Boolean,
+    ) {
+
+        // Set initial API source indicator (overwritten later once dual-source fit is decided)
+        views.setTextViewText(R.id.api_source, state.apiSourceText)
+        views.setTextViewText(R.id.text_mode_api_source, state.apiSourceText)
+
+        if (useGraph) {
+            views.setImageViewResource(R.id.weather_icon, state.iconRes)
+            views.setViewVisibility(R.id.weather_icon, View.VISIBLE)
+            views.setViewVisibility(R.id.current_weather_container, View.VISIBLE)
+        } else {
+            views.setViewVisibility(R.id.weather_icon, View.GONE)
+            views.setViewVisibility(R.id.current_weather_container, View.GONE)
+        }
+
+        HeaderRemoteViewsBinder.bindCurrentTemp(context, views, state.formattedTemp, hideDeltaOnNull = true)
+        views.setViewVisibility(R.id.header_date_center, View.GONE)
+        views.setViewVisibility(R.id.header_date_right, View.GONE)
+
+        HeaderRemoteViewsBinder.bindPrecipProbability(
+            context, views,
+            if (state.isPrecipVisible) "${state.precipProb ?: 0}%" else null,
+            state.precipTextSizeDp ?: 0f,
+        )
+        HeaderTapTargetHelper.setPrecipitationTouchZoneVisible(views, state.isPrecipVisible)
+
+        HeaderRemoteViewsBinder.bindDelta(
+            context, views,
+            if (state.deltaVisible) String.format("%+.1f", state.appliedDelta) else null,
+            state.deltaVisible,
+        )
+
+        // Re-bind header elements with proper scale
+        HeaderRemoteViewsBinder.bindApiSource(
+            context = context,
+            views = views,
+            sourceText = state.apiSourceText,
+            textSizeDp = state.apiTextSizeDp,
+            scale = state.headerScale,
+        )
+
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.weather_icon,
+            iconRes = state.iconRes,
+            sizeDp = HeaderConstants.WEATHER_ICON_SIZE_DP,
+            scale = state.headerScale,
+        )
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.settings_icon,
+            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
+            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
+            scale = state.headerScale,
+            tintColor = HEADER_ICON_TINT
+        )
+        HeaderRemoteViewsBinder.bindScaledIcon(
+            context = context,
+            views = views,
+            viewId = R.id.text_mode_settings_icon,
+            iconRes = if (isIconWidth) 0 else R.drawable.ic_settings_gear,
+            sizeDp = HeaderConstants.SETTINGS_ICON_SIZE_DP,
+            scale = state.headerScale,
+            tintColor = HEADER_ICON_TINT
+        )
+        HeaderRemoteViewsBinder.bindCurrentTemp(
+            context = context,
+            views = views,
+            formattedTemp = state.formattedTemp,
+            hideDeltaOnNull = true,
+            scale = state.headerScale
+        )
+        HeaderRemoteViewsBinder.bindPrecipProbability(
+            context = context,
+            views = views,
+            precipText = if (state.isPrecipVisible) "${state.precipProb ?: 0}%" else null,
+            textSizeDp = state.precipTextSizeDp ?: 0f,
+            scale = state.headerScale,
+        )
+        HeaderRemoteViewsBinder.bindDelta(
+            context = context,
+            views = views,
+            deltaText = if (state.deltaVisible) String.format("%+.1f", state.appliedDelta) else null,
+            deltaVisible = state.deltaVisible,
+            scale = state.headerScale,
+        )
+
+        if (useGraph && state.disclosure != HeaderDisclosureLevel.NONE) {
+            HeaderRemoteViewsBinder.applyDisclosure(
+                views,
+                state.disclosure,
+                isDeltaVisible = state.deltaVisible,
+                isPrecipVisible = state.isPrecipVisible,
+            )
+        } else if (useGraph) {
+            views.setViewVisibility(R.id.current_weather_container, View.GONE)
+        }
     }
 }
