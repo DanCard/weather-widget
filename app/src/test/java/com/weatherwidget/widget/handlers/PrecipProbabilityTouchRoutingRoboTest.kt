@@ -110,13 +110,16 @@ class PrecipProbabilityTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            weatherList = sampleDailyForecasts(now.toLocalDate()),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = sampleHourlyForecasts(now, 30),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = sampleDailyForecasts(now.toLocalDate()),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = sampleHourlyForecasts(now, 30),
+            ),
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
         return appWidgetManager.second.captured
     }

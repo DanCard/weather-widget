@@ -104,11 +104,15 @@ class HistoryIconVisibilityRoboTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = appWidgetId,
-            weatherList = emptyList(),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
+            weatherData = WeatherData(
+                weatherList = emptyList(),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = LocalDateTime.now(),
+            startupToken = null,
+            stateManagerNullable = null,
             repository = null,
         )
 

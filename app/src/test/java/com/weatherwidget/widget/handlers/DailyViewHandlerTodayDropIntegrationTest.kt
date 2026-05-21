@@ -125,15 +125,21 @@ class DailyViewHandlerTodayDropIntegrationTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 101,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = currentTemps,
-            dailyActualsBySource = dailyActualsBySource,
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+                currentTemps = currentTemps,
+                dailyActualsBySource = dailyActualsBySource,
+            ),
+            observationData = ObservationData(
+                lastObservedTemp = 75f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = 75f,
-            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val todayData = daysSlot.captured.first { it.isToday }
@@ -201,15 +207,21 @@ class DailyViewHandlerTodayDropIntegrationTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 102,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = currentTemps,
-            dailyActualsBySource = dailyActualsBySource,
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+                currentTemps = currentTemps,
+                dailyActualsBySource = dailyActualsBySource,
+            ),
+            observationData = ObservationData(
+                lastObservedTemp = 75f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = 75f,
-            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -262,15 +274,19 @@ class DailyViewHandlerTodayDropIntegrationTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 103,
-            weatherList = weatherList,
-            forecastSnapshots = forecastSnapshots,
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = forecastSnapshots,
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(
+                lastObservedTemp = 70f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = 70f,
-            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val todayData = daysSlot.captured.first { it.isToday }

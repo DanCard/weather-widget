@@ -763,9 +763,16 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 42,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = LocalDateTime.now(),
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -798,9 +805,16 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 142,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = LocalDateTime.now(),
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -880,13 +894,16 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 144,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -920,16 +937,19 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 43,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, null, 1L),
-                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, null, 1L)
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = listOf(
+                    HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, null, 1L),
+                    HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, null, 1L)
+                ),
             ),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
             repository = null,
-            now = now
         )
 
         val root = FrameLayout(context)
@@ -963,16 +983,19 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 44,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, null, 1L),
-                HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, null, 1L)
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = listOf(
+                    HourlyForecastEntity(epoch(todayStr + "T14:00"), 0.0, 0.0, 62.9f, "Sunny", "OPEN_METEO", 0, 0, null, 1L),
+                    HourlyForecastEntity(epoch(todayStr + "T05:00"), 0.0, 0.0, 51.2f, "Clear", "OPEN_METEO", 0, 0, null, 1L)
+                ),
             ),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
             repository = null,
-            now = now
         )
 
         val root = FrameLayout(context)
@@ -1000,30 +1023,35 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 47,
-            weatherList = listOf(createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f)),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
-            ),
-            currentTemps = listOf(
-                ObservationEntity(
-                    stationId = "NWS_BLEND",
-                    stationName = "Test Station",
-                    timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    temperature = 71f,
-                    condition = "Clear",
-                    locationLat = 37.7749,
-                    locationLon = -122.4194,
-                    fetchedAt = 1L,
-                    api = "NWS",
+            weatherData = WeatherData(
+                weatherList = listOf(createWeather(todayStr, precipProbability = 0, highTemp = 70f, lowTemp = 55f)),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = listOf(
+                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 0, 0, null, 1L),
+                ),
+                currentTemps = listOf(
+                    ObservationEntity(
+                        stationId = "NWS_BLEND",
+                        stationName = "Test Station",
+                        timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        temperature = 71f,
+                        condition = "Clear",
+                        locationLat = 37.7749,
+                        locationLon = -122.4194,
+                        fetchedAt = 1L,
+                        api = "NWS",
+                    ),
                 ),
             ),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            observationData = ObservationData(
+                lastObservedTemp = 71f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = 71f,
-            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -1049,30 +1077,35 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 48,
-            weatherList = listOf(createWeather(todayStr, precipProbability = 65, highTemp = 70f, lowTemp = 55f)),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, null, 1L),
-            ),
-            currentTemps = listOf(
-                ObservationEntity(
-                    stationId = "NWS_BLEND",
-                    stationName = "Test Station",
-                    timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                    temperature = 71f,
-                    condition = "Clear",
-                    locationLat = 37.7749,
-                    locationLon = -122.4194,
-                    fetchedAt = 1L,
-                    api = "NWS",
+            weatherData = WeatherData(
+                weatherList = listOf(createWeather(todayStr, precipProbability = 65, highTemp = 70f, lowTemp = 55f)),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = listOf(
+                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 70f, "Clear", WeatherSource.NWS.id, 65, 0, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 72f, "Clear", WeatherSource.NWS.id, 65, 0, null, 1L),
+                ),
+                currentTemps = listOf(
+                    ObservationEntity(
+                        stationId = "NWS_BLEND",
+                        stationName = "Test Station",
+                        timestamp = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        temperature = 71f,
+                        condition = "Clear",
+                        locationLat = 37.7749,
+                        locationLon = -122.4194,
+                        fetchedAt = 1L,
+                        api = "NWS",
+                    ),
                 ),
             ),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            observationData = ObservationData(
+                lastObservedTemp = 71f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = 71f,
-            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -1326,16 +1359,19 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 45,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L),
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = listOf(
+                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L),
+                ),
             ),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
             repository = null,
-            now = now
         )
 
         val root = FrameLayout(context)
@@ -1376,16 +1412,19 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 46,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = listOf(
-                HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
-                HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L)
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = listOf(
+                    HourlyForecastEntity(epoch("${todayStr}T12:00"), 37.7749, -122.4194, 64f, "Rain", WeatherSource.VISUAL_CROSSING.id, 0, 90, null, 1L),
+                    HourlyForecastEntity(epoch("${todayStr}T13:00"), 37.7749, -122.4194, 66f, "Clear", WeatherSource.VISUAL_CROSSING.id, 0, 0, null, 1L)
+                ),
             ),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
             repository = null,
-            now = now
         )
 
         val root = FrameLayout(context)
@@ -1411,16 +1450,19 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 50,
-            weatherList = listOf(
-                createWeather(todayStr, highTemp = 70f, lowTemp = 55f),
-                createWeather(tomorrowStr, highTemp = 72f, lowTemp = 56f),
+            weatherData = WeatherData(
+                weatherList = listOf(
+                    createWeather(todayStr, highTemp = 70f, lowTemp = 55f),
+                    createWeather(tomorrowStr, highTemp = 72f, lowTemp = 56f),
+                ),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
             ),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -1457,15 +1499,19 @@ class DailyViewHandlerTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 51,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = hourlyForecasts,
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = hourlyForecasts,
+            ),
+            observationData = ObservationData(
+                lastObservedTemp = 72.5f,
+                observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = 72.5f,
-            observedAt = now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         // Real CurrentTemperatureResolver: estimated=70 + delta(72.5-70)=2.5 → display=72.5

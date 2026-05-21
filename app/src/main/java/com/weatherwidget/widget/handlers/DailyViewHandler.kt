@@ -96,19 +96,22 @@ object DailyViewHandler : WidgetViewHandler {
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetId: Int,
-        weatherList: List<ForecastEntity>,
-        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<ObservationEntity>,
-        dailyActualsBySource: DailyActualsBySource,
-        repository: WeatherRepository?,
-        lastObservedTemp: Float?,
-        observedAt: Long?,
+        weatherData: WeatherData,
+        observationData: ObservationData,
         now: LocalDateTime,
         startupToken: String?,
-        smoothedForecasts: Map<Long, Float>?,
         stateManagerNullable: WidgetStateManager?,
+        repository: WeatherRepository?,
     ) {
+        val weatherList = weatherData.weatherList
+        val forecastSnapshots = weatherData.forecastSnapshots
+        val hourlyForecasts = weatherData.hourlyForecasts
+        val currentTemps = weatherData.currentTemps
+        val dailyActualsBySource = weatherData.dailyActualsBySource
+        val lastObservedTemp = observationData.lastObservedTemp
+        val observedAt = observationData.observedAt
+        val smoothedForecasts = observationData.smoothedForecasts
+
         Log.d(TAG, "updateWidget: [START] widgetId=$appWidgetId at time=$now")
         val handlerStartMs = SystemClock.elapsedRealtime()
         val views = RemoteViews(context.packageName, R.layout.widget_weather)

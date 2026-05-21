@@ -17,8 +17,10 @@ import com.weatherwidget.widget.handlers.CurrentTempResolver
 import com.weatherwidget.widget.handlers.GraphDataLoader
 import com.weatherwidget.widget.handlers.CloudCoverViewHandler
 import com.weatherwidget.widget.handlers.DailyViewHandler
+import com.weatherwidget.widget.handlers.ObservationData
 import com.weatherwidget.widget.handlers.PrecipViewHandler
 import com.weatherwidget.widget.handlers.TemperatureViewHandler
+import com.weatherwidget.widget.handlers.WeatherData
 import com.weatherwidget.widget.handlers.WidgetSizeCalculator
 import java.time.ZoneId
 import java.time.LocalDate
@@ -203,20 +205,24 @@ object WidgetRenderer {
             }
             ViewMode.DAILY -> {
                 DailyViewHandler.updateWidget(
-                    context,
-                    appWidgetManager,
-                    appWidgetId,
-                    weatherList,
-                    forecastSnapshots,
-                    hourlyForecasts,
-                    currentTemps,
-                    dailyActualsBySource,
-                    repository,
-                    lastObservedTemp = observation?.temperature,
-                    observedAt = observation?.observedAt,
+                    context = context,
+                    appWidgetManager = appWidgetManager,
+                    appWidgetId = appWidgetId,
+                    weatherData = WeatherData(
+                        weatherList = weatherList,
+                        forecastSnapshots = forecastSnapshots,
+                        hourlyForecasts = hourlyForecasts,
+                        currentTemps = currentTemps,
+                        dailyActualsBySource = dailyActualsBySource,
+                    ),
+                    observationData = ObservationData(
+                        lastObservedTemp = observation?.temperature,
+                        observedAt = observation?.observedAt,
+                    ),
                     now = LocalDateTime.now(),
                     startupToken = startupToken,
                     stateManagerNullable = stateManager,
+                    repository = repository,
                 )
             }
         }

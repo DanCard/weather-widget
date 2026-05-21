@@ -65,14 +65,18 @@ class DailyViewHandlerFallbackTest {
             context = context,
             appWidgetManager = captured.appWidgetManager,
             appWidgetId = 1,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = mockk(relaxed = true),
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+                currentTemps = emptyList(),
+                dailyActualsBySource = emptyMap(),
+            ),
+            observationData = ObservationData(),
             now = now,
-            stateManagerNullable = stateManager
+            startupToken = null,
+            stateManagerNullable = stateManager,
+            repository = mockk(relaxed = true),
         )
 
         val logs = db.appLogDao().getLogsByTag("TODAY_BAR_DEBUG", limit = 100)

@@ -184,15 +184,21 @@ class CurrentTempTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            weatherList = sampleDailyForecasts(now.toLocalDate()),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = sampleHourlyForecasts(now),
-            currentTemps = emptyList(),
-            dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = sampleDailyForecasts(now.toLocalDate()),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = sampleHourlyForecasts(now),
+                currentTemps = emptyList(),
+                dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
+            ),
+            observationData = ObservationData(
+                lastObservedTemp = lastObservedTemp,
+                observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
+            ),
             now = now,
-            lastObservedTemp = lastObservedTemp,
-            observedAt = now.atZone(zoneId).toInstant().toEpochMilli(),
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
         return appWidgetManager.second.captured
     }
@@ -208,13 +214,18 @@ class CurrentTempTouchRoutingRoboTest {
             context = context,
             appWidgetManager = appWidgetManager.first,
             appWidgetId = appWidgetId,
-            weatherList = sampleWideDailyForecasts(now.toLocalDate()),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = sampleHourlyForecasts(now),
-            currentTemps = emptyList(),
-            dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = sampleWideDailyForecasts(now.toLocalDate()),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = sampleHourlyForecasts(now),
+                currentTemps = emptyList(),
+                dailyActualsBySource = sampleDailyActuals(now.toLocalDate()),
+            ),
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         return applyViews(appWidgetManager.second.captured)

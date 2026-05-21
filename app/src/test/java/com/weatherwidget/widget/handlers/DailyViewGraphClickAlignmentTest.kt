@@ -92,13 +92,16 @@ class DailyViewGraphClickAlignmentTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 20,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
             repository = null,
-            now = now
         )
 
         // THEN: Verify the click zones
@@ -166,17 +169,19 @@ class DailyViewGraphClickAlignmentTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 21,
-            weatherList = listOf(
-                createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
-                createWeather(col7Str),
-                // today+7 intentionally omitted — this is the last column slot with no data
+            weatherData = WeatherData(
+                weatherList = listOf(
+                    createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+                    createWeather(col7Str),
+                ),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
             ),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -230,16 +235,19 @@ class DailyViewGraphClickAlignmentTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 22,
-            weatherList = listOf(
-                createWeather(yesterdayStr),
-                createWeather(skippedStr),   // today and tomorrow absent
+            weatherData = WeatherData(
+                weatherList = listOf(
+                    createWeather(yesterdayStr),
+                    createWeather(skippedStr),
+                ),
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
             ),
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val root = FrameLayout(context)
@@ -296,9 +304,15 @@ class DailyViewGraphClickAlignmentTest {
         )
         DailyViewHandler.updateWidget(
             context = context, appWidgetManager = appWidgetManager, appWidgetId = 30,
-            weatherList = sparseWeather, forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(), currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(), repository = null, now = now,
+            weatherData = WeatherData(
+                weatherList = sparseWeather, forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         // Offset -1 render: more data available (7 days) but should cap to baseline of 3
@@ -308,9 +322,15 @@ class DailyViewGraphClickAlignmentTest {
         }
         DailyViewHandler.updateWidget(
             context = context, appWidgetManager = appWidgetManager, appWidgetId = 30,
-            weatherList = fullWeather, forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(), currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(), repository = null, now = now,
+            weatherData = WeatherData(
+                weatherList = fullWeather, forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         assertEquals(2, capturedViews.size)
@@ -376,13 +396,16 @@ class DailyViewGraphClickAlignmentTest {
             context = context,
             appWidgetManager = appWidgetManager,
             appWidgetId = 31,
-            weatherList = weatherList,
-            forecastSnapshots = emptyMap(),
-            hourlyForecasts = emptyList(),
-            currentTemps = emptyList(),
-            dailyActualsBySource = emptyMap(),
-            repository = null,
+            weatherData = WeatherData(
+                weatherList = weatherList,
+                forecastSnapshots = emptyMap(),
+                hourlyForecasts = emptyList(),
+            ),
+            observationData = ObservationData(),
             now = now,
+            startupToken = null,
+            stateManagerNullable = null,
+            repository = null,
         )
 
         val applied = applyMeasuredViews(viewsSlot.captured)

@@ -786,20 +786,25 @@ suspend fun handleResize(
         )
 
         DailyViewHandler.updateWidget(
-            context,
-            appWidgetManager,
-            appWidgetId,
-            finalWeatherList,
-            forecastSnapshots,
-            hourlyForecasts,
-            ctCurrentTemps,
-            finalDailyActuals,
-            repository,
-            lastObservedTemp = graphStyleObs?.temperature,
-            observedAt = graphStyleObs?.observedAt,
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = appWidgetId,
+            weatherData = WeatherData(
+                weatherList = finalWeatherList,
+                forecastSnapshots = forecastSnapshots,
+                hourlyForecasts = hourlyForecasts,
+                currentTemps = ctCurrentTemps,
+                dailyActualsBySource = finalDailyActuals,
+            ),
+            observationData = ObservationData(
+                lastObservedTemp = graphStyleObs?.temperature,
+                observedAt = graphStyleObs?.observedAt,
+                smoothedForecasts = smoothedForecasts,
+            ),
             now = LocalDateTime.now(),
-            smoothedForecasts = smoothedForecasts,
+            startupToken = null,
             stateManagerNullable = stateManager,
+            repository = repository,
         )
 
         val totalMs = SystemClock.elapsedRealtime() - startTimeMs
