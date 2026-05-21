@@ -47,6 +47,7 @@ internal object DailyForecastHeaderRenderer {
         val labelScale = layout.bitmapScale.coerceAtMost(1f) * header.headerScale
         val headerPaints = getHeaderPaintSet(header, labelScale, layout.density)
 
+        val generalShiftY = (10f * labelScale).dp(layout.density)
         var cursorX = -(3f * labelScale).dp(layout.density)
 
         if (header.showIcon && header.iconRes != null && header.iconRes != 0) {
@@ -54,7 +55,7 @@ internal object DailyForecastHeaderRenderer {
             try {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, header.iconRes)?.mutate()
                 if (drawable != null) {
-                    val iconTop = -(2f * labelScale).dp(layout.density).toInt()
+                    val iconTop = (-(2f * labelScale).dp(layout.density) - generalShiftY).toInt()
                     drawable.setBounds(
                         cursorX.toInt(), iconTop,
                         cursorX.toInt() + iconSizePx, iconTop + iconSizePx,
@@ -68,19 +69,19 @@ internal object DailyForecastHeaderRenderer {
         }
 
         if (!header.currentTempText.isNullOrBlank()) {
-            canvas.drawText(header.currentTempText, cursorX, -headerPaints.tempPaint.ascent(), headerPaints.tempPaint)
+            canvas.drawText(header.currentTempText, cursorX, -headerPaints.tempPaint.ascent() - generalShiftY, headerPaints.tempPaint)
             cursorX += headerPaints.tempPaint.measureText(header.currentTempText)
         }
 
         if (header.showDelta && !header.deltaText.isNullOrBlank()) {
             cursorX += (HeaderConstants.DELTA_MARGIN_START_DP * labelScale).dp(layout.density)
-            canvas.drawText(header.deltaText, cursorX, -headerPaints.deltaPaint.ascent(), headerPaints.deltaPaint)
+            canvas.drawText(header.deltaText, cursorX, -headerPaints.deltaPaint.ascent() - generalShiftY, headerPaints.deltaPaint)
             cursorX += headerPaints.deltaPaint.measureText(header.deltaText)
         }
 
         if (header.showPrecip && !header.precipText.isNullOrBlank()) {
             cursorX += (HeaderConstants.PRECIP_MARGIN_START_DP * labelScale).dp(layout.density)
-            canvas.drawText(header.precipText, cursorX, -headerPaints.precipPaint.ascent(), headerPaints.precipPaint)
+            canvas.drawText(header.precipText, cursorX, -headerPaints.precipPaint.ascent() - generalShiftY, headerPaints.precipPaint)
             cursorX += headerPaints.precipPaint.measureText(header.precipText)
         }
 
@@ -92,7 +93,7 @@ internal object DailyForecastHeaderRenderer {
                     drawable.setTint(HEADER_TEXT_COLOR)
                     // Push gear further up and right (clipping is O.K.)
                     val gearRight = widthPx + (10f * labelScale).dp(layout.density).toInt()
-                    val gearTop = -(8f * labelScale).dp(layout.density).toInt()
+                    val gearTop = (-(8f * labelScale).dp(layout.density) - generalShiftY).toInt()
                     drawable.setBounds(
                         gearRight - gearSizePx, gearTop,
                         gearRight, gearTop + gearSizePx,
@@ -113,7 +114,7 @@ internal object DailyForecastHeaderRenderer {
         if (!header.apiSourceText.isNullOrBlank()) {
             // Push API text further up and right
             val apiX = widthPx - apiMarginEndPx + apiShiftPx
-            val apiY = -headerPaints.apiPaint.ascent() - (10f * labelScale).dp(layout.density)
+            val apiY = -headerPaints.apiPaint.ascent() - (10f * labelScale).dp(layout.density) - generalShiftY
             canvas.drawText(header.apiSourceText, apiX, apiY, headerPaints.apiPaint)
         }
 
@@ -126,6 +127,7 @@ internal object DailyForecastHeaderRenderer {
                 canvas, headerPaints, widthPx.toFloat(),
                 labelScale = labelScale, bitmapScale = layout.bitmapScale,
                 density = layout.density, active = header.dualActive,
+                shiftY = generalShiftY
             )
         } else {
             apiLeft
@@ -140,7 +142,7 @@ internal object DailyForecastHeaderRenderer {
             val centerX = widthPx / 2f
             val centerLeft = centerX - dateWidth / 2f
             val centerRight = centerX + dateWidth / 2f
-            val dateBaseline = -headerPaints.datePaint.ascent()
+            val dateBaseline = -headerPaints.datePaint.ascent() - generalShiftY
 
             // Two-tier placement: try centered first; if that overlaps the dual pill (or
             // the API column on small widgets), fall back to a right-anchored placement
@@ -175,6 +177,7 @@ internal object DailyForecastHeaderRenderer {
         bitmapScale: Float,
         density: Float,
         active: Boolean,
+        shiftY: Float = 0f,
     ): Float {
         val padX = (DUAL_PILL_PADDING_X_DP * labelScale).dp(density)
         val padY = (DUAL_PILL_PADDING_Y_DP * labelScale).dp(density)
@@ -190,14 +193,14 @@ internal object DailyForecastHeaderRenderer {
         // labelScale is clamped to <= 1f and would mis-place the pill when bitmapScale > 1.
         val pillRight = widthPx - (DUAL_BUTTON_MARGIN_END_DP * bitmapScale).dp(density)
         val pillLeft = pillRight - (glyphWidth + 2 * padX)
-        val pillTop = -padY
-        val pillBottom = glyphHeight + padY
+        val pillTop = -padY - shiftY
+        val pillBottom = glyphHeight + padY - shiftY
 
         if (active) {
             canvas.drawRoundRect(pillLeft, pillTop, pillRight, pillBottom, corner, corner, paints.dualPillPaint)
         }
         val glyphX = pillLeft + padX
-        val glyphY = -glyphAscent
+        val glyphY = -glyphAscent - shiftY
         canvas.drawText(DUAL_GLYPH, glyphX, glyphY, glyphPaint)
 
         return pillLeft
