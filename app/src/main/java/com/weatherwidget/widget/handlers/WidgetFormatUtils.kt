@@ -3,15 +3,23 @@ package com.weatherwidget.widget.handlers
 import java.time.LocalDateTime
 import java.util.Locale
 
-internal fun formatHourLabel(time: LocalDateTime): String {
+/**
+ * Split an hour label into its numeric part and meridiem suffix, e.g. 3pm -> ("3", "p"),
+ * midnight -> ("12", "a"). The inline footer renderer draws these around the weather icon
+ * (`<hour><icon><a|p>`); [formatHourLabel] joins them back for callers that want the plain string.
+ */
+internal fun formatHourLabelParts(time: LocalDateTime): Pair<String, String> {
     val hour = time.hour
     return when {
-        hour == 0 -> "12a"
-        hour < 12 -> "${hour}a"
-        hour == 12 -> "12p"
-        else -> "${hour - 12}p"
+        hour == 0 -> "12" to "a"
+        hour < 12 -> "$hour" to "a"
+        hour == 12 -> "12" to "p"
+        else -> "${hour - 12}" to "p"
     }
 }
+
+internal fun formatHourLabel(time: LocalDateTime): String =
+    formatHourLabelParts(time).let { (hour, meridiem) -> hour + meridiem }
 
 /**
  * Format a list of LocalDateTimes (hour-aligned) into a compact human-readable description

@@ -9,6 +9,25 @@ object HourlyGraphDefaults {
     const val WATERMARK_ICON_SIZE_DP = 24f
     const val MIN_ICON_GRAPH_WIDTH_PX = 420
 
+    // Inline footer row: <hour><weather icon><a|p>. The icon is sized relative to the hour-label
+    // text (not a fixed dp) so it scales with the text at every widget size and can't silently
+    // shrink the way a labelScale-multiplied dp constant did. 1.4x makes the icon the focal point.
+    const val FOOTER_ICON_TO_TEXT_RATIO = 1.0f
+    // Gap between the hour digits / meridiem and the icon in the inline footer group.
+    // Narrow widgets use a negative gap to pull the group tight (eating the transparent padding
+    // weather drawables carry) and save horizontal space; wide widgets have room to breathe.
+    const val FOOTER_ICON_GAP_NARROW_DP = -2f
+    const val FOOTER_ICON_GAP_WIDE_DP = -1f
+    const val FOOTER_BOTTOM_INSET_DP = 1f
+    // A widget this many columns or fewer is treated as "narrow": it gets the wider 6-hour marker
+    // cadence (vs 4-hour) and the tight negative icon gap. 6 covers full-width phone widgets
+    // (e.g. a Pixel 7 Pro full-width widget computes to ~6 cols); tablets at 7+ cols are "wide".
+    // Tunable.
+    const val NARROW_WIDGET_MAX_COLUMNS = 6
+    // Hour-marker cadence (hours between labels) for the WIDE zoom view on a narrow widget.
+    // Wide widgets keep ZoomLevel.WIDE.labelInterval (4).
+    const val NARROW_WIDE_LABEL_INTERVAL = 6
+
     const val ICON_TINT_NIGHT = "#BBBBBB"
     const val ICON_TINT_TWILIGHT = "#FFA726"
     const val ICON_TINT_SUNNY = "#FFD60A"
@@ -64,8 +83,6 @@ object GraphLayout {
     private const val MIN_BOTTOM_TEMP_BUFFER_DEGREES = 2.5f
     private const val GRAPH_TOP_PADDING_DP = 16f
     private const val GRAPH_TO_FOOTER_GAP_DP = -1f
-    private const val FOOTER_LABEL_HEIGHT_DP = 10f
-    private const val ICON_TOP_PAD_DP = -1f
     private const val DEFAULT_FALLBACK_MIN_TEMP = 0f
     private const val DEFAULT_FALLBACK_MAX_TEMP = 100f
     private const val MIN_TEMP_RANGE = 1f
@@ -96,19 +113,19 @@ object GraphLayout {
         return Triple(minTemp, maxTemp, tempRange)
     }
 
-    fun computeLayout(context: Context, heightPx: Int, labelScale: Float): Layout {
+    // The footer is now a single inline row (<hour><icon><a|p>) sized by [footerIconSize], the
+    // tallest element. Reserving just that one row (vs. the old stacked icon + label rows) hands
+    // the reclaimed vertical space back to the graph curve.
+    fun computeLayout(context: Context, heightPx: Int, labelScale: Float, footerIconSize: Float): Layout {
         val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP * labelScale)
-        val iconSize = dpToPx(context, HourlyGraphDefaults.WEATHER_ICON_SIZE_DP * labelScale).toInt()
-        val labelHeight = dpToPx(context, FOOTER_LABEL_HEIGHT_DP * labelScale)
-        val iconTopPad = dpToPx(context, ICON_TOP_PAD_DP * labelScale)
-        val iconBottomPad = dpToPx(context, 0f * labelScale)
+        val bottomInset = dpToPx(context, HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
 
         val graphTop = topPadding
-        val footerTop = heightPx - labelHeight - iconBottomPad - iconSize - iconTopPad
+        val footerTop = heightPx - footerIconSize - bottomInset
         val graphBottom = (footerTop - dpToPx(context, GRAPH_TO_FOOTER_GAP_DP * labelScale)).coerceAtLeast(graphTop + MIN_GRAPH_HEIGHT_DP * labelScale)
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(MIN_GRAPH_HEIGHT_DP * labelScale)
         Log.d("TempGraphRenderer", "Layout: heightPx=$heightPx, footerTop=$footerTop, graphTop=$graphTop, graphBottom=$graphBottom, graphHeight=$graphHeight")
-        return Layout(topPadding, iconSize, footerTop, graphTop, graphBottom, graphHeight, iconTopPad)
+        return Layout(topPadding, footerIconSize.toInt(), footerTop, graphTop, graphBottom, graphHeight, iconTopPad = 0f)
     }
 
     private fun dpToPx(context: Context, dp: Float): Float = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, context.resources.displayMetrics)

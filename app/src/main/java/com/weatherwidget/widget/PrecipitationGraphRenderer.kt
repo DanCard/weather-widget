@@ -173,18 +173,19 @@ object PrecipitationGraphRenderer {
         smoothIterations: Int = 2,
         rainAmountWindowHours: Int = 0,
         showHourlyIcons: Boolean,
+        footerIconSize: Float = 0f,
         textMeasurer: TextMeasurer,
         onDebugLog: ((String) -> Unit)? = null,
     ): PrecipGraphLayout {
         val labelScale = bitmapScale.coerceAtMost(1f)
         val topPadding = textMeasurer.dpToPx(GRAPH_TOP_PADDING_DP * labelScale)
-        val iconSize = textMeasurer.dpToPx(HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
         val labelHeight = textMeasurer.dpToPx(HourlyGraphDefaults.BOTTOM_LABEL_HEIGHT_DP * labelScale)
+        val footerBottomInset = textMeasurer.dpToPx(HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
 
         val graphTop = topPadding
         val graphBottom =
             if (showHourlyIcons) {
-                heightPx - labelHeight - iconSize
+                heightPx - footerIconSize - footerBottomInset
             } else {
                 heightPx - labelHeight
             }
@@ -338,16 +339,18 @@ object PrecipitationGraphRenderer {
                 filteredCandidates
             }
 
-        // Pre-calculate icon bounds for collision detection
+        // Pre-calculate icon bounds for collision detection. Icons now sit in the inline footer
+        // band at the very bottom (see GraphRenderUtils.drawHourLabels), so reserve that band.
         val drawnIconBounds = mutableListOf<PrecipRect>()
         if (showHourlyIcons) {
+            val iconTop = heightPx - footerIconSize - footerBottomInset
+            val iconBottom = heightPx - footerBottomInset
             hours.forEachIndexed { index, hour ->
                 if (hour.iconRes != null) {
                     val x = hourWidth * index
-                    val clampedX = x.coerceIn(iconSize / 2f, widthPx - iconSize / 2f)
-                    val iconY = graphBottom
-                    val iconX = clampedX - iconSize / 2f
-                    drawnIconBounds.add(PrecipRect(iconX, iconY, iconX + iconSize, iconY + iconSize))
+                    val clampedX = x.coerceIn(footerIconSize / 2f, widthPx - footerIconSize / 2f)
+                    val iconX = clampedX - footerIconSize / 2f
+                    drawnIconBounds.add(PrecipRect(iconX, iconTop, iconX + footerIconSize, iconBottom))
                 }
             }
         }
@@ -738,6 +741,7 @@ object PrecipitationGraphRenderer {
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = HourlyGraphDefaults.DEFAULT_HOUR_LABEL_SPACING_DP,
         rainAmountWindowHours: Int = 0,
+        numColumns: Int = 0,
         job: Job? = null,
         onDebugLog: ((String) -> Unit)? = null,
         onLabelPlaced: ((LabelPlacementDebug) -> Unit)? = null,
@@ -764,6 +768,7 @@ object PrecipitationGraphRenderer {
         val labelScale = bitmapScale.coerceAtMost(1f)
         val paints = ensurePaints(context, heightDp, labelScale)
         val showHourlyIcons = hours.any { it.iconRes != null } && widthPx >= HourlyGraphDefaults.MIN_ICON_GRAPH_WIDTH_PX
+        val footerIconSize = GraphRenderUtils.footerIconSize(paints.hourLabelTextPaint)
 
         val textMeasurer = TextMeasurer(
             measureProbabilityText = { paints.percentLabelPaint.measureText(it) },
@@ -801,6 +806,7 @@ object PrecipitationGraphRenderer {
             smoothIterations = smoothIterations,
             rainAmountWindowHours = rainAmountWindowHours,
             showHourlyIcons = showHourlyIcons,
+            footerIconSize = footerIconSize,
             textMeasurer = textMeasurer,
             onDebugLog = onDebugLog,
         )
@@ -828,17 +834,15 @@ object PrecipitationGraphRenderer {
             dpToPx = { dpToPx(context, it) },
             showLabel = { it.showLabel },
             labelText = { it.label },
-        ) { index, clampedX ->
-            if (!showHourlyIcons) return@drawHourLabels
+            iconSize = footerIconSize,
+            iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
+            hasIcon = { showHourlyIcons && it.iconRes != null },
+        ) { index, iconRect ->
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels
             val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
 
-            val iconSize = dpToPx(context, HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
-            val iconY = layout.graphBottom
-            val iconX = clampedX - iconSize / 2f
-
-            drawable.setBounds(iconX.toInt(), iconY.toInt(), (iconX + iconSize).toInt(), (iconY + iconSize).toInt())
+            drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
             if (!hour.isRainy && !hour.isMixed) {
                 val iconTint = when {
                     hour.isNight -> Color.parseColor(HourlyGraphDefaults.ICON_TINT_NIGHT)

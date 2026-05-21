@@ -210,6 +210,34 @@ internal object GraphRenderUtils {
         return points[currentHourIndex].first + (minutesOffset / 60f) * hourWidth
     }
 
+    /** Footer weather-icon size in px, derived from the hour-label text height. Shared so layout
+     *  reservation and the draw pass below agree on a single value. See [HourlyGraphDefaults]. */
+    /** A widget is "narrow" (tighter footer spacing, sparser markers) at or below the column
+     *  threshold. numColumns <= 0 means unknown, treated as narrow (the conservative, tight case). */
+    fun isNarrowWidget(numColumns: Int): Boolean =
+        numColumns <= HourlyGraphDefaults.NARROW_WIDGET_MAX_COLUMNS
+
+    /** dp gap between the hour text and the icon in the inline footer group, by widget width class. */
+    fun footerIconGapDp(numColumns: Int): Float =
+        if (isNarrowWidget(numColumns)) HourlyGraphDefaults.FOOTER_ICON_GAP_NARROW_DP
+        else HourlyGraphDefaults.FOOTER_ICON_GAP_WIDE_DP
+
+    fun footerIconSize(hourLabelTextPaint: Paint): Float {
+        // fontMetrics can be null (plain-JUnit stubs) or zeroed (Robolectric ShadowPaint); in either
+        // case fall back to the explicitly-set textSize so the icon never collapses to 0.
+        val fm = hourLabelTextPaint.fontMetrics
+        val metricHeight = if (fm != null) fm.descent - fm.ascent else 0f
+        val basis = if (metricHeight > 0f) metricHeight else hourLabelTextPaint.textSize
+        return basis * HourlyGraphDefaults.FOOTER_ICON_TO_TEXT_RATIO
+    }
+
+    /**
+     * Draw the hourly-graph footer. With [iconSize] > 0 and [drawIcon] supplied, each labeled hour
+     * renders as a single inline row `<hour><icon><a|p>` (e.g. `3☁p`): the numeric part, then the
+     * weather icon, then the meridiem, centered as a group. The icon's [RectF] is handed to
+     * [drawIcon] so the caller applies its own (condition-specific) tint and draws into it.
+     * Hours where [hasIcon] is false fall back to the plain centered label.
+     */
     fun <T> drawHourLabels(
         canvas: Canvas,
         items: List<T>,
@@ -221,21 +249,61 @@ internal object GraphRenderUtils {
         dpToPx: (Float) -> Float,
         showLabel: (T) -> Boolean,
         labelText: (T) -> String,
-        onLabelDrawn: ((index: Int, clampedX: Float) -> Unit)? = null,
+        iconSize: Float = 0f,
+        iconTextGapDp: Float = 0f,
+        hasIcon: (T) -> Boolean = { false },
+        drawIcon: ((index: Int, iconRect: RectF) -> Unit)? = null,
     ) {
+        val bottomInset = dpToPx(HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
+        val gap = dpToPx(iconTextGapDp)
+
+        // A single baseline shared by every label keeps the row flat. When icons are present the
+        // row occupies an `iconSize`-tall band at the bottom and the text is vertically centered
+        // on the icon; otherwise the text sits just above the bottom edge.
+        val iconBottom = heightPx - bottomInset
+        val iconTop = iconBottom - iconSize
+        val baselineY = if (iconSize > 0f) {
+            val centerY = (iconTop + iconBottom) / 2f
+            val fm = hourLabelTextPaint.fontMetrics
+            val textCenterOffset = if (fm != null) (fm.ascent + fm.descent) / 2f else 0f
+            centerY - textCenterOffset
+        } else {
+            heightPx - bottomInset
+        }
+
+        // Label density is governed by the upstream showLabel cadence (zoom.labelInterval) plus
+        // minHourLabelSpacing as a lower bound; we draw an inline group for every labeled hour.
         var lastHourLabelX = -1000f
 
         items.forEachIndexed { index, item ->
             val centerX = points[index].first
-            if (showLabel(item) && (centerX - lastHourLabelX >= minHourLabelSpacing)) {
-                val text = labelText(item)
-                val labelY = heightPx - dpToPx(1f)
-                val textWidth = hourLabelTextPaint.measureText(text)
+            if (!showLabel(item) || centerX - lastHourLabelX < minHourLabelSpacing) return@forEachIndexed
+
+            val fullLabel = labelText(item)
+            val inline = iconSize > 0f && drawIcon != null && hasIcon(item)
+
+            if (inline) {
+                val hourText = fullLabel.dropLast(1)
+                val meridiem = fullLabel.takeLast(1)
+                val hourW = hourLabelTextPaint.measureText(hourText)
+                val merW = hourLabelTextPaint.measureText(meridiem)
+                // Center the icon on the marker tick; flank with the hour digits (left) and meridiem
+                // (right). This keeps the icon visually centered regardless of how wide the hour
+                // text is, instead of letting a wide hour push the icon off to one side.
+                val leftExtent = iconSize / 2f + gap + hourW
+                val rightExtent = iconSize / 2f + gap + merW
+                val center = centerX.coerceIn(leftExtent, widthPx - rightExtent)
+                val iconLeft = center - iconSize / 2f
+                // hourLabelTextPaint is Align.CENTER, so each drawText x is the fragment's center.
+                canvas.drawText(hourText, iconLeft - gap - hourW / 2f, baselineY, hourLabelTextPaint)
+                drawIcon?.invoke(index, RectF(iconLeft, iconTop, iconLeft + iconSize, iconBottom))
+                canvas.drawText(meridiem, iconLeft + iconSize + gap + merW / 2f, baselineY, hourLabelTextPaint)
+            } else {
+                val textWidth = hourLabelTextPaint.measureText(fullLabel)
                 val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)
-                canvas.drawText(text, clampedX, labelY, hourLabelTextPaint)
-                lastHourLabelX = centerX
-                onLabelDrawn?.invoke(index, clampedX)
+                canvas.drawText(fullLabel, clampedX, baselineY, hourLabelTextPaint)
             }
+            lastHourLabelX = centerX
         }
     }
 

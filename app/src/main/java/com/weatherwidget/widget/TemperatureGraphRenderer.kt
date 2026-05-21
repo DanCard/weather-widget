@@ -353,6 +353,7 @@ object TemperatureGraphRenderer {
     private fun drawHourLabelsAndIcons(
         ctx: RenderContext,
         hours: List<HourData>,
+        numColumns: Int,
     ): List<RectF> {
         val drawnIconBounds = mutableListOf<RectF>()
         val minHourLabelSpacing = dpToPx(ctx.context, TemperatureGraphStyle.HOUR_LABEL_SPACING_DP * ctx.labelScale)
@@ -367,13 +368,13 @@ object TemperatureGraphRenderer {
             dpToPx = { dpToPx(ctx.context, it) },
             showLabel = { it.showLabel },
             labelText = { it.label },
-        ) { index, clampedX ->
+            iconSize = ctx.iconSize.toFloat(),
+            iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
+            hasIcon = { it.iconRes != null },
+        ) { index, iconRect ->
             val hour = hours[index]
             hour.iconRes?.let { res ->
                 androidx.core.content.ContextCompat.getDrawable(ctx.context, res)?.let { drawable ->
-                    val iconY = ctx.footerTop + ctx.iconTopPad
-                    val iconX = clampedX - ctx.iconSize / 2f
-                    val iconRect = RectF(iconX, iconY, iconX + ctx.iconSize, iconY + ctx.iconSize)
                     drawnIconBounds.add(iconRect)
                     drawable.setBounds(iconRect.left.toInt(), iconRect.top.toInt(), iconRect.right.toInt(), iconRect.bottom.toInt())
                     if (!hour.isRainy && !hour.isMixed) {
@@ -1095,7 +1096,8 @@ object TemperatureGraphRenderer {
         timings.mark("paints")
 
         val (minTemp, maxTemp, tempRange) = GraphLayout.computeScaling(hours)
-        val layout = GraphLayout.computeLayout(context, heightPx, labelScale)
+        val footerIconSize = GraphRenderUtils.footerIconSize(paints.hourLabelTextPaint)
+        val layout = GraphLayout.computeLayout(context, heightPx, labelScale, footerIconSize)
         timings.mark("layout")
 
         val minTimeEpoch = hours.firstOrNull()?.dateTime?.toEpochSecond(ZoneOffset.UTC) ?: 0L
@@ -1130,7 +1132,7 @@ object TemperatureGraphRenderer {
         drawFillAndCurves(ctx, update.expectedFillPath, hours)
         timings.mark("curves")
 
-        val drawnIconBounds = drawHourLabelsAndIcons(ctx, hours)
+        val drawnIconBounds = drawHourLabelsAndIcons(ctx, hours, numColumns)
         timings.mark("icons")
 
         val fetchDotPreBounds = computeFetchDotBounds(ctx, hours)

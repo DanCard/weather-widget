@@ -581,7 +581,11 @@ class TemperatureGraphLabelPlacementRobolectricTest {
             onPointsResolved = { points = it },
         )
 
-        val layout = GraphLayout.computeLayout(context, heightPx, 1f)
+        // Footer icon size derives from the hour-label text, same as renderGraph computes it.
+        val footerIconSize = GraphRenderUtils.footerIconSize(
+            TemperatureGraphStyle.ensurePaints(context, 1f).hourLabelTextPaint,
+        )
+        val layout = GraphLayout.computeLayout(context, heightPx, 1f, footerIconSize)
         val footerTop = layout.footerTop
         val lowestY = requireNotNull(points).original.maxOf { it.second }
 

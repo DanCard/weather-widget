@@ -316,6 +316,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 rainAmountWindowHours = rainAmountWindowHours,
+                numColumns = numColumns,
                 job = coroutineContext[Job],
                 onDebugLog = { renderLogs.add(it) },
                 showErrorWatermark = stateManager.isSourceErrored(displaySource),
@@ -403,7 +404,16 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         val startHour = alignedCenter.minusHours(zoom.backHours)
         val endHour = alignedCenter.plusHours(zoom.forwardHours)
 
-        val labelInterval = zoom.labelInterval
+        // Narrow widgets widen the WIDE-zoom marker cadence (6h vs 4h) to fit the inline footer
+        // groups; wide widgets keep the default. Matches the temperature graph.
+        val labelInterval =
+            if (zoom == com.weatherwidget.widget.ZoomLevel.WIDE &&
+                com.weatherwidget.widget.GraphRenderUtils.isNarrowWidget(numColumns)
+            ) {
+                com.weatherwidget.widget.HourlyGraphDefaults.NARROW_WIDE_LABEL_INTERVAL
+            } else {
+                zoom.labelInterval
+            }
         var currentHour = startHour
         var hourIndex = 0
         val zoneId = ZoneId.systemDefault()

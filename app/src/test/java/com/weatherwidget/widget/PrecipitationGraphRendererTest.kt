@@ -273,6 +273,7 @@ class PrecipitationGraphRendererTest {
             heightPx = 385,
             currentTime = start,
             showHourlyIcons = true,
+            footerIconSize = 21f, // ~hour-label text height * FOOTER_ICON_TO_TEXT_RATIO under identity mockDpToPx
             textMeasurer = mockTextMeasurer,
         )
 

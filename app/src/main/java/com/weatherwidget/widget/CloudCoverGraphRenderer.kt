@@ -150,28 +150,28 @@ object CloudCoverGraphRenderer {
         val tallGraph = heightDp >= HourlyGraphDefaults.TALL_GRAPH_HEIGHT_DP
         val labelScale = bitmapScale.coerceAtMost(1f)
 
+        // --- Paints (gray color scheme, cached by density + height band) ---
+        val paints = ensurePaints(context, tallGraph, labelScale)
+
         val topPadding = dpToPx(context, GRAPH_TOP_PADDING_DP * labelScale)
         val hasHourlyIcons = hours.any { it.iconRes != null }
         val showHourlyIcons = hasHourlyIcons && widthPx >= HourlyGraphDefaults.MIN_ICON_GRAPH_WIDTH_PX
-        val iconSize = dpToPx(context, HourlyGraphDefaults.WEATHER_ICON_SIZE_DP).toInt()
-        val iconTopPad = dpToPx(context, 0f)
-        val iconBottomPad = dpToPx(context, 0f)
+        // Inline footer row sized to the hour-label text (see GraphRenderUtils.footerIconSize).
+        val footerIconSize = GraphRenderUtils.footerIconSize(paints.hourLabelTextPaint)
         val labelHeight = dpToPx(context, HourlyGraphDefaults.BOTTOM_LABEL_HEIGHT_DP * labelScale)
         val bottomPadding = dpToPx(context, GRAPH_BOTTOM_PADDING_DP * labelScale)
+        val bottomInset = dpToPx(context, HourlyGraphDefaults.FOOTER_BOTTOM_INSET_DP)
 
         val graphTop = topPadding
         val graphBottom =
             if (showHourlyIcons) {
-                heightPx - labelHeight - bottomPadding - iconBottomPad - iconSize - iconTopPad
+                heightPx - footerIconSize - bottomInset
             } else {
                 heightPx - labelHeight - bottomPadding
             }
         val graphHeight = (graphBottom - graphTop).coerceAtLeast(1f)
 
         val hourWidth = widthPx.toFloat() / (hours.size - 1).coerceAtLeast(1)
-
-        // --- Paints (gray color scheme, cached by density + height band) ---
-        val paints = ensurePaints(context, tallGraph, labelScale)
         paints.gradientPaint.shader = LinearGradient(
             0f, graphTop, 0f, graphBottom,
             Color.parseColor(COLOR_CLOUD_GRADIENT_START),
@@ -238,15 +238,14 @@ object CloudCoverGraphRenderer {
             dpToPx = { dpToPx(context, it) },
             showLabel = { it.showLabel },
             labelText = { it.label },
-        ) { index, clampedX ->
-            if (!showHourlyIcons) return@drawHourLabels
+            iconSize = footerIconSize,
+            iconTextGapDp = GraphRenderUtils.footerIconGapDp(numColumns),
+            hasIcon = { showHourlyIcons && it.iconRes != null },
+        ) { index, iconRect ->
             val hour = hours[index]
             val iconRes = hour.iconRes ?: return@drawHourLabels
             val drawable = androidx.core.content.ContextCompat.getDrawable(context, iconRes) ?: return@drawHourLabels
 
-            val iconY = graphBottom + iconTopPad
-            val iconX = clampedX - iconSize / 2f
-            val iconRect = RectF(iconX, iconY, iconX + iconSize, iconY + iconSize)
             drawnIconBounds.add(iconRect)
 
             drawable.setBounds(
@@ -450,6 +449,7 @@ object CloudCoverGraphRenderer {
                 }
                 val overlapsLabel = drawnLabelBounds.any { RectF.intersects(it, bounds) }
                 val overlapsIcon = drawnIconBounds.any { RectF.intersects(it, bounds) }
+                println("DBG_CLOUD idx=$index pct=$cloudPct above=$placeAbove fallback=$isFallbackAttempt pointY=$y labelBounds=$bounds graphBottom=$graphBottom heightPx=$heightPx icons=$drawnIconBounds overlapsIcon=$overlapsIcon")
                 val allowIconOverlap =
                     shouldAllowIconOverlap(
                         cloudPct = cloudPct,
