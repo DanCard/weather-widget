@@ -90,8 +90,9 @@ internal object DailyForecastHeaderRenderer {
                 val drawable = androidx.core.content.ContextCompat.getDrawable(context, header.settingsIconRes)?.mutate()
                 if (drawable != null) {
                     drawable.setTint(HEADER_TEXT_COLOR)
-                    val gearRight = widthPx
-                    val gearTop = 0
+                    // Push gear further up and right (clipping is O.K.)
+                    val gearRight = widthPx + (10f * labelScale).dp(layout.density).toInt()
+                    val gearTop = -(8f * labelScale).dp(layout.density).toInt()
                     drawable.setBounds(
                         gearRight - gearSizePx, gearTop,
                         gearRight, gearTop + gearSizePx,
@@ -108,14 +109,17 @@ internal object DailyForecastHeaderRenderer {
             (if (isDualApiText) 0f else HeaderConstants.API_SINGLE_SOURCE_EXTRA_MARGIN_DP)
         val apiMarginEndPx = (apiMarginEndDp * labelScale).dp(layout.density)
 
+        val apiShiftPx = (10f * labelScale).dp(layout.density)
         if (!header.apiSourceText.isNullOrBlank()) {
-            val apiX = widthPx - apiMarginEndPx
-            canvas.drawText(header.apiSourceText, apiX, -headerPaints.apiPaint.ascent(), headerPaints.apiPaint)
+            // Push API text further up and right
+            val apiX = widthPx - apiMarginEndPx + apiShiftPx
+            val apiY = -headerPaints.apiPaint.ascent() - (10f * labelScale).dp(layout.density)
+            canvas.drawText(header.apiSourceText, apiX, apiY, headerPaints.apiPaint)
         }
 
         val apiContainerWidth = (HeaderConstants.API_SOURCE_CONTAINER_PADDING_DP * labelScale).dp(layout.density) +
             headerPaints.dateMeasurePaint.measureText(header.apiSourceText ?: "")
-        val apiLeft = widthPx - apiMarginEndPx - apiContainerWidth
+        val apiLeft = widthPx - apiMarginEndPx - apiContainerWidth + apiShiftPx
 
         val dualLeftEdge = if (header.showDualButton) {
             drawDualButton(
