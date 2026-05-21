@@ -6,6 +6,7 @@ import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
 import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -1519,6 +1520,46 @@ class DailyViewLogicTest {
 
         val todayDay = result.first { it.date == today }
         assertEquals("Today text label should use complete snapshot high", "80°", todayDay.highLabel)
+    }
+
+    @Test
+    fun `prepareGraphDays today resolves snapshotIconRes from old forecast batch`() {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterdaySameTime = now.minusHours(24)
+
+        // Snapshot fetched 25 hours ago, predicting rain for today
+        val snapshotBatch = createWeather(
+            date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            condition = "Rain",
+            precipProbability = 80
+        ).copy(fetchedAt = yesterdaySameTime.minusHours(1).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli())
+
+        // Current batch predicts clear
+        val currentWeather = createWeather(
+            date = today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+            condition = "Clear",
+            precipProbability = 0
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = mapOf(today to currentWeather),
+            forecastSnapshots = mapOf(today to listOf(snapshotBatch)),
+            numColumns = 1,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList()
+        )
+
+        val todayDay = result.find { it.isToday }
+        assertNotNull("Today column should be present", todayDay)
+        assertNotNull("Snapshot icon should be resolved", todayDay!!.snapshotIconRes)
+        assertTrue("Snapshot icon should be rain", WeatherIconMapper.isPrecipitation(todayDay.snapshotIconRes!!))
+        assertFalse("Current icon should be sunny", todayDay.isRainy)
     }
 
     private fun createWeather(

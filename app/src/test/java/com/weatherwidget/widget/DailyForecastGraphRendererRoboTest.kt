@@ -980,4 +980,61 @@ class DailyForecastGraphRendererRoboTest {
         assertNotNull("renderGraph must produce a bitmap when mixed bar height collapses to <= 1px", bitmap)
         assertEquals("Exactly one primary-bar callback should fire for the day", 1, results.size)
     }
+
+    @Test
+    fun snapshotBar_usesAdaptiveColor() {
+        val date = LocalDate.of(2026, 2, 3)
+        // Solid rain icon
+        val snapshotIconRes = R.drawable.ic_weather_rain
+        
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = date,
+                label = "Today",
+                solidLineHigh = 80f,
+                solidLineLow = 60f,
+                isToday = true,
+                snapshotHigh = 75f,
+                snapshotLow = 65f,
+                snapshotIconRes = snapshotIconRes
+            )
+        )
+
+        val results = render(days)
+        val snapshotBar = results.find { it.barType == "TODAY_SNAPSHOT" }
+        assertNotNull("Snapshot bar should be drawn", snapshotBar)
+        
+        // Since snapshotIconRes is solid rain, it should use FORECAST_RAINY (blue),
+        // not the default yellow snapshot color.
+        assertEquals(WeatherConditionColors.FORECAST_RAINY, snapshotBar!!.color)
+    }
+
+    @Test
+    fun snapshotBar_mixedCondition_usesYellowTop() {
+        val date = LocalDate.of(2026, 2, 3)
+        // Mixed icon
+        val snapshotIconRes = R.drawable.ic_weather_partly_cloudy_chance_rain
+        
+        val days = listOf(
+            DailyForecastGraphRenderer.DayData(
+                date = date,
+                label = "Today",
+                solidLineHigh = 80f,
+                solidLineLow = 60f,
+                isToday = true,
+                snapshotHigh = 75f,
+                snapshotLow = 65f,
+                snapshotIconRes = snapshotIconRes
+            )
+        )
+
+        val results = render(days)
+        val snapshotBar = results.find { it.barType == "TODAY_SNAPSHOT" }
+        assertNotNull("Snapshot bar should be drawn", snapshotBar)
+        
+        // Since it's mixed, sCondColor becomes todaySnapshotYellowPaint.color
+        val expectedYellow = 0xFFFFFF00.toInt()
+        assertEquals(expectedYellow, snapshotBar!!.color)
+        assertTrue("Snapshot bar should have adaptive segments", snapshotBar.adaptiveSegments)
+    }
 }

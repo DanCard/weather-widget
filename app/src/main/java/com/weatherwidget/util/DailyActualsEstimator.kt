@@ -27,6 +27,7 @@ object DailyActualsEstimator {
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
         val ghostLineHigh: Float? = null,
+        val snapshotIconRes: Int? = null,
     )
 
     /**
@@ -51,6 +52,7 @@ object DailyActualsEstimator {
         currentTemp: Float? = null,
         snapshotHigh: Float? = null,
         snapshotLow: Float? = null,
+        snapshotIconRes: Int? = null,
     ): TodayTripleLineValues {
         val zoneId = ZoneId.systemDefault()
         // Filter all hourly data for today
@@ -111,6 +113,7 @@ object DailyActualsEstimator {
             snapshotHigh = snapshotHigh,
             snapshotLow = snapshotLow,
             ghostLineHigh = ghostLineHigh,
+            snapshotIconRes = snapshotIconRes,
         )
     }
 

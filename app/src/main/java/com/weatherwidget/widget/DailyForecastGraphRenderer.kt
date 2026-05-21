@@ -9,6 +9,7 @@ import androidx.annotation.VisibleForTesting
 import com.weatherwidget.BuildConfig
 import com.weatherwidget.widget.handlers.HeaderConstants
 import com.weatherwidget.util.WeatherConditionColors
+import com.weatherwidget.util.WeatherIconMapper
 import kotlin.math.abs
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -181,6 +182,7 @@ object DailyForecastGraphRenderer {
         val isTodayForecastFallback: Boolean = false,
         val snapshotHigh: Float? = null,
         val snapshotLow: Float? = null,
+        val snapshotIconRes: Int? = null,
         val ghostLineHigh: Float? = null,
         val cloudCoverRatioOverride: Float? = null,
         val daysFromToday: Int = 0,
@@ -584,7 +586,7 @@ object DailyForecastGraphRenderer {
             shader = null
         }
         val topPaint = Paint(paint).apply {
-            color = split.topColor
+            color = paint.color
             shader = null
         }
 
@@ -864,8 +866,37 @@ object DailyForecastGraphRenderer {
                     val sLowY = layout.tempToY(sLow)
                     val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
                     val snapshotX = centerX + layout.tripleBarOffset
-                    canvas.drawLine(snapshotX, sHighY, snapshotX, effectiveSLowY, paints.todaySnapshotYellowPaint)
-                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_SNAPSHOT", sHighY, effectiveSLowY, snapshotX, paints.todaySnapshotYellowPaint.color))
+
+                    val sIsSunny = day.snapshotIconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
+                    val sIsRainy = day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
+                    val sIsMixed = day.snapshotIconRes?.let { WeatherIconMapper.isMixed(it) } ?: false
+
+                    var sCondColor = WeatherConditionColors.forecastColor(sIsSunny, sIsRainy, sIsMixed, isNight = false)
+                    // If sunny or no icon info available, stick to the bright yellow high-contrast snapshot color.
+                    if (sCondColor == WeatherConditionColors.FORECAST_SUNNY || day.snapshotIconRes == null) {
+                        sCondColor = paints.todaySnapshotYellowPaint.color
+                    }
+                    val sPaint = paints.todayForecastForColor(sCondColor)
+
+                    val snapshotDay = day.copy(
+                        iconRes = day.snapshotIconRes,
+                        isSunny = sIsSunny,
+                        isRainy = sIsRainy,
+                        isMixed = sIsMixed,
+                        cloudCoverRatioOverride = null
+                    )
+
+                    drawWeatherAdaptiveBar(
+                        canvas = canvas,
+                        centerX = snapshotX,
+                        topY = sHighY,
+                        bottomY = effectiveSLowY,
+                        paint = sPaint,
+                        day = snapshotDay,
+                        logPrefix = "today_snapshot",
+                        allowAdaptiveSegments = true
+                    )
+                    onBarDrawn?.invoke(BarDrawnDebug(day.date, "TODAY_SNAPSHOT", sHighY, effectiveSLowY, snapshotX, sPaint.color, adaptiveSegments = true))
                 }
             }
         }

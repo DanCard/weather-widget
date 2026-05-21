@@ -359,6 +359,7 @@ object DailyViewLogic {
             var pastNextSourceLow: Float? = null
             var snapshotHigh: Float? = null
             var snapshotLow: Float? = null
+            var snapshotIconRes: Int? = null
             var isClimateOverlay = false
             var isTodayForecastFallback = false
             var trueActualHigh: Float? = null
@@ -409,11 +410,24 @@ object DailyViewLogic {
                     .maxByOrNull { it.fetchedAt }
                     ?: snapshotCandidates.minByOrNull { it.fetchedAt }
 
+                snapshotIconRes = snapshot?.let { w ->
+                    DailyForecastIconResolver.resolveIcon(
+                        weather = w,
+                        targetDate = date,
+                        now = now,
+                        latitude = w.locationLat,
+                        longitude = w.locationLon,
+                        dayPrecipProbability = w.daytimePrecipProbability ?: w.precipProbability,
+                        nightPrecipProbability = w.nighttimePrecipProbability,
+                    )
+                }
+
                 val tripleValues = com.weatherwidget.util.DailyActualsEstimator.calculateTodayTripleLineValues(
                     hourlyForecasts, today, now, displaySource, weather, dailyActuals,
                     currentTemp = currentTemp,
                     snapshotHigh = snapshot?.highTemp,
-                    snapshotLow = snapshot?.lowTemp
+                    snapshotLow = snapshot?.lowTemp,
+                    snapshotIconRes = snapshotIconRes,
                 )
 
                 finalHigh = tripleValues.solidLineHigh ?: tripleValues.dashedLineHigh
@@ -423,6 +437,7 @@ object DailyViewLogic {
                 bottomStackLow = listOfNotNull(tripleValues.solidLineLow, tripleValues.dashedLineLow).minOrNull()
                 snapshotHigh = tripleValues.snapshotHigh
                 snapshotLow = tripleValues.snapshotLow
+                snapshotIconRes = tripleValues.snapshotIconRes
                 trueActualHigh = tripleValues.ghostLineHigh
                 isTodayForecastFallback =
                     tripleValues.solidLineHigh == null &&
@@ -593,6 +608,7 @@ object DailyViewLogic {
                     isTodayForecastFallback = isTodayForecastFallback,
                     snapshotHigh = snapshotHigh,
                     snapshotLow = snapshotLow,
+                    snapshotIconRes = snapshotIconRes,
                     ghostLineHigh = trueActualHigh,
                     cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
