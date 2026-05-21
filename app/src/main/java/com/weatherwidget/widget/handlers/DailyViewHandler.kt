@@ -632,6 +632,7 @@ object DailyViewHandler : WidgetViewHandler {
             DayIds(R.id.day7_container, R.id.day7_label, R.id.day7_icon, R.id.day7_high, R.id.day7_low, R.id.day7_rain),
             DayIds(R.id.day8_container, R.id.day8_label, R.id.day8_icon, R.id.day8_high, R.id.day8_low, R.id.day8_rain),
         )
+        check(dayDataList.size <= dayIds.size) { "dayDataList has ${dayDataList.size} items but only ${dayIds.size} DayIds available" }
 
         dayDataList.forEachIndexed { index, data ->
             val ids = dayIds[index]
