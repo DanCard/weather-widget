@@ -186,6 +186,11 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                 }
                 triggerImmediateUpdate(context, reason = "on_update_no_data")
             } else {
+                // Immediate render of loading state to provide instant feedback
+                for (appWidgetId in filteredIds) {
+                    WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                }
+
                 queryResult = loadStartupData(
                     forecastDao = forecastDao,
                     hourlyDao = hourlyDao,
@@ -239,7 +244,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val today = LocalDate.now()
         val historyStart = today.minusDays(1).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val thirtyDays = today.plusDays(7).toEpochDay() * WidgetConstants.MS_IN_A_DAY
-        val pastSnapshotStart = today.minusDays(30).toEpochDay() * WidgetConstants.MS_IN_A_DAY
+        val pastSnapshotStart = today.minusDays(3).toEpochDay() * WidgetConstants.MS_IN_A_DAY
         val pastSnapshotEnd = today.minusDays(2).toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
         val weatherListDeferred = async {
@@ -314,22 +319,27 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         val forecastQueryStartMs = SystemClock.elapsedRealtime()
         val weatherList = weatherListDeferred.await()
         val forecastQueryMs = SystemClock.elapsedRealtime() - forecastQueryStartMs
+        Log.d(TAG, "loadStartupData: forecastQueryMs=$forecastQueryMs count=${weatherList.size}")
 
         val snapshotQueryStartMs = SystemClock.elapsedRealtime()
         val forecastSnapshots = forecastSnapshotsDeferred.await()
         val snapshotQueryMs = SystemClock.elapsedRealtime() - snapshotQueryStartMs
+        Log.d(TAG, "loadStartupData: snapshotQueryMs=$snapshotQueryMs count=${forecastSnapshots.size}")
 
         val hourlyQueryStartMs = SystemClock.elapsedRealtime()
         val hourlyForecasts = hourlyForecastsDeferred.await()
         val hourlyQueryMs = SystemClock.elapsedRealtime() - hourlyQueryStartMs
+        Log.d(TAG, "loadStartupData: hourlyQueryMs=$hourlyQueryMs count=${hourlyForecasts.size}")
 
         val currentTempQueryStartMs = SystemClock.elapsedRealtime()
         val currentTemps = currentTempsDeferred.await()
         val currentTempQueryMs = SystemClock.elapsedRealtime() - currentTempQueryStartMs
+        Log.d(TAG, "loadStartupData: currentTempQueryMs=$currentTempQueryMs count=${currentTemps.size}")
 
         val extremesQueryStartMs = SystemClock.elapsedRealtime()
         val dailyActualsBySource = dailyActualsDeferred.await()
         val extremesQueryMs = SystemClock.elapsedRealtime() - extremesQueryStartMs
+        Log.d(TAG, "loadStartupData: extremesQueryMs=$extremesQueryMs count=${dailyActualsBySource.size}")
 
         StartupQueryResult(
             weatherList = weatherList,
