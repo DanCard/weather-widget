@@ -15,6 +15,14 @@ The 54 temp forecast low label draws above the graph on Pixel 7 Pro/Emulator but
 2. **Enable Curve Dodging:** Add forecast low/high roles to `CURVE_AVOIDANCE_ROLES` so they dodge the dashed forecast line.
 
 ## Instructions for Resuming Session
+
+**How to Start the Next Session:**
+Run the following command in your terminal to kick off the next session:
+```bash
+gemini "Resume the hourly graph label placement fix. Please read session-logs/260521-hourly-label-placement-rules.md for full context and instructions."
+```
+
+**Agent Instructions:**
 To resume this task, the agent should follow these steps:
 
 1. **Contextualize:** Read this log and the corresponding plan in `plans/hourly-label-placement-fix.md`.
