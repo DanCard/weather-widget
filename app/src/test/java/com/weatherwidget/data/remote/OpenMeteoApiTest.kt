@@ -136,6 +136,8 @@ class OpenMeteoApiTest {
         assertEquals("Mostly Clear", api.weatherCodeToCondition(1))
         assertEquals("Partly Cloudy", api.weatherCodeToCondition(2))
         assertEquals("Overcast", api.weatherCodeToCondition(3))
+        assertEquals("Light Fog", api.weatherCodeToCondition(45))
+        assertEquals("Dense Fog", api.weatherCodeToCondition(48))
         assertEquals("Rain", api.weatherCodeToCondition(61))
         assertEquals("Snow", api.weatherCodeToCondition(71))
         assertEquals("Thunderstorm", api.weatherCodeToCondition(95))

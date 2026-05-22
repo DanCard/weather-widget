@@ -319,6 +319,23 @@ class DailyForecastIconResolverTest {
     }
 
     @Test
+    fun `open meteo 45 maps to light fog`() {
+        val icon = DailyForecastIconResolver.resolveIcon(
+            weather = forecast(
+                source = WeatherSource.OPEN_METEO.id,
+                condition = "Light Fog",
+                nativeDailyIconToken = "45",
+            ),
+            targetDate = today,
+            now = now,
+            latitude = 37.42,
+            longitude = -122.08,
+        )
+
+        assertEquals(R.drawable.ic_weather_fog_light, icon)
+    }
+
+    @Test
     fun `open meteo 48 maps to dense fog`() {
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(

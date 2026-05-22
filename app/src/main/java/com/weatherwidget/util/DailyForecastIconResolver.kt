@@ -256,7 +256,7 @@ object DailyForecastIconResolver {
                 1 -> "Mostly Clear"
                 2 -> "Partly Cloudy"
                 3 -> "Cloudy"
-                45 -> "Fog"
+                45 -> "Light Fog"
                 48 -> "Dense Fog"
                 51, 53, 55, 56, 57 -> "Drizzle"
                 61, 63, 65, 66, 67, 80, 81, 82 -> "Rain"

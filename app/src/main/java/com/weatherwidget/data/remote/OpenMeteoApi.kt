@@ -249,7 +249,7 @@ condition = weatherCodeToCondition(0),
                 1 -> "Mostly Clear"
                 2 -> "Partly Cloudy"
                 3 -> "Overcast"
-                45 -> "Fog"
+                45 -> "Light Fog"
                 48 -> "Dense Fog"
                 51, 53, 55 -> "Drizzle"
                 61, 63, 65 -> "Rain"
