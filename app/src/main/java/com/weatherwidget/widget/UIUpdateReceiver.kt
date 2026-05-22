@@ -72,6 +72,10 @@ class UIUpdateReceiver : BroadcastReceiver() {
         )
         Log.d(TAG, "UI-only update enqueued")
 
+        // Heartbeat recovery: Ensure the charging loop is running if the device is plugged in.
+        // This handles cases where ACTION_POWER_CONNECTED was missed by the OS.
+        CurrentTempUpdateScheduler.scheduleNextChargingUpdate(context, powerManager.isInteractive)
+
         UIUpdateScheduler(context).scheduleNextUpdate()
     }
 
