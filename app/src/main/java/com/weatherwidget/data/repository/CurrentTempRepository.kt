@@ -102,6 +102,7 @@ class CurrentTempRepository
             forceRefresh: Boolean = false
         ): Result<Int> {
             val mutexRequestMs = SystemClock.elapsedRealtime()
+            val startMs = System.currentTimeMillis()
             return try {
                 syncMutex.withLock {
                     val mutexAcquiredMs = SystemClock.elapsedRealtime()
@@ -128,7 +129,7 @@ class CurrentTempRepository
                         .filter { it != WeatherSource.GENERIC_GAP }
                         .distinct()
                         
-                    appLogDao.log("CURR_FETCH_START", "reason=$reason targets=${targetSources.joinToString { it.id }}")
+                    appLogDao.log("CURR_FETCH_START", "reason=$reason targets=${targetSources.joinToString { it.id }} thread=${Thread.currentThread().name}")
                     
                     var successfulSourceCount = 0
                     targetSources.forEach { targetSource ->
@@ -157,11 +158,14 @@ class CurrentTempRepository
                     }
                     
                     lastFetchTime = System.currentTimeMillis()
+                    val totalDurationMs = System.currentTimeMillis() - startMs
                     val targetIds = targetSources.joinToString(",") { it.id }
-                    appLogDao.log("CURR_FETCH_DONE", "reason=$reason targets=$targetIds updated=$successfulSourceCount attempted=${targetSources.size}")
+                    appLogDao.log("CURR_FETCH_COMPLETE", "reason=$reason successCount=$successfulSourceCount totalMs=$totalDurationMs targets=$targetIds attempted=${targetSources.size}")
                     Result.success(targetSources.size)
                 }
             } catch (exception: Exception) { 
+                val totalDurationMs = System.currentTimeMillis() - startMs
+                appLogDao.log("CURR_FETCH_ERROR", "reason=$reason error=${exception.message} totalMs=$totalDurationMs", "ERROR")
                 Result.failure(exception) 
             }
         }

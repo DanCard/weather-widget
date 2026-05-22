@@ -58,9 +58,10 @@ class ObservationRepository @Inject constructor(
         val stationsToFetch = stations.take(MAX_RETRIES)
         val closestStation = stationsToFetch.first()
         val otherStations = stationsToFetch.drop(1)
+        val fetchStartMs = System.currentTimeMillis()
 
         val closestDeferred = async {
-            val retryDelaysMs = listOf(60_000L, 120_000L, 240_000L)
+            val retryDelaysMs = listOf(10_000L, 30_000L)
             var entity = fetchStationObservation(closestStation, latitude, longitude, attempt = 0)
             for ((index, delayMs) in retryDelaysMs.withIndex()) {
                 if (entity != null) break
@@ -75,8 +76,12 @@ class ObservationRepository @Inject constructor(
         }
 
         val successfulEntities = (listOf(closestDeferred) + otherDeferreds).mapNotNull { it.await() }
+        val totalFetchDurationMs = System.currentTimeMillis() - fetchStartMs
 
-        if (successfulEntities.isEmpty()) return@coroutineScope null
+        if (successfulEntities.isEmpty()) {
+            appLogDao.log("NWS_FETCH_FAIL_ALL", "stationsTried=${stationsToFetch.size} totalMs=$totalFetchDurationMs", "WARN")
+            return@coroutineScope null
+        }
 
         val blendedTemp = SpatialInterpolator.interpolateIDW(latitude, longitude, successfulEntities)
             ?: return@coroutineScope null
@@ -84,8 +89,8 @@ class ObservationRepository @Inject constructor(
         val closest = successfulEntities.minBy { it.distanceKm }
 
         val stationSummary = successfulEntities.joinToString { "${it.stationId}(${it.distanceKm}km)" }
-        appLogDao.log("NWS_IDW", "blended=${blendedTemp}°F from ${successfulEntities.size} stations: $stationSummary")
-        Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary")
+        appLogDao.log("NWS_IDW", "blended=${blendedTemp}°F from ${successfulEntities.size} stations: $stationSummary totalMs=$totalFetchDurationMs")
+        Log.d(TAG, "NWS IDW blend: $blendedTemp°F from $stationSummary totalMs=$totalFetchDurationMs")
 
         CurrentReadingPayload(
             WeatherSource.NWS,

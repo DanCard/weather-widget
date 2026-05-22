@@ -314,13 +314,9 @@ class WeatherWidgetWorker
             targetSource: WeatherSource? = null,
         ): Result {
             val startMs = SystemClock.elapsedRealtime()
+            appLogDao.log("CURR_FETCH_WORK_START", "id=$id reason=$reason isPlugged=$isPlugged isInteractive=$isScreenInteractive opportunistic=$isOpportunisticContext")
+            
             return try {
-                appLogDao.log(
-                    "CURR_FETCH_WORK_START",
-                    "id=$id reason=$reason force=$force opportunistic=$isOpportunisticContext " +
-                        "charging=$isPlugged interactive=$isScreenInteractive attempt=$runAttemptCount",
-                    "INFO",
-                )
                 val isManual = reason.contains("manual") || reason.contains("force") || force
                 var resultMessage = "success"
                 var fetchDurationMs = 0L
