@@ -130,6 +130,64 @@ class CloudCoverViewHandlerTest {
         assertEquals(7, offset)
     }
 
+    @Test
+    fun `buildCloudHourDataList uses 6-hour interval on narrow widgets in WIDE zoom`() {
+        val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val hours = (0..24).map { i ->
+            hourly(now.plusHours(i.toLong() - 12).toString(), WeatherSource.NWS, 50)
+        }
+
+        // Narrow widget (e.g. 5 columns)
+        val result = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = hours,
+            centerTime = now,
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        val labeledHours = result.filter { it.showLabel }
+        // For WIDE zoom (25 points total: -12 to +12), with 6-hour interval:
+        // Indices: 0, 6, 12, 18, 24 should be labeled (if we start from index 0)
+        // Note: buildCloudHourDataList also labels the "closest to now" hour.
+        
+        // Let's check the distance between labeled hours (excluding the 'Now' one if it's an outlier)
+        val intervals = labeledHours.map { it.dateTime }
+            .zipWithNext { a, b -> java.time.Duration.between(a, b).toHours() }
+            .filter { it > 0 }
+            .distinct()
+        
+        // We expect 6-hour intervals (and potentially a smaller one if 'Now' is forced)
+        assert(intervals.contains(6L)) { "Expected 6-hour intervals in narrow widget WIDE zoom, but got $intervals" }
+        assert(!intervals.contains(4L)) { "Did not expect 4-hour intervals in narrow widget WIDE zoom" }
+    }
+
+    @Test
+    fun `buildCloudHourDataList uses 4-hour interval on wide widgets in WIDE zoom`() {
+        val now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val hours = (0..24).map { i ->
+            hourly(now.plusHours(i.toLong() - 12).toString(), WeatherSource.NWS, 50)
+        }
+
+        // Wide widget (e.g. 8 columns)
+        val result = CloudCoverViewHandler.buildCloudHourDataList(
+            hourlyForecasts = hours,
+            centerTime = now,
+            numColumns = 8,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+        )
+
+        val labeledHours = result.filter { it.showLabel }
+        val intervals = labeledHours.map { it.dateTime }
+            .zipWithNext { a, b -> java.time.Duration.between(a, b).toHours() }
+            .filter { it > 0 }
+            .distinct()
+        
+        assert(intervals.contains(4L)) { "Expected 4-hour intervals in wide widget WIDE zoom, but got $intervals" }
+        assert(!intervals.contains(6L)) { "Did not expect 6-hour intervals in wide widget WIDE zoom" }
+    }
+
     private fun hourly(
         dateTime: String,
         source: WeatherSource,
