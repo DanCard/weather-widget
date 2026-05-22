@@ -2,7 +2,7 @@ package com.weatherwidget.util
 
 import android.graphics.LinearGradient
 import com.weatherwidget.R
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -13,7 +13,7 @@ import java.lang.reflect.Field
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class WeatherConditionColorsRobolectricTest {
 
     @Test

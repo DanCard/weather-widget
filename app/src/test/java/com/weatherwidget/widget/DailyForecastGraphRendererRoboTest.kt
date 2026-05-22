@@ -5,7 +5,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.WeatherConditionColors
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.runBlocking
@@ -23,7 +23,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.LocalDate
 
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class DailyForecastGraphRendererRoboTest {

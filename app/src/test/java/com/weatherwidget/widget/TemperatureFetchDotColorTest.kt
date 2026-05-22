@@ -20,7 +20,7 @@ import java.time.ZoneId
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.ZoneOffset
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 
@@ -32,7 +32,7 @@ import com.weatherwidget.util.WeatherConditionColors
  * Verifies that the colors reported via FetchDotDebug match the expected observed line color.
  */
 @RunWith(RobolectricTestRunner::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class TemperatureFetchDotColorTest {
 
     @After

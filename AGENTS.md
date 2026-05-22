@@ -163,7 +163,7 @@ For bug reports, regressions, "why is this happening?" analysis, and data mismat
 **Prefer Robolectric (JVM) tests over instrumented (androidTest/emulator) tests whenever possible.** Robolectric tests run in seconds on the JVM; instrumented tests require an emulator or device and take minutes.
 
 1. **Pure logic** (no Android dependencies): Write as plain unit tests in `test/` with no framework.
-2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(MediumDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context. Override with `@Category(LongDuration::class)` for heavy tests (complex rendering, many iterations, benchmarks).
+2. **Needs Android Context, SharedPreferences, Room, or Resources**: Extend `com.weatherwidget.test.RobolectricTest` (which provides `@RunWith(RobolectricTestRunner::class)`, `@Config(sdk = [34])`, and `@Category(LongDuration::class)`). Use `ApplicationProvider.getApplicationContext()` for Context.
 3. **Needs real Canvas/Bitmap rendering, RemoteViews + performClick, real View.measure/layout, or real SQLite migrations**: Only then write instrumented tests in `androidTest/`.
 
 When migrating from instrumented to Robolectric:
@@ -173,8 +173,8 @@ When migrating from instrumented to Robolectric:
 - Use `TestDatabase.create()` for Room in-memory databases
 - Add test duration category annotations:
   - `@Category(ShortDuration::class)` — Pure JVM tests with no Android framework (no Robolectric, no Context). Just Kotlin logic. **Never use on Robolectric tests.**
-  - `@Category(MediumDuration::class)` — Robolectric tests that need Android Context, SharedPreferences, or Room. This is the default for `RobolectricTest` subclasses.
-  - `@Category(LongDuration::class)` — Heavy Robolectric tests with complex rendering pipelines, many iterations, or benchmarks. Add this annotation on the subclass to override the default MediumDuration.
+  - `@Category(MediumDuration::class)` — Integration tests or slow unit tests that don't need the Robolectric framework.
+  - `@Category(LongDuration::class)` — All Robolectric tests (JVM tests that need Android Context, SharedPreferences, or Room). This is the default for `RobolectricTest` subclasses.
 
 ### Test Structure
 ```kotlin

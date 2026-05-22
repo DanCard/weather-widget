@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,7 +16,7 @@ import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class DailyForecastGraphRendererSizingTest {
 
     @Test

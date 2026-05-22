@@ -14,7 +14,7 @@ import androidx.work.WorkManager
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
 import io.mockk.every
@@ -45,7 +45,7 @@ import java.time.ZoneId
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class DualTouchZoneStickyVisibilityRoboTest {
 
     private lateinit var context: Context

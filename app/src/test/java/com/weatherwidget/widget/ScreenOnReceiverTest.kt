@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import com.weatherwidget.widget.WidgetActions
 import io.mockk.coEvery
@@ -32,7 +32,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class ScreenOnReceiverTest {
 
     private lateinit var context: Context

@@ -13,7 +13,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
@@ -36,7 +36,7 @@ import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class PrecipProbabilityTouchRoutingRoboTest {
     private lateinit var context: Context
     private lateinit var app: Application

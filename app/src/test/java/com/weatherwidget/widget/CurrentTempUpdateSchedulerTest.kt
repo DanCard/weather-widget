@@ -7,7 +7,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import com.weatherwidget.data.local.WeatherDatabase
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.testutil.TestDatabase
 import io.mockk.every
 import io.mockk.mockk
@@ -26,7 +26,7 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class CurrentTempUpdateSchedulerTest {
 
     private lateinit var context: Context

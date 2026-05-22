@@ -14,10 +14,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class WidgetIntentRouterCrashSafetyRoboTest {

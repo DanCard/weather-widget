@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.test.core.app.ApplicationProvider
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import io.mockk.every
 import io.mockk.mockkConstructor
 import io.mockk.slot
@@ -21,7 +21,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class RateLimitedWatermarkRobolectricTest {
 
     private val context = ApplicationProvider.getApplicationContext<Context>()

@@ -1,7 +1,7 @@
 package com.weatherwidget.widget
 
 import android.content.BroadcastReceiver
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class WeatherWidgetProviderPendingResultTest {
 
     @Test

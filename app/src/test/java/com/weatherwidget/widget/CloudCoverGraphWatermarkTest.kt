@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import com.weatherwidget.R
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.verify
@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class CloudCoverGraphWatermarkTest {
 
     private val context = ApplicationProvider.getApplicationContext<Context>()

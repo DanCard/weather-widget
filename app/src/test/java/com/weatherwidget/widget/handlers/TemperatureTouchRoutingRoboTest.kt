@@ -34,7 +34,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 
@@ -44,7 +44,7 @@ import android.widget.LinearLayout
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class TemperatureTouchRoutingRoboTest {
     private lateinit var context: Context
     private lateinit var app: Application

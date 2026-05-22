@@ -5,7 +5,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.TestData.dateEpoch
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import com.weatherwidget.util.WeatherIconMapper
 import com.weatherwidget.widget.DailyForecastGraphRenderer
 import org.junit.Assert.assertEquals
@@ -25,7 +25,7 @@ import java.time.format.DateTimeFormatter
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class DailyViewLogicTest {
 
     @Test

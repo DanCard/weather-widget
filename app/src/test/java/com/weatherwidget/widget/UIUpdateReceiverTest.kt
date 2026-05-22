@@ -7,7 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -30,7 +30,7 @@ import org.robolectric.shadows.ShadowPowerManager
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class UIUpdateReceiverTest {
 
     private lateinit var context: Context

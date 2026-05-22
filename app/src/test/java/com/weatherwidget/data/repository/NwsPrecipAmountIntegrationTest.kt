@@ -20,10 +20,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.time.LocalDate
 import java.time.ZoneId
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 
 @RunWith(RobolectricTestRunner::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class NwsPrecipAmountIntegrationTest {
     private lateinit var db: WeatherDatabase
     private lateinit var repository: ForecastRepository

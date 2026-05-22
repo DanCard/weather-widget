@@ -13,7 +13,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 
@@ -23,7 +23,7 @@ import org.junit.experimental.categories.Category
  * Station data now lives in the observations table (ObservationEntity).
  */
 @RunWith(RobolectricTestRunner::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class WeatherRepositoryStationFallbackTest {
     private lateinit var db: WeatherDatabase
 

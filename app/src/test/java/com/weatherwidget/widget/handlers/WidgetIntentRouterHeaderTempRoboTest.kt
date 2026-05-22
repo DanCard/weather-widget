@@ -29,7 +29,7 @@ import org.robolectric.annotation.Config
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 /**
@@ -53,7 +53,7 @@ import org.junit.experimental.categories.Category
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class WidgetIntentRouterHeaderTempRoboTest {
 
     private val lat = 37.42

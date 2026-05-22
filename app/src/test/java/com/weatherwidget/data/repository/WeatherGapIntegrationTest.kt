@@ -17,13 +17,13 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.LongDuration
 import org.junit.experimental.categories.Category
 
 
 
 @RunWith(RobolectricTestRunner::class)
-@Category(MediumDuration::class)
+@Category(LongDuration::class)
 class WeatherGapIntegrationTest {
     private lateinit var db: WeatherDatabase
     private lateinit var repository: WeatherRepository
