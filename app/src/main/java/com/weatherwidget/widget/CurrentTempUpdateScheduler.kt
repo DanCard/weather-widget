@@ -140,7 +140,7 @@ object CurrentTempUpdateScheduler {
                 val workRequest = buildCurrentTempRequest(reason = reason, delayMinutes = if (immediate) 0 else intervalMinutes)
                 val policy =
                     when (decision.action) {
-                        ChargingLoopAction.ENQUEUE_DELAYED -> ExistingWorkPolicy.KEEP
+                        ChargingLoopAction.ENQUEUE_DELAYED -> ExistingWorkPolicy.APPEND_OR_REPLACE
                         ChargingLoopAction.REPLACE_DELAYED,
                         ChargingLoopAction.REPLACE_IMMEDIATE,
                         -> ExistingWorkPolicy.REPLACE

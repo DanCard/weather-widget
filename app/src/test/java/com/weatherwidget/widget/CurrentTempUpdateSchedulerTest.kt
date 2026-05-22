@@ -179,12 +179,43 @@ class CurrentTempUpdateSchedulerTest {
         }
     }
 
+    @Test
+    fun `scheduleNextChargingUpdate uses APPEND_OR_REPLACE when enqueuing successor from running worker`() {
+        // Use a real WorkInfo if possible, but it's easier to mock it
+        val activeId = UUID.randomUUID()
+        val mockWorkInfo = mockk<WorkInfo>()
+        every { mockWorkInfo.id } returns activeId
+        every { mockWorkInfo.state } returns WorkInfo.State.RUNNING
+        every { mockWorkInfo.runAttemptCount } returns 0
+        every { mockWorkInfo.nextScheduleTimeMillis } returns NOW_MS - 5_000L
+
+        every { mockWorkManager.getWorkInfosForUniqueWork(any()) } returns com.google.common.util.concurrent.Futures.immediateFuture(listOf(mockWorkInfo))
+
+        kotlinx.coroutines.test.runTest {
+            CurrentTempUpdateScheduler.scheduleNextChargingUpdate(
+                context = context,
+                workManager = mockWorkManager,
+                nowMs = NOW_MS,
+                ignoreRunningWorkId = activeId,
+            )
+        }
+
+        verify {
+            mockWorkManager.enqueueUniqueWork(
+                eq(WeatherWidgetProvider.WORK_NAME_CURRENT_TEMP),
+                eq(ExistingWorkPolicy.APPEND_OR_REPLACE),
+                any<OneTimeWorkRequest>()
+            )
+        }
+    }
+
     private fun workInfo(
+        id: UUID = UUID.randomUUID(),
         state: WorkInfo.State,
         nextScheduleTimeMs: Long?,
     ): CurrentTempUpdateScheduler.ChargingWorkInfo =
         CurrentTempUpdateScheduler.ChargingWorkInfo(
-            id = UUID.randomUUID(),
+            id = id,
             state = state,
             runAttemptCount = 0,
             nextScheduleTimeMs = nextScheduleTimeMs,
