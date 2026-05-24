@@ -22,7 +22,7 @@ object HeaderConstants {
     const val DATE_MIN_COLUMNS = 6
     const val SETTINGS_ICON_SIZE_DP = 18f
     const val SETTINGS_ICON_MARGIN_END_DP = 0f
-    const val PRECIP_TEXT_BASE_SIZE_DP = 26f
+    const val PRECIP_TEXT_BASE_SIZE_DP = 18f
     const val CENTER_ICON_SIZE_DP = 20f
     const val GRAPH_SELECTOR_TEXT_SIZE_DP = 16f
     const val API_TEXT_SIZE_LARGE_DP = 12.6f

@@ -57,7 +57,7 @@ object DailyForecastGraphRenderer {
     private const val ICON_STACK_SPACING_DP = 4f
     private const val DAY_LABEL_BASE_SIZE_DP = 17f
     private const val ICON_BASE_SIZE_DP = 36f
-    private const val RAIN_TEXT_SIZE_DP = 24f
+    private val RAIN_TEXT_SIZE_DP = HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP
     // Tiny margin in dp so day label baseline sits just inside bitmap bottom edge across densities.
     internal const val DAY_LABEL_BOTTOM_MARGIN_DP = 1f
     private const val GHOST_BAR_ALPHA = 75
