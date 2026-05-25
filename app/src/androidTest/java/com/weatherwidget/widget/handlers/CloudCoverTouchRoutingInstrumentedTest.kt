@@ -3,6 +3,7 @@ package com.weatherwidget.widget.handlers
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.content.SharedPreferences
 import android.view.View
 import android.view.View.MeasureSpec
 import android.view.ViewGroup
@@ -19,16 +20,20 @@ import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
+import com.weatherwidget.util.SharedPreferencesUtil
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Device-side regression for cloud-cover touch routing.
@@ -124,15 +129,38 @@ class CloudCoverTouchRoutingInstrumentedTest : IsolatedIntegrationTest("cloud_co
         return applied
     }
 
+    /**
+     * Deterministic, sleep-free wait. performClick() delivers the PendingIntent broadcast
+     * asynchronously and the view-mode write lands off the click thread (which is what made a
+     * fixed-timeout poll flaky under full-suite load). The view mode is SharedPreferences-backed,
+     * so we block on the change event instead: register a listener and also re-check the current
+     * value, which closes the race whether the write lands before or after registration. Uses the
+     * same SharedPreferencesUtil routing as WidgetStateManager so it observes the exact instance
+     * the manager writes (see the `_test_default` suffix behavior).
+     */
     private fun waitForViewMode(expected: ViewMode) {
-        val deadline = System.currentTimeMillis() + 5000
-        while (System.currentTimeMillis() < deadline) {
-            if (stateManager.getViewMode(appWidgetId) == expected) {
-                return
+        if (stateManager.getViewMode(appWidgetId) == expected) return
+
+        val prefs = SharedPreferencesUtil.getPrefs(context, WidgetStateManager.getPrefsNameForTesting())
+        val key = "widget_view_mode_$appWidgetId"
+        val latch = CountDownLatch(1)
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            // changedKey is null when prefs are cleared; re-read to confirm the target value.
+            if (changedKey == null || changedKey == key) {
+                if (stateManager.getViewMode(appWidgetId) == expected) latch.countDown()
             }
-            Thread.sleep(50)
         }
-        assertEquals(expected, stateManager.getViewMode(appWidgetId))
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        try {
+            // Guard against the write landing between performClick and listener registration.
+            if (stateManager.getViewMode(appWidgetId) == expected) latch.countDown()
+            assertTrue(
+                "Timed out waiting for view mode to become $expected",
+                latch.await(15, TimeUnit.SECONDS),
+            )
+        } finally {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
     }
 
     private fun insertHourlyRows() = runBlocking {

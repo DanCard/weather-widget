@@ -66,6 +66,7 @@ class OpenMeteoIntegrationTest {
         val widgetStateManager = mockk<WidgetStateManager>(relaxed = true)
         every { widgetStateManager.isSourceVisible(any()) } returns true
         every { widgetStateManager.getVisibleSourcesOrder() } returns listOf(WeatherSource.OPEN_METEO)
+        every { widgetStateManager.getPrimarySource() } returns WeatherSource.OPEN_METEO
         
         return ForecastRepository(
             context,
@@ -139,5 +140,79 @@ class OpenMeteoIntegrationTest {
         val tomorrowSnap = snapshots.find { it.targetDate == dateEpoch(tomorrow) }!!
         assertEquals("Tomorrow high should be rounded", 73.0f, tomorrowSnap.highTemp!!, 0.001f)
         assertEquals("Tomorrow low should be rounded", 52.0f, tomorrowSnap.lowTemp!!, 0.001f)
+    }
+
+    /**
+     * Write-path coverage: a real fetch+save must populate hourly_forecast_history with the full
+     * predicted hourly curve, tagged with the correct snapshotBucket (4h here, since OPEN_METEO is
+     * stubbed as the primary source). Uses dynamically-generated FUTURE UTC hours so they survive
+     * the "future only" filter regardless of wall-clock time.
+     */
+    @Test
+    fun `fetch populates hourly_forecast_history with cloud cover and a 4h-aligned bucket`() = runTest {
+        val fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
+        val baseUtc = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
+            .withMinute(0).withSecond(0).withNano(0)
+        val h1 = baseUtc.plusHours(1).format(fmt)
+        val h2 = baseUtc.plusHours(2).format(fmt)
+        val h3 = baseUtc.plusHours(3).format(fmt)
+
+        val mockResponse = """
+            {
+                "latitude": $testLat,
+                "longitude": $testLon,
+                "timezone": "UTC",
+                "current": { "time": "${baseUtc.format(fmt)}", "temperature_2m": 60.0, "weather_code": 3 },
+                "daily": {
+                    "time": ["$today", "$tomorrow"],
+                    "temperature_2m_max": [72.4, 72.6],
+                    "temperature_2m_min": [50.2, 51.8],
+                    "weather_code": [3, 3],
+                    "precipitation_probability_max": [10, 20]
+                },
+                "hourly": {
+                    "time": ["$h1", "$h2", "$h3"],
+                    "temperature_2m": [60.0, 61.0, 62.0],
+                    "weather_code": [3, 3, 3],
+                    "precipitation_probability": [15, 20, 25],
+                    "cloud_cover": [40, 55, 70]
+                }
+            }
+        """.trimIndent()
+
+        repository = createRepository(mockResponse)
+        repository.getWeatherData(testLat, testLon, "Test Location", forceRefresh = true)
+
+        data class HistRow(val dateTime: Long, val snapshotBucket: Long, val cloudCover: Int?, val fetchedAt: Long)
+        val rows = mutableListOf<HistRow>()
+        db.query(
+            "SELECT dateTime, snapshotBucket, cloudCover, fetchedAt FROM hourly_forecast_history " +
+                "WHERE source = ? ORDER BY dateTime",
+            arrayOf<Any?>("OPEN_METEO"),
+        ).use { c ->
+            while (c.moveToNext()) {
+                rows.add(
+                    HistRow(
+                        dateTime = c.getLong(0),
+                        snapshotBucket = c.getLong(1),
+                        cloudCover = if (c.isNull(2)) null else c.getInt(2),
+                        fetchedAt = c.getLong(3),
+                    ),
+                )
+            }
+        }
+
+        // All three future hours captured as a snapshot.
+        assertEquals("history should capture all 3 future hours", 3, rows.size)
+        // Cloud cover preserved (the whole point of the history record).
+        assertEquals(listOf(40, 55, 70), rows.map { it.cloudCover })
+        // Each row's bucket = policy applied to its real fetchedAt, and 4h-aligned (primary source).
+        rows.forEach { r ->
+            assertEquals(
+                ForecastHistoryPolicy.snapshotBucket(r.fetchedAt, "OPEN_METEO", "OPEN_METEO"),
+                r.snapshotBucket,
+            )
+            assertEquals("primary bucket must be 4h-aligned", 0L, r.snapshotBucket % ForecastHistoryPolicy.PRIMARY_BUCKET_MS)
+        }
     }
 }
