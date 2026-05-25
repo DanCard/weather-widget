@@ -44,6 +44,7 @@ class WeatherGapIntegrationTest {
             context,
             db.forecastDao(),
             db.hourlyForecastDao(),
+            db.hourlyForecastHistoryDao(),
             db.appLogDao(),
             mockk(relaxed = true),
             mockk(relaxed = true),

@@ -42,6 +42,7 @@ class ForecastSnapshotDeduplicationTest {
             context,
             db.forecastDao(),
             db.hourlyForecastDao(),
+            db.hourlyForecastHistoryDao(),
             db.appLogDao(),
             mockk(),
             mockk(),
@@ -94,10 +95,17 @@ class ForecastSnapshotDeduplicationTest {
     }
 
     @Test
-    fun `changed high temp creates new snapshot`() = runTest {
+    fun `changed high temp within a snapshot bucket collapses to one updated row`() = runTest {
         repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 70f, lowTemp = 50f)), LAT, LON, "NWS")
         repository.saveForecastSnapshot(listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 72f, lowTemp = 50f)), LAT, LON, "NWS")
-        assertEquals(2, db.forecastDao().getCount())
+        // The change is captured, but within a single snapshot bucket (4h primary / 8h other) the
+        // forecast-history cadence cap collapses it to one latest row instead of appending a new
+        // snapshot. Both saves here share a bucket (fetchedAt = now). Across buckets it would add a row.
+        assertEquals(1, db.forecastDao().getCount())
+        val rows = db.forecastDao().getForecastsInRangeBySource(
+            dateEpoch(tomorrow), dateEpoch(tomorrow), LAT, LON, "NWS",
+        )
+        assertEquals(72f, rows.first().highTemp)
     }
 
     @Test

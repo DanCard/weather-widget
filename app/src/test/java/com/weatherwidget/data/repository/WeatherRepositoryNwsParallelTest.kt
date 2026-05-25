@@ -61,6 +61,7 @@ class WeatherRepositoryNwsParallelTest {
             context,
             forecastDao,
             hourlyForecastDao,
+            mockk(relaxed = true),
             appLogDao,
             nwsApi,
             openMeteoApi,

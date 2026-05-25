@@ -36,6 +36,7 @@ class ForecastDeduplicationBugReproTest {
             context,
             db.forecastDao(),
             db.hourlyForecastDao(),
+            db.hourlyForecastHistoryDao(),
             db.appLogDao(),
             mockk(),
             mockk(),
@@ -73,7 +74,12 @@ class ForecastDeduplicationBugReproTest {
     fun tearDown() = db.close()
 
     @Test
-    fun `reproduce bug where good forecast is skipped after a regression`() = runTest {
+    fun `good forecast is not skipped after a regression`() = runTest {
+        // All three saves land in the same snapshot bucket (fetchedAt = now), so the forecast-history
+        // cadence cap collapses them to a single latest row. The bug this guards against is the GOOD
+        // forecast (Batch 3) being dropped by the dedup comparison after a regression — so the key
+        // assertion is that the surviving row carries the good (non-null) high temp, not the count.
+
         // 1. Save a good forecast (Batch 1)
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
@@ -81,36 +87,35 @@ class ForecastDeduplicationBugReproTest {
         )
         assertEquals(1, db.forecastDao().getCount())
 
-        // 2. Save a regressed forecast (missing high) (Batch 2)
-        // This should be saved because it's different from Batch 1
+        // 2. Save a regressed forecast (missing high) (Batch 2) — different, so it replaces in-bucket.
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = null, lowTemp = 54f)),
             LAT, LON, "NWS", batchFetchedAt = 2000L
         )
-        assertEquals(2, db.forecastDao().getCount())
+        assertEquals(1, db.forecastDao().getCount())
 
-        // 3. Save the good forecast again (Batch 3)
-        // This SHOULD be saved because it's strictly better than Batch 2 (the current latest)
-        // BUT it's currently being skipped because it's compared against Batch 1.
+        // 3. Save the good forecast again (Batch 3) — strictly better than the current latest, so the
+        // dedup must NOT skip it; it replaces the regressed row within the bucket.
         repository.saveForecastSnapshot(
             listOf(TestData.forecast(targetDate = tomorrow, source = "NWS", highTemp = 80f, lowTemp = 54f)),
             LAT, LON, "NWS", batchFetchedAt = 3000L
         )
 
-        // If the bug exists, count will still be 2. If fixed, count should be 3.
         val count = db.forecastDao().getCount()
-        
-        // Let's also check what getForecastsInRange returns. It should return the row with MAX batchFetchedAt.
-        // If Batch 3 was skipped, it will return Batch 2 (the NULL one).
+
+        // getForecastsInRange returns the row with MAX batchFetchedAt. If Batch 3 were wrongly skipped,
+        // the surviving row would be the regressed Batch 2 (null high) — the real regression signal.
         val forecasts = repository.getForecastsInRange(
             LocalDate.now().toEpochDay() * 86400000L,
             LocalDate.now().plusDays(2).toEpochDay() * 86400000L,
             LAT, LON
         )
         val tomorrowForecast = forecasts.find { it.targetDate == TestData.dateEpoch(tomorrow) }
-        
+
         assertNotNull("Tomorrow forecast should exist", tomorrowForecast)
-        assertNotNull("High temp should NOT be null", tomorrowForecast?.highTemp)
-        assertEquals(3, count) // This will fail if the bug is present
+        assertNotNull("High temp should NOT be null (good forecast must survive)", tomorrowForecast?.highTemp)
+        assertEquals(80f, tomorrowForecast?.highTemp)
+        // Same-bucket saves collapse to one row under the cadence cap.
+        assertEquals(1, count)
     }
 }

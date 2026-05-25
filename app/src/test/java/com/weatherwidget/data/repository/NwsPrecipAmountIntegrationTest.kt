@@ -45,6 +45,7 @@ class NwsPrecipAmountIntegrationTest {
             context = context,
             forecastDao = db.forecastDao(),
             hourlyForecastDao = db.hourlyForecastDao(),
+            hourlyForecastHistoryDao = db.hourlyForecastHistoryDao(),
             appLogDao = db.appLogDao(),
             nwsApi = nwsApi,
             openMeteoApi = mockk(relaxed = true),

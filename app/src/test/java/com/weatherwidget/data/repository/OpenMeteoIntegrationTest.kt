@@ -71,6 +71,7 @@ class OpenMeteoIntegrationTest {
             context,
             db.forecastDao(),
             db.hourlyForecastDao(),
+            db.hourlyForecastHistoryDao(),
             db.appLogDao(),
             nwsApi,
             openMeteoApi,

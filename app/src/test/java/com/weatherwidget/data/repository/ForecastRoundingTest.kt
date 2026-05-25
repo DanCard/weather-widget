@@ -40,6 +40,7 @@ class ForecastRoundingTest {
             context,
             db.forecastDao(),
             db.hourlyForecastDao(),
+            db.hourlyForecastHistoryDao(),
             db.appLogDao(),
             mockk(),
             mockk(),
