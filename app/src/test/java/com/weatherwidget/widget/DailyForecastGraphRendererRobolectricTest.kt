@@ -82,6 +82,95 @@ class DailyForecastGraphRendererRobolectricTest {
         assertEquals(listOf(WeatherConditionColors.FORECAST_SUNNY), paintColors)
     }
 
+    /**
+     * Regression test for the today column's snapshot bar (yesterday's forecast for today —
+     * the bright-yellow bar to the RIGHT of the thermostat). It must carry the same grey
+     * cloud-cover segment as the live-forecast bar. Previously [drawTodayTripleBar] forced
+     * `cloudCoverRatioOverride = null` on the snapshot copy, so a sunny snapshot icon produced
+     * a solid yellow bar with no grey bottom.
+     *
+     * A weather-adaptive (grey-segmented) bar emits TWO drawLine calls at its X (grey full
+     * height + colored top); a solid bar emits ONE. The snapshot bar is drawn at
+     * centerX + tripleBarOffset — the rightmost of the three today bars. (Colors can't be
+     * asserted here: this is plain JUnit, so android Color/Paint return 0.)
+     */
+    @Test
+    fun `today snapshot bar draws grey cloud segment when cloud cover present`() {
+        val lineCountsByX = captureTodayBarLineCountsByX(
+            snapshotIconRes = R.drawable.ic_weather_clear,
+            cloudCoverRatioOverride = 0.36f,
+        )
+
+        val snapshotBarX = lineCountsByX.keys.max() // rightmost bar = snapshot
+        assertEquals(
+            "snapshot bar should be split into grey + colored segments (2 drawLine calls)",
+            2,
+            lineCountsByX[snapshotBarX],
+        )
+    }
+
+    @Test
+    fun `today snapshot bar stays solid when no cloud cover data`() {
+        val lineCountsByX = captureTodayBarLineCountsByX(
+            snapshotIconRes = R.drawable.ic_weather_clear,
+            cloudCoverRatioOverride = null,
+        )
+
+        // No cloud data + sunny snapshot icon → the snapshot bar is a single solid line.
+        val snapshotBarX = lineCountsByX.keys.max()
+        assertEquals(1, lineCountsByX[snapshotBarX])
+    }
+
+    /**
+     * Renders a single TODAY column and returns the count of drawLine calls at each X position.
+     * The three bars land at distinct X: live-forecast (centerX − offset), observed thermostat
+     * (centerX), and snapshot (centerX + offset, the rightmost).
+     */
+    private fun captureTodayBarLineCountsByX(
+        snapshotIconRes: Int,
+        cloudCoverRatioOverride: Float?,
+    ): Map<Float, Int> {
+        val context = mockContext()
+        val xSlot = slot<Float>()
+        val lineXs = mutableListOf<Float>()
+        every {
+            anyConstructed<Canvas>().drawLine(capture(xSlot), any(), any(), any(), any())
+        } answers {
+            lineXs.add(xSlot.captured)
+            Unit
+        }
+
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = listOf(
+                    DailyForecastGraphRenderer.DayData(
+                        date = LocalDate.of(2026, 5, 25),
+                        label = "Today",
+                        // Observed thermostat (solid), today's live forecast (dashed),
+                        // and yesterday's forecast for today (snapshot).
+                        solidLineHigh = 68f,
+                        solidLineLow = 50f,
+                        dashedLineHigh = 70f,
+                        dashedLineLow = 52f,
+                        snapshotHigh = 72f,
+                        snapshotLow = 50f,
+                        snapshotIconRes = snapshotIconRes,
+                        iconRes = R.drawable.ic_weather_clear,
+                        isSunny = true,
+                        isMixed = false,
+                        isToday = true,
+                        cloudCoverRatioOverride = cloudCoverRatioOverride,
+                    ),
+                ),
+                widthPx = 240,
+                heightPx = 360,
+            )
+        }
+
+        return lineXs.groupingBy { it }.eachCount()
+    }
+
     private fun capturePrimaryBarPaintColors(
         iconRes: Int,
         isMixed: Boolean = true,

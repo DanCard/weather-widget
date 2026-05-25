@@ -255,36 +255,36 @@ class HeaderPrecipCalculatorTest {
 
     @Test
     fun `getPrecipTextSize returns correct sizes based on probability`() {
-        // Base size is 26f
-        // <= 1% -> 26 * 0.4 = 10.4
-        assertEquals(10.4f, HeaderPrecipCalculator.getPrecipTextSize(0), 0.01f)
-        assertEquals(10.4f, HeaderPrecipCalculator.getPrecipTextSize(1), 0.01f)
+        // Base size is 18f
+        // <= 1% -> 18 * 0.4 = 7.2
+        assertEquals(7.2f, HeaderPrecipCalculator.getPrecipTextSize(0), 0.01f)
+        assertEquals(7.2f, HeaderPrecipCalculator.getPrecipTextSize(1), 0.01f)
 
-        // <= 2% -> 26 * 0.5 = 13.0
-        assertEquals(13.0f, HeaderPrecipCalculator.getPrecipTextSize(2), 0.01f)
+        // <= 2% -> 18 * 0.5 = 9.0
+        assertEquals(9.0f, HeaderPrecipCalculator.getPrecipTextSize(2), 0.01f)
 
-        // <= 4% -> 26 * 0.6 = 15.6
-        assertEquals(15.6f, HeaderPrecipCalculator.getPrecipTextSize(3), 0.01f)
-        assertEquals(15.6f, HeaderPrecipCalculator.getPrecipTextSize(4), 0.01f)
+        // <= 4% -> 18 * 0.6 = 10.8
+        assertEquals(10.8f, HeaderPrecipCalculator.getPrecipTextSize(3), 0.01f)
+        assertEquals(10.8f, HeaderPrecipCalculator.getPrecipTextSize(4), 0.01f)
 
-        // <= 8% -> 26 * 0.7 = 18.2
-        assertEquals(18.2f, HeaderPrecipCalculator.getPrecipTextSize(5), 0.01f)
-        assertEquals(18.2f, HeaderPrecipCalculator.getPrecipTextSize(8), 0.01f)
+        // <= 8% -> 18 * 0.7 = 12.6
+        assertEquals(12.6f, HeaderPrecipCalculator.getPrecipTextSize(5), 0.01f)
+        assertEquals(12.6f, HeaderPrecipCalculator.getPrecipTextSize(8), 0.01f)
 
-        // <= 15% -> 26 * 0.8 = 20.8
-        assertEquals(20.8f, HeaderPrecipCalculator.getPrecipTextSize(9), 0.01f)
-        assertEquals(20.8f, HeaderPrecipCalculator.getPrecipTextSize(12), 0.01f)
-        assertEquals(20.8f, HeaderPrecipCalculator.getPrecipTextSize(15), 0.01f)
+        // <= 15% -> 18 * 0.8 = 14.4
+        assertEquals(14.4f, HeaderPrecipCalculator.getPrecipTextSize(9), 0.01f)
+        assertEquals(14.4f, HeaderPrecipCalculator.getPrecipTextSize(12), 0.01f)
+        assertEquals(14.4f, HeaderPrecipCalculator.getPrecipTextSize(15), 0.01f)
 
-        // <= 25% -> 26 * 0.9 = 23.4
-        assertEquals(23.4f, HeaderPrecipCalculator.getPrecipTextSize(16), 0.01f)
-        assertEquals(23.4f, HeaderPrecipCalculator.getPrecipTextSize(20), 0.01f)
-        assertEquals(23.4f, HeaderPrecipCalculator.getPrecipTextSize(25), 0.01f)
+        // <= 25% -> 18 * 0.9 = 16.2
+        assertEquals(16.2f, HeaderPrecipCalculator.getPrecipTextSize(16), 0.01f)
+        assertEquals(16.2f, HeaderPrecipCalculator.getPrecipTextSize(20), 0.01f)
+        assertEquals(16.2f, HeaderPrecipCalculator.getPrecipTextSize(25), 0.01f)
 
-        // > 25% -> 26
-        assertEquals(26.0f, HeaderPrecipCalculator.getPrecipTextSize(26), 0.01f)
-        assertEquals(26.0f, HeaderPrecipCalculator.getPrecipTextSize(50), 0.01f)
-        assertEquals(26.0f, HeaderPrecipCalculator.getPrecipTextSize(100), 0.01f)
+        // > 25% -> 18.0
+        assertEquals(18.0f, HeaderPrecipCalculator.getPrecipTextSize(26), 0.01f)
+        assertEquals(18.0f, HeaderPrecipCalculator.getPrecipTextSize(50), 0.01f)
+        assertEquals(18.0f, HeaderPrecipCalculator.getPrecipTextSize(100), 0.01f)
     }
 
     private fun hourly(

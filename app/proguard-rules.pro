@@ -15,3 +15,9 @@
 
 # Suppress R8 warnings for missing optional dependencies
 -dontwarn org.slf4j.impl.StaticLoggerBinder
+
+# Logging policy: KEEP all android.util.Log calls in release builds.
+# R8 only strips Log.* when an `-assumenosideeffects class android.util.Log { ... }`
+# rule is present. We intentionally do NOT add one, so Log.d/Log.i survive minification
+# and on-device diagnostics (e.g. DailyGraphRenderer / DailyViewLogic render decisions)
+# remain available in release. Do not add an assumenosideeffects rule for android.util.Log.

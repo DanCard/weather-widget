@@ -515,7 +515,15 @@ object DailyViewLogic {
                         precipProbability = null,
                     )
                 }
-            
+
+            // Diagnoses why a past-day forecast overlay does/doesn't get the grey cloud-cover segment.
+            Log.d(
+                TAG,
+                "cloudDecision: date=$date isPast=$isPastDate weatherPresent=${weather != null}" +
+                    " actualPresent=${actual != null} iconRes=$iconRes isMixed=${WeatherIconMapper.isMixed(iconRes)}" +
+                    " cloudCoverRatioOverride=$cloudCoverRatioOverride hasOverlay=${fHigh != null && fLow != null}",
+            )
+
             val rawRainSummary = if (!isPastDate) {
                 rainSummaryProvider(hourlyForecasts, date, displaySource.id, now)
             } else null
@@ -638,7 +646,7 @@ object DailyViewLogic {
         }
         val noon = date.atTime(12, 0)
 
-        val closestCloudCover = hourlyForecasts
+        val candidates = hourlyForecasts
             .asSequence()
             .filter { it.source == targetSourceId }
             .mapNotNull { forecast ->
@@ -647,10 +655,15 @@ object DailyViewLogic {
                 if (localDateTime.toLocalDate() != date) return@mapNotNull null
                 Triple(abs(ChronoUnit.MINUTES.between(noon, localDateTime)), localDateTime, cloudCover)
             }
+            .toList()
+
+        val closestCloudCover = candidates
             .minWithOrNull(compareBy<Triple<Long, LocalDateTime, Int>> { it.first }.thenBy { it.second })
             ?.third
 
-        return closestCloudCover?.coerceIn(0, 100)?.div(100f)
+        val ratio = closestCloudCover?.coerceIn(0, 100)?.div(100f)
+        Log.d(TAG, "resolveNoonCloudCoverRatio: date=$date source=$targetSourceId weatherSourceId=$weatherSourceId matches=${candidates.size} closestCover=$closestCloudCover ratio=$ratio")
+        return ratio
     }
 
     private fun buildDailyRainLabel(

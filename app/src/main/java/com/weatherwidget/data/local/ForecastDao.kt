@@ -291,6 +291,30 @@ interface ForecastDao {
     @Query("DELETE FROM forecasts WHERE fetchedAt < :cutoffTime AND source = :source")
     suspend fun deleteOldForecastsBySource(cutoffTime: Long, source: String)
 
+    /**
+     * Removes existing rows for the given targets whose fetchedAt falls in a snapshot bucket window
+     * [bucketStart, bucketEnd). Used to cap daily forecast-history cadence (4h primary / 8h other):
+     * delete the earlier in-bucket snapshot before inserting the latest, so at most one row per
+     * bucket survives while the newest row keeps its real fetchedAt.
+     */
+    @Query(
+        """
+        DELETE FROM forecasts
+        WHERE source = :source
+        AND locationLat = :lat AND locationLon = :lon
+        AND targetDate IN (:targetDates)
+        AND fetchedAt >= :bucketStart AND fetchedAt < :bucketEnd
+    """,
+    )
+    suspend fun deleteForecastsInBucket(
+        source: String,
+        lat: Double,
+        lon: Double,
+        targetDates: List<Long>,
+        bucketStart: Long,
+        bucketEnd: Long,
+    )
+
     @Query(
         """
         SELECT * FROM forecasts

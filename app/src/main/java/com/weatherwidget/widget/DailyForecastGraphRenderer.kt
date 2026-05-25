@@ -878,12 +878,20 @@ object DailyForecastGraphRenderer {
                     }
                     val sPaint = paints.todayForecastForColor(sCondColor)
 
+                    // The snapshot bar (yesterday's forecast for today) describes the same day as
+                    // the live forecast bar, so it carries today's resolved cloud-cover ratio. The
+                    // snapshot's own predicted cloud cover is not stored (ForecastEntity has no
+                    // cloud field), and its icon buckets cloudiness too coarsely to recover a %
+                    // (a "sunny" snapshot icon yields no ratio). Reusing day.cloudCoverRatioOverride
+                    // keeps the grey cloud segment on the yellow snapshot bar consistent with the
+                    // amber live-forecast bar; falls back to the snapshot icon's ratio when absent.
                     val snapshotDay = day.copy(
                         iconRes = day.snapshotIconRes,
                         isSunny = sIsSunny,
                         isRainy = sIsRainy,
                         isMixed = sIsMixed,
-                        cloudCoverRatioOverride = null
+                        cloudCoverRatioOverride = day.cloudCoverRatioOverride
+                            ?: day.snapshotIconRes?.let { WeatherConditionColors.cloudRatio(it) },
                     )
 
                     drawWeatherAdaptiveBar(

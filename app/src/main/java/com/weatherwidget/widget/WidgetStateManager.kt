@@ -183,6 +183,13 @@ class WidgetStateManager
             return getStoredVisibleSourcesOrder()
         }
 
+        /**
+         * The primary API source = first entry of the global visible-sources order. Used by
+         * [com.weatherwidget.data.repository.ForecastHistoryPolicy] to pick the 4h (primary) vs 8h
+         * (non-primary) forecast-history snapshot cadence. Never empty (defaults to NWS).
+         */
+        fun getPrimarySource(): WeatherSource = getStoredVisibleSourcesOrder().first()
+
         private fun getStoredVisibleSourcesOrder(): List<WeatherSource> {
             migrateApiPreferenceIfNeeded()
             migrateSilurianIfNeeded()

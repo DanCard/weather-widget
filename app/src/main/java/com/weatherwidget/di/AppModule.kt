@@ -7,6 +7,7 @@ import com.weatherwidget.data.local.ClimateNormalDao
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.HourlyForecastDao
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.repository.CurrentTempRepository
@@ -108,6 +109,10 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideHourlyForecastHistoryDao(database: WeatherDatabase): HourlyForecastHistoryDao = database.hourlyForecastHistoryDao()
+
+    @Provides
+    @Singleton
     fun provideAppLogDao(database: WeatherDatabase): AppLogDao =
         database.appLogDao().also {
             TemperatureInterpolator.setDefaultAppLogDao(it)
@@ -153,6 +158,7 @@ object AppModule {
         @ApplicationContext context: Context,
         forecastDao: ForecastDao,
         hourlyForecastDao: HourlyForecastDao,
+        hourlyForecastHistoryDao: HourlyForecastHistoryDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
         openMeteoApi: OpenMeteoApi,
@@ -168,7 +174,7 @@ object AppModule {
         openWeatherMapApi: OpenWeatherMapApi,
         nwsForecastMapper: NwsForecastMapper,
     ): ForecastRepository = ForecastRepository(
-        context, forecastDao, hourlyForecastDao, appLogDao,
+        context, forecastDao, hourlyForecastDao, hourlyForecastHistoryDao, appLogDao,
         nwsApi, openMeteoApi, visualCrossingApi, weatherApi, silurianApi, widgetStateManager, climateNormalDao, observationDao, dailyExtremeDao, observationRepository, tomorrowIoApi, openWeatherMapApi, nwsForecastMapper
     )
 

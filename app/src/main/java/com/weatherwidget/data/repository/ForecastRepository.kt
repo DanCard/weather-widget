@@ -10,6 +10,8 @@ import com.weatherwidget.data.local.ForecastDao
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.HourlyForecastHistoryDao
+import com.weatherwidget.data.local.HourlyForecastHistoryEntity
 import com.weatherwidget.data.local.ObservationDao
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
@@ -56,6 +58,7 @@ class ForecastRepository
         @ApplicationContext private val context: Context,
         private val forecastDao: ForecastDao,
         private val hourlyForecastDao: HourlyForecastDao,
+        private val hourlyForecastHistoryDao: HourlyForecastHistoryDao,
         private val appLogDao: AppLogDao,
         private val nwsApi: NwsApi,
         private val openMeteoApi: OpenMeteoApi,
@@ -582,6 +585,22 @@ class ForecastRepository
                 }
                 
                 if (changedForecasts.isNotEmpty()) {
+                    // History cadence cap: collapse any earlier snapshot from this same bucket so the
+                    // daily forecast timeline keeps at most one row per 4h (primary) / 8h (non-primary)
+                    // window. The inserted rows carry the real fetchedAt, so current display and
+                    // last-updated stay fresh; only intra-bucket duplicates are removed. See
+                    // ForecastHistoryPolicy and ForecastEvolutionRenderer's SNAPSHOT_BUCKET_HOURS.
+                    val primarySourceId = widgetStateManager.getPrimarySource().id
+                    val bucketStart = ForecastHistoryPolicy.snapshotBucket(System.currentTimeMillis(), sourceId, primarySourceId)
+                    val bucketEnd = bucketStart + ForecastHistoryPolicy.bucketMs(sourceId, primarySourceId)
+                    forecastDao.deleteForecastsInBucket(
+                        source = sourceId,
+                        lat = latitude,
+                        lon = longitude,
+                        targetDates = changedForecasts.map { it.targetDate },
+                        bucketStart = bucketStart,
+                        bucketEnd = bucketEnd,
+                    )
                     forecastDao.insertAll(changedForecasts)
                 }
             }
@@ -699,6 +718,30 @@ class ForecastRepository
 
             if (changedEntities.isNotEmpty()) {
                 hourlyForecastDao.insertAll(changedEntities)
+            }
+
+            // Forecast-history snapshot: preserve the full predicted hourly curve as fetched, keyed by
+            // its snapshot bucket. Within a bucket the PK (incl snapshotBucket) makes later fetches
+            // REPLACE earlier ones, capping cadence at 4h (primary) / 8h (non-primary). The live table
+            // above stays latest-only; this is the historical record. See ForecastHistoryPolicy.
+            val primarySourceId = widgetStateManager.getPrimarySource().id
+            val historyRows = mergedEntities.map { e ->
+                HourlyForecastHistoryEntity(
+                    dateTime = e.dateTime,
+                    locationLat = e.locationLat,
+                    locationLon = e.locationLon,
+                    temperature = e.temperature,
+                    condition = e.condition,
+                    source = e.source,
+                    snapshotBucket = ForecastHistoryPolicy.snapshotBucket(e.fetchedAt, e.source, primarySourceId),
+                    precipProbability = e.precipProbability,
+                    cloudCover = e.cloudCover,
+                    precipAmountMm = e.precipAmountMm,
+                    fetchedAt = e.fetchedAt,
+                )
+            }
+            if (historyRows.isNotEmpty()) {
+                hourlyForecastHistoryDao.insertAll(historyRows)
             }
         }
         private suspend fun saveHourlyEntitiesFromShared(
@@ -832,6 +875,7 @@ class ForecastRepository
             val logsCutoffTimestamp = System.currentTimeMillis() - 1000L * 60 * 60 * 72 // 72 hours
             forecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
             hourlyForecastDao.deleteOldForecasts(oneMonthAgoTimestamp)
+            hourlyForecastHistoryDao.deleteOldHistory(oneMonthAgoTimestamp)
             observationDao.deleteOldObservations(sixDaysAgoTimestamp)
             dailyExtremeDao.deleteOldExtremes(oneMonthAgoTimestamp)
             appLogDao.deleteOldLogs(logsCutoffTimestamp)
