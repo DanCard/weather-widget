@@ -11,6 +11,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WidgetStateManager
 import com.weatherwidget.widget.ZoomLevel
@@ -151,14 +152,7 @@ class TemperatureHomeTouchRoutingInstrumentedTest :
     }
 
     private fun waitForViewMode(expected: ViewMode) {
-        val deadline = System.currentTimeMillis() + 5000
-        while (System.currentTimeMillis() < deadline) {
-            if (stateManager.getViewMode(appWidgetId) == expected) {
-                return
-            }
-            Thread.sleep(50)
-        }
-        assertEquals(expected, stateManager.getViewMode(appWidgetId))
+        WidgetStateTestUtils.waitForViewMode(context, stateManager, appWidgetId, expected)
     }
 
     private fun insertHourlyRows() = runBlocking {

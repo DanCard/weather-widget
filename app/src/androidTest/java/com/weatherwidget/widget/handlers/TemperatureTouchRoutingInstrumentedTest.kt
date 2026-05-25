@@ -14,6 +14,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
@@ -26,10 +27,8 @@ import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 import android.view.LayoutInflater
 import android.widget.LinearLayout
@@ -81,7 +80,7 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
 
     @Test
     fun bottomFooterTap_switchesFromTemperatureToCloudCover_withoutZooming() = runBlocking {
-        stateManager.setViewMode(appWidgetId, ViewMode.TEMPERATURE)
+        stateManager.setViewMode(appWidgetId, ViewMode.CLOUD_COVER)
         stateManager.setZoomLevel(appWidgetId, ZoomLevel.WIDE)
         stateManager.setHourlyOffset(appWidgetId, 0)
         stateManager.setCurrentDisplaySource(appWidgetId, WeatherSource.SILURIAN)
@@ -148,14 +147,7 @@ class TemperatureTouchRoutingInstrumentedTest : IsolatedIntegrationTest("tempera
     }
 
     private fun waitForViewMode(expected: ViewMode) {
-        val deadline = System.currentTimeMillis() + 5000
-        while (System.currentTimeMillis() < deadline) {
-            if (stateManager.getViewMode(appWidgetId) == expected) {
-                return
-            }
-            Thread.sleep(50)
-        }
-        assertEquals(expected, stateManager.getViewMode(appWidgetId))
+        WidgetStateTestUtils.waitForViewMode(context, stateManager, appWidgetId, expected)
     }
 
     private fun insertHourlyRows() = runBlocking {

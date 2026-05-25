@@ -14,6 +14,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
@@ -150,14 +151,7 @@ class PrecipTouchRoutingInstrumentedTest : IsolatedIntegrationTest("precip_touch
     }
 
     private fun waitForZoomLevel(expected: ZoomLevel) {
-        val deadline = System.currentTimeMillis() + 5000
-        while (System.currentTimeMillis() < deadline) {
-            if (stateManager.getZoomLevel(appWidgetId) == expected) {
-                return
-            }
-            Thread.sleep(50)
-        }
-        assertEquals(expected, stateManager.getZoomLevel(appWidgetId))
+        WidgetStateTestUtils.waitForZoomLevel(context, stateManager, appWidgetId, expected)
     }
 
     private fun insertHourlyRows() = runBlocking {

@@ -12,6 +12,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -120,7 +121,7 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
         instrumentation.waitForIdleSync()
 
         // THEN: It should switch to TEMPERATURE mode
-        waitForViewMode(ViewMode.TEMPERATURE)
+        WidgetStateTestUtils.waitForViewMode(context, stateManager, testWidgetId, ViewMode.TEMPERATURE)
         assertEquals("Should have navigated to TEMPERATURE mode", ViewMode.TEMPERATURE, stateManager.getViewMode(testWidgetId))
     }
 
@@ -151,7 +152,7 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
         instrumentation.waitForIdleSync()
 
         // THEN: It should switch to CLOUD_COVER mode
-        waitForViewMode(ViewMode.CLOUD_COVER)
+        WidgetStateTestUtils.waitForViewMode(context, stateManager, testWidgetId, ViewMode.CLOUD_COVER)
         assertEquals("Should have navigated to CLOUD_COVER mode", ViewMode.CLOUD_COVER, stateManager.getViewMode(testWidgetId))
     }
 
@@ -211,15 +212,5 @@ class DailyMainColumnVsBottomIconClickTargetIntegrationTest : IsolatedIntegratio
                         View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY))
         applied.layout(0, 0, 1000, 1000)
         return applied
-    }
-
-    private fun waitForViewMode(expected: ViewMode) {
-        val deadline = System.currentTimeMillis() + 5000
-        while (System.currentTimeMillis() < deadline) {
-            if (stateManager.getViewMode(testWidgetId) == expected) {
-                return
-            }
-            Thread.sleep(100)
-        }
     }
 }

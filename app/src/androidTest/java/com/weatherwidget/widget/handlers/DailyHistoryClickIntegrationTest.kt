@@ -11,6 +11,7 @@ import com.weatherwidget.data.local.ForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.IsolatedIntegrationTest
+import com.weatherwidget.testutil.WidgetStateTestUtils
 import com.weatherwidget.testutil.dateEpoch
 import com.weatherwidget.widget.ViewMode
 import com.weatherwidget.widget.WeatherWidgetWorker
@@ -107,10 +108,7 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
         stateManager.setDateOffset(testWidgetId, -2) // Center = today - 2. Leftmost = today - 3.
         
         // Wait for state to persist (it uses apply() internally)
-        val stateDeadline = System.currentTimeMillis() + 1000
-        while (System.currentTimeMillis() < stateDeadline && stateManager.getDateOffset(testWidgetId) != -2) {
-            Thread.sleep(50)
-        }
+        WidgetStateTestUtils.waitForDateOffset(context, stateManager, testWidgetId, -2)
         assertEquals("Date offset should be -2", -2, stateManager.getDateOffset(testWidgetId))
         
         val now = LocalDateTime.now()
@@ -132,7 +130,7 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
         instrumentation.waitForIdleSync()
 
         // THEN: It should switch to TEMPERATURE mode
-        waitForViewMode(ViewMode.TEMPERATURE)
+        WidgetStateTestUtils.waitForViewMode(context, stateManager, testWidgetId, ViewMode.TEMPERATURE)
         assertEquals("Should have navigated to TEMPERATURE mode", ViewMode.TEMPERATURE, stateManager.getViewMode(testWidgetId))
     }
 
@@ -183,15 +181,5 @@ class DailyHistoryClickIntegrationTest : IsolatedIntegrationTest("daily_history_
                         View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY))
         applied.layout(0, 0, 1000, 1000)
         return applied
-    }
-
-    private fun waitForViewMode(expected: ViewMode) {
-        val deadline = System.currentTimeMillis() + 3000
-        while (System.currentTimeMillis() < deadline) {
-            if (stateManager.getViewMode(testWidgetId) == expected) {
-                return
-            }
-            Thread.sleep(100)
-        }
     }
 }
