@@ -7,10 +7,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
-import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
-@Category(LongDuration::class)
+@Category(ShortDuration::class)
 class PrecipitationGraphRendererTest {
 
     private fun mockDpToPx(dp: Float): Float = dp

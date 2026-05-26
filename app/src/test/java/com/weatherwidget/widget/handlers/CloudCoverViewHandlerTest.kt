@@ -2,7 +2,7 @@ package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.ShortDuration
 import com.weatherwidget.widget.WeatherWidgetProvider
 import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.ZoomLevel
@@ -12,7 +12,7 @@ import org.junit.experimental.categories.Category
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-@Category(MediumDuration::class)
+@Category(ShortDuration::class)
 class CloudCoverViewHandlerTest {
 
     @Test

@@ -18,12 +18,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
-import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.experimental.categories.Category
 
-
-
-@Category(LongDuration::class)
+@Category(MediumDuration::class)
 class TemperatureGraphRendererFetchDotTest {
 
     @After

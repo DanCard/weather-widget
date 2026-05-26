@@ -18,7 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
-import com.weatherwidget.test.category.LongDuration
+import com.weatherwidget.test.category.MediumDuration
 import org.junit.experimental.categories.Category
 
 
@@ -38,7 +38,7 @@ import org.junit.experimental.categories.Category
  * Adding actuals = 8 + 1 = 9 paths.
  * Adding ghost = 9 + 1 = 10 paths.
  */
-@Category(LongDuration::class)
+@Category(MediumDuration::class)
 class TemperatureGraphRendererActualsTest {
 
     @After

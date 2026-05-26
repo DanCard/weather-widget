@@ -11,10 +11,10 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
-@Category(MediumDuration::class)
+@Category(ShortDuration::class)
 class NwsHistoryIntegrationTest {
 
     private fun LocalDateTime.toMs() = this.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()

@@ -294,7 +294,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_WEATHER_MAP.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_WEATHER_MAP.id)
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_WEATHER_MAP.id, result.hourly)
                     }
                 }
             } else null
@@ -306,7 +306,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.VISUAL_CROSSING.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.VISUAL_CROSSING.id)
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.VISUAL_CROSSING.id, result.hourly)
                     }
                 }
             } else null
@@ -323,7 +323,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.OPEN_METEO.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_METEO.id)
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.OPEN_METEO.id, result.hourly)
                     }
                 }
             } else null
@@ -335,7 +335,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.WEATHER_API.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.WEATHER_API.id)
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.WEATHER_API.id, result.hourly)
                     }
                 }
             } else null
@@ -347,22 +347,24 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.SILURIAN.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(
-                            DailyForecast(
-                                day.date,
-                                day.highTemp.toFloat(),
-                                day.lowTemp.toFloat(),
-                                day.condition,
-                                day.condition,
-                                day.precipProbability,
-                                day.precipAmountMm,
-                            ),
-                            latitude,
-                            longitude,
-                            locationName,
-                            WeatherSource.SILURIAN.id,
-                        )
+                    mapDailyForecast(
+                        DailyForecast(
+                            day.date,
+                            day.highTemp.toFloat(),
+                            day.lowTemp.toFloat(),
+                            day.condition,
+                            day.condition,
+                            day.precipProbability,
+                            day.precipAmountMm,
+                        ),
+                        latitude,
+                        longitude,
+                        locationName,
+                        WeatherSource.SILURIAN.id,
+                        result.hourly,
+                    )
                     }
+
                 }
             } else null
 
@@ -374,7 +376,7 @@ class ForecastRepository
                         saveHourlyEntitiesFromShared(result.hourly, latitude, longitude, WeatherSource.TOMORROW_IO.id)
                     }
                     result.daily.map { day ->
-                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.TOMORROW_IO.id)
+                        mapDailyForecast(day, latitude, longitude, locationName, WeatherSource.TOMORROW_IO.id, result.hourly)
                     }
                 }
             } else null
@@ -456,28 +458,54 @@ class ForecastRepository
             }
         }
 
-        private fun mapDailyForecast(
+        @androidx.annotation.VisibleForTesting
+        internal fun mapDailyForecast(
             day: DailyForecast,
             latitude: Double,
             longitude: Double,
             locationName: String,
             sourceId: String,
-        ): ForecastEntity = ForecastEntity(
-            targetDate = LocalDate.parse(day.date).toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-            forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
-            locationLat = latitude,
-            locationLon = longitude,
-            locationName = locationName,
-            highTemp = day.highTemp,
-            lowTemp = day.lowTemp,
-            condition = day.condition,
-            nativeDailyIconToken = day.iconToken,
-            isClimateNormal = false,
-            source = sourceId,
-            precipProbability = day.precipProbability,
-            daytimePrecipProbability = if (sourceId == WeatherSource.NWS.id) day.precipProbability else null,
-            precipAmountMm = day.precipAmountMm,
-        )
+            hourlyForecasts: List<HourlyForecast> = emptyList(),
+        ): ForecastEntity {
+            val targetDate = LocalDate.parse(day.date)
+            val zone = ZoneId.systemDefault()
+
+            // Daytime: 8:00 AM to 8:00 PM (on the target date)
+            val dayStart = targetDate.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+            val dayEnd = targetDate.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+
+            // Nighttime: 8:00 PM on target date to 8:00 AM next day
+            val nightStart = dayEnd
+            val nightEnd = targetDate.plusDays(1).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+
+            val calcDaytime = hourlyForecasts
+                .filter { it.dateTime >= dayStart && it.dateTime < dayEnd }
+                .mapNotNull { it.precipProbability }
+                .maxOrNull()
+
+            val calcNighttime = hourlyForecasts
+                .filter { it.dateTime >= nightStart && it.dateTime < nightEnd }
+                .mapNotNull { it.precipProbability }
+                .maxOrNull()
+
+            return ForecastEntity(
+                targetDate = targetDate.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                forecastDate = LocalDate.now().toEpochDay() * WidgetConstants.MS_IN_A_DAY,
+                locationLat = latitude,
+                locationLon = longitude,
+                locationName = locationName,
+                highTemp = day.highTemp,
+                lowTemp = day.lowTemp,
+                condition = day.condition,
+                nativeDailyIconToken = day.iconToken,
+                isClimateNormal = false,
+                source = sourceId,
+                precipProbability = day.precipProbability,
+                daytimePrecipProbability = calcDaytime,
+                nighttimePrecipProbability = calcNighttime,
+                precipAmountMm = day.precipAmountMm,
+            )
+        }
 
         @androidx.annotation.VisibleForTesting
         internal suspend fun saveForecastSnapshot(

@@ -8,10 +8,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
-import com.weatherwidget.test.category.MediumDuration
+import com.weatherwidget.test.category.ShortDuration
 import org.junit.experimental.categories.Category
 
-@Category(MediumDuration::class)
+@Category(ShortDuration::class)
 class PrecipViewHandlerTest {
 
     @Test
