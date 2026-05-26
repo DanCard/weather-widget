@@ -114,6 +114,11 @@ object DailyForecastGraphRenderer {
         val isNightLabel: Boolean = false,
     )
 
+    data class HeaderDrawnDebug(
+        val dateText: String?,
+        val dateSuppressedForRainOverlap: Boolean,
+    )
+
     data class DayLabelDrawnDebug(
         val date: LocalDate,
         val text: String,
@@ -322,6 +327,7 @@ object DailyForecastGraphRenderer {
         onDayLabelDrawn: ((DayLabelDrawnDebug) -> Unit)? = null,
         headerData: HeaderRenderData? = null,
         showErrorWatermark: Boolean = false,
+        onHeaderDrawn: ((HeaderDrawnDebug) -> Unit)? = null,
     ): Bitmap {
         job?.ensureActive()
         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
@@ -339,10 +345,6 @@ object DailyForecastGraphRenderer {
         val columns = if (numColumns > 0) numColumns else days.size
         val layout = computeLayout(context, days, widthPx, heightPx, columns, bitmapScale, job)
         val paints = getPaintSet(layout.scaleFactor, layout)
-
-        if (headerData != null) {
-            DailyForecastHeaderRenderer.drawHeader(canvas, context, headerData, widthPx, layout)
-        }
 
         debug { "renderGraph: days=${days.size}, minTemp=${layout.minTemp}, maxTemp=${layout.maxTemp}, widthPx=$widthPx, heightPx=$heightPx" }
 
@@ -363,12 +365,62 @@ object DailyForecastGraphRenderer {
             drawDayColumn(canvas, context, day, rightNeighbor, centerX, layout, paints, onRainLabelDrawn, onDayLabelDrawn)
         }
 
+        val finalHeaderData = headerData?.let { suppressHeaderDateForRainOverlap(it, days, layout, paints, widthPx) }
+        if (finalHeaderData != null) {
+            DailyForecastHeaderRenderer.drawHeader(canvas, context, finalHeaderData, widthPx, layout)
+            onHeaderDrawn?.invoke(
+                HeaderDrawnDebug(
+                    dateText = finalHeaderData.dateText,
+                    dateSuppressedForRainOverlap = !headerData.dateText.isNullOrBlank() && finalHeaderData.dateText == null,
+                ),
+            )
+        }
+
         if (showErrorWatermark) {
             val watermarkDensity = context.resources.displayMetrics.density * bitmapScale
             GraphRenderUtils.drawErrorWatermark(canvas, widthPx.toFloat(), heightPx.toFloat(), watermarkDensity)
         }
 
         return bitmap
+    }
+
+    private fun suppressHeaderDateForRainOverlap(
+        headerData: HeaderRenderData,
+        days: List<DayData>,
+        layout: LayoutInfo,
+        paints: PaintSet,
+        widthPx: Int,
+    ): HeaderRenderData {
+        if (headerData.dateText.isNullOrBlank()) return headerData
+        val padding = (2f).dp(layout.density)
+        val dateBounds = DailyForecastHeaderRenderer.resolveHeaderDateBounds(
+            header = headerData,
+            widthPx = widthPx,
+            layout = layout,
+            extraPaddingPx = padding,
+        ) ?: return headerData
+
+        days.forEachIndexed { index, day ->
+            val rawColumnIndex = day.columnIndex ?: index
+            val columnIndex = rawColumnIndex.coerceIn(0, layout.columns - 1)
+            val centerX = layout.horizontalPadding + layout.dayWidth * columnIndex + layout.dayWidth / 2f
+            val rainLabel = DailyForecastRainLabelRenderer.resolveDailyRainLabelPlacement(
+                day = day,
+                centerX = centerX,
+                layout = layout,
+                paints = paints,
+            )?.debug ?: return@forEachIndexed
+            val rainBounds = RectF(rainLabel.leftX, rainLabel.topY, rainLabel.rightX, rainLabel.bottomY)
+            if (RectF.intersects(dateBounds, rainBounds)) {
+                Log.d(
+                    TAG,
+                    "suppressHeaderDateForRainOverlap: dateText=${headerData.dateText} rainDate=${day.date}" +
+                        " rainText=${rainLabel.text} dateBounds=$dateBounds rainBounds=$rainBounds",
+                )
+                return headerData.copy(dateText = null)
+            }
+        }
+        return headerData
     }
 
     private fun computeLayout(

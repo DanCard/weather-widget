@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -72,6 +73,27 @@ class DailyForecastGraphRendererRoboTest {
                 heightPx = heightPx,
                 numColumns = numColumns,
                 onRainLabelDrawn = { results.add(it) },
+            )
+        }
+        assertNotNull(bitmap)
+        return results
+    }
+
+    private fun renderHeaderDraws(
+        days: List<DailyForecastGraphRenderer.DayData>,
+        widthPx: Int = 500,
+        heightPx: Int = 200,
+        headerData: DailyForecastGraphRenderer.HeaderRenderData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon"),
+    ): List<DailyForecastGraphRenderer.HeaderDrawnDebug> {
+        val results = mutableListOf<DailyForecastGraphRenderer.HeaderDrawnDebug>()
+        val bitmap = runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = days,
+                widthPx = widthPx,
+                heightPx = heightPx,
+                headerData = headerData,
+                onHeaderDrawn = { results.add(it) },
             )
         }
         assertNotNull(bitmap)
@@ -592,7 +614,7 @@ class DailyForecastGraphRendererRoboTest {
                     ),
                 ),
             ),
-            widthPx = 500,
+            widthPx = 800,
             heightPx = 40,
         )
 
@@ -602,6 +624,105 @@ class DailyForecastGraphRendererRoboTest {
             "Fixture should exercise the forced path where the label top is above the preferred margin. Label=${labels.first()}",
             labels.first().topY < 10f,
         )
+    }
+
+    @Test
+    fun renderGraph_headerDrawsAfterDailyRainLabels() {
+        val events = mutableListOf<String>()
+        val day = DailyForecastGraphRenderer.DayData(
+            date = LocalDate.of(2026, 2, 3),
+            label = "Mon",
+            solidLineHigh = 100f,
+            solidLineLow = 72f,
+            rainData = DailyForecastGraphRenderer.RainData(
+                dailyPrecipProbability = 100,
+                dailyRainLabelText = "100%",
+            ),
+        )
+
+        runBlocking {
+            DailyForecastGraphRenderer.renderGraph(
+                context = context,
+                days = listOf(day),
+                widthPx = 500,
+                heightPx = 40,
+                headerData = DailyForecastGraphRenderer.HeaderRenderData(dateText = "Mon"),
+                onRainLabelDrawn = { events.add("rain") },
+                onHeaderDrawn = { events.add("header") },
+            )
+        }
+
+        assertEquals(listOf("rain", "header"), events)
+    }
+
+    @Test
+    fun renderGraph_headerDateRemainsWhenDailyRainLabelDoesNotOverlap() {
+        val headerDraws = renderHeaderDraws(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
+                ),
+            ),
+        )
+
+        assertEquals(1, headerDraws.size)
+        assertEquals("Mon", headerDraws.first().dateText)
+        assertFalse(headerDraws.first().dateSuppressedForRainOverlap)
+    }
+
+    @Test
+    fun renderGraph_headerDateIsOmittedWhenDailyRainLabelOverlaps() {
+        val headerDraws = renderHeaderDraws(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    solidLineHigh = 100f,
+                    solidLineLow = 72f,
+                    rainData = DailyForecastGraphRenderer.RainData(
+                        dailyPrecipProbability = 100,
+                        dailyRainLabelText = "100000000000000000000000000000000000000000000000000000%",
+                    ),
+                ),
+            ),
+            widthPx = 800,
+            heightPx = 40,
+            headerData = DailyForecastGraphRenderer.HeaderRenderData(
+                dateText = "Mon",
+                headerScale = 3f,
+            ),
+        )
+
+        assertEquals(1, headerDraws.size)
+        assertNull(headerDraws.first().dateText)
+        assertTrue(headerDraws.first().dateSuppressedForRainOverlap)
+    }
+
+    @Test
+    fun renderGraph_nightRainLabelDoesNotSuppressHeaderDate() {
+        val headerDraws = renderHeaderDraws(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    solidLineHigh = 70f,
+                    solidLineLow = 50f,
+                    rainData = DailyForecastGraphRenderer.RainData(
+                        nighttimePrecipProbability = 100,
+                        nightRainLabelText = "100%",
+                    ),
+                ),
+            ),
+            widthPx = 500,
+            heightPx = 200,
+        )
+
+        assertEquals(1, headerDraws.size)
+        assertEquals("Mon", headerDraws.first().dateText)
+        assertFalse(headerDraws.first().dateSuppressedForRainOverlap)
     }
 
     @Test

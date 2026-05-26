@@ -45,6 +45,11 @@ internal object DailyForecastRainLabelRenderer {
         val placementType: String,
     )
 
+    internal data class DailyRainLabelPlacement(
+        val debug: RainLabelDrawnDebug,
+        val fitsPreferredTopMargin: Boolean,
+    )
+
     fun drawDailyRainLabel(
         day: DayData,
         centerX: Float,
@@ -53,47 +58,56 @@ internal object DailyForecastRainLabelRenderer {
         onRainLabelDrawn: ((RainLabelDrawnDebug) -> Unit)?,
         canvas: Canvas,
     ) {
-        val rainText = day.rainData.dailyRainLabelText ?: return
-        val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
-
-        val textWidth = localRainPaint.measureText(rainText)
-
-        val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout)
-        if (highBaseline == null) {
-            Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} solidLineHigh=${day.solidLineHigh}")
+        val placement = resolveDailyRainLabelPlacement(day, centerX, layout, paints) ?: run {
+            if (day.rainData.dailyRainLabelText != null) {
+                Log.d(TAG, "rainLabel skipped: no high baseline (null high temp): date=${day.date} solidLineHigh=${day.solidLineHigh}")
+            }
             return
         }
 
-        val metrics = textMetrics(localRainPaint)
+        val rainText = placement.debug.text
+        val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
+        val topMargin = layout.graphTop * 0.2f
+
+        if (!placement.fitsPreferredTopMargin) {
+            Log.d(
+                TAG,
+                "rainLabel forced despite above-high top margin: date=${day.date} label=\"$rainText\"" +
+                    " baseline=${placement.debug.baselineY} top=${placement.debug.topY} topMargin=$topMargin" +
+                    " highBaseline=${placement.debug.anchorBaselineY} highTop=${placement.debug.anchorTopY}" +
+                    " overflow=${topMargin - placement.debug.topY}px",
+            )
+        }
+
+        canvas.drawText(rainText, centerX, placement.debug.baselineY, localRainPaint)
+        onRainLabelDrawn?.invoke(placement.debug)
+    }
+
+    internal fun resolveDailyRainLabelPlacement(
+        day: DayData,
+        centerX: Float,
+        layout: LayoutInfo,
+        paints: PaintSet,
+    ): DailyRainLabelPlacement? {
+        val rainText = day.rainData.dailyRainLabelText ?: return null
+        val localRainPaint = createScaledRainPaint(day, day.rainData.dailyPrecipProbability, RainLabelType.DAY, layout.density, paints)
+        val textWidth = localRainPaint.measureText(rainText)
+        val highBaseline = DailyForecastGraphRenderer.resolveHighLabelBaseline(day, layout) ?: return null
         val tempPaint = when {
             day.isToday -> paints.todayTempTextPaint
             day.isPast -> paints.pastTempTextPaint
             else -> paints.tempTextPaint
         }
-        val tempMetrics = textMetrics(tempPaint)
-        val topMargin = layout.graphTop * 0.2f
-        val gap = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density)
         val placement = resolveRainAboveHighPlacement(
             highBaseline = highBaseline,
-            highMetrics = tempMetrics,
-            rainMetrics = metrics,
-            topMargin = topMargin,
-            gap = gap,
+            highMetrics = textMetrics(tempPaint),
+            rainMetrics = textMetrics(localRainPaint),
+            topMargin = layout.graphTop * 0.2f,
+            gap = (RAIN_HIGH_TEMP_GAP_DP * layout.bitmapScale.coerceAtMost(1f)).toPx(layout.density),
         )
 
-        if (!placement.fits) {
-            Log.d(
-                TAG,
-                "rainLabel forced despite above-high top margin: date=${day.date} label=\"$rainText\"" +
-                    " baseline=${placement.baseline} top=${placement.top} topMargin=$topMargin ascent=${metrics.ascent}" +
-                    " descent=${metrics.descent} highBaseline=$highBaseline highTop=${placement.highLabelTop}" +
-                    " gap=$gap overflow=${topMargin - placement.top}px",
-            )
-        }
-
-        canvas.drawText(rainText, centerX, placement.baseline, localRainPaint)
-        onRainLabelDrawn?.invoke(
-            RainLabelDrawnDebug(
+        return DailyRainLabelPlacement(
+            debug = RainLabelDrawnDebug(
                 date = day.date,
                 text = rainText,
                 placement = "ABOVE_HIGH",
@@ -107,6 +121,7 @@ internal object DailyForecastRainLabelRenderer {
                 anchorBaselineY = highBaseline,
                 isNightLabel = false,
             ),
+            fitsPreferredTopMargin = placement.fits,
         )
     }
 
