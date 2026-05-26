@@ -81,33 +81,32 @@ internal object DailyForecastRainLabelRenderer {
             gap = gap,
         )
 
-        if (placement.fits) {
-            canvas.drawText(rainText, centerX, placement.baseline, localRainPaint)
-            onRainLabelDrawn?.invoke(
-                RainLabelDrawnDebug(
-                    date = day.date,
-                    text = rainText,
-                    placement = "ABOVE_HIGH",
-                    centerX = centerX,
-                    leftX = centerX - textWidth / 2f,
-                    rightX = centerX + textWidth / 2f,
-                    baselineY = placement.baseline,
-                    topY = placement.top,
-                    bottomY = placement.bottom,
-                    anchorTopY = placement.highLabelTop,
-                    anchorBaselineY = highBaseline,
-                    isNightLabel = false,
-                ),
+        if (!placement.fits) {
+            Log.d(
+                TAG,
+                "rainLabel forced despite above-high top margin: date=${day.date} label=\"$rainText\"" +
+                    " baseline=${placement.baseline} top=${placement.top} topMargin=$topMargin ascent=${metrics.ascent}" +
+                    " descent=${metrics.descent} highBaseline=$highBaseline highTop=${placement.highLabelTop}" +
+                    " gap=$gap overflow=${topMargin - placement.top}px",
             )
-            return
         }
 
-        Log.d(
-            TAG,
-            "rainLabel skipped: above-high insufficient space: date=${day.date} label=\"$rainText\"" +
-                " baseline=${placement.baseline} top=${placement.top} topMargin=$topMargin ascent=${metrics.ascent}" +
-                " descent=${metrics.descent} highBaseline=$highBaseline highTop=${placement.highLabelTop}" +
-                " gap=$gap overflow=${topMargin - placement.top}px",
+        canvas.drawText(rainText, centerX, placement.baseline, localRainPaint)
+        onRainLabelDrawn?.invoke(
+            RainLabelDrawnDebug(
+                date = day.date,
+                text = rainText,
+                placement = "ABOVE_HIGH",
+                centerX = centerX,
+                leftX = centerX - textWidth / 2f,
+                rightX = centerX + textWidth / 2f,
+                baselineY = placement.baseline,
+                topY = placement.top,
+                bottomY = placement.bottom,
+                anchorTopY = placement.highLabelTop,
+                anchorBaselineY = highBaseline,
+                isNightLabel = false,
+            ),
         )
     }
 

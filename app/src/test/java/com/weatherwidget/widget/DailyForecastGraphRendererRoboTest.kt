@@ -578,6 +578,33 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun renderGraph_dailyRainLabelDrawsEvenWhenAboveHighTopMarginFails() {
+        val labels = renderRainLabels(
+            days = listOf(
+                DailyForecastGraphRenderer.DayData(
+                    date = LocalDate.of(2026, 2, 3),
+                    label = "Mon",
+                    solidLineHigh = 100f,
+                    solidLineLow = 72f,
+                    rainData = DailyForecastGraphRenderer.RainData(
+                        dailyPrecipProbability = 100,
+                        dailyRainLabelText = "100%",
+                    ),
+                ),
+            ),
+            widthPx = 500,
+            heightPx = 40,
+        )
+
+        assertEquals("Daily rain label should be drawn even when it breaches the top margin", 1, labels.size)
+        assertEquals("ABOVE_HIGH", labels.first().placement)
+        assertTrue(
+            "Fixture should exercise the forced path where the label top is above the preferred margin. Label=${labels.first()}",
+            labels.first().topY < 10f,
+        )
+    }
+
+    @Test
     fun renderGraph_nightRainLabelDrawsBelowLowTemperature() {
         val labels = renderRainLabels(
             days = listOf(

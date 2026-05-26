@@ -451,6 +451,8 @@ class DailyForecastIconResolverTest {
     @Test
     fun `distant day with 15 percent rain shows cloud icon via trace threshold`() {
         val distant = today.plusDays(7)
+        // day 7: threshold = 4*7 + 1 = 29
+        // both 15 < 29 -> suppressed
         val icon = DailyForecastIconResolver.resolveIcon(
             weather = forecast(
                 source = WeatherSource.NWS.id,
@@ -462,6 +464,8 @@ class DailyForecastIconResolverTest {
             now = now,
             latitude = 37.42,
             longitude = -122.08,
+            dayPrecipProbability = 15,
+            nightPrecipProbability = 15,
         )
 
         assertEquals(R.drawable.ic_weather_partly_cloudy, icon)
