@@ -1157,8 +1157,8 @@ class DailyViewHandlerTest {
         val decisions = computeMissingDataRefreshes(
             today = today,
             displaySource = WeatherSource.NWS,
-            dailyActuals = emptyMap(),
-            displayDays = displayDays,
+            dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
+            visibleDates = setOf(yesterday),
         )
 
         val historyDecision = decisions.find { it.refreshType == "actuals_history" }
@@ -1191,7 +1191,8 @@ class DailyViewHandlerTest {
             today = today,
             displaySource = WeatherSource.NWS,
             dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
-            displayDays = displayDays,
+            todayHasForecast = true,
+            todayHasSnapshot = false,
         )
 
         val snapshotDecision = decisions.find { it.refreshType == "today_snapshot" }
@@ -1224,7 +1225,8 @@ class DailyViewHandlerTest {
             today = today,
             displaySource = WeatherSource.NWS,
             dailyActuals = mapOf(today to ObservationResolver.DailyActual(date = today, highTemp = 70f, lowTemp = 55f, condition = "Clear")),
-            displayDays = displayDays,
+            todayHasForecast = true,
+            todayHasSnapshot = true,
         )
 
         assertTrue(decisions.isEmpty())

@@ -2,7 +2,6 @@ package com.weatherwidget.widget.handlers
 
 import androidx.annotation.VisibleForTesting
 import com.weatherwidget.data.model.WeatherSource
-import com.weatherwidget.widget.DailyForecastGraphRenderer
 import com.weatherwidget.widget.ObservationResolver
 import java.time.LocalDate
 
@@ -23,7 +22,9 @@ internal fun computeMissingDataRefreshes(
     today: LocalDate,
     displaySource: WeatherSource,
     dailyActuals: Map<LocalDate, ObservationResolver.DailyActual>,
-    displayDays: List<DailyForecastGraphRenderer.DayData> = emptyList(),
+    visibleDates: Set<LocalDate> = emptySet(),
+    todayHasSnapshot: Boolean = true,
+    todayHasForecast: Boolean = true,
 ): List<MissingDataRefreshDecision> {
     val decisions = mutableListOf<MissingDataRefreshDecision>()
 
@@ -37,14 +38,7 @@ internal fun computeMissingDataRefreshes(
         )
     }
 
-    val missingTodaySnapshot = displayDays.firstOrNull { day ->
-        day.isToday &&
-            day.dashedLineHigh != null &&
-            day.dashedLineLow != null &&
-            day.snapshotHigh == null &&
-            day.snapshotLow == null
-    }
-    if (missingTodaySnapshot != null) {
+    if (todayHasForecast && !todayHasSnapshot) {
         decisions.add(
             MissingDataRefreshDecision(
                 refreshType = "today_snapshot",
@@ -54,13 +48,7 @@ internal fun computeMissingDataRefreshes(
         )
     }
 
-    val missingVisiblePastActuals = displayDays.firstOrNull { day ->
-        day.isPast &&
-            dailyActuals[day.date] == null &&
-            day.dashedLineHigh != null &&
-            day.dashedLineLow != null
-    }
-    if (missingVisiblePastActuals != null) {
+    if (visibleDates.any { it.isBefore(today) && dailyActuals[it] == null }) {
         decisions.add(
             MissingDataRefreshDecision(
                 refreshType = "actuals_history",

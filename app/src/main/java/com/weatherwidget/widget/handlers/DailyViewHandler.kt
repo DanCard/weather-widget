@@ -42,6 +42,9 @@ import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.weatherwidget.widget.ZoomLevel
 import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import kotlinx.coroutines.Job
@@ -53,7 +56,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.floor
+
 
 object DailyViewHandler : WidgetViewHandler {
     private const val TAG = "DailyViewHandler"
@@ -72,6 +75,33 @@ object DailyViewHandler : WidgetViewHandler {
     private const val NAV_BUTTON_PADDING_DP = 10
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
+    private class DailyRenderContext(
+        val context: Context,
+        val views: RemoteViews,
+        val appWidgetId: Int,
+        val now: LocalDateTime,
+        val today: LocalDate,
+        val displaySource: WeatherSource,
+        val weatherByDate: Map<LocalDate, ForecastEntity>,
+        val forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
+        val hourlyForecasts: List<HourlyForecastEntity>,
+        val currentTemps: List<ObservationEntity>,
+        val dailyActuals: DailyActualMap,
+        val climateNormals: Map<java.time.MonthDay, Pair<Int, Int>>,
+        val numColumns: Int,
+        val numRows: Int,
+        val dateOffset: Int,
+        val skipYesterday: Boolean,
+        val skipHistory: Boolean,
+        val centerDate: LocalDate,
+        val currentTemp: Float?,
+        val observedAt: Long?,
+        val precipProb: Int?,
+        val stateManager: WidgetStateManager,
+        val appLogDao: AppLogDao,
+        val isIconWidth: Boolean,
+    )
+
     private data class DayIds(
         val container: Int,
         val label: Int,
@@ -80,10 +110,6 @@ object DailyViewHandler : WidgetViewHandler {
         val low: Int,
         val rain: Int,
     )
-
-    // Intent actions from WidgetActions
-
-
 
     override fun canHandle(
         stateManager: WidgetStateManager,
@@ -181,7 +207,7 @@ object DailyViewHandler : WidgetViewHandler {
             )
         ) {
             logDailyRenderSummary(
-                context = context,
+                appLogDao = appLogDao,
                 appWidgetId = appWidgetId,
                 dateOffset = dateOffset,
                 displaySource = displaySource,
@@ -227,7 +253,7 @@ object DailyViewHandler : WidgetViewHandler {
                     .mapValues { (_, items) -> items.first() }
             } else emptyMap()
 
-        val (headerState, headerPrecipPlacement) = resolveAndBindHeader(
+        val headerResolution = resolveAndBindHeader(
             context = context,
             views = views,
             displaySource = displaySource,
@@ -249,18 +275,18 @@ object DailyViewHandler : WidgetViewHandler {
             smoothedForecasts = smoothedForecasts,
         )
 
-        val currentTemp = headerState.currentTemp
-        val formattedTemp = headerState.formattedTemp
-        val iconRes = headerState.iconRes
-        val precipProb = headerState.precipProb
-        val isPrecipVisible = headerState.isPrecipVisible
-        val precipTextSizeDp = headerState.precipTextSizeDp
-        val delta = headerState.appliedDelta
-        val deltaVisible = headerState.deltaVisible
-        val apiSourceText = headerState.apiSourceText
-        val disclosure = headerState.disclosure
-        val headerScale = headerState.headerScale
-        val resolveMs = headerState.resolveMs
+        val currentTemp = headerResolution.state.currentTemp
+        val formattedTemp = headerResolution.state.formattedTemp
+        val iconRes = headerResolution.state.iconRes
+        val precipProb = headerResolution.state.precipProb
+        val isPrecipVisible = headerResolution.state.isPrecipVisible
+        val precipTextSizeDp = headerResolution.state.precipTextSizeDp
+        val delta = headerResolution.state.appliedDelta
+        val deltaVisible = headerResolution.state.deltaVisible
+        val apiSourceText = headerResolution.state.apiSourceText
+        val disclosure = headerResolution.state.disclosure
+        val headerScale = headerResolution.state.headerScale
+        val resolveMs = headerResolution.state.resolveMs
 
         // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
         if (!isIconWidth) {
@@ -268,15 +294,6 @@ object DailyViewHandler : WidgetViewHandler {
             setupDualToggle(context, views, appWidgetId)
         }
 
-        // Dual-source toggle button: only meaningful when a distinct next source exists
-        // (otherwise tapping would be a no-op) and there's room in the header to render
-        // the glyph without crowding the date or API label.
-        val nextSourceForButton = stateManager.getNextDisplaySource(appWidgetId)
-        val hasDistinctSecondSource = nextSourceForButton != displaySource
-        val showDualButton =
-            useGraph &&
-            hasDistinctSecondSource &&
-            (disclosure == HeaderDisclosureLevel.FULL || disclosure == HeaderDisclosureLevel.NO_ICON)
         Log.d(
             TAG,
             DailyHeaderBinder.buildHeaderStateLog(
@@ -288,8 +305,8 @@ object DailyViewHandler : WidgetViewHandler {
                 dataLon = lon,
                 dimensions = dimensions,
                 currentTemp = currentTemp,
-                estimatedTemp = headerState.estimatedTemp,
-                observedTemp = headerState.observedTemp,
+                estimatedTemp = headerResolution.state.estimatedTemp,
+                observedTemp = headerResolution.state.observedTemp,
                 appliedDelta = delta,
                 deltaVisible = deltaVisible,
                 deltaHiddenReason = DailyHeaderBinder.dailyDeltaHiddenReason(currentTemp, delta),
@@ -302,21 +319,8 @@ object DailyViewHandler : WidgetViewHandler {
             ),
         )
         
-        // Hide history icon and delta badge in daily mode
-        views.setViewVisibility(R.id.home_icon, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.history_icon, View.GONE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
+        DailyVisibilityManager.hideUnusedDailyViews(views)
 
-        // Set up navigation click handlers
         val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${availableDates.minOrNull()}, maxDate=${availableDates.maxOrNull()}")
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, skipYesterday, today, useGraph)
@@ -325,17 +329,14 @@ object DailyViewHandler : WidgetViewHandler {
         var renderMs = 0L
 
         if (useGraph) {
-            val metrics = renderGraphMode(
+            val ctx = DailyRenderContext(
                 context = context,
                 views = views,
                 appWidgetId = appWidgetId,
                 now = now,
                 today = today,
                 displaySource = displaySource,
-                nextSource = nextSource,
-                showTwoBars = showTwoBars,
                 weatherByDate = weatherByDate,
-                nextSourceWeatherByDate = nextSourceWeatherByDate,
                 forecastSnapshots = forecastSnapshots,
                 hourlyForecasts = hourlyForecasts,
                 currentTemps = currentTemps,
@@ -350,25 +351,66 @@ object DailyViewHandler : WidgetViewHandler {
                 currentTemp = currentTemp,
                 observedAt = observedAt,
                 precipProb = precipProb,
-                headerState = headerState,
-                headerPrecipPlacement = headerPrecipPlacement,
+                stateManager = stateManager,
+                appLogDao = appLogDao,
+                isIconWidth = isIconWidth,
+            )
+            val metrics = renderGraphMode(
+                ctx = ctx,
+                nextSource = nextSource,
+                showTwoBars = showTwoBars,
+                nextSourceWeatherByDate = nextSourceWeatherByDate,
+                headerState = headerResolution.state,
+                headerPrecipPlacement = headerResolution.precipPlacement,
                 dimensions = dimensions,
                 database = database,
-                appLogDao = appLogDao,
                 appWidgetManager = appWidgetManager,
                 startupToken = startupToken,
                 resolveMs = resolveMs,
                 lat = lat,
                 lon = lon,
-                stateManager = stateManager,
             )
             prepareMs = metrics.prepareMs
             renderMs = metrics.renderMs
         } else {
+            val ctx = DailyRenderContext(
+                context = context,
+                views = views,
+                appWidgetId = appWidgetId,
+                now = now,
+                today = today,
+                displaySource = displaySource,
+                weatherByDate = weatherByDate,
+                forecastSnapshots = forecastSnapshots,
+                hourlyForecasts = hourlyForecasts,
+                currentTemps = currentTemps,
+                dailyActuals = dailyActuals,
+                climateNormals = climateNormals,
+                numColumns = numColumns,
+                numRows = numRows,
+                dateOffset = dateOffset,
+                skipYesterday = skipYesterday,
+                skipHistory = skipHistory,
+                centerDate = centerDate,
+                currentTemp = currentTemp,
+                observedAt = observedAt,
+                precipProb = precipProb,
+                stateManager = stateManager,
+                appLogDao = appLogDao,
+                isIconWidth = isIconWidth,
+            )
+            val textVisibleDates = ctx.weatherByDate.keys + ctx.dailyActuals.keys
+            val textTodayWeather = ctx.weatherByDate[today]
+            val textTodayHasSnapshot = ctx.forecastSnapshots[today]
+                ?.any { it.source == ctx.displaySource.id && it.highTemp != null && it.lowTemp != null }
+                ?: false
             val textRefreshDecisions = computeMissingDataRefreshes(
                 today = today,
                 displaySource = displaySource,
                 dailyActuals = dailyActuals,
+                visibleDates = textVisibleDates,
+                todayHasSnapshot = textTodayHasSnapshot,
+                todayHasForecast = textTodayWeather != null && textTodayWeather.highTemp != null && textTodayWeather.lowTemp != null,
             )
             for (decision in textRefreshDecisions) {
                 requestMissingDataRefresh(
@@ -384,32 +426,7 @@ object DailyViewHandler : WidgetViewHandler {
                     message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
                 )
             }
-            renderTextMode(
-                context = context,
-                views = views,
-                now = now,
-                centerDate = centerDate,
-                today = today,
-                weatherByDate = weatherByDate,
-                forecastSnapshots = forecastSnapshots,
-                hourlyForecasts = hourlyForecasts,
-                numColumns = numColumns,
-                displaySource = displaySource,
-                skipHistory = skipHistory,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                precipProb = precipProb,
-                dailyActuals = dailyActuals,
-                climateNormals = climateNormals,
-                currentTemps = currentTemps,
-                currentTemp = currentTemp,
-                observedAt = observedAt,
-                isIconWidth = isIconWidth,
-                dateOffset = dateOffset,
-                numRows = numRows,
-                skipYesterday = skipYesterday,
-                appLogDao = appLogDao,
-            )
+            renderTextMode(ctx)
         }
 
         if (isIconWidth) {
@@ -493,7 +510,7 @@ object DailyViewHandler : WidgetViewHandler {
     }
 
     private suspend fun logDailyRenderSummary(
-        context: Context,
+        appLogDao: AppLogDao,
         appWidgetId: Int,
         dateOffset: Int,
         displaySource: WeatherSource,
@@ -507,7 +524,7 @@ object DailyViewHandler : WidgetViewHandler {
         val mode = if (useGraph) "GRAPH" else "TEXT"
         val datesSummary = visibleDates.joinToString(",").ifEmpty { "<none>" }
         val tag = if (visibleDates.isEmpty()) "DAILY_RENDER_EMPTY" else "DAILY_RENDER"
-        WeatherDatabase.getDatabase(context).appLogDao().log(
+        appLogDao.log(
             tag,
             "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
         )
@@ -540,63 +557,71 @@ object DailyViewHandler : WidgetViewHandler {
             return
         }
 
+        val paddingPx = WidgetSizeCalculator.dpToPx(context, NAV_BUTTON_PADDING_DP)
+
         views.setViewVisibility(R.id.nav_left, View.VISIBLE)
         views.setViewVisibility(R.id.nav_left_zone, View.VISIBLE)
-        val paddingPx = WidgetSizeCalculator.dpToPx(context, NAV_BUTTON_PADDING_DP)
         views.setViewPadding(R.id.nav_left, paddingPx, 0, paddingPx, 0)
-
-        if (canLeft) {
-            val leftIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetActions.ACTION_NAV_LEFT
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val leftPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navLeft(appWidgetId), leftIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.nav_left, leftPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_left_zone, leftPendingIntent)
-        } else {
-            val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetActions.ACTION_SHOW_TOAST
-                putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No additional history available")
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            val toastPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navLeft(appWidgetId), toastIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            views.setOnClickPendingIntent(R.id.nav_left, toastPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_left_zone, toastPendingIntent)
-        }
+        bindNavDirection(
+            views = views,
+            buttonId = R.id.nav_left,
+            zoneId = R.id.nav_left_zone,
+            context = context,
+            appWidgetId = appWidgetId,
+            requestCode = WidgetRequestCodes.navLeft(appWidgetId),
+            navAction = WidgetActions.ACTION_NAV_LEFT,
+            canNavigate = canLeft,
+            toastMessage = "No additional history available",
+        )
 
         views.setViewVisibility(R.id.nav_right, View.VISIBLE)
         views.setViewVisibility(R.id.nav_right_zone, View.VISIBLE)
+        bindNavDirection(
+            views = views,
+            buttonId = R.id.nav_right,
+            zoneId = R.id.nav_right_zone,
+            context = context,
+            appWidgetId = appWidgetId,
+            requestCode = WidgetRequestCodes.navRight(appWidgetId),
+            navAction = WidgetActions.ACTION_NAV_RIGHT,
+            canNavigate = canRight,
+            toastMessage = "No more forecast available",
+        )
+    }
 
-        if (canRight) {
-            val rightIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
-                action = WidgetActions.ACTION_NAV_RIGHT
+    private fun bindNavDirection(
+        views: RemoteViews,
+        buttonId: Int,
+        zoneId: Int,
+        context: Context,
+        appWidgetId: Int,
+        requestCode: Int,
+        navAction: String,
+        canNavigate: Boolean,
+        toastMessage: String,
+    ) {
+        val pendingIntent = if (canNavigate) {
+            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
+                action = navAction
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
-            val rightPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navRight(appWidgetId), rightIntent,
+            PendingIntent.getBroadcast(
+                context, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.nav_right, rightPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_right_zone, rightPendingIntent)
         } else {
-            val toastIntent = Intent(context, WeatherWidgetProvider::class.java).apply {
+            val intent = Intent(context, WeatherWidgetProvider::class.java).apply {
                 action = WidgetActions.ACTION_SHOW_TOAST
-                putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, "No more forecast available")
+                putExtra(WidgetActions.EXTRA_TOAST_MESSAGE, toastMessage)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
-            val toastPendingIntent = PendingIntent.getBroadcast(
-                context, WidgetRequestCodes.navRight(appWidgetId), toastIntent,
+            PendingIntent.getBroadcast(
+                context, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            views.setOnClickPendingIntent(R.id.nav_right, toastPendingIntent)
-            views.setOnClickPendingIntent(R.id.nav_right_zone, toastPendingIntent)
         }
+        views.setOnClickPendingIntent(buttonId, pendingIntent)
+        views.setOnClickPendingIntent(zoneId, pendingIntent)
     }
 
     private fun updateTextMode(
@@ -825,76 +850,51 @@ object DailyViewHandler : WidgetViewHandler {
     }
 
     private suspend fun renderTextMode(
-        context: Context,
-        views: RemoteViews,
-        now: LocalDateTime,
-        centerDate: LocalDate,
-        today: LocalDate,
-        weatherByDate: Map<LocalDate, ForecastEntity>,
-        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        numColumns: Int,
-        displaySource: WeatherSource,
-        skipHistory: Boolean,
-        stateManager: WidgetStateManager,
-        appWidgetId: Int,
-        precipProb: Int?,
-        dailyActuals: DailyActualMap,
-        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>>,
-        currentTemps: List<ObservationEntity>,
-        currentTemp: Float?,
-        observedAt: Long?,
-        isIconWidth: Boolean,
-        dateOffset: Int,
-        numRows: Int,
-        skipYesterday: Boolean,
-        appLogDao: AppLogDao,
+        ctx: DailyRenderContext,
     ) {
-        DailyVisibilityManager.setTextModeViews(views)
+        DailyVisibilityManager.setTextModeViews(ctx.views)
 
-        val textCols = numColumns.coerceAtLeast(1)
-        // At 1 icon wide, the API/gear icons that consume the top-right are hidden,
-        // so mirror the left padding on the right to keep the content centered.
-        val rootRightPaddingDp = if (isIconWidth) TEXT_MODE_ROOT_LEFT_PADDING_DP else TEXT_MODE_ROOT_RIGHT_PADDING_DP
-        val contentRightPaddingDp = if (isIconWidth) 0 else TEXT_MODE_CONTENT_RIGHT_PADDING_DP
-        views.setViewPadding(
+        val textCols = ctx.numColumns.coerceAtLeast(1)
+        val rootRightPaddingDp = if (ctx.isIconWidth) TEXT_MODE_ROOT_LEFT_PADDING_DP else TEXT_MODE_ROOT_RIGHT_PADDING_DP
+        val contentRightPaddingDp = if (ctx.isIconWidth) 0 else TEXT_MODE_CONTENT_RIGHT_PADDING_DP
+        ctx.views.setViewPadding(
             R.id.widget_root,
-            WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_LEFT_PADDING_DP),
-            WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_TOP_PADDING_DP),
-            WidgetSizeCalculator.dpToPx(context, rootRightPaddingDp),
-            WidgetSizeCalculator.dpToPx(context, TEXT_MODE_ROOT_BOTTOM_PADDING_DP),
+            WidgetSizeCalculator.dpToPx(ctx.context, TEXT_MODE_ROOT_LEFT_PADDING_DP),
+            WidgetSizeCalculator.dpToPx(ctx.context, TEXT_MODE_ROOT_TOP_PADDING_DP),
+            WidgetSizeCalculator.dpToPx(ctx.context, rootRightPaddingDp),
+            WidgetSizeCalculator.dpToPx(ctx.context, TEXT_MODE_ROOT_BOTTOM_PADDING_DP),
         )
-        val rightPaddingPx = WidgetSizeCalculator.dpToPx(context, contentRightPaddingDp)
-        views.setViewPadding(R.id.text_container, 0, 0, rightPaddingPx, 0)
+        val rightPaddingPx = WidgetSizeCalculator.dpToPx(ctx.context, contentRightPaddingDp)
+        ctx.views.setViewPadding(R.id.text_container, 0, 0, rightPaddingPx, 0)
 
         val visibleDaysInfo = updateTextMode(
-            context, views, now, centerDate, today, weatherByDate,
-            forecastSnapshots, hourlyForecasts, textCols, displaySource, skipHistory,
-            stateManager, appWidgetId, precipProb, dailyActuals, climateNormals,
-            currentTemps,
-            currentTemp = currentTemp,
-            observedAt = observedAt
+            ctx.context, ctx.views, ctx.now, ctx.centerDate, ctx.today, ctx.weatherByDate,
+            ctx.forecastSnapshots, ctx.hourlyForecasts, textCols, ctx.displaySource, ctx.skipHistory,
+            ctx.stateManager, ctx.appWidgetId, ctx.precipProb, ctx.dailyActuals, ctx.climateNormals,
+            ctx.currentTemps,
+            currentTemp = ctx.currentTemp,
+            observedAt = ctx.observedAt
         )
 
         visibleDaysInfo.find { it.isToday }?.let { todayDay ->
-            appLogDao.log(
+            ctx.appLogDao.log(
                 "TODAY_BAR_DEBUG",
-                "widget=$appWidgetId mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
+                "widget=${ctx.appWidgetId} mode=TEXT high=${todayDay.highLabel} low=${todayDay.lowLabel} " +
                     "fallback=${todayDay.isTodayForecastFallback}",
                 "DEBUG"
             )
         }
 
         logDailyRenderSummary(
-            context = context,
-            appWidgetId = appWidgetId,
-            dateOffset = dateOffset,
-            displaySource = displaySource,
-            numColumns = numColumns,
-            numRows = numRows,
+            appLogDao = ctx.appLogDao,
+            appWidgetId = ctx.appWidgetId,
+            dateOffset = ctx.dateOffset,
+            displaySource = ctx.displaySource,
+            numColumns = ctx.numColumns,
+            numRows = ctx.numRows,
             useGraph = false,
-            skipYesterday = skipYesterday,
-            centerDate = centerDate,
+            skipYesterday = ctx.skipYesterday,
+            centerDate = ctx.centerDate,
             visibleDates = visibleDaysInfo.map { it.date },
         )
     }
@@ -905,43 +905,21 @@ object DailyViewHandler : WidgetViewHandler {
     )
 
     private suspend fun renderGraphMode(
-        context: Context,
-        views: RemoteViews,
-        appWidgetId: Int,
-        now: LocalDateTime,
-        today: LocalDate,
-        displaySource: WeatherSource,
+        ctx: DailyRenderContext,
         nextSource: WeatherSource,
         showTwoBars: Boolean,
-        weatherByDate: Map<LocalDate, ForecastEntity>,
         nextSourceWeatherByDate: Map<LocalDate, ForecastEntity>,
-        forecastSnapshots: Map<LocalDate, List<ForecastEntity>>,
-        hourlyForecasts: List<HourlyForecastEntity>,
-        currentTemps: List<ObservationEntity>,
-        dailyActuals: DailyActualMap,
-        climateNormals: Map<java.time.MonthDay, Pair<Int, Int>>,
-        numColumns: Int,
-        numRows: Int,
-        dateOffset: Int,
-        skipYesterday: Boolean,
-        skipHistory: Boolean,
-        centerDate: LocalDate,
-        currentTemp: Float?,
-        observedAt: Long?,
-        precipProb: Int?,
         headerState: HeaderState,
         headerPrecipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
         dimensions: WidgetDimensions,
         database: WeatherDatabase,
-        appLogDao: AppLogDao,
         appWidgetManager: AppWidgetManager,
         startupToken: String?,
         resolveMs: Long,
         lat: Double,
         lon: Double,
-        stateManager: WidgetStateManager,
     ): RenderMetrics {
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val todayStr = ctx.today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val isIconWidth = dimensions.isIconWidth
         val formattedTemp = headerState.formattedTemp
         val iconRes = headerState.iconRes
@@ -949,16 +927,16 @@ object DailyViewHandler : WidgetViewHandler {
         val delta = headerState.appliedDelta
         val isPrecipVisible = headerState.isPrecipVisible
         val apiSourceText = headerState.apiSourceText
-        val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
+        val apiTextSizeDp = HeaderConstants.apiTextSizeDp(ctx.numRows)
         val disclosure = headerState.disclosure
         val headerScale = headerState.headerScale
 
-        DailyVisibilityManager.setGraphModeViews(views)
+        DailyVisibilityManager.setGraphModeViews(ctx.views)
 
         val prepareStartMs = SystemClock.elapsedRealtime()
-        val todayActual = dailyActuals[today]
-        val sourceCurrentTemps = currentTemps.filter {
-            it.api == displaySource.id ||
+        val todayActual = ctx.dailyActuals[ctx.today]
+        val sourceCurrentTemps = ctx.currentTemps.filter {
+            it.api == ctx.displaySource.id ||
                 it.api == WeatherSource.GENERIC_GAP.id
         }
         val currentTempSpan =
@@ -974,131 +952,128 @@ object DailyViewHandler : WidgetViewHandler {
             }
         Log.d(
             TAG,
-            "dailyTodayInputs: widget=$appWidgetId source=${displaySource.id} date=$today " +
+            "dailyTodayInputs: widget=${ctx.appWidgetId} source=${ctx.displaySource.id} date=${ctx.today} " +
                 "dailyActual.high=${todayActual?.highTemp} dailyActual.low=${todayActual?.lowTemp} " +
-                "currentTempResolution=$currentTemp observedAt=$observedAt " +
+                "currentTempResolution=${ctx.currentTemp} observedAt=${ctx.observedAt} " +
                 "sourceCurrentRows=${sourceCurrentTemps.size} sourceCurrentSpan=$currentTempSpan " +
-                "hourlyRows=${hourlyForecasts.count { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }}",
+                "hourlyRows=${ctx.hourlyForecasts.count { it.source == ctx.displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }}",
         )
 
         val days = DailyViewLogic.prepareGraphDays(
-            now, centerDate, today, weatherByDate, forecastSnapshots,
-            numColumns, displaySource, skipYesterday, skipHistory,
-            hourlyForecasts, stateManager, appWidgetId, precipProb,
-            dailyActuals, climateNormals, currentTemps,
-            currentTemp = currentTemp,
-            observedAt = observedAt,
+            ctx.now, ctx.centerDate, ctx.today, ctx.weatherByDate, ctx.forecastSnapshots,
+            ctx.numColumns, ctx.displaySource, ctx.skipYesterday, ctx.skipHistory,
+            ctx.hourlyForecasts, ctx.stateManager, ctx.appWidgetId, ctx.precipProb,
+            ctx.dailyActuals, ctx.climateNormals, ctx.currentTemps,
+            currentTemp = ctx.currentTemp,
+            observedAt = ctx.observedAt,
             allowTodayRainChanceLabel = true,
             nextSourceWeatherByDate = nextSourceWeatherByDate,
-            nextSource = if (showTwoBars && nextSource != displaySource) nextSource else null,
+            nextSource = if (showTwoBars && nextSource != ctx.displaySource) nextSource else null,
         )
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
         days.find { it.isToday }?.let { todayDay ->
-            appLogDao.log(
+            ctx.appLogDao.log(
                 "TODAY_BAR_DEBUG",
-                "widget=$appWidgetId mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
+                "widget=${ctx.appWidgetId} mode=GRAPH obsHigh=${todayDay.solidLineHigh} obsLow=${todayDay.solidLineLow} " +
                     "fHigh=${todayDay.dashedLineHigh} fLow=${todayDay.dashedLineLow} " +
                     "trueHigh=${todayDay.ghostLineHigh} bStackLow=${todayDay.bottomStackLow} " +
                     "sHigh=${todayDay.snapshotHigh} sLow=${todayDay.snapshotLow} " +
                     "fallback=${todayDay.isTodayForecastFallback}",
                 "DEBUG"
             )
-            val todaySourceObservations = loadTodaySourceObservations(
-                database = database,
-                today = today,
-                lat = lat,
-                lon = lon,
-                displaySource = displaySource,
-            )
-            appLogDao.log(
-                "TODAY_HIGH_PROVENANCE",
-                buildTodayHighProvenanceMessage(
-                    appWidgetId = appWidgetId,
-                    today = today,
-                    displaySource = displaySource,
-                    forecastWeather = weatherByDate[today],
-                    dailyActual = todayActual,
-                    todayDay = todayDay,
-                    currentTemp = currentTemp,
-                    observedAt = observedAt,
-                    observations = todaySourceObservations,
-                ),
-                "DEBUG",
-            )
+            CoroutineScope(Dispatchers.IO).launch {
+                val todaySourceObservations = loadTodaySourceObservations(
+                    database = database,
+                    today = ctx.today,
+                    lat = lat,
+                    lon = lon,
+                    displaySource = ctx.displaySource,
+                )
+                ctx.appLogDao.log(
+                    "TODAY_HIGH_PROVENANCE",
+                    buildTodayHighProvenanceMessage(
+                        appWidgetId = ctx.appWidgetId,
+                        today = ctx.today,
+                        displaySource = ctx.displaySource,
+                        forecastWeather = ctx.weatherByDate[ctx.today],
+                        dailyActual = todayActual,
+                        todayDay = todayDay,
+                        currentTemp = ctx.currentTemp,
+                        observedAt = ctx.observedAt,
+                        observations = todaySourceObservations,
+                    ),
+                    "DEBUG",
+                )
+            }
         }
 
-        // Stabilize column count: at offset 0 (home view), record days.size as the
-        // baseline.  When navigating away, cap to that baseline so the grid doesn't
-        // gain or lose a column as data availability shifts.
-        val displayDays = if (dateOffset == 0) {
-            stateManager.setDailyColumnCount(appWidgetId, days.size)
+        val displayDays = if (ctx.dateOffset == 0) {
+            ctx.stateManager.setDailyColumnCount(ctx.appWidgetId, days.size)
             days
         } else {
-            val baseline = stateManager.getDailyColumnCount(appWidgetId)
+            val baseline = ctx.stateManager.getDailyColumnCount(ctx.appWidgetId)
             if (baseline > 0 && days.size > baseline) days.take(baseline) else days
         }
-        Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days, displaying ${displayDays.size} for $numColumns columns (offset=$dateOffset).")
+        Log.d(TAG, "updateWidget: Graph mode - prepared ${days.size} days, displaying ${displayDays.size} for ${ctx.numColumns} columns (offset=${ctx.dateOffset}).")
 
         if (displayDays.isEmpty()) {
             return RenderMetrics(prepareMs, 0L)
         }
 
-        val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
-        val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) today.format(headerDateFormatter) else null
+        val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(ctx.context, dimensions.widthDp, dimensions.heightDp)
+        val dateText = if (displayDays.size >= HeaderConstants.DATE_MIN_COLUMNS) ctx.today.format(headerDateFormatter) else null
 
         val graphRefreshDecisions = computeMissingDataRefreshes(
-            today = today,
-            displaySource = displaySource,
-            dailyActuals = dailyActuals,
-            displayDays = displayDays,
+            today = ctx.today,
+            displaySource = ctx.displaySource,
+            dailyActuals = ctx.dailyActuals,
+            visibleDates = displayDays.map { it.date }.toSet(),
+            todayHasSnapshot = displayDays.find { it.isToday }
+                ?.let { it.snapshotHigh != null || it.snapshotLow != null } ?: false,
+            todayHasForecast = displayDays.find { it.isToday }
+                ?.let { it.dashedLineHigh != null && it.dashedLineLow != null } ?: false,
         )
         for (decision in graphRefreshDecisions) {
             requestMissingDataRefresh(
-                context = context,
-                stateManager = stateManager,
-                appWidgetId = appWidgetId,
-                displaySource = displaySource,
+                context = ctx.context,
+                stateManager = ctx.stateManager,
+                appWidgetId = ctx.appWidgetId,
+                displaySource = ctx.displaySource,
                 refreshType = decision.refreshType,
                 cooldownMs = decision.cooldownMs,
                 logTag = decision.logTag,
                 forceRefresh = decision.forceRefresh,
                 reason = decision.reason,
-                message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
+                message = "widget=${ctx.appWidgetId} source=${ctx.displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
             )
         }
 
-        // Mark rain as shown if today's rain is in the list
         if (displayDays.any { it.isToday && it.rainData.rainSummary != null }) {
-            stateManager.markRainShown(appWidgetId, todayStr)
+            ctx.stateManager.markRainShown(ctx.appWidgetId, todayStr)
         }
 
         logDailyRenderSummary(
-            context = context,
-            appWidgetId = appWidgetId,
-            dateOffset = dateOffset,
-            displaySource = displaySource,
-            numColumns = numColumns,
-            numRows = numRows,
+            appLogDao = ctx.appLogDao,
+            appWidgetId = ctx.appWidgetId,
+            dateOffset = ctx.dateOffset,
+            displaySource = ctx.displaySource,
+            numColumns = ctx.numColumns,
+            numRows = ctx.numRows,
             useGraph = true,
-            skipYesterday = skipYesterday,
-            centerDate = centerDate,
+            skipYesterday = ctx.skipYesterday,
+            centerDate = ctx.centerDate,
             visibleDates = displayDays.map { it.date },
         )
-        logGraphDayIconDetails(context, appWidgetId, displayDays)
+        logGraphDayIconDetails(ctx.context, ctx.appWidgetId, displayDays)
 
-        // Render graph (bitmapDims already computed above)
-
-        // Build header data for bitmap rendering.
-        // At 1 icon wide, blank out apiSourceText and zero settingsIconRes so
-        // DailyForecastGraphRenderer.drawHeader skips drawing them.
         val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
             DailyForecastGraphRenderer.HeaderRenderData(
                 iconRes = iconRes,
                 currentTempText = formattedTemp,
                 deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
-                precipText = if (isPrecipVisible) "$precipProb%" else null,
-                precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(precipProb ?: 0) else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
+                precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,
+                precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(ctx.precipProb ?: 0) else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                 dateText = dateText,
                 apiSourceText = if (isIconWidth) null else apiSourceText,
                 apiTextSizeDp = apiTextSizeDp,
@@ -1106,13 +1081,13 @@ object DailyViewHandler : WidgetViewHandler {
                 showIcon = disclosure.showsIcon(),
                 showDelta = deltaVisible && disclosure.showsDelta(),
                 showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
-                showDualButton = (displaySource != nextSource) && (disclosure == HeaderDisclosureLevel.FULL || disclosure == HeaderDisclosureLevel.NO_ICON) && !isIconWidth,
+                showDualButton = (ctx.displaySource != nextSource) && (disclosure == HeaderDisclosureLevel.FULL || disclosure == HeaderDisclosureLevel.NO_ICON) && !isIconWidth,
                 dualActive = showTwoBars,
                 headerScale = headerScale,
             )
         } else null
 
-        views.setViewVisibility(
+        ctx.views.setViewVisibility(
             R.id.dual_touch_zone,
             if (headerRenderData?.showDualButton == true) View.VISIBLE else View.GONE,
         )
@@ -1120,7 +1095,7 @@ object DailyViewHandler : WidgetViewHandler {
         val nightRainLabelDraws = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
         val renderStartMs = SystemClock.elapsedRealtime()
         val bitmap = DailyForecastGraphRenderer.renderGraph(
-            context,
+            ctx.context,
             displayDays,
             bitmapDims.widthPx,
             bitmapDims.heightPx,
@@ -1133,37 +1108,36 @@ object DailyViewHandler : WidgetViewHandler {
                 }
             },
             headerData = headerRenderData,
-            showErrorWatermark = stateManager.isSourceErrored(displaySource),
+            showErrorWatermark = ctx.stateManager.isSourceErrored(ctx.displaySource),
         )
         val renderMs = SystemClock.elapsedRealtime() - renderStartMs
-        views.setImageViewBitmap(R.id.graph_view, bitmap)
+        ctx.views.setImageViewBitmap(R.id.graph_view, bitmap)
 
-        // Hide RemoteViews header text — now rendered in bitmap
-        views.setViewVisibility(R.id.current_temp, View.INVISIBLE)
-        views.setViewVisibility(R.id.current_temp_delta, View.INVISIBLE)
-        views.setViewVisibility(R.id.precip_probability, View.INVISIBLE)
-        views.setViewVisibility(R.id.weather_icon, View.INVISIBLE)
-        views.setViewVisibility(R.id.api_source, View.INVISIBLE)
-        views.setViewVisibility(R.id.settings_icon, View.INVISIBLE)
-        views.setViewVisibility(R.id.header_date_center, View.GONE)
-        views.setViewVisibility(R.id.header_date_right, View.GONE)
+        ctx.views.setViewVisibility(R.id.current_temp, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.current_temp_delta, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.precip_probability, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.weather_icon, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.api_source, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.settings_icon, View.INVISIBLE)
+        ctx.views.setViewVisibility(R.id.header_date_center, View.GONE)
+        ctx.views.setViewVisibility(R.id.header_date_right, View.GONE)
 
-        setupGraphDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
-        setupGraphBottomDayClickHandlers(context, views, appWidgetId, now, displayDays, lat, lon, displaySource, displayDays.size)
+        setupGraphDayClickHandlers(ctx.context, ctx.views, ctx.appWidgetId, ctx.now, displayDays, lat, lon, ctx.displaySource, displayDays.size)
+        setupGraphBottomDayClickHandlers(ctx.context, ctx.views, ctx.appWidgetId, ctx.now, displayDays, lat, lon, ctx.displaySource, displayDays.size)
         NightRainGridMapper.setupNightRainClickHandlers(
-            context = context,
-            views = views,
-            appWidgetId = appWidgetId,
-            now = now,
+            context = ctx.context,
+            views = ctx.views,
+            appWidgetId = ctx.appWidgetId,
+            now = ctx.now,
             days = displayDays,
             lat = lat,
             lon = lon,
-            displaySource = displaySource,
+            displaySource = ctx.displaySource,
             bitmapWidthPx = bitmapDims.widthPx,
             bitmapHeightPx = bitmapDims.heightPx,
             nightLabelDraws = nightRainLabelDraws,
             buildClickIntent = { aid, di, d, ir, la, lo, ds, n, tmo, oo, cs ->
-                DailyClickHandlerFactory.buildDayClickIntent(context, aid, di, d, ir, la, lo, ds, n, tmo, oo, cs)
+                DailyClickHandlerFactory.buildDayClickIntent(ctx.context, aid, di, d, ir, la, lo, ds, n, tmo, oo, cs)
             },
         )
 
@@ -1188,6 +1162,11 @@ object DailyViewHandler : WidgetViewHandler {
         val resolveMs: Long,
     )
 
+    private data class HeaderResolution(
+        val state: HeaderState,
+        val precipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
+    )
+
     private fun resolveAndBindHeader(
         context: Context,
         views: RemoteViews,
@@ -1208,8 +1187,8 @@ object DailyViewHandler : WidgetViewHandler {
         numRows: Int,
         useGraph: Boolean,
         smoothedForecasts: Map<Long, Float>?,
-    ): Pair<HeaderState, DailyHeaderBinder.HeaderPrecipPlacement> {
-        val (headerState, headerPrecipPlacement) = resolveHeaderState(
+    ): HeaderResolution {
+        val resolution = resolveHeaderState(
             context = context,
             displaySource = displaySource,
             nextSource = nextSource,
@@ -1232,12 +1211,12 @@ object DailyViewHandler : WidgetViewHandler {
         bindHeaderState(
             context = context,
             views = views,
-            state = headerState,
-            precipPlacement = headerPrecipPlacement,
+            state = resolution.state,
+            precipPlacement = resolution.precipPlacement,
             useGraph = useGraph,
             isIconWidth = dimensions.isIconWidth,
         )
-        return headerState to headerPrecipPlacement
+        return resolution
     }
 
     private fun resolveHeaderState(
@@ -1259,7 +1238,7 @@ object DailyViewHandler : WidgetViewHandler {
         numRows: Int,
         useGraph: Boolean,
         smoothedForecasts: Map<Long, Float>?,
-    ): Pair<HeaderState, DailyHeaderBinder.HeaderPrecipPlacement> {
+    ): HeaderResolution {
         val today = now.toLocalDate()
         val isIconWidth = dimensions.isIconWidth
 
@@ -1405,7 +1384,7 @@ object DailyViewHandler : WidgetViewHandler {
             headerScale = headerScale,
             resolveMs = resolveMs,
         )
-        return headerState to headerPrecipPlacement
+        return HeaderResolution(headerState, headerPrecipPlacement)
     }
 
     private fun bindHeaderState(

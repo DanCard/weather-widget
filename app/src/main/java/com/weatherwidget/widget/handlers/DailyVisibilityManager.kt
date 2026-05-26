@@ -7,6 +7,21 @@ import com.weatherwidget.R
 
 internal object DailyVisibilityManager {
 
+    fun hideUnusedDailyViews(views: RemoteViews) {
+        views.setViewVisibility(R.id.home_icon, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.history_icon, View.GONE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
+        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
+    }
+
     fun setGraphModeViews(views: RemoteViews) {
         views.setViewVisibility(R.id.text_container, View.GONE)
         views.setViewVisibility(R.id.graph_view, View.VISIBLE)
@@ -23,20 +38,7 @@ internal object DailyVisibilityManager {
         views.setViewVisibility(R.id.settings_icon, View.VISIBLE)
         views.setViewVisibility(R.id.settings_touch_zone, View.VISIBLE)
         views.setViewVisibility(R.id.top_right_header_container, View.VISIBLE)
-
-        // Hide floating and inline hourly header controls/icons in daily mode
-        views.setViewVisibility(R.id.home_icon, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.history_icon, View.GONE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
+        hideUnusedDailyViews(views)
     }
 
     fun setTextModeViews(views: RemoteViews) {
@@ -58,18 +60,7 @@ internal object DailyVisibilityManager {
         views.setViewVisibility(R.id.nav_right, View.GONE)
         views.setViewVisibility(R.id.nav_right_zone, View.GONE)
         Log.d("HomeShortcut", "DailyVisibilityManager.setGraphModeViews: setting home_touch_zone=GONE (daily/graph mode)")
-        views.setViewVisibility(R.id.home_icon, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.home_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.history_icon, View.GONE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.forecast_history_activity_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_icon, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.weather_stations_touch_zone_inline, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_icon, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone, View.GONE)
-        views.setViewVisibility(R.id.graph_selector_touch_zone_inline, View.GONE)
+        hideUnusedDailyViews(views)
 
         views.setViewVisibility(R.id.current_temp_zone, View.GONE)
         views.setViewVisibility(R.id.precip_touch_zone, View.GONE)
