@@ -6,7 +6,7 @@ import java.util.Locale
 /**
  * Split an hour label into its numeric part and meridiem suffix, e.g. 3pm -> ("3", "p"),
  * midnight -> ("12", "a"). The inline footer renderer draws these around the weather icon
- * (`<hour><icon><a|p>`); [formatHourLabel] joins them back for callers that want the plain string.
+ * (`<hour><a|p><icon>`); [formatHourLabel] joins them back for callers that want the plain string.
  */
 internal fun formatHourLabelParts(time: LocalDateTime): Pair<String, String> {
     val hour = time.hour

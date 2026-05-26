@@ -233,9 +233,10 @@ internal object GraphRenderUtils {
 
     /**
      * Draw the hourly-graph footer. With [iconSize] > 0 and [drawIcon] supplied, each labeled hour
-     * renders as a single inline row `<hour><icon><a|p>` (e.g. `3☁p`): the numeric part, then the
-     * weather icon, then the meridiem, centered as a group. The icon's [RectF] is handed to
+     * renders as a single inline row `<hour><a|p><icon>` (e.g. `3p☁`): the numeric part and
+     * meridiem drawn as one centered string, then the weather icon to the right. The icon's [RectF] is handed to
      * [drawIcon] so the caller applies its own (condition-specific) tint and draws into it.
+     * The icon is always skipped on the last labeled hour to avoid crowding with its neighbor.
      * Hours where [hasIcon] is false fall back to the plain centered label.
      */
     fun <T> drawHourLabels(
@@ -273,6 +274,16 @@ internal object GraphRenderUtils {
 
         // Label density is governed by the upstream showLabel cadence (zoom.labelInterval) plus
         // minHourLabelSpacing as a lower bound; we draw an inline group for every labeled hour.
+        // Pre-scan to find the last labeled index so we can skip its icon (avoids crowding).
+        var lastLabeledIndex = -1
+        var scanX = -1000f
+        items.forEachIndexed { index, item ->
+            val cx = points[index].first
+            if (showLabel(item) && cx - scanX >= minHourLabelSpacing) {
+                lastLabeledIndex = index
+                scanX = cx
+            }
+        }
         var lastHourLabelX = -1000f
 
         items.forEachIndexed { index, item ->
@@ -280,24 +291,27 @@ internal object GraphRenderUtils {
             if (!showLabel(item) || centerX - lastHourLabelX < minHourLabelSpacing) return@forEachIndexed
 
             val fullLabel = labelText(item)
-            val inline = iconSize > 0f && drawIcon != null && hasIcon(item)
+            val inline = iconSize > 0f && drawIcon != null && hasIcon(item) && index != lastLabeledIndex
 
             if (inline) {
                 val hourText = fullLabel.dropLast(1)
                 val meridiem = fullLabel.takeLast(1)
-                val hourW = hourLabelTextPaint.measureText(hourText)
-                val merW = hourLabelTextPaint.measureText(meridiem)
-                // Center the icon on the marker tick; flank with the hour digits (left) and meridiem
-                // (right). This keeps the icon visually centered regardless of how wide the hour
-                // text is, instead of letting a wide hour push the icon off to one side.
-                val leftExtent = iconSize / 2f + gap + hourW
-                val rightExtent = iconSize / 2f + gap + merW
+                val hourMerW = hourLabelTextPaint.measureText(hourText + meridiem)
+                // Draw hour+meridiem as a single centered string (e.g. "3p"), then place the
+                // icon to the right. The combined drawText naturally centers the hour around
+                // the meridiem letter.
+                val leftExtent = hourMerW / 2f
+                val rightExtent = hourMerW / 2f + gap + iconSize
                 val center = centerX.coerceIn(leftExtent, widthPx - rightExtent)
-                val iconLeft = center - iconSize / 2f
-                // hourLabelTextPaint is Align.CENTER, so each drawText x is the fragment's center.
-                canvas.drawText(hourText, iconLeft - gap - hourW / 2f, baselineY, hourLabelTextPaint)
-                drawIcon?.invoke(index, RectF(iconLeft, iconTop, iconLeft + iconSize, iconBottom))
-                canvas.drawText(meridiem, iconLeft + iconSize + gap + merW / 2f, baselineY, hourLabelTextPaint)
+                val textX = center
+                val iconLeft = center + hourMerW / 2f + gap
+                // hourLabelTextPaint is Align.CENTER, so drawText x is the string's center.
+                canvas.drawText(hourText + meridiem, textX, baselineY, hourLabelTextPaint)
+                // Skip the icon if it would overflow the right edge (avoids the last two
+                // labels crowding each other when the rightmost group can't fit its icon).
+                if (iconLeft + iconSize <= widthPx) {
+                    drawIcon?.invoke(index, RectF(iconLeft, iconTop, iconLeft + iconSize, iconBottom))
+                }
             } else {
                 val textWidth = hourLabelTextPaint.measureText(fullLabel)
                 val clampedX = centerX.coerceIn(textWidth / 2f, widthPx - textWidth / 2f)

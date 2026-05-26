@@ -127,8 +127,8 @@ class PrecipitationGraphRendererLogRoboTest {
         )
 
         assertEquals(
-            "Expected one icon callback per hourly point in zoomed-in spacing",
-            hours.indices.toList(),
+            "Expected one icon callback per hourly point except the last (skipped to avoid crowding)",
+            hours.indices.toList().dropLast(1),
             iconDrawnIndices,
         )
     }

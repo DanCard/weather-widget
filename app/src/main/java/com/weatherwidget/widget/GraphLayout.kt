@@ -9,7 +9,7 @@ object HourlyGraphDefaults {
     const val WATERMARK_ICON_SIZE_DP = 24f
     const val MIN_ICON_GRAPH_WIDTH_PX = 420
 
-    // Inline footer row: <hour><weather icon><a|p>. The icon is sized relative to the hour-label
+    // Inline footer row: <hour><a|p><weather icon>. The icon is sized relative to the hour-label
     // text (not a fixed dp) so it scales with the text at every widget size and can't silently
     // shrink the way a labelScale-multiplied dp constant did. 1.4x makes the icon the focal point.
     const val FOOTER_ICON_TO_TEXT_RATIO = 1.0f
@@ -113,7 +113,7 @@ object GraphLayout {
         return Triple(minTemp, maxTemp, tempRange)
     }
 
-    // The footer is now a single inline row (<hour><icon><a|p>) sized by [footerIconSize], the
+    // The footer is now a single inline row (<hour><a|p><icon>) sized by [footerIconSize], the
     // tallest element. Reserving just that one row (vs. the old stacked icon + label rows) hands
     // the reclaimed vertical space back to the graph curve.
     fun computeLayout(context: Context, heightPx: Int, labelScale: Float, footerIconSize: Float): Layout {

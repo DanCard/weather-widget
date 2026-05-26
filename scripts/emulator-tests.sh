@@ -434,13 +434,25 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
             $ADB_BIN -s "$serial" shell cmd jobscheduler cancel com.weatherwidget >/dev/null 2>&1 || true
 
             if [ "$VERBOSE_MODE" = true ]; then echo "Installing APKs on $serial"; fi
-            $ADB_BIN -s "$serial" install -r "$APP_APK"  >/dev/null
-            $ADB_BIN -s "$serial" install -r "$TEST_APK" >/dev/null
+            local install_out
+            install_out=$($ADB_BIN -s "$serial" install -r "$APP_APK" 2>&1)
+            if [ $? -ne 0 ] || echo "$install_out" | grep -qi "error\|failure\|failed"; then
+                echo "FAILED — app APK install error on $serial: $install_out" > "$emu_log"
+                echo "FAILED — app APK install error on $serial: $install_out"
+                return 1
+            fi
+            install_out=$($ADB_BIN -s "$serial" install -r "$TEST_APK" 2>&1)
+            if [ $? -ne 0 ] || echo "$install_out" | grep -qi "error\|failure\|failed"; then
+                echo "FAILED — test APK install error on $serial: $install_out" > "$emu_log"
+                echo "FAILED — test APK install error on $serial: $install_out"
+                return 1
+            fi
 
             local instrument_args="-w"
             [ -n "${TEST_CLASS:-}" ] && instrument_args="$instrument_args -e class $TEST_CLASS"
 
             echo "Running tests on $serial (log: $emu_log)"
+            echo "APK install OK on $serial" >> "$emu_log"
             local run_start=$(date +%s)
             # shellcheck disable=SC2086
             $ADB_BIN -s "$serial" shell am instrument $instrument_args \
@@ -521,7 +533,7 @@ if [ -z "${EMULATOR_TESTS_TARGET_SERIAL:-}" ] && [ "$EMULATOR_NAME_EXPLICIT" = f
             PROGRESS_PIDS+=($!)
 
             # Stagger starts to reduce parallel initialization contention (bg anr risk)
-            [ "$i" -gt 0 ] && sleep 2
+            [ "$i" -gt 0 ] && sleep 5
 
             _run_on_emulator "$serial" "$emu_log" \
                 > >(_emu_prefix_output "$serial" "$color") \
