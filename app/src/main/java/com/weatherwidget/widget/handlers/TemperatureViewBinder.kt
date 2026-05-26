@@ -30,6 +30,8 @@ internal object TemperatureViewBinder {
 
         views.setViewVisibility(R.id.header_date_center, View.GONE)
         views.setViewVisibility(R.id.header_date_right, View.GONE)
+        views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+        views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
         // Reset sticky visibility from DailyViewHandler
 
         // 1. Warning

@@ -285,6 +285,8 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
 
             // Build precipitation hour data list
             val buildHoursStartMs = SystemClock.elapsedRealtime()

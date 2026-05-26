@@ -329,6 +329,8 @@ val rawRows = (dimensions.heightDp + 25).toFloat() / CELL_HEIGHT_DP
         if (useGraph) {
             views.setViewVisibility(R.id.text_container, View.GONE)
             views.setViewVisibility(R.id.graph_view, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_day_zones, View.GONE)
+            views.setViewVisibility(R.id.graph_interaction_container, View.VISIBLE)
 
             val buildHoursStartMs = SystemClock.elapsedRealtime()
             val hours = buildCloudHourDataList(hourlyForecasts, centerTime, numColumns, effectiveDisplaySource, zoom)

@@ -510,6 +510,7 @@
         android:layout_height="match_parent"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
+        android:layout_marginTop="44dp"
         android:layout_marginBottom="140dp"
         android:layoutDirection="ltr"
         android:orientation="horizontal"
@@ -604,7 +605,9 @@
         android:layout_gravity="top"
         android:layout_marginStart="4dp"
         android:layout_marginEnd="4dp"
-        android:orientation="vertical">
+        android:layout_marginTop="44dp"
+        android:orientation="vertical"
+        android:visibility="gone">
 
         <FrameLayout
             android:id="@+id/graph_interaction_body"

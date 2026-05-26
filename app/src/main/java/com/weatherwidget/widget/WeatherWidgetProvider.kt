@@ -449,6 +449,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             WidgetActions.ACTION_TOGGLE_API -> handleToggleApiAction(context, intent)
             WidgetActions.ACTION_TOGGLE_VIEW -> handleToggleViewAction(context, intent)
             WidgetActions.ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
+            WidgetActions.ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             WidgetActions.ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             WidgetActions.ACTION_DAY_CLICK -> {
                 Log.d(TAG, "onReceive: ACTION_DAY_CLICK extras: date=${intent.getStringExtra("date")} index=${intent.getIntExtra("index", -1)} targetView=${intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW)} offset=${intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)} widget=${getWidgetId(intent)}")
