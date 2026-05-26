@@ -264,7 +264,7 @@ class CurrentTempRepository
             val deferredReadings = pointsOfInterest.mapIndexed { index, point ->
                 async {
                     val reading = try {
-                        silurianApi.getForecast(point.first, point.second, 1)
+                        silurianApi.getCurrent(point.first, point.second)
                     } catch (e: ApiAccessException) {
                         throw e
                     } catch (e: ClientRequestException) {
@@ -275,17 +275,18 @@ class CurrentTempRepository
                     } catch (e: Exception) {
                         null
                     }
-                    if (reading?.currentTemp != null) {
+                    if (reading != null) {
                         val stationId = if (point.third == "Current") "SILURIAN_MAIN" else "SILURIAN_$index"
-                        val obsTime = reading.currentObservedAt ?: System.currentTimeMillis()
                         val obsEntity = ObservationEntity(
                             stationId = stationId,
                             stationName = "Silurian: ${point.third}",
-                            timestamp = obsTime,
-                            temperature = reading.currentTemp,
-                            condition = reading.currentCondition ?: "Unknown",
+                            timestamp = reading.observedAt ?: System.currentTimeMillis(),
+                            temperature = reading.temperature,
+                            condition = reading.condition ?: "Unknown",
                             locationLat = latitude,
                             locationLon = longitude,
+                            distanceKm = calculateDistance(latitude, longitude, point.first, point.second) / 1000f,
+                            stationType = "OFFICIAL",
                             api = WeatherSource.SILURIAN.id,
                         )
                         insertCurrentObservation(obsEntity)
@@ -295,9 +296,7 @@ class CurrentTempRepository
             }.map { it.await() }
 
             deferredReadings.firstNotNullOfOrNull { it }?.let { reading ->
-                if (reading.currentTemp != null) {
-                    CurrentReadingPayload(WeatherSource.SILURIAN, reading.currentTemp, reading.currentCondition, reading.currentObservedAt)
-                } else null
+                CurrentReadingPayload(WeatherSource.SILURIAN, reading.temperature, reading.condition, reading.observedAt)
             }
         }
         private suspend fun fetchOpenMeteoCurrent(latitude: Double, longitude: Double): CurrentReadingPayload? = coroutineScope {

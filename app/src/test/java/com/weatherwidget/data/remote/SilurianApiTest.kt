@@ -107,4 +107,58 @@ class SilurianApiTest {
         assertEquals("rain", result.hourly[0].condition)
         assertEquals(60, result.hourly[0].precipProbability)
     }
+
+    @Test
+    fun `getCurrent makes a single hourly request and returns the nearest-to-now reading`() = runTest {
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
+        val nowHour = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        // Series spans before/at/after now; the entry at the current hour must win.
+        val hourlyMockResponse = """
+            {
+              "hourly": [
+                { "timestamp": "${nowHour.minusHours(3).format(fmt)}", "temperature": 50.0, "weather_code": "clear" },
+                { "timestamp": "${nowHour.format(fmt)}", "temperature": 68.0, "weather_code": "cloudy" },
+                { "timestamp": "${nowHour.plusHours(3).format(fmt)}", "temperature": 72.0, "weather_code": "clear" }
+              ]
+            }
+        """.trimIndent()
+
+        var hourlyCalls = 0
+        var historyCalls = 0
+        val mockEngine = MockEngine { request ->
+            when {
+                request.url.encodedPath.endsWith("/forecast/hourly") -> {
+                    hourlyCalls += 1
+                    respond(
+                        content = hourlyMockResponse,
+                        status = HttpStatusCode.OK,
+                        headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                    )
+                }
+                request.url.encodedPath.endsWith("/history/hourly") -> {
+                    historyCalls += 1
+                    respond("", HttpStatusCode.OK)
+                }
+                else -> respond("", HttpStatusCode.NotFound)
+            }
+        }
+
+        val httpClient = HttpClient(mockEngine) {
+            install(ContentNegotiation) {
+                json(json)
+            }
+        }
+
+        val silurianApi = SilurianApi(httpClient, json)
+        silurianApi.setApiKeyForTesting("test-api-key")
+        val reading = silurianApi.getCurrent(37.7749, -122.4194)
+
+        assertNotNull(reading)
+        assertEquals(68.0f, reading!!.temperature)
+        assertEquals("cloudy", reading.condition)
+        assertNotNull(reading.observedAt)
+        // Lightweight: exactly one hourly request, and no 3-day history loop.
+        assertEquals(1, hourlyCalls)
+        assertEquals(0, historyCalls)
+    }
 }

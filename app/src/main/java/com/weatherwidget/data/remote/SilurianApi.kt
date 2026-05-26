@@ -154,39 +154,106 @@ DailyForecast(
         } else emptyList()
 
         val hourly = if (hourlyDataList != null) {
-            hourlyDataList.mapNotNull { entry ->
-                val time = entry["timestamp"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                val temp = entry["temperature"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
-                val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
-                val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
-                val cloudCover = entry["cloud_cover"]?.jsonPrimitive?.doubleOrNull?.toInt()
-
-                val ts = try {
-                    java.time.LocalDateTime.parse(time.take(19)).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                } catch (e: Exception) {
-                    return@mapNotNull null
-                }
-
-                HourlyForecast(
-                    dateTime = ts,
-                    temperature = temp,
-                    condition = condition,
-                    precipProbability = precip,
-                    precipAmountMm = parsePrecipAmountMm(entry),
-                    cloudCover = cloudCover,
-                )
-            }.distinctBy { it.dateTime }.sortedBy { it.dateTime }
+            hourlyDataList.mapNotNull { parseHourlyForecast(it) }
+                .distinctBy { it.dateTime }.sortedBy { it.dateTime }
         } else emptyList()
 
-        val firstHour = hourly.firstOrNull()
-        
+        // Current conditions = the current-hour value. The combined history+forecast list is sorted
+        // ascending, so firstOrNull() would be the oldest (~3 days old) point — not current.
+        val current = nearestToNow(hourly)
+
 ForecastResult(
-    currentTemp = firstHour?.temperature,
-    currentCondition = firstHour?.condition,
+    currentTemp = current?.temperature,
+    currentCondition = current?.condition,
     currentObservedAt = null,
     daily = daily,
     hourly = hourly
   )
+    }
+
+    /**
+     * Lightweight current-conditions fetch: a single `/forecast/hourly` request (no 3-day history
+     * loop), returning the hourly point nearest to now. Used by the high-frequency current-temp
+     * loop so Silurian "now" observations land reliably instead of timing out on ~20 HTTP calls.
+     */
+    suspend fun getCurrent(lat: Double, lon: Double): CurrentReading? {
+        val apiKey = apiKeyOverride ?: BuildConfig.SILURIAN_API_KEY
+        if (apiKey.isBlank()) {
+            throw IllegalStateException("SILURIAN_API_KEY is missing. Add it to local.properties or SILURIAN_API_KEY env var.")
+        }
+
+        val httpResponse = httpClient.get("$BASE_URL/forecast/hourly") {
+            header("X-API-Key", apiKey)
+            parameter("latitude", lat)
+            parameter("longitude", lon)
+            parameter("units", "imperial")
+        }
+        if (httpResponse.status.value !in 200..299) {
+            val errorBody = runCatching { httpResponse.bodyAsText() }.getOrDefault("No error body")
+            throw ApiAccessException(
+                source = WeatherSource.SILURIAN,
+                statusCode = httpResponse.status.value,
+                detail = errorBody,
+                message = "Silurian current fetch failed: status ${httpResponse.status.value}."
+            )
+        }
+        val response = httpResponse.body<String>()
+
+        val hourly = parseTimeseries(response, "hourly")
+            .mapNotNull { parseHourlyForecast(it) }
+            .distinctBy { it.dateTime }
+            .sortedBy { it.dateTime }
+
+        val current = nearestToNow(hourly) ?: return null
+        // Stored at the real fetch time (age ~0) — this is the *current* temperature, not snapped to
+        // the hour. Silurian is hourly-resolution, so the value is the current hour's value.
+        return CurrentReading(
+            temperature = current.temperature,
+            condition = current.condition,
+            observedAt = System.currentTimeMillis(),
+        )
+    }
+
+    data class CurrentReading(
+        val temperature: Float,
+        val condition: String?,
+        val observedAt: Long? = null,
+    )
+
+    /** Maps one Silurian hourly timeseries entry to a [HourlyForecast]; drops unparseable rows. */
+    private fun parseHourlyForecast(entry: kotlinx.serialization.json.JsonObject): HourlyForecast? {
+        val time = entry["timestamp"]?.jsonPrimitive?.content ?: return null
+        val temp = entry["temperature"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
+        val condition = entry["weather_code"]?.jsonPrimitive?.content ?: "Clear"
+        val precip = (entry["precipitation_probability"]?.jsonPrimitive?.doubleOrNull ?: 0.0).toInt()
+        val cloudCover = entry["cloud_cover"]?.jsonPrimitive?.doubleOrNull?.toInt()
+
+        val ts = try {
+            java.time.LocalDateTime.parse(time.take(19)).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        } catch (e: Exception) {
+            return null
+        }
+
+        return HourlyForecast(
+            dateTime = ts,
+            temperature = temp,
+            condition = condition,
+            precipProbability = precip,
+            precipAmountMm = parsePrecipAmountMm(entry),
+            cloudCover = cloudCover,
+        )
+    }
+
+    /**
+     * Picks the hourly entry that represents "now": the latest point at or before the current time
+     * (the current hour). An observation must never be in the future, so a future hour is used only
+     * as a fallback when no current/past hour is available. NaN-temperature rows are ignored.
+     */
+    private fun nearestToNow(hourly: List<HourlyForecast>): HourlyForecast? {
+        val now = System.currentTimeMillis()
+        val valid = hourly.filter { !it.temperature.isNaN() }
+        return valid.filter { it.dateTime <= now }.maxByOrNull { it.dateTime }
+            ?: valid.minByOrNull { it.dateTime }
     }
 
     private fun parseTimeseries(response: String, key: String): List<kotlinx.serialization.json.JsonObject> {
