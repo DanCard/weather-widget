@@ -1045,13 +1045,24 @@ object DailyViewHandler : WidgetViewHandler {
         )
         logGraphDayIconDetails(ctx.context, ctx.appWidgetId, displayDays)
 
+        val graphSunInfo = SunPositionUtils.getSunInfo(ctx.now, lat, lon)
+        val isNightPrecip = ctx.precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
+            hourlyForecasts = ctx.hourlyForecasts,
+            displaySource = ctx.displaySource,
+            referenceTime = ctx.now,
+            sunriseHour = graphSunInfo.sunTimes.sunriseHour,
+            sunsetHour = graphSunInfo.sunTimes.sunsetHour,
+        )
         val headerRenderData = if (disclosure != HeaderDisclosureLevel.NONE) {
             DailyForecastGraphRenderer.HeaderRenderData(
                 iconRes = iconRes,
                 currentTempText = formattedTemp,
                 deltaText = if (deltaVisible) String.format("%+.1f", delta) else null,
                 precipText = if (isPrecipVisible) "${ctx.precipProb}%" else null,
-                precipTextSizeDp = if (isPrecipVisible) HeaderPrecipCalculator.getPrecipTextSize(ctx.precipProb ?: 0) else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
+                precipTextSizeDp = if (isPrecipVisible) {
+                    HeaderPrecipCalculator.getPrecipTextSize(ctx.precipProb ?: 0) *
+                        if (isNightPrecip) HeaderPrecipCalculator.NIGHT_SCALE else 1f
+                } else HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP,
                 dateText = dateText,
                 apiSourceText = if (isIconWidth) null else apiSourceText,
                 apiTextSizeDp = apiTextSizeDp,
@@ -1212,11 +1223,12 @@ object DailyViewHandler : WidgetViewHandler {
             hourlyForecasts = hourlyForecasts,
             displaySource = displaySource,
         )
+        val sunInfo = SunPositionUtils.getSunInfo(now, lat, lon)
         val iconRes =
             if (todayHeaderForecast != null) {
                 WeatherIconMapper.getIconResource(
                     condition = todayHeaderForecast.condition,
-                    isNight = SunPositionUtils.getSunInfo(now, lat, lon).isNight,
+                    isNight = sunInfo.isNight,
                     cloudCover = todayHeaderForecast.cloudCover,
                     precipProbability = todayHeaderForecast.precipProbability,
                 )
@@ -1263,7 +1275,17 @@ object DailyViewHandler : WidgetViewHandler {
                 referenceTime = now,
             )
         val isPrecipVisible = HeaderTapTargetHelper.shouldShowPrecipTouchZone(precipProb)
-        val precipTextSizeDp = if (precipProb != null) HeaderPrecipCalculator.getPrecipTextSize(precipProb) else null
+        val isNightPrecip = precipProb != null && HeaderPrecipCalculator.isNext8HourPrecipPredominantlyNight(
+            hourlyForecasts = hourlyForecasts,
+            displaySource = displaySource,
+            referenceTime = now,
+            sunriseHour = sunInfo.sunTimes.sunriseHour,
+            sunsetHour = sunInfo.sunTimes.sunsetHour,
+        )
+        val precipTextSizeDp = if (precipProb != null) {
+            HeaderPrecipCalculator.getPrecipTextSize(precipProb) *
+                if (isNightPrecip) HeaderPrecipCalculator.NIGHT_SCALE else 1f
+        } else null
 
         val delta = currentTempResolution.appliedDelta
         val deltaVisible =

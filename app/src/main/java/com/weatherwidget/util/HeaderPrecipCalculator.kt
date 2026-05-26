@@ -61,18 +61,64 @@ object HeaderPrecipCalculator {
         return exactPointFallback ?: fallbackDailyProbability
     }
 
+    const val NIGHT_SCALE = 0.72f
+
     fun getPrecipScaleFactor(precipProb: Int): Float = when {
-        precipProb <= 1 -> 0.4f
-        precipProb <= 2 -> 0.5f
-        precipProb <= 4 -> 0.6f
-        precipProb <= 8 -> 0.7f
-        precipProb <= 15 -> 0.8f
-        precipProb <= 25 -> 0.9f
-        else -> 1.0f
+        precipProb <= 1  -> 0.3f
+        precipProb <= 2  -> 0.4f
+        precipProb <= 4  -> 0.5f
+        precipProb <= 8  -> 0.6f
+        precipProb <= 16 -> 0.7f
+        precipProb <= 32 -> 0.8f
+        precipProb <= 64 -> 0.9f
+        else             -> 1.0f
     }
 
     fun getPrecipTextSize(precipProb: Int): Float {
         return HeaderConstants.PRECIP_TEXT_BASE_SIZE_DP * getPrecipScaleFactor(precipProb)
+    }
+
+    /**
+     * Returns true if more than half of the probability-weighted minutes in the next 8-hour window
+     * fall after sunset / before sunrise, i.e. the rain is predominantly nighttime.
+     *
+     * @param sunriseHour Sunrise in fractional 24h (from SunPositionUtils.SunTimes)
+     * @param sunsetHour  Sunset  in fractional 24h (from SunPositionUtils.SunTimes)
+     */
+    fun isNext8HourPrecipPredominantlyNight(
+        hourlyForecasts: List<HourlyForecastEntity>,
+        displaySource: WeatherSource,
+        referenceTime: LocalDateTime,
+        sunriseHour: Double,
+        sunsetHour: Double,
+    ): Boolean {
+        if (sunsetHour >= 24.0) return false   // midnight sun — no nighttime
+        if (sunriseHour <= 0.0) return true    // polar night — always night
+
+        val sourceForecasts = hourlyForecasts.filter { it.source == displaySource.id && it.precipProbability != null }
+        val candidateForecasts =
+            if (sourceForecasts.isNotEmpty()) {
+                sourceForecasts
+            } else {
+                hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id && it.precipProbability != null }
+            }
+        if (candidateForecasts.isEmpty()) return false
+
+        val selectedForecasts =
+            candidateForecasts
+                .groupBy { it.dateTime }
+                .mapValues { (_, items) -> items.maxOf { checkNotNull(it.precipProbability) } }
+
+        var nightSum = 0f
+        var daySum   = 0f
+        for (minuteOffset in 0 until LOOKAHEAD_HOURS * MINUTES_PER_HOUR) {
+            val sampleTime = referenceTime.plusMinutes(minuteOffset)
+            val prob = interpolatePrecipProbabilityAt(selectedForecasts, sampleTime) ?: continue
+            val hourOfDay = sampleTime.hour + sampleTime.minute / 60.0
+            if (hourOfDay < sunriseHour || hourOfDay >= sunsetHour) nightSum += prob
+            else                                                      daySum   += prob
+        }
+        return nightSum > daySum
     }
 
     private fun interpolatePrecipProbabilityAt(
