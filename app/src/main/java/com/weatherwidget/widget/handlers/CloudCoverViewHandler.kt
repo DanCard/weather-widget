@@ -127,8 +127,7 @@ object CloudCoverViewHandler {
 
         views.setViewVisibility(R.id.header_date_center, View.GONE)
         views.setViewVisibility(R.id.header_date_right, View.GONE)
-        // Reset sticky visibility from DailyViewHandler — dual_touch_zone is only meaningful in DAILY view.
-        views.setViewVisibility(R.id.dual_touch_zone, View.GONE)
+        // Reset sticky visibility from DailyViewHandler
 
         views.setViewVisibility(R.id.graph_day_zones, View.GONE)
         views.setViewVisibility(R.id.graph_night_rain_zones, View.GONE)

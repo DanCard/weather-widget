@@ -242,23 +242,10 @@ object DailyViewHandler : WidgetViewHandler {
                     }
                 }
 
-        // Dual-source ("two bars") support: parallel per-date map for the NEXT API source.
-        // Empty when the setting is off or only one source is visible.
-        val showTwoBars = stateManager.isShowTwoBarsEnabled()
-        val nextSource = if (showTwoBars) stateManager.getNextDisplaySource(appWidgetId) else displaySource
-        val nextSourceWeatherByDate: Map<LocalDate, ForecastEntity> =
-            if (showTwoBars && nextSource != displaySource) {
-                weatherList.filter { it.source == nextSource.id }
-                    .groupBy { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
-                    .mapValues { (_, items) -> items.first() }
-            } else emptyMap()
-
         val headerResolution = resolveAndBindHeader(
             context = context,
             views = views,
             displaySource = displaySource,
-            nextSource = nextSource,
-            showTwoBars = showTwoBars,
             now = now,
             lat = lat,
             lon = lon,
@@ -291,7 +278,6 @@ object DailyViewHandler : WidgetViewHandler {
         // Setup API source toggle click handler (skipped at 1 icon wide — target is hidden)
         if (!isIconWidth) {
             setupApiToggle(context, views, appWidgetId, numRows, includeTextMode = true, scale = headerScale)
-            setupDualToggle(context, views, appWidgetId)
         }
 
         Log.d(
@@ -357,9 +343,6 @@ object DailyViewHandler : WidgetViewHandler {
             )
             val metrics = renderGraphMode(
                 ctx = ctx,
-                nextSource = nextSource,
-                showTwoBars = showTwoBars,
-                nextSourceWeatherByDate = nextSourceWeatherByDate,
                 headerState = headerResolution.state,
                 headerPrecipPlacement = headerResolution.precipPlacement,
                 dimensions = dimensions,
@@ -906,9 +889,6 @@ object DailyViewHandler : WidgetViewHandler {
 
     private suspend fun renderGraphMode(
         ctx: DailyRenderContext,
-        nextSource: WeatherSource,
-        showTwoBars: Boolean,
-        nextSourceWeatherByDate: Map<LocalDate, ForecastEntity>,
         headerState: HeaderState,
         headerPrecipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
         dimensions: WidgetDimensions,
@@ -967,8 +947,6 @@ object DailyViewHandler : WidgetViewHandler {
             currentTemp = ctx.currentTemp,
             observedAt = ctx.observedAt,
             allowTodayRainChanceLabel = true,
-            nextSourceWeatherByDate = nextSourceWeatherByDate,
-            nextSource = if (showTwoBars && nextSource != ctx.displaySource) nextSource else null,
         )
         val prepareMs = SystemClock.elapsedRealtime() - prepareStartMs
 
@@ -1081,16 +1059,9 @@ object DailyViewHandler : WidgetViewHandler {
                 showIcon = disclosure.showsIcon(),
                 showDelta = deltaVisible && disclosure.showsDelta(),
                 showPrecip = isPrecipVisible && headerPrecipPlacement.showHeaderPrecip,
-                showDualButton = (ctx.displaySource != nextSource) && (disclosure == HeaderDisclosureLevel.FULL || disclosure == HeaderDisclosureLevel.NO_ICON) && !isIconWidth,
-                dualActive = showTwoBars,
                 headerScale = headerScale,
             )
         } else null
-
-        ctx.views.setViewVisibility(
-            R.id.dual_touch_zone,
-            if (headerRenderData?.showDualButton == true) View.VISIBLE else View.GONE,
-        )
 
         val nightRainLabelDraws = mutableListOf<DailyForecastGraphRenderer.RainLabelDrawnDebug>()
         val renderStartMs = SystemClock.elapsedRealtime()
@@ -1171,8 +1142,6 @@ object DailyViewHandler : WidgetViewHandler {
         context: Context,
         views: RemoteViews,
         displaySource: WeatherSource,
-        nextSource: WeatherSource,
-        showTwoBars: Boolean,
         now: LocalDateTime,
         lat: Double,
         lon: Double,
@@ -1191,8 +1160,6 @@ object DailyViewHandler : WidgetViewHandler {
         val resolution = resolveHeaderState(
             context = context,
             displaySource = displaySource,
-            nextSource = nextSource,
-            showTwoBars = showTwoBars,
             now = now,
             lat = lat,
             lon = lon,
@@ -1222,8 +1189,6 @@ object DailyViewHandler : WidgetViewHandler {
     private fun resolveHeaderState(
         context: Context,
         displaySource: WeatherSource,
-        nextSource: WeatherSource,
-        showTwoBars: Boolean,
         now: LocalDateTime,
         lat: Double,
         lon: Double,
@@ -1306,38 +1271,22 @@ object DailyViewHandler : WidgetViewHandler {
             delta != null &&
             abs(delta) >= DELTA_VISIBILITY_THRESHOLD
 
-        // Pick API label: dual-source "<first> - <second>" if it fits at the same disclosure
-        // level as the single-source label; otherwise fall back to single source.
-        val singleApiText = displaySource.shortDisplayName
-        val candidateDualApiText = if (showTwoBars && nextSource != displaySource)
-            "$singleApiText - ${nextSource.shortDisplayName}" else null
+        // Pick API label
+        val apiSourceText = displaySource.shortDisplayName
         val apiTextSizeDp = HeaderConstants.apiTextSizeDp(numRows)
         val deltaTextForFit = if (deltaVisible) String.format("%+.1f", delta) else null
         val precipTextForFit = if (isPrecipVisible) "${precipProb}%" else null
-        val singleDisclosure = HeaderWidthChecker.resolveHeaderDisclosure(
+        
+        val disclosure = HeaderWidthChecker.resolveHeaderDisclosure(
             context = context,
             widthDp = dimensions.widthDp,
-            apiSourceText = singleApiText,
+            apiSourceText = apiSourceText,
             apiTextSizeDp = apiTextSizeDp,
             currentTempText = formattedTemp,
             deltaText = deltaTextForFit,
             precipText = precipTextForFit,
             precipTextSizeDp = precipTextSizeDp,
         )
-        val (apiSourceText, disclosure) = if (candidateDualApiText != null) {
-            val dualLevel = HeaderWidthChecker.resolveHeaderDisclosure(
-                context = context,
-                widthDp = dimensions.widthDp,
-                apiSourceText = candidateDualApiText,
-                apiTextSizeDp = apiTextSizeDp,
-                currentTempText = formattedTemp,
-                deltaText = deltaTextForFit,
-                precipText = precipTextForFit,
-                precipTextSizeDp = precipTextSizeDp,
-            )
-            if (dualLevel == singleDisclosure) candidateDualApiText to dualLevel
-            else singleApiText to singleDisclosure
-        } else singleApiText to singleDisclosure
 
         val headerScale = HeaderWidthChecker.computeHeaderScale(
             context = context,

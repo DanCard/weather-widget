@@ -309,8 +309,6 @@ object DailyViewLogic {
         observedAt: Long? = null,
         allowTodayRainChanceLabel: Boolean = false,
         rainSummaryProvider: (List<HourlyForecastEntity>, LocalDate, String?, LocalDateTime) -> String? = RainAnalyzer::getRainSummary,
-        nextSourceWeatherByDate: Map<LocalDate, ForecastEntity> = emptyMap(),
-        nextSource: WeatherSource? = null,
     ): List<DailyForecastGraphRenderer.DayData> {
         Log.d(TAG, "prepareGraphDays: today=$today, weatherByDateKeys=${weatherByDate.keys}, forecastSnapshotKeys=${forecastSnapshots.keys}")
 
@@ -356,9 +354,8 @@ object DailyViewLogic {
             var finalLow: Float? = weather?.lowTemp
             var fHigh: Float? = null
             var fLow: Float? = null
-            var pastNextSourceHigh: Float? = null
-            var pastNextSourceLow: Float? = null
             var snapshotHigh: Float? = null
+
             var snapshotLow: Float? = null
             var snapshotIconRes: Int? = null
             var isClimateOverlay = false
@@ -386,19 +383,6 @@ object DailyViewLogic {
 
                     if (fHigh == null || fLow == null) {
                         Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from ${displaySource.id}; skipping forecast overlay")
-                    }
-
-                    if (nextSource != null && nextSource != displaySource) {
-                        val pastNextSourceForecast = forecasts
-                            .filter { it.source == nextSource.id }
-                            .filter { !it.isClimateNormal }
-                            .filter { it.highTemp != null && it.lowTemp != null }
-                            .maxByOrNull { it.fetchedAt }
-                        pastNextSourceHigh = pastNextSourceForecast?.highTemp
-                        pastNextSourceLow = pastNextSourceForecast?.lowTemp
-                        if (pastNextSourceHigh == null || pastNextSourceLow == null) {
-                            Log.d(TAG, "prepareGraphDays: past day $date has no usable forecast snapshot from nextSource ${nextSource.id}; third bar will be skipped")
-                        }
                     }
                 }
             } else if (isToday && (weather != null || dailyActuals.containsKey(date))) {
@@ -532,7 +516,7 @@ object DailyViewLogic {
             
             val precip = if (isToday) todayNext8HourPrecipProbability else weather?.precipProbability
             val hasRainForecast = DayClickHelper.hasRainForecast(rawRainSummary, precip)
-            
+
             val nearTermLimit = today.plusDays(2)
             val rainSummary = if (!date.isBefore(today) && !date.isAfter(nearTermLimit)) {
                 if (isToday && rawRainSummary != null && stateManager?.wasRainShownToday(appWidgetId, todayStr) == true) {
@@ -550,34 +534,6 @@ object DailyViewLogic {
                 dayPrecipProbability = dayPrecipForIcon,
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
             )
-
-            // Next-source icon + cloud cover: mirror the primary computation but with the
-            // next source's hourly stream and forecast entity. Reuses existing helpers so the
-            // resolution rules stay identical.
-            val nextSourceWeather = nextSourceWeatherByDate[date]
-            val nextSourceCloudCoverRatioOverride =
-                if (nextSourceWeather != null && nextSource != null) {
-                    resolveNoonCloudCoverRatio(
-                        date = date,
-                        hourlyForecasts = hourlyForecasts,
-                        displaySource = nextSource,
-                        weatherSourceId = nextSourceWeather.source,
-                    )
-                } else null
-            val nextSourceCloudCoverPercent =
-                nextSourceCloudCoverRatioOverride?.let { (it * 100).toInt() }
-            val nextSourceIconRes = nextSourceWeather?.let { w ->
-                DailyForecastIconResolver.resolveIcon(
-                    weather = w,
-                    targetDate = date,
-                    now = now,
-                    latitude = w.locationLat,
-                    longitude = w.locationLon,
-                    dayPrecipProbability = w.daytimePrecipProbability ?: w.precipProbability,
-                    nightPrecipProbability = w.nighttimePrecipProbability,
-                    cloudCover = nextSourceCloudCoverPercent,
-                )
-            }
 
             days.add(
                 DailyForecastGraphRenderer.DayData(
@@ -619,19 +575,11 @@ object DailyViewLogic {
                     ghostLineHigh = trueActualHigh,
                     cloudCoverRatioOverride = cloudCoverRatioOverride,
                     daysFromToday = ChronoUnit.DAYS.between(today, date).toInt(),
-                    nextSourceHigh = if (isPastDate) pastNextSourceHigh else nextSourceWeather?.highTemp,
-                    nextSourceLow = if (isPastDate) pastNextSourceLow else nextSourceWeather?.lowTemp,
-                    nextSourceIconRes = nextSourceIconRes,
-                    nextSourceIsSunny = nextSourceIconRes?.let(WeatherIconMapper::isSunny) ?: false,
-                    nextSourceIsRainy = nextSourceIconRes?.let(WeatherIconMapper::isPrecipitation) ?: false,
-                    nextSourceIsMixed = nextSourceIconRes?.let(WeatherIconMapper::isMixed) ?: false,
-                    nextSourceCloudCoverRatioOverride = nextSourceCloudCoverRatioOverride,
                 )
             )
-        }
-        return days
-    }
-
+            }
+            return days
+            }
     private fun resolveNoonCloudCoverRatio(
         date: LocalDate,
         hourlyForecasts: List<HourlyForecastEntity>,

@@ -101,62 +101,6 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
-    fun nextSourceBar_usesNextSourceConditionColor() {
-        // Primary forecasts sunny / dry; next source forecasts rainy.
-        // The next-source bar must take its color from the nextSourceIs* flags
-        // (not from the primary flags), so the two bar colors must differ.
-        val date = LocalDate.of(2026, 2, 3)
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = date,
-                label = "Tue",
-                solidLineHigh = 80f,
-                solidLineLow = 60f,
-                isSunny = true,
-                isRainy = false,
-                isMixed = false,
-                cloudCoverRatioOverride = 0f,
-                nextSourceHigh = 78f,
-                nextSourceLow = 58f,
-                nextSourceIsSunny = false,
-                nextSourceIsRainy = true,
-                nextSourceIsMixed = false,
-                nextSourceCloudCoverRatioOverride = 0.8f,
-            )
-        )
-
-        val bars = render(days)
-
-        val nextBar = bars.first { it.barType == "NEXT_SOURCE" }
-        val primaryBar = bars.first { it.barType == "FUTURE" }
-
-        val expectedNextColor = WeatherConditionColors.forecastColor(
-            isSunny = false,
-            isRainy = true,
-            isMixed = false,
-            isNight = false,
-        )
-        val expectedPrimaryColor = WeatherConditionColors.forecastColor(
-            isSunny = true,
-            isRainy = false,
-            isMixed = false,
-            isNight = false,
-        )
-        assertEquals(
-            "next-source bar color must derive from nextSourceIs* flags",
-            expectedNextColor, nextBar.color,
-        )
-        assertEquals(
-            "primary bar color must derive from primary isSunny/isRainy flags",
-            expectedPrimaryColor, primaryBar.color,
-        )
-        assertNotEquals(
-            "next-source bar color must differ from primary when conditions differ",
-            primaryBar.color, nextBar.color,
-        )
-    }
-
-    @Test
     fun renderGraph_withForecastBarMode_showsForecastOverlayForHistoryDay() {
         val feb01 = LocalDate.of(2026, 2, 1)
         val feb02 = LocalDate.of(2026, 2, 2)
@@ -226,51 +170,6 @@ class DailyForecastGraphRendererRoboTest {
         assertTrue(
             "Expected HISTORY bar for past day",
             bars.any { it.date == feb01 && it.barType == "HISTORY" },
-        )
-    }
-
-    @Test
-    fun pastDay_dualMode_drawsThreeBars_overlayLeftOfActuals_nextSourceRightOfActuals() {
-        // Three-bar past-day fix: when both forecast snapshots are present, render must produce
-        // HISTORY (actuals, center), FORECAST_OVERLAY (displaySource snapshot, LEFT), and
-        // NEXT_SOURCE (nextSource snapshot, RIGHT) — the suppression that previously hid the
-        // overlay in dual mode is lifted for past days.
-        val pastDate = LocalDate.of(2026, 2, 1)
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = pastDate,
-                label = "Sat",
-                solidLineHigh = 65f,
-                solidLineLow = 45f,
-                isPast = true,
-                dashedLineHigh = 67f,
-                dashedLineLow = 44f,
-                nextSourceHigh = 70f,
-                nextSourceLow = 42f,
-            ),
-            DailyForecastGraphRenderer.DayData(
-                date = pastDate.plusDays(1), label = "Today",
-                solidLineHigh = 68f, solidLineLow = 48f, isToday = true,
-            ),
-            DailyForecastGraphRenderer.DayData(
-                date = pastDate.plusDays(2), label = "Mon",
-                solidLineHigh = 70f, solidLineLow = 50f,
-            ),
-        )
-
-        val pastBars = render(days).filter { it.date == pastDate }
-
-        val history = pastBars.single { it.barType == "HISTORY" }
-        val overlay = pastBars.single { it.barType == "FORECAST_OVERLAY" }
-        val nextSource = pastBars.single { it.barType == "NEXT_SOURCE" }
-
-        assertTrue(
-            "displaySource forecast overlay must sit LEFT of actuals on past day (overlay.x=${overlay.centerX}, history.x=${history.centerX})",
-            overlay.centerX < history.centerX,
-        )
-        assertTrue(
-            "nextSource bar must sit RIGHT of actuals on past day (next.x=${nextSource.centerX}, history.x=${history.centerX})",
-            nextSource.centerX > history.centerX,
         )
     }
 
@@ -355,40 +254,6 @@ class DailyForecastGraphRendererRoboTest {
         assertTrue(
             "Today yellow snapshot must sit RIGHT of thermostat (snapshot.x=${snapshot.centerX}, thermostat.x=${thermostat.centerX})",
             snapshot.centerX > thermostat.centerX,
-        )
-    }
-
-    @Test
-    fun today_dualMode_layoutUnchanged_primaryLeft_nextSourceRight() {
-        // Regression guard: the flip is single-source only. In dual-source mode the
-        // primary forecast must still sit LEFT and the next-source forecast RIGHT.
-        val today = LocalDate.of(2026, 2, 2)
-        val days = listOf(
-            DailyForecastGraphRenderer.DayData(
-                date = today,
-                label = "Today",
-                isToday = true,
-                solidLineHigh = 68f,
-                solidLineLow = 48f,
-                dashedLineHigh = 70f,
-                dashedLineLow = 47f,
-                nextSourceHigh = 71f,
-                nextSourceLow = 46f,
-            ),
-        )
-
-        val bars = render(days).filter { it.date == today }
-        val thermostat = bars.single { it.barType == "TODAY" }
-        val forecast = bars.single { it.barType == "TODAY_FORECAST" }
-        val nextSource = bars.single { it.barType == "NEXT_SOURCE" }
-
-        assertTrue(
-            "Dual-mode: primary forecast must sit LEFT of thermostat (forecast.x=${forecast.centerX}, thermostat.x=${thermostat.centerX})",
-            forecast.centerX < thermostat.centerX,
-        )
-        assertTrue(
-            "Dual-mode: next-source forecast must sit RIGHT of thermostat (next.x=${nextSource.centerX}, thermostat.x=${thermostat.centerX})",
-            nextSource.centerX > thermostat.centerX,
         )
     }
 

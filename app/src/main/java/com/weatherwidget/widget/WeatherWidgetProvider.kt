@@ -155,17 +155,10 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             val latestWeather = forecastDao.getLatestWeather()
             val latestWeatherMs = SystemClock.elapsedRealtime() - latestWeatherStartMs
             val stateManager = stateManager(context)
-            val showTwoBars = stateManager.isShowTwoBarsEnabled()
             val activeSources = filteredIds
                 .filter { it != AppWidgetManager.INVALID_APPWIDGET_ID }
-                .flatMap { widgetId ->
-                    val primary = stateManager.getCurrentDisplaySource(widgetId).id
-                    if (showTwoBars) {
-                        val next = stateManager.getNextDisplaySource(widgetId).id
-                        listOf(primary, next)
-                    } else {
-                        listOf(primary)
-                    }
+                .map { widgetId ->
+                    stateManager.getCurrentDisplaySource(widgetId).id
                 }
                 .toSet() + WeatherSource.GENERIC_GAP.id
             val activeSourceList = activeSources.toList()
@@ -456,8 +449,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             WidgetActions.ACTION_TOGGLE_API -> handleToggleApiAction(context, intent)
             WidgetActions.ACTION_TOGGLE_VIEW -> handleToggleViewAction(context, intent)
             WidgetActions.ACTION_TOGGLE_PRECIP -> handleTogglePrecipAction(context, intent)
-            WidgetActions.ACTION_TOGGLE_DUAL_BARS -> handleToggleDualBarsAction(context, intent)
-            WidgetActions.ACTION_CYCLE_ZOOM -> handleCycleZoomAction(context, intent)
             WidgetActions.ACTION_SET_VIEW -> handleSetViewAction(context, intent)
             WidgetActions.ACTION_DAY_CLICK -> {
                 Log.d(TAG, "onReceive: ACTION_DAY_CLICK extras: date=${intent.getStringExtra("date")} index=${intent.getIntExtra("index", -1)} targetView=${intent.getStringExtra(WidgetActions.EXTRA_TARGET_VIEW)} offset=${intent.getIntExtra(WidgetActions.EXTRA_HOURLY_OFFSET, Int.MIN_VALUE)} widget=${getWidgetId(intent)}")
@@ -733,20 +724,6 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                         "widget=$appWidgetId source=$interactionSource total=${totalMs}ms handler=${handlerMs}ms",
                     )
                 }
-            }
-        }
-    }
-
-    private fun handleToggleDualBarsAction(
-        context: Context,
-        intent: Intent,
-    ) {
-        val appWidgetId = getWidgetId(intent)
-        Log.d(TAG, "onReceive: Toggle dual-bars action for widget $appWidgetId")
-        if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-            launchAsync {
-                WidgetIntentRouter.handleToggleDualBars(context, appWidgetId, repository)
-                restartHeartbeats(context)
             }
         }
     }
