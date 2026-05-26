@@ -539,6 +539,21 @@ class DailyForecastGraphRendererRoboTest {
     }
 
     @Test
+    fun headerRainOverlapDetection_ignoresSmallPaddedIntersection() {
+        val density = context.resources.displayMetrics.density
+        val dateBounds = android.graphics.RectF(100f, 0f, 180f, 24f)
+        val rainBounds = android.graphics.RectF(120f, 21f, 160f, 40f)
+
+        assertFalse(
+            DailyForecastGraphRenderer.hasMeaningfulHeaderRainOverlap(
+                dateBounds = dateBounds,
+                rainBounds = rainBounds,
+                density = density,
+            ),
+        )
+    }
+
+    @Test
     fun renderGraph_headerDateIsOmittedWhenDailyRainLabelOverlaps() {
         val headerDraws = renderHeaderDraws(
             days = listOf(

@@ -72,6 +72,7 @@ object DailyForecastGraphRenderer {
     private const val PAST_TEMP_SCALE = 0.9f
     private const val LABEL_SHADOW_RADIUS_DP = 1.5f
     private const val LABEL_SHADOW_DY_DP = 1.0f
+    private const val HEADER_RAIN_OVERLAP_TOLERANCE_DP = 4f
 
     private data class PaintCache(
         val scaleFactor: Float,
@@ -386,7 +387,7 @@ object DailyForecastGraphRenderer {
                 paints = paints,
             )?.debug ?: return@forEachIndexed
             val rainBounds = RectF(rainLabel.leftX, rainLabel.topY, rainLabel.rightX, rainLabel.bottomY)
-            if (RectF.intersects(dateBounds, rainBounds)) {
+            if (hasMeaningfulHeaderRainOverlap(dateBounds, rainBounds, layout.density)) {
                 Log.d(
                     TAG,
                     "suppressHeaderDateForRainOverlap: dateText=${headerData.dateText} rainDate=${day.date}" +
@@ -396,6 +397,18 @@ object DailyForecastGraphRenderer {
             }
         }
         return headerData
+    }
+
+    @VisibleForTesting
+    internal fun hasMeaningfulHeaderRainOverlap(
+        dateBounds: RectF,
+        rainBounds: RectF,
+        density: Float,
+    ): Boolean {
+        val overlapWidth = minOf(dateBounds.right, rainBounds.right) - maxOf(dateBounds.left, rainBounds.left)
+        val overlapHeight = minOf(dateBounds.bottom, rainBounds.bottom) - maxOf(dateBounds.top, rainBounds.top)
+        val tolerancePx = HEADER_RAIN_OVERLAP_TOLERANCE_DP.dp(density)
+        return overlapWidth > tolerancePx && overlapHeight > tolerancePx
     }
 
     private fun computeLayout(
