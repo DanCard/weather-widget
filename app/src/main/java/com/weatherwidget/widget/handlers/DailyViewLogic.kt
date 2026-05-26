@@ -211,7 +211,7 @@ object DailyViewLogic {
             }
 
             val useDirectNwsPeriodPrecip = weather?.source == WeatherSource.NWS.id && displaySource == WeatherSource.NWS
-            val dayNightPrecip = if (!isPast && !isToday && weather != null && !useDirectNwsPeriodPrecip) {
+            val dayNightPrecip = if (!isPast && weather != null && !useDirectNwsPeriodPrecip) {
                 DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
                     hourlyForecasts = hourlyForecasts,
                     targetDate = date,
@@ -226,13 +226,14 @@ object DailyViewLogic {
             val dayPrecipForIcon = if (useDirectNwsPeriodPrecip) {
                 weather.daytimePrecipProbability ?: weather.precipProbability
             } else {
-                dayNightPrecip?.dayMax
+                dayNightPrecip?.dayMax ?: weather?.daytimePrecipProbability
             }
             val nightPrecipForIcon = if (useDirectNwsPeriodPrecip) {
                 weather.nighttimePrecipProbability
             } else {
-                dayNightPrecip?.nightMax
+                dayNightPrecip?.nightMax ?: weather?.nighttimePrecipProbability
             }
+
 
             val iconRes =
                 if (weather != null) {
@@ -461,7 +462,7 @@ object DailyViewLogic {
             }
 
             val useDirectNwsPeriodPrecip = weather?.source == WeatherSource.NWS.id && displaySource == WeatherSource.NWS
-            val dayNightPrecip = if (!isPastDate && !isToday && weather != null && !useDirectNwsPeriodPrecip) {
+            val dayNightPrecip = if (!isPastDate && weather != null && !useDirectNwsPeriodPrecip) {
                 DailyForecastIconResolver.calculateDayNightPrecipProbabilities(
                     hourlyForecasts = hourlyForecasts,
                     targetDate = date,
@@ -476,13 +477,14 @@ object DailyViewLogic {
             val dayPrecipForIcon = if (useDirectNwsPeriodPrecip) {
                 weather.daytimePrecipProbability ?: weather.precipProbability
             } else {
-                dayNightPrecip?.dayMax
+                dayNightPrecip?.dayMax ?: weather?.daytimePrecipProbability
             }
             val nightPrecipForIcon = if (useDirectNwsPeriodPrecip) {
                 weather.nighttimePrecipProbability
             } else {
-                dayNightPrecip?.nightMax
+                dayNightPrecip?.nightMax ?: weather?.nighttimePrecipProbability
             }
+
 
             val cloudCoverRatioOverride =
                 resolveNoonCloudCoverRatio(
@@ -600,7 +602,7 @@ object DailyViewLogic {
                     rainData = DailyForecastGraphRenderer.RainData(
                         rainSummary = rainSummary,
                         dailyPrecipProbability = precip,
-                        nighttimePrecipProbability = weather?.nighttimePrecipProbability,
+                        nighttimePrecipProbability = nightPrecipForIcon,
                         dailyPrecipAmountMm = weather?.precipAmountMm,
                         dailyRainLabelText = dailyRainLabelText,
                         nightRainLabelText = buildNightRainLabel(
@@ -608,7 +610,7 @@ object DailyViewLogic {
                             today = today,
                             isPastDate = isPastDate,
                             dailyRainLabelText = dailyRainLabelText,
-                            nightPrecipProbability = weather?.nighttimePrecipProbability,
+                            nightPrecipProbability = nightPrecipForIcon,
                         ),
                         hasRainForecast = hasRainForecast,
                     ),
@@ -697,16 +699,15 @@ object DailyViewLogic {
         val dayMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityDay(daysFromToday)
         val nightMinProb = DailyForecastIconResolver.getMinimumPrecipProbabilityNight(daysFromToday)
         val dayPrecip = dayPrecipProbability ?: precipProbability ?: dailyPrecipProbability
-        val nightPrecip = nightPrecipProbability ?: dayPrecip
 
         val daySuppresses = dayPrecip != null && dayPrecip < dayMinProb
         if (daySuppresses) {
-            Log.d(TAG, "buildDailyRainLabel suppressing label for $date: dayPrecip=$dayPrecip dayMin=$dayMinProb nightPrecip=$nightPrecip nightMin=$nightMinProb")
+            Log.d(TAG, "buildDailyRainLabel suppressing label for $date: dayPrecip=$dayPrecip dayMin=$dayMinProb")
             return null
         }
         val result = when {
-            precipProbability != null && precipProbability >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
-            precipProbability != null && precipProbability > 0 -> "$precipProbability%"
+            dayPrecip != null && dayPrecip >= 99 && precipAmountMm != null -> formatPrecipAmount(precipAmountMm)
+            dayPrecip != null && dayPrecip > 0 -> "$dayPrecip%"
             else -> null
         }
         if (result == null) {

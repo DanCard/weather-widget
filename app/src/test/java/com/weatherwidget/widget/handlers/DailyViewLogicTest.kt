@@ -1562,6 +1562,148 @@ class DailyViewLogicTest {
         assertFalse("Current icon should be sunny", todayDay.isRainy)
     }
 
+    @Test
+    fun `prepareGraphDays for today can have a nighttime rain label if hourly data clearing threshold is present`() {
+        val now = LocalDateTime.of(2026, 5, 25, 10, 0)
+        val today = now.toLocalDate()
+        val zone = java.time.ZoneId.systemDefault()
+        
+        // 50% rain tonight (10 PM)
+        val tNight = today.atTime(22, 0).atZone(zone).toInstant().toEpochMilli()
+        
+        val hourly = listOf(
+            HourlyForecastEntity(
+                dateTime = tNight,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                temperature = 60f,
+                condition = "Rain",
+                source = WeatherSource.SILURIAN.id,
+                precipProbability = 50,
+                fetchedAt = System.currentTimeMillis()
+            )
+        )
+
+        val weatherByDate = mapOf(
+            today to createWeather(
+                today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                source = WeatherSource.SILURIAN.id,
+                precipProbability = 50
+            )
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.SILURIAN,
+            skipYesterday = true,
+            skipHistory = true,
+            hourlyForecasts = hourly
+        )
+
+        val todayData = result.find { it.date == today }
+        assertNotNull("Today data should be present", todayData)
+        assertEquals("Nighttime rain label should be 50%", "50%", todayData!!.rainData.nightRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays for today uses stored nighttimePrecipProbability if hourly data is missing`() {
+        val now = LocalDateTime.of(2026, 5, 25, 10, 0)
+        val today = now.toLocalDate()
+
+        val weatherByDate = mapOf(
+            today to createWeather(
+                today.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                source = WeatherSource.SILURIAN.id,
+                nighttimePrecipProbability = 75
+            )
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.SILURIAN,
+            skipYesterday = true,
+            skipHistory = true,
+            hourlyForecasts = emptyList() // No hourly data
+        )
+
+        val todayData = result.find { it.date == today }
+        assertNotNull("Today data should be present", todayData)
+        assertEquals("Nighttime rain label should be 75% from stored value", "75%", todayData!!.rainData.nightRainLabelText)
+    }
+
+    @Test
+    fun `prepareGraphDays for future day uses daytimePrecipProbability for daytime label instead of general max`() {
+        val now = LocalDateTime.of(2026, 5, 25, 10, 0)
+        val today = now.toLocalDate()
+        val tomorrow = today.plusDays(1)
+        val zone = java.time.ZoneId.systemDefault()
+
+        // 10% rain tomorrow day (10 AM)
+        val tDay = tomorrow.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        // 50% rain tomorrow night (10 PM)
+        val tNight = tomorrow.atTime(22, 0).atZone(zone).toInstant().toEpochMilli()
+
+        val hourly = listOf(
+            HourlyForecastEntity(
+                dateTime = tDay,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                temperature = 70f,
+                condition = "Cloudy",
+                source = WeatherSource.SILURIAN.id,
+                precipProbability = 10,
+                fetchedAt = System.currentTimeMillis()
+            ),
+            HourlyForecastEntity(
+                dateTime = tNight,
+                locationLat = 0.0,
+                locationLon = 0.0,
+                temperature = 60f,
+                condition = "Rain",
+                source = WeatherSource.SILURIAN.id,
+                precipProbability = 50,
+                fetchedAt = System.currentTimeMillis()
+            )
+        )
+
+        val weatherByDate = mapOf(
+            tomorrow to createWeather(
+                tomorrow.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                source = WeatherSource.SILURIAN.id,
+                precipProbability = 50 // Daily max is 50
+            )
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today,
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 7,
+            displaySource = WeatherSource.SILURIAN,
+            skipYesterday = true,
+            skipHistory = true,
+            hourlyForecasts = hourly
+        )
+
+        val tomorrowData = result.find { it.date == tomorrow }
+        assertNotNull("Tomorrow data should be present", tomorrowData)
+        // Correct fix: should use daytime max (10%) for daytime label
+        assertEquals("Daytime rain label should be 10%", "10%", tomorrowData!!.rainData.dailyRainLabelText)
+        assertEquals("Nighttime rain label should be 50%", "50%", tomorrowData.rainData.nightRainLabelText)
+    }
+
     private fun createWeather(
         date: String,
         source: String = WeatherSource.NWS.id,

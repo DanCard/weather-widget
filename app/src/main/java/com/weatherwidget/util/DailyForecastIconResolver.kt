@@ -39,33 +39,25 @@ object DailyForecastIconResolver {
         val startMs = targetDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val endMs = targetDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
 
-        val sunTimes = SunPositionUtils.getSunTimes(
-            targetDate.atTime(12, 0),
-            latitude,
-            longitude,
-        )
-        val sunriseHour = sunTimes.sunriseHour
-        val sunsetHour = sunTimes.sunsetHour
+        // Daytime: 8:00 AM to 8:00 PM (on the target date)
+        val dayStartMs = targetDate.atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
+        val dayEndMs = targetDate.atTime(20, 0).atZone(zoneId).toInstant().toEpochMilli()
+
+        // Nighttime: 8:00 PM on target date to 8:00 AM next day
+        val nightStartMs = dayEndMs
+        val nightEndMs = targetDate.plusDays(1).atTime(8, 0).atZone(zoneId).toInstant().toEpochMilli()
 
         val sourceForecasts = hourlyForecasts.filter { it.source == displaySource.id }
         val candidateForecasts = if (sourceForecasts.isNotEmpty()) sourceForecasts
             else hourlyForecasts.filter { it.source == WeatherSource.GENERIC_GAP.id }
 
-        val dayPrecips = mutableListOf<Int>()
-        val nightPrecips = mutableListOf<Int>()
+        val dayPrecips = candidateForecasts
+            .filter { it.dateTime >= dayStartMs && it.dateTime < dayEndMs }
+            .mapNotNull { it.precipProbability }
 
-        for (hourly in candidateForecasts) {
-            if (hourly.dateTime < startMs || hourly.dateTime >= endMs) continue
-            if (hourly.precipProbability == null) continue
-
-            val offsetMs = hourly.dateTime - startMs
-            val hourOfDay = offsetMs / (3_600_000.0)
-            if (hourOfDay >= sunriseHour && hourOfDay < sunsetHour) {
-                dayPrecips.add(hourly.precipProbability)
-            } else {
-                nightPrecips.add(hourly.precipProbability)
-            }
-        }
+        val nightPrecips = candidateForecasts
+            .filter { it.dateTime >= nightStartMs && it.dateTime < nightEndMs }
+            .mapNotNull { it.precipProbability }
 
         return DayNightPrecip(
             dayMax = dayPrecips.maxOrNull(),

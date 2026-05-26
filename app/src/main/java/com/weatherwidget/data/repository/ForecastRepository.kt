@@ -350,13 +350,14 @@ class ForecastRepository
                     mapDailyForecast(
                         DailyForecast(
                             day.date,
-                            day.highTemp.toFloat(),
-                            day.lowTemp.toFloat(),
+                            day.highTemp,
+                            day.lowTemp,
                             day.condition,
                             day.condition,
                             day.precipProbability,
                             day.precipAmountMm,
                         ),
+
                         latitude,
                         longitude,
                         locationName,
