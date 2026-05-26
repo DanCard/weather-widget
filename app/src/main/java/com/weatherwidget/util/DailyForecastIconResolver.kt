@@ -118,8 +118,8 @@ object DailyForecastIconResolver {
         val dayMinProb = getMinimumPrecipProbabilityDay(daysFromToday)
         val nightMinProb = getMinimumPrecipProbabilityNight(daysFromToday)
 
-        val dayPrecip = dayPrecipProbability ?: dailyPrecipProbability
-        val nightPrecip = nightPrecipProbability ?: dailyPrecipProbability
+        val dayPrecip = dayPrecipProbability
+        val nightPrecip = nightPrecipProbability
 
         val daySuppresses = dayPrecip != null && dayPrecip < dayMinProb
         val nightSuppresses = nightPrecip != null && nightPrecip < nightMinProb
