@@ -15,6 +15,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
+import kotlin.math.roundToInt
 import com.weatherwidget.util.WeatherConditionColors
 import com.weatherwidget.BuildConfig
 
@@ -410,10 +411,43 @@ object TemperatureGraphRenderer {
 
         TemperatureLabelResolver.sortLabelCandidates(specialCandidates)
 
+        val forcedAboveLows = computeForcedAboveLowIndices(specialCandidates)
+
         for (candidate in specialCandidates) {
-            placeSingleLabel(ctx, candidate, hours, drawnLabelMetas, drawnIconBounds, gapDp, labelAscent, labelDescent, labelHeight)
+            placeSingleLabel(ctx, candidate, hours, drawnLabelMetas, drawnIconBounds, gapDp, labelAscent, labelDescent, labelHeight, forceAbove = candidate.index in forcedAboveLows)
         }
         ctx.drawnLabelBounds.addAll(drawnLabelMetas.map { it.bounds })
+    }
+
+    /**
+     * Identifies the actual (observed) low when it should flip to ABOVE placement so it stacks in
+     * value order over a colder nearby low: warmer actual low above, colder forecast/daily low
+     * below (matching the points' vertical order). Only [TemperatureRole.ACTUAL_LOW] is lifted —
+     * forecast/daily lows keep the default below-cascade, so the existing valley de-collision still
+     * applies when no actual low is involved. The flip fires only if another low-role candidate
+     * sits within [GraphLabelPlacementUtils.NEARBY_LABEL_WINDOW] indices with a strictly lower
+     * *rounded* value; equal rounded values do not flip.
+     */
+    private fun computeForcedAboveLowIndices(candidates: List<TempLabelCandidate>): Set<Int> {
+        val lowRoles = setOf(
+            TemperatureRole.LOW, TemperatureRole.ACTUAL_LOW,
+            TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW,
+        )
+        val lows = candidates.filter { it.role in lowRoles }
+        if (lows.size < 2) return emptySet()
+        val window = GraphLabelPlacementUtils.NEARBY_LABEL_WINDOW
+        val forced = mutableSetOf<Int>()
+        for (c in lows) {
+            if (c.role != TemperatureRole.ACTUAL_LOW) continue
+            val cVal = c.labelTemps[c.index].roundToInt()
+            val hasLowerNeighbor = lows.any { other ->
+                other.index != c.index &&
+                    abs(other.index - c.index) <= window &&
+                    other.labelTemps[other.index].roundToInt() < cVal
+            }
+            if (hasLowerNeighbor) forced.add(c.index)
+        }
+        return forced
     }
 
     private fun placeSingleLabel(
@@ -426,6 +460,7 @@ object TemperatureGraphRenderer {
         labelAscent: Float,
         labelDescent: Float,
         labelHeight: Float,
+        forceAbove: Boolean = false,
     ) {
         val idx = candidate.index
         val temps = candidate.labelTemps
@@ -436,7 +471,11 @@ object TemperatureGraphRenderer {
             candidate.role == TemperatureRole.LOCAL ||
             candidate.role == TemperatureRole.START ||
             candidate.role == TemperatureRole.END
-        val preferAbove = if (valueBasedRoles) prefersAbovePlacement(candidate) else !placement.isValley
+        val preferAbove = when {
+            forceAbove -> true
+            valueBasedRoles -> prefersAbovePlacement(candidate)
+            else -> !placement.isValley
+        }
         val directions = if (preferAbove) listOf(true, false) else listOf(false, true)
         var placed = false
         var forceBaselineY = Float.NaN

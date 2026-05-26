@@ -297,7 +297,11 @@ internal object TemperatureLabelResolver {
 
         return when (role) {
             TemperatureRole.ACTUAL_HIGH -> isRedundantNear(idx, role, extrema.dailyHighIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyHighIndex], actualRedundantWindow, actualRedundantThreshold, "HIGH")
-            TemperatureRole.ACTUAL_LOW -> isRedundantNear(idx, role, extrema.dailyLowIndex, suppressedIndices, actualLabelTemps[idx], labelTemps[extrema.dailyLowIndex], actualRedundantWindow, actualRedundantThreshold, "LOW")
+            // The observed low is always worth its own label. It only resolves at an index distinct
+            // from the daily low (when the global min IS an actual point, resolveExtremaRole returns
+            // LOW first), so never treat it as redundant against a nearby forecast/daily low — the
+            // two are stacked and ordered by value at placement time instead.
+            TemperatureRole.ACTUAL_LOW -> false
             TemperatureRole.FORECAST_HIGH, TemperatureRole.PAST_FORECAST_HIGH -> isRedundantNear(idx, role, extrema.actualHighIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualHighIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_HIGH")
             TemperatureRole.FORECAST_LOW, TemperatureRole.PAST_FORECAST_LOW -> isRedundantNear(idx, role, extrema.actualLowIndex, suppressedIndices, labelTemps[idx], actualLabelTemps[extrema.actualLowIndex], redundantPairWindow, redundantValueThreshold, "ACTUAL_LOW")
             TemperatureRole.LOCAL, TemperatureRole.END, TemperatureRole.ACTUAL_END -> {
