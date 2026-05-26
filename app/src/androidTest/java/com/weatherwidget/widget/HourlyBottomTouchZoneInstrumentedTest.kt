@@ -37,6 +37,10 @@ class HourlyBottomTouchZoneInstrumentedTest {
         val reservedFooter = root.findViewById<View>(R.id.graph_bottom_reserved_space)
         val bottomHourZones = root.findViewById<View>(R.id.graph_bottom_hour_zones)
 
+        // graph_interaction_container is `gone` by default in XML (the binders flip it visible
+        // for the hourly view at runtime). reservedFooter lives inside it, so the container must
+        // be visible or its children measure to 0.
+        root.findViewById<View>(R.id.graph_interaction_container).visibility = View.VISIBLE
         // Show both to compare measured heights
         reservedFooter.visibility = View.VISIBLE
         bottomHourZones.visibility = View.VISIBLE
@@ -60,6 +64,9 @@ class HourlyBottomTouchZoneInstrumentedTest {
         val bottomHourZones = root.findViewById<View>(R.id.graph_bottom_hour_zones)
         val reservedFooter = root.findViewById<View>(R.id.graph_bottom_reserved_space)
 
+        // graph_interaction_container is `gone` by default in XML; make it visible so its
+        // children (graph_interaction_body) lay out as they do at runtime in the hourly view.
+        root.findViewById<View>(R.id.graph_interaction_container).visibility = View.VISIBLE
         bottomHourZones.visibility = View.VISIBLE
         reservedFooter.visibility = View.VISIBLE
         measureAndLayout(root)
