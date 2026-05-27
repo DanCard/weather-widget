@@ -16,8 +16,8 @@ object HourlyGraphDefaults {
     // Gap between the hour digits / meridiem and the icon in the inline footer group.
     // Narrow widgets use a negative gap to pull the group tight (eating the transparent padding
     // weather drawables carry) and save horizontal space; wide widgets have room to breathe.
-    const val FOOTER_ICON_GAP_NARROW_DP = -2f
-    const val FOOTER_ICON_GAP_WIDE_DP = -1f
+    const val FOOTER_ICON_GAP_NARROW_DP = -1f
+    const val FOOTER_ICON_GAP_WIDE_DP = 0f
     const val FOOTER_BOTTOM_INSET_DP = 1f
     // A widget this many columns or fewer is treated as "narrow": it gets the wider 6-hour marker
     // cadence (vs 4-hour) and the tight negative icon gap. 6 covers full-width phone widgets
