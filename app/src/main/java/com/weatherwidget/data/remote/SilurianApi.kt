@@ -25,6 +25,7 @@ import kotlinx.serialization.json.longOrNull
 import javax.inject.Inject
 
 private const val TAG = "SilurianApi"
+private const val MM_PER_INCH = 25.4f
 
 class SilurianApi @Inject constructor(
     private val httpClient: HttpClient,
@@ -267,7 +268,8 @@ ForecastResult(
     }
 
     private fun parsePrecipAmountMm(entry: kotlinx.serialization.json.JsonObject): Float? {
-        return entry["precipitation_mm"]?.jsonPrimitive?.floatOrNull
+        return entry["precipitation_accumulation"]?.jsonPrimitive?.floatOrNull?.times(MM_PER_INCH)
+            ?: entry["precipitation_mm"]?.jsonPrimitive?.floatOrNull
             ?: entry["precipitation_amount_mm"]?.jsonPrimitive?.floatOrNull
     }
 }

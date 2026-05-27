@@ -41,7 +41,8 @@ class SilurianApiTest {
                   "max_temperature": 75.0,
                   "min_temperature": 50.0,
                   "weather_code": "rain",
-                  "precipitation_probability": 45
+                  "precipitation_probability": 45,
+                  "precipitation_accumulation": 0.25
                 }
               ]
             }
@@ -54,7 +55,8 @@ class SilurianApiTest {
                   "timestamp": "2026-03-02T14:00:00",
                   "temperature": 74.0,
                   "weather_code": "rain",
-                  "precipitation_probability": 60
+                  "precipitation_probability": 60,
+                  "precipitation_accumulation": 0.05
                 }
               ]
             }
@@ -100,12 +102,14 @@ class SilurianApiTest {
         assertEquals(50.0f, result.daily[0].lowTemp)
         assertEquals("rain", result.daily[0].condition)
         assertEquals(45, result.daily[0].precipProbability)
+        assertEquals(6.35f, result.daily[0].precipAmountMm!!, 0.001f)
 
         assertEquals(1, result.hourly.size)
         assertEquals(com.weatherwidget.testutil.TestData.toEpoch("2026-03-02T14:00"), result.hourly[0].dateTime)
         assertEquals(74.0f, result.hourly[0].temperature)
         assertEquals("rain", result.hourly[0].condition)
         assertEquals(60, result.hourly[0].precipProbability)
+        assertEquals(1.27f, result.hourly[0].precipAmountMm!!, 0.001f)
     }
 
     @Test
