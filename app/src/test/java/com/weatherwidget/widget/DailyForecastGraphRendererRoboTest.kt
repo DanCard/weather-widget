@@ -225,8 +225,8 @@ class DailyForecastGraphRendererRoboTest {
 
     @Test
     fun today_singleMode_forecastLeftOfThermostat_snapshotRight() {
-        // Three-bar flip: in single-source mode, today's live forecast bar sits LEFT of
-        // the observed thermostat and the yesterday-snapshot sits RIGHT.
+        // Three-bar flip: in single-source mode, today's live forecast bar sits RIGHT of
+        // the observed thermostat and the yesterday-snapshot sits LEFT.
         val today = LocalDate.of(2026, 2, 2)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
@@ -248,12 +248,12 @@ class DailyForecastGraphRendererRoboTest {
         val snapshot = bars.single { it.barType == "TODAY_SNAPSHOT" }
 
         assertTrue(
-            "Today forecast must sit LEFT of thermostat (forecast.x=${forecast.centerX}, thermostat.x=${thermostat.centerX})",
-            forecast.centerX < thermostat.centerX,
+            "Today yellow snapshot must sit LEFT of thermostat (snapshot.x=${snapshot.centerX}, thermostat.x=${thermostat.centerX})",
+            snapshot.centerX < thermostat.centerX,
         )
         assertTrue(
-            "Today yellow snapshot must sit RIGHT of thermostat (snapshot.x=${snapshot.centerX}, thermostat.x=${thermostat.centerX})",
-            snapshot.centerX > thermostat.centerX,
+            "Today forecast must sit RIGHT of thermostat (forecast.x=${forecast.centerX}, thermostat.x=${thermostat.centerX})",
+            forecast.centerX > thermostat.centerX,
         )
     }
 

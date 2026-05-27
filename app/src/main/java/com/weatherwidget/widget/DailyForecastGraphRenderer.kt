@@ -821,7 +821,7 @@ object DailyForecastGraphRenderer {
                 val sHighY = layout.tempToY(sHigh)
                 val sLowY = layout.tempToY(sLow)
                 val effectiveSLowY = clampMinBarHeight(sHighY, sLowY, layout.minBarHeightPx)
-                val snapshotX = centerX + layout.tripleBarOffset
+                val snapshotX = centerX - layout.tripleBarOffset
 
                 val sIsSunny = day.snapshotIconRes?.let { WeatherIconMapper.isSunny(it) } ?: false
                 val sIsRainy = day.snapshotIconRes?.let { WeatherIconMapper.isPrecipitation(it) } ?: false
@@ -867,8 +867,8 @@ object DailyForecastGraphRenderer {
 
         val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
         val forecastPaint = paints.todayForecastForColor(condColor)
-        // Today's live forecast sits LEFT of the thermostat.
-        val todayForecastX = centerX - layout.tripleBarOffset
+        // Today's live forecast sits RIGHT of the thermostat.
+        val todayForecastX = centerX + layout.tripleBarOffset
         drawWeatherAdaptiveBar(
             canvas = canvas,
             centerX = todayForecastX,
