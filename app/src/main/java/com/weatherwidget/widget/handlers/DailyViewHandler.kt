@@ -58,7 +58,12 @@ object DailyViewHandler : WidgetViewHandler {
     private const val CELL_HEIGHT_DP = 90
     private const val DELTA_VISIBILITY_THRESHOLD = DailyHeaderBinder.DELTA_VISIBILITY_THRESHOLD
     private const val DELTA_COLOR_HEX = "#FF6B35"
+    // Extra vertical space (dp) added to widget height before dividing by cell height,
+    // accounts for header and padding so the row count rounds more accurately.
     private const val GRAPH_HEIGHT_PADDING_DP = 25f
+    // Minimum effective row count to switch from text to graph mode.
+    // 2.2 (not 2.0) because the header consumes ~0.2 rows of vertical space,
+    // so a 2-row widget needs slightly more than 2.0 to have room for the graph.
     private const val GRAPH_ROW_THRESHOLD = 2.2f
     private const val GRAPH_CONTENT_PADDING_DP = 24
     private const val TEXT_MODE_ROOT_LEFT_PADDING_DP = 2
