@@ -31,4 +31,5 @@ data class ObservationEntity(
     val maxTempLast24h: Float? = null, // Fahrenheit; from NWS maxTemperatureLast24Hours (rolling 24h ASOS extreme)
     val minTempLast24h: Float? = null, // Fahrenheit; from NWS minTemperatureLast24Hours (rolling 24h ASOS extreme)
     val api: String, // Which API provided this observation (NWS, OPEN_METEO, WEATHER_API, SILURIAN)
+    val precipAmountMm: Float? = null, // Observed precipitation amount in mm
 )

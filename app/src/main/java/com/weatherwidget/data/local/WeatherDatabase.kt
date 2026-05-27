@@ -10,7 +10,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [ForecastEntity::class, HourlyForecastEntity::class, HourlyForecastHistoryEntity::class, AppLogEntity::class, ClimateNormalEntity::class, ObservationEntity::class, ApiUsageEntity::class, DailyExtremeEntity::class],
-    version = 45,
+    version = 46,
     exportSchema = true,
 )
 abstract class WeatherDatabase : RoomDatabase() {
@@ -71,6 +71,17 @@ abstract class WeatherDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Adds `precipAmountMm` column to `observations` and `daily_extremes` tables
+         * to store observed precipitation amounts for past days.
+         */
+        val MIGRATION_45_46 = object : Migration(45, 46) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `observations` ADD COLUMN `precipAmountMm` REAL")
+                db.execSQL("ALTER TABLE `daily_extremes` ADD COLUMN `precipAmountMm` REAL")
+            }
+        }
+
         fun getDatabase(context: Context): WeatherDatabase {
             return INSTANCE ?: synchronized(this) {
                 // If we are in a test environment and no specific override is set,
@@ -115,7 +126,7 @@ abstract class WeatherDatabase : RoomDatabase() {
                             },
                         )
                         .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
-                        .addMigrations(MIGRATION_44_45)
+                        .addMigrations(MIGRATION_44_45, MIGRATION_45_46)
                         .fallbackToDestructiveMigration(dropAllTables = true)
                         .build()
                 INSTANCE = instance

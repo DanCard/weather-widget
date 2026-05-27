@@ -54,4 +54,47 @@ class WeatherDatabaseMigrationTest {
         }
         db.close()
     }
+
+    @Test
+    fun migrate45To46_preservesExistingData_andAddsPrecipColumns() {
+        // Seed a v45 database with one observation and one daily extreme row.
+        helper.createDatabase(testDb, 45).apply {
+            execSQL(
+                "INSERT INTO observations (stationId, stationName, timestamp, temperature, condition, " +
+                    "locationLat, locationLon, distanceKm, stationType, fetchedAt, api) " +
+                    "VALUES ('STATION1', 'Test Station', 1000, 72.0, 'Sunny', 37.42, -122.08, 1.0, 'AIRPORT', 1000, 'NWS')",
+            )
+            execSQL(
+                "INSERT INTO daily_extremes (date, source, locationLat, locationLon, " +
+                    "highTemp, lowTemp, condition, updatedAt) " +
+                    "VALUES (1000, 'NWS', 37.42, -122.08, 75.0, 55.0, 'Sunny', 1000)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(testDb, 46, true, WeatherDatabase.MIGRATION_45_46)
+
+        // Existing observation row survived and precipAmountMm is null.
+        db.query("SELECT COUNT(*) FROM observations WHERE precipAmountMm IS NULL").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+        // Existing daily extreme row survived and precipAmountMm is null.
+        db.query("SELECT COUNT(*) FROM daily_extremes WHERE precipAmountMm IS NULL").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+        // New column accepts non-null values.
+        db.execSQL("UPDATE observations SET precipAmountMm = 5.5 WHERE stationId = 'STATION1'")
+        db.query("SELECT precipAmountMm FROM observations WHERE stationId = 'STATION1'").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(5.5f, c.getFloat(0), 0.01f)
+        }
+        db.execSQL("UPDATE daily_extremes SET precipAmountMm = 12.3 WHERE date = 1000")
+        db.query("SELECT precipAmountMm FROM daily_extremes WHERE date = 1000").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(12.3f, c.getFloat(0), 0.01f)
+        }
+        db.close()
+    }
 }

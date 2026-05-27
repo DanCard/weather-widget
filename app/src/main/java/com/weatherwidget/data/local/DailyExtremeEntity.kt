@@ -25,4 +25,5 @@ data class DailyExtremeEntity(
     val lowTemp: Float,         // Fahrenheit
     val condition: String,
     val updatedAt: Long,        // epoch ms, used for cleanup
+    val precipAmountMm: Float? = null, // Daily observed precipitation amount in mm
 )
