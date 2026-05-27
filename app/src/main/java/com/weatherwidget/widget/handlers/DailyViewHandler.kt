@@ -307,7 +307,7 @@ object DailyViewHandler : WidgetViewHandler {
         
         DailyVisibilityManager.hideUnusedDailyViews(views)
 
-        val availableDates = weatherList.map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }.toSet() + dailyActuals.keys
+        val availableDates = buildAvailableNavigationDates(weatherList, dailyActuals, displaySource)
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${availableDates.minOrNull()}, maxDate=${availableDates.maxOrNull()}")
         setupNavigationButtons(context, views, appWidgetId, stateManager, availableDates, numColumns, skipYesterday, today, useGraph)
 
@@ -382,7 +382,7 @@ object DailyViewHandler : WidgetViewHandler {
                 appLogDao = appLogDao,
                 isIconWidth = isIconWidth,
             )
-            val textVisibleDates = ctx.weatherByDate.keys + ctx.dailyActuals.keys
+            val visibleDaysInfo = renderTextMode(ctx)
             val textTodayWeather = ctx.weatherByDate[today]
             val textTodayHasSnapshot = ctx.forecastSnapshots[today]
                 ?.any { it.source == ctx.displaySource.id && it.highTemp != null && it.lowTemp != null }
@@ -391,7 +391,7 @@ object DailyViewHandler : WidgetViewHandler {
                 today = today,
                 displaySource = displaySource,
                 dailyActuals = dailyActuals,
-                visibleDates = textVisibleDates,
+                visibleDates = visibleDaysInfo.map { it.date }.toSet(),
                 todayHasSnapshot = textTodayHasSnapshot,
                 todayHasForecast = textTodayWeather != null && textTodayWeather.highTemp != null && textTodayWeather.lowTemp != null,
             )
@@ -409,7 +409,6 @@ object DailyViewHandler : WidgetViewHandler {
                     message = "widget=$appWidgetId source=${displaySource.id} ${decision.refreshType} refresh, enqueueing worker",
                 )
             }
-            renderTextMode(ctx)
         }
 
         if (isIconWidth) {
@@ -511,6 +510,20 @@ object DailyViewHandler : WidgetViewHandler {
             tag,
             "widget=$appWidgetId mode=$mode offset=$dateOffset cols=$numColumns rows=$numRows skipYesterday=$skipYesterday center=$centerDate source=${displaySource.id} days=${visibleDates.size} dates=$datesSummary"
         )
+    }
+
+    @VisibleForTesting
+    internal fun buildAvailableNavigationDates(
+        weatherList: List<ForecastEntity>,
+        dailyActuals: DailyActualMap,
+        displaySource: WeatherSource,
+    ): Set<LocalDate> {
+        val renderableForecastDates = weatherList
+            .asSequence()
+            .filter { it.source == displaySource.id || it.source == WeatherSource.GENERIC_GAP.id }
+            .map { LocalDate.ofEpochDay(it.targetDate / WidgetConstants.MS_IN_A_DAY) }
+            .toSet()
+        return renderableForecastDates + dailyActuals.keys
     }
 
     private fun setupNavigationButtons(
@@ -834,7 +847,7 @@ object DailyViewHandler : WidgetViewHandler {
 
     private suspend fun renderTextMode(
         ctx: DailyRenderContext,
-    ) {
+    ): List<DailyViewLogic.TextDayData> {
         DailyVisibilityManager.setTextModeViews(ctx.views)
 
         val textCols = ctx.numColumns.coerceAtLeast(1)
@@ -880,6 +893,7 @@ object DailyViewHandler : WidgetViewHandler {
             centerDate = ctx.centerDate,
             visibleDates = visibleDaysInfo.map { it.date },
         )
+        return visibleDaysInfo
     }
 
     private data class RenderMetrics(

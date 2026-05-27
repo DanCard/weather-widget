@@ -13,6 +13,7 @@ import com.weatherwidget.R
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ForecastEntity
+import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.testutil.mockAppWidgetManager
 import com.weatherwidget.testutil.TestData.dateEpoch
@@ -1306,6 +1307,91 @@ class DailyViewHandlerTest {
     }
 
     @Test
+    fun `available navigation dates ignore non-selected source forecasts`() {
+        val today = LocalDate.of(2030, 6, 15)
+        val selectedTomorrow = today.plusDays(1)
+        val otherFuture = today.plusDays(6)
+        val genericGapFuture = today.plusDays(2)
+        val selectedHistory = today.minusDays(1)
+
+        val dates = DailyViewHandler.buildAvailableNavigationDates(
+            weatherList = listOf(
+                createWeather(today.toString(), source = WeatherSource.NWS.id),
+                createWeather(selectedTomorrow.toString(), source = WeatherSource.NWS.id),
+                createWeather(otherFuture.toString(), source = WeatherSource.OPEN_METEO.id),
+                createWeather(genericGapFuture.toString(), source = WeatherSource.GENERIC_GAP.id),
+            ),
+            dailyActuals = mapOf(
+                selectedHistory to ObservationResolver.DailyActual(
+                    date = selectedHistory,
+                    highTemp = 70f,
+                    lowTemp = 55f,
+                    condition = "Clear",
+                ),
+            ),
+            displaySource = WeatherSource.NWS,
+        )
+
+        assertTrue(dates.contains(today))
+        assertTrue(dates.contains(selectedTomorrow))
+        assertTrue(dates.contains(genericGapFuture))
+        assertTrue(dates.contains(selectedHistory))
+        assertFalse(dates.contains(otherFuture))
+    }
+
+    @Test
+    fun `text mode missing data refresh ignores loaded past dates that are not visible`() = runBlocking {
+        val now = LocalDateTime.of(2030, 6, 15, 12, 0)
+        val today = now.toLocalDate()
+        val yesterday = today.minusDays(1)
+        val stateManager = WidgetStateManager(context)
+        stateManager.clearWidgetState(52)
+        stateManager.setVisibleSourcesOrder(listOf(WeatherSource.NWS, WeatherSource.OPEN_METEO, WeatherSource.WEATHER_API))
+
+        val db = WeatherDatabase.getDatabase(context)
+        db.appLogDao().clearAllLogs()
+        val (appWidgetManager, viewsSlot) = mockAppWidgetManager(widgetId = 52, widthDp = 90, heightDp = 90)
+
+        DailyViewHandler.updateWidget(
+            context = context,
+            appWidgetManager = appWidgetManager,
+            appWidgetId = 52,
+            weatherData = WeatherData(
+                weatherList = listOf(
+                    createWeather(yesterday.toString(), source = WeatherSource.NWS.id),
+                    createWeather(today.toString(), source = WeatherSource.NWS.id),
+                ),
+                forecastSnapshots = mapOf(
+                    today to listOf(createWeather(today.toString(), source = WeatherSource.NWS.id)),
+                ),
+                hourlyForecasts = emptyList(),
+                dailyActualsBySource = mapOf(
+                    WeatherSource.NWS.id to mapOf(
+                        today to ObservationResolver.DailyActual(
+                            date = today,
+                            highTemp = 71f,
+                            lowTemp = 54f,
+                            condition = "Clear",
+                        ),
+                    ),
+                ),
+            ),
+            observationData = ObservationData(),
+            now = now,
+            startupToken = null,
+            stateManagerNullable = stateManager,
+            repository = null,
+        )
+
+        assertTrue("widget should have rendered", viewsSlot.isCaptured)
+        val missingActualLogs = db.appLogDao().getLogsByTag("MISSING_ACTUALS_FETCH", limit = 20)
+        assertTrue(
+            "Expected no missing actuals refresh for a loaded but non-visible past date; logs=${missingActualLogs.map { it.message }}",
+            missingActualLogs.none { it.message.contains("actuals_history") },
+        )
+    }
+
+    @Test
     fun `resolveTodayHeaderForecast prefers next hour over current hour`() {
         val now = LocalDateTime.of(2030, 6, 15, 12, 0)
         val todayStr = now.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -1536,6 +1622,7 @@ class DailyViewHandlerTest {
         precipProbability: Int? = 0,
         highTemp: Float? = 70f,
         lowTemp: Float? = 55f,
+        source: String = WeatherSource.NWS.id,
     ): ForecastEntity {
         return ForecastEntity(
             targetDate = dateEpoch(date),
@@ -1546,7 +1633,7 @@ class DailyViewHandlerTest {
             highTemp = highTemp,
             lowTemp = lowTemp,
             condition = "Clear",
-            source = WeatherSource.NWS.id,
+            source = source,
             precipProbability = precipProbability,
             fetchedAt = 1L,
         )
