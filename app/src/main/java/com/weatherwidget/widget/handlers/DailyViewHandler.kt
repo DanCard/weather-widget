@@ -40,12 +40,9 @@ import com.weatherwidget.widget.WidgetActions
 import com.weatherwidget.widget.WidgetConstants
 import com.weatherwidget.widget.WidgetPerfLogger
 import com.weatherwidget.widget.WidgetStateManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import com.weatherwidget.widget.ZoomLevel
-import com.weatherwidget.widget.handlers.WidgetRequestCodes
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 import java.time.Instant
@@ -71,6 +68,8 @@ object DailyViewHandler : WidgetViewHandler {
     private const val TEXT_MODE_CONTENT_RIGHT_PADDING_DP = 18
     private const val HEADER_ICON_TINT = 0xAAFFFFFF.toInt()
     private const val NAV_BUTTON_PADDING_DP = 10
+    // Locale captured at class-load time is safe: Android restarts the process on locale change,
+    // which re-initializes this singleton with the new default locale.
     private val headerDateFormatter = DateTimeFormatter.ofPattern("EEE d", Locale.getDefault())
 
     private class DailyRenderContext(
@@ -169,8 +168,7 @@ object DailyViewHandler : WidgetViewHandler {
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dailyActuals = dailyActualsBySource[displaySource.id].orEmpty()
-        val database = WeatherDatabase.getDatabase(context)
-        val appLogDao = database.appLogDao()
+        val appLogDao = WeatherDatabase.getDatabase(context).appLogDao()
 
         val lat = weatherList.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = weatherList.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
@@ -342,7 +340,6 @@ object DailyViewHandler : WidgetViewHandler {
                 headerState = headerResolution.state,
                 headerPrecipPlacement = headerResolution.precipPlacement,
                 dimensions = dimensions,
-                database = database,
                 appWidgetManager = appWidgetManager,
                 startupToken = startupToken,
                 resolveMs = resolveMs,
@@ -859,13 +856,13 @@ object DailyViewHandler : WidgetViewHandler {
         headerState: HeaderState,
         headerPrecipPlacement: DailyHeaderBinder.HeaderPrecipPlacement,
         dimensions: WidgetDimensions,
-        database: WeatherDatabase,
         appWidgetManager: AppWidgetManager,
         startupToken: String?,
         resolveMs: Long,
         lat: Double,
         lon: Double,
     ): RenderMetrics {
+        val database = WeatherDatabase.getDatabase(ctx.context)
         val todayStr = ctx.today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val isIconWidth = dimensions.isIconWidth
         val formattedTemp = headerState.formattedTemp
@@ -927,7 +924,7 @@ object DailyViewHandler : WidgetViewHandler {
                     "fallback=${todayDay.isTodayForecastFallback}",
                 "DEBUG"
             )
-            CoroutineScope(Dispatchers.IO).launch {
+            withContext(Dispatchers.IO) {
                 val todaySourceObservations = loadTodaySourceObservations(
                     database = database,
                     today = ctx.today,
