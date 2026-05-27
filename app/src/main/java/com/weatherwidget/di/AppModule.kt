@@ -148,8 +148,9 @@ object AppModule {
         dailyExtremeDao: DailyExtremeDao,
         appLogDao: AppLogDao,
         nwsApi: NwsApi,
+        hourlyForecastDao: HourlyForecastDao,
     ): ObservationRepository = ObservationRepository(
-        context, observationDao, dailyExtremeDao, appLogDao, nwsApi
+        context, observationDao, dailyExtremeDao, appLogDao, nwsApi, hourlyForecastDao
     )
 
     @Provides

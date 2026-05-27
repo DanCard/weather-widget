@@ -1,6 +1,7 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.DailyExtremeEntity
+import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
@@ -12,6 +13,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.experimental.categories.Category
@@ -57,6 +59,7 @@ class ObservationRepositoryDailyMergeTest {
             dailyExtremeDao = db.dailyExtremeDao(),
             appLogDao = db.appLogDao(),
             nwsApi = mockk(relaxed = true),
+            hourlyForecastDao = db.hourlyForecastDao(),
         )
     }
 
@@ -135,5 +138,50 @@ class ObservationRepositoryDailyMergeTest {
             todayActual!!.highTemp,
             0.1f,
         )
+    }
+
+    /**
+     * Gate regression: a past day's daily_extreme whose temps/condition are unchanged but whose
+     * precip arrives later (NWS hybrid forecast fallback) must still be persisted. Before the fix,
+     * recomputeDailyExtremesForDay only wrote when high/low/condition changed, so precip-only
+     * deltas were silently dropped and NWS rain never landed.
+     */
+    @Test
+    fun `recompute persists precip-only change for a past day`() = runTest {
+        val yesterday = today.minusDays(1)
+        val t10 = yesterday.atTime(10, 0).atZone(zone).toInstant().toEpochMilli()
+        val t14 = yesterday.atTime(14, 0).atZone(zone).toInstant().toEpochMilli()
+        val yStart = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
+
+        // NWS observations carry temps but no measured precip (precipitationLastHour null).
+        db.observationDao().insertAll(
+            listOf(
+                TestData.observation(stationId = "KNEAR", timestamp = t10, temperature = 60f, distanceKm = 1f, api = WeatherSource.NWS.id),
+                TestData.observation(stationId = "KNEAR", timestamp = t14, temperature = 60f, distanceKm = 1f, api = WeatherSource.NWS.id),
+            ),
+        )
+
+        // Same temp on the forecasts so the IDW temp blend is stable across both runs.
+        fun fc(ts: Long, precip: Float?) = HourlyForecastEntity(
+            dateTime = ts, locationLat = lat, locationLon = lon, temperature = 60f, condition = "Rain",
+            source = WeatherSource.NWS.id, precipAmountMm = precip, fetchedAt = 0L,
+        )
+        db.hourlyForecastDao().insertAll(listOf(fc(t10, null), fc(t14, null)))
+
+        // Run 1: creates the row with null precip (obs null + forecast null).
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
+        val afterRun1 = db.dailyExtremeDao().getExtremesInRange(yStart, yStart, lat, lon)
+            .first { it.source == WeatherSource.NWS.id }
+        assertNull("Precip should be null before forecast precip arrives", afterRun1.precipAmountMm)
+
+        // Forecast precip now arrives (REPLACE on same PK); temps/condition unchanged.
+        db.hourlyForecastDao().insertAll(listOf(fc(t10, 2.0f), fc(t14, 3.0f)))
+
+        // Run 2: only precip differs — the gate must persist it.
+        repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
+        val afterRun2 = db.dailyExtremeDao().getExtremesInRange(yStart, yStart, lat, lon)
+            .first { it.source == WeatherSource.NWS.id }
+        assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 from forecast fallback
+        assertEquals(60f, afterRun2.highTemp, 0.1f)           // temps unchanged
     }
 }

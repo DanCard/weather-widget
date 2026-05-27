@@ -59,7 +59,8 @@ class YesterdayActualHighConsistencyTest {
             db.observationDao(),
             db.dailyExtremeDao(),
             db.appLogDao(),
-            nwsApi
+            nwsApi,
+            db.hourlyForecastDao()
         )
         
         val temperatureInterpolator = TemperatureInterpolator(db.appLogDao())

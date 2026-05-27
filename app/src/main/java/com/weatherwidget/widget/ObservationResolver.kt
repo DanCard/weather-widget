@@ -119,6 +119,7 @@ object ObservationResolver {
             .filter { it.stationId != "NWS_BLEND" }
             .groupBy { it.api }
             .mapValues { (sourceId, obsList) ->
+                val sourceHourly = hourlyForecasts.filter { it.source == sourceId }
                 obsList
                     .groupBy { obs -> Instant.ofEpochMilli(obs.timestamp).atZone(local).toLocalDate() }
                     .mapNotNull { (date, dayObs) ->
@@ -141,22 +142,19 @@ object ObservationResolver {
                             .maxByOrNull { it.value }
                             ?.key ?: "Unknown"
 
-                        // Sum hourly precipitation amounts for the day, split by day/night
-                        val totalPrecipMm = dayObs.mapNotNull { it.precipAmountMm }
-                            .takeIf { it.isNotEmpty() }
-                            ?.sum()
-
-                        val dayPrecipMm = sumDaytimePrecip(dayObs, date, local)
-                        val nightPrecipMm = sumNighttimePrecip(dayObs, date, local)
+                        // Precip: measured-preferred, hourly-forecast fallback (e.g. NWS).
+                        val precip = resolveDailyPrecip(
+                            dayObs, sourceHourly, date, local, dayStartMs, dayEndMs,
+                        )
 
                         date to DailyActual(
                             date = date,
                             highTemp = highTemp,
                             lowTemp = lowTemp,
                             condition = mostCommonCondition,
-                            precipAmountMm = totalPrecipMm,
-                            precipDayMm = dayPrecipMm,
-                            precipNightMm = nightPrecipMm,
+                            precipAmountMm = precip.total,
+                            precipDayMm = precip.day,
+                            precipNightMm = precip.night,
                         )
                     }
                     .toMap()
@@ -206,13 +204,11 @@ object ObservationResolver {
                     ?.key
                     ?: "Unknown"
 
-                // Sum hourly precipitation amounts for the day, split by day/night
-                val totalPrecipMm = dayObs.mapNotNull { it.precipAmountMm }
-                    .takeIf { it.isNotEmpty() }
-                    ?.sum()
-
-                val dayPrecipMm = sumDaytimePrecip(dayObs, date, local)
-                val nightPrecipMm = sumNighttimePrecip(dayObs, date, local)
+                // Precip: measured-preferred, hourly-forecast fallback (e.g. NWS).
+                val sourceHourly = hourlyForecasts.filter { it.source == sourceId }
+                val precip = resolveDailyPrecip(
+                    dayObs, sourceHourly, date, local, dayStartMs, dayEndMs,
+                )
 
                 DailyExtremeEntity(
                     date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
@@ -223,9 +219,9 @@ object ObservationResolver {
                     lowTemp = lowTemp,
                     condition = condition,
                     updatedAt = now,
-                    precipAmountMm = totalPrecipMm,
-                    precipDayMm = dayPrecipMm,
-                    precipNightMm = nightPrecipMm,
+                    precipAmountMm = precip.total,
+                    precipDayMm = precip.day,
+                    precipNightMm = precip.night,
                 )
             }
     }
@@ -387,4 +383,51 @@ object ObservationResolver {
             .takeIf { it.isNotEmpty() }
             ?.sum()
     }
+
+    /** Daily precip totals for one (date, source) bucket: total, daytime, nighttime. */
+    private data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
+
+    /**
+     * Resolves a day's precip with a single coherent provenance, measured-preferred:
+     * if any observation that day reported precip, sum the observations (existing behavior for
+     * sources whose `_MAIN` pseudo-actuals carry precip — Open-Meteo, Tomorrow.io, Silurian);
+     * otherwise fall back to the source's hourly *forecast* precip. NWS observations report null
+     * precip but NWS hourly forecasts are always populated, so this is where NWS rain comes from.
+     * Windows mirror the observation helpers exactly (night = 8PM→midnight of `date`) so the two
+     * branches render identically.
+     */
+    private fun resolveDailyPrecip(
+        dayObs: List<ObservationEntity>,
+        sourceHourly: List<HourlyForecastEntity>,
+        date: LocalDate,
+        zone: ZoneId,
+        dayStartMs: Long,
+        dayEndMs: Long,
+    ): DailyPrecip {
+        if (dayObs.any { it.precipAmountMm != null }) {
+            return DailyPrecip(
+                total = dayObs.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum(),
+                day = sumDaytimePrecip(dayObs, date, zone),
+                night = sumNighttimePrecip(dayObs, date, zone),
+            )
+        }
+        val dayWindowStart = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+        val dayWindowEnd = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+        return DailyPrecip(
+            total = sumForecastPrecip(sourceHourly, dayStartMs, dayEndMs),
+            day = sumForecastPrecip(sourceHourly, dayWindowStart, dayWindowEnd),
+            night = sumForecastPrecip(sourceHourly, dayWindowEnd, dayEndMs),
+        )
+    }
+
+    /** Sums hourly-forecast precip within [startMs, endMs); null when no row carries precip. */
+    private fun sumForecastPrecip(
+        hourly: List<HourlyForecastEntity>,
+        startMs: Long,
+        endMs: Long,
+    ): Float? =
+        hourly.filter { it.dateTime in startMs until endMs }
+            .mapNotNull { it.precipAmountMm }
+            .takeIf { it.isNotEmpty() }
+            ?.sum()
 }

@@ -56,7 +56,7 @@ class WeatherRepositoryNwsParallelTest {
         climateNormalDao = mockk(relaxed = true)
         observationDao = mockk(relaxed = true)
 
-        val observationRepo = ObservationRepository(context, observationDao, mockk(relaxed = true), appLogDao, nwsApi)
+        val observationRepo = ObservationRepository(context, observationDao, mockk(relaxed = true), appLogDao, nwsApi, mockk(relaxed = true))
         val forecastRepo = ForecastRepository(
             context,
             forecastDao,

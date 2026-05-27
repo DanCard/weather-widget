@@ -533,4 +533,86 @@ class ObservationResolverTest {
         api = api,
         precipAmountMm = precipAmountMm,
     )
+
+    private fun hourly(
+        dateTime: Long,
+        precipAmountMm: Float?,
+        source: String = WeatherSource.NWS.id,
+    ): com.weatherwidget.data.local.HourlyForecastEntity =
+        com.weatherwidget.data.local.HourlyForecastEntity(
+            dateTime = dateTime,
+            locationLat = 37.42,
+            locationLon = -122.08,
+            temperature = 60f,
+            condition = "Rain",
+            source = source,
+            precipAmountMm = precipAmountMm,
+            fetchedAt = 0L,
+        )
+
+    // --- NWS hybrid: forecast-fallback precip (measured-preferred) ---
+
+    @Test
+    fun `computeDailyExtremes falls back to forecast precip when observations lack precip`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // NWS observations carry temps but no precip (precipitationLastHour null).
+        val obs = listOf(
+            observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, null),
+            observationWithPrecip(dayStartMs + 14 * 3600_000, 72f, null),
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 64f, null),
+        )
+        // NWS hourly forecast supplies the rain: 2.0 + 3.0 daytime, 1.5 nighttime.
+        val forecasts = listOf(
+            hourly(dayStartMs + 10 * 3600_000, 2.0f),
+            hourly(dayStartMs + 14 * 3600_000, 3.0f),
+            hourly(dayStartMs + 22 * 3600_000, 1.5f),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(6.5f, result[0].precipAmountMm!!, 0.01f)  // 2.0 + 3.0 + 1.5
+        assertEquals(5.0f, result[0].precipDayMm!!, 0.01f)     // 2.0 + 3.0
+        assertEquals(1.5f, result[0].precipNightMm!!, 0.01f)   // 1.5
+    }
+
+    @Test
+    fun `computeDailyExtremes prefers measured observation precip over forecast`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // Observations DO report precip — these win; forecast is ignored.
+        val obs = listOf(
+            observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, 4.0f),
+            observationWithPrecip(dayStartMs + 14 * 3600_000, 72f, null),
+        )
+        val forecasts = listOf(hourly(dayStartMs + 10 * 3600_000, 99.0f))
+
+        val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(4.0f, result[0].precipAmountMm!!, 0.01f)  // observation, not 99.0 forecast
+    }
+
+    @Test
+    fun `computeDailyExtremes forecast fallback ignores other sources' hourly precip`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        val obs = listOf(observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, null))
+        val forecasts = listOf(
+            hourly(dayStartMs + 10 * 3600_000, 2.0f, source = WeatherSource.NWS.id),
+            hourly(dayStartMs + 11 * 3600_000, 50.0f, source = WeatherSource.OPEN_METEO.id),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(2.0f, result[0].precipAmountMm!!, 0.01f)  // only the NWS forecast row counts
+    }
 }

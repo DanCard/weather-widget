@@ -6,6 +6,7 @@ import android.util.Log
 import com.weatherwidget.data.local.AppLogDao
 import com.weatherwidget.data.local.DailyExtremeDao
 import com.weatherwidget.data.local.ObservationDao
+import com.weatherwidget.data.local.HourlyForecastDao
 import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.local.log
@@ -36,7 +37,8 @@ class ObservationRepository @Inject constructor(
     private val observationDao: ObservationDao,
     private val dailyExtremeDao: DailyExtremeDao,
     private val appLogDao: AppLogDao,
-    private val nwsApi: NwsApi
+    private val nwsApi: NwsApi,
+    private val hourlyForecastDao: HourlyForecastDao,
 ) {
     internal data class RecentBackfillResult(
         val stationsTried: Int,
@@ -450,7 +452,12 @@ class ObservationRepository @Inject constructor(
         val dayObs = observationDao.getObservationsInRange(startTs, endTs, latitude, longitude)
         if (dayObs.isEmpty()) return
 
-        val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, hourlyForecasts, latitude, longitude)
+        // Backfill paths pass no forecasts; load the day's hourly forecasts so sources without
+        // measured observation precip (NWS) can fall back to forecast-derived rain in the blend.
+        val effectiveHourly = hourlyForecasts.ifEmpty {
+            hourlyForecastDao.getHourlyForecasts(startTs, endTs, latitude, longitude)
+        }
+        val newExtremes = ObservationResolver.computeDailyExtremes(dayObs, effectiveHourly, latitude, longitude)
         val existingExtremes = dailyExtremeDao.getExtremesInRange(dateMillis, dateMillis, latitude, longitude)
             .associateBy { it.source }
 
@@ -484,14 +491,15 @@ class ObservationRepository @Inject constructor(
                 existing == null -> toInsert.add(new)
 
                 isToday -> {
-                    // Today: ratchet up to protect against transient drops in current readings.
+                    // Today: ratchet temps up to protect against transient drops in current
+                    // readings. Precip is a full re-sum of the day's data (authoritative, not
+                    // incremental), so we always take the new value when it changes.
                     val updatedHigh = maxOf(existing.highTemp, new.highTemp)
                     val updatedLow = minOf(existing.lowTemp, new.lowTemp)
-                    if (updatedHigh > existing.highTemp || updatedLow < existing.lowTemp) {
-                        appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow}", "DEBUG")
+                    val tempChanged = updatedHigh > existing.highTemp || updatedLow < existing.lowTemp
+                    if (tempChanged || new.condition != existing.condition || precipChanged(new, existing)) {
+                        appLogDao.log("DAILY_EXTREME_UP", "date=$date src=${new.source} high=${existing.highTemp}->${updatedHigh} low=${existing.lowTemp}->${updatedLow} precip=${existing.precipAmountMm}->${new.precipAmountMm}", "DEBUG")
                         toInsert.add(new.copy(highTemp = updatedHigh, lowTemp = updatedLow))
-                    } else if (new.condition != existing.condition) {
-                        toInsert.add(new.copy(highTemp = existing.highTemp, lowTemp = existing.lowTemp))
                     } else {
                         appLogDao.log("DAILY_EXTREME_STABLE", "date=$date src=${new.source} high=${existing.highTemp} low=${existing.lowTemp}", "DEBUG")
                     }
@@ -501,10 +509,10 @@ class ObservationRepository @Inject constructor(
                     // Past day: overwrite. Observations are complete, the time-aligned blend is
                     // idempotent, and self-healing migration relies on overwriting stale rows
                     // left by the old per-station-spot-max algorithm.
-                    if (new.highTemp != existing.highTemp || new.lowTemp != existing.lowTemp || new.condition != existing.condition) {
+                    if (new.highTemp != existing.highTemp || new.lowTemp != existing.lowTemp || new.condition != existing.condition || precipChanged(new, existing)) {
                         appLogDao.log(
                             "DAILY_EXTREME_OVERWRITE",
-                            "date=$date src=${new.source} high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp}",
+                            "date=$date src=${new.source} high=${existing.highTemp}->${new.highTemp} low=${existing.lowTemp}->${new.lowTemp} precip=${existing.precipAmountMm}->${new.precipAmountMm}",
                             "DEBUG",
                         )
                         toInsert.add(new)
@@ -519,6 +527,14 @@ class ObservationRepository @Inject constructor(
             dailyExtremeDao.insertAll(toInsert)
         }
     }
+
+    private fun precipChanged(
+        new: com.weatherwidget.data.local.DailyExtremeEntity,
+        existing: com.weatherwidget.data.local.DailyExtremeEntity,
+    ): Boolean =
+        new.precipAmountMm != existing.precipAmountMm ||
+            new.precipDayMm != existing.precipDayMm ||
+            new.precipNightMm != existing.precipNightMm
 
     suspend fun getRecentObservations(sinceMs: Long): List<ObservationEntity> =
         observationDao.getRecentObservations(sinceMs)
