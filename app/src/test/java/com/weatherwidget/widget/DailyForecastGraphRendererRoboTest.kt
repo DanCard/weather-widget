@@ -175,9 +175,7 @@ class DailyForecastGraphRendererRoboTest {
 
     @Test
     fun pastDay_singleMode_forecastOverlaySitsLeftOfActuals() {
-        // Regression guard for the past-day overlay-left layout change. Even without a
-        // nextSource bar, the displaySource overlay must render to the LEFT of the actuals
-        // (the prior layout had it on the right at +forecastBarOffset).
+        // Past-day layout: actuals (history) LEFT, forecast overlay RIGHT.
         val pastDate = LocalDate.of(2026, 2, 1)
         val days = listOf(
             DailyForecastGraphRenderer.DayData(
@@ -197,8 +195,8 @@ class DailyForecastGraphRendererRoboTest {
         val overlay = pastBars.single { it.barType == "FORECAST_OVERLAY" }
 
         assertTrue(
-            "Single-mode past day: overlay must be LEFT of actuals (overlay.x=${overlay.centerX}, history.x=${history.centerX})",
-            overlay.centerX < history.centerX,
+            "Single-mode past day: overlay must be RIGHT of actuals (overlay.x=${overlay.centerX}, history.x=${history.centerX})",
+            overlay.centerX > history.centerX,
         )
     }
 

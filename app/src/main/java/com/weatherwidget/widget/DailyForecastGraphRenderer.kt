@@ -757,7 +757,7 @@ object DailyForecastGraphRenderer {
             val fLowY = layout.tempToY(day.dashedLineLow)
             val effectiveFLowY = clampMinBarHeight(fHighY, fLowY, layout.minBarHeightPx)
             
-            val forecastX = centerX + if (day.isPast) -layout.forecastBarOffset else layout.forecastBarOffset
+            val forecastX = centerX + layout.forecastBarOffset
             val condColor = WeatherConditionColors.forecastColor(day.isSunny, day.isRainy, day.isMixed, isNight = false)
             val overlayPaint = if (day.isClimateNormal) {
                 paints.climateOverlayForColor(condColor)
