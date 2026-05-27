@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 46,
-    "identityHash": "803a6432c37cb489612577f1bee0f299",
+    "identityHash": "b5b55110fa63fb93ca791ccda3f96681",
     "entities": [
       {
         "tableName": "forecasts",
@@ -572,7 +572,7 @@
       },
       {
         "tableName": "daily_extremes",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` INTEGER NOT NULL, `source` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `highTemp` REAL NOT NULL, `lowTemp` REAL NOT NULL, `condition` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, `precipAmountMm` REAL, PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` INTEGER NOT NULL, `source` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `highTemp` REAL NOT NULL, `lowTemp` REAL NOT NULL, `condition` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, `precipAmountMm` REAL, `precipDayMm` REAL, `precipNightMm` REAL, PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`))",
         "fields": [
           {
             "fieldPath": "date",
@@ -626,6 +626,16 @@
             "fieldPath": "precipAmountMm",
             "columnName": "precipAmountMm",
             "affinity": "REAL"
+          },
+          {
+            "fieldPath": "precipDayMm",
+            "columnName": "precipDayMm",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "precipNightMm",
+            "columnName": "precipNightMm",
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -654,7 +664,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '803a6432c37cb489612577f1bee0f299')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b5b55110fa63fb93ca791ccda3f96681')"
     ]
   }
 }

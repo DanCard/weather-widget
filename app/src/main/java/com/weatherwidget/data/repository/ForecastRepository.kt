@@ -821,7 +821,8 @@ class ForecastRepository
                         distanceKm = 0.0f,
                         stationType = "OFFICIAL",
                         fetchedAt = fetchedAt,
-                        api = sourceId
+                        api = sourceId,
+                        precipAmountMm = hour.precipAmountMm
                     )
                 }
 

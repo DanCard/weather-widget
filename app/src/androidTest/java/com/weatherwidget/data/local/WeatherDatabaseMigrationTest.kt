@@ -79,21 +79,24 @@ class WeatherDatabaseMigrationTest {
             assertTrue(c.moveToFirst())
             assertEquals(1, c.getInt(0))
         }
-        // Existing daily extreme row survived and precipAmountMm is null.
-        db.query("SELECT COUNT(*) FROM daily_extremes WHERE precipAmountMm IS NULL").use { c ->
+        // Existing daily extreme row survived and all precip columns are null.
+        db.query("SELECT COUNT(*) FROM daily_extremes WHERE precipAmountMm IS NULL AND precipDayMm IS NULL AND precipNightMm IS NULL").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(1, c.getInt(0))
         }
-        // New column accepts non-null values.
+        // Observation precip column accepts non-null values.
         db.execSQL("UPDATE observations SET precipAmountMm = 5.5 WHERE stationId = 'STATION1'")
         db.query("SELECT precipAmountMm FROM observations WHERE stationId = 'STATION1'").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(5.5f, c.getFloat(0), 0.01f)
         }
-        db.execSQL("UPDATE daily_extremes SET precipAmountMm = 12.3 WHERE date = 1000")
-        db.query("SELECT precipAmountMm FROM daily_extremes WHERE date = 1000").use { c ->
+        // Daily extreme precip columns accept non-null values.
+        db.execSQL("UPDATE daily_extremes SET precipAmountMm = 12.3, precipDayMm = 8.1, precipNightMm = 4.2 WHERE date = 1000")
+        db.query("SELECT precipAmountMm, precipDayMm, precipNightMm FROM daily_extremes WHERE date = 1000").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(12.3f, c.getFloat(0), 0.01f)
+            assertEquals(8.1f, c.getFloat(1), 0.01f)
+            assertEquals(4.2f, c.getFloat(2), 0.01f)
         }
         db.close()
     }

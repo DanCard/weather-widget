@@ -465,6 +465,12 @@ class NwsApi
             val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
             val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
 
+            // Precipitation fields from NWS observations (values in mm)
+            val precipLastHourObj = props["precipitationLastHour"]?.jsonObject
+            val precipLastHourMm = precipLastHourObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+            val precipLast24hObj = props["precipitationLast24Hours"]?.jsonObject
+            val precipLast24hMm = precipLast24hObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
+
             return Observation(
                 timestamp = timestamp,
                 temperatureCelsius = tempValue.toFloat(),
@@ -472,6 +478,8 @@ class NwsApi
                 stationName = stationName,
                 maxTempLast24hCelsius = maxTempValue,
                 minTempLast24hCelsius = minTempValue,
+                precipLastHourMm = precipLastHourMm,
+                precipLast24hMm = precipLast24hMm,
             )
         }
 
@@ -568,6 +576,8 @@ class NwsApi
             val stationName: String = "",
             val maxTempLast24hCelsius: Float? = null,
             val minTempLast24hCelsius: Float? = null,
+            val precipLastHourMm: Float? = null,
+            val precipLast24hMm: Float? = null,
         )
 
         data class HourlyForecastPeriod(

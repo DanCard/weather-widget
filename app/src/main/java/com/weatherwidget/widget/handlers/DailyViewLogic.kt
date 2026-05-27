@@ -533,6 +533,7 @@ object DailyViewLogic {
                 precipAmountMm = weather?.precipAmountMm,
                 dayPrecipProbability = dayPrecipForIcon,
                 allowTodayRainChanceLabel = allowTodayRainChanceLabel,
+                observedPrecipAmountMm = actual?.precipDayMm ?: actual?.precipAmountMm,
             )
 
             days.add(
@@ -564,6 +565,7 @@ object DailyViewLogic {
                             isPastDate = isPastDate,
                             dailyRainLabelText = dailyRainLabelText,
                             nightPrecipProbability = nightPrecipForIcon,
+                            observedNightPrecipMm = actual?.precipNightMm,
                         ),
                         hasRainForecast = hasRainForecast,
                     ),
@@ -620,9 +622,15 @@ object DailyViewLogic {
         precipAmountMm: Float?,
         dayPrecipProbability: Int? = null,
         allowTodayRainChanceLabel: Boolean = false,
+        observedPrecipAmountMm: Float? = null,
     ): String? {
         if (isPastDate) {
-            Log.d(TAG, "buildDailyRainLabel skipping past date=$date")
+            // For past days, show observed precipitation amount if available
+            if (observedPrecipAmountMm != null && observedPrecipAmountMm > 0f) {
+                Log.d(TAG, "buildDailyRainLabel past date label: date=$date amount=${observedPrecipAmountMm}mm")
+                return formatPrecipAmount(observedPrecipAmountMm)
+            }
+            Log.d(TAG, "buildDailyRainLabel skipping past date=$date (no observed precip)")
             return null
         }
         if (date == today) {
@@ -666,9 +674,15 @@ object DailyViewLogic {
         isPastDate: Boolean,
         dailyRainLabelText: String?,
         nightPrecipProbability: Int?,
+        observedNightPrecipMm: Float? = null,
     ): String? {
         if (isPastDate) {
-            Log.d(TAG, "buildNightRainLabel skipping past date=$date")
+            // For past days, show observed night precipitation amount if available
+            if (observedNightPrecipMm != null && observedNightPrecipMm > 0f) {
+                Log.d(TAG, "buildNightRainLabel past date label: date=$date amount=${observedNightPrecipMm}mm")
+                return formatPrecipAmount(observedNightPrecipMm)
+            }
+            Log.d(TAG, "buildNightRainLabel skipping past date=$date (no observed night precip)")
             return null
         }
         val probability = nightPrecipProbability ?: run {

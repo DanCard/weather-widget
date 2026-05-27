@@ -1,5 +1,6 @@
 package com.weatherwidget.widget
 
+import com.weatherwidget.data.local.DailyExtremeEntity
 import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import org.junit.Assert.assertEquals
@@ -396,4 +397,140 @@ class ObservationResolverTest {
             api = api,
         )
     }
+
+    // --- Precipitation aggregation tests ---
+
+    @Test
+    fun `computeDailyExtremes sums hourly precip into daily total`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // Create observations spread across the day with different precip amounts
+        val obs = listOf(
+            observationWithPrecip(dayStartMs + 3600_000, 70f, 1.5f),       // 1 AM
+            observationWithPrecip(dayStartMs + 7200_000, 72f, 2.3f),       // 2 AM
+            observationWithPrecip(dayStartMs + 10800_000, 68f, null),      // 3 AM - null precip
+            observationWithPrecip(dayStartMs + 14400_000, 65f, 0.0f),      // 4 AM - zero precip
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        // 1.5 + 2.3 = 3.8 (null and 0.0 are excluded from sum)
+        assertEquals(3.8f, result[0].precipAmountMm!!, 0.01f)
+    }
+
+    @Test
+    fun `computeDailyExtremes splits precip into day and night buckets`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // Daytime: 8AM-8PM = 8h to 20h
+        // Nighttime: 8PM-12AM = 20h to 24h (stays within same day for grouping)
+        val obs = listOf(
+            // Daytime observations
+            observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, 2.0f),  // 10 AM - day
+            observationWithPrecip(dayStartMs + 14 * 3600_000, 72f, 3.5f),  // 2 PM - day
+            // Nighttime observations (before midnight)
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 65f, 1.0f),  // 10 PM - night
+            observationWithPrecip(dayStartMs + 23 * 3600_000, 63f, 4.2f),  // 11 PM - night
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(5.5f, result[0].precipDayMm!!, 0.01f)   // 2.0 + 3.5
+        assertEquals(5.2f, result[0].precipNightMm!!, 0.01f)  // 1.0 + 4.2
+        assertEquals(10.7f, result[0].precipAmountMm!!, 0.01f) // total
+    }
+
+    @Test
+    fun `computeDailyExtremes handles null precip for all observations`() {
+        val dayMillis = 1_700_000_000_000L
+        val obs = listOf(
+            observationWithPrecip(dayMillis, 70f, null),
+            observationWithPrecip(dayMillis + 3600_000, 72f, null),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertNull(result[0].precipAmountMm)
+        assertNull(result[0].precipDayMm)
+        assertNull(result[0].precipNightMm)
+    }
+
+    @Test
+    fun `extremesToDailyActuals maps all precip fields`() {
+        val extremes = listOf(
+            DailyExtremeEntity(
+                date = 1_700_000_000_000L,
+                source = WeatherSource.NWS.id,
+                locationLat = 37.42,
+                locationLon = -122.08,
+                highTemp = 75f,
+                lowTemp = 55f,
+                condition = "Rain",
+                updatedAt = 1_700_000_000_000L,
+                precipAmountMm = 10.5f,
+                precipDayMm = 6.2f,
+                precipNightMm = 4.3f,
+            )
+        )
+
+        val result = ObservationResolver.extremesToDailyActuals(extremes)
+
+        assertEquals(1, result.size)
+        assertEquals(10.5f, result[0].precipAmountMm!!, 0.01f)
+        assertEquals(6.2f, result[0].precipDayMm!!, 0.01f)
+        assertEquals(4.3f, result[0].precipNightMm!!, 0.01f)
+    }
+
+    @Test
+    fun `extremesToDailyActualsBySource maps all precip fields`() {
+        val extremes = listOf(
+            DailyExtremeEntity(
+                date = 1_700_000_000_000L,
+                source = WeatherSource.NWS.id,
+                locationLat = 37.42,
+                locationLon = -122.08,
+                highTemp = 75f,
+                lowTemp = 55f,
+                condition = "Rain",
+                updatedAt = 1_700_000_000_000L,
+                precipAmountMm = 8.1f,
+                precipDayMm = 5.0f,
+                precipNightMm = 3.1f,
+            )
+        )
+
+        val result = ObservationResolver.extremesToDailyActualsBySource(extremes, 37.42, -122.08)
+
+        val nwsActuals = result[WeatherSource.NWS.id]
+        assertNotNull(nwsActuals)
+        val actual = nwsActuals!!.values.first()
+        assertEquals(8.1f, actual.precipAmountMm!!, 0.01f)
+        assertEquals(5.0f, actual.precipDayMm!!, 0.01f)
+        assertEquals(3.1f, actual.precipNightMm!!, 0.01f)
+    }
+
+    private fun observationWithPrecip(
+        timestamp: Long,
+        temperature: Float,
+        precipAmountMm: Float?,
+        stationId: String = "KTEST",
+        api: String = WeatherSource.NWS.id,
+    ): ObservationEntity = ObservationEntity(
+        stationId = stationId,
+        stationName = "Test Station",
+        timestamp = timestamp,
+        temperature = temperature,
+        condition = "Rain",
+        locationLat = 37.42,
+        locationLon = -122.08,
+        api = api,
+        precipAmountMm = precipAmountMm,
+    )
 }

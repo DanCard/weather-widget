@@ -30,6 +30,9 @@ object ObservationResolver {
         val highTemp: Float,
         val lowTemp: Float,
         val condition: String,
+        val precipAmountMm: Float? = null,
+        val precipDayMm: Float? = null,
+        val precipNightMm: Float? = null,
     )
 
     /**
@@ -138,11 +141,22 @@ object ObservationResolver {
                             .maxByOrNull { it.value }
                             ?.key ?: "Unknown"
 
+                        // Sum hourly precipitation amounts for the day, split by day/night
+                        val totalPrecipMm = dayObs.mapNotNull { it.precipAmountMm }
+                            .takeIf { it.isNotEmpty() }
+                            ?.sum()
+
+                        val dayPrecipMm = sumDaytimePrecip(dayObs, date, local)
+                        val nightPrecipMm = sumNighttimePrecip(dayObs, date, local)
+
                         date to DailyActual(
                             date = date,
                             highTemp = highTemp,
                             lowTemp = lowTemp,
                             condition = mostCommonCondition,
+                            precipAmountMm = totalPrecipMm,
+                            precipDayMm = dayPrecipMm,
+                            precipNightMm = nightPrecipMm,
                         )
                     }
                     .toMap()
@@ -192,6 +206,14 @@ object ObservationResolver {
                     ?.key
                     ?: "Unknown"
 
+                // Sum hourly precipitation amounts for the day, split by day/night
+                val totalPrecipMm = dayObs.mapNotNull { it.precipAmountMm }
+                    .takeIf { it.isNotEmpty() }
+                    ?.sum()
+
+                val dayPrecipMm = sumDaytimePrecip(dayObs, date, local)
+                val nightPrecipMm = sumNighttimePrecip(dayObs, date, local)
+
                 DailyExtremeEntity(
                     date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
                     source = sourceId,
@@ -201,6 +223,9 @@ object ObservationResolver {
                     lowTemp = lowTemp,
                     condition = condition,
                     updatedAt = now,
+                    precipAmountMm = totalPrecipMm,
+                    precipDayMm = dayPrecipMm,
+                    precipNightMm = nightPrecipMm,
                 )
             }
     }
@@ -250,6 +275,9 @@ object ObservationResolver {
                 highTemp = entity.highTemp,
                 lowTemp = entity.lowTemp,
                 condition = entity.condition,
+                precipAmountMm = entity.precipAmountMm,
+                precipDayMm = entity.precipDayMm,
+                precipNightMm = entity.precipNightMm,
             )
         }
 
@@ -277,6 +305,9 @@ object ObservationResolver {
                             highTemp = closest.highTemp,
                             lowTemp = closest.lowTemp,
                             condition = closest.condition,
+                            precipAmountMm = closest.precipAmountMm,
+                            precipDayMm = closest.precipDayMm,
+                            precipNightMm = closest.precipNightMm,
                         )
                     }
             }
@@ -318,6 +349,42 @@ object ObservationResolver {
                     highTemp = maxOf(primary.highTemp, secondary.highTemp),
                     lowTemp = minOf(primary.lowTemp, secondary.lowTemp),
                     condition = secondary.condition.ifBlank { primary.condition },
+                    precipAmountMm = primary.precipAmountMm ?: secondary.precipAmountMm,
+                    precipDayMm = primary.precipDayMm ?: secondary.precipDayMm,
+                    precipNightMm = primary.precipNightMm ?: secondary.precipNightMm,
                 )
         }
+
+    /**
+     * Sums daytime (8AM-8PM) precipitation from observations for a given date.
+     */
+    private fun sumDaytimePrecip(
+        observations: List<ObservationEntity>,
+        date: LocalDate,
+        zone: ZoneId,
+    ): Float? {
+        val dayStartMs = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+        val dayEndMs = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+        val dayObs = observations.filter { it.timestamp >= dayStartMs && it.timestamp < dayEndMs }
+        return dayObs.mapNotNull { it.precipAmountMm }
+            .takeIf { it.isNotEmpty() }
+            ?.sum()
+    }
+
+    /**
+     * Sums nighttime (8PM-8AM) precipitation from observations for a given date.
+     * Night spans 8PM on date to 8AM the next day.
+     */
+    private fun sumNighttimePrecip(
+        observations: List<ObservationEntity>,
+        date: LocalDate,
+        zone: ZoneId,
+    ): Float? {
+        val nightStartMs = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+        val nightEndMs = date.plusDays(1).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+        val nightObs = observations.filter { it.timestamp >= nightStartMs && it.timestamp < nightEndMs }
+        return nightObs.mapNotNull { it.precipAmountMm }
+            .takeIf { it.isNotEmpty() }
+            ?.sum()
+    }
 }

@@ -1,6 +1,7 @@
 package com.weatherwidget.data.local
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -68,17 +69,34 @@ abstract class WeatherDatabase : RoomDatabase() {
                         "`index_hourly_forecast_history_locationLat_locationLon_source_snapshotBucket` " +
                         "ON `hourly_forecast_history` (`locationLat`, `locationLon`, `source`, `snapshotBucket`)",
                 )
+                db.execSQL("ALTER TABLE `observations` ADD COLUMN `precipAmountMm` REAL")
+                db.execSQL("ALTER TABLE `daily_extremes` ADD COLUMN `precipAmountMm` REAL")
             }
         }
 
         /**
-         * Adds `precipAmountMm` column to `observations` and `daily_extremes` tables
-         * to store observed precipitation amounts for past days.
+         * Adds precipitation columns to observations and daily_extremes tables.
+         * Handles databases created at v45 with or without precipAmountMm (the column was
+         * added mid-v45 lifecycle). Uses conditional ALTER to be idempotent.
          */
         val MIGRATION_45_46 = object : Migration(45, 46) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `observations` ADD COLUMN `precipAmountMm` REAL")
-                db.execSQL("ALTER TABLE `daily_extremes` ADD COLUMN `precipAmountMm` REAL")
+                addColumnIfMissing(db, "observations", "precipAmountMm", "REAL")
+                addColumnIfMissing(db, "daily_extremes", "precipAmountMm", "REAL")
+                addColumnIfMissing(db, "daily_extremes", "precipDayMm", "REAL")
+                addColumnIfMissing(db, "daily_extremes", "precipNightMm", "REAL")
+            }
+        }
+
+        private fun addColumnIfMissing(db: SupportSQLiteDatabase, table: String, column: String, type: String) {
+            val cursor = db.query("PRAGMA table_info($table)")
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+            cursor.close()
+            if (!columns.contains(column)) {
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN `$column` $type")
             }
         }
 
@@ -93,6 +111,12 @@ abstract class WeatherDatabase : RoomDatabase() {
                 } else {
                     DEFAULT_DATABASE_NAME
                 }
+
+                // Self-healing: if a previous destructive migration set the
+                // database version to 46 but the schema is actually v45
+                // (daily_extremes missing precipDayMm), reset version to 45
+                // so Room will run MIGRATION_45_46 properly.
+                healCorruptDatabaseVersion(context, dbName!!)
 
                 val instance =
                     Room.databaseBuilder(
@@ -160,6 +184,59 @@ abstract class WeatherDatabase : RoomDatabase() {
         fun setDatabaseNameOverrideForTesting(databaseName: String?) {
             resetInstanceForTesting()
             databaseNameOverride = databaseName
+        }
+
+        /**
+         * Fixes corrupt database states that prevent Room migrations from running:
+         *
+         * 1. Version=46 but missing precipDayMm (from a previous destructive migration that
+         *    set version to 46 without actually adding the columns). Resets to v45 so
+         *    MIGRATION_45_46 will run.
+         *
+         * 2. Version=45 but missing precipAmountMm on observations (from old v45 code before
+         *    commit 70e2241 added the column). Resets to v44 so MIGRATION_44_45 will add it.
+         */
+        private fun healCorruptDatabaseVersion(context: Context, dbName: String) {
+            try {
+                val dbPath = context.getDatabasePath(dbName)
+                if (!dbPath.exists()) return
+
+                val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+                    dbPath.absolutePath, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE,
+                )
+                try {
+                    val version = db.version
+                    if (version == 46) {
+                        val columns = getTableColumns(db, "daily_extremes")
+                        if (!columns.contains("precipDayMm")) {
+                            Log.w("WeatherDatabase", "healCorruptDatabaseVersion: DB v46 missing precipDayMm; resetting to v45")
+                            db.version = 45
+                        }
+                    }
+                    // Re-check after potential v46→v45 reset
+                    if (db.version == 45) {
+                        val columns = getTableColumns(db, "observations")
+                        if (!columns.contains("precipAmountMm")) {
+                            Log.w("WeatherDatabase", "healCorruptDatabaseVersion: DB v45 missing precipAmountMm; resetting to v44")
+                            db.version = 44
+                        }
+                    }
+                } finally {
+                    db.close()
+                }
+            } catch (e: Exception) {
+                Log.e("WeatherDatabase", "healCorruptDatabaseVersion: Error", e)
+            }
+        }
+
+        private fun getTableColumns(db: android.database.sqlite.SQLiteDatabase, table: String): List<String> {
+            val cursor = db.rawQuery("PRAGMA table_info($table)", null)
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+            cursor.close()
+            return columns
         }
 
     }

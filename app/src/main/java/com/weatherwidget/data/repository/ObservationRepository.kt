@@ -606,6 +606,7 @@ class ObservationRepository @Inject constructor(
             maxTempLast24h = obs.maxTempLast24hCelsius?.let { (it * 1.8f) + 32f },
             minTempLast24h = obs.minTempLast24hCelsius?.let { (it * 1.8f) + 32f },
             api = WeatherSource.NWS.id,
+            precipAmountMm = obs.precipLastHourMm,
         )
     }
 

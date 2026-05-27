@@ -1742,4 +1742,213 @@ class DailyViewLogicTest {
         val day3Data = result.first { it.date == day3 }
         assertNull(day3Data.rainData.dailyRainLabelText)
     }
+
+    // --- Past day observed precipitation tests ---
+
+    @Test
+    fun `past day with observed precip shows day rain label`() {
+        val now = LocalDateTime.of(2026, 5, 27, 12, 0)
+        val today = now.toLocalDate()
+        val pastDay = today.minusDays(2)
+        val pastDayStr = pastDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
+        )
+        val dailyActuals = mapOf(
+            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = pastDay,
+                highTemp = 68f,
+                lowTemp = 52f,
+                condition = "Rain",
+                precipAmountMm = 10.5f,
+                precipDayMm = 6.2f,
+                precipNightMm = 4.3f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val pastDayData = result.first { it.date == pastDay }
+        assertNotNull("Past day should have rain label", pastDayData.rainData.dailyRainLabelText)
+        // Should show day precip amount (6.2mm converted to inches)
+        assertTrue("Rain label should contain amount", pastDayData.rainData.dailyRainLabelText!!.contains("in"))
+    }
+
+    @Test
+    fun `past day with observed precip shows night rain label`() {
+        val now = LocalDateTime.of(2026, 5, 27, 12, 0)
+        val today = now.toLocalDate()
+        val pastDay = today.minusDays(2)
+        val pastDayStr = pastDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
+        )
+        val dailyActuals = mapOf(
+            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = pastDay,
+                highTemp = 68f,
+                lowTemp = 52f,
+                condition = "Rain",
+                precipAmountMm = 10.5f,
+                precipDayMm = 6.2f,
+                precipNightMm = 4.3f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val pastDayData = result.first { it.date == pastDay }
+        assertNotNull("Past day should have night rain label", pastDayData.rainData.nightRainLabelText)
+        // Should show night precip amount (4.3mm converted to inches)
+        assertTrue("Night rain label should contain amount", pastDayData.rainData.nightRainLabelText!!.contains("in"))
+    }
+
+    @Test
+    fun `past day with zero observed precip shows no rain label`() {
+        val now = LocalDateTime.of(2026, 5, 27, 12, 0)
+        val today = now.toLocalDate()
+        val pastDay = today.minusDays(2)
+        val pastDayStr = pastDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
+        )
+        val dailyActuals = mapOf(
+            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = pastDay,
+                highTemp = 68f,
+                lowTemp = 52f,
+                condition = "Clear",
+                precipAmountMm = 0f,
+                precipDayMm = 0f,
+                precipNightMm = 0f,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val pastDayData = result.first { it.date == pastDay }
+        assertNull("Past day with zero precip should have no day rain label", pastDayData.rainData.dailyRainLabelText)
+        assertNull("Past day with zero precip should have no night rain label", pastDayData.rainData.nightRainLabelText)
+    }
+
+    @Test
+    fun `past day with null observed precip shows no rain label`() {
+        val now = LocalDateTime.of(2026, 5, 27, 12, 0)
+        val today = now.toLocalDate()
+        val pastDay = today.minusDays(2)
+        val pastDayStr = pastDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
+        )
+        val dailyActuals = mapOf(
+            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = pastDay,
+                highTemp = 68f,
+                lowTemp = 52f,
+                condition = "Clear",
+                precipAmountMm = null,
+                precipDayMm = null,
+                precipNightMm = null,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val pastDayData = result.first { it.date == pastDay }
+        assertNull("Past day with null precip should have no day rain label", pastDayData.rainData.dailyRainLabelText)
+        assertNull("Past day with null precip should have no night rain label", pastDayData.rainData.nightRainLabelText)
+    }
+
+    @Test
+    fun `past day uses precipDayMm for day label when available`() {
+        val now = LocalDateTime.of(2026, 5, 27, 12, 0)
+        val today = now.toLocalDate()
+        val pastDay = today.minusDays(2)
+        val pastDayStr = pastDay.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val weatherByDate = mapOf(
+            today to createWeather(today.format(DateTimeFormatter.ISO_LOCAL_DATE)),
+            pastDay to createWeather(pastDayStr, highTemp = 68f, lowTemp = 52f),
+        )
+        // Has precipDayMm but no precipAmountMm
+        val dailyActuals = mapOf(
+            pastDay to com.weatherwidget.widget.ObservationResolver.DailyActual(
+                date = pastDay,
+                highTemp = 68f,
+                lowTemp = 52f,
+                condition = "Rain",
+                precipAmountMm = null,
+                precipDayMm = 5.0f,
+                precipNightMm = null,
+            ),
+        )
+
+        val result = DailyViewLogic.prepareGraphDays(
+            now = now,
+            centerDate = today.minusDays(2),
+            today = today,
+            weatherByDate = weatherByDate,
+            forecastSnapshots = emptyMap(),
+            numColumns = 9,
+            displaySource = WeatherSource.NWS,
+            skipYesterday = false,
+            skipHistory = false,
+            hourlyForecasts = emptyList(),
+            dailyActuals = dailyActuals,
+        )
+
+        val pastDayData = result.first { it.date == pastDay }
+        assertNotNull("Past day should have rain label from precipDayMm", pastDayData.rainData.dailyRainLabelText)
+    }
 }

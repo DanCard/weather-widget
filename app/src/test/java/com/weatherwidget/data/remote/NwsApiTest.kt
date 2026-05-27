@@ -513,4 +513,102 @@ class NwsApiTest {
             assertEquals(22.0f, obs!!.temperatureCelsius)
             assertEquals("2026-03-19T02:55:00+00:00", obs.timestamp)
         }
+
+    @Test
+    fun `getLatestObservationDetailed parses precipitation fields`() =
+        runTest {
+            val response =
+                """
+                {
+                    "properties": {
+                        "stationName": "Moffett Field",
+                        "timestamp": "2026-03-19T03:15:00+00:00",
+                        "textDescription": "Rain",
+                        "temperature": {
+                            "unitCode": "wmoUnit:degC",
+                            "value": 15.0
+                        },
+                        "precipitationLastHour": {
+                            "unitCode": "wmoUnit:mm",
+                            "value": 2.5
+                        },
+                        "precipitationLast24Hours": {
+                            "unitCode": "wmoUnit:mm",
+                            "value": 15.3
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler { request ->
+                            respond(
+                                content = response,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val obs = api.getLatestObservationDetailed("KNUQ")
+
+            assertNotNull(obs)
+            assertEquals(15.0f, obs!!.temperatureCelsius)
+            assertEquals(2.5f, obs.precipLastHourMm)
+            assertEquals(15.3f, obs.precipLast24hMm)
+        }
+
+    @Test
+    fun `getLatestObservationDetailed handles null precipitation fields`() =
+        runTest {
+            val response =
+                """
+                {
+                    "properties": {
+                        "stationName": "Moffett Field",
+                        "timestamp": "2026-03-19T03:15:00+00:00",
+                        "textDescription": "Clear",
+                        "temperature": {
+                            "unitCode": "wmoUnit:degC",
+                            "value": 20.0
+                        },
+                        "precipitationLastHour": {
+                            "unitCode": "wmoUnit:mm",
+                            "value": null
+                        }
+                    }
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler { request ->
+                            respond(
+                                content = response,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val obs = api.getLatestObservationDetailed("KNUQ")
+
+            assertNotNull(obs)
+            assertEquals(20.0f, obs!!.temperatureCelsius)
+            assertNull(obs.precipLastHourMm)
+            assertNull(obs.precipLast24hMm)
+        }
 }

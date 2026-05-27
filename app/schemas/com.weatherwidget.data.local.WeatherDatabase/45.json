@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 45,
-    "identityHash": "3e2094a3cf3bf8503a8fcf0176ff58c3",
+    "identityHash": "803a6432c37cb489612577f1bee0f299",
     "entities": [
       {
         "tableName": "forecasts",
@@ -415,7 +415,7 @@
       },
       {
         "tableName": "observations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stationId` TEXT NOT NULL, `stationName` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `temperature` REAL NOT NULL, `condition` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `distanceKm` REAL NOT NULL, `stationType` TEXT NOT NULL, `fetchedAt` INTEGER NOT NULL, `maxTempLast24h` REAL, `minTempLast24h` REAL, `api` TEXT NOT NULL, PRIMARY KEY(`stationId`, `timestamp`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stationId` TEXT NOT NULL, `stationName` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `temperature` REAL NOT NULL, `condition` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `distanceKm` REAL NOT NULL, `stationType` TEXT NOT NULL, `fetchedAt` INTEGER NOT NULL, `maxTempLast24h` REAL, `minTempLast24h` REAL, `api` TEXT NOT NULL, `precipAmountMm` REAL, PRIMARY KEY(`stationId`, `timestamp`))",
         "fields": [
           {
             "fieldPath": "stationId",
@@ -492,6 +492,11 @@
             "columnName": "api",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "precipAmountMm",
+            "columnName": "precipAmountMm",
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -567,7 +572,7 @@
       },
       {
         "tableName": "daily_extremes",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` INTEGER NOT NULL, `source` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `highTemp` REAL NOT NULL, `lowTemp` REAL NOT NULL, `condition` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`date` INTEGER NOT NULL, `source` TEXT NOT NULL, `locationLat` REAL NOT NULL, `locationLon` REAL NOT NULL, `highTemp` REAL NOT NULL, `lowTemp` REAL NOT NULL, `condition` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, `precipAmountMm` REAL, PRIMARY KEY(`date`, `source`, `locationLat`, `locationLon`))",
         "fields": [
           {
             "fieldPath": "date",
@@ -616,6 +621,11 @@
             "columnName": "updatedAt",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "precipAmountMm",
+            "columnName": "precipAmountMm",
+            "affinity": "REAL"
           }
         ],
         "primaryKey": {
@@ -644,7 +654,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3e2094a3cf3bf8503a8fcf0176ff58c3')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '803a6432c37cb489612577f1bee0f299')"
     ]
   }
 }
