@@ -22,8 +22,6 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.local.log
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.data.repository.WeatherRepository
-import com.weatherwidget.ui.ForecastHistoryActivity
-import com.weatherwidget.ui.SettingsActivity
 import com.weatherwidget.util.HeaderPrecipCalculator
 import com.weatherwidget.util.DailyForecastIconResolver
 import com.weatherwidget.util.NavigationUtils
@@ -171,7 +169,6 @@ object DailyViewHandler : WidgetViewHandler {
         // Get the current display source for this widget
         val displaySource = stateManager.getCurrentDisplaySource(appWidgetId)
         val dailyActuals = dailyActualsBySource[displaySource.id].orEmpty()
-        val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val database = WeatherDatabase.getDatabase(context)
         val appLogDao = database.appLogDao()
 
@@ -304,8 +301,6 @@ object DailyViewHandler : WidgetViewHandler {
                 resolveMs = resolveMs,
             ),
         )
-        
-        DailyVisibilityManager.hideUnusedDailyViews(views)
 
         val availableDates = buildAvailableNavigationDates(weatherList, dailyActuals, displaySource)
         Log.d(TAG, "updateWidget: widgetId=$appWidgetId, widthDp=${dimensions.widthDp}, heightDp=${dimensions.heightDp}, cols=$numColumns, rows=$numRows, offset=$dateOffset, minDate=${availableDates.minOrNull()}, maxDate=${availableDates.maxOrNull()}")
