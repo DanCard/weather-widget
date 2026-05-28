@@ -384,7 +384,26 @@ class ObservationRepository @Inject constructor(
             if (blendedObs.isNotEmpty()) {
                 val high = blendedObs.maxOf { obs -> obs.temperature }
                 val low = blendedObs.minOf { obs -> obs.temperature }
-                todayBlendedActuals[sourceId] = mapOf(today to ObservationResolver.DailyActual(today, high, low, "blended"))
+                // Precip mirrors the past-day persisted path: measured-preferred, with NWS
+                // forecast-fallback. Without this, today's daily rain label shows only the
+                // forecast probability even when daily_extremes already has measured precip.
+                val precip = ObservationResolver.resolveDailyPrecip(
+                    dayObs = todayObs.filter { it.api == sourceId },
+                    sourceHourly = hourlyForecasts.filter { it.source == sourceId },
+                    date = today,
+                    zone = zone,
+                )
+                todayBlendedActuals[sourceId] = mapOf(
+                    today to ObservationResolver.DailyActual(
+                        date = today,
+                        highTemp = high,
+                        lowTemp = low,
+                        condition = "blended",
+                        precipAmountMm = precip.total,
+                        precipDayMm = precip.day,
+                        precipNightMm = precip.night,
+                    ),
+                )
             }
         }
 

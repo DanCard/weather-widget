@@ -143,9 +143,7 @@ object ObservationResolver {
                             ?.key ?: "Unknown"
 
                         // Precip: measured-preferred, hourly-forecast fallback (e.g. NWS).
-                        val precip = resolveDailyPrecip(
-                            dayObs, sourceHourly, date, local, dayStartMs, dayEndMs,
-                        )
+                        val precip = resolveDailyPrecip(dayObs, sourceHourly, date, local)
 
                         date to DailyActual(
                             date = date,
@@ -206,9 +204,7 @@ object ObservationResolver {
 
                 // Precip: measured-preferred, hourly-forecast fallback (e.g. NWS).
                 val sourceHourly = hourlyForecasts.filter { it.source == sourceId }
-                val precip = resolveDailyPrecip(
-                    dayObs, sourceHourly, date, local, dayStartMs, dayEndMs,
-                )
+                val precip = resolveDailyPrecip(dayObs, sourceHourly, date, local)
 
                 DailyExtremeEntity(
                     date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
@@ -385,7 +381,7 @@ object ObservationResolver {
     }
 
     /** Daily precip totals for one (date, source) bucket: total, daytime, nighttime. */
-    private data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
+    data class DailyPrecip(val total: Float?, val day: Float?, val night: Float?)
 
     /**
      * Resolves a day's precip with a single coherent provenance, measured-preferred:
@@ -395,15 +391,18 @@ object ObservationResolver {
      * precip but NWS hourly forecasts are always populated, so this is where NWS rain comes from.
      * Windows mirror the observation helpers exactly (night = 8PM→midnight of `date`) so the two
      * branches render identically.
+     *
+     * Callers must pre-filter `dayObs` to a single (date, source) bucket and `sourceHourly` to
+     * one source (window filtering for the forecast branch happens inside).
      */
-    private fun resolveDailyPrecip(
+    fun resolveDailyPrecip(
         dayObs: List<ObservationEntity>,
         sourceHourly: List<HourlyForecastEntity>,
         date: LocalDate,
         zone: ZoneId,
-        dayStartMs: Long,
-        dayEndMs: Long,
     ): DailyPrecip {
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
         if (dayObs.any { it.precipAmountMm != null }) {
             return DailyPrecip(
                 total = dayObs.mapNotNull { it.precipAmountMm }.takeIf { it.isNotEmpty() }?.sum(),
