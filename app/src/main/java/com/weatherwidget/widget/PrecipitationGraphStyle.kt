@@ -14,6 +14,13 @@ object PrecipitationGraphStyle {
     private const val COLOR_ACTUAL_RAIN_AMOUNT = "#FF9F0A"
     private const val RAIN_AMOUNT_TEXT_SIZE_DP = 18.0f
 
+    // Day/night divider line (8a / 8p boundaries). Dimmer + finer than the NOW line so the two
+    // never read as the same marker.
+    private const val COLOR_DAY_NIGHT_DIVIDER = "#66FFFFFF"
+    private const val DAY_NIGHT_DIVIDER_STROKE_DP = 1.0f
+    private const val DAY_NIGHT_DIVIDER_DASH_ON_DP = 2.0f
+    private const val DAY_NIGHT_DIVIDER_DASH_OFF_DP = 3.0f
+
     internal data class PaintSet(
         val density: Float,
         val labelScale: Float,
@@ -21,6 +28,7 @@ object PrecipitationGraphStyle {
         val curvePaint: Paint,
         val gradientPaint: Paint,
         val currentTimePaint: Paint,
+        val dayNightDividerPaint: Paint,
         val hourLabelTextPaint: Paint,
         val percentLabelPaint: Paint,
         val nowLabelTextPaint: Paint,
@@ -65,6 +73,19 @@ object PrecipitationGraphStyle {
                 strokeWidth = dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_STROKE_DP * labelScale)
                 style = Paint.Style.STROKE
                 pathEffect = DashPathEffect(floatArrayOf(dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_ON_DP * labelScale), dpToPx(context, HourlyGraphDefaults.CURRENT_TIME_DASH_OFF_DP * labelScale)), 0f)
+            }
+
+            val dayNightDividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor(COLOR_DAY_NIGHT_DIVIDER)
+                strokeWidth = dpToPx(context, DAY_NIGHT_DIVIDER_STROKE_DP * labelScale)
+                style = Paint.Style.STROKE
+                pathEffect = DashPathEffect(
+                    floatArrayOf(
+                        dpToPx(context, DAY_NIGHT_DIVIDER_DASH_ON_DP * labelScale),
+                        dpToPx(context, DAY_NIGHT_DIVIDER_DASH_OFF_DP * labelScale),
+                    ),
+                    0f,
+                )
             }
 
             val hourLabelTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -119,6 +140,7 @@ object PrecipitationGraphStyle {
                 curvePaint = curvePaint,
                 gradientPaint = gradientPaint,
                 currentTimePaint = currentTimePaint,
+                dayNightDividerPaint = dayNightDividerPaint,
                 hourLabelTextPaint = hourLabelTextPaint,
                 percentLabelPaint = percentLabelPaint,
                 nowLabelTextPaint = nowLabelTextPaint,

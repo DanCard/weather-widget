@@ -492,11 +492,16 @@ tasks.register("refreshWidgetAfterTests") {
             listProcess.waitFor(5, TimeUnit.SECONDS)
             val devicesOutput = listProcess.inputStream.bufferedReader().use { it.readText() }
 
-            // Parse emulator serial from "emulator-XXXX\tdevice" format
+            // Prefer the device the test run actually targeted (emulator-tests.sh exports
+            // ANDROID_SERIAL); otherwise fall back to the first connected emulator. Targeting the
+            // wrong emulator here adds needless adb traffic at the boundary between sequential
+            // per-emulator runs, which can flip the next emulator to "offline".
+            val targetedSerial = System.getenv("ANDROID_SERIAL")?.takeIf { it.isNotBlank() }
             val emulatorSerial =
-                devicesOutput.lines()
-                    .firstOrNull { it.contains("emulator-") && it.contains("device") }
-                    ?.split("\t")?.getOrNull(0)
+                targetedSerial
+                    ?: devicesOutput.lines()
+                        .firstOrNull { it.contains("emulator-") && it.contains("device") }
+                        ?.split("\t")?.getOrNull(0)
 
             if (emulatorSerial != null) {
                 val adbCommand =

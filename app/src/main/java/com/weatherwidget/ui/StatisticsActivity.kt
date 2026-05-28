@@ -11,6 +11,8 @@ import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.stats.AccuracyCalculator
 import com.weatherwidget.stats.DailyAccuracy
+import com.weatherwidget.stats.DailyRainAccuracy
+import com.weatherwidget.stats.RainAccuracyCalculator
 import com.weatherwidget.widget.WidgetStateManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -21,7 +23,11 @@ class StatisticsActivity : AppCompatActivity() {
     @Inject
     lateinit var accuracyCalculator: AccuracyCalculator
 
+    @Inject
+    lateinit var rainAccuracyCalculator: RainAccuracyCalculator
+
     private lateinit var adapter: DailyAccuracyAdapter
+    private lateinit var rainAdapter: DailyRainAccuracyAdapter
     private lateinit var widgetStateManager: WidgetStateManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,11 +45,17 @@ class StatisticsActivity : AppCompatActivity() {
             finish()
         }
 
-        // RecyclerView
+        // Temperature accuracy list
         val recyclerView = findViewById<RecyclerView>(R.id.daily_accuracy_list)
         adapter = DailyAccuracyAdapter()
         recyclerView.adapter = adapter
         recyclerView.layoutManager = LinearLayoutManager(this)
+
+        // Day/night rain accuracy list
+        val rainRecyclerView = findViewById<RecyclerView>(R.id.daily_rain_accuracy_list)
+        rainAdapter = DailyRainAccuracyAdapter()
+        rainRecyclerView.adapter = rainAdapter
+        rainRecyclerView.layoutManager = LinearLayoutManager(this)
     }
 
     private fun loadStatistics() {
@@ -78,12 +90,15 @@ class StatisticsActivity : AppCompatActivity() {
                     WeatherSource.SILURIAN,
                 )
 
+                val allRainDaily = mutableListOf<DailyRainAccuracy>()
                 sourcesToQuery.forEach { source ->
                     if (enabledSources.contains(source)) {
                         allDaily.addAll(accuracyCalculator.getDailyAccuracyBreakdown(source, lat, lon, 30))
+                        allRainDaily.addAll(rainAccuracyCalculator.getDailyRainAccuracy(source, lat, lon, 30))
                     }
                 }
                 allDaily.sortByDescending { it.date }
+                allRainDaily.sortByDescending { it.date }
 
                 // Check if we have any data
                 val hasAnyData = allDaily.isNotEmpty()
@@ -129,6 +144,7 @@ class StatisticsActivity : AppCompatActivity() {
                 findViewById<TextView>(R.id.stats_summary_text).text = summaryText
 
                 adapter.setItems(allDaily)
+                rainAdapter.setItems(allRainDaily)
             } catch (e: Exception) {
                 android.util.Log.e("StatisticsActivity", "Error loading statistics", e)
                 findViewById<TextView>(R.id.stats_summary_text).text =

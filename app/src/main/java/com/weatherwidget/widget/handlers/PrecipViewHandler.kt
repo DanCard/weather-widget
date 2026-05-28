@@ -318,8 +318,16 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
             val bitmapDims = WidgetSizeCalculator.computeBitmapDimensions(context, dimensions.widthDp, dimensions.heightDp)
 
             // Render precipitation graph
-            val hourLabelSpacingDp = if (zoom == com.weatherwidget.widget.ZoomLevel.NARROW) 18f else 28f
+            val isNarrow = zoom == com.weatherwidget.widget.ZoomLevel.NARROW
+            val hourLabelSpacingDp = if (isNarrow) 18f else 28f
             val rainAmountWindowHours = hours.size
+            // WIDE: split rain into wettest day (8a-8p) + wettest night (8p-8a) regions with a divider.
+            // NARROW: per-hour Pred/Act for the first few hours where rain exists.
+            val rainLabelMode = if (isNarrow) {
+                PrecipitationGraphRenderer.RainLabelMode.PER_HOUR
+            } else {
+                PrecipitationGraphRenderer.RainLabelMode.DAY_NIGHT
+            }
             val renderStartMs = SystemClock.elapsedRealtime()
             val renderLogs = mutableListOf<String>()
             val bitmap = PrecipitationGraphRenderer.renderGraph(
@@ -332,6 +340,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                 smoothIterations = zoom.smoothIterations,
                 hourLabelSpacingDp = hourLabelSpacingDp,
                 rainAmountWindowHours = rainAmountWindowHours,
+                rainLabelMode = rainLabelMode,
                 numColumns = numColumns,
                 job = coroutineContext[Job],
                 onDebugLog = { renderLogs.add(it) },
@@ -557,13 +566,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
     private fun matchesActualPrecipSource(
         observation: ObservationEntity,
         displaySource: WeatherSource,
-    ): Boolean =
-        when (displaySource) {
-            WeatherSource.NWS ->
-                observation.api == WeatherSource.NWS.id && observation.stationId != "NWS_BLEND"
-            else ->
-                observation.api == displaySource.id && observation.stationId.endsWith("_MAIN")
-        }
+    ): Boolean = com.weatherwidget.util.ActualPrecipSource.matches(observation, displaySource)
 
     private fun updatePrecipTextMode(
         views: RemoteViews,

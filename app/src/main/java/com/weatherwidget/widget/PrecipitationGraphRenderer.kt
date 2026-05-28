@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.*
 import android.util.Log
 import com.weatherwidget.R
+import com.weatherwidget.util.DayNightHours
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalDate
@@ -37,6 +38,9 @@ object PrecipitationGraphRenderer {
     private const val ELEVATED_PEAK_MIN_DELTA = 10
     private val ELEVATED_PEAK_PROBABILITY_RANGE = 55..85
     private const val RAIN_AMOUNT_PADDING_DP = 4f
+    // NARROW zoom shows per-hour labels for the first few columns; the rightmost column sits at the
+    // clipped window edge, so cap at the first 4.
+    private const val PER_HOUR_MAX_COLUMNS = 4
     private const val NOW_LABEL_TEXT = "NOW"
 
     data class PrecipHourData(
@@ -135,7 +139,21 @@ object PrecipitationGraphRenderer {
         val totalAmountMm: Float,
         val startLabel: String,
         val endLabel: String,
+        /** When set, label placement is biased to sit near this x (px) instead of floating freely. */
+        val anchorX: Float? = null,
     )
+
+    /** How rain-amount labels are aggregated across the visible window. */
+    enum class RainLabelMode {
+        /** Legacy: a single Pred/Act total spanning [rainAmountWindowHours]. */
+        WINDOW_TOTAL,
+
+        /** WIDE zoom: wettest day (8a-8p) + wettest night (8p-8a) segment, each anchored to its region. */
+        DAY_NIGHT,
+
+        /** NARROW zoom: per-hour Pred/Act for the first few hours, only where rain exists. */
+        PER_HOUR,
+    }
 
     data class TextMeasurer(
         val measureProbabilityText: (String) -> Float,
@@ -166,6 +184,7 @@ object PrecipitationGraphRenderer {
         val dayLabelPlacements: List<DayLabelPlacementDebug> = emptyList(),
         val watermarkPlacement: WatermarkPlacementDebug? = null,
         val iconBounds: List<PrecipRect> = emptyList(),
+        val dayNightBoundaryXs: List<Float> = emptyList(),
     )
 
     fun calculateLayout(
@@ -176,6 +195,7 @@ object PrecipitationGraphRenderer {
         bitmapScale: Float = 1f,
         smoothIterations: Int = 2,
         rainAmountWindowHours: Int = 0,
+        rainLabelMode: RainLabelMode = RainLabelMode.WINDOW_TOTAL,
         showHourlyIcons: Boolean,
         footerIconSize: Float = 0f,
         textMeasurer: TextMeasurer,
@@ -378,10 +398,35 @@ object PrecipitationGraphRenderer {
             onDebugLog = onDebugLog,
         )
 
-        val rainPeriods = if (rainAmountWindowHours > 0) {
-            findFixedWindowRainPeriods(hours, rainAmountWindowHours)
-        } else {
-            findVisibleWindowRainPeriods(hours)
+        val (rainPeriods, actualRainPeriods, dayNightBoundaryXs) = when (rainLabelMode) {
+            RainLabelMode.DAY_NIGHT -> {
+                val segments = selectDayNightSegments(hours)
+                Triple(
+                    segments.mapNotNull { it.toRainPeriod(hours, hourWidth) { h -> h.precipAmountMm } },
+                    segments.mapNotNull { it.toRainPeriod(hours, hourWidth) { h -> h.actualPrecipAmountMm } },
+                    computeDayNightBoundaryXs(hours, hourWidth),
+                )
+            }
+            RainLabelMode.PER_HOUR -> {
+                Triple(
+                    perHourRainPeriods(hours, hourWidth) { it.precipAmountMm },
+                    perHourRainPeriods(hours, hourWidth) { it.actualPrecipAmountMm },
+                    emptyList<Float>(),
+                )
+            }
+            RainLabelMode.WINDOW_TOTAL -> {
+                val pred = if (rainAmountWindowHours > 0) {
+                    findFixedWindowRainPeriods(hours, rainAmountWindowHours)
+                } else {
+                    findVisibleWindowRainPeriods(hours)
+                }
+                val actual = if (rainAmountWindowHours > 0) {
+                    findFixedWindowActualRainPeriods(hours, rainAmountWindowHours)
+                } else {
+                    findVisibleWindowActualRainPeriods(hours)
+                }
+                Triple(pred, actual, emptyList<Float>())
+            }
         }
         val rainCollisionBounds = probabilityPlacements.map { it.bounds }.toMutableList()
 
@@ -416,11 +461,6 @@ object PrecipitationGraphRenderer {
             getTextBounds = textMeasurer.getRainAmountTextBounds,
             dpToPx = textMeasurer.dpToPx
         )
-        val actualRainPeriods = if (rainAmountWindowHours > 0) {
-            findFixedWindowActualRainPeriods(hours, rainAmountWindowHours)
-        } else {
-            findVisibleWindowActualRainPeriods(hours)
-        }
         val actualRainPlacements = calculateRainAmountPlacements(
             rainPeriods = actualRainPeriods,
             geometry = GraphGeometry(widthPx, heightPx, graphTop, graphBottom, graphHeight),
@@ -516,6 +556,7 @@ object PrecipitationGraphRenderer {
             dayLabelPlacements = dayPlacements,
             watermarkPlacement = watermarkPlacement,
             iconBounds = drawnIconBounds,
+            dayNightBoundaryXs = dayNightBoundaryXs,
         )
     }
 
@@ -696,9 +737,14 @@ object PrecipitationGraphRenderer {
 
             var best: RainCandidate? = null
 
+            // Day/night and per-hour periods carry an anchorX so the label sits over its region;
+            // window totals (anchorX == null) keep the legacy free-floating grid search.
+            val candidateXs = period.anchorX?.let { listOf(it) }
+                ?: xFractions.map { geometry.widthPx * it }
+
             outer@ for (yFrac in yFractions) {
-                for (xFrac in xFractions) {
-                    val cx = (geometry.widthPx * xFrac).coerceIn(textWidth / 2f, geometry.widthPx - textWidth / 2f)
+                for (rawX in candidateXs) {
+                    val cx = rawX.coerceIn(textWidth / 2f, geometry.widthPx - textWidth / 2f)
                     val cy = geometry.graphTop + geometry.graphHeight * yFrac
                     val candidateBounds = PrecipRect(
                         cx - textWidth / 2f,
@@ -766,6 +812,7 @@ object PrecipitationGraphRenderer {
         smoothIterations: Int = 2,
         hourLabelSpacingDp: Float = HourlyGraphDefaults.DEFAULT_HOUR_LABEL_SPACING_DP,
         rainAmountWindowHours: Int = 0,
+        rainLabelMode: RainLabelMode = RainLabelMode.WINDOW_TOTAL,
         numColumns: Int = 0,
         job: Job? = null,
         onDebugLog: ((String) -> Unit)? = null,
@@ -835,6 +882,7 @@ object PrecipitationGraphRenderer {
             bitmapScale = bitmapScale,
             smoothIterations = smoothIterations,
             rainAmountWindowHours = rainAmountWindowHours,
+            rainLabelMode = rainLabelMode,
             showHourlyIcons = showHourlyIcons,
             footerIconSize = footerIconSize,
             textMeasurer = textMeasurer,
@@ -918,6 +966,14 @@ object PrecipitationGraphRenderer {
         val lineHeight = layout.graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
         val lineTop = layout.graphTop + (layout.graphHeight - lineHeight) / 2f
         val lineBottom = lineTop + lineHeight
+        // Day/night dividers span the full plot height so the day vs night regions read clearly;
+        // drawn before the NOW line so NOW stays visually dominant where they coincide.
+        for (boundaryX in layout.dayNightBoundaryXs) {
+            canvas.drawLines(
+                floatArrayOf(boundaryX, layout.graphTop, boundaryX, layout.graphBottom),
+                paints.dayNightDividerPaint,
+            )
+        }
         layout.nowX?.let { nowX ->
             canvas.drawLines(floatArrayOf(nowX, lineTop, nowX, lineBottom), paints.currentTimePaint)
         }
@@ -1008,6 +1064,110 @@ object PrecipitationGraphRenderer {
             i++
         }
         return if (bestPeriod != null) listOf(bestPeriod) else emptyList()
+    }
+
+    /** A contiguous run of hours sharing the same clock-based day/night phase. */
+    internal data class DayNightSegment(
+        val startIndex: Int,
+        val endIndex: Int,
+        val isDay: Boolean,
+    ) {
+        fun centerX(hourWidth: Float): Float = hourWidth * (startIndex + endIndex) / 2f
+
+        /** Sums [amountFor] over the segment; null when the segment has no rain of that kind. */
+        fun toRainPeriod(
+            hours: List<PrecipHourData>,
+            hourWidth: Float,
+            amountFor: (PrecipHourData) -> Float?,
+        ): RainPeriod? {
+            val total = (startIndex..endIndex)
+                .sumOf { (amountFor(hours[it]) ?: 0f).toDouble() }
+                .toFloat()
+            if (total <= 0f) return null
+            return RainPeriod(
+                startIndex = startIndex,
+                endIndex = endIndex,
+                totalAmountMm = total,
+                startLabel = hours[startIndex].label,
+                endLabel = hours[endIndex].label,
+                anchorX = centerX(hourWidth),
+            )
+        }
+    }
+
+    /** Splits [hours] into contiguous runs grouped by clock-based day (8a-8p) vs night (8p-8a). */
+    internal fun dayNightRuns(hours: List<PrecipHourData>): List<DayNightSegment> {
+        if (hours.isEmpty()) return emptyList()
+        val runs = mutableListOf<DayNightSegment>()
+        var start = 0
+        var currentIsDay = DayNightHours.isDayHour(hours[0].dateTime)
+        for (i in 1..hours.lastIndex) {
+            val isDay = DayNightHours.isDayHour(hours[i].dateTime)
+            if (isDay != currentIsDay) {
+                runs.add(DayNightSegment(start, i - 1, currentIsDay))
+                start = i
+                currentIsDay = isDay
+            }
+        }
+        runs.add(DayNightSegment(start, hours.lastIndex, currentIsDay))
+        return runs
+    }
+
+    /**
+     * Picks at most the wettest day run and the wettest night run (by combined predicted + actual
+     * rainfall), so a busy 24h window reads as two anchored regions instead of one merged total.
+     */
+    internal fun selectDayNightSegments(hours: List<PrecipHourData>): List<DayNightSegment> {
+        fun combinedTotal(seg: DayNightSegment): Float =
+            (seg.startIndex..seg.endIndex).sumOf { idx ->
+                ((hours[idx].precipAmountMm ?: 0f) + (hours[idx].actualPrecipAmountMm ?: 0f)).toDouble()
+            }.toFloat()
+
+        val runs = dayNightRuns(hours)
+        val wettestDay = runs.filter { it.isDay }
+            .maxByOrNull { combinedTotal(it) }
+            ?.takeIf { combinedTotal(it) > 0f }
+        val wettestNight = runs.filterNot { it.isDay }
+            .maxByOrNull { combinedTotal(it) }
+            ?.takeIf { combinedTotal(it) > 0f }
+        return listOfNotNull(wettestDay, wettestNight).sortedBy { it.startIndex }
+    }
+
+    /** One RainPeriod per hour for the first [PER_HOUR_MAX_COLUMNS] columns where [amountFor] > 0. */
+    internal fun perHourRainPeriods(
+        hours: List<PrecipHourData>,
+        hourWidth: Float,
+        amountFor: (PrecipHourData) -> Float?,
+    ): List<RainPeriod> {
+        val limit = minOf(PER_HOUR_MAX_COLUMNS, hours.size)
+        val periods = mutableListOf<RainPeriod>()
+        for (i in 0 until limit) {
+            val amount = amountFor(hours[i]) ?: continue
+            if (amount <= 0f) continue
+            periods.add(
+                RainPeriod(
+                    startIndex = i,
+                    endIndex = i,
+                    totalAmountMm = amount,
+                    startLabel = hours[i].label,
+                    endLabel = hours[i].label,
+                    anchorX = hourWidth * i,
+                ),
+            )
+        }
+        return periods
+    }
+
+    /** X (px) of each 8a/8p day-night transition inside the window, at the first hour of the new phase. */
+    internal fun computeDayNightBoundaryXs(hours: List<PrecipHourData>, hourWidth: Float): List<Float> {
+        if (hours.size < 2) return emptyList()
+        val xs = mutableListOf<Float>()
+        for (i in 1..hours.lastIndex) {
+            if (DayNightHours.isDayHour(hours[i].dateTime) != DayNightHours.isDayHour(hours[i - 1].dateTime)) {
+                xs.add(hourWidth * i)
+            }
+        }
+        return xs
     }
 
     private fun dpToPx(context: Context, dp: Float): Float =

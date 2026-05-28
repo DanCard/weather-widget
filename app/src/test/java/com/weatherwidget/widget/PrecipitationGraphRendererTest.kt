@@ -554,4 +554,106 @@ class PrecipitationGraphRendererTest {
         assertNotNull("Expected rain amount placement", rainBounds)
         assertTrue("NOW and rain amount labels should not overlap", !nowBounds!!.intersects(rainBounds!!))
     }
+
+    // --- Day/night (WIDE) and per-hour (NARROW) rain labels ---
+
+    /** Builds an hourly series starting at midnight with per-hour predicted/actual rain. */
+    private fun dayNightHours(
+        predByHour: (Int) -> Float?,
+        actualByHour: (Int) -> Float? = { null },
+        count: Int = 24,
+    ): List<PrecipitationGraphRenderer.PrecipHourData> {
+        val start = LocalDateTime.of(2026, 5, 20, 0, 0)
+        return (0 until count).map { i ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = 60,
+                precipAmountMm = predByHour(i),
+                actualPrecipAmountMm = actualByHour(i),
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+    }
+
+    @Test
+    fun `dayNightRuns splits a midnight-aligned day into night-day-night`() {
+        val hours = dayNightHours(predByHour = { 1f })
+        val runs = PrecipitationGraphRenderer.dayNightRuns(hours)
+
+        // 0-7 night, 8-19 day, 20-23 night
+        assertEquals(3, runs.size)
+        assertEquals(Triple(0, 7, false), Triple(runs[0].startIndex, runs[0].endIndex, runs[0].isDay))
+        assertEquals(Triple(8, 19, true), Triple(runs[1].startIndex, runs[1].endIndex, runs[1].isDay))
+        assertEquals(Triple(20, 23, false), Triple(runs[2].startIndex, runs[2].endIndex, runs[2].isDay))
+    }
+
+    @Test
+    fun `computeDayNightBoundaryXs marks the 8a and 8p transitions`() {
+        val hours = dayNightHours(predByHour = { 1f })
+        val boundaries = PrecipitationGraphRenderer.computeDayNightBoundaryXs(hours, hourWidth = 10f)
+
+        // Boundaries at the first hour of each new phase: index 8 (8a) and index 20 (8p).
+        assertEquals(listOf(80f, 200f), boundaries)
+    }
+
+    @Test
+    fun `selectDayNightSegments picks wettest day and wettest night only`() {
+        // Rain at 9a-10a (day) and 22:00 (a single night hour).
+        val hours = dayNightHours(
+            predByHour = { i -> if (i in 9..10) 3f else if (i == 22) 5f else 0f },
+        )
+        val segments = PrecipitationGraphRenderer.selectDayNightSegments(hours)
+
+        assertEquals("Expected at most one day + one night segment", 2, segments.size)
+        assertTrue("Day segment covers the daytime run", segments.any { it.isDay && 9 in it.startIndex..it.endIndex })
+        assertTrue("Night segment covers the late-night run", segments.any { !it.isDay && 22 in it.startIndex..it.endIndex })
+    }
+
+    @Test
+    fun `DAY_NIGHT layout anchors pred and actual labels and draws dividers`() {
+        val hours = dayNightHours(
+            predByHour = { i -> if (i in 9..11) 2f else 0f },
+            actualByHour = { i -> if (i in 9..11) 1f else null },
+        )
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 1000,
+            heightPx = 420,
+            currentTime = LocalDateTime.of(2026, 5, 21, 0, 0),
+            rainLabelMode = PrecipitationGraphRenderer.RainLabelMode.DAY_NIGHT,
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        assertTrue("Pred label present", layout.rainAmountPlacements.any { it.text.startsWith("Pred ") })
+        assertTrue("Act label present", layout.actualRainAmountPlacements.any { it.text.startsWith("Act ") })
+        assertEquals("Two day/night dividers expected", 2, layout.dayNightBoundaryXs.size)
+    }
+
+    @Test
+    fun `PER_HOUR layout labels only the first four hours where rain exists`() {
+        // Window: index 0 dry, 1 pred-only, 2 pred+act, 3 dry, 4 (clipped) has rain but is excluded.
+        val start = LocalDateTime.of(2026, 5, 20, 6, 0)
+        val hours = (0 until 5).map { i ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = 50,
+                precipAmountMm = when (i) { 1 -> 2f; 2 -> 3f; 4 -> 9f; else -> 0f },
+                actualPrecipAmountMm = if (i == 2) 1f else null,
+                label = "${start.plusHours(i.toLong()).hour}h",
+                showLabel = true,
+            )
+        }
+
+        val predPeriods = PrecipitationGraphRenderer.perHourRainPeriods(hours, hourWidth = 10f) { it.precipAmountMm }
+        val actualPeriods = PrecipitationGraphRenderer.perHourRainPeriods(hours, hourWidth = 10f) { it.actualPrecipAmountMm }
+
+        assertEquals("Pred at hours 1 and 2 only (hour 4 is clipped)", listOf(1, 2), predPeriods.map { it.startIndex })
+        assertEquals("Act at hour 2 only", listOf(2), actualPeriods.map { it.startIndex })
+        // Each period is a single hour anchored to its column.
+        assertTrue("Pred periods are single-hour", predPeriods.all { it.startIndex == it.endIndex })
+        assertEquals("Pred hour-1 anchored to its x", 10f, predPeriods.first().anchorX)
+    }
 }

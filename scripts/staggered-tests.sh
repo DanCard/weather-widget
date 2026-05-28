@@ -135,6 +135,63 @@ fi
 wait "$UNIT_PID"
 UNIT_STATUS=$?
 
+# Max attempts per emulator before giving up on a transient device disconnect.
+EMULATOR_MAX_ATTEMPTS=3
+
+# Regex of UTP/ddmlib failures that mean "device dropped, not a real test failure" — safe to retry.
+TRANSIENT_DISCONNECT_REGEX="device offline|Test run failed to complete|Failed to retrieve additional test outputs|Device/test runner disconnected"
+
+# Wait until an emulator is genuinely ready for instrumentation: ADB state "device", boot
+# completed, and responsive to a trivial shell. Recovers "offline" devices first via
+# `adb reconnect`. Two emulators on one host frequently flip the second to "offline" right as
+# its back-to-back APK installs begin, which makes UTP enumerate 0 tests and fail the run.
+wait_for_emulator_ready() {
+    local adb_bin="$1" serial="$2" timeout_s="${3:-90}"
+    local waited=0
+    "$adb_bin" reconnect offline >/dev/null 2>&1 || true
+    "$adb_bin" -s "$serial" wait-for-device >/dev/null 2>&1 || true
+    while [ "$waited" -lt "$timeout_s" ]; do
+        local state boot
+        state=$("$adb_bin" -s "$serial" get-state 2>/dev/null | tr -d '\r\n')
+        boot=$("$adb_bin" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
+        if [ "$state" = "device" ] && [ "$boot" = "1" ] && "$adb_bin" -s "$serial" shell true >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    return 1
+}
+
+# Run emulator-tests.sh against a single serial, gating on readiness and retrying transient
+# device-offline/disconnect failures (with active `adb reconnect` recovery between attempts).
+run_one_emulator_with_retries() {
+    local adb_bin="$1" serial="$2"
+    local serial_log="$LOG_DIR/emulator-${serial}-${TIMESTAMP}.log"
+    local attempt=1
+    local serial_status=1
+    while [ "$attempt" -le "$EMULATOR_MAX_ATTEMPTS" ]; do
+        if ! wait_for_emulator_ready "$adb_bin" "$serial" 90; then
+            echo -e "${YELLOW}Warning: ${serial} did not report ready before attempt ${attempt}; proceeding anyway${NC}"
+        fi
+        : > "$serial_log"  # per-attempt log so the transient-failure grep reflects only this attempt
+        EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log"
+        serial_status=${PIPESTATUS[0]}
+        [ "$serial_status" -eq 0 ] && break
+        if [ "$attempt" -lt "$EMULATOR_MAX_ATTEMPTS" ] &&
+            grep -qiE "$TRANSIENT_DISCONNECT_REGEX" "$serial_log"; then
+            echo -e "${YELLOW}Transient emulator/runner disconnect on ${serial} (attempt ${attempt}/${EMULATOR_MAX_ATTEMPTS}); recovering device and retrying...${NC}"
+            "$adb_bin" reconnect offline >/dev/null 2>&1 || true
+            sleep 3
+            attempt=$((attempt + 1))
+            continue
+        fi
+        # Non-transient failure (real test/build failure) or out of attempts: stop retrying.
+        break
+    done
+    return "$serial_status"
+}
+
 # Start emulator tests only after JVM/unit tests finish. Running the long JVM bucket while
 # two emulators are both installing and executing instrumentation has produced truncated
 # per-emulator logs with no OK/FAILURES footer, even though standalone emulator-tests.sh
@@ -146,20 +203,14 @@ run_emulator_tests_for_staggered() {
         adb_bin="$(command -v adb || true)"
     fi
     mapfile -t connected_emulators < <("$adb_bin" devices 2>/dev/null | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
-    if [ "${#connected_emulators[@]}" -gt 1 ]; then
-        echo -e "${BLUE}Detected ${#connected_emulators[@]} connected emulators; running emulator tests sequentially for staggered reliability: ${connected_emulators[*]}${NC}"
+    if [ "${#connected_emulators[@]}" -ge 1 ]; then
+        if [ "${#connected_emulators[@]}" -gt 1 ]; then
+            echo -e "${BLUE}Detected ${#connected_emulators[@]} connected emulators; running emulator tests sequentially for staggered reliability: ${connected_emulators[*]}${NC}"
+        fi
         for serial in "${connected_emulators[@]}"; do
             echo -e "${YELLOW}=== Running emulator tests on ${serial} ===${NC}"
-            local serial_log="$LOG_DIR/emulator-${serial}-${TIMESTAMP}.log"
-            : > "$serial_log"
-            EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log"
-            local serial_status=${PIPESTATUS[0]}
-            if [ "$serial_status" -ne 0 ] &&
-                grep -qiE "device offline|Test run failed to complete|Failed to retrieve additional test outputs|Device/test runner disconnected" "$serial_log"; then
-                echo -e "${YELLOW}Transient emulator/runner disconnect on ${serial}; retrying once...${NC}"
-                EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log"
-                serial_status=${PIPESTATUS[0]}
-            fi
+            run_one_emulator_with_retries "$adb_bin" "$serial"
+            local serial_status=$?
             if [ "$serial_status" -ne 0 ]; then
                 status=$serial_status
                 break

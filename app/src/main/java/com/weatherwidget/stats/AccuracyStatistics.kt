@@ -45,3 +45,17 @@ data class DailyAccuracy(
     val highError: Int,
     val lowError: Int,
 )
+
+/**
+ * Day-by-day predicted-vs-actual rainfall, split into clock-based day (8a-8p) and night (8p-8a)
+ * totals (mm). Predicted totals come from the prior day's hourly forecast snapshot; actual totals
+ * come from observed rainfall. A bucket is null when no data was available for it.
+ */
+data class DailyRainAccuracy(
+    val date: String,
+    val source: String,
+    val predDayMm: Float?,
+    val actualDayMm: Float?,
+    val predNightMm: Float?,
+    val actualNightMm: Float?,
+)
