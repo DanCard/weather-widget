@@ -132,12 +132,6 @@ class WeatherRepository
             lookbackHours: Long,
         ) = observationRepository.backfillRecentNwsObservations(latitude, longitude, lookbackHours)
 
-        // THROWAWAY 2026-05-28: passthrough for the one-time NWS precip backfill.
-        // See ObservationRepository.runOneTimeNwsPrecipBackfillIfNeeded for the full rationale.
-        internal suspend fun runOneTimeNwsPrecipBackfillIfNeeded(
-            latitude: Double,
-            longitude: Double,
-        ) = observationRepository.runOneTimeNwsPrecipBackfillIfNeeded(latitude, longitude)
         suspend fun recomputeDailyExtremesFromStoredObservations(
             latitude: Double,
             longitude: Double,
