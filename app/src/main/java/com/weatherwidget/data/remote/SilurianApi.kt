@@ -268,8 +268,9 @@ ForecastResult(
     }
 
     private fun parsePrecipAmountMm(entry: kotlinx.serialization.json.JsonObject): Float? {
+        // Silurian (queried with units=imperial) reports hourly accumulation in inches under
+        // `precipitation_accumulation`; convert to mm. (Earlier speculative `precipitation_mm` /
+        // `precipitation_amount_mm` fallbacks were never emitted by the API and are dropped.)
         return entry["precipitation_accumulation"]?.jsonPrimitive?.floatOrNull?.times(MM_PER_INCH)
-            ?: entry["precipitation_mm"]?.jsonPrimitive?.floatOrNull
-            ?: entry["precipitation_amount_mm"]?.jsonPrimitive?.floatOrNull
     }
 }

@@ -793,8 +793,9 @@ class ForecastRepository
                 )
             })
 
-            // 2. Backfill past data as observations (ground truth).
-            // Enables the "actuals" line for non-NWS APIs on fresh installs or emulators.
+            // 2. Backfill past hours as observations to drive the "actuals" line for non-NWS
+            // APIs on fresh installs or emulators. NOTE: this is the past slice of the source's
+            // hourly data, not a station measurement — see precip handling below.
             saveHistoricalActuals(hourlyData, latitude, longitude, sourceId)
         }
 
@@ -806,6 +807,12 @@ class ForecastRepository
         ) {
             val now = System.currentTimeMillis()
             val fetchedAt = System.currentTimeMillis()
+            // Only persist past-day precip as a measured "actual" for sources with a genuine
+            // historical product (obs / history endpoint / reanalysis archive). Forecast-only
+            // sources (Visual Crossing, OpenWeatherMap, Tomorrow.io) would otherwise present
+            // their own past forecast as a measurement — the same provenance bug we removed for
+            // NWS. Temperature backfill is still kept; only measured precip is gated.
+            val keepMeasuredPrecip = WeatherSource.fromId(sourceId).providesHistoricalActuals
 
             val historicalObs = hourlyData
                 .filter { it.dateTime <= now }
@@ -822,7 +829,7 @@ class ForecastRepository
                         stationType = "OFFICIAL",
                         fetchedAt = fetchedAt,
                         api = sourceId,
-                        precipAmountMm = hour.precipAmountMm
+                        precipAmountMm = if (keepMeasuredPrecip) hour.precipAmountMm else null
                     )
                 }
 
