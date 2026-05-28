@@ -562,7 +562,6 @@ class NwsApiTest {
             assertNotNull(obs)
             assertEquals(15.0f, obs!!.temperatureCelsius)
             assertEquals(2.5f, obs.precipLastHourMm)
-            assertEquals(15.3f, obs.precipLast24hMm)
         }
 
     @Test
@@ -609,15 +608,14 @@ class NwsApiTest {
             assertNotNull(obs)
             assertEquals(20.0f, obs!!.temperatureCelsius)
             assertNull(obs.precipLastHourMm)
-            assertNull(obs.precipLast24hMm)
         }
 
     /**
      * Regression for the historical-observations precip-drop: getObservations used to use a
-     * hand-rolled inline parser that skipped precipitationLastHour / precipitationLast24Hours
-     * entirely. After delegating to parseObservationProperties, those fields flow through to
-     * ObservationEntity, enabling the NWS measured-precip branch in resolveDailyPrecip during
-     * 7-day and hourly backfill.
+     * hand-rolled inline parser that skipped precipitationLastHour entirely. After delegating to
+     * parseObservationProperties, the measured last-hour precip flows through to ObservationEntity,
+     * enabling the NWS measured-precip branch in resolveDailyPrecip during 7-day and hourly backfill.
+     * (Payloads still include precipitationLast24Hours, which NWS provides but we intentionally ignore.)
      */
     @Test
     fun `getObservations parses precipitation fields from historical features`() =
@@ -681,11 +679,8 @@ class NwsApiTest {
 
             assertEquals(3, obs.size)
             assertEquals(0.8f, obs[0].precipLastHourMm)
-            assertEquals(3.2f, obs[0].precipLast24hMm)
             assertEquals(1.5f, obs[1].precipLastHourMm)
-            assertEquals(4.7f, obs[1].precipLast24hMm)
             assertNull(obs[2].precipLastHourMm)
-            assertNull(obs[2].precipLast24hMm)
             // Sanity: pre-existing temp parsing still works.
             assertEquals(14.5f, obs[0].temperatureCelsius)
             assertEquals(14.0f, obs[1].temperatureCelsius)

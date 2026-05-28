@@ -196,8 +196,8 @@ class NwsApi
             val features = jsonObj["features"]?.jsonArray ?: return emptyList()
 
             // Delegate per-feature parsing to the shared parser so historical observations
-            // carry precipitationLastHour / precipitationLast24Hours through to ObservationEntity
-            // — same fields getLatestObservationDetailed already extracts.
+            // carry precipitationLastHour through to ObservationEntity — the same measured
+            // precip field getLatestObservationDetailed already extracts.
             return features.mapNotNull { feature ->
                 val props = feature.jsonObject["properties"]?.jsonObject ?: return@mapNotNull null
                 parseObservationProperties(props, defaultStationName = stationId)
@@ -445,11 +445,10 @@ class NwsApi
             val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
             val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
 
-            // Precipitation fields from NWS observations (values in mm)
+            // Measured precip from NWS observations (mm). Only the last-hour amount is used;
+            // it's summed across a day's observations for measured daily/day-night totals.
             val precipLastHourObj = props["precipitationLastHour"]?.jsonObject
             val precipLastHourMm = precipLastHourObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
-            val precipLast24hObj = props["precipitationLast24Hours"]?.jsonObject
-            val precipLast24hMm = precipLast24hObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
 
             return Observation(
                 timestamp = timestamp,
@@ -459,7 +458,6 @@ class NwsApi
                 maxTempLast24hCelsius = maxTempValue,
                 minTempLast24hCelsius = minTempValue,
                 precipLastHourMm = precipLastHourMm,
-                precipLast24hMm = precipLast24hMm,
             )
         }
 
@@ -557,7 +555,6 @@ class NwsApi
             val maxTempLast24hCelsius: Float? = null,
             val minTempLast24hCelsius: Float? = null,
             val precipLastHourMm: Float? = null,
-            val precipLast24hMm: Float? = null,
         )
 
         data class HourlyForecastPeriod(
