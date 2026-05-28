@@ -1,7 +1,6 @@
 package com.weatherwidget.data.repository
 
 import com.weatherwidget.data.local.DailyExtremeEntity
-import com.weatherwidget.data.local.HourlyForecastEntity
 import com.weatherwidget.data.local.WeatherDatabase
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.test.category.LongDuration
@@ -142,9 +141,12 @@ class ObservationRepositoryDailyMergeTest {
 
     /**
      * Gate regression: a past day's daily_extreme whose temps/condition are unchanged but whose
-     * precip arrives later (NWS hybrid forecast fallback) must still be persisted. Before the fix,
-     * recomputeDailyExtremesForDay only wrote when high/low/condition changed, so precip-only
-     * deltas were silently dropped and NWS rain never landed.
+     * precip arrives later must still be persisted. Before the fix, recomputeDailyExtremesForDay
+     * only wrote when high/low/condition changed, so precip-only deltas were silently dropped and
+     * rain never landed.
+     *
+     * Past days are measured-only (forecast fallback is suppressed for completed days), so the
+     * late-arriving precip here is a *measured* station value, not a forecast.
      */
     @Test
     fun `recompute persists precip-only change for a past day`() = runTest {
@@ -153,35 +155,26 @@ class ObservationRepositoryDailyMergeTest {
         val t14 = yesterday.atTime(14, 0).atZone(zone).toInstant().toEpochMilli()
         val yStart = yesterday.toEpochDay() * WidgetConstants.MS_IN_A_DAY
 
-        // NWS observations carry temps but no measured precip (precipitationLastHour null).
-        db.observationDao().insertAll(
-            listOf(
-                TestData.observation(stationId = "KNEAR", timestamp = t10, temperature = 60f, distanceKm = 1f, api = WeatherSource.NWS.id),
-                TestData.observation(stationId = "KNEAR", timestamp = t14, temperature = 60f, distanceKm = 1f, api = WeatherSource.NWS.id),
-            ),
-        )
+        fun obs(ts: Long, precip: Float?) = TestData.observation(
+            stationId = "KNEAR", timestamp = ts, temperature = 60f, distanceKm = 1f,
+            api = WeatherSource.NWS.id,
+        ).copy(precipAmountMm = precip)
 
-        // Same temp on the forecasts so the IDW temp blend is stable across both runs.
-        fun fc(ts: Long, precip: Float?) = HourlyForecastEntity(
-            dateTime = ts, locationLat = lat, locationLon = lon, temperature = 60f, condition = "Rain",
-            source = WeatherSource.NWS.id, precipAmountMm = precip, fetchedAt = 0L,
-        )
-        db.hourlyForecastDao().insertAll(listOf(fc(t10, null), fc(t14, null)))
-
-        // Run 1: creates the row with null precip (obs null + forecast null).
+        // Run 1: station observations carry temps but no measured precip yet (the row is null).
+        db.observationDao().insertAll(listOf(obs(t10, null), obs(t14, null)))
         repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
         val afterRun1 = db.dailyExtremeDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
-        assertNull("Precip should be null before forecast precip arrives", afterRun1.precipAmountMm)
+        assertNull("Precip should be null before measured precip arrives", afterRun1.precipAmountMm)
 
-        // Forecast precip now arrives (REPLACE on same PK); temps/condition unchanged.
-        db.hourlyForecastDao().insertAll(listOf(fc(t10, 2.0f), fc(t14, 3.0f)))
+        // Measured precip now arrives (REPLACE on same PK); temps/condition unchanged.
+        db.observationDao().insertAll(listOf(obs(t10, 2.0f), obs(t14, 3.0f)))
 
         // Run 2: only precip differs — the gate must persist it.
         repository.recomputeDailyExtremesFromStoredObservations(lat, lon, yesterday, yesterday, emptyList())
         val afterRun2 = db.dailyExtremeDao().getExtremesInRange(yStart, yStart, lat, lon)
             .first { it.source == WeatherSource.NWS.id }
-        assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 from forecast fallback
+        assertEquals(5.0f, afterRun2.precipAmountMm!!, 0.01f) // 2.0 + 3.0 measured
         assertEquals(60f, afterRun2.highTemp, 0.1f)           // temps unchanged
     }
 }

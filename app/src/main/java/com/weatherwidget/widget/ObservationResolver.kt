@@ -114,6 +114,7 @@ object ObservationResolver {
         locationLon: Double,
     ): DailyActualsBySource {
         val local = ZoneId.systemDefault()
+        val today = LocalDate.now(local)
 
         return observations
             .filter { it.stationId != "NWS_BLEND" }
@@ -142,8 +143,13 @@ object ObservationResolver {
                             .maxByOrNull { it.value }
                             ?.key ?: "Unknown"
 
-                        // Precip: measured-preferred, hourly-forecast fallback (e.g. NWS).
-                        val precip = resolveDailyPrecip(dayObs, sourceHourly, date, local)
+                        // Precip: measured-preferred. Forecast fallback only for today (an
+                        // incomplete day); completed past days are measured-only so history
+                        // never shows a forecast value masquerading as a measured actual.
+                        val precip = resolveDailyPrecip(
+                            dayObs, sourceHourly, date, local,
+                            allowForecastFallback = !date.isBefore(today),
+                        )
 
                         date to DailyActual(
                             date = date,
@@ -172,6 +178,7 @@ object ObservationResolver {
     ): List<DailyExtremeEntity> {
         val local = ZoneId.systemDefault()
         val now = System.currentTimeMillis()
+        val today = LocalDate.now(local)
 
         val filteredObs = observations.filter { it.stationId != "NWS_BLEND" }
 
@@ -202,9 +209,14 @@ object ObservationResolver {
                     ?.key
                     ?: "Unknown"
 
-                // Precip: measured-preferred, hourly-forecast fallback (e.g. NWS).
+                // Precip: measured-preferred. Forecast fallback only for today (an incomplete
+                // day); completed past days are measured-only so persisted history never shows
+                // a forecast value masquerading as a measured actual.
                 val sourceHourly = hourlyForecasts.filter { it.source == sourceId }
-                val precip = resolveDailyPrecip(dayObs, sourceHourly, date, local)
+                val precip = resolveDailyPrecip(
+                    dayObs, sourceHourly, date, local,
+                    allowForecastFallback = !date.isBefore(today),
+                )
 
                 DailyExtremeEntity(
                     date = date.toEpochDay() * WidgetConstants.MS_IN_A_DAY,
@@ -395,8 +407,14 @@ object ObservationResolver {
      * Resolves a day's precip with a single coherent provenance, measured-preferred:
      * if any observation that day reported precip, sum the observations (existing behavior for
      * sources whose `_MAIN` pseudo-actuals carry precip — Open-Meteo, Tomorrow.io, Silurian);
-     * otherwise fall back to the source's hourly *forecast* precip. NWS observations report null
-     * precip but NWS hourly forecasts are always populated, so this is where NWS rain comes from.
+     * otherwise optionally fall back to the source's hourly *forecast* precip.
+     *
+     * The forecast fallback is gated by [allowForecastFallback]. It is appropriate for the
+     * *current* day (still incomplete — the forecast fills the gap until measurements arrive),
+     * but NOT for a completed past day: there a forecast value would masquerade as a measured
+     * actual, which is misleading and can disagree (in amount and time-of-day) with another
+     * source's measured trace. NWS station observations frequently report null precip, so for
+     * past days NWS rain is shown only when stations actually measured it (else null = no rain).
      *
      * Both branches use the same day/night windows so they render identically:
      *   day   = 08:00–20:00 of `date`
@@ -410,6 +428,7 @@ object ObservationResolver {
         sourceHourly: List<HourlyForecastEntity>,
         date: LocalDate,
         zone: ZoneId,
+        allowForecastFallback: Boolean = true,
     ): DailyPrecip {
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val dayEndMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -419,6 +438,11 @@ object ObservationResolver {
                 day = sumDaytimePrecip(dayObs, date, zone),
                 night = sumNighttimePrecip(dayObs, date, zone),
             )
+        }
+        // No measured precip. For completed past days, do NOT substitute forecast precip —
+        // history must reflect what was actually measured (null = no measured rain).
+        if (!allowForecastFallback) {
+            return DailyPrecip(total = null, day = null, night = null)
         }
         val dayWindowStart = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
         val dayWindowEnd = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()

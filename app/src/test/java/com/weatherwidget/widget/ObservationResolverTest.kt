@@ -494,11 +494,12 @@ class ObservationResolverTest {
     /**
      * Same invariant for the forecast-fallback branch: NWS-style observations with null precip,
      * pre-dawn forecast rain must land in night, and night = pre-dawn ∪ late-evening should sum.
+     * Forecast fallback only applies to the current (incomplete) day, so this uses today's date.
      */
     @Test
-    fun `computeDailyExtremes forecast fallback attributes pre-dawn rain to night bucket`() {
+    fun `computeDailyExtremes forecast fallback today attributes pre-dawn rain to night bucket`() {
         val zone = java.time.ZoneId.systemDefault()
-        val date = java.time.LocalDate.of(2026, 5, 25)
+        val date = java.time.LocalDate.now(zone)
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val obs = listOf(
             observationWithPrecip(dayStartMs + 3 * 3600_000, 55f, null),
@@ -610,9 +611,9 @@ class ObservationResolverTest {
     // --- NWS hybrid: forecast-fallback precip (measured-preferred) ---
 
     @Test
-    fun `computeDailyExtremes falls back to forecast precip when observations lack precip`() {
+    fun `computeDailyExtremes falls back to forecast precip for today when observations lack precip`() {
         val zone = java.time.ZoneId.systemDefault()
-        val date = java.time.LocalDate.of(2026, 5, 25)
+        val date = java.time.LocalDate.now(zone)
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
 
         // NWS observations carry temps but no precip (precipitationLastHour null).
@@ -656,9 +657,9 @@ class ObservationResolverTest {
     }
 
     @Test
-    fun `computeDailyExtremes forecast fallback ignores other sources' hourly precip`() {
+    fun `computeDailyExtremes forecast fallback today ignores other sources' hourly precip`() {
         val zone = java.time.ZoneId.systemDefault()
-        val date = java.time.LocalDate.of(2026, 5, 25)
+        val date = java.time.LocalDate.now(zone)
         val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
 
         val obs = listOf(observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, null))
@@ -671,5 +672,60 @@ class ObservationResolverTest {
 
         assertEquals(1, result.size)
         assertEquals(2.0f, result[0].precipAmountMm!!, 0.01f)  // only the NWS forecast row counts
+    }
+
+    /**
+     * Completed past days are measured-only: when no observation reports precip, the forecast
+     * fallback is suppressed so history never shows a forecast value masquerading as a measured
+     * actual. (This is what made NWS and Silurian disagree — NWS had no measured precip on a
+     * past day and was showing its hourly *forecast* as the "actual".)
+     */
+    @Test
+    fun `computeDailyExtremes past day with null observation precip is measured-only`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.now(zone).minusDays(2)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        // NWS observations carry temps but no measured precip (the real NWS no-rain pattern).
+        val obs = listOf(
+            observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, null),
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, null),
+        )
+        // Forecast predicted a trace — must NOT surface as a past-day actual.
+        val forecasts = listOf(
+            hourly(dayStartMs + 10 * 3600_000, 2.0f),
+            hourly(dayStartMs + 22 * 3600_000, 1.5f),
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertNull(result[0].precipAmountMm)
+        assertNull(result[0].precipDayMm)
+        assertNull(result[0].precipNightMm)
+    }
+
+    /**
+     * Past-day measured precip is still honored — the measured-only rule suppresses only the
+     * forecast fallback, not real station measurements.
+     */
+    @Test
+    fun `computeDailyExtremes past day still uses measured observation precip`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.now(zone).minusDays(2)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+
+        val obs = listOf(
+            observationWithPrecip(dayStartMs + 10 * 3600_000, 70f, 4.0f),  // measured day rain
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, 1.0f),  // measured night rain
+        )
+        val forecasts = listOf(hourly(dayStartMs + 10 * 3600_000, 99.0f))  // ignored
+
+        val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(5.0f, result[0].precipAmountMm!!, 0.01f)  // 4.0 + 1.0 measured, not forecast
+        assertEquals(4.0f, result[0].precipDayMm!!, 0.01f)
+        assertEquals(1.0f, result[0].precipNightMm!!, 0.01f)
     }
 }
