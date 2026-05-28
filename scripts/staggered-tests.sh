@@ -91,12 +91,17 @@ BUILD_START=$(date +%s)
 
 # Start unit tests (this will start the first Gradle build)
 # --log-file captures full output for diagnostics; concise summary goes to stdout.
+#
+# NOTE: We deliberately do NOT pass --install to unit-tests.sh here even when the user
+# passed --install to this script. unit-tests.sh's --install triggers `./gradlew installDebug`
+# inside the unit-test Gradle invocation, which broadcasts adb install to ALL connected
+# devices — including the emulators that emulator-tests.sh is concurrently running
+# am instrument on. The mid-test install force-stops com.weatherwidget.test, the
+# instrumentation dies silently, and emulator-tests.sh reports the non-descriptive
+# "One or more emulators failed". We defer installDebug to a final step below so it
+# runs after both test phases finish.
 touch "$UNIT_LOG_FILE"
-UNIT_INSTALL_FLAG=""
-if [ "$INSTALL_MODE" = true ]; then
-    UNIT_INSTALL_FLAG="--install"
-fi
-"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" $UNIT_INSTALL_FLAG &
+"$UNIT_SCRIPT" --log-file "$UNIT_LOG_FILE" &
 UNIT_PID=$!
 
 # Wait for unit tests to reach execution phase
@@ -141,9 +146,26 @@ UNIT_STATUS=$?
 wait "$EMULATOR_PID"
 EMULATOR_STATUS=$?
 
+# Deferred installDebug: only fires when both test phases passed AND --install was requested.
+# See the NOTE above the unit-tests invocation for why we run install here instead of letting
+# unit-tests.sh do it concurrently.
+INSTALL_STATUS=0
+if [ "$INSTALL_MODE" = true ] && [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ]; then
+    echo -e "${YELLOW}Running deferred installDebug to all connected devices...${NC}"
+    INSTALL_LOG_FILE="$LOG_DIR/install-${TIMESTAMP}.log"
+    if JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 "$PROJECT_DIR/gradlew" installDebug --console=plain > "$INSTALL_LOG_FILE" 2>&1; then
+        SUMMARY=$(grep -E "Installed on" "$INSTALL_LOG_FILE" | tail -1)
+        echo -e "${GREEN}installDebug: ${SUMMARY:-OK}${NC}"
+    else
+        INSTALL_STATUS=$?
+        echo -e "${RED}installDebug failed (exit $INSTALL_STATUS) — see $INSTALL_LOG_FILE${NC}"
+        tail -20 "$INSTALL_LOG_FILE"
+    fi
+fi
+
 TOTAL_DURATION=$(( $(date +%s) - TOTAL_START ))
 
-if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ]; then
+if [ "$UNIT_STATUS" -eq 0 ] && [ "$EMULATOR_STATUS" -eq 0 ] && [ "$INSTALL_STATUS" -eq 0 ]; then
     echo -e "${GREEN}Both unit tests and emulator tests passed${NC} (${TOTAL_DURATION}s)"
     exit 0
 fi
