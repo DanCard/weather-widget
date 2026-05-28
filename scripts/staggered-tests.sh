@@ -132,19 +132,53 @@ if [ "$BUILD_DONE" = false ] && ! kill -0 "$UNIT_PID" 2>/dev/null; then
     echo -e "${YELLOW}Unit test build finished early or failed.${NC}"
 fi
 
-# Start emulator tests (now that unit test transformations are done)
-# echo -e "${BLUE}Starting emulator tests...${NC}"
-# We stream emulator tests but we want to filter out the noise.
-# For now, let's just let it print its normal condensed output to stdout,
-# but also capture everything in the log.
-"$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE" &
-EMULATOR_PID=$!
-
 wait "$UNIT_PID"
 UNIT_STATUS=$?
 
-wait "$EMULATOR_PID"
-EMULATOR_STATUS=$?
+# Start emulator tests only after JVM/unit tests finish. Running the long JVM bucket while
+# two emulators are both installing and executing instrumentation has produced truncated
+# per-emulator logs with no OK/FAILURES footer, even though standalone emulator-tests.sh
+# passes. Keep the phases sequential so emulator-tests.sh owns the device-intensive phase.
+run_emulator_tests_for_staggered() {
+    local status=0
+    local adb_bin="${ADB:-$HOME/.Android/Sdk/platform-tools/adb}"
+    if [ ! -x "$adb_bin" ]; then
+        adb_bin="$(command -v adb || true)"
+    fi
+    mapfile -t connected_emulators < <("$adb_bin" devices 2>/dev/null | awk '/^emulator-[0-9]+\tdevice$/{print $1}' | sort -V)
+    if [ "${#connected_emulators[@]}" -gt 1 ]; then
+        echo -e "${BLUE}Detected ${#connected_emulators[@]} connected emulators; running emulator tests sequentially for staggered reliability: ${connected_emulators[*]}${NC}"
+        for serial in "${connected_emulators[@]}"; do
+            echo -e "${YELLOW}=== Running emulator tests on ${serial} ===${NC}"
+            local serial_log="$LOG_DIR/emulator-${serial}-${TIMESTAMP}.log"
+            : > "$serial_log"
+            EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log"
+            local serial_status=${PIPESTATUS[0]}
+            if [ "$serial_status" -ne 0 ] &&
+                grep -qiE "device offline|Test run failed to complete|Failed to retrieve additional test outputs|Device/test runner disconnected" "$serial_log"; then
+                echo -e "${YELLOW}Transient emulator/runner disconnect on ${serial}; retrying once...${NC}"
+                EMULATOR_TESTS_TARGET_SERIAL="$serial" "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee -a "$EMULATOR_LOG_FILE" "$serial_log"
+                serial_status=${PIPESTATUS[0]}
+            fi
+            if [ "$serial_status" -ne 0 ]; then
+                status=$serial_status
+                break
+            fi
+        done
+    else
+        "$EMULATOR_SCRIPT" --no-retry "${EMULATOR_ARGS[@]}" | tee "$EMULATOR_LOG_FILE"
+        status=${PIPESTATUS[0]}
+    fi
+    return "$status"
+}
+
+EMULATOR_STATUS=0
+if [ "$UNIT_STATUS" -eq 0 ]; then
+    run_emulator_tests_for_staggered
+    EMULATOR_STATUS=$?
+else
+    echo -e "${YELLOW}Skipping emulator tests because unit tests failed.${NC}"
+fi
 
 # Deferred installDebug: only fires when both test phases passed AND --install was requested.
 # See the NOTE above the unit-tests invocation for why we run install here instead of letting

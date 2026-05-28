@@ -902,9 +902,17 @@ if [ "$TOTAL" -eq 0 ] && [ -f "$TEST_RESULTS_LOG" ]; then
     TOTAL=$((PASSED + FAILED))
 fi
 
+INCOMPLETE_DEVICE_RUN=false
+if [ "$TEST_SUCCESS" = false ] && [ -f "$TEST_RESULTS_LOG" ] &&
+    grep -qiE "device offline|Test run failed to complete|Failed to retrieve additional test outputs" "$TEST_RESULTS_LOG"; then
+    INCOMPLETE_DEVICE_RUN=true
+fi
+
 # Show results
 echo -en "${BLUE}  Test Summary:${NC} \t"
-if [ "$TEST_SUCCESS" = false ]; then
+if [ "$INCOMPLETE_DEVICE_RUN" = true ]; then
+    echo -e "${RED}  ✗ Device/test runner disconnected before completing${NC}"
+elif [ "$TEST_SUCCESS" = false ]; then
     if [ "$TOTAL" -eq 0 ]; then
         echo -e "${RED}  ✗ Build failed (tests did not run)${NC}"
     else

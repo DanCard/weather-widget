@@ -23,6 +23,8 @@ class PrecipitationGraphWatermarkTest {
         getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
         measureRainAmountText = ::mockMeasureRainAmountText,
         getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+        measureActualRainAmountText = ::mockMeasureRainAmountText,
+        getActualRainAmountTextBounds = ::mockGetRainAmountTextBounds,
         dpToPx = ::mockDpToPx,
         measureNowText = { 15f },
         getNowTextBounds = { -12f to 3f },

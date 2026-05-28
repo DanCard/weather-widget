@@ -11,6 +11,7 @@ object PrecipitationGraphStyle {
 
     private const val COLOR_CURVE = "#5AC8FA"
     private const val COLOR_RAIN_AMOUNT = "#FFFFFF"
+    private const val COLOR_ACTUAL_RAIN_AMOUNT = "#FF9F0A"
     private const val RAIN_AMOUNT_TEXT_SIZE_DP = 18.0f
 
     internal data class PaintSet(
@@ -26,6 +27,7 @@ object PrecipitationGraphStyle {
         val dayLabelTextPaint: Paint,
         val todayDayLabelPaint: Paint,
         val rainAmountPaint: Paint,
+        val actualRainAmountPaint: Paint,
     )
 
     @Volatile
@@ -106,6 +108,9 @@ object PrecipitationGraphStyle {
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 setShadowLayer(dpToPx(context, HourlyGraphDefaults.SHADOW_RADIUS_STRONG_DP * labelScale), 0f, dpToPx(context, HourlyGraphDefaults.SHADOW_DY_DP * labelScale), Color.parseColor(HourlyGraphDefaults.COLOR_SHADOW_DARK))
             }
+            val actualRainAmountPaint = Paint(rainAmountPaint).apply {
+                color = Color.parseColor(COLOR_ACTUAL_RAIN_AMOUNT)
+            }
 
             val paints = PaintSet(
                 density = density,
@@ -120,6 +125,7 @@ object PrecipitationGraphStyle {
                 dayLabelTextPaint = dayLabelTextPaint,
                 todayDayLabelPaint = todayDayLabelPaint,
                 rainAmountPaint = rainAmountPaint,
+                actualRainAmountPaint = actualRainAmountPaint,
             )
             cachedPaints = paints
             paints

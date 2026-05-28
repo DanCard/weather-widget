@@ -10,6 +10,7 @@ import android.view.View
 import android.widget.RemoteViews
 import com.weatherwidget.R
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.util.HeaderFormatter
 import com.weatherwidget.util.HeaderPrecipCalculator
@@ -290,7 +291,21 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
 
             // Build precipitation hour data list
             val buildHoursStartMs = SystemClock.elapsedRealtime()
-            val hours = buildPrecipHourDataList(hourlyForecasts, centerTime, numColumns, displaySource, zoom)
+            val actualPrecipByHour = loadActualPrecipByHourForGraph(
+                context = context,
+                hourlyForecasts = hourlyForecasts,
+                centerTime = centerTime,
+                zoom = zoom,
+                displaySource = displaySource,
+            )
+            val hours = buildPrecipHourDataList(
+                hourlyForecasts = hourlyForecasts,
+                centerTime = centerTime,
+                numColumns = numColumns,
+                displaySource = displaySource,
+                zoom = zoom,
+                actualPrecipByHour = actualPrecipByHour,
+            )
             buildHoursMs = SystemClock.elapsedRealtime() - buildHoursStartMs
             graphHoursCount = hours.size
             if (hours.isEmpty() && hourlyForecasts.isNotEmpty()) {
@@ -384,9 +399,10 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         numColumns: Int,
         displaySource: WeatherSource,
         zoom: com.weatherwidget.widget.ZoomLevel = com.weatherwidget.widget.ZoomLevel.WIDE,
+        actualPrecipByHour: Map<LocalDateTime, Float> = emptyMap(),
+        now: LocalDateTime = LocalDateTime.now(),
     ): List<PrecipitationGraphRenderer.PrecipHourData> {
         val hours = mutableListOf<PrecipitationGraphRenderer.PrecipHourData>()
-        val now = LocalDateTime.now()
         val lat = hourlyForecasts.firstOrNull()?.locationLat ?: WeatherWidgetWorker.DEFAULT_LAT
         val lon = hourlyForecasts.firstOrNull()?.locationLon ?: WeatherWidgetWorker.DEFAULT_LON
 
@@ -399,11 +415,7 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                     preferred ?: gap ?: entry.value.firstOrNull()
                 }
 
-        // Time window based on zoom level
-        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
-        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
-        val startHour = alignedCenter.minusHours(zoom.backHours)
-        val endHour = alignedCenter.plusHours(zoom.forwardHours)
+        val (startHour, endHour) = computePrecipGraphWindow(centerTime, zoom)
 
         // Narrow widgets widen the WIDE-zoom marker cadence (6h vs 4h) to fit the inline footer
         // groups; wide widgets keep the default. Matches the temperature graph.
@@ -462,6 +474,12 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
                         isCurrentHour = isClosest,
                         showLabel = showLabel,
                         precipAmountMm = forecast.precipAmountMm,
+                        actualPrecipAmountMm =
+                            if (currentHour.isBefore(now)) {
+                                actualPrecipByHour[currentHour]
+                            } else {
+                                null
+                            },
                     ),
                 )
                 hourIndex++
@@ -473,7 +491,79 @@ HeaderRemoteViewsBinder.applyDisclosure(views, disclosure, isPrecipVisible = isP
         return hours
     }
 
+    @androidx.annotation.VisibleForTesting
+    internal fun computePrecipGraphWindow(
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+    ): Pair<LocalDateTime, LocalDateTime> {
+        val truncated = centerTime.truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+        val alignedCenter = if (centerTime.minute >= 30) truncated.plusHours(1) else truncated
+        return alignedCenter.minusHours(zoom.backHours) to alignedCenter.plusHours(zoom.forwardHours)
+    }
 
+    private suspend fun loadActualPrecipByHourForGraph(
+        context: Context,
+        hourlyForecasts: List<HourlyForecastEntity>,
+        centerTime: LocalDateTime,
+        zoom: com.weatherwidget.widget.ZoomLevel,
+        displaySource: WeatherSource,
+    ): Map<LocalDateTime, Float> {
+        if (hourlyForecasts.isEmpty()) return emptyMap()
+        val (startHour, endHour) = computePrecipGraphWindow(centerTime, zoom)
+        val now = LocalDateTime.now()
+        if (!startHour.isBefore(now)) return emptyMap()
+
+        val zoneId = ZoneId.systemDefault()
+        val queryStartMs = startHour.atZone(zoneId).toInstant().toEpochMilli()
+        val queryEndHour = minOf(endHour.plusHours(1), now.plusHours(1))
+        val queryEndMs = queryEndHour.atZone(zoneId).toInstant().toEpochMilli()
+        if (queryEndMs <= queryStartMs) return emptyMap()
+
+        val lat = hourlyForecasts.first().locationLat
+        val lon = hourlyForecasts.first().locationLon
+        val observations = WeatherDatabase.getDatabase(context).observationDao()
+            .getObservationsInRange(queryStartMs, queryEndMs, lat, lon)
+        val actualPrecipByHour = buildActualPrecipByHour(observations, displaySource, zoneId)
+        if (actualPrecipByHour.isNotEmpty()) {
+            Log.d(
+                TAG,
+                "loadActualPrecipByHourForGraph: source=${displaySource.id} " +
+                    "window=$startHour..$endHour actualHours=${actualPrecipByHour.size}",
+            )
+        }
+        return actualPrecipByHour
+    }
+
+    @androidx.annotation.VisibleForTesting
+    internal fun buildActualPrecipByHour(
+        observations: List<ObservationEntity>,
+        displaySource: WeatherSource,
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): Map<LocalDateTime, Float> =
+        observations
+            .asSequence()
+            .filter { matchesActualPrecipSource(it, displaySource) }
+            .mapNotNull { obs ->
+                val amount = obs.precipAmountMm ?: return@mapNotNull null
+                val hour = Instant.ofEpochMilli(obs.timestamp)
+                    .atZone(zoneId)
+                    .toLocalDateTime()
+                    .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                hour to amount
+            }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, amounts) -> amounts.sum() }
+
+    private fun matchesActualPrecipSource(
+        observation: ObservationEntity,
+        displaySource: WeatherSource,
+    ): Boolean =
+        when (displaySource) {
+            WeatherSource.NWS ->
+                observation.api == WeatherSource.NWS.id && observation.stationId != "NWS_BLEND"
+            else ->
+                observation.api == displaySource.id && observation.stationId.endsWith("_MAIN")
+        }
 
     private fun updatePrecipTextMode(
         views: RemoteViews,

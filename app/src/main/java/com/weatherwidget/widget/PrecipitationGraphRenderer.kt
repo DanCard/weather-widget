@@ -53,6 +53,7 @@ object PrecipitationGraphRenderer {
         val isCurrentHour: Boolean = false,
         val showLabel: Boolean = true,
         val precipAmountMm: Float? = null,
+        val actualPrecipAmountMm: Float? = null,
     )
 
     data class LabelPlacementDebug(
@@ -141,6 +142,8 @@ object PrecipitationGraphRenderer {
         val getProbabilityTextBounds: (String) -> Pair<Float, Float>,
         val measureRainAmountText: (String) -> Float,
         val getRainAmountTextBounds: (String) -> Pair<Float, Float>,
+        val measureActualRainAmountText: (String) -> Float,
+        val getActualRainAmountTextBounds: (String) -> Pair<Float, Float>,
         val dpToPx: (Float) -> Float,
         val measureNowText: (String) -> Float,
         val getNowTextBounds: (String) -> Pair<Float, Float>,
@@ -152,6 +155,7 @@ object PrecipitationGraphRenderer {
         val points: List<Pair<Float, Float>>,
         val probabilityPlacements: List<ProbabilityLabelPlacement>,
         val rainAmountPlacements: List<RainAmountPlacement>,
+        val actualRainAmountPlacements: List<RainAmountPlacement>,
         val graphTop: Float,
         val graphBottom: Float,
         val graphHeight: Float,
@@ -407,12 +411,31 @@ object PrecipitationGraphRenderer {
             rainPeriods = rainPeriods,
             geometry = GraphGeometry(widthPx, heightPx, graphTop, graphBottom, graphHeight),
             initialCollisionBounds = rainCollisionBounds,
+            labelPrefix = "Pred ",
             measureText = textMeasurer.measureRainAmountText,
             getTextBounds = textMeasurer.getRainAmountTextBounds,
             dpToPx = textMeasurer.dpToPx
         )
+        val actualRainPeriods = if (rainAmountWindowHours > 0) {
+            findFixedWindowActualRainPeriods(hours, rainAmountWindowHours)
+        } else {
+            findVisibleWindowActualRainPeriods(hours)
+        }
+        val actualRainPlacements = calculateRainAmountPlacements(
+            rainPeriods = actualRainPeriods,
+            geometry = GraphGeometry(widthPx, heightPx, graphTop, graphBottom, graphHeight),
+            initialCollisionBounds = rainCollisionBounds + rainPlacements.map { it.bounds },
+            labelPrefix = "Act ",
+            measureText = textMeasurer.measureActualRainAmountText,
+            getTextBounds = textMeasurer.getActualRainAmountTextBounds,
+            dpToPx = textMeasurer.dpToPx
+        )
 
-        val overlayBounds = (probabilityPlacements.map { it.bounds } + rainPlacements.map { it.bounds }).toMutableList()
+        val overlayBounds = (
+            probabilityPlacements.map { it.bounds } +
+                rainPlacements.map { it.bounds } +
+                actualRainPlacements.map { it.bounds }
+            ).toMutableList()
         nowLabelPlacement?.let { overlayBounds.add(it.bounds) }
 
         val today = currentTime.toLocalDate()
@@ -482,6 +505,7 @@ object PrecipitationGraphRenderer {
             points = points,
             probabilityPlacements = probabilityPlacements,
             rainAmountPlacements = rainPlacements,
+            actualRainAmountPlacements = actualRainPlacements,
             graphTop = graphTop,
             graphBottom = graphBottom,
             graphHeight = graphHeight,
@@ -654,6 +678,7 @@ object PrecipitationGraphRenderer {
         rainPeriods: List<RainPeriod>,
         geometry: GraphGeometry,
         initialCollisionBounds: List<PrecipRect>,
+        labelPrefix: String = "",
         measureText: (String) -> Float,
         getTextBounds: (String) -> Pair<Float, Float>,
         dpToPx: (Float) -> Float
@@ -665,7 +690,7 @@ object PrecipitationGraphRenderer {
         val rainPadPx = dpToPx(RAIN_AMOUNT_PADDING_DP)
 
         for (period in rainPeriods) {
-            val amountText = formatPrecipAmount(period.totalAmountMm)
+            val amountText = labelPrefix + formatPrecipAmount(period.totalAmountMm)
             val textWidth = measureText(amountText)
             val (textAscent, textDescent) = getTextBounds(amountText)
 
@@ -781,6 +806,11 @@ object PrecipitationGraphRenderer {
                 val fm = paints.rainAmountPaint.fontMetrics
                 (fm?.ascent ?: -paints.rainAmountPaint.textSize) to (fm?.descent ?: 0f)
             },
+            measureActualRainAmountText = { paints.actualRainAmountPaint.measureText(it) },
+            getActualRainAmountTextBounds = {
+                val fm = paints.actualRainAmountPaint.fontMetrics
+                (fm?.ascent ?: -paints.actualRainAmountPaint.textSize) to (fm?.descent ?: 0f)
+            },
             dpToPx = { dpToPx(context, it) },
             measureNowText = { paints.nowLabelTextPaint.measureText(it) },
             getNowTextBounds = {
@@ -872,8 +902,18 @@ object PrecipitationGraphRenderer {
             Log.d(TAG, logMsg)
             onDebugLog?.invoke(logMsg)
         }
+        for (placement in layout.actualRainAmountPlacements) {
+            canvas.drawText(placement.text, placement.x, placement.y, paints.actualRainAmountPaint)
+            val logMsg = "actualRainAmountPlaced: \"${placement.text}\" at x=${placement.x} y=${placement.y} widgetSize=${widthPx}x${heightPx} overlapArea=${placement.overlapArea}"
+            Log.d(TAG, logMsg)
+            onDebugLog?.invoke(logMsg)
+        }
 
-        val drawnLabelBounds = (layout.probabilityPlacements.map { it.bounds.toRectF() } + layout.rainAmountPlacements.map { it.bounds.toRectF() }).toMutableList()
+        val drawnLabelBounds = (
+            layout.probabilityPlacements.map { it.bounds.toRectF() } +
+                layout.rainAmountPlacements.map { it.bounds.toRectF() } +
+                layout.actualRainAmountPlacements.map { it.bounds.toRectF() }
+            ).toMutableList()
 
         val lineHeight = layout.graphHeight * HourlyGraphDefaults.NOW_LINE_HEIGHT_FRACTION
         val lineTop = layout.graphTop + (layout.graphHeight - lineHeight) / 2f
@@ -910,8 +950,19 @@ object PrecipitationGraphRenderer {
     }
 
     internal fun findVisibleWindowRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
+        return findVisibleWindowRainPeriods(hours) { it.precipAmountMm }
+    }
+
+    internal fun findVisibleWindowActualRainPeriods(hours: List<PrecipHourData>): List<RainPeriod> {
+        return findVisibleWindowRainPeriods(hours) { it.actualPrecipAmountMm }
+    }
+
+    private fun findVisibleWindowRainPeriods(
+        hours: List<PrecipHourData>,
+        amountFor: (PrecipHourData) -> Float?,
+    ): List<RainPeriod> {
         if (hours.isEmpty()) return emptyList()
-        val totalMm = hours.sumOf { (it.precipAmountMm ?: 0f).toDouble() }.toFloat()
+        val totalMm = hours.sumOf { (amountFor(it) ?: 0f).toDouble() }.toFloat()
         if (totalMm <= 0f) return emptyList()
         return listOf(
             RainPeriod(
@@ -925,13 +976,25 @@ object PrecipitationGraphRenderer {
     }
 
     internal fun findFixedWindowRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
+        return findFixedWindowRainPeriods(hours, windowHours) { it.precipAmountMm }
+    }
+
+    internal fun findFixedWindowActualRainPeriods(hours: List<PrecipHourData>, windowHours: Int): List<RainPeriod> {
+        return findFixedWindowRainPeriods(hours, windowHours) { it.actualPrecipAmountMm }
+    }
+
+    private fun findFixedWindowRainPeriods(
+        hours: List<PrecipHourData>,
+        windowHours: Int,
+        amountFor: (PrecipHourData) -> Float?,
+    ): List<RainPeriod> {
         if (windowHours <= 0 || hours.size < windowHours) return emptyList()
         var bestPeriod: RainPeriod? = null
         var bestTotal = 0f
         var i = 0
         while (i <= hours.size - windowHours) {
             val window = hours.subList(i, i + windowHours)
-            val totalMm = window.sumOf { (it.precipAmountMm ?: 0f).toDouble() }.toFloat()
+            val totalMm = window.sumOf { (amountFor(it) ?: 0f).toDouble() }.toFloat()
             if (totalMm > bestTotal) {
                 bestTotal = totalMm
                 bestPeriod = RainPeriod(

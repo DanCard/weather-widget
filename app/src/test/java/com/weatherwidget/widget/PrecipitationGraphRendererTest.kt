@@ -24,6 +24,8 @@ class PrecipitationGraphRendererTest {
         getProbabilityTextBounds = ::mockGetProbabilityTextBounds,
         measureRainAmountText = ::mockMeasureRainAmountText,
         getRainAmountTextBounds = ::mockGetRainAmountTextBounds,
+        measureActualRainAmountText = ::mockMeasureRainAmountText,
+        getActualRainAmountTextBounds = ::mockGetRainAmountTextBounds,
         dpToPx = ::mockDpToPx,
         measureNowText = { 15f },
         getNowTextBounds = { -12f to 3f },
@@ -372,6 +374,39 @@ class PrecipitationGraphRendererTest {
         assertTrue(
             "Should NOT place rain amount when precipAmountMm is null",
             layout.rainAmountPlacements.isEmpty(),
+        )
+    }
+
+    @Test
+    fun `renderGraph places predicted and actual rain amount labels`() {
+        val start = LocalDateTime.of(2026, 4, 10, 6, 0)
+        val hours = (0 until 12).map { i ->
+            PrecipitationGraphRenderer.PrecipHourData(
+                dateTime = start.plusHours(i.toLong()),
+                precipProbability = 70,
+                precipAmountMm = 1.0f,
+                actualPrecipAmountMm = if (i in 2..5) 0.5f else null,
+                label = "${(start.plusHours(i.toLong()).hour)}h",
+                showLabel = true,
+            )
+        }
+
+        val layout = PrecipitationGraphRenderer.calculateLayout(
+            hours = hours,
+            widthPx = 900,
+            heightPx = 420,
+            currentTime = start.plusHours(6),
+            showHourlyIcons = false,
+            textMeasurer = mockTextMeasurer,
+        )
+
+        assertTrue(
+            "Should place predicted rain amount label",
+            layout.rainAmountPlacements.any { it.text.startsWith("Pred ") },
+        )
+        assertTrue(
+            "Should place actual rain amount label",
+            layout.actualRainAmountPlacements.any { it.text.startsWith("Act ") },
         )
     }
 

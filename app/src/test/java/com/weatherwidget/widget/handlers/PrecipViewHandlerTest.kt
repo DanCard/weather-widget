@@ -1,6 +1,7 @@
 package com.weatherwidget.widget.handlers
 
 import com.weatherwidget.data.local.HourlyForecastEntity
+import com.weatherwidget.data.local.ObservationEntity
 import com.weatherwidget.data.model.WeatherSource
 import com.weatherwidget.widget.ZoomLevel
 import org.junit.Assert.assertEquals
@@ -112,6 +113,101 @@ class PrecipViewHandlerTest {
         )
     }
 
+    @Test
+    fun `buildPrecipHourDataList carries actual precip amount alongside forecast for past hours`() {
+        val forecastHours = listOf(
+            hourly("2026-03-14T18:00", WeatherSource.NWS, precipAmountMm = 0.5f),
+            hourly("2026-03-14T19:00", WeatherSource.NWS, precipAmountMm = 0.7f),
+        )
+        val actuals = mapOf(
+            LocalDateTime.of(2026, 3, 14, 18, 0) to 3.5f,
+        )
+
+        val result = PrecipViewHandler.buildPrecipHourDataList(
+            hourlyForecasts = forecastHours,
+            centerTime = LocalDateTime.of(2026, 3, 14, 18, 30),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actualPrecipByHour = actuals,
+            now = LocalDateTime.of(2026, 3, 14, 20, 0),
+        )
+
+        assertTrue(
+            "Past hour should keep forecast amount and carry actual amount. amounts=${result.map { Triple(it.dateTime, it.precipAmountMm, it.actualPrecipAmountMm) }}",
+            result.any {
+                it.dateTime == LocalDateTime.of(2026, 3, 14, 18, 0) &&
+                    it.precipAmountMm == 0.5f &&
+                    it.actualPrecipAmountMm == 3.5f
+            },
+        )
+    }
+
+    @Test
+    fun `buildPrecipHourDataList keeps forecast precip amount for future hours`() {
+        val forecastHours = listOf(
+            hourly("2026-03-14T18:00", WeatherSource.NWS, precipAmountMm = 0.5f),
+        )
+        val actuals = mapOf(
+            LocalDateTime.of(2026, 3, 14, 18, 0) to 3.5f,
+        )
+
+        val result = PrecipViewHandler.buildPrecipHourDataList(
+            hourlyForecasts = forecastHours,
+            centerTime = LocalDateTime.of(2026, 3, 14, 18, 0),
+            numColumns = 5,
+            displaySource = WeatherSource.NWS,
+            zoom = ZoomLevel.WIDE,
+            actualPrecipByHour = actuals,
+            now = LocalDateTime.of(2026, 3, 14, 17, 0),
+        )
+
+        assertTrue(
+            "Future hour should keep forecast amount and no actual amount. amounts=${result.map { Triple(it.dateTime, it.precipAmountMm, it.actualPrecipAmountMm) }}",
+            result.any {
+                it.dateTime == LocalDateTime.of(2026, 3, 14, 18, 0) &&
+                    it.precipAmountMm == 0.5f &&
+                    it.actualPrecipAmountMm == null
+            },
+        )
+    }
+
+    @Test
+    fun `buildActualPrecipByHour buckets selected source observations by hour`() {
+        val observations = listOf(
+            observation("NWS", "KNUQ", "2026-03-14T18:10", 1.25f),
+            observation("NWS", "KSJC", "2026-03-14T18:45", 0.75f),
+            observation("NWS", "NWS_BLEND", "2026-03-14T18:30", 9.0f),
+            observation("OPEN_METEO", "OPEN_METEO_MAIN", "2026-03-14T18:30", 7.0f),
+            observation("NWS", "KNUQ", "2026-03-14T19:00", null),
+        )
+
+        val result = PrecipViewHandler.buildActualPrecipByHour(
+            observations = observations,
+            displaySource = WeatherSource.NWS,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(2.0f, result[LocalDateTime.of(2026, 3, 14, 18, 0)] ?: -1f, 0.001f)
+    }
+
+    @Test
+    fun `buildActualPrecipByHour uses main rows for non NWS sources`() {
+        val observations = listOf(
+            observation("OPEN_METEO", "OPEN_METEO_MAIN", "2026-03-14T18:10", 1.25f),
+            observation("OPEN_METEO", "OPEN_METEO_STATION", "2026-03-14T18:45", 4.0f),
+            observation("NWS", "KNUQ", "2026-03-14T18:30", 7.0f),
+        )
+
+        val result = PrecipViewHandler.buildActualPrecipByHour(
+            observations = observations,
+            displaySource = WeatherSource.OPEN_METEO,
+        )
+
+        assertEquals(1, result.size)
+        assertEquals(1.25f, result[LocalDateTime.of(2026, 3, 14, 18, 0)] ?: -1f, 0.001f)
+    }
+
     private fun hourly(
         dateTime: String,
         source: WeatherSource,
@@ -127,5 +223,22 @@ class PrecipViewHandlerTest {
         cloudCover = 50,
         precipAmountMm = precipAmountMm,
         fetchedAt = 1L,
+    )
+
+    private fun observation(
+        api: String,
+        stationId: String,
+        dateTime: String,
+        precipAmountMm: Float?,
+    ) = ObservationEntity(
+        stationId = stationId,
+        stationName = stationId,
+        timestamp = LocalDateTime.parse(dateTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        temperature = 60f,
+        condition = "observed",
+        locationLat = 37.42,
+        locationLon = -122.08,
+        api = api,
+        precipAmountMm = precipAmountMm,
     )
 }
