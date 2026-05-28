@@ -462,6 +462,63 @@ class ObservationResolverTest {
         assertNull(result[0].precipNightMm)
     }
 
+    /**
+     * Pre-dawn precip (00:00–08:00) must attribute to *that* day's night bucket. Pre-fix, the
+     * night window was 20:00 → next-day 08:00, so observations between midnight and 08:00 fell
+     * into a gap: counted toward total but neither day nor night. Option B closes the gap by
+     * defining night as (00:00–08:00) ∪ (20:00–24:00) within calendar day D.
+     */
+    @Test
+    fun `computeDailyExtremes attributes pre-dawn precip to same-day night bucket`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val obs = listOf(
+            // Pre-dawn (00:00–08:00) — should land in this date's night bucket.
+            observationWithPrecip(dayStartMs + 3 * 3600_000, 55f, 2.0f),   // 3 AM
+            observationWithPrecip(dayStartMs + 5 * 3600_000, 56f, 1.5f),   // 5 AM
+            // Daytime (08:00–20:00) — day bucket.
+            observationWithPrecip(dayStartMs + 14 * 3600_000, 70f, 1.0f),  // 2 PM
+            // Late-evening (20:00–24:00) — still night bucket.
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, 0.5f),  // 10 PM
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, emptyList(), 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(1.0f, result[0].precipDayMm!!, 0.01f)             // 2 PM only
+        assertEquals(4.0f, result[0].precipNightMm!!, 0.01f)           // 2.0 + 1.5 + 0.5
+        assertEquals(5.0f, result[0].precipAmountMm!!, 0.01f)          // 1.0 + 4.0 — total = day + night
+    }
+
+    /**
+     * Same invariant for the forecast-fallback branch: NWS-style observations with null precip,
+     * pre-dawn forecast rain must land in night, and night = pre-dawn ∪ late-evening should sum.
+     */
+    @Test
+    fun `computeDailyExtremes forecast fallback attributes pre-dawn rain to night bucket`() {
+        val zone = java.time.ZoneId.systemDefault()
+        val date = java.time.LocalDate.of(2026, 5, 25)
+        val dayStartMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val obs = listOf(
+            observationWithPrecip(dayStartMs + 3 * 3600_000, 55f, null),
+            observationWithPrecip(dayStartMs + 14 * 3600_000, 70f, null),
+            observationWithPrecip(dayStartMs + 22 * 3600_000, 60f, null),
+        )
+        val forecasts = listOf(
+            hourly(dayStartMs + 3 * 3600_000, 2.5f),   // 3 AM — pre-dawn night
+            hourly(dayStartMs + 14 * 3600_000, 1.0f),  // 2 PM — day
+            hourly(dayStartMs + 22 * 3600_000, 0.5f),  // 10 PM — late-evening night
+        )
+
+        val result = ObservationResolver.computeDailyExtremes(obs, forecasts, 37.42, -122.08)
+
+        assertEquals(1, result.size)
+        assertEquals(1.0f, result[0].precipDayMm!!, 0.01f)              // 2 PM
+        assertEquals(3.0f, result[0].precipNightMm!!, 0.01f)            // 2.5 (pre-dawn) + 0.5 (late)
+        assertEquals(4.0f, result[0].precipAmountMm!!, 0.01f)           // 1.0 + 3.0 — day + night invariant
+    }
+
     @Test
     fun `extremesToDailyActuals maps all precip fields`() {
         val extremes = listOf(

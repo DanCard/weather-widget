@@ -364,17 +364,25 @@ object ObservationResolver {
     }
 
     /**
-     * Sums nighttime (8PM-8AM) precipitation from observations for a given date.
-     * Night spans 8PM on date to 8AM the next day.
+     * Sums nighttime precipitation from observations for a given date.
+     * Night = pre-dawn (00:00–08:00) ∪ late-evening (20:00–24:00), both within calendar day D.
+     * Keeping both halves on the same date guarantees day + night = total and avoids the
+     * pre-dawn gap that the old "20:00 of D → 08:00 of D+1" definition left uncovered for
+     * storms whose rain falls between midnight and 8 AM.
      */
     private fun sumNighttimePrecip(
         observations: List<ObservationEntity>,
         date: LocalDate,
         zone: ZoneId,
     ): Float? {
-        val nightStartMs = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
-        val nightEndMs = date.plusDays(1).atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
-        val nightObs = observations.filter { it.timestamp >= nightStartMs && it.timestamp < nightEndMs }
+        val startOfDayMs = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val morningEndMs = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
+        val eveningStartMs = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+        val endOfDayMs = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val nightObs = observations.filter {
+            (it.timestamp >= startOfDayMs && it.timestamp < morningEndMs) ||
+                (it.timestamp >= eveningStartMs && it.timestamp < endOfDayMs)
+        }
         return nightObs.mapNotNull { it.precipAmountMm }
             .takeIf { it.isNotEmpty() }
             ?.sum()
@@ -389,8 +397,10 @@ object ObservationResolver {
      * sources whose `_MAIN` pseudo-actuals carry precip — Open-Meteo, Tomorrow.io, Silurian);
      * otherwise fall back to the source's hourly *forecast* precip. NWS observations report null
      * precip but NWS hourly forecasts are always populated, so this is where NWS rain comes from.
-     * Windows mirror the observation helpers exactly (night = 8PM→midnight of `date`) so the two
-     * branches render identically.
+     *
+     * Both branches use the same day/night windows so they render identically:
+     *   day   = 08:00–20:00 of `date`
+     *   night = (00:00–08:00) ∪ (20:00–24:00) of `date`  — same calendar day; day + night = total
      *
      * Callers must pre-filter `dayObs` to a single (date, source) bucket and `sourceHourly` to
      * one source (window filtering for the forecast branch happens inside).
@@ -412,10 +422,17 @@ object ObservationResolver {
         }
         val dayWindowStart = date.atTime(8, 0).atZone(zone).toInstant().toEpochMilli()
         val dayWindowEnd = date.atTime(20, 0).atZone(zone).toInstant().toEpochMilli()
+        // Night = pre-dawn ∪ late-evening; null only when neither half has any forecast precip.
+        val nightPreDawn = sumForecastPrecip(sourceHourly, dayStartMs, dayWindowStart)
+        val nightLateEvening = sumForecastPrecip(sourceHourly, dayWindowEnd, dayEndMs)
+        val night = when {
+            nightPreDawn == null && nightLateEvening == null -> null
+            else -> (nightPreDawn ?: 0f) + (nightLateEvening ?: 0f)
+        }
         return DailyPrecip(
             total = sumForecastPrecip(sourceHourly, dayStartMs, dayEndMs),
             day = sumForecastPrecip(sourceHourly, dayWindowStart, dayWindowEnd),
-            night = sumForecastPrecip(sourceHourly, dayWindowEnd, dayEndMs),
+            night = night,
         )
     }
 

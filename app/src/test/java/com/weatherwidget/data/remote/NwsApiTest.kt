@@ -611,4 +611,83 @@ class NwsApiTest {
             assertNull(obs.precipLastHourMm)
             assertNull(obs.precipLast24hMm)
         }
+
+    /**
+     * Regression for the historical-observations precip-drop: getObservations used to use a
+     * hand-rolled inline parser that skipped precipitationLastHour / precipitationLast24Hours
+     * entirely. After delegating to parseObservationProperties, those fields flow through to
+     * ObservationEntity, enabling the NWS measured-precip branch in resolveDailyPrecip during
+     * 7-day and hourly backfill.
+     */
+    @Test
+    fun `getObservations parses precipitation fields from historical features`() =
+        runTest {
+            val response =
+                """
+                {
+                    "features": [
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-05-27T22:55:00+00:00",
+                                "textDescription": "Rain",
+                                "temperature": { "unitCode": "wmoUnit:degC", "value": 14.5 },
+                                "precipitationLastHour":  { "unitCode": "wmoUnit:mm", "value": 0.8 },
+                                "precipitationLast24Hours": { "unitCode": "wmoUnit:mm", "value": 3.2 }
+                            }
+                        },
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-05-27T23:55:00+00:00",
+                                "textDescription": "Rain",
+                                "temperature": { "unitCode": "wmoUnit:degC", "value": 14.0 },
+                                "precipitationLastHour":  { "unitCode": "wmoUnit:mm", "value": 1.5 },
+                                "precipitationLast24Hours": { "unitCode": "wmoUnit:mm", "value": 4.7 }
+                            }
+                        },
+                        {
+                            "properties": {
+                                "stationName": "Moffett Field",
+                                "timestamp": "2026-05-28T00:55:00+00:00",
+                                "textDescription": "Cloudy",
+                                "temperature": { "unitCode": "wmoUnit:degC", "value": 13.0 },
+                                "precipitationLastHour":  { "unitCode": "wmoUnit:mm", "value": null },
+                                "precipitationLast24Hours": { "unitCode": "wmoUnit:mm", "value": null }
+                            }
+                        }
+                    ]
+                }
+                """.trimIndent()
+
+            val client =
+                HttpClient(MockEngine) {
+                    engine {
+                        addHandler {
+                            respond(
+                                content = response,
+                                status = HttpStatusCode.OK,
+                                headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                            )
+                        }
+                    }
+                    install(ContentNegotiation) {
+                        json(json)
+                    }
+                }
+
+            val api = NwsApi(client, json)
+            val obs = api.getObservations("KNUQ", "2026-05-27T22:00:00Z", "2026-05-28T01:00:00Z")
+
+            assertEquals(3, obs.size)
+            assertEquals(0.8f, obs[0].precipLastHourMm)
+            assertEquals(3.2f, obs[0].precipLast24hMm)
+            assertEquals(1.5f, obs[1].precipLastHourMm)
+            assertEquals(4.7f, obs[1].precipLast24hMm)
+            assertNull(obs[2].precipLastHourMm)
+            assertNull(obs[2].precipLast24hMm)
+            // Sanity: pre-existing temp parsing still works.
+            assertEquals(14.5f, obs[0].temperatureCelsius)
+            assertEquals(14.0f, obs[1].temperatureCelsius)
+        }
 }

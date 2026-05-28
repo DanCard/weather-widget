@@ -106,6 +106,12 @@ class WeatherWidgetWorker
                         ?: (DEFAULT_LAT to DEFAULT_LON)
                 Log.d(TAG, "doWork: Location = $location")
 
+                // THROWAWAY 2026-05-28: one-time NWS precip backfill.
+                // Self-gated by a SharedPref flag — runs at most once per install.
+                // Delete this call and the corresponding code in WeatherRepository /
+                // ObservationRepository (grep THROWAWAY_NWS_PRECIP) after verification.
+                weatherRepository.runOneTimeNwsPrecipBackfillIfNeeded(location.first, location.second)
+
                 // Build per-source fetch context up front so the repository can decide which
                 // sources are due according to ForecastFetchPolicy (charging/screen/active-aware).
                 val appWidgetManager = AppWidgetManager.getInstance(context)

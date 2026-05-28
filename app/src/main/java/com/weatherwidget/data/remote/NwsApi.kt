@@ -195,32 +195,12 @@ class NwsApi
             val jsonObj = json.parseToJsonElement(response).jsonObject
             val features = jsonObj["features"]?.jsonArray ?: return emptyList()
 
+            // Delegate per-feature parsing to the shared parser so historical observations
+            // carry precipitationLastHour / precipitationLast24Hours through to ObservationEntity
+            // — same fields getLatestObservationDetailed already extracts.
             return features.mapNotNull { feature ->
                 val props = feature.jsonObject["properties"]?.jsonObject ?: return@mapNotNull null
-                val timestamp = props["timestamp"]?.jsonPrimitive?.content ?: return@mapNotNull null
-
-                // Temperature is in a value object with unitCode
-                val tempObj = props["temperature"]?.jsonObject
-                val tempValue = tempObj?.get("value")?.jsonPrimitive?.content?.toDoubleOrNull()
-
-                val textDescription = props["textDescription"]?.jsonPrimitive?.content ?: "Unknown"
-
-                val maxTempObj = props["maxTemperatureLast24Hours"]?.jsonObject
-                val maxTempValue = maxTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
-                val minTempObj = props["minTemperatureLast24Hours"]?.jsonObject
-                val minTempValue = minTempObj?.get("value")?.jsonPrimitive?.content?.toFloatOrNull()
-
-                if (tempValue != null) {
-                    Observation(
-                        timestamp = timestamp,
-                        temperatureCelsius = tempValue.toFloat(),
-                        textDescription = textDescription,
-                        maxTempLast24hCelsius = maxTempValue,
-                        minTempLast24hCelsius = minTempValue,
-                    )
-                } else {
-                    null
-                }
+                parseObservationProperties(props, defaultStationName = stationId)
             }
         }
 

@@ -251,6 +251,53 @@ class ObservationRepository @Inject constructor(
         }
     }
 
+    // ============================================================================================
+    // THROWAWAY 2026-05-28: one-time NWS precip backfill.
+    // Existing NWS observation rows in the DB were fetched before the getObservations parser
+    // started extracting precipitationLastHour, so they all carry precipAmountMm = null. This
+    // one-shot calls the 7-day historical backfill to re-fetch and overwrite them with the
+    // new parser's precip values. Gated by a SharedPref flag so it runs at most once per
+    // install. Delete this entire block (function + the WeatherRepository passthrough + the
+    // call site in WeatherWidgetWorker.doWork) after a few NWS refresh cycles confirm new
+    // fetches naturally carry precip. grep for THROWAWAY_NWS_PRECIP to find every touchpoint.
+    // ============================================================================================
+    internal suspend fun runOneTimeNwsPrecipBackfillIfNeeded(
+        latitude: Double,
+        longitude: Double,
+    ) {
+        val prefs = context.getSharedPreferences("weather_prefs", android.content.Context.MODE_PRIVATE)
+        val key = "throwaway_nws_precip_backfill_done_v1"
+        if (prefs.getBoolean(key, false)) return
+        appLogDao.log(
+            "THROWAWAY_NWS_PRECIP_BACKFILL_START",
+            "lat=$latitude lon=$longitude lookbackHours=168",
+            "INFO",
+        )
+        val result = try {
+            backfillRecentNwsObservations(latitude, longitude, lookbackHours = 24L * 7)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            appLogDao.log(
+                "THROWAWAY_NWS_PRECIP_BACKFILL_ERROR",
+                "${e.javaClass.simpleName}: ${e.message}",
+                "ERROR",
+            )
+            null
+        }
+        // Set flag regardless of result so this never re-runs even if the API failed.
+        prefs.edit().putBoolean(key, true).apply()
+        appLogDao.log(
+            "THROWAWAY_NWS_PRECIP_BACKFILL_DONE",
+            "stations=${result?.stationsTried ?: 0} rows=${result?.rowsFetched ?: 0} " +
+                "affected=${result?.affectedDates?.sorted() ?: emptyList<Any>()}",
+            "INFO",
+        )
+    }
+    // ============================================================================================
+    // END THROWAWAY 2026-05-28
+    // ============================================================================================
+
     internal suspend fun backfillRecentNwsObservations(
         latitude: Double,
         longitude: Double,
