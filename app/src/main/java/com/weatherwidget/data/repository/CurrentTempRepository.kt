@@ -68,6 +68,13 @@ class CurrentTempRepository
             private const val CURRENT_TEMP_FRESHNESS_MS = 300_000L // 5 minutes
             private const val MAX_RETRIES = 5
 
+            // Sources ranked 4th or lower in the visible order are "low priority": their current
+            // temp is network-fetched at most once an hour instead of on every charging-loop cycle
+            // (~10 min). This conserves tight free-plan API quotas (e.g. Tomorrow.io ~25 req/hr).
+            // Index is 0-based, so rank >= 3 means the 4th source onward.
+            private const val LOW_PRIORITY_RANK_THRESHOLD = 3
+            private const val LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS = 3_600_000L // 60 minutes
+
             fun appendHistoricalPoi(poiString: String, latitude: Double, longitude: Double, name: String): String {
                 val poiStrings = poiString.split(";").filter { it.isNotEmpty() }.toMutableList()
                 poiStrings.removeIf { it.contains("|$latitude|$longitude") }
@@ -123,17 +130,42 @@ class CurrentTempRepository
                     
                     recordHistoricalPoi(latitude, longitude, locationName)
                     val enabledSources = widgetStateManager.getVisibleSourcesOrder()
-                    val targetSources = (source?.let { requested ->
+                    // Rank = position in the visible order; used to throttle low-priority sources.
+                    val rankBySource = enabledSources.withIndex().associate { (index, src) -> src to index }
+                    // An explicit single-source request (user toggled to it) or a forced refresh
+                    // bypasses the low-priority throttle so the displayed source stays fresh.
+                    val bypassThrottle = forceRefresh || source != null
+                    val candidateSources = (source?.let { requested ->
                         if (requested in enabledSources) listOf(requested) else emptyList()
                     } ?: enabledSources)
                         .filter { it != WeatherSource.GENERIC_GAP }
                         .distinct()
-                        
+
+                    val targetSources = candidateSources.filter { src ->
+                        val rank = rankBySource[src] ?: 0
+                        val throttled = !bypassThrottle &&
+                            rank >= LOW_PRIORITY_RANK_THRESHOLD &&
+                            !widgetStateManager.shouldFetchCurrentTempForSource(src.id, LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS)
+                        !throttled
+                    }
+                    val skipped = candidateSources - targetSources.toSet()
+                    if (skipped.isNotEmpty()) {
+                        appLogDao.log(
+                            "CURR_FETCH_THROTTLE_SKIP",
+                            "reason=$reason throttled=${skipped.joinToString { "${it.id}@rank${rankBySource[it]}" }} intervalMs=$LOW_PRIORITY_CURRENT_TEMP_INTERVAL_MS",
+                            "INFO",
+                        )
+                    }
+
                     appLogDao.log("CURR_FETCH_START", "reason=$reason targets=${targetSources.joinToString { it.id }} thread=${Thread.currentThread().name}")
                     
                     var successfulSourceCount = 0
                     targetSources.forEach { targetSource ->
                         val sourceStartMs = SystemClock.elapsedRealtime()
+                        // Record the attempt up front so the low-priority throttle window starts
+                        // even when the fetch fails (e.g. a 429) — this prevents rapid retries
+                        // from burning a tight quota. Only consulted for rank >= 4 sources.
+                        widgetStateManager.markCurrentTempFetched(targetSource.id)
                         try {
                             val reading = fetchFromSource(targetSource, latitude, longitude)
                             val sourceDurationMs = SystemClock.elapsedRealtime() - sourceStartMs

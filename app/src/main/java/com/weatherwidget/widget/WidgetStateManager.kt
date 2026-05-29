@@ -87,6 +87,7 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_DELTA_LAT_PREFIX = "widget_current_temp_delta_lat_"
             private const val KEY_CURRENT_TEMP_DELTA_LON_PREFIX = "widget_current_temp_delta_lon_"
             private const val KEY_MISSING_DATA_REFRESH_PREFIX = "widget_missing_data_refresh_"
+            private const val KEY_CURRENT_TEMP_FETCH_PREFIX = "current_temp_fetch_"
             private const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
 
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
@@ -407,6 +408,22 @@ class WidgetStateManager
         ) {
             val key = "$KEY_MISSING_DATA_REFRESH_PREFIX${widgetId}_${sourceId}_$refreshType"
             prefs.edit().putLong(key, System.currentTimeMillis()).apply()
+        }
+
+        /**
+         * Per-source throttle for current-temp network fetches. Used to rate-limit low-priority
+         * sources (ranked 4th or lower) whose APIs have tight free-plan quotas — see
+         * `CurrentTempRepository`. Returns true if no fetch has been recorded for this source
+         * within [minIntervalMs].
+         */
+        fun shouldFetchCurrentTempForSource(sourceId: String, minIntervalMs: Long): Boolean {
+            val key = "$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId"
+            val lastFetched = prefs.getLong(key, 0L)
+            return System.currentTimeMillis() - lastFetched >= minIntervalMs
+        }
+
+        fun markCurrentTempFetched(sourceId: String) {
+            prefs.edit().putLong("$KEY_CURRENT_TEMP_FETCH_PREFIX$sourceId", System.currentTimeMillis()).apply()
         }
 
         fun shouldRefreshMissingActuals(widgetId: Int, sourceId: String, cooldownMs: Long): Boolean =

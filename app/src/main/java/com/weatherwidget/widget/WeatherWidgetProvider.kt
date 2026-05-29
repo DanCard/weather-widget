@@ -625,10 +625,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
         intent: Intent,
     ) {
         val uiOnly = intent.getBooleanExtra(WidgetActions.EXTRA_UI_ONLY, false)
-        // THROWAWAY_2026-05-29: temporary force-fetch hook for verifying Tomorrow.io rain actuals.
-        // Bypasses the staleness gate when broadcast with `--ez force_refresh true`. REVERT.
-        val forceFetch = intent.getBooleanExtra("force_refresh", false)
-        Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly, forceFetch=$forceFetch)")
+        Log.d(TAG, "onReceive: Refresh triggered (uiOnly=$uiOnly)")
 
         launchAsync {
             UIUpdateScheduler(context).scheduleNextUpdate()
@@ -648,7 +645,7 @@ class WeatherWidgetProvider : AppWidgetProvider() {
                     "isDataStale=$isDataStale $freshnessSummary",
                 "INFO",
             )
-            if (!forceFetch && (uiOnly || !WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale))) {
+            if (uiOnly || !WidgetRefreshPolicy.shouldTriggerNetworkFetchAfterRefresh(uiOnly, isDataStale)) {
                 triggerUiOnlyUpdate(context, reason = "refresh_action_ui_only")
                 Log.d(TAG, "onReceive: UI-only refresh path (uiOnly=$uiOnly, stale=$isDataStale)")
             } else {
