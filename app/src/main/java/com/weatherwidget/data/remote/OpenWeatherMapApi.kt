@@ -26,8 +26,11 @@ class OpenWeatherMapApi
     constructor(
         private val httpClient: HttpClient,
         private val json: Json,
-        private val apiKey: String = BuildConfig.OPEN_WEATHER_MAP_API_KEY,
+        private val widgetStateManager: WidgetStateManager,
     ) {
+        private val apiKey: String
+            get() = widgetStateManager.getApiKey(WeatherSource.OPEN_WEATHER_MAP) ?: BuildConfig.OPEN_WEATHER_MAP_API_KEY
+
         companion object {
             private const val BASE_URL = "https://api.openweathermap.org/data/3.0"
         }

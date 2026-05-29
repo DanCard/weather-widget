@@ -24,6 +24,7 @@ class TomorrowIoApi
     constructor(
         private val httpClient: HttpClient,
         private val json: Json,
+        private val widgetStateManager: WidgetStateManager,
     ) {
         companion object {
             private const val BASE_URL = "https://api.tomorrow.io/v4/timelines"
@@ -33,7 +34,7 @@ class TomorrowIoApi
             lat: Double,
             lon: Double,
         ): ForecastResult {
-            val apiKey = BuildConfig.TOMORROW_IO_API_KEY
+            val apiKey = widgetStateManager.getApiKey(WeatherSource.TOMORROW_IO) ?: BuildConfig.TOMORROW_IO_API_KEY
             if (apiKey.isBlank()) {
                 throw IllegalStateException("TOMORROW_IO_API_KEY is missing.")
             }

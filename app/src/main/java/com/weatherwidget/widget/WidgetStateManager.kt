@@ -90,6 +90,8 @@ class WidgetStateManager
             private const val KEY_CURRENT_TEMP_FETCH_PREFIX = "current_temp_fetch_"
             private const val KEY_DAILY_COLUMN_COUNT_PREFIX = "widget_daily_col_count_"
 
+            private const val KEY_API_KEY_PREFIX = "api_key_"
+
             const val MIN_DATE_OFFSET = -30 // Last 30 days of history
             const val MAX_DATE_OFFSET = 14 // 14 days forward
             const val MIN_HOURLY_OFFSET = -720 // 30 days lookback
@@ -146,6 +148,18 @@ class WidgetStateManager
 
         fun setDailyColumnCount(widgetId: Int, count: Int) {
             prefs.edit().putInt("$KEY_DAILY_COLUMN_COUNT_PREFIX$widgetId", count).apply()
+        }
+
+        fun getApiKey(source: WeatherSource): String? {
+            return prefs.getString("$KEY_API_KEY_PREFIX${source.name}", null)
+        }
+
+        fun setApiKey(source: WeatherSource, apiKey: String?) {
+            if (apiKey.isNullOrBlank()) {
+                prefs.edit().remove("$KEY_API_KEY_PREFIX${source.name}").apply()
+            } else {
+                prefs.edit().putString("$KEY_API_KEY_PREFIX${source.name}", apiKey).apply()
+            }
         }
 
         fun navigateLeft(widgetId: Int): Int {

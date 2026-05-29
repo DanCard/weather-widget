@@ -30,6 +30,7 @@ private const val MM_PER_INCH = 25.4f
 class SilurianApi @Inject constructor(
     private val httpClient: HttpClient,
     private val json: Json,
+    private val widgetStateManager: WidgetStateManager,
 ) {
     private var apiKeyOverride: String? = null
 
@@ -47,7 +48,7 @@ suspend fun getForecast(
         lon: Double,
         days: Int = 14,
     ): ForecastResult = coroutineScope {
-        val apiKey = apiKeyOverride ?: BuildConfig.SILURIAN_API_KEY
+        val apiKey = apiKeyOverride ?: widgetStateManager.getApiKey(WeatherSource.SILURIAN) ?: BuildConfig.SILURIAN_API_KEY
         if (apiKey.isBlank()) {
             throw IllegalStateException("SILURIAN_API_KEY is missing. Add it to local.properties or SILURIAN_API_KEY env var.")
         }
