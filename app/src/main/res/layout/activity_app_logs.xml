@@ -74,6 +74,21 @@
             android:minWidth="0dp" />
 
         <Button
+            android:id="@+id/share_app_logs_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:text="@string/app_logs_share"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/rounded_button_gray"
+            android:textSize="11sp"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:minWidth="0dp" />
+
+        <Button
             android:id="@+id/clear_app_logs_button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

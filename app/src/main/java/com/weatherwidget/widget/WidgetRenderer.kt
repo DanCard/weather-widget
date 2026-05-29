@@ -45,6 +45,31 @@ object WidgetRenderer {
         appWidgetManager.updateAppWidget(appWidgetId, views)
     }
 
+    /**
+     * Minimal fallback shown when a widget update throws unexpectedly. Without this, a crash mid-update
+     * leaves the "Loading..." placeholder on the home screen indefinitely (see [updateWidgetLoading]).
+     * Tapping the widget retriggers an update, so the "Tap to refresh" hint gives the user a recovery path.
+     * Kept deliberately simple — it must never itself throw.
+     */
+    fun updateWidgetError(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+    ) {
+        try {
+            val views = RemoteViews(context.packageName, R.layout.widget_weather)
+            views.setViewVisibility(R.id.text_container, View.VISIBLE)
+            views.setViewVisibility(R.id.graph_view, View.GONE)
+            views.setTextViewText(R.id.day2_label, "Today")
+            views.setTextViewText(R.id.day2_high, "--°")
+            views.setTextViewText(R.id.day2_low, "Tap to refresh")
+            Log.d(TAG, "WIDGET_PAINT widget=$appWidgetId caller=error state=error thread=${Thread.currentThread().name}")
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        } catch (e: Exception) {
+            Log.e(TAG, "updateWidgetError failed for widget=$appWidgetId", e)
+        }
+    }
+
     suspend fun updateWidgetWithData(
         context: Context,
         appWidgetManager: AppWidgetManager,

@@ -267,7 +267,8 @@ class ObservationRepository @Inject constructor(
         )
 
         val gridPoint = runCatching { nwsApi.getGridPoint(latitude, longitude) }.getOrNull()
-        if (gridPoint?.observationStationsUrl.isNullOrBlank()) {
+        val observationStationsUrl = gridPoint?.observationStationsUrl
+        if (observationStationsUrl.isNullOrBlank()) {
             appLogDao.log(
                 "OBS_HOURLY_BACKFILL_FAIL",
                 "lat=$latitude lon=$longitude reason=missing_gridpoint_or_stations_url",
@@ -276,7 +277,8 @@ class ObservationRepository @Inject constructor(
             return RecentBackfillResult(stationsTried = 0, rowsFetched = 0, affectedDates = emptySet())
         }
 
-        val stations = getSortedObservationStations(gridPoint!!.observationStationsUrl!!)
+        // Smart-cast to non-null after the isNullOrBlank guard above (was previously two !! assertions).
+        val stations = getSortedObservationStations(observationStationsUrl)
         if (stations.isEmpty()) {
             appLogDao.log(
                 "OBS_HOURLY_BACKFILL_FAIL",
@@ -581,6 +583,7 @@ class ObservationRepository @Inject constructor(
 
         val dedupedNwsObs = nwsStationObs
             .groupBy { it.stationId }
+            // groupBy guarantees each value list is non-empty, so maxByOrNull can never be null here.
             .mapValues { it.value.maxByOrNull { it.timestamp }!! }
             .values
             .toList()

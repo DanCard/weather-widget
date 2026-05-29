@@ -13,6 +13,19 @@ plugins {
     alias(libs.plugins.ktlint)
 }
 
+// Apply Firebase (Crashlytics) plugins only when google-services.json is present, so the everyday
+// build works without it. Drop the file (from your Firebase project) into app/ to enable crash upload.
+val googleServicesJson = file("google-services.json")
+if (googleServicesJson.exists()) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+} else {
+    logger.lifecycle(
+        "Firebase Crashlytics disabled: app/google-services.json not found. " +
+            "Crashes are still captured locally (app_logs / Share logs); add the file to enable upload.",
+    )
+}
+
 val localProperties = Properties()
 val localPropertiesFile = rootProject.file("local.properties")
 if (localPropertiesFile.exists()) {
@@ -46,6 +59,21 @@ val tomorrowIoApiKey =
     (
         localProperties.getProperty("TOMORROW_IO_API_KEY")
             ?: System.getenv("TOMORROW_IO_API_KEY")
+            ?: ""
+    )
+
+// Release signing secrets are read from local.properties or the environment (never committed).
+// They are empty for debug-only builds; `assembleRelease` requires them to be set.
+val releaseStorePassword =
+    (
+        localProperties.getProperty("RELEASE_STORE_PASSWORD")
+            ?: System.getenv("RELEASE_STORE_PASSWORD")
+            ?: ""
+    )
+val releaseKeyPassword =
+    (
+        localProperties.getProperty("RELEASE_KEY_PASSWORD")
+            ?: System.getenv("RELEASE_KEY_PASSWORD")
             ?: ""
     )
 
@@ -102,9 +130,9 @@ android {
     signingConfigs {
         create("release") {
             storeFile = rootProject.file("release.keystore")
-            storePassword = "password123"
+            storePassword = releaseStorePassword
             keyAlias = "weatherwidget"
-            keyPassword = "password123"
+            keyPassword = releaseKeyPassword
         }
     }
 
@@ -311,6 +339,13 @@ dependencies {
 
     // Google Play Services
     implementation(libs.play.services.location)
+
+    // Firebase Crashlytics (push crash reporting). The libraries compile/run without
+    // google-services.json — Firebase simply no-ops init — but only upload once the file is added
+    // and the plugins above are applied. BoM keeps the artifact versions aligned.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.crashlytics)
+    implementation(libs.firebase.analytics)
 
     // Glide for GIF support in feature tour
     implementation("com.github.bumptech.glide:glide:4.16.0")

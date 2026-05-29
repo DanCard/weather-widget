@@ -173,32 +173,45 @@ class WeatherWidgetProvider : AppWidgetProvider() {
             var staleCheckMs = 0L
             var queryResult: StartupQueryResult? = null
 
-            if (latestWeather == null) {
-                for (appWidgetId in filteredIds) {
-                    WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
-                }
-                triggerImmediateUpdate(context, reason = "on_update_no_data")
-            } else {
-                // Immediate render of loading state to provide instant feedback
-                for (appWidgetId in filteredIds) {
-                    WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
-                }
+            try {
+                if (latestWeather == null) {
+                    for (appWidgetId in filteredIds) {
+                        WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                    }
+                    triggerImmediateUpdate(context, reason = "on_update_no_data")
+                } else {
+                    // Immediate render of loading state to provide instant feedback
+                    for (appWidgetId in filteredIds) {
+                        WidgetRenderer.updateWidgetLoading(context, appWidgetManager, appWidgetId)
+                    }
 
-                queryResult = loadStartupData(
-                    forecastDao = forecastDao,
-                    hourlyDao = hourlyDao,
-                    latestWeather = latestWeather,
-                    activeSourceList = activeSourceList,
-                    needsDailyData = needsDailyData,
-                )
-                renderStartupWidgets(
-                    context = context,
-                    appWidgetManager = appWidgetManager,
-                    filteredIds = filteredIds,
-                    result = queryResult,
-                    startupToken = startupToken,
-                )
-                staleCheckMs = checkStalenessAndFetch(context)
+                    queryResult = loadStartupData(
+                        forecastDao = forecastDao,
+                        hourlyDao = hourlyDao,
+                        latestWeather = latestWeather,
+                        activeSourceList = activeSourceList,
+                        needsDailyData = needsDailyData,
+                    )
+                    renderStartupWidgets(
+                        context = context,
+                        appWidgetManager = appWidgetManager,
+                        filteredIds = filteredIds,
+                        result = queryResult,
+                        startupToken = startupToken,
+                    )
+                    staleCheckMs = checkStalenessAndFetch(context)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A throw here would otherwise leave every widget stuck on the "Loading..." placeholder
+                // painted above. Repaint a recoverable error state, then rethrow so launchAsync logs it
+                // (and Crashlytics records it once wired).
+                Log.e(TAG, "onUpdate render failed; showing error fallback for ${filteredIds.size} widgets", e)
+                for (appWidgetId in filteredIds) {
+                    WidgetRenderer.updateWidgetError(context, appWidgetManager, appWidgetId)
+                }
+                throw e
             }
 
             schedulePeriodicUpdate(context)

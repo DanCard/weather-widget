@@ -92,6 +92,10 @@
     <string name="app_logs_force_refresh">Force</string>
     <string name="app_logs_refreshing_toast">Current temp refresh queued</string>
     <string name="app_logs_cleared">Logs cleared</string>
+    <string name="app_logs_share">Share</string>
+    <string name="app_logs_share_chooser">Share logs</string>
+    <string name="app_logs_share_empty">No logs to share</string>
+    <string name="app_logs_share_subject">Weather Widget logs</string>
     <string name="no_app_logs">No app logs yet.</string>
     <string name="app_logs_count">Showing %1$d log entries</string>
     <string name="app_logs_count_filtered">Showing %1$d log entries (%2$s)</string>
