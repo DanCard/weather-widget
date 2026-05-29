@@ -44,7 +44,11 @@ class TomorrowIoApi
 
             val hourlyHttpResponse = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")
-                parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationIntensity,cloudCover")
+                // precipitationAccumulation = mm/in that fell during the interval (the actual
+                // amount). precipitationIntensity is an instantaneous rate sampled at the hour
+                // boundary, so it reads ~0 for hours where rain fell between samples — wrong for
+                // a per-hour amount. Use accumulation for precipAmountMm.
+                parameter("fields", "temperature,weatherCode,precipitationProbability,precipitationAccumulation,cloudCover")
                 parameter("timesteps", "1h")
                 parameter("units", "imperial")
                 parameter("apikey", apiKey)
@@ -63,7 +67,7 @@ class TomorrowIoApi
 
             val dailyHttpResponse = httpClient.get(BASE_URL) {
                 parameter("location", "$lat,$lon")
-                parameter("fields", "temperatureMax,temperatureMin,weatherCode,precipitationProbability,precipitationIntensity")
+                parameter("fields", "temperatureMax,temperatureMin,weatherCode,precipitationProbability,precipitationAccumulation")
                 parameter("timesteps", "1d")
                 parameter("units", "imperial")
                 parameter("apikey", apiKey)
@@ -94,14 +98,14 @@ class TomorrowIoApi
                 val temp = values["temperature"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
                 val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
                 val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
-                val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull
+                val precipAccumIn = values["precipitationAccumulation"]?.jsonPrimitive?.floatOrNull
 
                 HourlyForecast(
                     dateTime = epochMs,
                     temperature = temp,
                     condition = weatherCodeToCondition(code),
                     precipProbability = precipProb,
-                    precipAmountMm = precipIntensity?.let { it * 25.4f },
+                    precipAmountMm = precipAccumIn?.let { it * 25.4f },
                     cloudCover = values["cloudCover"]?.jsonPrimitive?.floatOrNull?.roundToInt()
                 )
             }
@@ -116,7 +120,7 @@ class TomorrowIoApi
                 val low = values["temperatureMin"]?.jsonPrimitive?.floatOrNull ?: Float.NaN
                 val code = values["weatherCode"]?.jsonPrimitive?.intOrNull ?: 1000
                 val precipProb = values["precipitationProbability"]?.jsonPrimitive?.intOrNull
-                val precipIntensity = values["precipitationIntensity"]?.jsonPrimitive?.floatOrNull
+                val precipAccumIn = values["precipitationAccumulation"]?.jsonPrimitive?.floatOrNull
 
                 DailyForecast(
                     date = date,
@@ -125,7 +129,7 @@ class TomorrowIoApi
                     condition = weatherCodeToCondition(code),
                     iconToken = code.toString(),
                     precipProbability = precipProb,
-                    precipAmountMm = precipIntensity?.let { it * 25.4f }
+                    precipAmountMm = precipAccumIn?.let { it * 25.4f }
                 )
             }
 

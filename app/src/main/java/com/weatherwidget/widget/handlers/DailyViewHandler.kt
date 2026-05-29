@@ -233,7 +233,7 @@ object DailyViewHandler : WidgetViewHandler {
                     val isToday = date == today
 
                     // For Today, we MUST preserve the preferred source even if incomplete (e.g. NWS evening drop),
-                    // because DailyViewLogic/DailyActualsEstimator have specialized recovery for Today.
+                    // because DailyViewLogic / DailyActualsEstimator have specialized recovery for Today.
                     // For other days, we can fall back to climate normals if the preferred source is missing temps.
                     if (preferred != null && !isToday && (preferred.highTemp == null || preferred.lowTemp == null)) {
                         items.find { it.source == WeatherSource.GENERIC_GAP.id && it.highTemp != null && it.lowTemp != null } ?: preferred

@@ -22,6 +22,7 @@ class WeatherSourceHistoricalActualsTest {
             WeatherSource.OPEN_METEO,     // past_days reanalysis archive
             WeatherSource.WEATHER_API,    // /history.json
             WeatherSource.SILURIAN,       // /history/hourly
+            WeatherSource.TOMORROW_IO,    // rolling <24h window via /v4/timelines (fetch capped at 23h back)
         )
         val actualTrue = WeatherSource.values().filter { it.providesHistoricalActuals }.toSet()
         assertEquals(
@@ -36,8 +37,9 @@ class WeatherSourceHistoricalActualsTest {
     @Test
     fun `forecast-only sources do not provide historical actuals`() {
         // No history endpoint / archive — their past hours are just forecast.
+        // (Tomorrow.io is NOT here: its fetch is capped at 23h back, so its past hours are
+        // genuinely-recent data, not stale multi-day forecast — see WeatherSource doc.)
         assertEquals(false, WeatherSource.VISUAL_CROSSING.providesHistoricalActuals)
         assertEquals(false, WeatherSource.OPEN_WEATHER_MAP.providesHistoricalActuals)
-        assertEquals(false, WeatherSource.TOMORROW_IO.providesHistoricalActuals)
     }
 }

@@ -15,10 +15,17 @@ enum class WeatherSource(
      * observations (NWS), a dedicated history endpoint (Silurian `/history/hourly`,
      * WeatherAPI `/history.json`), or a reanalysis-backed archive (Open-Meteo `past_days`).
      *
-     * Sources without one (Visual Crossing, OpenWeatherMap, Tomorrow.io beyond its ~24h
-     * limit) only have a forecast that we slice into the past. For those we must NOT persist
-     * past-day precip as a measured "actual" — see `saveHistoricalActuals`. (Temperature
-     * backfill is unaffected; this flag governs measured-precip provenance only.)
+     * Sources without one (Visual Crossing, OpenWeatherMap) only have a forecast that we slice
+     * into the past. For those we must NOT persist past-day precip as a measured "actual" — see
+     * `saveHistoricalActuals`. (Temperature backfill is unaffected; this flag governs
+     * measured-precip provenance only.)
+     *
+     * Tomorrow.io is a special case: its dedicated `/v4/historical` endpoint is access-denied on
+     * our plan, but its `/v4/timelines` fetch is hard-capped at `minusHours(23)` (see
+     * `TomorrowIoApi`). Because it can therefore only ever return past hours that are <24h old —
+     * genuinely-recent nowcast/analysis data, never stale multi-day forecast — backfilling those
+     * hours as actuals is NOT the forecast-as-actual bug that VC/OWM would hit. So it is `true`.
+     * This safety hinges on the 23h cap: do not widen `TomorrowIoApi`'s startTime window.
      */
     val providesHistoricalActuals: Boolean = false,
 ) {
@@ -66,6 +73,9 @@ enum class WeatherSource(
         id = "TOMORROW_IO",
         displayName = "Tomorrow.io",
         shortDisplayName = "Tmrw",
+        // Rolling <24h actuals window only (no multi-day archive); safe because the fetch is
+        // capped at 23h back — see the providesHistoricalActuals doc above.
+        providesHistoricalActuals = true,
     ),
     ;
 

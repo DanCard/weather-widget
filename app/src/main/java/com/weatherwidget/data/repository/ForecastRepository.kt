@@ -807,11 +807,13 @@ class ForecastRepository
         ) {
             val now = System.currentTimeMillis()
             val fetchedAt = System.currentTimeMillis()
-            // Only persist past-day precip as a measured "actual" for sources with a genuine
-            // historical product (obs / history endpoint / reanalysis archive). Forecast-only
-            // sources (Visual Crossing, OpenWeatherMap, Tomorrow.io) would otherwise present
-            // their own past forecast as a measurement — the same provenance bug we removed for
-            // NWS. Temperature backfill is still kept; only measured precip is gated.
+            // Only persist past-day precip as a measured "actual" for sources whose backfilled
+            // past hours are genuine actuals — a real history product (obs / history endpoint /
+            // reanalysis archive) or, for Tomorrow.io, a fetch window capped at <24h so its past
+            // hours are recent nowcast/analysis rather than stale forecast. Forecast-only sources
+            // (Visual Crossing, OpenWeatherMap) would otherwise present their own past forecast as
+            // a measurement — the same provenance bug we removed for NWS. Temperature backfill is
+            // still kept; only measured precip is gated.
             val keepMeasuredPrecip = WeatherSource.fromId(sourceId).providesHistoricalActuals
 
             val historicalObs = hourlyData

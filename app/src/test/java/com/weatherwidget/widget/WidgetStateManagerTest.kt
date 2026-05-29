@@ -191,7 +191,10 @@ class WidgetStateManagerTest {
     }
 
     @Test
-    fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install`() {
+    fun `getVisibleSourcesOrder uses tomorrow io default order on fresh install (debug build)`() {
+        // Unit tests run against the debug variant (BuildConfig.DEBUG = true), where Tomorrow.io
+        // IS in the default set. Release builds default to "NWS,OPEN_METEO,SILURIAN" (Tomorrow.io
+        // off by default to spare its tight free-plan quota) — see DEFAULT_VISIBLE_SOURCES.
         val context = ApplicationProvider.getApplicationContext<Context>()
         val freshPrefs = context.getSharedPreferences("fresh_test_prefs", Context.MODE_PRIVATE)
         freshPrefs.edit().clear().apply()
@@ -203,9 +206,9 @@ class WidgetStateManagerTest {
         assertEquals(
             listOf(
                 WeatherSource.NWS,
-                WeatherSource.TOMORROW_IO,
                 WeatherSource.OPEN_METEO,
                 WeatherSource.SILURIAN,
+                WeatherSource.TOMORROW_IO,
             ),
             sources
         )
