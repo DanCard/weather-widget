@@ -25,6 +25,7 @@ class WeatherApi
     constructor(
         private val httpClient: HttpClient,
         private val json: Json,
+        private val widgetStateManager: WidgetStateManager,
     ) {
         companion object {
             private const val BASE_URL = "https://api.weatherapi.com/v1"
@@ -35,7 +36,7 @@ class WeatherApi
             lon: Double,
             days: Int = 14,
         ): ForecastResult {
-            val apiKey = BuildConfig.WEATHER_API_KEY
+            val apiKey = widgetStateManager.getApiKey(WeatherSource.WEATHER_API) ?: BuildConfig.WEATHER_API_KEY
             if (apiKey.isBlank()) {
                 throw IllegalStateException("WEATHER_API_KEY is missing. Add it to local.properties or WEATHER_API_KEY env var.")
             }
